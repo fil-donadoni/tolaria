@@ -28313,4 +28313,437 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #8452, CR 603.3c. The same board with a castable Serra Angel as the only card in hand: looting it away for a Grizzly Bears is the blunder.",
     },
+    // Eldrazi Ramp, the modern metagame's level-2 rows
+    // (`docs/agents/modern-metagame-bot-level-2.md`, issue #9690).
+    {
+        label: "saga: Urza's Saga makes the Construct before chapter III sacrifices it",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DRAW",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Urza's Saga",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { lore: 1 },
+                },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+            ],
+        },
+        // Into precombat main (chapter II triggers), resolve the grant, then
+        // the rest of the turn, the opponent's turn and the next upkeep and
+        // draw: the next precombat main puts the third lore counter on and
+        // chapter III on the stack.
+        setup: [
+            { kind: "pass", seat: "me" },
+            { kind: "pass", seat: "opp" },
+            { kind: "resolve-top" },
+            { kind: "pass", seat: "me" },
+            ...PASSES_TO_OWN_NEXT_MAIN,
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Urza's Saga",
+                    ability: "urzas-saga-construct",
+                },
+            ],
+        },
+        note: "Issue #9690, CR 714.3c / 714.4. Chapter III on the stack is the last window: the Saga stays while its chapter ability is on the stack, then it is sacrificed. The granted {2}, {T} ability is instant speed, so a pass in any earlier window (the main phase that granted it, its own end step) is no blunder — it can still be made later. Two Plains pay the {2}.",
+    },
+    {
+        label: "saga: Urza's Saga never leaves the mana idle as chapter III resolves",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DRAW",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Urza's Saga",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { lore: 1 },
+                },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        setup: [
+            { kind: "pass", seat: "me" },
+            { kind: "pass", seat: "opp" },
+            { kind: "resolve-top" },
+            { kind: "pass", seat: "me" },
+            ...PASSES_TO_OWN_NEXT_MAIN,
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "pass" }],
+        },
+        note: "Issue #9690, CR 714.4. The same last window on a contested board: an Ornithopter makes the Construct a 2/2 facing the opponent's Grizzly Bears. Passing lets chapter III resolve and the Saga go with no token made and the two Plains unspent.",
+    },
+    {
+        label: "kicker: Sowing Mycospawn is cast kicked when the kicker is affordable",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 0,
+            cards: [
+                { name: "Forest", owner: "me", zone: "battlefield", count: 4 },
+                { name: "Eldrazi Temple", owner: "me", zone: "battlefield" },
+                { name: "Sowing Mycospawn", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "library", count: 8 },
+                { name: "Plains", owner: "opp", zone: "battlefield", count: 2 },
+                { name: "Mishra's Factory", owner: "opp", zone: "battlefield" },
+                { name: "Plains", owner: "opp", zone: "library", count: 8 },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE: no matcher field reads the kicker, the Verdeloth
+        // entry's reason.
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                (move.kickerPayments?.kicker ?? 0) > 0,
+            describe:
+                "casts Sowing Mycospawn kicked: the land fetch and the exile of an opposing land",
+        },
+        note: "Issue #9690, CR 702.33a. Four Forests and an Eldrazi Temple ({C}{C} for a colorless Eldrazi spell; Devoid makes it one) pay {3}{G} plus the {1}{C} kicker: the kicked cast adds the exile of the opponent's Mishra's Factory to the same land fetch.",
+    },
+    {
+        label: "kicker: Sowing Mycospawn's kicked exile never takes its own land",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 0,
+            cards: [
+                { name: "Forest", owner: "me", zone: "battlefield", count: 4 },
+                { name: "Eldrazi Temple", owner: "me", zone: "battlefield" },
+                { name: "Sowing Mycospawn", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "library", count: 8 },
+                { name: "Plains", owner: "opp", zone: "battlefield", count: 2 },
+                { name: "Mishra's Factory", owner: "opp", zone: "battlefield" },
+                { name: "Plains", owner: "opp", zone: "library", count: 8 },
+            ],
+        },
+        setup: [
+            { kind: "cast", card: "Sowing Mycospawn", kickers: ["kicker"] },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "submit-target", target: "Forest" },
+                { kind: "submit-target", target: "Eldrazi Temple" },
+            ],
+        },
+        note: "Issue #9690, CR 702.33a. The kicked cast's exile trigger takes its target as it goes on the stack: any of the Bot's own (tapped) lands is legal and the blunder.",
+    },
+    {
+        label: "look and keep: Malevolent Rumble keeps the threat when short of threats",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 0,
+            cards: [
+                { name: "Forest", owner: "me", zone: "battlefield", count: 4 },
+                { name: "Malevolent Rumble", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "library", position: 1 },
+                {
+                    name: "Erhnam Djinn",
+                    owner: "me",
+                    zone: "library",
+                    position: 2,
+                },
+                { name: "Forest", owner: "me", zone: "library", position: 3 },
+                { name: "Forest", owner: "me", zone: "library", position: 4 },
+                { name: "Forest", owner: "me", zone: "library", count: 8 },
+                { name: "Plains", owner: "opp", zone: "library", count: 8 },
+            ],
+        },
+        setup: [
+            { kind: "cast", card: "Malevolent Rumble" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", cards: ["Erhnam Djinn"] }],
+        },
+        note: "Issue #9690. No threat in hand or in play, the four revealed cards three Forests and an Erhnam Djinn the Forests cast next turn: the Djinn goes to hand.",
+    },
+    {
+        label: "look and keep: Malevolent Rumble never keeps a land over the threat with lands to spare",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 0,
+            cards: [
+                { name: "Forest", owner: "me", zone: "battlefield", count: 7 },
+                { name: "Malevolent Rumble", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "library", position: 1 },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "library",
+                    position: 2,
+                },
+                { name: "Forest", owner: "me", zone: "library", position: 3 },
+                { name: "Forest", owner: "me", zone: "library", position: 4 },
+                { name: "Forest", owner: "me", zone: "library", count: 8 },
+                { name: "Plains", owner: "opp", zone: "library", count: 8 },
+            ],
+        },
+        setup: [
+            { kind: "cast", card: "Malevolent Rumble" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "resolution-choice", cards: ["Forest"] }],
+        },
+        note: "Issue #9690. Seven Forests in play, the reveal three Forests and a Craw Wurm they cast next turn: an eighth land is the blunder.",
+    },
+    {
+        label: "graveyard discount: Emrakul, the Promised End is cast when the graveyard covers its cost",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 7,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Forest", owner: "me", zone: "battlefield", count: 7 },
+                {
+                    name: "Emrakul, the Promised End",
+                    owner: "me",
+                    zone: "hand",
+                },
+                { name: "Forest", owner: "me", zone: "graveyard" },
+                { name: "Hill Giant", owner: "me", zone: "graveyard" },
+                { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
+                { name: "Malevolent Rumble", owner: "me", zone: "graveyard" },
+                { name: "Sol Ring", owner: "me", zone: "graveyard" },
+                { name: "Urza's Saga", owner: "me", zone: "graveyard" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Emrakul, the Promised End" }],
+        },
+        note: "Issue #9690. Six card types in the graveyard (land, creature, instant, sorcery, artifact, enchantment) take {6} off the {13}: seven Forests cast it this turn.",
+    },
+    {
+        label: "graveyard discount: Emrakul, the Promised End is not passed over for a lesser play",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 7,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Forest", owner: "me", zone: "battlefield", count: 7 },
+                {
+                    name: "Emrakul, the Promised End",
+                    owner: "me",
+                    zone: "hand",
+                },
+                { name: "Craw Wurm", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "graveyard" },
+                { name: "Hill Giant", owner: "me", zone: "graveyard" },
+                { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
+                { name: "Malevolent Rumble", owner: "me", zone: "graveyard" },
+                { name: "Sol Ring", owner: "me", zone: "graveyard" },
+                { name: "Urza's Saga", owner: "me", zone: "graveyard" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Craw Wurm" }],
+        },
+        note: "Issue #9690. The same seven Forests with a Craw Wurm beside it: the 6/4 spends the mana the 13/13 needed.",
+    },
+    {
+        label: "phyrexian mana: Dismember pays life to kill the attacker that beats the Bot",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+            activePlayer: "opp",
+            life: { me: 9, opp: 20 },
+            cards: [
+                { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Dismember", owner: "me", zone: "hand" },
+                {
+                    name: "Shivan Dragon",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 6,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Shivan Dragon"],
+                haltForDefenderResponse: true,
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Dismember",
+                    target: "Shivan Dragon",
+                },
+            ],
+        },
+        note: "Issue #9690, CR 107.4f. A Shivan Dragon attacks the Bot on 9 with six Mountains to pump it; no {B}, so both {B/P} cost 2 life each: {1} and 4 life kill the 5/5.",
+    },
+    {
+        label: "phyrexian mana: Dismember never pays the life to lethal",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+            activePlayer: "opp",
+            life: { me: 4, opp: 20 },
+            cards: [
+                { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Dismember", owner: "me", zone: "hand" },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 6,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Hill Giant"],
+                haltForDefenderResponse: true,
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Dismember" }],
+        },
+        note: "Issue #9690, CR 119.4. On 4 life with no {B}, the 4-life cast is legal and enumerated, and it loses the game; the attacking Hill Giant leaves the Bot on 1.",
+    },
+    {
+        label: "phyrexian mana: Dismember never aims at toughness above 5",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Dismember", owner: "me", zone: "hand" },
+                {
+                    name: "Force of Nature",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Dismember",
+                    target: "Force of Nature",
+                },
+            ],
+        },
+        note: "Issue #9690, CR 107.4f. The Bot's own main phase and no combat to shrink it for: -5/-5 leaves the 8/8 a 3/3 until end of turn, for 4 life and a card.",
+    },
 ];
