@@ -22,6 +22,7 @@ import {
     revertControlChange,
     unapplyAuraControlChange,
     stopApplyingStaticEffects,
+    withCardsExiledBatch,
     withCardsPutIntoLibraryBatch,
     narrowLibraryPositionToChooser,
 } from "./state";
@@ -844,10 +845,14 @@ export function finalizeLegendKeep(
     // Put every same-name duplicate except the kept one into its owner's
     // graveyard (CR 704.5j — "owners' graveyards"; this is a zone change, not
     // a destroy, so indestructible/regeneration do not apply).
-    for (const id of head.candidateIds ?? []) {
-        if (id === kept) continue;
-        removePermanentTo(state, id, "graveyard");
-    }
+    // CR 704.3 / 603.2c — one simultaneous move, one exile occurrence when a
+    // CR 614 replacement redirects the duplicates.
+    withCardsExiledBatch(state, () => {
+        for (const id of head.candidateIds ?? []) {
+            if (id === kept) continue;
+            removePermanentTo(state, id, "graveyard");
+        }
+    });
     queue.shift();
     state.pendingChoices = queue.length > 0 ? queue : undefined;
     // Re-run SBAs: the departures may have created new violations, dropped a
@@ -1057,50 +1062,56 @@ export function checkStateBasedActions(state: GameState): void {
         // changes simultaneously, so the cards it puts into a graveyard are one
         // batch for their owner to arrange. The legend-rule keep below is its
         // own event (the owner's choice, then the move).
-        let acted = withGraveyardArrivalBatch(state, () => {
-            let zoneActed = false;
-            zoneActed = checkAuraAttachmentSBA(state) || zoneActed;
-            // CR 704.5n (ADR 0065, issue #1311) — the Equipment-flavored sibling
-            // of the Aura attachment SBA above: detach-in-place instead of
-            // graveyard-bound.
-            zoneActed = checkAttachmentSBA(state) || zoneActed;
-            zoneActed = checkConditionalControlChanges(state) || zoneActed;
-            // Idempotent bookkeeping (strips stale source-tapped buffs / untap
-            // locks); no zone change or event, so it never gates the fixpoint. A
-            // buff it strips that drops a creature to 0 toughness is caught by the
-            // zero-toughness pass below in this same iteration.
-            checkSourceTappedEffects(state);
-            zoneActed = checkZeroToughnessSBA(state) || zoneActed;
-            // CR 704.5i — a planeswalker with 0 loyalty is put into its owner's
-            // graveyard. Sits beside the zero-toughness sweep: both are direct
-            // "reduce a stat to 0 → leave the battlefield" state-based actions.
-            zoneActed = checkZeroLoyaltySBA(state) || zoneActed;
-            // CR 704.5h / 702.2b — a creature dealt damage by a deathtouch source
-            // this turn is destroyed. Runs after zero-toughness (a creature already
-            // at 0 toughness leaves via the direct move first) and respects
-            // indestructible.
-            zoneActed = checkDeathtouchDestroySBA(state) || zoneActed;
-            // CR 704.5g — lethal marked damage destroys. Beside deathtouch: both
-            // are damage-driven destroys through the same replacement pipeline.
-            zoneActed = checkLethalDamageSBA(state) || zoneActed;
-            zoneActed = checkTokenExistenceSBA(state) || zoneActed;
-            // CR 704.5e + 722.3c — a copy of a card off the stack and the
-            // battlefield ceases to exist, save a prepare spell's exiled copy
-            // while its permanent is on the battlefield and prepared.
-            zoneActed = checkPreparedCopySBA(state) || zoneActed;
-            zoneActed = checkCardCopySBA(state) || zoneActed;
-            // CR 714.4 — a Saga past its final chapter with no chapter ability of
-            // its own still on the stack is sacrificed. Placed after the
-            // death/removal checks and before the world/legend rules: it is an
-            // ordinary zone-change SBA whose condition never depends on them.
-            zoneActed = checkSagaSacrificeSBA(state) || zoneActed;
-            // CR 704.5k — world rule. Fully automatic (no player choice): keeps the
-            // newest World permanent and graveyards the rest (all of them on a
-            // tie). Runs before the legend-rule prompt so its automatic moves
-            // settle before any choice suspends the sweep.
-            zoneActed = checkWorldRuleSBA(state) || zoneActed;
-            return zoneActed;
-        });
+        //
+        // CR 704.3 / 603.2c — the same simultaneity makes every permanent the
+        // pass puts into exile (a CR 614 redirect: Rest in Peace, Leyline of
+        // the Void) ONE exile occurrence: one batched CARDS_EXILED.
+        let acted = withGraveyardArrivalBatch(state, () =>
+            withCardsExiledBatch(state, () => {
+                let zoneActed = false;
+                zoneActed = checkAuraAttachmentSBA(state) || zoneActed;
+                // CR 704.5n (ADR 0065, issue #1311) — the Equipment-flavored sibling
+                // of the Aura attachment SBA above: detach-in-place instead of
+                // graveyard-bound.
+                zoneActed = checkAttachmentSBA(state) || zoneActed;
+                zoneActed = checkConditionalControlChanges(state) || zoneActed;
+                // Idempotent bookkeeping (strips stale source-tapped buffs / untap
+                // locks); no zone change or event, so it never gates the fixpoint. A
+                // buff it strips that drops a creature to 0 toughness is caught by the
+                // zero-toughness pass below in this same iteration.
+                checkSourceTappedEffects(state);
+                zoneActed = checkZeroToughnessSBA(state) || zoneActed;
+                // CR 704.5i — a planeswalker with 0 loyalty is put into its owner's
+                // graveyard. Sits beside the zero-toughness sweep: both are direct
+                // "reduce a stat to 0 → leave the battlefield" state-based actions.
+                zoneActed = checkZeroLoyaltySBA(state) || zoneActed;
+                // CR 704.5h / 702.2b — a creature dealt damage by a deathtouch source
+                // this turn is destroyed. Runs after zero-toughness (a creature already
+                // at 0 toughness leaves via the direct move first) and respects
+                // indestructible.
+                zoneActed = checkDeathtouchDestroySBA(state) || zoneActed;
+                // CR 704.5g — lethal marked damage destroys. Beside deathtouch: both
+                // are damage-driven destroys through the same replacement pipeline.
+                zoneActed = checkLethalDamageSBA(state) || zoneActed;
+                zoneActed = checkTokenExistenceSBA(state) || zoneActed;
+                // CR 704.5e + 722.3c — a copy of a card off the stack and the
+                // battlefield ceases to exist, save a prepare spell's exiled copy
+                // while its permanent is on the battlefield and prepared.
+                zoneActed = checkPreparedCopySBA(state) || zoneActed;
+                zoneActed = checkCardCopySBA(state) || zoneActed;
+                // CR 714.4 — a Saga past its final chapter with no chapter ability of
+                // its own still on the stack is sacrificed. Placed after the
+                // death/removal checks and before the world/legend rules: it is an
+                // ordinary zone-change SBA whose condition never depends on them.
+                zoneActed = checkSagaSacrificeSBA(state) || zoneActed;
+                // CR 704.5k — world rule. Fully automatic (no player choice): keeps the
+                // newest World permanent and graveyards the rest (all of them on a
+                // tie). Runs before the legend-rule prompt so its automatic moves
+                // settle before any choice suspends the sweep.
+                zoneActed = checkWorldRuleSBA(state) || zoneActed;
+                return zoneActed;
+            })
+        );
         // CR 704.5j — legend rule. Enqueues a keep-one prompt and returns early;
         // priority is frozen until the controller commits via
         // finalizeLegendKeep. Run before game-over so a legend death that would

@@ -52,7 +52,7 @@
 // engine-owned resolution branch in `resolveTopOfStackInner`.
 import { tryGetDefinition } from "../cards";
 import type { CardInstanceState, GameState } from "./state";
-import { emitCardsExiledFromBattlefield, removePermanentTo } from "./state";
+import { removePermanentTo } from "./state";
 
 /** CR 702.185 — true iff `def`'s card declares the `warp` keyword. Read off the
  *  registry rather than off a live instance, so it answers for a card in any
@@ -138,7 +138,6 @@ export function applyWarpExile(state: GameState, permanentId: string): boolean {
     // `warped` clear itself, which is why the marker is read ABOVE this call.
     const moved = removePermanentTo(state, permanentId, "exile");
     if (!moved || moved.zone !== "exile") return false;
-    emitCardsExiledFromBattlefield(state, moved);
     // CR 702.185b — "a warped card in exile is one that was exiled by the
     // delayed triggered ability created by a warp ability". This IS that
     // ability, and this is the only moment the fact is observable.

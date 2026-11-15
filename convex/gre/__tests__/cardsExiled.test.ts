@@ -9,15 +9,19 @@
 // exercised separately in
 // `convex/cards/sets/c21/__tests__/red.test.ts`.
 import { describe, it, expect, beforeAll } from "vitest";
-import type { CardInstanceState } from "../state";
+import type { CardInstanceState, GameState } from "../state";
 import {
     buildSpellContext,
     exileWithAttachments,
     flushPendingEvents,
+    sendStackItemToGraveyard,
 } from "../state";
+import { checkStateBasedActions } from "../sba";
 import { registerTokenDefinition } from "../../cards";
+import { cardsExiledTrigger } from "../../cards/abilities/triggers/cardsExiledTrigger";
 import type { CardDefinition, GameEvent } from "../../cards/types";
 import {
+    makeInstance,
     makePlayer,
     makeState,
     pushSpell,
@@ -315,5 +319,129 @@ describe("CARDS_EXILED emission (issue #1558, CR 400.1 / 603.3b / 608.2i)", () =
                 ownerId: "p1",
             },
         ]);
+    });
+});
+
+// A permanent watching every exile occurrence off the battlefield or the stack:
+// each CARDS_EXILED it sees puts ONE trigger on the stack (CR 603.2c), so the
+// stack count is the event count, read through the real trigger scan.
+const EXILE_WATCHER_ID = "test-cards-exiled-battlefield-watcher";
+// Rest in Peace (RTR 18): "If a card or token would be put into a graveyard
+// from anywhere, exile it instead."
+const REST_IN_PEACE_ID = "37c2b1d1-faa0-40fd-82f4-216604ce7635";
+const exileWatcher: CardDefinition = {
+    id: EXILE_WATCHER_ID,
+    name: "Test CARDS_EXILED Battlefield Watcher",
+    rarity: "common",
+    types: ["Artifact"],
+    triggeredAbilities: [
+        cardsExiledTrigger({
+            id: "watch",
+            oracleText:
+                "Whenever one or more cards are put into exile from the battlefield or the stack, do nothing.",
+            scope: "any",
+            fromZones: ["battlefield", "stack"],
+            resolve: () => {},
+        }),
+    ],
+};
+
+function zeroToughnessCreature(id: string): CardInstanceState {
+    return {
+        id,
+        card: { id: `def-${id}` },
+        types: ["Creature"],
+        subtypes: [],
+        power: 1,
+        toughness: 0,
+        staticAbilities: [],
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "battlefield",
+        isTapped: false,
+    };
+}
+
+function watcherTriggersOnStack(state: GameState): number {
+    return state.stack.filter((item) => item.triggerSourceId === "watcher")
+        .length;
+}
+
+describe("CARDS_EXILED from the battlefield-departure funnel (CR 406.2 / 603.2c / 704.3)", () => {
+    beforeAll(() => registerTokenDefinition(exileWatcher));
+
+    function boardWithRestInPeace(creatures: CardInstanceState[]) {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(REST_IN_PEACE_ID, { id: "rip" }),
+                        ...creatures,
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(EXILE_WATCHER_ID, {
+                            id: "watcher",
+                            controllerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("an SBA death Rest in Peace redirects to exile fires the event once", () => {
+        const state = boardWithRestInPeace([zeroToughnessCreature("dying")]);
+        checkStateBasedActions(state);
+        expect(state.players[0].exile.map((c) => c.id)).toEqual(["dying"]);
+        expect(watcherTriggersOnStack(state)).toBe(1);
+    });
+
+    it("two creatures dying in one SBA pass under Rest in Peace are ONE exile occurrence", () => {
+        const state = boardWithRestInPeace([
+            zeroToughnessCreature("a"),
+            zeroToughnessCreature("b"),
+        ]);
+        checkStateBasedActions(state);
+        expect(state.players[0].exile.map((c) => c.id).sort()).toEqual([
+            "a",
+            "b",
+        ]);
+        expect(watcherTriggersOnStack(state)).toBe(1);
+    });
+
+    it("a sacrifice Rest in Peace redirects reports one battlefield exile, with no second emit from the caller", () => {
+        const state = boardWithRestInPeace([
+            { ...zeroToughnessCreature("victim"), toughness: 2 },
+        ]);
+        const stackItem = pushSpell(state, P1_SORCERY_ID, "p1");
+        const ctx = buildSpellContext(state, stackItem);
+        ctx.sacrifice("victim");
+        const exiledEvents = cardsExiledEvents(flushPendingEvents(state));
+        expect(exiledEvents).toHaveLength(1);
+        expect(exiledEvents[0].cards).toEqual([
+            {
+                cardInstanceId: "victim",
+                cardId: "def-victim",
+                fromZone: "battlefield",
+                ownerId: "p1",
+            },
+        ]);
+    });
+
+    it("a spell card Rest in Peace exiles off the stack reports fromZone stack", () => {
+        const state = boardWithRestInPeace([]);
+        const stackItem = pushSpell(state, P1_SORCERY_ID, "p1");
+        state.stack = state.stack.filter((i) => i.id !== stackItem.id);
+        sendStackItemToGraveyard(state, stackItem);
+        expect(state.players[0].exile.map((c) => c.id)).toEqual([stackItem.id]);
+        const exiledEvents = cardsExiledEvents(flushPendingEvents(state));
+        expect(exiledEvents).toHaveLength(1);
+        expect(exiledEvents[0].cards[0]).toMatchObject({
+            cardInstanceId: stackItem.id,
+            fromZone: "stack",
+            ownerId: "p1",
+        });
     });
 });

@@ -1,4 +1,4 @@
-import { emitCardsExiledFromBattlefield, removePermanentTo } from "./state";
+import { removePermanentTo, withCardsExiledBatch } from "./state";
 import type { CardInstanceState, GameState } from "./state";
 
 /** CR 502.3 — returns every battlefield permanent marked
@@ -12,11 +12,14 @@ export function returnMarkedPermanentsToHand(
     const marked = state.players
         .flatMap((p) => p.battlefield)
         .filter((c) => c.returnToHandAtUntapOf === playerId);
-    for (const card of marked) {
-        card.returnToHandAtUntapOf = undefined;
-        const moved = removePermanentTo(state, card.id, "hand");
-        emitCardsExiledFromBattlefield(state, moved);
-    }
+    // CR 603.2c — one turn-based return: an exileOnLeave redirect of several
+    // of them is one exile occurrence.
+    withCardsExiledBatch(state, () => {
+        for (const card of marked) {
+            card.returnToHandAtUntapOf = undefined;
+            removePermanentTo(state, card.id, "hand");
+        }
+    });
 }
 
 /** CR 106.4 — reversing the tap-for-mana that armed the mark (the untap
