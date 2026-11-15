@@ -4,7 +4,7 @@
         "grammarVersion": "v0",
         "compilerHash": "sha256:405a3380dc1ee61c00739bebf91a073752ce3225aa095f33be3aefeec6cf75d3",
         "registryHash": "sha256:18b2776ca8ffcdb8314244afd5e09076272d09ac41a8484f182fc48558c08576",
-        "botHash": "sha256:4141dc308a101ab697b5bad6564bbbae46a031d45a0df0e94c0587692c6ce8c6",
+        "botHash": "sha256:8dff263b4f6e725200ba1d887826dc26faa0a37d64ccb722860fd8a0fdcb605a",
         "poolHash": "sha256:647ff51800b0554b1c6ac7287d8ee8dc7400c32a05997a5aa1076a165e5899bb",
         "corpus": {
             "source": "https://api.scryfall.com/bulk-data/oracle-cards",
@@ -29534,7 +29534,6 @@
         {"key":"never-chosen › Creature › explore","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › gainLife","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › if+mayPay+pump+sacrifice","outcome":"ignored","cards":1},
-        {"key":"never-chosen › Creature › pump+skipNextTurn","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › revealUntilMatch","outcome":"ignored","cards":1},
         {"key":"never-chosen › Enchantment › (no Ops)","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › moveZone","outcome":"ignored","cards":1},
@@ -29558,7 +29557,6 @@
         {"key":"never-chosen › Sorcery target:Creature › gainLife+moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Creature › moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Land › addMana+destroy","outcome":"ignored","cards":1},
-        {"key":"never-chosen › Sorcery target:Land › destroy+if","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:card › moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:player [conspire] › mill","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:player › choice+moveZone+reveal","outcome":"ignored","cards":1},
@@ -52108,7 +52106,7 @@
 
         {"oracleId":"5230d0fc-2688-495d-9fd0-0d71ac27c811","name":"Lumbering Lightshield","state":"unparsed","gaps":["3dc57e971375"]},
 
-        {"oracleId":"5231a7d6-b6cf-4fa8-8da8-f0ecf023e054","name":"Dwarven Landslide","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["destroy","if"],"definition":{"name":"Dwarven Landslide","types":["Sorcery"],"manaCost":{"X":3,"R":1},"oracleText":"Kicker—{2}{R}, Sacrifice a land. (You may pay {2}{R} and sacrifice a land in addition to any other costs as you cast this spell.)\nDestroy target land. If this spell was kicked, destroy another target land.","kickers":[{"id":"kicker","description":"Kicker—{2}{R}, Sacrifice a land","mana":{"X":2,"R":1},"permanent":{"action":"sacrifice","filter":{"types":["Land"]},"count":1}}],"effects":[{"op":"destroy","target":{"target":0}},{"op":"if","predicate":{"left":{"kickerCount":true},"op":"ge","right":1},"then":[{"op":"destroy","target":{"target":1}}]}],"targetRequirement":{"type":"Land","count":1},"kickedTargetRequirement":{"type":"Land","count":2}},"botReach":"ignored","botGap":"never-chosen › Sorcery target:Land › destroy+if"},
+        {"oracleId":"5231a7d6-b6cf-4fa8-8da8-f0ecf023e054","name":"Dwarven Landslide","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["destroy","if"],"definition":{"name":"Dwarven Landslide","types":["Sorcery"],"manaCost":{"X":3,"R":1},"oracleText":"Kicker—{2}{R}, Sacrifice a land. (You may pay {2}{R} and sacrifice a land in addition to any other costs as you cast this spell.)\nDestroy target land. If this spell was kicked, destroy another target land.","kickers":[{"id":"kicker","description":"Kicker—{2}{R}, Sacrifice a land","mana":{"X":2,"R":1},"permanent":{"action":"sacrifice","filter":{"types":["Land"]},"count":1}}],"effects":[{"op":"destroy","target":{"target":0}},{"op":"if","predicate":{"left":{"kickerCount":true},"op":"ge","right":1},"then":[{"op":"destroy","target":{"target":1}}]}],"targetRequirement":{"type":"Land","count":1},"kickedTargetRequirement":{"type":"Land","count":2}},"botReach":"played"},
 
         {"oracleId":"5232fcc0-5dba-4569-8e99-c0b2c230e9f0","name":"Dogmeat, Ever Loyal","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0a607c3718b6","a2066f21a979"]},
 
@@ -80998,7 +80996,7 @@
 
         {"oracleId":"bb2fca84-fc19-4c04-b146-1059aa975535","name":"Weaver of Lies","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["b729700565db"]},
 
-        {"oracleId":"bb300e38-32d7-4152-9a82-88d43af99f19","name":"Chronatog","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["pump","skipNextTurn"],"definition":{"name":"Chronatog","types":["Creature"],"subtypes":["Atog"],"manaCost":{"X":1,"U":1},"power":1,"toughness":2,"oracleText":"{0}: This creature gets +3/+3 until end of turn. You skip your next turn. Activate only once each turn.","activatedAbilities":[{"id":"chronatog-ability","oracleText":"{0}: This creature gets +3/+3 until end of turn. You skip your next turn. Activate only once each turn.","cost":{"mana":{}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":3,"toughness":3,"duration":{"phase":"end-of-turn"}},{"op":"skipNextTurn","player":"controller"}],"oncePerTurn":true}]},"botReach":"ignored","botGap":"never-chosen › Creature › pump+skipNextTurn"},
+        {"oracleId":"bb300e38-32d7-4152-9a82-88d43af99f19","name":"Chronatog","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["pump","skipNextTurn"],"definition":{"name":"Chronatog","types":["Creature"],"subtypes":["Atog"],"manaCost":{"X":1,"U":1},"power":1,"toughness":2,"oracleText":"{0}: This creature gets +3/+3 until end of turn. You skip your next turn. Activate only once each turn.","activatedAbilities":[{"id":"chronatog-ability","oracleText":"{0}: This creature gets +3/+3 until end of turn. You skip your next turn. Activate only once each turn.","cost":{"mana":{}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":3,"toughness":3,"duration":{"phase":"end-of-turn"}},{"op":"skipNextTurn","player":"controller"}],"oncePerTurn":true}]},"botReach":"played"},
 
         {"oracleId":"bb329a5c-b9f9-4973-a53f-090024146325","name":"Red Elemental Blast","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["counter","destroy"],"definition":{"name":"Red Elemental Blast","types":["Instant"],"manaCost":{"R":1},"oracleText":"Choose one —\n• Counter target blue spell.\n• Destroy target blue permanent.","modes":[{"id":"red-elemental-blast-mode-1","label":"Counter target blue spell","oracleText":"Counter target blue spell.","effects":[{"op":"counter","target":{"target":0}}],"targetRequirement":{"type":"spell","count":1,"colorFilter":"U"}},{"id":"red-elemental-blast-mode-2","label":"Destroy target blue permanent","oracleText":"Destroy target blue permanent.","effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1,"colorFilter":"U"}}]},"botReach":"played"},
 
