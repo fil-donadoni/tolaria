@@ -34,8 +34,14 @@ import type {
 import { PERMANENT_TYPES, PLAYER_COUNTER_KINDS } from "../../cards/types";
 import { TOKEN_STATIC_EFFECT_FACTORIES } from "../../cards/tokenStaticEffects";
 import {
+    EFFECT_OP_REGISTRY,
+    TARGET_INFORMATION_READS,
     getEventFieldRow,
     isRegisteredEffectOp,
+} from "../../cards/mechanicsRegistry";
+import type {
+    TargetInformationRead,
+    TargetZone,
 } from "../../cards/mechanicsRegistry";
 import type { EventFieldRow } from "../../cards/eventFields";
 import { UNTIL_NEXT_TURN_ATTACK_WATCHES } from "../attackWatch";
@@ -8928,6 +8934,131 @@ function reflexiveCaptureBindingKind(
     return "snapshot";
 }
 
+/** An announced Target an earlier Op in the script took out of its zone
+ *  (issue #2988): where that Op is, its name, the zones the object left, and
+ *  whether it ran on every path or only inside a branch / iteration body. */
+interface TargetRemoval {
+    readonly at: string;
+    readonly op: string;
+    readonly zones: ReadonlySet<TargetZone>;
+    readonly onSomePaths: boolean;
+}
+
+/** Announced Target slot → the removal that took it. */
+type RemovedTargets = Map<number, TargetRemoval>;
+
+/** The Ops whose registry row declares `removesTarget`, keyed by name. */
+const TARGET_REMOVING_OPS: ReadonlyMap<
+    string,
+    NonNullable<(typeof EFFECT_OP_REGISTRY)[number]["removesTarget"]>
+> = new Map(
+    EFFECT_OP_REGISTRY.flatMap((row) =>
+        row.removesTarget ? [[row.op, row.removesTarget] as const] : []
+    )
+);
+
+const TARGET_READS_BY_MEMBER: ReadonlyMap<string, TargetInformationRead> =
+    new Map(TARGET_INFORMATION_READS.map((read) => [read.member, read]));
+
+/** The announced slot a `{ target: n }` value names, or undefined. */
+function announcedSlot(value: unknown): number | undefined {
+    if (typeof value !== "object" || value === null) return undefined;
+    const slot = (value as { target?: unknown }).target;
+    return typeof slot === "number" && Number.isInteger(slot) && slot >= 0
+        ? slot
+        : undefined;
+}
+
+/** Every `TARGET_INFORMATION_READS` reference in one Op's own fields, with
+ *  the slot it reads. A `NESTED_SCRIPT_KEYS` field is walked in its own
+ *  scope, never as part of the Op that carries it. */
+function collectTargetReads(
+    value: unknown,
+    out: { read: TargetInformationRead; slot: number }[]
+): void {
+    if (typeof value !== "object" || value === null) return;
+    if (Array.isArray(value)) {
+        for (const v of value) collectTargetReads(v, out);
+        return;
+    }
+    for (const [key, v] of Object.entries(value)) {
+        if (NESTED_SCRIPT_KEYS.has(key)) continue;
+        const read = TARGET_READS_BY_MEMBER.get(key);
+        if (read) {
+            const slot = announcedSlot(
+                read.slot === "self" ? v : (v as { of?: unknown } | null)?.of
+            );
+            if (slot !== undefined) out.push({ read, slot });
+        }
+        collectTargetReads(v, out);
+    }
+}
+
+/** CR 608.2h — refuses an Op that reads information about an announced
+ *  Target an earlier Op of this script took out of the zone that read
+ *  consults (issue #2988). The interpreter can only skip such a read (CR
+ *  608.2b), so the clause silently never happens; the fix is always available
+ *  in the DSL, and the message names both. */
+function checkRemovedTargetReads(
+    entry: Record<string, unknown>,
+    at: string,
+    removed: RemovedTargets,
+    errors: string[]
+): void {
+    if (removed.size === 0) return;
+    const reads: { read: TargetInformationRead; slot: number }[] = [];
+    collectTargetReads(entry, reads);
+    for (const { read, slot } of reads) {
+        const removal = removed.get(slot);
+        if (!removal) continue;
+        const zones = read.zones.filter((z) => removal.zones.has(z));
+        if (zones.length === 0) continue;
+        errors.push(
+            `${at}: Op "${String(entry.op)}" reads { ${read.member} } of announced Target ${slot} after ${removal.at} (Op "${removal.op}") removed it from the ${zones.join(" / ")}${removal.onSomePaths ? " on some paths" : ""} — the read finds nothing and its Op is skipped (CR 608.2b) where CR 608.2h wants last known information. Bind a snapshot of the object before the removal and read the bound object instead, or order this Op before the removing one`
+        );
+    }
+}
+
+/** Records the announced Target this Op removes, if its registry row says it
+ *  removes one. A zone equal to the Op's own `to` is not left. */
+function recordTargetRemoval(
+    entry: Record<string, unknown>,
+    at: string,
+    removed: RemovedTargets
+): void {
+    const removes =
+        typeof entry.op === "string"
+            ? TARGET_REMOVING_OPS.get(entry.op)
+            : undefined;
+    if (!removes) return;
+    const slot = announcedSlot(entry[removes.field]);
+    if (slot === undefined) return;
+    const zones = new Set(removes.from.filter((z) => z !== entry.to));
+    if (zones.size === 0) return;
+    const prior = removed.get(slot);
+    if (prior && !prior.onSomePaths) return;
+    removed.set(slot, {
+        at,
+        op: entry.op as string,
+        zones,
+        onSomePaths: false,
+    });
+}
+
+/** Folds the removals a nested list made into the enclosing scope: they
+ *  happened only on the paths that ran it (a branch, a mode, an iteration
+ *  body that may run zero times), so a read past the construct is refused
+ *  with "on some paths". */
+function mergeNestedRemovals(
+    outer: RemovedTargets,
+    nested: RemovedTargets
+): void {
+    for (const [slot, removal] of nested) {
+        if (outer.has(slot)) continue;
+        outer.set(slot, { ...removal, onSomePaths: true });
+    }
+}
+
 /** Ordered ref pass (#802, extended #805 picks / #806 boolean + `if`): walks
  *  Ops top to bottom so a `ref` may only name a binding a PRECEDING Op
  *  declared. Reports dangling bindings, unknown property paths, family
@@ -8941,7 +9072,8 @@ function checkOpListRefs(
     label: (i: number) => string,
     errors: string[],
     declared: Map<string, BindingKind>,
-    eventScope: EventScope
+    eventScope: EventScope,
+    removed: RemovedTargets
 ): void {
     // CR 701.20a (issue #3205) — the binding names a PRECEDING `reveal` Op in
     // THIS op list showed to all players. It is what makes a
@@ -9207,6 +9339,14 @@ function checkOpListRefs(
         }
         for (const use of uses)
             checkRefUse(use, declared, at, errors, eventScope);
+        // CR 608.2h (issue #2988) — the Op's reads of an announced Target are
+        // checked against the removals BEFORE it; its own removal is recorded
+        // after its nested lists are walked, below.
+        checkRemovedTargetReads(entry, at, removed, errors);
+
+        // Removals made by this Op's nested lists, each walked with its own
+        // clone so a sibling branch never sees another's (issue #2988).
+        const nestedRemovals: RemovedTargets[] = [];
 
         // Recurse into branches with a CLONED scope (branch-local binds do not
         // escape the branch — CR: the branch may not execute).
@@ -9214,13 +9354,16 @@ function checkOpListRefs(
             for (const key of ["then", "else"] as const) {
                 const branch = entry[key];
                 if (Array.isArray(branch)) {
+                    const branchRemoved = new Map(removed);
                     checkOpListRefs(
                         branch,
                         (j) => `${at}: ${key}[${j}]`,
                         errors,
                         new Map(declared),
-                        eventScope
+                        eventScope,
+                        branchRemoved
                     );
+                    nestedRemovals.push(branchRemoved);
                 }
             }
         }
@@ -9233,13 +9376,16 @@ function checkOpListRefs(
             entry.modes.forEach((mode, m) => {
                 const effects = (mode as { effects?: unknown })?.effects;
                 if (Array.isArray(effects)) {
+                    const modeRemoved = new Map(removed);
                     checkOpListRefs(
                         effects,
                         (j) => `${at}: modes[${m}].effects[${j}]`,
                         errors,
                         new Map(declared),
-                        eventScope
+                        eventScope,
+                        modeRemoved
                     );
+                    nestedRemovals.push(modeRemoved);
                 }
             });
         }
@@ -9253,13 +9399,16 @@ function checkOpListRefs(
             for (const key of ["win", "loss"] as const) {
                 const branch = entry[key] as { effects?: unknown } | undefined;
                 if (branch && Array.isArray(branch.effects)) {
+                    const branchRemoved = new Map(removed);
                     checkOpListRefs(
                         branch.effects,
                         (j) => `${at}: ${key}.effects[${j}]`,
                         errors,
                         new Map(declared),
-                        eventScope
+                        eventScope,
+                        branchRemoved
                     );
+                    nestedRemovals.push(branchRemoved);
                 }
             }
         }
@@ -9300,13 +9449,16 @@ function checkOpListRefs(
             }
             // forEach body stays in the SAME trigger scope — `$event` is still
             // legal inside a trigger's own forEach (ADR 0049).
+            const bodyRemoved = new Map(removed);
             checkOpListRefs(
                 entry.effects,
                 (j) => `${at}: effects[${j}]`,
                 errors,
                 bodyScope,
-                eventScope
+                eventScope,
+                bodyRemoved
             );
+            nestedRemovals.push(bodyRemoved);
             // CR 701.23h — the body's SNAPSHOT bindings stay invisible to
             // every single-object reader past the construct, but the set of
             // their per-iteration captures is readable by `boundCount` ("for
@@ -9399,7 +9551,14 @@ function checkOpListRefs(
                 bodyScope,
                 eventBody
                     ? { eventTypes: [liveEventType], inDelayedBody: false }
-                    : { eventTypes: eventScope.eventTypes, inDelayedBody: true }
+                    : {
+                          eventTypes: eventScope.eventTypes,
+                          inDelayedBody: true,
+                      },
+                // A later resolution: nothing this script removed is known
+                // there, and nothing it removes happens before this script's
+                // remaining Ops.
+                new Map()
             );
         }
 
@@ -9429,7 +9588,9 @@ function checkOpListRefs(
                 (j) => `${at}: effects[${j}]`,
                 errors,
                 bodyScope,
-                { eventTypes: eventScope.eventTypes, inDelayedBody: true }
+                { eventTypes: eventScope.eventTypes, inDelayedBody: true },
+                // CR 603.12 — its own stack object, with its own targets.
+                new Map()
             );
         }
 
@@ -9460,14 +9621,20 @@ function checkOpListRefs(
             }
             const bodyScope = new Map(declared);
             bodyScope.set(bindName, binding);
+            const listRemoved = new Map(removed);
             checkOpListRefs(
                 list,
                 (j) => `${at}: ${scopedTo}[${j}]`,
                 errors,
                 bodyScope,
-                eventScope
+                eventScope,
+                listRemoved
             );
+            nestedRemovals.push(listRemoved);
         }
+        for (const nested of nestedRemovals)
+            mergeNestedRemovals(removed, nested);
+        recordTargetRemoval(entry, at, removed);
 
         // A binding becomes visible only AFTER its Op (snapshot ordering) and
         // must be unique within its scope (the persisted store keys by name).
@@ -9772,7 +9939,8 @@ function checkRefUses(
         (i) => `${label}: effects[${i}]`,
         errors,
         declared,
-        { eventTypes: triggerEventTypes, inDelayedBody: false }
+        { eventTypes: triggerEventTypes, inDelayedBody: false },
+        new Map()
     );
 }
 
