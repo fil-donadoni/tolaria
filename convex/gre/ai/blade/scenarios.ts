@@ -29114,6 +29114,309 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9694, CR 603.3d / 107.14. The row names a token sacrificed at end step; Ball Lightning is the same leaving attacker as a card. The counters on it die with it at the end step.",
     },
+    // Esper Blink, the modern metagame's level-2 rows
+    // (`docs/agents/modern-metagame-bot-level-2.md`, issue #9695). Solitude's
+    // right half and both Thoughtseize halves were already in the registry.
+    {
+        label: "blink: Ephemerate saves the evoked Solitude from its sacrifice trigger",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                // Listed before Ephemerate on purpose: the evoke pitch takes
+                // the cheapest white card, ties broken by instance id
+                // (`pickAlternativeHandCost`), so the Lions is the card
+                // exiled and Ephemerate stays in hand.
+                { name: "Savannah Lions", owner: "me", zone: "hand" },
+                { name: "Solitude", owner: "me", zone: "hand" },
+                { name: "Ephemerate", owner: "me", zone: "hand" },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Shivan Dragon",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        // Evoke Solitude (the one Plains cannot hard-cast it), let it resolve,
+        // stack the exile trigger over the sacrifice (CR 603.3b), aim it at the
+        // Angel (CR 603.3d) and resolve it: the evoke sacrifice is left alone
+        // on the stack with the Bot holding priority. Both triggers share
+        // their source, so `resolveFirst` takes them in collection order: the
+        // enter trigger (printed first) on top, the evoke sacrifice under it.
+        setup: [
+            { kind: "cast", card: "Solitude" },
+            { kind: "pass", seat: "opp" },
+            { kind: "order-triggers", resolveFirst: ["Solitude", "Solitude"] },
+            { kind: "submit-target", target: "Serra Angel" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE, kept out of the weight fit on purpose (measured), like
+        // every Esper Blink entry the Bot already plays right: as a `moves`
+        // verdict this one moves `latent.recursion` 135.9 → 117.2, and even
+        // the other three verdicts alone (`latentCreatureDiscount` 0.62674 →
+        // 0.62704) flip seed 2 of the `must` entry "loyalty: Wrenn and Six
+        // holds its -1 with no target worth it", a material tie-break on a
+        // 0.23 `meanMargin` gap (issue #9884).
+        expect: {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Ephemerate",
+                    target: "Solitude",
+                }),
+            describe: "casts Ephemerate on Solitude",
+        },
+        note: "Issue #9695, CR 702.74a / 603.3b. The evoke sacrifice is on the stack and the Angel already exiled. Ephemerate returns Solitude as a new object (CR 400.7): the sacrifice trigger no longer finds it, and the fresh enter trigger exiles the Shivan Dragon too.",
+    },
+    {
+        label: "blink: Ephemerate never blinks a creature with no enter effect",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Ephemerate", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE, kept out of the weight fit on purpose: see the first
+        // Esper Blink entry above.
+        expect: {
+            predicate: (move, state) =>
+                !matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Ephemerate",
+                }),
+            describe: "never casts Ephemerate",
+        },
+        note: "Issue #9695. The Bears has no enter effect: the blink gains nothing and returns it summoning sick (CR 302.6).",
+    },
+    {
+        label: "evoke: Solitude is never evoked with no threat, spending two cards",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Solitude", owner: "me", zone: "hand" },
+                { name: "Savannah Lions", owner: "me", zone: "hand" },
+                {
+                    name: "Ornithopter",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        beyondBudget: {
+            cause: "valuation",
+            note: "Issue #9864. The Bot evokes on 5 of 5 seeds at 400 and at 1600 iterations. The evaluation reads the trade almost even: the two uncastable cards in hand are priced at 162, the 0/2 at 128 plus 5.3. The saturated rollouts leave both moves inside `outcomeEps`, and `material-tiebreak` takes the evoke on rollout `meanMargin`. Missing: a board price for a creature that threatens nothing, and a tie-break that does not discard the blended score's reading.",
+        },
+        // A PREDICATE, kept out of the weight fit on purpose (measured): as a
+        // `forbidden` verdict the fit chases this failing position and moves
+        // `latentCreatureDiscount` 0.627 → 0.641, past the value that flips
+        // the `must` entry "Self-growing sacrifice outlet: casts the
+        // creature". Back to `forbidden` when issue #9864 promotes it.
+        expect: {
+            predicate: (move, state) =>
+                !matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Solitude",
+                }),
+            describe: "never casts Solitude",
+        },
+        note: "Issue #9695, CR 702.74a. The mirror of `evoke with no mana: evokes Solitude to exile a lethal attacker`: the same hand with no mana, but the only creature to exile is a 0/2 Ornithopter. Evoking spends Solitude and the Lions on it.",
+    },
+    {
+        label: "attack trigger: Phelia exiles the blocker that would kill it",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Plains", owner: "me", zone: "battlefield", count: 2 },
+                {
+                    name: "Phelia, Exuberant Shepherd",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Phelia, Exuberant Shepherd"],
+                haltForDefenderResponse: true,
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE, kept out of the weight fit on purpose: see the first
+        // Esper Blink entry above.
+        expect: {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "submit-target",
+                    target: "Serra Angel",
+                }),
+            describe: "submits Serra Angel as the target",
+        },
+        note: "Issue #9695, CR 603.3d. The attack trigger's target is chosen as it goes on the stack. The untapped Angel would block the 2/2 and kill it. Exiled until the end step, it cannot block, and Phelia connects.",
+    },
+    {
+        label: "attack trigger: Phelia never exiles its own token, which never returns",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Plains", owner: "me", zone: "battlefield", count: 2 },
+                {
+                    name: "Phelia, Exuberant Shepherd",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Soldier (1/1 W)",
+                    owner: "me",
+                    zone: "battlefield",
+                    token: true,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Phelia, Exuberant Shepherd"],
+                haltForDefenderResponse: true,
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A predicate: the `submit-target` matcher resolves catalogue card
+        // names only, never a token (`submitsTargetPermanentNamed`).
+        expect: {
+            predicate: (move, state) =>
+                !submitsTargetPermanentNamed(move, state, "Soldier", "me"),
+            describe: "never submits its own Soldier token as the target",
+        },
+        note: "Issue #9695, CR 603.3d / 111.7. An exiled token ceases to exist, so the end-step return finds nothing and Phelia gets no counter. The Bot answers with no target.",
+    },
+    {
+        label: "revolt: Fatal Push never casts at mana value 4 with revolt off",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            revolt: { me: false },
+            cards: [
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Fatal Push", owner: "me", zone: "hand" },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Fatal Push" }],
+        },
+        note: "Issue #9695. Hill Giant has mana value 4. Without revolt Fatal Push destroys only mana value 2 or less, so the cast spends the card for nothing. That cast is a dominated no-op, which the Bot's move generation drops (`pruneDominatedNoOps`): the entry pins that drop and enters no verdict (`unconstraining`). The same reason keeps it from being the anchor of a Minimal Pair with the revolt-on entry below.",
+    },
+    {
+        label: "revolt: Fatal Push destroys the mana value 4 threat with revolt on",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            revolt: { me: true },
+            cards: [
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Fatal Push", owner: "me", zone: "hand" },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE, kept out of the weight fit on purpose: see the first
+        // Esper Blink entry above.
+        expect: {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Fatal Push",
+                    target: "Hill Giant",
+                }),
+            describe: "casts Fatal Push on Hill Giant",
+        },
+        note: "Issue #9695. The same board with revolt on: the threshold rises to mana value 4, and revolt ends with the turn, so the Giant dies now or never.",
+    },
     // Izzet Prowess, the modern metagame's level-2 rows
     // (`docs/agents/modern-metagame-bot-level-2.md`, issue #9691).
     {
