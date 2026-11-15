@@ -174,7 +174,7 @@ describe("buildPremodernLegalNames — corpus -> name set (issue #2695)", () => 
 
 describe("buildLegalityFile / serializeLegalityFile — shape + byte determinism", () => {
     const corpus = [
-        corpusCard({ name: "Test Bear", legalIn: ["premodern"] }),
+        corpusCard({ name: "Test Bear", legalIn: ["premodern", "modern"] }),
         corpusCard({
             oracleId: "00000000-0000-0000-0000-000000000002",
             name: "Test Faerie",
@@ -182,13 +182,14 @@ describe("buildLegalityFile / serializeLegalityFile — shape + byte determinism
         }),
     ];
 
-    it("builds the documented shape: generator, corpus pin, contentHash, premodern[]", () => {
+    it("builds the documented shape: generator, corpus pin, contentHash, premodern[], modern[]", () => {
         const file = buildLegalityFile(corpus, PIN);
         expect(file).toEqual<OracleLegalityFile>({
             generator: LEGALITY_GENERATOR,
             corpus: PIN,
-            contentHash: legalityContentHash(["Test Bear"]),
+            contentHash: legalityContentHash(["Test Bear"], ["Test Bear"]),
             premodern: ["Test Bear"],
+            modern: ["Test Bear"],
         });
     });
 
@@ -204,38 +205,49 @@ describe("buildLegalityFile / serializeLegalityFile — shape + byte determinism
         expect(JSON.parse(text)).toEqual({
             generator: LEGALITY_GENERATOR,
             corpus: PIN,
-            contentHash: legalityContentHash(["Test Bear"]),
+            contentHash: legalityContentHash(["Test Bear"], ["Test Bear"]),
             premodern: ["Test Bear"],
+            modern: ["Test Bear"],
         });
     });
 });
 
 describe("legalityContentHash — self-integrity for the offline drift-guard tier (issue #2695 review, finding 4)", () => {
     it("is deterministic for the same array", () => {
-        expect(legalityContentHash(["Alpha", "Bravo"])).toBe(
-            legalityContentHash(["Alpha", "Bravo"])
+        expect(legalityContentHash(["Alpha", "Bravo"], [])).toBe(
+            legalityContentHash(["Alpha", "Bravo"], [])
         );
     });
 
     it("changes when a name is removed — the exact tamper the review demonstrated slipping past pin agreement alone", () => {
-        const before = legalityContentHash(["Alpha", "Bravo", "Charlie"]);
-        const after = legalityContentHash(["Alpha", "Charlie"]);
+        const before = legalityContentHash(["Alpha", "Bravo", "Charlie"], []);
+        const after = legalityContentHash(["Alpha", "Charlie"], []);
         expect(after).not.toBe(before);
     });
 
     it("changes when a name is added", () => {
-        const before = legalityContentHash(["Alpha", "Bravo"]);
-        const after = legalityContentHash(["Alpha", "Bravo", "Charlie"]);
+        const before = legalityContentHash(["Alpha", "Bravo"], []);
+        const after = legalityContentHash(["Alpha", "Bravo", "Charlie"], []);
         expect(after).not.toBe(before);
     });
 
     it("is sensitive to order (premodern[] is a committed, sorted array — reordering IS a content change)", () => {
-        const a = legalityContentHash(["Alpha", "Bravo"]);
-        const b = legalityContentHash(["Bravo", "Alpha"]);
+        const a = legalityContentHash(["Alpha", "Bravo"], []);
+        const b = legalityContentHash(["Bravo", "Alpha"], []);
         expect(a).not.toBe(b);
     });
 
-    it("buildLegalityFile's contentHash always matches legalityContentHash(premodern) exactly", () => {
+    // Issue #8453: the hash covers modern[] too — a hand-edit there is caught.
+    it("changes when a Modern name changes and the Premodern array does not", () => {
+        expect(legalityContentHash(["Alpha"], ["Bravo"])).not.toBe(
+            legalityContentHash(["Alpha"], ["Charlie"])
+        );
+        expect(legalityContentHash(["Alpha"], ["Bravo"])).not.toBe(
+            legalityContentHash(["Alpha"], [])
+        );
+    });
+
+    it("buildLegalityFile's contentHash always matches legalityContentHash(premodern, modern) exactly", () => {
         const corpus = [
             corpusCard({ name: "Test Bear", legalIn: ["premodern"] }),
             corpusCard({
@@ -245,6 +257,8 @@ describe("legalityContentHash — self-integrity for the offline drift-guard tie
             }),
         ];
         const file = buildLegalityFile(corpus, PIN);
-        expect(file.contentHash).toBe(legalityContentHash(file.premodern));
+        expect(file.contentHash).toBe(
+            legalityContentHash(file.premodern, file.modern)
+        );
     });
 });

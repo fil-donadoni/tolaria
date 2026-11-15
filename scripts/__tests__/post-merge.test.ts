@@ -18,6 +18,7 @@ import { BASE_BRANCH } from "../lib/branches";
 import {
     deriveCommitAmong,
     cardSetsChanged,
+    presetGateMoved,
     cwdInside,
     mergedPrNumbers,
     mergedWorktree,
@@ -152,6 +153,31 @@ describe("cardSetsChanged", () => {
     });
 });
 
+describe("presetGateMoved (issue #8453)", () => {
+    it("fires on a card set, as cardSetsChanged does", () => {
+        expect(presetGateMoved(["convex/cards/sets/ice.ts"])).toBe(true);
+    });
+    it("fires on the compiled lockfile — a Grammar Rule or a lifted quarantine moves a card's state there alone", () => {
+        expect(presetGateMoved(["data/oracle-compiled.json"])).toBe(true);
+    });
+    it("fires on the card index and on either metagame list", () => {
+        expect(presetGateMoved(["data/card-index.json"])).toBe(true);
+        expect(presetGateMoved(["data/modern-metagame-decks.json"])).toBe(true);
+        expect(presetGateMoved(["data/premodern-metagame-decks.json"])).toBe(
+            true
+        );
+    });
+    it("fires on the legality a payload must pass", () => {
+        expect(presetGateMoved(["data/oracle-legality.json"])).toBe(true);
+        expect(presetGateMoved(["convex/formats.ts"])).toBe(true);
+    });
+    it("does not fire on a diff the gate never reads", () => {
+        expect(
+            presetGateMoved(["src/a.tsx", "convex/oracle/grammar/rules.ts"])
+        ).toBe(false);
+    });
+});
+
 describe("mergedWorktree", () => {
     it("derives the wt:new path from the head branch", () => {
         expect(mergedWorktree("/w/tolaria", "feat/issue-5644")).toBe(
@@ -257,6 +283,11 @@ describe("seedPlan", () => {
     });
     it("reseeds no presets without a set change", () => {
         expect(seedPlan(true, [3], ["src/a.tsx"]).presets).toBe(false);
+    });
+    it("reseeds the presets when only the lockfile moved (issue #8453)", () => {
+        expect(seedPlan(true, [], ["data/oracle-compiled.json"]).presets).toBe(
+            true
+        );
     });
     it("seeds nothing after a failed fast-forward", () => {
         expect(seedPlan(false, [3], ["convex/cards/sets/x.ts"])).toEqual({
@@ -625,6 +656,7 @@ describe("seed — a stale tip waits for derive:sync's commit and fast-forwards 
         const after = push("src/card.ts", "feat: a card");
         const derive = push(DERIVED_PATHS[0]!, DERIVE_SYNC_COMMIT_SUBJECT);
         const asked: string[] = [];
+        const ran: string[] = [];
         const restore = quiet();
         try {
             expect(
@@ -634,6 +666,10 @@ describe("seed — a stale tip waits for derive:sync's commit and fast-forwards 
                         asked.push(sha);
                         return awaitDeriveCommit(sha, primary, { waitMs: 0 });
                     },
+                    runSeed: (args) => {
+                        ran.push(args.join(" "));
+                        return true;
+                    },
                 })
             ).toBe(true);
         } finally {
@@ -641,6 +677,10 @@ describe("seed — a stale tip waits for derive:sync's commit and fast-forwards 
         }
         expect(asked).toEqual([after]);
         expect(git(["rev-parse", "HEAD"], primary).stdout.trim()).toBe(derive);
+        // Issue #8453: the push touched no card set, but the derive commit the
+        // seed ran on moved the lockfile — the card states the 75/75 gate
+        // reads — so the Preset Deck sweep runs and publishes what reached it.
+        expect(ran).toContain("scripts/seed-preset-deck.ts --all");
     });
 
     it("no derive commit within the wait: red, the primary unmoved, seeding left to a hand", () => {
@@ -675,6 +715,7 @@ describe("seed — a stale tip waits for derive:sync's commit and fast-forwards 
         const before = git(["rev-parse", "HEAD"], primary).stdout.trim();
         const after = push("src/card.ts", "feat: a card (#7)");
         let asked = 0;
+        const ran: string[] = [];
         const restore = quiet();
         try {
             seed(primary, before, after, {
@@ -683,11 +724,17 @@ describe("seed — a stale tip waits for derive:sync's commit and fast-forwards 
                     asked += 1;
                     return null;
                 },
+                runSeed: (args) => {
+                    ran.push(args.join(" "));
+                    return true;
+                },
             });
         } finally {
             restore();
         }
         expect(asked).toBe(0);
         expect(git(["rev-parse", "HEAD"], primary).stdout.trim()).toBe(after);
+        // Nothing the 75/75 gate reads moved: no Preset Deck sweep.
+        expect(ran).not.toContain("scripts/seed-preset-deck.ts --all");
     });
 });

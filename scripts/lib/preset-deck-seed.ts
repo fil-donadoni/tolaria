@@ -22,8 +22,8 @@
 
 import type { CardDefinition } from "../../convex/cards/types";
 import type { DeckCard } from "../../convex/deckPresets";
-import type { FormatId } from "../../convex/formats";
-import { validateDeck } from "../../convex/formats";
+import type { BanlistOverride, FormatId } from "../../convex/formats";
+import { FORMAT_LABELS, validateDeck } from "../../convex/formats";
 import { getCardColorIdentity } from "../../convex/cards/colors";
 import type { Tier1Deck, Tier1DeckEntry } from "./tier1-decks";
 
@@ -101,7 +101,8 @@ export function buildPresetPayload(
     deck: Tier1Deck,
     format: FormatId,
     suppliedOn: string,
-    resolve: ResolveByName
+    resolve: ResolveByName,
+    banlist?: BanlistOverride
 ): BuildResult {
     const main = expand(deck.main, resolve);
     const side = expand(deck.sideboard, resolve);
@@ -126,17 +127,20 @@ export function buildPresetPayload(
     const payload: PresetPayload = {
         name: deck.name,
         format,
-        description: `Premodern metagame — list from ${suppliedOn}.`,
+        description: `${FORMAT_LABELS[format]} metagame — list from ${suppliedOn}.`,
         colors: deckColors(defs),
         cards: main.cards,
         sideboard: side.cards,
     };
 
-    // Offline legality, without the DB banlist the mutation will apply. A
-    // failure here is always a real failure; a pass here is not yet a promise.
+    // Offline legality against `banlist` — the caller's code seed, resolved
+    // live — never the DB banlist the mutation will apply. A failure here is
+    // always a real failure; a pass here is not yet a promise.
     const legality = validateDeck(
         { cards: payload.cards, sideboard: payload.sideboard },
-        format
+        format,
+        undefined,
+        banlist
     );
     if (!legality.isLegal) {
         return {

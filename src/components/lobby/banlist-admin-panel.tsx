@@ -5,11 +5,13 @@ import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import BanlistFormatSyncRow from "./banlist-format-sync-row";
 
-// The two Formats a DB-backed official banlist exists for (PRD #1138), keyed by
-// the source-of-truth `BanlistFormatId` union (`convex/formats.ts`).
+// The Formats a DB-backed official banlist exists for (PRD #1138; Modern,
+// issue #8453), keyed by the source-of-truth `BanlistFormatId` union
+// (`convex/formats.ts`).
 const BANLIST_FORMATS: readonly { id: BanlistFormatId; label: string }[] = [
     { id: "premodern", label: "Premodern" },
     { id: "old-school", label: "Old School" },
+    { id: "modern", label: "Modern" },
 ];
 
 /**

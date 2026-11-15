@@ -1,12 +1,14 @@
 /**
  * `oracle:report --decks` modern table (issue #8454, PRD #8445): one row per
- * archetype — main names playable / total, playable copies of 60, sideboard.
+ * archetype — playable copies of the main 60, of the sideboard 15, of the 75
+ * (issue #8453: the same `deckPlayability` the Preset Deck seed gates on).
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseLockfile } from "../lib/oracle-lockfile";
 import {
+    deckPlayability,
     modernDeckLine,
     tier1Reports,
     type Tier1Deck,
@@ -31,25 +33,44 @@ describe("modern metagame report rows", () => {
         for (const [i, line] of lines.entries())
             expect(line).toMatch(
                 new RegExp(
-                    `^${file.decks[i].slug} +\\d+/\\d+ names +\\d+/60 copies +side 15$`
+                    `^${file.decks[i].slug} +main +(\\d+)/60 +side +(\\d+)/15 +(\\d+)/75$`
                 )
             );
     });
 
-    it("counts a main name playable only when its state is", () => {
+    it("counts a copy playable only when its card's state is", () => {
         const deck = file.decks[0];
-        const reports = tier1Reports(file, lock, new Set());
-        const none = modernDeckLine(deck, reports[0]);
-        // Every main oracle id in the pool => every main name is `ours`.
-        const all = new Set(reports[0].cards.map((c) => c.oracleId));
+        // Every oracle id of the list in the pool => every card is `ours`.
+        const all = new Set(
+            tier1Reports({ decks: [deck] }, lock, new Set())[0].cards.map(
+                (c) => c.oracleId
+            )
+        );
         const full = modernDeckLine(
             deck,
             tier1Reports({ decks: [deck] }, lock, all)[0]
         );
-        const names = new Set(deck.main.map((e) => e.name)).size;
-        expect(full).toContain(`${names}/${names} names`);
-        expect(full).toContain("60/60 copies");
-        expect(none).not.toBe(full);
+        expect(full).toMatch(/main +60\/60 +side +15\/15 +75\/75$/);
+        // A sideboard card that is not playable is counted out of the 15 —
+        // the gap `copies of 60` used to hide.
+        const sideCard = deck.sideboard.find(
+            (e) => !deck.main.some((m) => m.name === e.name)
+        )!;
+        const [report] = tier1Reports({ decks: [deck] }, lock, all);
+        const held = {
+            ...report,
+            cards: report.cards.map((c) =>
+                c.name === sideCard.name
+                    ? { ...c, state: "unparsed" as const }
+                    : c
+            ),
+        };
+        const short = deckPlayability(deck, held);
+        expect(short.side).toBe(15 - sideCard.count);
+        expect(short.missing.map((c) => c.name)).toEqual([sideCard.name]);
+        expect(modernDeckLine(deck, held)).toContain(
+            `side ${`${15 - sideCard.count}/15`.padStart(5)}`
+        );
     });
 
     it("fails closed on a name the lockfile cannot resolve", () => {

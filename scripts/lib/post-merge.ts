@@ -50,6 +50,35 @@ export function cardSetsChanged(files: readonly string[]): boolean {
 }
 
 /**
+ * The paths whose change can move a Preset Deck list across its 75/75 gate
+ * (issue #8453) beside a card set: the compiled lockfile — the card states
+ * the gate counts, which a Grammar Rule or a lifted quarantine moves with no
+ * card-set diff at all, in `derive:sync`'s commit — the card index (a
+ * hand-written card's pool membership), the canonical lists themselves, and
+ * the legality the payload must pass (pool maps, Format rules, banlist seeds).
+ */
+const PRESET_GATE_PATHS: readonly string[] = [
+    "data/oracle-compiled.json",
+    "data/card-index.json",
+    "data/premodern-metagame-decks.json",
+    "data/modern-metagame-decks.json",
+    // The legality the payload is checked against: the generated pool maps
+    // and the Formats' rules and banlist seeds.
+    "data/oracle-legality.json",
+    "convex/formats.ts",
+];
+
+/** Did the push change anything that can publish a Preset Deck list — a
+ *  card set, or a path the 75/75 gate reads? Read over the range up to the
+ *  tree the seed runs on (the derive commit, when the tip was stale). */
+export function presetGateMoved(files: readonly string[]): boolean {
+    return (
+        cardSetsChanged(files) ||
+        files.some((f) => PRESET_GATE_PATHS.includes(f))
+    );
+}
+
+/**
  * The worktree a merged PR's session left standing, from the PR's own head
  * branch and by the rule `wt:new` created it with. null when the branch names
  * no issue — a docs-lane or hand-made branch has no worktree of ours.
@@ -72,7 +101,8 @@ export function mergedWorktree(
 export interface SeedPlan {
     /** PRs whose `## Preset scenario` is registered, oldest first. */
     scenarios: number[];
-    /** `seed:preset --all`: a card set changed, so every preset list reseeds. */
+    /** `seed:preset --all`: a card set or a 75/75 gate input changed, so every
+     *  preset list reseeds — and a list that just reached 75/75 publishes. */
     presets: boolean;
 }
 
@@ -88,7 +118,7 @@ export function seedPlan(
     changedFiles: readonly string[]
 ): SeedPlan {
     if (!fastForwarded) return { scenarios: [], presets: false };
-    return { scenarios: [...prs], presets: cardSetsChanged(changedFiles) };
+    return { scenarios: [...prs], presets: presetGateMoved(changedFiles) };
 }
 
 /** One commit the base gained after the pushed tip, oldest first. */

@@ -329,29 +329,77 @@ export function summaryLines(reports: readonly DeckReport[]): string[] {
 /** Path of the modern metagame lists (issue #8276, PRD #8445). */
 export const MODERN_METAGAME_DECKS_PATH = "data/modern-metagame-decks.json";
 
+/** The ONE playability predicate (issue #8453): a card state counts as
+ *  playable exactly when it is in `PLAYABLE_STATES`. The report rows and the
+ *  Preset Deck seed's gate both call this — never a second count. */
+export function isPlayableState(state: DeckCardState): boolean {
+    return PLAYABLE_STATES.includes(state);
+}
+
+/** A list's playable copies, main and sideboard apart, out of its 60 + 15,
+ *  and the distinct cards that are not playable yet. */
+export interface DeckPlayability {
+    readonly main: number;
+    readonly mainTotal: number;
+    readonly side: number;
+    readonly sideTotal: number;
+    /** Distinct not-yet-playable cards, main-deck ones first, each in list
+     *  order — so `missing[0]` is the first card a reader looks for. */
+    readonly missing: readonly DeckCardRow[];
+}
+
+/** Whether every one of the list's copies is playable — the gate a Preset
+ *  Deck is published behind (75/75, owner decision 2026-11-08). */
+export function isFullyPlayable(p: DeckPlayability): boolean {
+    return p.main === p.mainTotal && p.side === p.sideTotal;
+}
+
 /**
- * One archetype's progress row: MAIN names playable / total, the playable
- * copies of the 60, and the sideboard size. Fail-closed by construction —
- * `tier1Reports` throws on a name the lockfile cannot resolve, and a card
- * that is neither `ours` nor `ready` is not counted playable.
+ * Count `deck`'s playable copies against its report. Fail-closed by
+ * construction — `tier1Reports` throws on a name the lockfile cannot resolve,
+ * and a name missing from `report` is not counted playable.
+ */
+export function deckPlayability(
+    deck: Tier1Deck,
+    report: DeckReport
+): DeckPlayability {
+    const rows = new Map(report.cards.map((c) => [c.name, c]));
+    const playable = (name: string): boolean => {
+        const row = rows.get(name);
+        return row !== undefined && isPlayableState(row.state);
+    };
+    const count = (entries: readonly Tier1DeckEntry[]): number =>
+        entries
+            .filter((e) => playable(e.name))
+            .reduce((sum, e) => sum + e.count, 0);
+    const missing: DeckCardRow[] = [];
+    const seen = new Set<string>();
+    for (const e of [...deck.main, ...deck.sideboard]) {
+        if (seen.has(e.name) || playable(e.name)) continue;
+        seen.add(e.name);
+        const row = rows.get(e.name);
+        if (row) missing.push(row);
+    }
+    return {
+        main: count(deck.main),
+        mainTotal: totalCopies(deck.main),
+        side: count(deck.sideboard),
+        sideTotal: totalCopies(deck.sideboard),
+        missing,
+    };
+}
+
+/**
+ * One archetype's progress row (issue #8453): playable copies of the main 60,
+ * of the sideboard 15, and of the 75 — from `deckPlayability`, the same count
+ * the Preset Deck seed gates on.
  */
 export function modernDeckLine(deck: Tier1Deck, report: DeckReport): string {
-    const state = new Map(report.cards.map((c) => [c.name, c.state]));
-    const mainNames = new Set(deck.main.map((e) => e.name));
-    let namesPlayable = 0;
-    for (const name of mainNames) {
-        if (PLAYABLE_STATES.includes(state.get(name) as DeckCardState))
-            namesPlayable += 1;
-    }
-    const copiesPlayable = deck.main
-        .filter((e) =>
-            PLAYABLE_STATES.includes(state.get(e.name) as DeckCardState)
-        )
-        .reduce((sum, e) => sum + e.count, 0);
+    const p = deckPlayability(deck, report);
     return (
         `${deck.slug.padEnd(26)}` +
-        `${`${namesPlayable}/${mainNames.size}`.padStart(7)} names  ` +
-        `${`${copiesPlayable}/${totalCopies(deck.main)}`.padStart(6)} copies  ` +
-        `side ${totalCopies(deck.sideboard)}`
+        `main ${`${p.main}/${p.mainTotal}`.padStart(5)}  ` +
+        `side ${`${p.side}/${p.sideTotal}`.padStart(5)}  ` +
+        `${`${p.main + p.side}/${p.mainTotal + p.sideTotal}`.padStart(5)}`
     );
 }

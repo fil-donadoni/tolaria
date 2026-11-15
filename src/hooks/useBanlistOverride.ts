@@ -36,7 +36,7 @@ export function useBanlistOverride(
     );
 }
 
-/** Both DB-backed Formats' overrides keyed by `FormatId`, for a list that mixes
+/** Every DB-backed Format's override keyed by `FormatId`, for a list that mixes
  *  Formats (the user's saved decks). A row whose Format isn't DB-backed simply
  *  looks up `undefined` here — the same code-const fallback path. Mirrors the
  *  server's `loadBanlistOverridesByFormat` (`convex/decks.ts`). */
@@ -45,8 +45,9 @@ export function useBanlistOverridesByFormat(): Partial<
 > {
     const premodern = useBanlistOverride("premodern");
     const oldSchool = useBanlistOverride("old-school");
+    const modern = useBanlistOverride("modern");
     return useMemo(
-        () => ({ premodern, "old-school": oldSchool }),
-        [premodern, oldSchool]
+        () => ({ premodern, "old-school": oldSchool, modern }),
+        [premodern, oldSchool, modern]
     );
 }

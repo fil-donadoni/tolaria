@@ -171,7 +171,8 @@ export function diffBanlist(
 // --- Sync orchestration (pure aside from injected deps) -------------------
 
 /** One Scryfall search query per status a format needs. Premodern has no
- *  official restricted list (PRD #1138 Out of Scope); Old School has both.
+ *  official restricted list (PRD #1138 Out of Scope); Old School has both;
+ *  Modern, like Premodern, has a Banned list only.
  *  `order=name` is not load-bearing for correctness (dedup makes ordering
  *  irrelevant) but keeps a captured fixture/response deterministic to read. */
 const SCRYFALL_QUERIES: Record<
@@ -183,6 +184,9 @@ const SCRYFALL_QUERIES: Record<
         { status: "banned", query: "banned:oldschool" },
         { status: "restricted", query: "restricted:oldschool" },
     ],
+    // Modern has a Banned list and no Restricted list (Wizards publishes no
+    // Modern restrictions).
+    modern: [{ status: "banned", query: "banned:modern" }],
 };
 
 /** Injected dependencies for `runBanlistSync`, mirroring the existing
