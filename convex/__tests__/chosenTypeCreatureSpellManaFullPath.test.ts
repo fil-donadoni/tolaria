@@ -34,7 +34,6 @@ import {
 import { getDefinition } from "../cards";
 const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
 
-
 const GAME_ID = "game-1" as Id<"games">;
 /** Index 0 = the fixed {C} ability; 1-5 = the restricted ability's
  *  [{W},{U},{B},{R},{G}] choices. 5 = {G}. */
