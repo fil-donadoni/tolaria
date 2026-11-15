@@ -40,7 +40,7 @@ import {
 
 const VILLAGE_DEF = getCardByName("Treetop Village");
 const VILLAGE = VILLAGE_DEF.id;
-const VILLAGE_ANIMATE = "treetop-village-animate";
+const VILLAGE_ANIMATE = "treetop-village-ability-2";
 const FOREST = getCardByName("Forest").id;
 const ANGEL = getCardByName("Serra Angel").id;
 const BEARS = getCardByName("Grizzly Bears").id;
