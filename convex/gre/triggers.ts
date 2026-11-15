@@ -696,7 +696,7 @@ export function collectTriggers(
     // Hallow's Eve). ONE scan for both zones, each pile read only for the
     // abilities opted into it via `zone`. The trigger's
     // `matches`/`interveningIf` inspects card position via `TriggerStateView`.
-    // A face-down exiled card has no abilities (CR 406.3, 708.2), so it
+    // A face-down exiled card has no characteristics (CR 406.3a), so it
     // contributes nothing.
     for (const player of ordered) {
         const zonePiles = [

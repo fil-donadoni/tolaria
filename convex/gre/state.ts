@@ -15260,7 +15260,7 @@ export function buildSpellContext(
             count: number
         ): number {
             if (count <= 0) return 0;
-            // CR 122.6 / 609.3 — the exile-zone twin, clamped the same way. No
+            // CR 609.3 — the exile-zone twin, clamped the same way. No
             // keyword grant or counter-gated static reads an exiled card, and
             // no shipped trigger watches a counter leaving one, so it is a
             // plain removal with no recompute and no COUNTER_REMOVED event.

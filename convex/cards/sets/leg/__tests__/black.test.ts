@@ -1045,7 +1045,7 @@ describe("All Hallow's Eve — counters on an exiled card + a trigger functionin
         const [p1, p2] = state.players;
         expect(eve()).toBeUndefined();
         expect(p1.graveyard.map((c) => c.id).sort()).toEqual(["eve", "rain"]);
-        // CR 400.7 — each under its OWN owner's control.
+        // CR 110.2a — each player returns their own: under its owner's control.
         expect(p1.battlefield.map((c) => c.id)).toEqual(["mine"]);
         expect(p2.battlefield.map((c) => c.id)).toEqual(["theirs"]);
         expect(p2.battlefield[0].controllerId).toBe("p2");
