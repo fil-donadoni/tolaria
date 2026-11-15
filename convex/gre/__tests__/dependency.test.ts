@@ -47,14 +47,17 @@ import { LAYER_6_STATIC_EFFECT_KINDS } from "../layer6";
 import { bloodMoon } from "../../cards/sets/drk/red.cards";
 import { magusOfTheMoon } from "../../cards/sets/fut/red.cards";
 import { urborgTombOfYawgmoth } from "../../cards/sets/plc/colorless.cards";
-import { prismaticOmen } from "../../cards/sets/shm/green.cards";
 import { conspiracy } from "../../cards/sets/mmq/black.cards";
 import { lifeAndLimb } from "../../cards/sets/plc/green.cards";
-import { humility } from "../../cards/sets/tmp/white.cards";
-import { opalescence } from "../../cards/sets/uds/white.cards";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { flight, lordOfAtlantis } from "../../cards/sets/lea/blue.cards";
 import { tropicalIsland } from "../../cards/sets/lea/colorless.cards";
+import { getDefinition } from "../../cards/index";
+
+const prismaticOmen = () =>
+    getDefinition("e75594cc-de47-49f2-9a8b-ba76c576368e");
+const humility = () => getDefinition("a2fb7128-806b-4148-80fe-eb967f248021");
+const opalescence = () => getDefinition("3c0071fb-afa5-47b5-b266-2b10a4f5a98a");
 
 const view = (state: GameState): LayerStateView =>
     state as unknown as LayerStateView;

@@ -28,9 +28,11 @@ import { advancePhase } from "../phases";
 import { drought } from "../../cards/sets/ice/white.cards";
 import { wrennAndSix } from "../../cards/sets/mh1/multicolor.cards";
 import { swamp } from "../../cards/sets/lea/colorless.cards";
-import { mightstone } from "../../cards/sets/atq/colorless.cards";
 import { withTemporaryDefinition } from "../../cards/registry";
 import type { GameEvent } from "../../cards/types";
+import { getDefinition } from "../../cards/index";
+
+const mightstone = () => getDefinition("b28ba599-5299-4831-a118-1712ada10ef6");
 
 const FALLEN_SHINOBI = "900c9dfd-ece1-4b09-a801-0fa05e1994b9";
 /** Grizzly Bears — a vanilla body to attack with. */

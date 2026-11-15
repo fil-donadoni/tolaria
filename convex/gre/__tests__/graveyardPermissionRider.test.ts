@@ -43,7 +43,6 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { serraParagon } from "../../cards/sets/dmu/white.cards";
 import { lurrus } from "../../cards/sets/iko/multicolor.cards";
-import { wateryGrave } from "../../cards/sets/rav/colorless.cards";
 import {
     counterspell,
     grayOgre,
@@ -51,6 +50,8 @@ import {
     mountain,
     savannahLions,
 } from "../../cards/sets/lea/index.cards";
+
+const wateryGrave = () => getDefinition("139b90cd-8272-457a-be32-1298145345be");
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 const RIDER_ID = "serra-paragon-granted-exile";

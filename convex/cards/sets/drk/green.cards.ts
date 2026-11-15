@@ -270,31 +270,6 @@ export const landLeeches = defineCard(() => ({
     staticAbilities: ["first strike"],
 }));
 
-// Hidden Path — global anthem grant: "Green creatures have forestwalk." (CR 611
-// continuous keyword-grant, layer 6; CR 702.14c forestwalk evasion.) Modeled
-// exactly like Zombie Master's group `keyword-grant` (lea.ts), but the predicate
-// filters on effective color (CR 105 / 202.2 — `ctx.getColors` honors any
-// color-changing effect, e.g. a green creature laced blue stops getting it). The
-// grant applies to ALL green creatures, both players' (the printed text is not
-// controller-scoped).
-export const hiddenPath = defineCard(() => ({
-    id: "cbc93c0b-0ac8-4b8f-b2f6-96887d1acd77",
-    rarity: "rare",
-    name: "Hidden Path",
-    oracleText:
-        "Green creatures have forestwalk. (They can't be blocked as long as defending player controls a Forest.)",
-    manaCost: { X: 2, G: 4 },
-    types: ["Enchantment"],
-    staticEffects: [
-        {
-            kind: "keyword-grant",
-            applies: (target, _source, ctx) =>
-                ctx.isCreature(target) && ctx.getColors(target).includes("G"),
-            keyword: "forestwalk",
-        },
-    ],
-}));
-
 // Lurker — "This creature can't be the target of spells unless it attacked or
 // blocked this turn." (CR 115 targeting restriction.) A self permanent-guard
 // (`source.id === target.id`) with `cantBeTargeted` narrowed to SPELLS only

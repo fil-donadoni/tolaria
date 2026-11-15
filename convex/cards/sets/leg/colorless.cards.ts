@@ -122,56 +122,6 @@ export const koboldsOfKherKeep = defineCard(() => ({
 
 // --- Cost-reduction artifacts (CR 601.2f — cost-modifier static) ----------
 
-// Mana Matrix — "Instant and enchantment spells you cast cost {2} less."
-// Generic-only reduction (CR 601.2f) scoped to the controller via the spell's
-// controllerId matching the artifact's controllerId.
-export const manaMatrix = defineCard(() => ({
-    id: "a3eedc11-0b47-430c-8391-577a2d05c2ae",
-    rarity: "rare",
-    name: "Mana Matrix",
-    oracleText:
-        "Instant and enchantment spells you cast cost {2} less to cast.",
-    manaCost: { X: 6 },
-    types: ["Artifact"],
-    staticEffects: [
-        {
-            kind: "cost-modifier",
-            appliesToSpell: (
-                card: PermanentView,
-                _ctx: StaticEffectContext,
-                effectSource?: PermanentView
-            ) =>
-                card.controllerId === effectSource?.controllerId &&
-                (card.types.includes("Instant") ||
-                    card.types.includes("Enchantment")),
-            costReduction: { X: 2 },
-        },
-    ],
-}));
-
-// Planar Gate — "Creature spells you cast cost {2} less to cast."
-export const planarGate = defineCard(() => ({
-    id: "dd27f0fe-c032-4f61-9f3d-98a6d2e2c426",
-    rarity: "rare",
-    name: "Planar Gate",
-    oracleText: "Creature spells you cast cost {2} less to cast.",
-    manaCost: { X: 6 },
-    types: ["Artifact"],
-    staticEffects: [
-        {
-            kind: "cost-modifier",
-            appliesToSpell: (
-                card: PermanentView,
-                _ctx: StaticEffectContext,
-                effectSource?: PermanentView
-            ) =>
-                card.controllerId === effectSource?.controllerId &&
-                card.types.includes("Creature"),
-            costReduction: { X: 2 },
-        },
-    ],
-}));
-
 // --- Utility artifacts (CR 602 activated abilities) -----------------------
 
 // North Star — "{4}, {T}: For one spell this turn, you may spend mana as though

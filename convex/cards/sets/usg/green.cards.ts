@@ -4,20 +4,6 @@ import { defineCard } from "../../types";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { colorChoiceModes } from "../../abilities/chooseColor";
 
-// Exploration — {G} Enchantment. "You may play an additional land on each of
-// your turns." (CR 305.2 — extra land drops.) One additional land drop (total
-// 2/turn), the bounded analogue of Fastbond's `extraLandDrops: 999`
-// (lea/green.cards.ts).
-export const exploration = defineCard(() => ({
-    id: "2f09e451-0246-45a2-8bfd-07d3c65ddfe6",
-    rarity: "rare",
-    name: "Exploration",
-    oracleText: "You may play an additional land on each of your turns.",
-    manaCost: { G: 1 },
-    types: ["Enchantment"],
-    extraLandDrops: 1,
-}));
-
 // Fertile Ground — {1}{G} Enchantment — Aura, enchant land. "Whenever
 // enchanted land is tapped for mana, its controller adds an additional one
 // mana of any color." (CR 303.4 aura attachment, CR 603.2 PERMANENT_TAPPED

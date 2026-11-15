@@ -16,7 +16,6 @@
 
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
-import { aluren } from "../../cards/sets/tmp/green.cards";
 import {
     makeInstance,
     makePlayer,
@@ -41,6 +40,9 @@ import { NO_BOARD_LAYER_VIEW } from "../layers";
 import { isSplitCastId, splitCastAltCostId } from "../splitCast";
 import { castPermissionRequiredFor, getLegalActions } from "../rules";
 import type { CardInstanceState, GameState, StackItem } from "../state";
+import { getDefinition } from "../../cards/index";
+
+const aluren = () => getDefinition("268403bc-733d-446e-a7c1-abc957c42bc2");
 
 const STAND_DELIVER = getCardByName("Stand // Deliver");
 const LIFE_DEATH = getCardByName("Life // Death");

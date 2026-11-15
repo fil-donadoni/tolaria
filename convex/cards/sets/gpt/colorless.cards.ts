@@ -2,41 +2,4 @@
 // oracle text is authoritative (ADR 0004). Lands and colourless artifacts
 // (no coloured cost) live here per the colour-split convention.
 
-import { defineCard } from "../../types";
-import { makeDualLand } from "../../abilities";
-
-// The RAV/GPT/DIS "shock land" cycle — "({T}: Add <c1> or <c2>.) As this land
-// enters, you may pay 2 life. If you don't, it enters tapped.". The
-// land-entry pay-choice is a stackless PendingChoice suspended by
-// `applyPlayLand` (CR 614.12, ADR 0051); the shared `makeDualLand({ shockLand })`
-// factory carries the basic land subtypes (whose intrinsic abilities are the
-// mana, CR 305.6) and the `entersTappedUnlessPay: { life: 2 }` clause.
-export const steamVents = defineCard(() =>
-    makeDualLand({
-        id: "054f2276-2dd5-43da-bb26-c57c560861fe",
-        name: "Steam Vents",
-        rarity: "rare",
-        colors: ["U", "R"],
-        shockLand: true,
-    })
-);
-
-export const stompingGround = defineCard(() =>
-    makeDualLand({
-        id: "a2773d8f-f906-475d-aaff-b7ca3b01f188",
-        name: "Stomping Ground",
-        rarity: "rare",
-        colors: ["R", "G"],
-        shockLand: true,
-    })
-);
-
-export const godlessShrine = defineCard(() =>
-    makeDualLand({
-        id: "be010c2f-06db-47e3-80bd-df3f2a21ca34",
-        name: "Godless Shrine",
-        rarity: "rare",
-        colors: ["W", "B"],
-        shockLand: true,
-    })
-);
+export {};

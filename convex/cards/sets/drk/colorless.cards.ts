@@ -344,30 +344,6 @@ export const skullOfOrm = defineCard(() => ({
     ],
 }));
 
-// Stone Calendar — "Spells you cast cost {1} less to cast." (CR 601.2f cost
-// reduction; CR 118.7 generic-only reduction. A `cost-modifier` static scoped to
-// the controller's own spells via `card.controllerId === effectSource.controllerId`.)
-export const stoneCalendar = defineCard(() => ({
-    id: "a49ba1a5-33b1-40f2-9780-26139ed829d7",
-    rarity: "rare",
-    name: "Stone Calendar",
-    oracleText: "Spells you cast cost {1} less to cast.",
-    manaCost: { X: 5 },
-    types: ["Artifact"],
-    staticEffects: [
-        {
-            kind: "cost-modifier",
-            // CR 601.2f — only the caster's own spells are reduced. The
-            // effectSource is Stone Calendar; the spell's controllerId is the
-            // caster.
-            appliesToSpell: (card, _ctx, effectSource) =>
-                !!effectSource &&
-                card.controllerId === effectSource.controllerId,
-            costReduction: { X: 1 },
-        },
-    ],
-}));
-
 // Tormod's Crypt — "{T}, Sacrifice this artifact: Exile target player's
 // graveyard." (CR 605 activated ability; CR 406 / 400.7 — move the whole target
 // player's graveyard to exile.) An Effect Script on `moveZone`'s whole-zone

@@ -41,7 +41,7 @@ import {
     makePlayer,
     makeState,
 } from "@convex/cards/__tests__/setup.helper";
-import { goblinSpy } from "@convex/cards/sets/inv/red.cards";
+import { getDefinition } from "@convex/cards";
 import { grizzlyBears } from "@convex/cards/sets/lea/green.cards";
 import {
     mountain,
@@ -55,6 +55,8 @@ import {
 } from "@convex/__tests__/gameMutationHarness.fixture";
 import { buildLibraryPileModel } from "~/lib/library-knowledge";
 import type { PublicLibrary } from "~/types/game";
+
+const goblinSpy = () => getDefinition("2a89a099-8805-4b26-babd-5d9f48ee406a");
 
 const GAME_ID = "game-1" as Id<"games">;
 

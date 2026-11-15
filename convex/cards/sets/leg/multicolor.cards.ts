@@ -284,32 +284,6 @@ export const dakkonBlackblade = defineCard(() => ({
 
 // --- Filtered anthem (CR 611 layer 7c) -------------------------------------
 
-// Jacques le Vert — "Green creatures you control get +0/+2." (CR 611 filtered
-// anthem keyed on colour + controller.)
-export const jacquesLeVert = defineCard(() => ({
-    id: "ee5a45b1-169b-468e-9251-424c09cd7f0f",
-    rarity: "rare",
-    name: "Jacques le Vert",
-    oracleText: "Green creatures you control get +0/+2.",
-    manaCost: { X: 1, R: 1, G: 1, W: 1 },
-    types: ["Creature"],
-    supertypes: ["Legendary"],
-    subtypes: ["Human", "Warrior"],
-    power: 3,
-    toughness: 2,
-    staticEffects: [
-        {
-            kind: "pt-buff",
-            applies: (target, source, ctx) =>
-                ctx.isCreature(target) &&
-                target.controllerId === source.controllerId &&
-                ctx.getColors(target).includes("G"),
-            power: 0,
-            toughness: 2,
-        },
-    ],
-}));
-
 // --- Spell-cast trigger (CR 603.2) -----------------------------------------
 
 // --- Activated abilities (CR 602) ------------------------------------------

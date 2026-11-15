@@ -38,9 +38,12 @@ import {
     makeState,
 } from "../../cards/__tests__/setup.helper";
 import { mountain, savannahLions } from "../../cards/sets/lea/index.cards";
-import { crucibleOfWorlds } from "../../cards/sets/5dn/colorless.cards";
-import { wateryGrave } from "../../cards/sets/rav/colorless.cards";
 import { lurrus } from "../../cards/sets/iko/multicolor.cards";
+import { getDefinition } from "../../cards/index";
+
+const crucibleOfWorlds = () =>
+    getDefinition("312a6058-de08-487d-95bd-b3c56807fdd6");
+const wateryGrave = () => getDefinition("139b90cd-8272-457a-be32-1298145345be");
 
 const SOURCE_DEF_ID = "test-graveyard-play-permission-source";
 

@@ -73,12 +73,14 @@ import {
     makePlayer,
     makeState,
 } from "@convex/cards/__tests__/setup.helper";
-import { aluren } from "@convex/cards/sets/tmp/green.cards";
+import { getDefinition } from "@convex/cards";
 import { grizzlyBears } from "@convex/cards/sets/lea/green.cards";
 import { shivanDragon } from "@convex/cards/sets/lea/red.cards";
 import { ragavanNimblePilferer } from "@convex/cards/sets/mh2/red.cards";
 import { balduvianHydra } from "@convex/cards/sets/ice/red.cards";
 import { forest } from "@convex/cards/sets/lea/colorless.cards";
+
+const aluren = () => getDefinition("268403bc-733d-446e-a7c1-abc957c42bc2");
 
 const ALUREN_ALT_COST_ID = "cast-permission:any-player-creature-f9f346f4";
 

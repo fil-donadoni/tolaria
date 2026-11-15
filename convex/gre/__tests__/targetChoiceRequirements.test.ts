@@ -23,10 +23,7 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
-import {
-    coalitionFlag,
-    standardBearer,
-} from "../../cards/sets/apc/white.cards";
+import { coalitionFlag } from "../../cards/sets/apc/white.cards";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { lightningBolt, stoneRain } from "../../cards/sets/lea/red.cards";
 import { mountain } from "../../cards/sets/lea/colorless.cards";
@@ -47,6 +44,10 @@ import {
     activeTargetChoiceRequirements,
     satisfiesTargetChoiceRequirement,
 } from "../targetChoiceRequirements";
+import { getDefinition } from "../../cards/index";
+
+const standardBearer = () =>
+    getDefinition("e0f8e16a-55f0-4147-a01a-dba7938f31c4");
 
 const BASE = { gameId: "game-1" as Id<"games">, playerId: "p1" };
 type AnyHandler = Handler<Record<string, unknown>, void>;

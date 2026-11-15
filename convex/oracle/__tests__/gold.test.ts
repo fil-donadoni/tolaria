@@ -175,8 +175,10 @@ describe("gold round-trip — the harness is not vacuous", () => {
         // retirement wave — the point is non-zero, not population size.
         expect(REPORT.buckets.activated.accepted).toBeGreaterThan(5);
         // #2700 — without this the static slot could be switched off entirely
-        // and every assertion above would still pass.
-        expect(REPORT.buckets.static.accepted).toBeGreaterThan(5);
+        // and every assertion above would still pass. Floor lowered from 5
+        // (issue #4030): the static retirement wave leaves two `equal`
+        // hand-written cards in `getAllCards()` — the point is non-zero.
+        expect(REPORT.buckets.static.accepted).toBeGreaterThan(0);
         // #2699 — same, for the spell slot.
         expect(REPORT.buckets.spell.accepted).toBeGreaterThan(20);
     });
