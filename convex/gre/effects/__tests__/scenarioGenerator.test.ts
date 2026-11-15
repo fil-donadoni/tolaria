@@ -1675,7 +1675,7 @@ describe("a forced random pick moved to hand (CR 608.2c, CR 400.7)", () => {
         ],
         [
             "a filter on a characteristic the seeded card lacks",
-            pickThenMove({ filter: { colors: ["B"] } }),
+            pickThenMove({ filter: { color: "B" } }),
             [PICK_SKIP, MOVE_SKIP],
         ],
         [
