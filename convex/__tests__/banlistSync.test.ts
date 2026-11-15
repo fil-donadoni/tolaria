@@ -303,6 +303,22 @@ describe("runBanlistSync — orchestration with injected deps (issue #1143)", ()
         expect(byName.get("Black Lotus")).toBe("restricted");
     });
 
+    // Issue #8453: Modern has a Banned list only, synced from `banned:modern`.
+    it("Modern syncs banned only — the `banned:modern` query, every entry banned", async () => {
+        const deps = fakeDeps({
+            "banned:modern": PREMODERN_BANNED_FIXTURE_PAGES,
+        });
+        await runBanlistSync("modern", deps);
+
+        expect(deps.replace).toHaveBeenCalledTimes(1);
+        const call = deps.replace.mock.calls[0]![0];
+        expect(call.format).toBe("modern");
+        expect(call.entries.length).toBeGreaterThan(0);
+        expect(
+            call.entries.every((e: { status: string }) => e.status === "banned")
+        ).toBe(true);
+    });
+
     it("a rejecting fetch aborts the sync WITHOUT ever calling replace (existing rows stay intact)", async () => {
         const replace = vi.fn();
         const deps: BanlistSyncDeps = {
