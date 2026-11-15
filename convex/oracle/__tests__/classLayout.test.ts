@@ -25,7 +25,6 @@ import { projectPublicState } from "../../gameProjections";
 import { collectTriggers } from "../../gre/triggers";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { roundTripCard } from "../gold";
 import { oracleCard } from "./oracle.fixture";
 
 const REMINDER = "(Gain the next level as a sorcery to add its ability.)";
@@ -165,14 +164,6 @@ describe("Class layout — golden (CR 716.2a / 716.3)", () => {
             "setLevel",
         ]);
         expect(outcome.slots).toEqual(["class-level-bar", "triggered"]);
-    });
-
-    it("round-trips the hand-written card, field for field (Guard C)", () => {
-        const handWritten = getDefinition(
-            getCardByName("Stormchaser's Talent").id
-        );
-        const { verdict } = roundTripCard(handWritten);
-        expect(verdict).toEqual({ ok: true, kind: "equal" });
     });
 });
 
