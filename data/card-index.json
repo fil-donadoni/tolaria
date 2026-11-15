@@ -6017,7 +6017,9 @@
         "oracleId": "eeb9377b-72c1-4214-9a66-0f55577c17d1",
         "firstSet": "ody",
         "firstPrintId": "1809361e-ae1a-4c47-8464-e6496e94d962",
-        "firstPrintSet": "ody"
+        "firstPrintSet": "ody",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Barbary Apes",
@@ -24511,7 +24513,9 @@
         "oracleId": "8ada7388-fd8b-434c-a17a-bce19cf3e615",
         "firstSet": "arn",
         "firstPrintId": "18348df2-9037-4db4-bddb-76dc933229bf",
-        "firstPrintSet": "arn"
+        "firstPrintSet": "arn",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Elephant Guide",
@@ -39419,7 +39423,9 @@
         "oracleId": "262a5d83-506c-4781-9bc9-1a2b5d83955c",
         "firstSet": "fut",
         "firstPrintId": "d5dfc25d-a17b-4ead-9484-e8a18b8fa176",
-        "firstPrintSet": "fut"
+        "firstPrintSet": "fut",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Horizon Drake",
@@ -43669,7 +43675,9 @@
         "oracleId": "59119143-c0fa-49dd-adf0-e2fd3029c48b",
         "firstSet": "leg",
         "firstPrintId": "31d2422a-bb7d-4cdd-9aac-e5a936a4be3b",
-        "firstPrintSet": "leg"
+        "firstPrintSet": "leg",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Karametra's Favor",
@@ -51698,7 +51706,9 @@
         "oracleId": "c97361b5-af16-4a7b-af85-a429dbaf4ad2",
         "firstSet": "wth",
         "firstPrintId": "162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71",
-        "firstPrintSet": "wth"
+        "firstPrintSet": "wth",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Mind Twist",
@@ -80475,7 +80485,9 @@
         "oracleId": "d21a89eb-7c5b-459a-acc7-12b20b13bf79",
         "firstSet": "atq",
         "firstPrintId": "e7880157-7f27-4f1b-9cdc-ab36a6252376",
-        "firstPrintSet": "atq"
+        "firstPrintSet": "atq",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Striped Bears",
@@ -81161,7 +81173,9 @@
         "oracleId": "f97fd068-b83a-4621-bf8c-cc96e880ce90",
         "firstSet": "mh1",
         "firstPrintId": "c36820fa-ee86-4206-9a0d-737a67cf5208",
-        "firstPrintSet": "mh1"
+        "firstPrintSet": "mh1",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Sunbeam Spellbomb",
@@ -83781,7 +83795,9 @@
         "oracleId": "58eaaa8b-45c6-439b-bdd1-5f4e77a75a8c",
         "firstSet": "pls",
         "firstPrintId": "353a8ea8-3f1f-4f77-95bc-b09b96996285",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Terminate",
@@ -93765,7 +93781,9 @@
         "oracleId": "09a70ae8-3859-4a09-901d-dce063fa3b5f",
         "firstSet": "tmp",
         "firstPrintId": "99ff731b-8399-40c8-b539-ba6ba5783771",
-        "firstPrintSet": "tmp"
+        "firstPrintSet": "tmp",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Wasteland Scorpion",
@@ -93947,7 +93965,9 @@
         "oracleId": "70fa2eba-565e-4fed-adc9-7f5d9fcbf1fa",
         "firstSet": "mh1",
         "firstPrintId": "0ab6bfbd-d2e1-4c4c-9f91-6f69c5b8e3bb",
-        "firstPrintSet": "mh1"
+        "firstPrintSet": "mh1",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Waterspout Elemental",

@@ -9,12 +9,14 @@ import {
 } from "../../../convex/cards/__tests__/setup.helper";
 import { breakTheIce } from "../../../convex/cards/sets/mh2/index.cards";
 import { forest } from "../../../convex/cards/sets/lea/index.cards";
-import { stripMine } from "../../../convex/cards/sets/atq/index.cards";
+import { getDefinition } from "../../../convex/cards";
 import { snowCoveredForest } from "../../../convex/cards/sets/ice/index.cards";
 import { pendingTargetFiltersFromRequirement } from "../../../convex/gre/rules";
 import { projectPublicState } from "../../../convex/gameProjections";
 import type { PendingTarget } from "../../../convex/gre/state";
 import { matchesPermanentTargetFilters } from "../card-utils";
+
+const stripMine = () => getDefinition("e7880157-7f27-4f1b-9cdc-ab36a6252376");
 
 describe("matchesPermanentTargetFilters — snow or could produce {C} (CR 205.4a / 106.7)", () => {
     it("highlights the snow land and the {C} land, not the plain Forest", () => {

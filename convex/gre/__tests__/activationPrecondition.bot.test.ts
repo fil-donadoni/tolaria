@@ -34,7 +34,7 @@ const BATTLEFLIES = getCardByName("Phyrexian Battleflies").id;
 const SWAMP = getCardByName("Swamp").id;
 const FILLER = getCardByName("Grizzly Bears").id;
 
-const RING_SAC = "barbarian-ring-sac";
+const RING_SAC = "barbarian-ring-ability-2";
 
 function inst(
     cardId: string,

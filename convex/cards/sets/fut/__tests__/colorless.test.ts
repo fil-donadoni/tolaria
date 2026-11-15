@@ -64,7 +64,7 @@ describe("Horizon Canopy (painland cantrip, CR 605.1a / 305)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, land, "horizon-canopy-draw");
+        resolveActivated(state, land, "horizon-canopy-ability-2");
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["top"]);
     });
 });

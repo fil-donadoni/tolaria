@@ -58,7 +58,7 @@ describe("Mind Stone (mana rock + sacrifice cantrip, CR 605 / 121.1)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, stone, "mind-stone-draw");
+        resolveActivated(state, stone, "mind-stone-ability-2");
         expect(state.players[0].hand.length).toBe(1);
 
         // Wire format: the drawn card survives the projection (CR 121.1).

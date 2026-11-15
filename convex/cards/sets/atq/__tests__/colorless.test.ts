@@ -512,7 +512,7 @@ describe("Strip Mine ({T}: add C; sac: destroy target land, CR 701.8)", () => {
                 makePlayer("p2", { battlefield: [victim] }),
             ],
         });
-        resolveActivated(state, mine, "strip-mine-destroy", [
+        resolveActivated(state, mine, "strip-mine-ability-2", [
             { type: "permanent", id: "victim" },
         ]);
         expect(

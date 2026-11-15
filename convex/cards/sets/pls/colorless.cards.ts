@@ -6,7 +6,6 @@
 import { defineCard, type ManaCost, type MayPayCost } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
-import { makeTapForMana } from "../../abilities";
 
 // CR 117.3a / 701.21 / 400.7 — the Planeshift "Lair" cycle (5 tri-colour tap
 // lands: Crosis's Catacombs, Darigaaz's Caldera, Dromar's Cavern, Rith's
@@ -432,56 +431,6 @@ export const forsakenCity = defineCard(() => ({
             cost: { tap: true },
             useStack: false,
             manaChoices: ANY_SINGLE_COLOR,
-        },
-    ],
-}));
-
-// Terminal Moraine — Land. "{T}: Add {C}.\n{2}, {T}, Sacrifice this land:
-// Search your library for a basic land card, put that card onto the
-// battlefield tapped, then shuffle." Mirrors Fabled Passage's fetch ability
-// (eld/colorless.cards.ts) exactly — `choice`(search-library, `supertype: "Basic"`)
-// + `moveZone`(cards, `to: "battlefield"`, `tapped: true`) + `libraryLook`
-// (shuffle) — with an added `{2}` mana leg on the activation cost.
-export const terminalMoraine = defineCard(() => ({
-    id: "353a8ea8-3f1f-4f77-95bc-b09b96996285", // PLS 142
-    rarity: "uncommon",
-    name: "Terminal Moraine",
-    oracleText:
-        "{T}: Add {C}.\n{2}, {T}, Sacrifice this land: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
-    types: ["Land"],
-    activatedAbilities: [
-        makeTapForMana({
-            id: "terminal-moraine-mana",
-            oracleText: "{T}: Add {C}.",
-            produces: { C: 1 },
-        }),
-        {
-            id: "terminal-moraine-fetch",
-            oracleText:
-                "{2}, {T}, Sacrifice this land: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
-            cost: { mana: { X: 2 }, tap: true, sacrifice: true },
-            useStack: true,
-            effects: [
-                {
-                    op: "choice",
-                    kind: "search-library",
-                    player: "controller",
-                    zone: "library",
-                    filter: { type: "Land", supertype: "Basic" },
-                    count: { min: 0, max: 1 },
-                    prompt: "Search your library for a basic land card.",
-                    bind: "$picked",
-                },
-                {
-                    op: "moveZone",
-                    cards: { ref: "$picked" },
-                    player: "controller",
-                    from: "library",
-                    to: "battlefield",
-                    tapped: true,
-                },
-                { op: "libraryLook", action: "shuffle", player: "controller" },
-            ],
         },
     ],
 }));

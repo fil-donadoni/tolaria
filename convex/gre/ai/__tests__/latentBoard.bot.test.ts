@@ -34,7 +34,6 @@ import {
 import { crawWurm, grizzlyBears } from "../../../cards/sets/lea/green.cards";
 import { forest, plains } from "../../../cards/sets/lea/colorless.cards";
 
-import { mindStone } from "../../../cards/sets/wth/colorless.cards";
 import { flashfires } from "../../../cards/sets/lea/red.cards";
 import { pyroclasm } from "../../../cards/sets/ice/red.cards";
 import { hibernation } from "../../../cards/sets/usg/blue.cards";
@@ -42,6 +41,7 @@ import { forceOfVigor } from "../../../cards/sets/mh1/green.cards";
 import { getDefinition } from "../../../cards";
 const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
 const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
+const mindStone = () => getDefinition("162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71");
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 const fellwarStone = getDefinition("dc47e322-f8b8-4685-b035-fda0cc433e6b");
 
