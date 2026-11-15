@@ -38,10 +38,8 @@ import {
     PERMANENT_TYPES,
 } from "../../types";
 import { COLORED_MANA_COLORS } from "../../../gre/constants";
-import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
-import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Cost-modifier static effect (CR 601.2f, layer-agnostic — scanned at cast
@@ -792,77 +790,6 @@ export const teferisCare = defineCard(() => ({
 // wide (Pouncing Kavu, Duskwalker, Waterspout Elemental). No new Op or
 // construct — see each card's own comment for its exact template.
 // ─────────────────────────────────────────────────────────────────────────
-
-// Benalish Emissary — {2}{W} Creature — Human Wizard, 1/4. "Kicker {1}{G}.
-// When this creature enters, if it was kicked, destroy target land." (CR
-// 702.33 Kicker, CR 603.6a ETB trigger with a CR 603.3d target announcement.)
-//
-// Closed by issue #1328 (capability slice, decomposed from #1086): the
-// `kickerCount`-not-surviving-to-a-later-trigger gap this card was
-// originally blocked on is closed by `CardInstanceState.wasKicked` (issue
-// #1753, ADR 0079) — a typed, serialized snapshot the permanent carries the
-// instant it enters, read by the ETB trigger below.
-//
-// Gate shape: a SINGLE Kicker (not the Battlemage cycle's "and/or" pair), so
-// this uses the Waterspout Elemental template (`pls/blue.cards.ts`) rather than
-// Jacked Rabbit's `condition`/`interveningIf` pair — `conditionOnSelf:
-// additionalCostPaidCondition("kicker")` at CR 603.4 check time, and the matching
-// `if { additionalCostPaid: "kicker" }` branch inside `effects[]` at resolution
-// time, reading the resolving TRIGGER stack item's own `kickerPayments`
-// record (CR 608.2h last known information) rather than an `interveningIf`
-// re-evaluated against the LIVE permanent.
-//
-// Blink is NOT the reason any more. `removePermanentTo` now stamps a
-// departure-time LKI snapshot (`StackItem.sourceLki`) onto every stack item
-// sourced from the departing instance, and `resolveTopOfStackInner`
-// (`gre/state.ts`) prefers it over the live permanent, so an `interveningIf`
-// here would re-read the same payment record this branch reads even after a
-// CR 400.7 return (Ephemerate) has cleared the new object's. The reason that
-// survives is CR 707.10: an ability COPY is put on the stack without
-// re-running `matches`, so a check-time predicate never sees it and only the
-// resolution-time `if` branch still gates it. Authority for the whole rule is
-// `additionalCostPaidCondition`'s doc block (`cards/abilities/triggers/shared.ts`).
-export const benalishEmissary = defineCard(() => ({
-    id: "6b82d56e-80d7-4be9-ac22-de3257efc458", // INV 5
-    rarity: "uncommon",
-    name: "Benalish Emissary",
-    oracleText:
-        "Kicker {1}{G} (You may pay an additional {1}{G} as you cast this spell.)\nWhen this creature enters, if it was kicked, destroy target land.",
-    manaCost: { X: 2, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Wizard"],
-    power: 1,
-    toughness: 4,
-    kickers: [
-        {
-            id: "kicker",
-            description: "Kicker {1}{G}",
-            mana: { X: 1, G: 1 },
-        },
-    ],
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "benalish-emissary-kicked",
-            oracleText:
-                "When this creature enters, if it was kicked, destroy target land.",
-            scope: "self",
-            // CR 603.4 check-time gate — see the card-level comment.
-            conditionOnSelf: additionalCostPaidCondition("kicker"),
-            targetRequirement: { type: "Land", count: 1 },
-            effects: [
-                {
-                    op: "if",
-                    predicate: {
-                        left: { additionalCostPaid: "kicker" },
-                        op: "ge",
-                        right: 1,
-                    },
-                    then: [{ op: "destroy", target: { target: 0 } }],
-                },
-            ],
-        }),
-    ],
-}));
 
 // Benalish Lancer — {2}{W} Creature — Human Knight, 2/2. "Kicker {2}{W}. If
 // this creature was kicked, it enters with two +1/+1 counters on it and

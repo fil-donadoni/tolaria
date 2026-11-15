@@ -51,7 +51,7 @@ describe("Serendib Efreet (flying + upkeep: 1 damage to you)", () => {
         resolveTrigger(
             state,
             efreet,
-            "serendib-efreet-upkeep",
+            "serendib-efreet-trigger",
             upkeepEvent("p1")
         );
         expect(state.players[0].life).toBe(19);

@@ -596,7 +596,7 @@ function tidebinderEtbTriggerOnStack(
         id: "trig-tidebinder-etb",
         zone: "stack",
         castById: source.controllerId,
-        triggeredAbilityId: "tishanas-tidebinder-etb",
+        triggeredAbilityId: "tishana-s-tidebinder-trigger",
         triggerSourceId: source.id,
         triggerEvent: {
             type: "PERMANENT_ENTERED",

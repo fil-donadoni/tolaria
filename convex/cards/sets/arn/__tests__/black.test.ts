@@ -91,7 +91,7 @@ describe("Junún Efreet (upkeep: sacrifice unless pay {B}{B})", () => {
         resolveTrigger(
             state,
             state.players[0].battlefield[0],
-            "junun-efreet-upkeep",
+            "jun-n-efreet-trigger",
             upkeepEvent("p1")
         );
         answerChoice(state, ["decline"]);
@@ -104,7 +104,7 @@ describe("Junún Efreet (upkeep: sacrifice unless pay {B}{B})", () => {
         resolveTrigger(
             state,
             state.players[0].battlefield[0],
-            "junun-efreet-upkeep",
+            "jun-n-efreet-trigger",
             upkeepEvent("p1")
         );
         answerChoice(state, ["yes"]);

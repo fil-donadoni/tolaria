@@ -11,7 +11,9 @@ import {
     makePlayer,
     makeState,
 } from "@convex/cards/__tests__/setup.helper";
-import { overlordOfTheBalemurk } from "@convex/cards/sets/dsk/black.cards";
+import { getDefinition } from "@convex/cards";
+const overlordOfTheBalemurk = () =>
+    getDefinition("9b911653-7b96-4cf3-a907-13c5c53a14f7");
 import { resolveTopOfStack, type GameState } from "@convex/gre/state";
 import type { Id } from "@convex/_generated/dataModel";
 import {

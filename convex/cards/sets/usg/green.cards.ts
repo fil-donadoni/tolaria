@@ -1,47 +1,8 @@
 // usg — green cards (ADR 0043 colour split).
 
 import { defineCard } from "../../types";
-import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { colorChoiceModes } from "../../abilities/chooseColor";
-
-// Argothian Enchantress — "Shroud. Whenever you cast an enchantment spell,
-// draw a card." (CR 702.18 shroud; CR 603.2 + 601.2i spell-cast trigger; CR
-// 121.1 draw.) The draw is mandatory (contrast the sibling Verduran
-// Enchantress' optional "you may draw"), so its effect is a DSL Effect Script
-// rather than a resolve() closure (ADR 0045).
-//
-// The printed shroud is LIVE, not decorative: unlike the paired
-// `permanent-guard` staticEffect pattern used by e.g. Blastoderm
-// (`nem/green.cards.ts`), `permanentGuard.ts::isGuardedAgainst` also bridges the
-// bare `staticAbilities: ["shroud"]` string directly (the `hasShroud`
-// helper, mirroring the existing `hasHexproof` bridge for CR 702.11b),
-// unfiltered per CR 702.18 — so no separate staticEffect is required here.
-// See the Mechanics Registry's shroud row (issue #959) for the catalogue-
-// wide fix.
-export const argothianEnchantress = defineCard(() => ({
-    id: "9ababc1a-515e-4e20-8819-19d84d9b0af5",
-    rarity: "rare",
-    name: "Argothian Enchantress",
-    oracleText:
-        "Shroud (This creature can't be the target of spells or abilities.)\nWhenever you cast an enchantment spell, draw a card.",
-    manaCost: { X: 1, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Druid"],
-    power: 0,
-    toughness: 1,
-    staticAbilities: ["shroud"],
-    triggeredAbilities: [
-        spellCastTrigger({
-            id: "argothian-enchantress-draw",
-            oracleText: "Whenever you cast an enchantment spell, draw a card.",
-            scope: "you",
-            filter: { types: "Enchantment" },
-            // Mandatory draw, event-independent → DSL Effect Script (ADR 0045).
-            effects: [{ op: "draw", player: "controller", count: 1 }],
-        }),
-    ],
-}));
 
 // Exploration — {G} Enchantment. "You may play an additional land on each of
 // your turns." (CR 305.2 — extra land drops.) One additional land drop (total

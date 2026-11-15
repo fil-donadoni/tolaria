@@ -3423,7 +3423,7 @@ describe("Shivan Emissary (single Kicker ETB — destroy target nonblack creatur
         resolveTrigger(
             state,
             emissary,
-            "shivan-emissary-kicked",
+            "shivan-emissary-trigger",
             {
                 type: "PERMANENT_ENTERED",
                 instanceId: emissary.id,
@@ -3462,7 +3462,7 @@ describe("Shivan Emissary (single Kicker ETB — destroy target nonblack creatur
         resolveTrigger(
             state,
             emissary,
-            "shivan-emissary-kicked",
+            "shivan-emissary-trigger",
             {
                 type: "PERMANENT_ENTERED",
                 instanceId: emissary.id,

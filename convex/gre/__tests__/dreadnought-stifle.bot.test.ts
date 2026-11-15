@@ -30,7 +30,9 @@ import {
     makePlayer,
     makeInstance,
 } from "../../cards/__tests__/setup.helper";
-import { phyrexianDreadnought } from "../../cards/sets/mir/colorless.cards";
+import { getDefinition } from "../../cards";
+const phyrexianDreadnought = () =>
+    getDefinition("7b8197b9-0cd1-4fa1-9668-d1b5f1759151");
 import { stifle } from "../../cards/sets/scg/blue.cards";
 import { applyBladeSetup } from "../ai/blade";
 

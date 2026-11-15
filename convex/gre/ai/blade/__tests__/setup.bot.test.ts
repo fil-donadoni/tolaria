@@ -58,9 +58,7 @@ describe("blade setup — `etb-trigger` runs the real engine (ADR 0070 §4)", ()
         expect(item.triggerSourceId).toBe(dread.id);
         // The ability id and the triggering event come from the CARD and the
         // engine's own emitter — not from an object literal in the harness.
-        expect(item.triggeredAbilityId).toBe(
-            "phyrexian-dreadnought-etb-sacrifice"
-        );
+        expect(item.triggeredAbilityId).toBe("phyrexian-dreadnought-trigger");
         expect(item.triggerEvent?.type).toBe("PERMANENT_ENTERED");
         // CR 117.3c — placement hands priority back to the active player, so
         // the seat that owns the Dreadnought may respond to its own trigger.
@@ -213,7 +211,7 @@ describe("blade setup — wired into the build pipeline", () => {
         const state = buildBladeState(scenario);
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].triggeredAbilityId).toBe(
-            "phyrexian-dreadnought-etb-sacrifice"
+            "phyrexian-dreadnought-trigger"
         );
         // Stifle is castable in response: the {U} is on an untapped Island.
         expect(state.players[0].battlefield.some((c) => !c.isTapped)).toBe(

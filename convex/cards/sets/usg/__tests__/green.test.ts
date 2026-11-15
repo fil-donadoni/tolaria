@@ -85,7 +85,7 @@ describe("Argothian Enchantress (draw on enchantment cast, CR 603.2 / 601.2i / 1
             ...enchantress,
             zone: "stack",
             castById: "p1",
-            triggeredAbilityId: "argothian-enchantress-draw",
+            triggeredAbilityId: "argothian-enchantress-trigger",
             triggerSourceId: "aEn",
             triggerEvent: {
                 type: "SPELL_CAST",

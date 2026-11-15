@@ -89,9 +89,7 @@ function cycleMove(state: GameState): Move {
 /** Every stack item that is a TRIGGERED ability of the cycled card. */
 function cycledTriggersOn(state: GameState): string[] {
     return state.stack
-        .filter(
-            (s) => s.triggeredAbilityId === "decree-of-silence-cycled-counter"
-        )
+        .filter((s) => s.triggeredAbilityId === "decree-of-silence-trigger-2")
         .map((s) => s.triggeredAbilityId!);
 }
 
