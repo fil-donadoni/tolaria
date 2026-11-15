@@ -19,12 +19,8 @@ import { oracleCard } from "../../oracle/__tests__/oracle.fixture";
 import { falseDawn } from "../../cards/sets/apc/white.cards";
 import { darkRitual } from "../../cards/sets/lea/black.cards";
 import { lightningBolt } from "../../cards/sets/lea/red.cards";
-import {
-    island,
-    mountain,
-    solRing,
-} from "../../cards/sets/lea/colorless.cards";
-import { coalGolem } from "../../cards/sets/drk/colorless.cards";
+import { island, mountain } from "../../cards/sets/lea/colorless.cards";
+
 import {
     getManaSubstitutions,
     getPlayer,
@@ -57,6 +53,9 @@ import {
     gameStateSeed,
     type Handler,
 } from "../../__tests__/gameMutationHarness.fixture";
+import { getDefinition } from "../../cards";
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
+const coalGolem = getDefinition("1ad7692d-5a51-493f-a322-7b615446ea8e");
 
 const POOL0 = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
 
@@ -87,7 +86,7 @@ function board(): GameState {
                         controllerId: "p1",
                         ownerId: "p1",
                     }),
-                    makeInstance(solRing().id, {
+                    makeInstance(solRing.id, {
                         id: "ring",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -328,7 +327,7 @@ describe("full path — the other production sites", () => {
         const state = afterFalseDawn();
         const p1 = getPlayer(state, "p1");
         p1.battlefield.push(
-            makeInstance(coalGolem().id, {
+            makeInstance(coalGolem.id, {
                 id: "golem",
                 controllerId: "p1",
                 ownerId: "p1",

@@ -41,7 +41,6 @@ import {
 } from "~/lib/card-utils";
 import { getEligibleGraveyards } from "~/lib/graveyard-targets";
 
-import { solRing } from "@convex/cards/sets/lea/colorless.cards";
 import { prohibit } from "@convex/cards/sets/inv/blue.cards";
 import { gainsay } from "@convex/cards/sets/pls/blue.cards";
 import { fireAndBrimstone } from "@convex/cards/sets/drk/white.cards";
@@ -54,6 +53,8 @@ import {
 } from "@convex/cards/sets/lea/index.cards";
 import { thermokarst } from "@convex/cards/sets/ice/green.cards";
 import { oathOfDruids } from "@convex/cards/sets/exo/green.cards";
+import { getDefinition } from "@convex/cards";
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 const CHOOSER = "p1";
 
@@ -175,7 +176,7 @@ describe("spell-target client parity (issue #1734)", () => {
     });
 
     it("spellColorless + spell-or-triggered-ability (CR 105.2c) — server and client offer the colorless spell and the triggered ability only", () => {
-        const state = stackWith(counterspell().id, solRing().id);
+        const state = stackWith(counterspell().id, solRing.id);
         const trig = pushSpell(state, counterspell().id, "p2");
         trig.triggeredAbilityId = "some-trigger";
         const act = pushSpell(state, counterspell().id, "p2");

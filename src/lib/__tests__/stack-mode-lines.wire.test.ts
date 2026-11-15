@@ -13,7 +13,7 @@ import { deceiverExarch } from "@convex/cards/sets/nph/blue.cards";
 import { grizzlyBears } from "@convex/cards/sets/lea/green.cards";
 import { raiseTriggerTargetSelection } from "@convex/gre/rules";
 import { applyPendingChoiceSubmit } from "@convex/gre/pendingChoiceSubmit";
-import { blackLotus } from "@convex/cards/sets/lea/colorless.cards";
+
 import { projectPublicState } from "@convex/gameProjections";
 import {
     makeInstance,
@@ -21,11 +21,13 @@ import {
     makeState,
     pushSpell,
 } from "@convex/cards/__tests__/setup.helper";
+import { getDefinition } from "@convex/cards";
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 
 /** Vision Charm on the stack with mode "mill" locked in at cast, as
  *  `announceCast` would leave it (chosenModeId + announced target). */
 function stateWithModalOnStack(modeId: string) {
-    const lotus = makeInstance(blackLotus().id, {
+    const lotus = makeInstance(blackLotus.id, {
         id: "lotus",
         controllerId: "p1",
         ownerId: "p1",

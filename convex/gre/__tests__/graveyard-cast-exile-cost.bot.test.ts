@@ -39,7 +39,7 @@ import { flashOfInsight } from "../../cards/sets/jud/blue.cards";
 import { treasureCruise } from "../../cards/sets/ktk/blue.cards";
 import { nethergoyf } from "../../cards/sets/mh3/black.cards";
 import { countDistinctCardTypes } from "../escape";
-import { blackLotus } from "../../cards/sets/lea/colorless.cards";
+
 import {
     grizzlyBears,
     island,
@@ -47,6 +47,8 @@ import {
     forest,
     swamp,
 } from "../../cards/sets/lea/index.cards";
+import { getDefinition } from "../../cards";
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 
 const ME = "p1";
 const OPP = "p2";
@@ -469,13 +471,13 @@ describe("the variable escape cost pays a MINIMAL covering set", () => {
                 ownerId: ME,
                 zone: "graveyard",
             }),
-            makeInstance(blackLotus().id, {
+            makeInstance(blackLotus.id, {
                 id: "gy-arti-a",
                 controllerId: ME,
                 ownerId: ME,
                 zone: "graveyard",
             }),
-            makeInstance(blackLotus().id, {
+            makeInstance(blackLotus.id, {
                 id: "gy-arti-b",
                 controllerId: ME,
                 ownerId: ME,

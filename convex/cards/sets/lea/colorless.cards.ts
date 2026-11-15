@@ -9,7 +9,6 @@
 
 import {
     defineCard,
-    type ActivatedAbilityContext,
     type CardDefinition,
     type Color,
     type Rarity,
@@ -98,30 +97,6 @@ export const basaltMonolith = defineCard(() => ({
     ],
 }));
 
-export const blackLotus = defineCard(() => ({
-    id: "b0faa7f2-b547-42c4-a810-839da50dadfe",
-    rarity: "rare",
-    name: "Black Lotus",
-    oracleText:
-        "{T}, Sacrifice this artifact: Add three mana of any one color.",
-    manaCost: { X: 0 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "black-lotus-mana",
-            oracleText:
-                "{T}, Sacrifice Black Lotus: Add three mana of any one color.",
-            cost: { tap: true, sacrifice: true },
-            effect: (ctx: ActivatedAbilityContext) => {
-                // Color chosen at activation time, applied by engine
-                ctx.addMana({ W: 3 });
-            },
-            useStack: false,
-            manaChoices: [{ W: 3 }, { U: 3 }, { B: 3 }, { R: 3 }, { G: 3 }],
-        },
-    ],
-}));
-
 export const blackVise = defineCard(() => ({
     id: "76ac72f8-5b1e-4d67-a796-ef69cde27424",
     rarity: "uncommon",
@@ -178,30 +153,6 @@ export const blackVise = defineCard(() => ({
                 }
             },
         }),
-    ],
-}));
-
-// Celestial Prism — "{2}, {T}: Add one mana of any color." (CR 605.1a mana
-// ability, 605.3a useStack: false). The choice of color is presented to the
-// activator at activation time via `manaChoices`.
-export const celestialPrism = defineCard(() => ({
-    id: "a47417cb-1ea7-4f65-ba06-e27a99373114",
-    rarity: "uncommon",
-    name: "Celestial Prism",
-    oracleText: "{2}, {T}: Add one mana of any color.",
-    manaCost: { X: 3 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "celestial-prism-mana",
-            oracleText: "{2}, {T}: Add one mana of any color.",
-            cost: { mana: { X: 2 }, tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => {
-                ctx.addMana({ W: 1 });
-            },
-            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
-        },
     ],
 }));
 
@@ -1114,86 +1065,6 @@ export const meekstone = defineCard(() => ({
     ],
 }));
 
-export const moxEmerald = defineCard(() => ({
-    id: "b0e1427c-05cd-465b-be59-97ed6e39f7ba",
-    rarity: "rare",
-    name: "Mox Emerald",
-    oracleText: "{T}: Add {G}.",
-    manaCost: { X: 0 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        makeTapForMana({
-            id: "mox-emerald-mana",
-            oracleText: "{T}: Add {G}.",
-            produces: { G: 1 },
-        }),
-    ],
-}));
-
-export const moxJet = defineCard(() => ({
-    id: "92bcd1ce-19b1-4d78-8b09-95242ca08d76",
-    rarity: "rare",
-    name: "Mox Jet",
-    oracleText: "{T}: Add {B}.",
-    manaCost: { X: 0 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        makeTapForMana({
-            id: "mox-jet-mana",
-            oracleText: "{T}: Add {B}.",
-            produces: { B: 1 },
-        }),
-    ],
-}));
-
-export const moxPearl = defineCard(() => ({
-    id: "8ebe4be7-e12a-4596-a899-fbd5b152e879",
-    rarity: "rare",
-    name: "Mox Pearl",
-    oracleText: "{T}: Add {W}.",
-    manaCost: { X: 0 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        makeTapForMana({
-            id: "mox-pearl-mana",
-            oracleText: "{T}: Add {W}.",
-            produces: { W: 1 },
-        }),
-    ],
-}));
-
-export const moxRuby = defineCard(() => ({
-    id: "8945585f-4773-493d-a0fe-d707db910b38",
-    rarity: "rare",
-    name: "Mox Ruby",
-    oracleText: "{T}: Add {R}.",
-    manaCost: { X: 0 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        makeTapForMana({
-            id: "mox-ruby-mana",
-            oracleText: "{T}: Add {R}.",
-            produces: { R: 1 },
-        }),
-    ],
-}));
-
-export const moxSapphire = defineCard(() => ({
-    id: "82da0972-b17b-4600-9efd-e9430a0db04b",
-    rarity: "rare",
-    name: "Mox Sapphire",
-    oracleText: "{T}: Add {U}.",
-    manaCost: { X: 0 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        makeTapForMana({
-            id: "mox-sapphire-mana",
-            oracleText: "{T}: Add {U}.",
-            produces: { U: 1 },
-        }),
-    ],
-}));
-
 export const nevinyrralsDisk = defineCard(() => ({
     id: "12926dc8-8e6f-4a47-a12b-4d674189615a",
     rarity: "rare",
@@ -1244,22 +1115,6 @@ export const obsianusGolem = defineCard(() => ({
     subtypes: ["Golem"],
     power: 4,
     toughness: 6,
-}));
-
-export const solRing = defineCard(() => ({
-    id: "c4300d24-1cae-4dd5-be7e-38cc677cf5bd",
-    rarity: "uncommon",
-    name: "Sol Ring",
-    oracleText: "{T}: Add {C}{C}.",
-    manaCost: { X: 1 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        makeTapForMana({
-            id: "sol-ring-mana",
-            oracleText: "{T}: Add {C}{C}.",
-            produces: { C: 2 },
-        }),
-    ],
 }));
 
 // Soul Net — "Whenever a creature dies, you may pay {1}. If you do, you gain

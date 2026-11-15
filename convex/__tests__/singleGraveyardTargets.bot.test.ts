@@ -11,7 +11,7 @@ import {
     makePlayer,
     makeState,
 } from "../cards/__tests__/setup.helper";
-import { blackLotus } from "../cards/sets/lea/colorless.cards";
+
 import type { GameState, PendingTarget } from "../gre/state";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../gre/rules";
 import { enumerateRaisedTargetMoves } from "../gre/moves";
@@ -23,6 +23,8 @@ import {
     gameStateSeed,
     type Handler,
 } from "./gameMutationHarness.fixture";
+import { getDefinition } from "../cards";
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 
 const GAME_ID = "game-1" as Id<"games">;
 
@@ -60,7 +62,7 @@ const REQUIREMENT: TargetRequirement = {
 };
 
 const gy = (id: string, owner: string) =>
-    makeInstance(blackLotus().id, { id, controllerId: owner, ownerId: owner });
+    makeInstance(blackLotus.id, { id, controllerId: owner, ownerId: owner });
 
 function board(): GameState {
     const pendingTarget: PendingTarget = {

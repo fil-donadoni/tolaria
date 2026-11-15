@@ -79,7 +79,7 @@ import {
     meteorCrater,
     starCompass,
 } from "@convex/cards/sets/pls/colorless.cards";
-import { quirionExplorer } from "@convex/cards/sets/pls/green.cards";
+
 import { guardDogs, pollenRemedy } from "@convex/cards/sets/pls/white.cards";
 import {
     radiantKavu,
@@ -101,11 +101,7 @@ import { CLUE_TOKEN_SPEC } from "@convex/cards/abilities/tokens/clueToken";
 import { dismember } from "@convex/cards/sets/nph/black.cards";
 import { gitaxianProbe } from "@convex/cards/sets/nph/blue.cards";
 import { dominate } from "@convex/cards/sets/nem/index.cards";
-import {
-    fellwarStone,
-    deepWater,
-    gaeasTouch,
-} from "@convex/cards/sets/drk/index.cards";
+import { deepWater, gaeasTouch } from "@convex/cards/sets/drk/index.cards";
 import { disruptingScepter, forest } from "@convex/cards/sets/lea/index.cards";
 import { powerArmor } from "@convex/cards/sets/inv/index.cards";
 import { thopterFoundry } from "@convex/cards/sets/arb/multicolor.cards";
@@ -153,6 +149,8 @@ import {
 import type { PendingTarget } from "~/types/game";
 import type { CardInstanceState } from "@convex/gre/state";
 import { NO_BOARD_LAYER_VIEW } from "../../../convex/gre/layers";
+const quirionExplorer = getDefinition("141a031d-f899-497b-adf7-4af142078085");
+const fellwarStone = getDefinition("dc47e322-f8b8-4685-b035-fda0cc433e6b");
 
 // Real card ids from convex/cards/sets/lea.ts, used to exercise the
 // definition-vs-instance keyword diff in getDisplayAbilities (#156).
@@ -5166,7 +5164,7 @@ describe("getManaChoices — Fellwar Stone (board-conditional)", () => {
     it("derives the picker colours from the opponent's lands", () => {
         const rock = makeCardInstance({
             id: "fs1",
-            card: { id: fellwarStone().id },
+            card: { id: fellwarStone.id },
             controllerId: "p1",
             types: ["Artifact"],
             subtypes: [],
@@ -5184,7 +5182,7 @@ describe("getManaChoices — Fellwar Stone (board-conditional)", () => {
     it("returns the static fallback (any colour) when no players passed", () => {
         const rock = makeCardInstance({
             id: "fs2",
-            card: { id: fellwarStone().id },
+            card: { id: fellwarStone.id },
             controllerId: "p1",
             types: ["Artifact"],
             subtypes: [],
@@ -5202,7 +5200,7 @@ describe("getManaChoices — Fellwar Stone (board-conditional)", () => {
     it("hasManaAbility recognises the dynamic chooser and the sacrifice mana ability", () => {
         const rock = makeCardInstance({
             id: "fs3",
-            card: { id: fellwarStone().id },
+            card: { id: fellwarStone.id },
             controllerId: "p1",
             types: ["Artifact"],
             subtypes: [],
@@ -5293,7 +5291,7 @@ describe("getNonTapManaChoices — Vivi Ornitier (non-tap choice-based mana abil
     it("is null for a card with no non-tap choice-based mana ability (regular getManaChoices, e.g. Fellwar Stone, has its own describe block)", () => {
         const rock = makeCardInstance({
             id: "fs-nontap",
-            card: { id: fellwarStone().id },
+            card: { id: fellwarStone.id },
             controllerId: "p1",
             types: ["Artifact"],
             subtypes: [],
@@ -6933,7 +6931,7 @@ describe("getManaChoices — board-derived colour sources through the wire reduc
 
     it("Quirion Explorer: the picker offers exactly the opponent's land colours", () => {
         const { slimSource, players, view } = projectManaScenario(
-            quirionExplorer().id,
+            quirionExplorer.id,
             [basic(mountainCard().id, "p1", "own-mountain")],
             [
                 basic(forestCard().id, "p2", "opp-forest"),
@@ -6972,7 +6970,7 @@ describe("getManaChoices — board-derived colour sources through the wire reduc
 
     it("an EMPTY scope offers no picker at all — no false affordance", () => {
         const { slimSource, players } = projectManaScenario(
-            quirionExplorer().id,
+            quirionExplorer.id,
             [],
             []
         );

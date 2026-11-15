@@ -66,15 +66,12 @@ const livonyaSilone = getDefinition("b9211949-66a5-4039-ac6d-3e42b008b58e");
 const nicolBolas = getDefinition("729feb73-4581-4f9d-ba47-bece72481b86");
 const palladiaMors = getDefinition("ad64874d-ce33-4e0a-bcca-723f129ef415");
 const pendelhaven = getDefinition("79427109-c1f3-476d-a029-0049217237b5");
-const princessLucrezia = getDefinition("a1dcf48c-2700-4024-807e-9244e4c649ac");
 const rasputinDreamweaver = getDefinition(
     "503256f8-3aab-49d0-b78b-6502aa29ce52"
 );
-const rivenTurnbull = getDefinition("d11f90e7-ced1-4d80-8083-99acbf459ad7");
 const solkanarTheSwampKing = getDefinition(
     "7a20dcb0-5350-40e0-82d3-c8d0186fc9d2"
 );
-const sunastianFalconer = getDefinition("587075f3-a568-4089-83ca-fe1e473c025d");
 const tuknirDeathlock = getDefinition("9dfbcb4d-a9ae-4d76-8dde-7312fbad56b0");
 const tundraWolves = getDefinition("8f649cb5-e19c-453f-b062-4fd452d92257");
 const vaevictisAsmadi = getDefinition("22ea73ec-1325-4437-a23f-dcda1767c713");
@@ -630,40 +627,6 @@ describe("Xira Arien ({B}{R}{G},{T}: target player draws, CR 121.1)", () => {
             { type: "player", id: "p1" },
         ]);
         expect(state.players[0].hand.length).toBe(1);
-    });
-});
-
-describe("LEG multicolor mana abilities (CR 605.1a)", () => {
-    // Mana abilities don't use the stack (useStack: false) — assert the
-    // declaration shape (mirrors Fire Sprites) and that the `effect` closure
-    // adds the right mana to the pool.
-    function manaOf(card: typeof princessLucrezia) {
-        const ability = card.activatedAbilities?.[0];
-        let added: Record<string, number> | undefined;
-        ability?.effect?.({
-            addMana: (cost) => {
-                added = cost as Record<string, number>;
-            },
-        });
-        return { ability, added };
-    }
-    it("Princess Lucrezia: {T}: Add {U}", () => {
-        const { ability, added } = manaOf(princessLucrezia);
-        expect(ability?.useStack).toBe(false);
-        expect(ability?.manaProduced).toEqual({ U: 1 });
-        expect(added).toEqual({ U: 1 });
-    });
-    it("Riven Turnbull: {T}: Add {B}", () => {
-        const { ability, added } = manaOf(rivenTurnbull);
-        expect(ability?.useStack).toBe(false);
-        expect(ability?.manaProduced).toEqual({ B: 1 });
-        expect(added).toEqual({ B: 1 });
-    });
-    it("Sunastian Falconer: {T}: Add {C}{C}", () => {
-        const { ability, added } = manaOf(sunastianFalconer);
-        expect(ability?.useStack).toBe(false);
-        expect(ability?.manaProduced).toEqual({ C: 2 });
-        expect(added).toEqual({ C: 2 });
     });
 });
 

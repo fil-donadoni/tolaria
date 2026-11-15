@@ -27,7 +27,7 @@ import { tapSourceIntoPayment } from "../../game";
 import { getLegalActions } from "../rules";
 import { getPlayer, createTokenPermanents } from "../state";
 import { ELDRAZI_SPAWN_TOKEN } from "../../cards/sharedTokens";
-import { basalThrull } from "../../cards/sets/fem/index.cards";
+
 import { getCardByName } from "../../cards";
 import {
     makeInstance,
@@ -35,6 +35,8 @@ import {
     makeState,
 } from "../../cards/__tests__/setup.helper";
 import type { GameState } from "../state";
+import { getDefinition } from "../../cards";
+const basalThrull = getDefinition("0c1d5d13-0160-48cb-8fac-dd86102569b4");
 
 /** A board with one Eldrazi Spawn token under p1's control, created through the
  *  real token path so it carries whatever `createTokenPermanents` stamps —
@@ -108,7 +110,7 @@ describe("sacrifice-only mana abilities ignore the tap gates (CR 302.6)", () => 
     });
 
     it("CONTROL — a {T}+Sacrifice mana ability is still refused while summoning sick", () => {
-        const thrull = makeInstance(basalThrull().id, {
+        const thrull = makeInstance(basalThrull.id, {
             id: "thrull",
             controllerId: "p1",
             ownerId: "p1",

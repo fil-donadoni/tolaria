@@ -49,11 +49,12 @@ import {
     animateWall,
     counterspell,
     grizzlyBears,
-    solRing,
     forest,
     stoneRain,
 } from "@convex/cards/sets/lea/index.cards";
 import { sorinLordOfInnistrad } from "@convex/cards/sets/dka/multicolor.cards";
+import { getDefinition } from "@convex/cards";
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 const CHOOSER = "p1";
 
@@ -240,7 +241,7 @@ const ROWS: Record<TargetTypeMember, Row> = {
     },
     Artifact: {
         requirement: { type: "Artifact", count: 1 },
-        build: () => board([onBoard(solRing().id, "ring"), BEARS()]),
+        build: () => board([onBoard(solRing.id, "ring"), BEARS()]),
         legal: "permanent:ring",
         illegal: "permanent:bears",
     },
@@ -269,7 +270,7 @@ const ROWS: Record<TargetTypeMember, Row> = {
         requirement: { type: "Kindred", count: 1 },
         build: () =>
             board([
-                onBoard(solRing().id, "kindred", ["Kindred", "Artifact"]),
+                onBoard(solRing.id, "kindred", ["Kindred", "Artifact"]),
                 BEARS(),
             ]),
         legal: "permanent:kindred",

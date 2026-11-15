@@ -12,7 +12,7 @@ import {
     makeState,
 } from "../cards/__tests__/setup.helper";
 import { dampingSphere } from "../cards/sets/dom/colorless.cards";
-import { ancientTomb } from "../cards/sets/tmp/colorless.cards";
+
 import { mishrasWorkshop } from "../cards/sets/atq/colorless.cards";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -21,6 +21,8 @@ import {
     gameStateSeed,
     type Handler,
 } from "./gameMutationHarness.fixture";
+import { getDefinition } from "../cards";
+const ancientTomb = getDefinition("30e401e3-282b-4524-87e1-c6cd50cd6d00");
 
 type TapArgs = {
     gameId: Id<"games">;
@@ -71,7 +73,7 @@ function seed(landId: string) {
 describe("Damping Sphere — tapUntap", () => {
     it("a two-mana land adds one {C}, and untapping refunds exactly one", () =>
         withTemporaryDefinitionAsync(sphere, async () => {
-            const stub = makeMutationCtx("p1", [seed(ancientTomb().id)]);
+            const stub = makeMutationCtx("p1", [seed(ancientTomb.id)]);
             await tap(stub.ctx, "land");
             expect(stub.state().players[0].manaPool.C).toBe(2);
             await tap(stub.ctx, "land");

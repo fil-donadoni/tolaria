@@ -26,7 +26,7 @@ import {
 } from "../state";
 import { projectPublicState } from "../../gameProjections";
 import { chromaticStar } from "../../cards/sets/tsp/index.cards";
-import { basalThrull } from "../../cards/sets/fem/index.cards";
+
 import { soulNet } from "../../cards/sets/lea/index.cards";
 import { getCardByName } from "../../cards";
 import {
@@ -34,6 +34,8 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
+import { getDefinition } from "../../cards";
+const basalThrull = getDefinition("0c1d5d13-0160-48cb-8fac-dd86102569b4");
 
 const FOREST = getCardByName("Forest").id;
 
@@ -108,7 +110,7 @@ describe("sacrifice-for-mana fires the source's leave-the-battlefield trigger (C
         // generic sacrifice-cost application (not card-specific code), the
         // death/leave events are emitted for ANY sacrificed permanent, so an
         // unrelated trigger fires too.
-        const thrull = makeInstance(basalThrull().id, {
+        const thrull = makeInstance(basalThrull.id, {
             id: "thrull",
             controllerId: "p1",
             ownerId: "p1",

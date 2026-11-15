@@ -24,16 +24,8 @@
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
-import { sortKeys } from "../gates";
-import { roundTripCard } from "../gold";
 import type { CompiledDefinition, OracleCard } from "../types";
-import {
-    adarkarWastes,
-    brushland,
-    karplusanForest,
-    sulfurousSprings,
-    undergroundRiver,
-} from "../../cards/sets/ice/colorless.cards";
+
 import { oracleCard } from "./oracle.fixture";
 
 function land(name: string, oracleText: string, oracleId = name): OracleCard {
@@ -95,19 +87,6 @@ describe("golden — the painland line merges into one manaChoices ability", () 
                 dealsDamageToControllerOnColoredTap: 1,
             },
         ]);
-    });
-});
-
-describe("gold — the Ice Age painland cycle round-trips through its own text", () => {
-    it.each([
-        adarkarWastes(),
-        brushland(),
-        karplusanForest(),
-        sulfurousSprings(),
-        undergroundRiver(),
-    ])("$name", (card) => {
-        const verdict = roundTripCard(card).verdict;
-        expect(sortKeys(verdict)).toEqual({ ok: true, kind: "equal" });
     });
 });
 

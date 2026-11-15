@@ -22,7 +22,9 @@ import {
     tropicalIsland,
 } from "../../cards/sets/lea/index.cards";
 import { cityOfTraitors } from "../../cards/sets/exo/index.cards";
-import { ancientTomb } from "../../cards/sets/tmp/index.cards";
+
+import { getDefinition } from "../../cards";
+const ancientTomb = getDefinition("30e401e3-282b-4524-87e1-c6cd50cd6d00");
 
 /** Puts Urborg on p1's battlefield and applies its Swamp-granting static to
  *  every land already there (CR 305.7 / 611, layer 4). */
@@ -164,7 +166,7 @@ describe("production path — tapSourceIntoPayment routes the chosen option (CR 
 
 describe("riders fire per provenance (CR 605.1a / 120)", () => {
     it("Ancient Tomb under Urborg: tapping for {C}{C} deals 2 to controller", () => {
-        const a = makeInstance(ancientTomb().id, {
+        const a = makeInstance(ancientTomb.id, {
             id: "at-1",
             controllerId: "p1",
         });
@@ -177,7 +179,7 @@ describe("riders fire per provenance (CR 605.1a / 120)", () => {
     });
 
     it("Ancient Tomb under Urborg: tapping for {B} (the Swamp ability) deals NO damage", () => {
-        const a = makeInstance(ancientTomb().id, {
+        const a = makeInstance(ancientTomb.id, {
             id: "at-2",
             controllerId: "p1",
         });

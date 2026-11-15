@@ -35,9 +35,12 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { everflowingChalice } from "../../cards/sets/wwk/index.cards";
 import { icatianStore } from "../../cards/sets/fem/index.cards";
-import { fellwarStone } from "../../cards/sets/drk/index.cards";
+
 import { mountain, forest } from "../../cards/sets/lea/index.cards";
-import { solRing } from "../../cards/sets/lea/index.cards";
+
+import { getDefinition } from "../../cards";
+const fellwarStone = getDefinition("dc47e322-f8b8-4685-b035-fda0cc433e6b");
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 const FIREBALL = "b7623c00-144b-4a8f-9c6c-f5e9e4f65ece"; // {X}{R}
 
@@ -81,7 +84,7 @@ describe("getManaTapOptionsDetailed drops a zero-output option (CR 605.1a, issue
 
     it("ordinary sources are untouched (delta zero)", () => {
         const m = makeInstance(mountain().id, { controllerId: "p1" });
-        const ring = makeInstance(solRing().id, { controllerId: "p1" });
+        const ring = makeInstance(solRing.id, { controllerId: "p1" });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [m, ring] }),
@@ -203,7 +206,7 @@ describe("isUntappedManaSource / hasManaAbility are board-aware (CR 106.1, issue
         const sources = [
             makeInstance(mountain().id, { controllerId: "p1" }),
             makeInstance(forest().id, { controllerId: "p1" }),
-            makeInstance(solRing().id, { controllerId: "p1" }),
+            makeInstance(solRing.id, { controllerId: "p1" }),
         ];
         for (const s of sources) {
             expect(isUntappedManaSource(s, sources)).toBe(
@@ -347,7 +350,7 @@ describe("wire format — the same answer survives projectPublicState (issue #18
 // on an empty list and submits no index). Nothing is tapped, no mana is added.
 describe("a choice-only source with an EMPTY option list is rejected, not silently tapped (CR 605.1a, issue #1889)", () => {
     it("Fellwar Stone facing no colour-producing opponent land throws 'Card does not produce mana'", () => {
-        const rock = makeInstance(fellwarStone().id, {
+        const rock = makeInstance(fellwarStone.id, {
             id: "fellwar",
             controllerId: "p1",
         });
@@ -359,7 +362,7 @@ describe("a choice-only source with an EMPTY option list is rejected, not silent
                 // could produce a colour — Fellwar Stone reads lands only.
                 makePlayer("p2", {
                     battlefield: [
-                        makeInstance(solRing().id, {
+                        makeInstance(solRing.id, {
                             id: "opp-ring",
                             controllerId: "p2",
                         }),

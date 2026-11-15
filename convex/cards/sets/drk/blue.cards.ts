@@ -117,31 +117,6 @@ export const amnesia = defineCard(() => ({
     },
 }));
 
-// Apprentice Wizard — "{U}, {T}: Add {C}{C}{C}." (CR 605.1a mana ability —
-// resolves immediately, no stack, CR 605.3a.) Pays one blue to filter into
-// three colorless.
-export const apprenticeWizard = defineCard(() => ({
-    id: "151b332e-164b-4646-8f52-741984cd71ad",
-    rarity: "rare",
-    name: "Apprentice Wizard",
-    oracleText: "{U}, {T}: Add {C}{C}{C}.",
-    manaCost: { X: 1, U: 2 },
-    types: ["Creature"],
-    subtypes: ["Human", "Wizard"],
-    power: 0,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "apprentice-wizard-mana",
-            oracleText: "{U}, {T}: Add {C}{C}{C}.",
-            cost: { tap: true, mana: { U: 1 } },
-            useStack: false,
-            effect: (ctx) => ctx.addMana({ C: 3 }),
-            manaProduced: { C: 3 },
-        },
-    ],
-}));
-
 // Erosion — Aura enchant land. "At the beginning of the upkeep of enchanted
 // land's controller, destroy that land unless that player pays {1} or 1 life."
 // (CR 603.6a upkeep trigger scoped to the HOST's controller + CR 117.3a do-X-

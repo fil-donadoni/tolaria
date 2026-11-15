@@ -34,7 +34,6 @@ import {
 import { fumarole } from "../../cards/sets/ice/multicolor.cards";
 import { prismaticWard } from "../../cards/sets/ice/white.cards";
 import {
-    blackLotus,
     forest,
     grizzlyBears,
     mountain,
@@ -50,6 +49,8 @@ import {
 } from "../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../_generated/dataModel";
 import type { GameState } from "../state";
+import { getDefinition } from "../../cards";
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 
 /** p1 holds Hull Breach with untapped R + G sources; p2 has one artifact and
  *  one enchantment, so mode `both` is the only mode with two live groups. */
@@ -68,7 +69,7 @@ function hullBreachBoard(): GameState {
             zone: "battlefield",
         })
     );
-    const art = makeInstance(blackLotus().id, {
+    const art = makeInstance(blackLotus.id, {
         id: "art-1",
         controllerId: "p2",
         ownerId: "p2",

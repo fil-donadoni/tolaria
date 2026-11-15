@@ -231,31 +231,6 @@ export const annihilate = defineCard(() => ({
     ],
 }));
 
-// Bog Initiate — {1}{B} 1/1. "{1}: Add {B}." (CR 605.3a mana ability.)
-export const bogInitiate = defineCard(() => ({
-    id: "8962dc3b-24ca-4c3c-ba1d-933c29cf7b73", // INV 95
-    rarity: "common",
-    name: "Bog Initiate",
-    oracleText: "{1}: Add {B}.",
-    manaCost: { X: 1, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Wizard"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "bog-initiate-mana",
-            oracleText: "{1}: Add {B}.",
-            cost: { mana: { X: 1 } },
-            useStack: false,
-            effect: (ctx) => {
-                ctx.addMana({ B: 1 });
-            },
-            manaProduced: { B: 1 },
-        },
-    ],
-}));
-
 // Cremate — {B} Instant. "Exile target card from a graveyard. Draw a card."
 // (CR 701.13 exile, CR 121.1 draw.) Any graveyard (`controller` omitted =
 // "any"), any card type (`type: "card"`).

@@ -1242,30 +1242,6 @@ export const mishrasWarMachine = defineCard(() => ({
     ],
 }));
 
-// Ashnod's Altar — {3} Artifact. "Sacrifice a creature: Add {C}{C}." A
-// creature-to-colorless mana converter. CR 605.1a — no target, adds mana, no
-// loyalty, no library movement: a MANA ability, so it never uses the stack
-// (CR 605.3b) and is activatable mid-cast (CR 605.3a). The filtered sacrifice
-// parks on the shared cost-pick window and commits inline (issue #3455); the
-// fixed output rides the `manaProduced` descriptor the mana authority reads.
-export const ashnodsAltar = defineCard(() => ({
-    id: "cdcccb0f-ce96-453b-9e82-41d87f52e58b",
-    rarity: "uncommon",
-    name: "Ashnod's Altar",
-    oracleText: "Sacrifice a creature: Add {C}{C}.",
-    manaCost: { X: 3 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "ashnods-altar-mana",
-            oracleText: "Sacrifice a creature: Add {C}{C}.",
-            cost: { sacrificeFilter: { types: "Creature" } },
-            useStack: false,
-            manaProduced: { C: 2 },
-        },
-    ],
-}));
-
 // Mishra's Workshop — Land. "{T}: Add {C}{C}{C}. Spend this mana only to cast
 // artifact spells." (ATQ rare, modern oracle.)
 //

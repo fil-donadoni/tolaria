@@ -436,29 +436,6 @@ export const forsakenCity = defineCard(() => ({
     ],
 }));
 
-// Mana Cylix — {1} Artifact. "{1}, {T}: Add one mana of any color." (Modern
-// Oracle, verified via Scryfall — no "colours already spent this turn"
-// restriction; that recollection was wrong. A plain unrestricted five-colour
-// rock, the SAME `manaChoices: ANY_SINGLE_COLOR` shape Star Compass uses
-// above, with no `manaColorSource` board restriction.)
-export const manaCylix = defineCard(() => ({
-    id: "c6f95767-afda-4d74-bbd4-1b702eeae54b", // PLS 132
-    rarity: "uncommon",
-    name: "Mana Cylix",
-    oracleText: "{1}, {T}: Add one mana of any color.",
-    manaCost: { X: 1 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "mana-cylix-mana",
-            oracleText: "{1}, {T}: Add one mana of any color.",
-            cost: { mana: { X: 1 }, tap: true },
-            useStack: false,
-            manaChoices: ANY_SINGLE_COLOR,
-        },
-    ],
-}));
-
 // Terminal Moraine — Land. "{T}: Add {C}.\n{2}, {T}, Sacrifice this land:
 // Search your library for a basic land card, put that card onto the
 // battlefield tapped, then shuffle." Mirrors Fabled Passage's fetch ability

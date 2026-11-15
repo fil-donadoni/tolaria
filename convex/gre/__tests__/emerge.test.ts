@@ -43,7 +43,6 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import {
     grizzlyBears,
-    solRing,
     juggernaut,
     swamp,
 } from "../../cards/sets/lea/index.cards";
@@ -51,6 +50,8 @@ import { triskelion, ornithopter } from "../../cards/sets/atq/colorless.cards";
 import { crawWurm } from "../../cards/sets/lea/green.cards";
 import { thaliaGuardianOfThraben } from "../../cards/sets/dka/white.cards";
 import { drought } from "../../cards/sets/ice/white.cards";
+import { getDefinition } from "../../cards";
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 // Crabomination's numbers: printed {4}{B}{B}, "Emerge from artifact {5}{B}{B}".
 const ARTIFACT_PROBE_ID = "test:emerge-from-artifact-probe";
@@ -198,7 +199,7 @@ describe("Emerge — cost lookup and the [quality] filter (CR 702.119a/b)", () =
                 probeIn(state)
             ).some((a) => a.id === "emerge");
         };
-        expect(offered([tappedOf(solRing().id, "ring")])).toBe(true);
+        expect(offered([tappedOf(solRing.id, "ring")])).toBe(true);
         expect(offered([tappedOf(juggernaut().id, "jugg")])).toBe(true);
         expect(offered([tappedOf(grizzlyBears().id, "bears")])).toBe(false);
         expect(offered([])).toBe(false);
@@ -281,7 +282,7 @@ describe("Emerge — announcement and payment through the real mutations (CR 702
                 board({
                     battlefield: [
                         tappedOf(triskelion().id, "tris"),
-                        tappedOf(solRing().id, "ring"),
+                        tappedOf(solRing.id, "ring"),
                     ],
                     pool: { B: 2 },
                 })
@@ -311,7 +312,7 @@ describe("Emerge — announcement and payment through the real mutations (CR 702
                 board({
                     battlefield: [
                         tappedOf(triskelion().id, "tris"),
-                        tappedOf(solRing().id, "ring"),
+                        tappedOf(solRing.id, "ring"),
                     ],
                     pool: { B: 2 },
                 })
@@ -371,7 +372,7 @@ describe("Emerge — the chosen victim must still be there to pay (CR 601.2h / 7
                 board({
                     battlefield: [
                         tappedOf(triskelion().id, "tris"),
-                        tappedOf(solRing().id, "ring"),
+                        tappedOf(solRing.id, "ring"),
                         makeInstance(swamp().id, {
                             id: "swamp-0",
                             controllerId: "p1",
@@ -456,7 +457,7 @@ describe("Emerge beside Drought's tax — one selection, victim first (CR 118.9d
                         droughtOf(),
                         swampOf("swamp-0"),
                         swampOf("swamp-1"),
-                        tappedOf(solRing().id, "ring"),
+                        tappedOf(solRing.id, "ring"),
                         tappedOf(triskelion().id, "tris"),
                     ],
                     pool: { B: 2 },
@@ -576,7 +577,7 @@ describe("Emerge — the live fallback picker names the largest victim (CR 702.1
             gameStateSeed(
                 board({
                     battlefield: [
-                        tappedOf(solRing().id, "ring"),
+                        tappedOf(solRing.id, "ring"),
                         tappedOf(triskelion().id, "tris"),
                     ],
                     pool: { B: 2 },

@@ -78,7 +78,6 @@ import {
 } from "./set.helper";
 
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
-const fyndhornElves = getDefinition("3ba95ffa-990a-4013-98b7-5d8c0b34e9c4");
 const blizzard = getDefinition("c369e4f9-0f2b-446c-9e2d-d3eefab0586d");
 const chubToad = getDefinition("b6ebcc1d-0c5c-4bc2-ade7-41944f69162e");
 const earthlore = getDefinition("319d252e-7c43-47d6-8873-f69b0e063256");
@@ -168,21 +167,6 @@ describe("Balduvian Bears (vanilla creature, CR 302)", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // --- Mana dorks (CR 605.1a mana ability) -----------------------------------
-
-describe("Fyndhorn Elves / Elder (CR 605.1a mana ability)", () => {
-    it("Fyndhorn Elves' effect adds {G} to its controller's pool", () => {
-        // Mana abilities resolve via their `effect` (CR 605.3b), not the stack;
-        // drive it directly with a minimal context (mirrors how the engine
-        // runs a non-stack mana ability on activation).
-        let added: Record<string, number> | undefined;
-        fyndhornElves.activatedAbilities![0].effect!({
-            addMana: (cost: Record<string, number>) => {
-                added = cost;
-            },
-        } as never);
-        expect(added).toEqual({ G: 1 });
-    });
-});
 
 // --- Untap utility creatures (CR 701.26a untap) ----------------------------
 

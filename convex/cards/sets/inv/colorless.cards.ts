@@ -155,65 +155,6 @@ export const alloyGolem = defineCard(() => ({
     })),
 }));
 
-// Chromatic Sphere — {1} Artifact. "{1}, {T}, Sacrifice this artifact: Add
-// one mana of any color. Draw a card." CR 605.1a: an activated ability is a
-// mana ability only if "its cost and effect don't move any card to or from a
-// library" — the draw moves one, so this is an ordinary activated ability.
-// CR 602.2a puts it on the stack, which resolves only once both players pass
-// in succession (CR 117.4), so the opponent can respond; the colour is chosen,
-// the mana added and the card drawn when it resolves; it cannot be
-// activated in the middle of casting a spell to pay for it (CR 605.3a is the
-// mana abilities' licence). The colour pick is an `optionChoice` over five
-// `addMana` modes, the shape the compiler lowers this line to.
-export const chromaticSphere = defineCard(() => ({
-    id: "920cd17f-9274-443e-906f-c9904f0658d5",
-    rarity: "uncommon",
-    name: "Chromatic Sphere",
-    oracleText:
-        "{1}, {T}, Sacrifice this artifact: Add one mana of any color. Draw a card.",
-    manaCost: { X: 1 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "chromatic-sphere-mana",
-            oracleText:
-                "{1}, {T}, Sacrifice this artifact: Add one mana of any color. Draw a card.",
-            cost: { mana: { X: 1 }, tap: true, sacrifice: true },
-            useStack: true,
-            effects: [
-                {
-                    op: "optionChoice",
-                    player: "controller",
-                    prompt: "Choose the mana to add",
-                    modes: [
-                        {
-                            label: "Add {W}",
-                            effects: [{ op: "addMana", mana: { W: 1 } }],
-                        },
-                        {
-                            label: "Add {U}",
-                            effects: [{ op: "addMana", mana: { U: 1 } }],
-                        },
-                        {
-                            label: "Add {B}",
-                            effects: [{ op: "addMana", mana: { B: 1 } }],
-                        },
-                        {
-                            label: "Add {R}",
-                            effects: [{ op: "addMana", mana: { R: 1 } }],
-                        },
-                        {
-                            label: "Add {G}",
-                            effects: [{ op: "addMana", mana: { G: 1 } }],
-                        },
-                    ],
-                },
-                { op: "draw", player: "controller", count: 1 },
-            ],
-        },
-    ],
-}));
-
 // Juntu Stakes — {2} Artifact. "Creatures with power 1 or less don't untap
 // during their controllers' untap steps." (CR 502.1 untap-restriction, same
 // factory as Tsabo's Web/Meekstone above.) `PermanentFilter` only has
@@ -261,54 +202,6 @@ export const lotusGuardian = defineCard(() => ({
             id: "lotus-guardian-mana",
             oracleText: "{T}: Add one mana of any color.",
             cost: { tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ W: 1 }),
-            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
-        },
-    ],
-}));
-
-// Phyrexian Altar — {3} Artifact. "Sacrifice a creature: Add one mana of any
-// color." CR 605.1a — no target, adds mana, no loyalty, no library movement: a
-// MANA ability, so it never uses the stack (CR 605.3b) and is activatable
-// mid-cast (CR 605.3a). The filtered sacrifice (CR 602.1a) parks on the
-// shared cost-pick window and commits inline (issue #3455); the colour is
-// picked at activation from the `manaChoices` descriptor, the Birds of
-// Paradise shape.
-export const phyrexianAltar = defineCard(() => ({
-    id: "25158cd5-749b-408c-9ab1-0f83e38730f7",
-    rarity: "rare",
-    name: "Phyrexian Altar",
-    oracleText: "Sacrifice a creature: Add one mana of any color.",
-    manaCost: { X: 3 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "phyrexian-altar-mana",
-            oracleText: "Sacrifice a creature: Add one mana of any color.",
-            cost: { sacrificeFilter: { types: "Creature" } },
-            useStack: false,
-            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
-        },
-    ],
-}));
-
-// Phyrexian Lens — {3} Artifact. "{T}, Pay 1 life: Add one mana of any
-// color." (CR 605.1a mana ability with a life-payment cost — the Mana
-// Confluence / Horizon-land shape — combined with the `manaChoices` "any
-// color" picker.)
-export const phyrexianLens = defineCard(() => ({
-    id: "6ec9a91d-7af0-44a8-839f-fb9960be0ddd",
-    rarity: "rare",
-    name: "Phyrexian Lens",
-    oracleText: "{T}, Pay 1 life: Add one mana of any color.",
-    manaCost: { X: 3 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "phyrexian-lens-mana",
-            oracleText: "{T}, Pay 1 life: Add one mana of any color.",
-            cost: { tap: true, life: 1 },
             useStack: false,
             effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ W: 1 }),
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
@@ -512,39 +405,6 @@ export const urzasFilter = defineCard(() => ({
             appliesToSpell: (card, ctx: StaticEffectContext) =>
                 ctx.getColors(card).length >= 2,
             costReduction: { X: 2 },
-        },
-    ],
-}));
-
-// Archaeological Dig — Land. "{T}: Add {C}.\n{T}, Sacrifice this land: Add
-// one mana of any color." (CR 605.1a fixed-colorless tap ability + a
-// self-sacrifice "any color" mana ability — the Black Lotus/Chromatic Star
-// `manaChoices` shape — modeled as two separate tap abilities, the same
-// two-ability land shape Strip Mine already ships in this codebase.)
-export const archaeologicalDig = defineCard(() => ({
-    id: "35f55af0-5a46-4900-b3d0-ca796b710e07",
-    rarity: "uncommon",
-    name: "Archaeological Dig",
-    oracleText:
-        "{T}: Add {C}.\n{T}, Sacrifice this land: Add one mana of any color.",
-    manaCost: {},
-    types: ["Land"],
-    activatedAbilities: [
-        {
-            id: "archaeological-dig-colorless",
-            oracleText: "{T}: Add {C}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ C: 1 }),
-            manaProduced: { C: 1 },
-        },
-        {
-            id: "archaeological-dig-sac",
-            oracleText: "{T}, Sacrifice this land: Add one mana of any color.",
-            cost: { tap: true, sacrifice: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ W: 1 }),
-            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
 }));

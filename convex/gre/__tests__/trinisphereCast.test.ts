@@ -6,7 +6,7 @@ import { describe, it, expect } from "vitest";
 import { announceCast } from "../../game";
 import { getLegalActions } from "../rules";
 import { getPlayer, type GameState } from "../state";
-import { solRing } from "../../cards/sets/lea/colorless.cards";
+
 import { trinisphere } from "../../cards/sets/dst/colorless.cards";
 import {
     makeMutationCtx,
@@ -24,6 +24,8 @@ import {
     withTemporaryDefinition,
     withTemporaryDefinitionAsync,
 } from "../../cards/registry";
+import { getDefinition } from "../../cards";
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 type AnnounceArgs = {
     gameId: Id<"games">;
@@ -36,7 +38,7 @@ function board(pool: number, trinisphereTapped = false): GameState {
         players: [
             makePlayer("p1", {
                 hand: [
-                    makeInstance(solRing().id, {
+                    makeInstance(solRing.id, {
                         id: "ring",
                         zone: "hand",
                         controllerId: "p1",

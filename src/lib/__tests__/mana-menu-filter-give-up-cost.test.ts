@@ -30,7 +30,7 @@ const ME = "p1";
  *  `useStack: true`; issue #3047 flipped it, so the shipped definition is what
  *  these gates are proven against. */
 const ALTAR = getCardByName("Ashnod's Altar");
-const ALTAR_MANA = "ashnods-altar-mana";
+const ALTAR_MANA = "ashnod-s-altar-mana";
 
 /** The CATALOGUE Phyrexian Altar — the same cost with a CHOSEN colour
  *  (`manaChoices`) instead of a fixed output (issue #3047). */

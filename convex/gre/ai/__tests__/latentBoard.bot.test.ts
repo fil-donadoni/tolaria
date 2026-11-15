@@ -31,23 +31,19 @@ import {
     disenchant,
     swordsToPlowshares,
 } from "../../../cards/sets/lea/white.cards";
-import {
-    crawWurm,
-    grizzlyBears,
-    llanowarElves,
-} from "../../../cards/sets/lea/green.cards";
-import {
-    blackLotus,
-    forest,
-    plains,
-    solRing,
-} from "../../../cards/sets/lea/colorless.cards";
-import { fellwarStone } from "../../../cards/sets/drk/colorless.cards";
+import { crawWurm, grizzlyBears } from "../../../cards/sets/lea/green.cards";
+import { forest, plains } from "../../../cards/sets/lea/colorless.cards";
+
 import { mindStone } from "../../../cards/sets/wth/colorless.cards";
 import { flashfires } from "../../../cards/sets/lea/red.cards";
 import { pyroclasm } from "../../../cards/sets/ice/red.cards";
 import { hibernation } from "../../../cards/sets/usg/blue.cards";
 import { forceOfVigor } from "../../../cards/sets/mh1/green.cards";
+import { getDefinition } from "../../../cards";
+const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
+const fellwarStone = getDefinition("dc47e322-f8b8-4685-b035-fda0cc433e6b");
 
 /** A two-player state where `p1` holds exactly `handCardId` and `p2`'s
  *  battlefield is `oppBoard` (card ids). Everything else is the shared
@@ -147,7 +143,7 @@ describe("permanentRealisedValue — what removing one permanent costs (issue #3
     it("prices a big creature far above a small one", () => {
         const { state } = boardWith(swordsToPlowshares().id, [
             shivanDragon().id,
-            llanowarElves().id,
+            llanowarElves.id,
         ]);
         const [dragon, elves] = state.players[1].battlefield;
         expect(permanentRealisedValue(state, dragon)).toBeGreaterThan(
@@ -186,7 +182,7 @@ describe("latent removal value follows the board (issue #3398)", () => {
         expect(
             latentInHand(swordsToPlowshares().id, [shivanDragon().id])
         ).toBeGreaterThan(
-            latentInHand(swordsToPlowshares().id, [llanowarElves().id])
+            latentInHand(swordsToPlowshares().id, [llanowarElves.id])
         );
     });
 
@@ -195,7 +191,7 @@ describe("latent removal value follows the board (issue #3398)", () => {
         // the requirement, not the board's biggest permanent. Black Lotus (an
         // Artifact) is legal; Shivan Dragon is not.
         const againstArtifact = latentInHand(disenchant().id, [
-            blackLotus().id,
+            blackLotus.id,
             shivanDragon().id,
         ]);
         const againstNothingLegal = latentInHand(disenchant().id, [
@@ -215,7 +211,7 @@ describe("latent removal value follows the board (issue #3398)", () => {
         expect(latentInHand(forceOfVigor().id, [shivanDragon().id])).toBe(0);
         // And with one legal victim it is priced by THAT victim, on both
         // slots, not by a phantom on the second.
-        const oneArtifact = latentInHand(forceOfVigor().id, [blackLotus().id]);
+        const oneArtifact = latentInHand(forceOfVigor().id, [blackLotus.id]);
         expect(oneArtifact).toBeGreaterThan(0);
         expect(oneArtifact).toBeLessThan(
             2 * DEFAULT_EVAL_WEIGHTS.latent.boardRemoval
@@ -353,7 +349,7 @@ describe("a sweep's latent value is the surplus it takes (issue #4773)", () => {
                 )
             ).toBe(0);
             expect(
-                latentAgainst(nonland.id, [], [llanowarElves().id])
+                latentAgainst(nonland.id, [], [llanowarElves.id])
             ).toBeGreaterThan(0);
         });
     });
@@ -511,14 +507,14 @@ describe("bounce, damage and filtered sweeps read the board (issue #4781)", () =
         const kills = latentAgainst(
             pyroclasm().id,
             [],
-            [grizzlyBears().id, llanowarElves().id]
+            [grizzlyBears().id, llanowarElves.id]
         );
         expect(kills).toBeGreaterThan(0);
         expect(
             latentAgainst(
                 pyroclasm().id,
                 [],
-                [grizzlyBears().id, llanowarElves().id, crawWurm().id]
+                [grizzlyBears().id, llanowarElves.id, crawWurm().id]
             )
         ).toBeCloseTo(kills, 6);
         expect(latentAgainst(pyroclasm().id, [], [crawWurm().id])).toBe(0);
@@ -532,7 +528,7 @@ describe("bounce, damage and filtered sweeps read the board (issue #4781)", () =
         expect(
             latentAgainst(
                 pyroclasm().id,
-                [grizzlyBears().id, llanowarElves().id],
+                [grizzlyBears().id, llanowarElves.id],
                 [crawWurm().id]
             )
         ).toBe(0);
@@ -595,9 +591,9 @@ describe("a sweep's price counts the aggregate terms its members move (issue #48
     const own = [
         plains().id,
         plains().id,
-        solRing().id,
+        solRing.id,
         mindStone().id,
-        fellwarStone().id,
+        fellwarStone.id,
     ];
     const opp = [
         forest().id,
@@ -648,7 +644,7 @@ describe("a sweep's price counts the aggregate terms its members move (issue #48
         const before = aggregates(own, opp);
         // CR 701.8a — every land goes; the rocks and the card in hand stay.
         const after = aggregates(
-            [solRing().id, mindStone().id, fellwarStone().id],
+            [solRing.id, mindStone().id, fellwarStone.id],
             []
         );
         const moved = before.opp - after.opp - (before.self - after.self);
@@ -710,9 +706,9 @@ describe("a recoverable sweep's swing is credited in part (issue #4880)", () => 
         const own = [
             plains().id,
             plains().id,
-            solRing().id,
+            solRing.id,
             mindStone().id,
-            fellwarStone().id,
+            fellwarStone.id,
         ];
         const opp = [
             forest().id,
@@ -773,14 +769,14 @@ describe("a recoverable sweep's swing is credited in part (issue #4880)", () => 
                 latentAgainst(
                     pyroclasm().id,
                     [],
-                    [grizzlyBears().id, llanowarElves().id],
+                    [grizzlyBears().id, llanowarElves.id],
                     at(fraction)
                 )
             ).toBeCloseTo(
                 latentAgainst(
                     pyroclasm().id,
                     [],
-                    [grizzlyBears().id, llanowarElves().id],
+                    [grizzlyBears().id, llanowarElves.id],
                     at(1)
                 ),
                 6
@@ -859,7 +855,7 @@ describe("a recoverable sweep's swing is credited in part (issue #4880)", () => 
                 withAggregates(1)
             ).opp;
         withTemporaryDefinition(everything, () => {
-            const before = oppAggregate([llanowarElves().id, forest().id]);
+            const before = oppAggregate([llanowarElves.id, forest().id]);
             const elvesGone = oppAggregate([forest().id]);
             const elvesAggregate =
                 before.manaDevelopment +
@@ -869,14 +865,14 @@ describe("a recoverable sweep's swing is credited in part (issue #4880)", () => 
             const elvesBody = latentAgainst(
                 everything.id,
                 [],
-                [llanowarElves().id],
+                [llanowarElves.id],
                 at(1)
             );
             expect(
                 latentAgainst(
                     everything.id,
                     [],
-                    [llanowarElves().id, forest().id],
+                    [llanowarElves.id, forest().id],
                     withAggregates(0)
                 )
             ).toBeCloseTo(elvesBody + PER_POINT * elvesAggregate, 6);

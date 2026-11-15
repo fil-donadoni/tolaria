@@ -8,9 +8,11 @@
 import { describe, it, expect } from "vitest";
 import { pendingTargetFiltersFromRequirement } from "@convex/gre/rules";
 import { consignToMemory } from "@convex/cards/sets/mh3/blue.cards";
-import { counterspell, solRing } from "@convex/cards/sets/lea/index.cards";
+import { counterspell } from "@convex/cards/sets/lea/index.cards";
 import { matchesSpellPendingTarget } from "~/lib/card-utils";
 import type { PendingTarget } from "~/types/game";
+import { getDefinition } from "@convex/cards";
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 const requirement = consignToMemory().targetRequirement!;
 const filters = pendingTargetFiltersFromRequirement(requirement, undefined);
@@ -49,7 +51,7 @@ describe("triggered ability or colorless spell target (CR 105.2c)", () => {
 
     it("a colorless spell is eligible", () => {
         expect(
-            eligible({ card: { id: solRing().id }, types: ["Artifact"] })
+            eligible({ card: { id: solRing.id }, types: ["Artifact"] })
         ).toBe(true);
     });
 

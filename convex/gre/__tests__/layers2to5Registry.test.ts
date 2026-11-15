@@ -55,7 +55,8 @@ import {
 import { getDefinition } from "../../cards";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { mountain } from "../../cards/sets/lea/colorless.cards";
-import { blackLotus } from "../../cards/sets/lea/colorless.cards";
+
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 
 const view = (state: GameState): LayerStateView =>
     state as unknown as LayerStateView;
@@ -66,7 +67,7 @@ const asView = (card: CardInstanceState): PermanentView =>
  *  CONTROLLER controls — the shape that can only answer correctly if layer 2
  *  has already been applied when the predicate runs (CR 613.7). */
 function controllerScopedTypeAdder(id: string) {
-    const base = getDefinition(blackLotus().id);
+    const base = getDefinition(blackLotus.id);
     return {
         ...base,
         id,
@@ -231,7 +232,7 @@ describe("CR 205.1a — the one-shot card-type SET is a registry entry (issue #2
     }
 
     it("SETS the whole line: every type the object had and the entry does not name is suppressed (CR 205.1a)", () => {
-        const lotus = makeInstance(blackLotus().id, {
+        const lotus = makeInstance(blackLotus.id, {
             id: "lotus",
             controllerId: "p1",
         });
@@ -261,7 +262,7 @@ describe("CR 205.1a — the one-shot card-type SET is a registry entry (issue #2
     });
 
     it("CR 400.7 — the SET dies with the object: a bounced permanent shows its PRINTED line", () => {
-        const lotus = makeInstance(blackLotus().id, {
+        const lotus = makeInstance(blackLotus.id, {
             id: "lotus",
             controllerId: "p1",
             ownerId: "p1",
@@ -495,7 +496,7 @@ describe("review findings — the shapes a materialise-to-derive migration loses
         // longer exist on `CardInstanceState` at all — the COMPACT row is the
         // only place a pre-S4 record survives, which is also what makes the pass
         // idempotent by construction: `compactCard` can never write one back.
-        const lotus = makeInstance(blackLotus().id, {
+        const lotus = makeInstance(blackLotus.id, {
             id: "lotus",
             controllerId: "p1",
             ownerId: "p1",
@@ -660,7 +661,7 @@ describe("the registry precheck names exactly the kinds the derivation owns", ()
         for (const kind of Object.keys(LAYER_2_5_STATIC_EFFECT_KINDS)) {
             const id = `s4-precheck-${kind}`;
             const probe: CardDefinition = {
-                ...getDefinition(blackLotus().id),
+                ...getDefinition(blackLotus.id),
                 id,
                 name: `Precheck ${kind}`,
                 staticEffects: [

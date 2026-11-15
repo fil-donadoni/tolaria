@@ -65,20 +65,21 @@ import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import type { CardInstanceState, GameState } from "../state";
 import {
     ankhOfMishra,
-    blackLotus,
     crusade,
     grizzlyBears,
     island,
     islandSanctuary,
     lordOfAtlantis,
-    moxJet,
-    moxSapphire,
     plains,
-    solRing,
 } from "../../cards/sets/lea/index.cards";
 import { ornithopter } from "../../cards/sets/atq/index.cards";
 import { farrelitePriest } from "../../cards/sets/fem/index.cards";
 import { urzaLordHighArtificer } from "../../cards/sets/mh1/index.cards";
+import { getDefinition } from "../../cards";
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
+const moxJet = getDefinition("92bcd1ce-19b1-4d78-8b09-95242ca08d76");
+const moxSapphire = getDefinition("82da0972-b17b-4600-9efd-e9430a0db04b");
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 /** Mixed pool: the converter (Urza), artifacts it can and cannot usefully tap
  *  (a blue Mox, an off-colour Mox, a colourless rock, a 0/2 with no mana
@@ -100,14 +101,14 @@ import { urzaLordHighArtificer } from "../../cards/sets/mh1/index.cards";
  *  rather than absorbed here as a second exemption. */
 const POOL = [
     urzaLordHighArtificer(),
-    moxSapphire(),
-    moxJet(),
-    solRing(),
+    moxSapphire,
+    moxJet,
+    solRing,
     ornithopter(),
     island(),
     plains(),
     farrelitePriest(),
-    blackLotus(),
+    blackLotus,
 ] as const;
 
 /** Untargeted spells covering a doubled coloured pip, a mixed generic +
@@ -347,12 +348,9 @@ describe("mana payment authorities agree (issue #2420)", () => {
     it.each([
         [
             "Sapphire first",
-            [moxSapphire().id, moxJet().id, urzaLordHighArtificer().id],
+            [moxSapphire.id, moxJet.id, urzaLordHighArtificer().id],
         ],
-        [
-            "Urza first",
-            [urzaLordHighArtificer().id, moxSapphire().id, moxJet().id],
-        ],
+        ["Urza first", [urzaLordHighArtificer().id, moxSapphire.id, moxJet.id]],
     ])(
         "[Urza, Mox Sapphire, Mox Jet] pays {U}{U} with Sapphire's own tap plus Urza tapping Jet (%s)",
         (_label, defIds) => {
@@ -364,8 +362,8 @@ describe("mana payment authorities agree (issue #2420)", () => {
             const plan = planManaPayment(state, state.players[0], { U: 2 });
             expect(plan).not.toBeNull();
 
-            const sapphireId = battlefield[defIds.indexOf(moxSapphire().id)].id;
-            const jetId = battlefield[defIds.indexOf(moxJet().id)].id;
+            const sapphireId = battlefield[defIds.indexOf(moxSapphire.id)].id;
+            const jetId = battlefield[defIds.indexOf(moxJet.id)].id;
             const urzaId =
                 battlefield[defIds.indexOf(urzaLordHighArtificer().id)].id;
 

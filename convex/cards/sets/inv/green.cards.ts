@@ -479,32 +479,6 @@ export const molimoMaroSorcerer = defineCard(() => ({
     ],
 }));
 
-// Nomadic Elf — {1}{G} Creature — Elf Nomad, 2/2. "{1}{G}: Add one mana of
-// any color." (CR 605.1a mana ability, `useStack: false`.) Runtime colour
-// choice via `manaChoices`, the established mana-ability idiom (Standing
-// Stones, `drk/colorless.cards.ts`; Celestial Prism, `lea/colorless.cards.ts`).
-export const nomadicElf = defineCard(() => ({
-    id: "3b69e57a-5b19-450c-9cf5-c189e8505781",
-    rarity: "common",
-    name: "Nomadic Elf",
-    oracleText: "{1}{G}: Add one mana of any color.",
-    manaCost: { X: 1, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Elf", "Nomad"],
-    power: 2,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "nomadic-elf-mana",
-            oracleText: "{1}{G}: Add one mana of any color.",
-            cost: { mana: { X: 1, G: 1 } },
-            useStack: false,
-            effect: (ctx) => ctx.addMana({ G: 1 }),
-            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
-        },
-    ],
-}));
-
 // Pincer Spider — {2}{G} Creature — Spider, 2/3. "Kicker {3}. Reach\nIf this
 // creature was kicked, it enters with a +1/+1 counter on it." (CR 702.33
 // Kicker; CR 702.17b reach; CR 122.1 ETB counter via `entersWith.counters`,
@@ -772,31 +746,6 @@ export const treefolkHealer = defineCard(() => ({
                     duration: { phase: "end-of-turn" },
                 },
             ],
-        },
-    ],
-}));
-
-// Utopia Tree — {1}{G} Creature — Plant, 0/2. "{T}: Add one mana of any
-// color." (CR 605.1a mana ability, `useStack: false`.) Same `manaChoices`
-// idiom as Nomadic Elf above.
-export const utopiaTree = defineCard(() => ({
-    id: "720452e9-3245-4b0e-94b6-843cbcb641a5",
-    rarity: "rare",
-    name: "Utopia Tree",
-    oracleText: "{T}: Add one mana of any color.",
-    manaCost: { X: 1, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Plant"],
-    power: 0,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "utopia-tree-mana",
-            oracleText: "{T}: Add one mana of any color.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx) => ctx.addMana({ G: 1 }),
-            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
 }));

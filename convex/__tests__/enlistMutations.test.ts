@@ -8,7 +8,7 @@ import {
     makePlayer,
     makeState,
 } from "../cards/__tests__/setup.helper";
-import { grizzlyBears, llanowarElves } from "../cards/sets/lea/green.cards";
+import { grizzlyBears } from "../cards/sets/lea/green.cards";
 import {
     autoTapForAttackTax,
     cancelAttackTax,
@@ -27,6 +27,8 @@ import {
     type Handler,
     type MutationStub,
 } from "./gameMutationHarness.fixture";
+import { getDefinition } from "../cards";
+const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
 
 const GAME_ID = "game-1" as Id<"games">;
 const BASE = { gameId: GAME_ID, playerId: "p1" };
@@ -203,7 +205,7 @@ describe("confirmAttackers pays what was chosen (CR 508.1j)", () => {
 
 describe("the attack tax can't spend a chosen partner (CR 508.1h/1j)", () => {
     function taxed(): GameState {
-        const elves = makeInstance(llanowarElves().id, {
+        const elves = makeInstance(llanowarElves.id, {
             id: "partner",
             controllerId: "p1",
             ownerId: "p1",

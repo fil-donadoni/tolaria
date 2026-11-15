@@ -15,7 +15,7 @@ import {
     makeState,
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
-import { grizzlyBears, solRing } from "../../cards/sets/lea/index.cards";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 import type { TargetRequirement } from "../../cards/types";
 import {
     getLegalTargets,
@@ -35,6 +35,8 @@ import {
     checkPermanentTargetFilters,
     permanentFilterValuesFromCarrier,
 } from "../targetFilters";
+import { getDefinition } from "../../cards";
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 const CREATURE_OR_VEHICLE: TargetRequirement = {
     type: ["Creature", "Artifact"],
@@ -101,7 +103,7 @@ function board(): GameState {
                 battlefield: [
                     owned(grizzlyBears().id, "bear"),
                     owned(VEHICLE_ID, "vehicle"),
-                    owned(solRing().id, "ring"),
+                    owned(solRing.id, "ring"),
                 ],
             }),
             makePlayer("p2"),
@@ -224,7 +226,7 @@ describe("Enchant creature or Vehicle (issue #8230)", () => {
     });
 
     it("CR 303.4c — on a plain artifact the union fails and the Aura is put into the graveyard", () => {
-        const host = owned(solRing().id, "host");
+        const host = owned(solRing.id, "host");
         const aura = { ...owned(PLAIN_AURA_ID, "aura"), attachedTo: "host" };
         const state = makeState({
             players: [

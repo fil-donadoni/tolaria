@@ -650,9 +650,9 @@ describe("computeEngineViewBadge (ADR 0103 §9, issue #2728)", () => {
         expect(computeEngineViewBadge(def)).toEqual({ kind: "none" });
     });
 
-    it("reads protocol for a card whose only hand-written body is the mana-ability `effect` CLOSURE (Black Lotus)", () => {
+    it("reads NONE for a compiled mana ability, which has no resolution body (Black Lotus, retired to its compiled twin)", () => {
         const def = tryGetDefinition(getCardByName("Black Lotus").id)!;
-        expect(computeEngineViewBadge(def)).toEqual({ kind: "protocol" });
+        expect(computeEngineViewBadge(def)).toEqual({ kind: "none" });
     });
 
     it("reads protocol for a hand-written resolve() living in a GRANTED ability template (Urza's Saga, `grantTemplates[]`)", () => {
