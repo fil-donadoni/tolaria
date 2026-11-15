@@ -8947,7 +8947,7 @@
         {"id":"701.59b","line":"it(\"is refused below the threshold (CR 701.59b), and unpaid the spell casts as printed\", async () => {","sites":1,"status":"confirmed","ruleHash":"23a10260dd7410bc"},
         {"id":"712","line":"/CR 712\\.11c/","sites":1,"status":"confirmed","ruleHash":"c24d84c5bf0fc1f4"},
         {"id":"508.1g","line":"describe(\"enlist reachability for the Bot (CR 508.1g / 702.154a)\", () => {","sites":1,"status":"confirmed","ruleHash":"7f5a7faa2720b84b"},
-        {"id":"701.6a","line":"// CR 701.6a — counter unless the payment was made.","sites":9,"status":"confirmed","ruleHash":"c3142ba4935a36de"},
+        {"id":"701.6a","line":"// CR 701.6a — counter unless the payment was made.","sites":7,"status":"confirmed","ruleHash":"c3142ba4935a36de"},
         {"id":"601.2f","line":"// CR 601.2f (issue #3340, Urza +2) — a floating \"spells you cast this turn","sites":1,"status":"confirmed","ruleHash":"0e5bab9baa20723d"},
         {"id":"208.2","line":"/** CR 208.2 / 611.1 / 611.2a (issue #3459) — the tolerant read of one entry's","sites":1,"status":"baseline"},
         {"id":"117.1a","line":"* CR 307.1 / 117.1a snapshot the cast-commit sites stamp","sites":1,"status":"baseline"},
