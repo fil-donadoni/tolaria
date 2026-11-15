@@ -299,11 +299,23 @@
             "label": "comparative each-step trigger: without the Oath of Druids, Oko's +1 on its own Chromatic Star stays a free body (issue #8734)",
             "tier": "must",
             "needsSetup": false
+        },
+        {
+            "label": "phyrexian mana: Dismember pays life to kill the attacker that beats the Bot",
+            "tier": "must",
+            "needsSetup": true
         }
     ],
     "Djinn of Fool's Fall": [
         {
             "label": "plot: banks a plot card with mana that would otherwise empty",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Emrakul, the Promised End": [
+        {
+            "label": "graveyard discount: Emrakul, the Promised End is cast when the graveyard covers its cost",
             "tier": "must",
             "needsSetup": false
         }
@@ -327,6 +339,13 @@
             "label": "tutor: casts Entomb with a reanimation spell in hand",
             "tier": "must",
             "needsSetup": false
+        }
+    ],
+    "Erhnam Djinn": [
+        {
+            "label": "look and keep: Malevolent Rumble keeps the threat when short of threats",
+            "tier": "must",
+            "needsSetup": true
         }
     ],
     "Etched Oracle": [
@@ -1412,6 +1431,13 @@
             "label": "self-sacrificing ETB: hard-casts Uro for its enter trigger",
             "tier": "must",
             "needsSetup": false
+        }
+    ],
+    "Urza's Saga": [
+        {
+            "label": "saga: Urza's Saga makes the Construct before chapter III sacrifices it",
+            "tier": "must",
+            "needsSetup": true
         }
     ],
     "Vibrance": [
