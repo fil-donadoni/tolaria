@@ -189,6 +189,14 @@ export const EVAL_TERM_LABELS: Record<keyof EvalTerms, EvalTermLabel> = {
         gain: "sheds poison counters",
         loss: "takes poison counters",
     },
+    energy: {
+        short: "En",
+        name: "Energy (counters held)",
+        // Half an energy counter.
+        floor: W.energyWeight / 2,
+        gain: "banks energy",
+        loss: "spends energy",
+    },
     graveyard: {
         short: "Gy",
         name: "Graveyard (spells a play-from-graveyard engine can still cast)",

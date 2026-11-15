@@ -33,6 +33,7 @@ const TERM_KEYS = Object.keys({
     landTempo: true,
     library: true,
     poison: true,
+    energy: true,
     graveyard: true,
     graveyardReach: true,
 } satisfies Record<keyof EvalTerms, true>) as (keyof EvalTerms)[];

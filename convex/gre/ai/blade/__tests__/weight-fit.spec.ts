@@ -91,6 +91,7 @@ describe("weight fit report formatting (issue #3401)", () => {
                 landTempo: 0,
                 library: 0,
                 poison: 0,
+                energy: 0,
                 graveyard: 0,
                 graveyardReach: 0,
             },

@@ -119,6 +119,7 @@ const EVAL_TERM_PRESENCE: Record<keyof EvalTerms, true> = {
     landTempo: true,
     library: true,
     poison: true,
+    energy: true,
     graveyard: true,
     graveyardReach: true,
 };
@@ -187,6 +188,8 @@ const FITTABLE_TERM_WEIGHTS = [
     "landTempoWeight",
     "deckingWeight",
     "poisonWeight",
+    // Issue #9694 — the held energy counter's price.
+    "energyWeight",
     "graveyardEngineWeight",
     "graveyardEngineFraction",
     "graveyardReachFraction",

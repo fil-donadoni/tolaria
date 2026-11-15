@@ -43,6 +43,7 @@ const ZERO_TERMS: EvalTerms = {
     landTempo: 0,
     library: 0,
     poison: 0,
+    energy: 0,
     graveyard: 0,
     graveyardReach: 0,
 };

@@ -156,6 +156,68 @@ describe("blade setup — `etb-trigger` runs the real engine (ADR 0070 §4)", ()
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].controllerId).toBe(state.players[1].id);
     });
+
+    // Issue #9694, CR 603.6a — the entering creature triggers nothing of its
+    // own; the event feeds a DIFFERENT permanent's "another creature enters"
+    // trigger, and the step checks that one.
+    function guideBoard(): GameState {
+        return build({
+            cards: [
+                { name: "Guide of Souls", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            libraryCount: 20,
+        });
+    }
+
+    it("`watcher` puts the watcher's trigger on the stack, and it resolves for real", () => {
+        const state = guideBoard();
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [
+                {
+                    kind: "etb-trigger",
+                    card: "Grizzly Bears",
+                    controller: "me",
+                    watcher: "Guide of Souls",
+                },
+                { kind: "resolve-top" },
+            ],
+        });
+        expect(state.players[0].energyCounters).toBe(1);
+        expect(state.players[0].life).toBe(21);
+    });
+
+    it("`watcher` THROWS when the event fires none of the watcher's triggers", () => {
+        const state = guideBoard();
+        // The opponent's creature entering is not "another creature YOU
+        // control", so Guide of Souls stays silent.
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [
+                    {
+                        kind: "etb-trigger",
+                        card: "Grizzly Bears",
+                        controller: "opp",
+                        watcher: "Guide of Souls",
+                    },
+                ],
+            })
+        ).toThrow(/put no triggered ability of "Guide of Souls"/);
+    });
 });
 
 describe("blade setup — `resolve-top` runs the real resolution path", () => {

@@ -170,7 +170,21 @@ function applyEtbTrigger(
         );
     }
     const permanent = matches[0];
-    const before = triggersFrom(state, permanent.id).length;
+    // Issue #9694 — whose trigger the event must fire: the entering card's own
+    // by default, else the named watcher's (CR 603.6a).
+    let sourceId = permanent.id;
+    if (step.watcher !== undefined) {
+        const watchers = battlefieldMatches(state, step.watcher);
+        if (watchers.length !== 1) {
+            throw new BladeSetupError(
+                label,
+                step,
+                `${watchers.length} battlefield permanents named "${step.watcher}" — the watcher must name exactly one.`
+            );
+        }
+        sourceId = watchers[0].id;
+    }
+    const before = triggersFrom(state, sourceId).length;
 
     // The REAL emitter (CR 603.6), handed the REAL instance — so the trigger
     // matcher sees an event indistinguishable from one produced in play (same
@@ -180,11 +194,13 @@ function applyEtbTrigger(
     // placeTriggersOnStack, CR 603.2 / 603.3b).
     processPendingActionTriggers(state);
 
-    if (triggersFrom(state, permanent.id).length <= before) {
+    if (triggersFrom(state, sourceId).length <= before) {
         throw new BladeSetupError(
             label,
             step,
-            `"${step.card}" put no triggered ability on the stack when it entered. Either the card has no enters-the-battlefield trigger, or its condition is not met in this position.`
+            step.watcher === undefined
+                ? `"${step.card}" put no triggered ability on the stack when it entered. Either the card has no enters-the-battlefield trigger, or its condition is not met in this position.`
+                : `"${step.card}" entering put no triggered ability of "${step.watcher}" on the stack. Either the watcher has no trigger on another creature entering, or its condition is not met in this position.`
         );
     }
 }
