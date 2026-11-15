@@ -4293,6 +4293,132 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 111.1 — "Destroy all tokens" / "Destroy all nonland, nontoken permanents": token-ness is the sweep filter's `isToken`, true or false. Exhibits the two token-filtered sweeps the canned smoke scenario cannot build (a runtime-selected set).
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "d5862292-9ef9-4bf2-b468-45bfe0d70f7a",
+            name: "Crisis of Conscience",
+            manaCost: "{4}{W}{W}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Choose one —\n• Destroy all tokens.\n• Destroy all nonland, nontoken permanents.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Crisis of Conscience",
+            types: ["Sorcery"],
+            manaCost: { X: 4, W: 2 },
+            oracleText:
+                "Choose one —\n• Destroy all tokens.\n• Destroy all nonland, nontoken permanents.",
+            modes: [
+                {
+                    id: "crisis-of-conscience-mode-1",
+                    label: "Destroy all tokens",
+                    oracleText: "Destroy all tokens.",
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { isToken: true },
+                            },
+                            effects: [
+                                { op: "destroy", target: { ref: "$each" } },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: "crisis-of-conscience-mode-2",
+                    label: "Destroy all nonland, nontoken permanents",
+                    oracleText: "Destroy all nonland, nontoken permanents.",
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { excludeType: "Land", isToken: false },
+                            },
+                            effects: [
+                                { op: "destroy", target: { ref: "$each" } },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 111.1 — "Return all creature tokens" / "Return all nontoken creatures": a creature sweep narrowed by `isToken`, either way. Exhibits the creature-typed token-filtered sweeps the canned smoke scenario cannot build (a runtime-selected set).
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "8682266c-2b0f-496e-b1c6-1fb338feac24",
+            name: "Perplexing Test",
+            manaCost: "{3}{U}{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Choose one —\n• Return all creature tokens to their owners' hands.\n• Return all nontoken creatures to their owners' hands.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Perplexing Test",
+            types: ["Instant"],
+            manaCost: { X: 3, U: 2 },
+            oracleText:
+                "Choose one —\n• Return all creature tokens to their owners' hands.\n• Return all nontoken creatures to their owners' hands.",
+            modes: [
+                {
+                    id: "perplexing-test-mode-1",
+                    label: "Return all creature tokens to their owners' hands",
+                    oracleText:
+                        "Return all creature tokens to their owners' hands.",
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { type: "Creature", isToken: true },
+                            },
+                            effects: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$each" },
+                                    to: "hand",
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: "perplexing-test-mode-2",
+                    label: "Return all nontoken creatures to their owners' hands",
+                    oracleText:
+                        "Return all nontoken creatures to their owners' hands.",
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { type: "Creature", isToken: false },
+                            },
+                            effects: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$each" },
+                                    to: "hand",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 613.4c + CR 207.2c — "Domain — All creatures get -1/-1 until end of turn for each basic land type among lands you control": each stat is the printed step times the controller's Domain, negated for a shrink, over a sweep. Exhibits a pump amount the canned smoke scenario cannot know (issue #4132).
     {
         rule: "effect clause",

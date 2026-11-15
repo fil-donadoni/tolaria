@@ -26,7 +26,8 @@
  *
  * The `forEach` selector expresses type, subtype, negated type, negated
  * subtype ("non-Aura", CR 205.3), ONE colour (CR 105.1), a printed mana-value
- * ceiling (CR 202.3) and "you control" — the
+ * ceiling (CR 202.3), token-ness ("tokens", "nontoken", CR 111.1) and "you
+ * control" — the
  * descriptor fields whose engine meaning is one-to-one — and, for the one verb
  * that opts in ({@link creatureSweepRecipientRule}), "without <keyword>". A
  * field outside them (several colours, a keyword, a combat role, a power
@@ -166,6 +167,8 @@ function sweepSelector(
                 "colors",
                 "excludeSource",
                 "mvFilter",
+                "token",
+                "nontoken",
                 ...(allowKeywordExclusion ? ["excludeAbility"] : []),
             ].includes(field)
         )
@@ -259,6 +262,10 @@ function sweepSelector(
                 ? excludedSubtypes[0]!
                 : [...excludedSubtypes];
     if (typeof mv?.max === "number") filter.manaValueAtMost = mv.max;
+    // CR 111.1 — "tokens" / "nontoken creatures": the filter's `isToken`, the
+    // instance's own token-ness, read 1:1 on the battlefield.
+    if (descriptor.token === true) filter.isToken = true;
+    if (descriptor.nontoken === true) filter.isToken = false;
     // CR 702.9a — "without flying": the exclusion the sweep filter names 1:1.
     if (descriptor.excludeAbility !== undefined)
         filter.excludeAbility = descriptor.excludeAbility;
@@ -428,7 +435,8 @@ const TARGET_PLAYER_CONTROLS = / target player controls$/;
  * This is the shape a group pump is printed in, and it is a fourth mass
  * subject beside the three determiners above — not a widening of them: the
  * qualifier is REQUIRED (bar a bare SUBTYPE group, "Goblin creatures get
- * +3/+0", whose subtype is the whole restriction). "Creatures get +1/+1" with no controller is a
+ * +3/+0", whose subtype is the whole restriction, and a bare TOKEN group,
+ * "Creature tokens get -2/-2", whose token-ness is). "Creatures get +1/+1" with no controller is a
  * different sentence (every creature on the battlefield) that nothing prints
  * and that a determiner-less rule would let through by omission, so the bare
  * plural is refused rather than read as "all".
@@ -469,7 +477,13 @@ export const controlledPluralRule: Rule<MassSubjectIR> = subGrammar(
             const everythingButSource =
                 descriptor.value.controller === undefined &&
                 descriptor.value.excludeSource === true;
-            if (!bareSubtypeGroup && !everythingButSource)
+            // CR 111.1 — "Creature tokens get -2/-2" is every creature token
+            // on the battlefield: token-ness is the restriction, as a subtype
+            // is above.
+            const bareTokenGroup =
+                descriptor.value.controller === undefined &&
+                descriptor.value.token === true;
+            if (!bareSubtypeGroup && !everythingButSource && !bareTokenGroup)
                 return fail(
                     'a plural subject without "all" names whose permanents: "you control", "target player controls" or a subtype',
                     span
