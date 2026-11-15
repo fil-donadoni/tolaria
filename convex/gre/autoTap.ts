@@ -808,7 +808,9 @@ function minimalTapCount(
  *  `scorePreservedDemands`, `planSurplus`, `remainingFlexibility`,
  *  `planLexKey`, the untap-price gate and `planSoughtRiders` all agree on two
  *  plans with the same key — such plans differ only in which colour each
- *  any-colour source was assigned, and score identically. */
+ *  any-colour source was assigned, and score identically. A term that ever
+ *  reads an option's own side effect (a painland's damage on its coloured
+ *  mode) owes this key that option. */
 function planClassKey(
     tappedIds: string,
     leftover: Record<string, number>,
