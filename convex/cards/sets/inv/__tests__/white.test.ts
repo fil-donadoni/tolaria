@@ -56,12 +56,18 @@ import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 import { preloadDefinitions } from "../../../registry";
 import { resolveCardExport } from "../../../defineCard";
-import { spiritOfResistance as spiritOfResistanceExport } from "../white.cards";
+import {
+    atalyaSamiteMaster as atalyaSamiteMasterExport,
+    spiritOfResistance as spiritOfResistanceExport,
+} from "../white.cards";
 
 // The PR head carries no catalogue row for a newly shipped card (ADR 0157:
 // derived state is regenerated post-merge), so register the module's own
 // definition.
-preloadDefinitions([resolveCardExport(spiritOfResistanceExport)!]);
+preloadDefinitions([
+    resolveCardExport(spiritOfResistanceExport)!,
+    resolveCardExport(atalyaSamiteMasterExport)!,
+]);
 
 const alabasterLeech = getDefinition("c86b45d9-aba6-4c09-8605-037754ba7fd4");
 const benalishEmissary = getDefinition("6b82d56e-80d7-4be9-ac22-de3257efc458");
@@ -1685,5 +1691,102 @@ describe("Protective Sphere — source of your choice sharing a colour with the 
         expect(state.stack).toHaveLength(0);
         expect(prevented(state, "white-src", ME)).toBe(false);
         expect(prevented(state, "red-src", ME)).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Atalya, Samite Master — a MODAL `{X}, {T}:` ability (issue #3688). CR 700.2a
+// (the mode) and CR 107.3a (the value of X) are both chosen as part of
+// activating it, so one `activateAbilityOnState` call carries both; the
+// resolving mode reads the announced X. "Spend only white mana on X" is the
+// cost's `xSpendColors: ["W"]`.
+// ---------------------------------------------------------------------------
+
+describe("Atalya, Samite Master (CR 700.2a + CR 107.3a — modal {X} activation)", () => {
+    const ATALYA_ID = "90500e7a-f76d-453a-bda0-d56d3f7c7534";
+    const ABILITY = "atalya-samite-master-x";
+
+    function board(pool: Partial<Record<string, number>>): GameState {
+        return makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(ATALYA_ID, {
+                            id: "atalya",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            isSummoningSick: false,
+                        }),
+                        makeInstance(savannahLions.id, {
+                            id: "lions",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0, ...pool },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("gain-life mode with X = 3 charges three white mana and gains 3 life", () => {
+        const state = board({ W: 3, R: 2 });
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "atalya",
+            abilityId: ABILITY,
+            chosenModeIds: ["gain-life"],
+            chosenX: 3,
+        });
+        expect(state.pendingActivation).toBeUndefined();
+        const item = state.stack.find((i) => i.abilityId === ABILITY)!;
+        expect(item.chosenX).toBe(3);
+        expect(state.players[0].manaPool.W).toBe(0);
+        expect(state.players[0].manaPool.R).toBe(2);
+        const lifeBefore = state.players[0].life;
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(lifeBefore + 3);
+    });
+
+    it("non-white mana cannot pay X: red floating mana leaves the activation unpaid", () => {
+        const state = board({ W: 2, R: 3 });
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "atalya",
+            abilityId: ABILITY,
+            chosenModeIds: ["gain-life"],
+            chosenX: 3,
+        });
+        // Five mana floats, but only two of it is white: X = 3 is not paid.
+        expect(state.stack.some((i) => i.abilityId === ABILITY)).toBe(false);
+        expect(state.players[0].manaPool.R).toBe(3);
+    });
+
+    it("prevent mode with X = 2 shields the target creature from the next 2 damage", () => {
+        const state = board({ W: 2 });
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "atalya",
+            abilityId: ABILITY,
+            chosenModeIds: ["prevent"],
+            chosenX: 2,
+        });
+        const pt = state.pendingTarget!;
+        expect(pt).toBeDefined();
+        pt.selected = [{ type: "permanent", id: "lions" }];
+        finalizeTargetSelection(state, pt, "p1");
+        resolveTopOfStack(state);
+        // CR 615.7 — a shield sized by the announced X, on the chosen target.
+        expect(state.targetPreventionShields).toEqual([
+            expect.objectContaining({
+                targetType: "permanent",
+                targetId: "lions",
+                remaining: 2,
+            }),
+        ]);
     });
 });

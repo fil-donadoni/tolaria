@@ -975,6 +975,68 @@ export const prisonBarricade = defineCard(() => ({
     ],
 }));
 
+// Atalya, Samite Master — a MODAL `{X}, {T}:` ability. CR 700.2a: the mode
+// is chosen as part of activating it; CR 107.3a: X is chosen and announced as
+// part of activating it too — CR 602.2b runs the whole 601.2b–i casting
+// sequence for an activation, so both ride on the one `activateAbility`
+// call. "Spend only white mana on X" is the activation cost's
+// `xSpendColors: ["W"]`: the announced X is owed under its own `"X/W"` key,
+// which non-white mana cannot pay. Both modes read the announced X
+// (`{ X: true }`); the prevention is a CR 615.7 shield.
+// hand-tail: "{X}, {T}: Choose one —\n• Prevent the next X damage that would be dealt to target creature this turn. Spend only white mana on X.\n• You gain X life. Spend only white mana on X." (#4596)
+export const atalyaSamiteMaster = defineCard(() => ({
+    id: "90500e7a-f76d-453a-bda0-d56d3f7c7534",
+    rarity: "rare",
+    name: "Atalya, Samite Master",
+    oracleText:
+        "{X}, {T}: Choose one —\n• Prevent the next X damage that would be dealt to target creature this turn. Spend only white mana on X.\n• You gain X life. Spend only white mana on X.",
+    manaCost: { X: 3, W: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Cleric"],
+    power: 2,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "atalya-samite-master-x",
+            oracleText:
+                "{X}, {T}: Choose one —\n• Prevent the next X damage that would be dealt to target creature this turn. Spend only white mana on X.\n• You gain X life. Spend only white mana on X.",
+            cost: { mana: { X: "X", xSpendColors: ["W"] }, tap: true },
+            useStack: true,
+            modes: [
+                {
+                    id: "prevent",
+                    label: "Prevent the next X damage to target creature",
+                    oracleText:
+                        "Prevent the next X damage that would be dealt to target creature this turn. Spend only white mana on X.",
+                    targetRequirement: { type: "Creature", count: 1 },
+                    effects: [
+                        {
+                            op: "preventDamage",
+                            mode: "next-n",
+                            to: { target: 0 },
+                            amount: { X: true },
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+                {
+                    id: "gain-life",
+                    label: "You gain X life",
+                    oracleText: "You gain X life. Spend only white mana on X.",
+                    effects: [
+                        {
+                            op: "gainLife",
+                            player: "controller",
+                            amount: { X: true },
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+}));
+
 // ─────────────────────────────────────────────────────────────────────────
 // Deferred stubs (issue #1069) — genuinely missing engine capability, NOT
 // an invented Op/keyword (CLAUDE.md / .claude/rules/gre-development.md
@@ -986,13 +1048,6 @@ export const prisonBarricade = defineCard(() => ({
 // fixup, finding 2). Each comment below names the specific missing
 // primitive so a follow-up slice can pick it up without re-auditing.
 // ─────────────────────────────────────────────────────────────────────────
-
-// Atalya, Samite Master — {3}{W}{W} Legendary Creature, 2/3. "{X}, {T}:
-// Choose one — Prevent the next X damage that would be dealt to target
-// creature this turn. Spend only white mana on X. / You gain X life. Spend
-// only white mana on X." tracked-by: #3688 (the "spend only [colour] mana on
-// X" restriction shipped as `ManaCost.xSpendColors`, issue #3811; what is left
-// is announcing X on a MODAL `{X}, {T}:` ability — UI mode picker and Bot).
 
 // Blinding Light — {2}{W} Sorcery. "Tap all nonwhite creatures." tracked-by:
 // #1904 (`EffectCardFilter.excludeColor` exists since issue #1287, but

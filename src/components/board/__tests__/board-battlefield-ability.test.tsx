@@ -211,7 +211,35 @@ const MULTI_MODE_DEF = {
         },
     ],
 };
+// MODAL_X_DEF (issue #3688): Atalya's shape — a MODAL ability whose
+// activation cost carries a player-chosen `{X}` (CR 700.2a + CR 107.3a): the
+// mode is picked first, then X, and both ride on one activateAbility call.
+const MODAL_X_DEF = {
+    id: "modal-x-def",
+    name: "Modal X Healer",
+    activatedAbilities: [
+        {
+            id: "healer-x",
+            useStack: true,
+            oracleText: "{X}, {T}: Choose one — Prevent X / Gain X life.",
+            cost: { mana: { X: "X", xSpendColors: ["W"] }, tap: true },
+            modes: [
+                {
+                    id: "prevent",
+                    label: "Prevent the next X damage",
+                    oracleText: "Prevent the next X damage.",
+                },
+                {
+                    id: "gain-life",
+                    label: "You gain X life",
+                    oracleText: "You gain X life.",
+                },
+            ],
+        },
+    ],
+};
 const DEFS: Record<string, unknown> = {
+    "modal-x-def": MODAL_X_DEF,
     "multi-mode-def": MULTI_MODE_DEF,
     "aura-def": AURA_DEF,
     "stack-def": STACK_DEF,
@@ -734,6 +762,28 @@ describe("multi-mode activated ability (ADR 0094, issue #2264)", () => {
             cardInstanceId: "relic1",
             abilityId: "relic-modes",
             chosenModeIds: ["draw", "gain"],
+        });
+    });
+});
+
+describe("modal {X} activated ability (CR 700.2a / 107.3a, issue #3688)", () => {
+    it("asks for X after the mode and dispatches both on one activation", () => {
+        const me = makePlayer("me", [permanent("healer1", "modal-x-def")]);
+
+        const { container } = renderSpatial(me, [me]);
+        openMenuAndClick(container, "healer1", "Choose one");
+        const body = within(document.body);
+        fireEvent.click(body.getByRole("button", { name: /You gain X life/ }));
+        // The mode alone is not an activation: X is still owed.
+        expect(activateAbility).not.toHaveBeenCalled();
+        fireEvent.click(body.getByTestId("cost-confirm"));
+
+        expect(activateAbility).toHaveBeenCalledTimes(1);
+        expect(activateAbility.mock.calls[0][0]).toMatchObject({
+            cardInstanceId: "healer1",
+            abilityId: "healer-x",
+            chosenModeIds: ["gain-life"],
+            chosenX: 3,
         });
     });
 });

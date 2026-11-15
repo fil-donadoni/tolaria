@@ -268,6 +268,8 @@ export function useBattlefieldInteraction(player: Player) {
         keepPriority: boolean;
         /** CR 107.4f — the Phyrexian split picked before X, when both apply. */
         phyrexianLifePips?: number;
+        /** CR 700.2a — the mode(s) a MODAL `{X}` ability locked in before X. */
+        chosenModeIds?: string[];
     } | null>(null);
 
     // CR 107.4f / 602.2b — an activated ability whose cost carries Phyrexian
@@ -325,6 +327,10 @@ export function useBattlefieldInteraction(player: Player) {
         /** ADR 0094 — the ability's mode cardinality; absent = pick one. */
         modeSelection: ModeSelection | undefined;
         keepPriority: boolean;
+        /** CR 107.3a — the activation cost carries a player-chosen `{X}`:
+         *  the X dialog follows the mode pick. */
+        hasX: boolean;
+        oracleText?: string;
     } | null>(null);
 
     function guardMutation(promise: Promise<unknown>) {
@@ -342,6 +348,20 @@ export function useBattlefieldInteraction(player: Player) {
         const s = abilityModeChoiceState;
         if (!s) return;
         setAbilityModeChoiceState(null);
+        // CR 700.2a / 107.3a via CR 602.2b — mode first, then X: both are
+        // chosen as part of the one activation, so a modal `{X}` ability
+        // parks the picked mode(s) on the X dialog, which dispatches both.
+        if (s.hasX) {
+            setAbilityXChoiceState({
+                cardInstanceId: s.cardInstanceId,
+                abilityId: s.abilityId,
+                cardName: s.cardName,
+                oracleText: s.oracleText,
+                keepPriority: s.keepPriority,
+                chosenModeIds,
+            });
+            return;
+        }
         guardMutation(
             activateAbility({
                 gameId,
@@ -1350,6 +1370,9 @@ export function useBattlefieldInteraction(player: Player) {
         // targets: only the chosen mode's target requirement is declared
         // (CR 700.2d), and the server rejects an activation of a modal
         // ability with no `chosenModeId`.
+        const hasX =
+            ability?.cost.mana?.X !== undefined &&
+            typeof ability.cost.mana.X === "string";
         if (ability?.modes && ability.modes.length > 0) {
             setAbilityModeChoiceState({
                 cardInstanceId,
@@ -1358,12 +1381,11 @@ export function useBattlefieldInteraction(player: Player) {
                 modes: ability.modes,
                 modeSelection: ability.modeSelection,
                 keepPriority,
+                hasX,
+                oracleText: ability.oracleText,
             });
             return;
         }
-        const hasX =
-            ability?.cost.mana?.X !== undefined &&
-            typeof ability.cost.mana.X === "string";
         const phyrexianChoices = activationPhyrexianChoices(
             ability,
             viewer.life
@@ -1537,6 +1559,9 @@ export function useBattlefieldInteraction(player: Player) {
                                 keepPriority: s.keepPriority || undefined,
                                 chosenX,
                                 phyrexianLifePips: s.phyrexianLifePips,
+                                ...(s.chosenModeIds
+                                    ? { chosenModeIds: s.chosenModeIds }
+                                    : {}),
                             })
                         );
                     }}
