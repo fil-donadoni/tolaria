@@ -262,8 +262,8 @@ function delayedTriggerRemoves(
 
 /** When a scheduled delayed trigger removes `body` at an end step or a
  *  cleanup step (Sneak Attack, a Kiki-Jiki token, a warped permanent), or
- *  `undefined` when none does. One scoped to a player (`targetPlayerId`) fires
- *  only in that player's turn (CR 603.7b). */
+ *  `undefined` when none does. One scoped to a player (`targetPlayerId`) waits
+ *  for that player's turn: its event occurs only then (CR 603.7b). */
 function delayedEndStepDeparture(
     state: GameState,
     body: CardInstanceState
