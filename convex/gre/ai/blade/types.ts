@@ -229,6 +229,17 @@ export type BladeSetupStep =
      *  seat it is owed to. Throws when no selection is pending, or when that
      *  seat is not among the submissions the engine offers. */
     | { kind: "submit-player-target"; target: BladeSeat }
+    /** Submit the pending target selection (a trigger's CR 603.3d target,
+     *  raised as it goes on the stack) naming ONE target — a seat
+     *  (`me`/`opp`) or a card NAME, the same vocabulary `cast`'s and
+     *  `activate`'s `target` speak — through `enumerateMoves`' own
+     *  `submit-target` moves and the search's applier, for the seat the
+     *  selection is owed to. Issue #9695: a position BEHIND a raised card
+     *  target (an evoked Solitude's exile trigger, then its sacrifice
+     *  trigger left alone on the stack) had no expressible walk —
+     *  `submit-player-target` names seats only. Throws when no selection is
+     *  pending, or when not exactly one single-target submission matches. */
+    | { kind: "submit-target"; target: BladeSeat | string }
     /** Activate the named battlefield permanent's activated ability through
      *  the REAL activation path (`activateAbilityOnState`, `gre/activation.ts`
      *  — the exact function the `activateAbility` mutation calls), so every
