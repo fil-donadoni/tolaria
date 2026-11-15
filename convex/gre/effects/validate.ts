@@ -4985,7 +4985,10 @@ const OP_SCHEMAS: OpSchemaTable = {
     // going to the graveyard (Recall / Restock). No fields — it always
     // redirects the currently-resolving stack item. Mirrors
     // `shuffleSelfIntoLibrary`'s empty-required shape exactly.
-    exileSelf: { required: {}, optional: { encodedOn: isBarePicksRef } },
+    exileSelf: {
+        required: {},
+        optional: { encodedOn: isBarePicksRef, withCounters: isCountersMap },
+    },
     // CR 603.7a / 701.13 / ADR 0028 — exile the announced target keyed to
     // `$source`, arming the exile-and-return bundle (O-Ring / Banishing Light /
     // Tawnos's Coffin). `returnTapped` returns the host tapped; `includeAttachments`

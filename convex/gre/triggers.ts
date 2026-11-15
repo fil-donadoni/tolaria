@@ -35,6 +35,7 @@ import type {
 import { getPlayer, allocInstanceId } from "./lookup";
 import { buildEncodedCardTrigger } from "./cipher";
 import { buildMiracleTrigger } from "./miracle";
+import { isFaceDownExile } from "./faceDown";
 import { stackTransformStamp } from "./transform";
 import {
     effectiveTriggeredAbilities,
@@ -492,6 +493,30 @@ function noteTriggerFired(
     permanent.triggersThisTurn = tally;
 }
 
+/** CR 113.6b — the triggers of one card sitting in `zone` whose abilities
+ *  state that they function from there (`TriggeredAbility.zone`). The
+ *  graveyard and exile scans of `collectTriggers` share it. */
+function collectZoneTriggers(
+    state: GameState,
+    events: GameEvent[],
+    card: CardInstanceState,
+    zone: "graveyard" | "exile",
+    out: StackItem[]
+): void {
+    const cardId = (card.card as { id?: string }).id;
+    if (!cardId) return;
+    const abilities = tryGetDefinition(cardId)?.triggeredAbilities;
+    if (!abilities || abilities.length === 0) return;
+    for (const ability of abilities) {
+        if (ability.zone !== zone) continue;
+        for (const event of events) {
+            if (!triggerHandlesEventType(ability, event.type)) continue;
+            if (!ability.matches(event, card, state)) continue;
+            out.push(buildTriggerItem(state, card, ability.id, [event]));
+        }
+    }
+}
+
 /** Scans all battlefield permanents for triggered abilities matching `events`.
  *  Returns new StackItems in the order they should be placed on the stack.
  *
@@ -665,25 +690,23 @@ export function collectTriggers(
         }
     }
 
-    // CR 603.6e — abilities that function while the source is in the
-    // graveyard (Nether Shadow's upkeep self-reanimation). Scanned only for
-    // abilities explicitly opted in via `zone: "graveyard"`. The trigger's
+    // CR 113.6b — abilities that state the zone they function in: the
+    // graveyard (Nether Shadow's upkeep self-reanimation) or exile (a card
+    // waiting there with counters, ticked by its own upkeep trigger — All
+    // Hallow's Eve). ONE scan for both zones, each pile read only for the
+    // abilities opted into it via `zone`. The trigger's
     // `matches`/`interveningIf` inspects card position via `TriggerStateView`.
+    // A face-down exiled card has no characteristics (CR 406.3a), so it
+    // contributes nothing.
     for (const player of ordered) {
-        for (const card of player.graveyard) {
-            const cardId = (card.card as { id?: string }).id;
-            if (!cardId) continue;
-            const abilities = tryGetDefinition(cardId)?.triggeredAbilities;
-            if (!abilities || abilities.length === 0) continue;
-            for (const ability of abilities) {
-                if (ability.zone !== "graveyard") continue;
-                for (const event of events) {
-                    if (!triggerHandlesEventType(ability, event.type)) continue;
-                    if (!ability.matches(event, card, state)) continue;
-                    out.push(
-                        buildTriggerItem(state, card, ability.id, [event])
-                    );
-                }
+        const zonePiles = [
+            ["graveyard", player.graveyard],
+            ["exile", player.exile],
+        ] as const;
+        for (const [zone, pile] of zonePiles) {
+            for (const card of pile) {
+                if (zone === "exile" && isFaceDownExile(card)) continue;
+                collectZoneTriggers(state, events, card, zone, out);
             }
         }
     }

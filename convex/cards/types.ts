@@ -4779,6 +4779,13 @@ export interface SpellContext {
      *  (`GameState.lastKnownCopiable`, ADR 0086) for a battlefield-sourced
      *  one. False for a spell and for a triggered ability. */
     abilityActivatedFromGraveyard: boolean;
+    /** CR 113.6b — true when the resolving item is a TRIGGERED ability whose
+     *  definition DECLARES that it functions from exile
+     *  (`TriggeredAbility.zone: "exile"`). Its source is then the exiled card
+     *  itself, so `$source` is seeded from exile. A declared discriminator,
+     *  never "the source happens to be in exile": a card exiled as a COST
+     *  (Eternalize) or exiled in response is not this shape. */
+    abilityFunctionsFromExile: boolean;
     /** The card DEFINITION id of the resolving stack item (CR 108.1 — the
      *  card the spell/ability is printed on). Read by scheduling primitives
      *  that stamp their source card on persisted records — a delayed
@@ -8884,8 +8891,13 @@ export interface SpellContext {
      *  ("Exile <this spell>", e.g. Recall). Flags the stack item so
      *  `finalizeSpellResolution` routes the card to exile instead of the
      *  graveyard when resolution completes. No-op on a stack item that is a
-     *  copy (a copy ceases to exist anyway, CR 707.10) or an ability. */
-    exileSelf: (encodedOnId?: string) => void;
+     *  copy (a copy ceases to exist anyway, CR 707.10) or an ability.
+     *  `withCounters` (CR 122.1) is the counter load the card arrives in
+     *  exile with. */
+    exileSelf: (
+        encodedOnId?: string,
+        withCounters?: Readonly<Record<string, number>>
+    ) => void;
     /** CR 707.12 / 112.2a — creates, in `ownerId`'s exile, a copy of the card
      *  `cardInstanceId` names in any exile pile, marked so it becomes a spell
      *  copy once cast (`onCardCopyCast`). Returns its id, or `undefined` when
@@ -14044,6 +14056,15 @@ export interface TriggerStateView {
          *  no client hint reads a cast trigger, so `buildTriggerStateView`
          *  leaves it absent. */
         spellsCastThisTurn?: number;
+        /** CR 113.6b — this player's exile, engine-read by the intervening-if
+         *  of an ability that functions from exile ("if this card is exiled
+         *  with a scream counter on it", `exiledCardCounterCount`). No client
+         *  hint reads an upkeep trigger, so `buildTriggerStateView` leaves it
+         *  absent. */
+        exile?: ReadonlyArray<{
+            id: string;
+            counters?: Readonly<Record<string, number>>;
+        }>;
         battlefield: ReadonlyArray<{
             id: string;
             controllerId: string;
@@ -14549,8 +14570,10 @@ export interface TriggeredAbility {
      *  an ability that states which zones it functions in functions only from
      *  those zones). Defaults to the battlefield when omitted. `"graveyard"`
      *  opts the card into `collectTriggers`' graveyard scan path (Nether
-     *  Shadow's upkeep self-reanimation). */
-    zone?: "graveyard";
+     *  Shadow's upkeep self-reanimation). `"exile"` opts it into the same
+     *  scan over its owner's exile instead: a card waiting in exile with an
+     *  ability that ticks it from there (All Hallow's Eve). */
+    zone?: "graveyard" | "exile";
     /** CR 113.6k (issue #2319) — this ability functions while its own card is
      *  ON THE STACK as a spell, so it must be scanned there rather than on the
      *  battlefield: "When you cast this spell, …" (Emrakul, the Aeons Torn's
@@ -18721,8 +18744,17 @@ export type EffectOp =
      *
      *  CR 702.99a / 702.99b — `encodedOn` is the bound permanent the card is
      *  exiled ENCODED on (Cipher, `cards/abilities/cipher.ts`). An empty or
-     *  uncaptured binding exiles nothing, which is the declined "you may". */
-    | { op: "exileSelf"; encodedOn?: EffectRef }
+     *  uncaptured binding exiles nothing, which is the declined "you may".
+     *
+     *  CR 122.1 / 400.7 — `withCounters` is the counter load the card is
+     *  exiled WITH ("Exile ~ with two scream counters on it"): placed on the
+     *  NEW exile-zone object as it arrives, never on the spell, so CR 122.2
+     *  cannot strip them. Keys are counter types, values positive counts. */
+    | {
+          op: "exileSelf";
+          encodedOn?: EffectRef;
+          withCounters?: Readonly<Record<string, number>>;
+      }
     /** CR 603.7a / 701.13 / ADR 0028 — exile the announced target permanent
      *  keyed to `$source` (the resolving ability's source), arming an
      *  exile-and-return bundle a later `returnExiledForSource` Op restores.

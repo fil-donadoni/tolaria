@@ -1082,6 +1082,11 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     }
     if (item.isCopy) base.isCopy = item.isCopy;
     if (item.exileOnResolve) base.exileOnResolve = item.exileOnResolve;
+    // CR 122.1 — the exile-with-counters load must survive a mid-resolution
+    // save (a later Op suspended on a choice) like the redirect flag itself.
+    if (item.exileOnResolveCounters) {
+        base.exileOnResolveCounters = item.exileOnResolveCounters;
+    }
     if (item.exileAnyTimeLeavesStack) {
         base.exileAnyTimeLeavesStack = item.exileAnyTimeLeavesStack;
     }
@@ -1337,6 +1342,12 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     if (compact.isCopy) item.isCopy = compact.isCopy as boolean;
     if (compact.exileOnResolve) {
         item.exileOnResolve = compact.exileOnResolve as boolean;
+    }
+    if (compact.exileOnResolveCounters) {
+        item.exileOnResolveCounters = compact.exileOnResolveCounters as Record<
+            string,
+            number
+        >;
     }
     if (compact.exileAnyTimeLeavesStack) {
         item.exileAnyTimeLeavesStack =

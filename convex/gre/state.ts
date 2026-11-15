@@ -3910,6 +3910,24 @@ export function emitEntersWithCounterEvents(
  *  once the delayed trigger is built, not before. Any new call site must
  *  keep the same invariant: everything this function deletes must already be
  *  read by the caller before the call. */
+/** CR 122.1 — the card in an exile pile a counter primitive acts on, when the
+ *  selection is the generic non-battlefield card carrier (`graveyard-card`)
+ *  the interpreter's exile fallback produces — an exile-zone `$source`. A
+ *  `permanent` selection never matches: its counters are the battlefield
+ *  object's (or its last-known information), and a card that left for exile
+ *  is a new object without them (CR 122.2, 400.7). */
+function exiledCounterHolder(
+    state: GameState,
+    target: TargetSelection
+): CardInstanceState | undefined {
+    if (target.type !== "graveyard-card") return undefined;
+    for (const player of state.players) {
+        const card = player.exile.find((c) => c.id === target.id);
+        if (card) return card;
+    }
+    return undefined;
+}
+
 /** CR 707.2 / 702.47c — `item` without the splice reveal's text change, for
  *  every site that produces a COPY of a spell (CR 707.10 — a copy is put onto
  *  the stack, not cast, and "other effects, including text-changing effects,
@@ -4024,6 +4042,7 @@ export function resetStackTransientState(item: StackItem): void {
     delete item.massRiderTargets;
     delete item.isCopy;
     delete item.exileOnResolve;
+    delete item.exileOnResolveCounters;
     delete item.exileAnyTimeLeavesStack;
     delete item.shuffleIntoLibraryOnResolve;
     delete item.castFromZone;
@@ -4750,8 +4769,13 @@ function finalizeSpellResolution(
         // own resolution goes to exile instead of the graveyard (Recall). The
         // flag is set by `SpellContext.exileSelf()` during the resolve.
         if (item.exileOnResolve) {
+            // CR 122.1 / 400.7 — "Exile ~ with N <kind> counters on it": the
+            // counters go on the NEW exile-zone object, so they are read off
+            // the spell before the stack snapshot is wiped and placed after.
+            const withCounters = item.exileOnResolveCounters;
             item.zone = "exile";
             resetStackTransientState(item);
+            if (withCounters) item.counters = { ...withCounters };
             owner.exile.push(item);
             emitSpellExiled(state, item);
             return;
@@ -14137,6 +14161,11 @@ export function buildSpellContext(
         // `createTokenCopy` Op to decide WHICH last-known reading applies to a
         // `{ ref: "$source" }` whose source is no longer on the battlefield.
         abilityActivatedFromGraveyard: abilityActivatedFromGraveyard(item),
+        // CR 113.6b — see `SpellContext.abilityFunctionsFromExile`.
+        abilityFunctionsFromExile:
+            item.triggeredAbilityId !== undefined &&
+            findTriggeredAbility(item, item.triggeredAbilityId)?.zone ===
+                "exile",
         // CR 108.1 — the resolving item's card definition id (ADR 0048:
         // stamped on scheduled delayed triggers so the fired trigger renders
         // its source card). Empty for synthetic items with no registry id.
@@ -15151,6 +15180,16 @@ export function buildSpellContext(
         // reads them at stat-lookup time for P/T-modifying types.
         addCounter(target: TargetSelection, type: string, count: number): void {
             if (count <= 0) return;
+            // CR 122.1 — a card waiting in exile is an object counters can be
+            // put on (All Hallow's Eve, its ability functioning from exile).
+            const exiled = exiledCounterHolder(state, target);
+            if (exiled) {
+                exiled.counters = {
+                    ...(exiled.counters ?? {}),
+                    [type]: (exiled.counters?.[type] ?? 0) + count,
+                };
+                return;
+            }
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
@@ -15226,6 +15265,22 @@ export function buildSpellContext(
             count: number
         ): number {
             if (count <= 0) return 0;
+            // CR 609.3 — the exile-zone twin, clamped the same way. No
+            // keyword grant or counter-gated static reads an exiled card, and
+            // no shipped trigger watches a counter leaving one, so it is a
+            // plain removal with no recompute and no COUNTER_REMOVED event.
+            const exiled = exiledCounterHolder(state, target);
+            if (exiled) {
+                const have = exiled.counters?.[type] ?? 0;
+                const taken = Math.min(count, have);
+                if (taken === 0) return 0;
+                const rest = { ...(exiled.counters ?? {}) };
+                if (have - taken === 0) delete rest[type];
+                else rest[type] = have - taken;
+                exiled.counters =
+                    Object.keys(rest).length > 0 ? rest : undefined;
+                return taken;
+            }
             if (target.type !== "permanent") return 0;
             const found = findOnBattlefield(state, target.id);
             if (!found) return 0;
@@ -15508,6 +15563,8 @@ export function buildSpellContext(
             syncLayer6(state);
         },
         getCounterCount(target: TargetSelection, type: string): number {
+            const exiled = exiledCounterHolder(state, target);
+            if (exiled) return exiled.counters?.[type] ?? 0;
             if (target.type !== "permanent") return 0;
             const found = findOnBattlefield(state, target.id);
             if (found) return found.card.counters?.[type] ?? 0;
@@ -21617,12 +21674,20 @@ export function buildSpellContext(
             if (idx === -1) state.stack.push(stackItem);
             else state.stack.splice(idx, 0, stackItem);
         },
-        exileSelf(encodedOnId?: string): void {
+        exileSelf(
+            encodedOnId?: string,
+            withCounters?: Readonly<Record<string, number>>
+        ): void {
             // CR 608.2 — "Exile <this spell>". A copy ceases to exist anyway
             // (CR 707.10) and an ability has no card to exile; both no-op.
             if (item.isCopy) return;
             if (item.abilityId || item.triggeredAbilityId) return;
             item.exileOnResolve = true;
+            // CR 122.1 — "… with N <kind> counters on it", placed by
+            // `finalizeSpellResolution` on the exile-zone object.
+            if (withCounters && Object.keys(withCounters).length > 0) {
+                item.exileOnResolveCounters = { ...withCounters };
+            }
             // CR 702.99a / 702.99b — exiled encoded on the chosen creature.
             if (encodedOnId !== undefined) {
                 item.encodedOn = {
