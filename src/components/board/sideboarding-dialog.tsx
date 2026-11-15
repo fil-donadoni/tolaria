@@ -21,6 +21,15 @@ import { interstitialChoiceState } from "~/lib/play-draw-choice";
 import SideboardSwapList from "./sideboard-swap-list";
 import SideboardOpponentStatus from "./sideboard-opponent-status";
 import LimitedRoundDeadline from "~/components/limited/limited-round-deadline";
+// PROTOTYPE — throwaway (prototype/sideboarding-revamp).
+import SideboardingPrototype from "./prototype-sideboarding/sideboarding-prototype";
+import PrototypeSwitcher from "./prototype-sideboarding/prototype-switcher";
+import {
+    PROTO_VARIANTS,
+    readVariant,
+    writeVariant,
+    type ProtoVariantKey,
+} from "./prototype-sideboarding/proto-variants";
 
 /** Play/draw segmented-control options for the G2+ chooser (the loser of the
  *  last Game). Module-level: a fresh array identity per render would defeat
@@ -79,6 +88,18 @@ export default function SideboardingDialog({
     // (made while sideboarding their seat) reaches the FINAL `setReady` that
     // triggers the build — in Solo the chooser may not be the last seat readied.
     const [playDraw, setPlayDraw] = useState<"play" | "draw">("play");
+    const [protoVariant, setProtoVariant] =
+        useState<ProtoVariantKey>(readVariant);
+    const switcher = (
+        <PrototypeSwitcher
+            variants={[...PROTO_VARIANTS]}
+            current={protoVariant}
+            onChange={(k) => {
+                writeVariant(k);
+                setProtoVariant(k as ProtoVariantKey);
+            }}
+        />
+    );
     // Hover → the phase-2 computed preview (art + live oracle text) in the
     // middle column. Must stay above the early returns (rules-of-hooks).
     const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
@@ -275,112 +296,149 @@ export default function SideboardingDialog({
 
     const total = split.cards.length + split.sideboard.length;
 
+    if (protoVariant !== "0") {
+        return (
+            <>
+                <SideboardingPrototype
+                    key={protoVariant}
+                    variant={protoVariant}
+                    start={{
+                        cards: seat.deck.maindeck,
+                        sideboard: seat.deck.sideboard ?? [],
+                    }}
+                    split={split}
+                    setSplit={(f) => setSplit(f)}
+                    lockedSize={lockedSize}
+                    seatName={
+                        seats.length > 1
+                            ? `${seat.name} — seat ${seatIdx + 1} of ${seats.length}`
+                            : seat.name
+                    }
+                    gameNumber={match.currentGameNumber + 1}
+                    isChooser={isChooser}
+                    playDraw={playDraw}
+                    setPlayDraw={setPlayDraw}
+                    opponent={opponent}
+                    submitting={submitting}
+                    onReady={() => void handleReady()}
+                    countdown={windowCountdown}
+                />
+                {switcher}
+            </>
+        );
+    }
+
     return (
-        <GameDialog
-            open
-            title="Sideboarding"
-            subtitle={
-                seats.length > 1
-                    ? `${seat.name} — seat ${seatIdx + 1} of ${seats.length}`
-                    : seat.name
-            }
-            size="wide"
-            dismissable={false}
-        >
-            <div className="flex flex-col gap-3 mt-1">
-                <p className="text-text-disabled text-xs text-center">
-                    Swap cards between your Maindeck and Sideboard. Your
-                    Maindeck must stay at {lockedSize}+ cards.
-                </p>
-                {windowCountdown}
-                {/* FIXED row height (QA): the hovered-card preview used to size
+        <>
+            {switcher}
+            <GameDialog
+                open
+                title="Sideboarding"
+                subtitle={
+                    seats.length > 1
+                        ? `${seat.name} — seat ${seatIdx + 1} of ${seats.length}`
+                        : seat.name
+                }
+                size="wide"
+                dismissable={false}
+            >
+                <div className="flex flex-col gap-3 mt-1">
+                    <p className="text-text-disabled text-xs text-center">
+                        Swap cards between your Maindeck and Sideboard. Your
+                        Maindeck must stay at {lockedSize}+ cards.
+                    </p>
+                    {windowCountdown}
+                    {/* FIXED row height (QA): the hovered-card preview used to size
                     the dialog, so a long-oracle card grew the panel, moved the
                     row out from under the pointer, dropped the hover and shrank
                     it back — a flicker loop. The row is now a stable, taller box
                     (capped to the viewport) and every column scrolls INSIDE it. */}
-                <div className="flex h-[min(30rem,60vh)] gap-4">
-                    <SideboardSwapList
-                        title="Maindeck"
-                        cards={split.cards}
-                        moveLabel="→ Side"
-                        onMove={handleToSide}
-                        onHoverCard={handleHoverCard}
-                        countSuffix={` / ${lockedSize}+`}
-                        disabled={submitting}
-                        emptyMessage="No cards in the Maindeck."
-                    />
-                    {/* Middle preview column (phase 2, winner B): the computed
+                    <div className="flex h-[min(30rem,60vh)] gap-4">
+                        <SideboardSwapList
+                            title="Maindeck"
+                            cards={split.cards}
+                            moveLabel="→ Side"
+                            onMove={handleToSide}
+                            onHoverCard={handleHoverCard}
+                            countSuffix={` / ${lockedSize}+`}
+                            disabled={submitting}
+                            emptyMessage="No cards in the Maindeck."
+                        />
+                        {/* Middle preview column (phase 2, winner B): the computed
                         art + live oracle of the hovered card. Hidden on small
                         screens. */}
-                    <div
-                        className="hidden h-full w-56 shrink-0 overflow-y-auto sm:block"
-                        data-testid="sideboard-preview-column"
-                        onPointerEnter={cancelHoverClose}
-                        onPointerLeave={scheduleHoverClose}
-                    >
-                        {hoveredBody ? (
-                            <div className="card-preview-dock panel-physical hairline overflow-hidden rounded-[var(--panel-radius)]">
-                                {/* Engine View slot compact (issue #2728):
+                        <div
+                            className="hidden h-full w-56 shrink-0 overflow-y-auto sm:block"
+                            data-testid="sideboard-preview-column"
+                            onPointerEnter={cancelHoverClose}
+                            onPointerLeave={scheduleHoverClose}
+                        >
+                            {hoveredBody ? (
+                                <div className="card-preview-dock panel-physical hairline overflow-hidden rounded-[var(--panel-radius)]">
+                                    {/* Engine View slot compact (issue #2728):
                                     this column is 224px wide (`w-56`) — the
                                     full slot's eyebrow header + tree well
                                     belongs to the roomy surfaces (mobile
                                     overlay, anchored pin, InspectOverlay),
                                     not here. */}
-                                <CardPreviewBody
-                                    {...hoveredBody}
-                                    size="sm"
-                                    compactEngineView
-                                />
-                            </div>
-                        ) : (
-                            <div className="flex h-full items-center justify-center rounded-md border border-dashed border-border-subtle/50 px-3 text-center text-[10px] text-text-disabled">
-                                Hover a card to preview it
-                            </div>
-                        )}
-                    </div>
-                    <SideboardSwapList
-                        title="Sideboard"
-                        cards={split.sideboard}
-                        moveLabel="→ Main"
-                        onMove={handleToMain}
-                        onHoverCard={handleHoverCard}
-                        disabled={submitting}
-                        emptyMessage="No cards in the Sideboard."
-                    />
-                </div>
-                {!sizeOk && (
-                    <p className="text-danger-strong text-xs text-center">
-                        Maindeck must hold at least {lockedSize} cards
-                        (currently {split.cards.length}). The combined pool is{" "}
-                        {total}.
-                    </p>
-                )}
-                {isChooser && (
-                    <div className="flex flex-col items-center gap-1">
-                        <span className="text-text-muted text-xs">
-                            You lost the last game — choose:
-                        </span>
-                        <SegmentedControl
-                            options={PLAY_DRAW_OPTIONS}
-                            value={playDraw}
-                            onChange={setPlayDraw}
+                                    <CardPreviewBody
+                                        {...hoveredBody}
+                                        size="sm"
+                                        compactEngineView
+                                    />
+                                </div>
+                            ) : (
+                                <div className="flex h-full items-center justify-center rounded-md border border-dashed border-border-subtle/50 px-3 text-center text-[10px] text-text-disabled">
+                                    Hover a card to preview it
+                                </div>
+                            )}
+                        </div>
+                        <SideboardSwapList
+                            title="Sideboard"
+                            cards={split.sideboard}
+                            moveLabel="→ Main"
+                            onMove={handleToMain}
+                            onHoverCard={handleHoverCard}
                             disabled={submitting}
-                            ariaLabel="Play or draw first"
+                            emptyMessage="No cards in the Sideboard."
                         />
                     </div>
-                )}
-                {opponent && <SideboardOpponentStatus opponent={opponent} />}
-                <Button
-                    type="button"
-                    variant="primary"
-                    size="sm"
-                    onClick={() => void handleReady()}
-                    disabled={!sizeOk || submitting}
-                    className="mt-1 w-full"
-                >
-                    {submitting ? "Confirming…" : "Ready"}
-                </Button>
-            </div>
-        </GameDialog>
+                    {!sizeOk && (
+                        <p className="text-danger-strong text-xs text-center">
+                            Maindeck must hold at least {lockedSize} cards
+                            (currently {split.cards.length}). The combined pool
+                            is {total}.
+                        </p>
+                    )}
+                    {isChooser && (
+                        <div className="flex flex-col items-center gap-1">
+                            <span className="text-text-muted text-xs">
+                                You lost the last game — choose:
+                            </span>
+                            <SegmentedControl
+                                options={PLAY_DRAW_OPTIONS}
+                                value={playDraw}
+                                onChange={setPlayDraw}
+                                disabled={submitting}
+                                ariaLabel="Play or draw first"
+                            />
+                        </div>
+                    )}
+                    {opponent && (
+                        <SideboardOpponentStatus opponent={opponent} />
+                    )}
+                    <Button
+                        type="button"
+                        variant="primary"
+                        size="sm"
+                        onClick={() => void handleReady()}
+                        disabled={!sizeOk || submitting}
+                        className="mt-1 w-full"
+                    >
+                        {submitting ? "Confirming…" : "Ready"}
+                    </Button>
+                </div>
+            </GameDialog>
+        </>
     );
 }

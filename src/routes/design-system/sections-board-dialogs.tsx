@@ -58,30 +58,15 @@ import RandomRevealOverlay from "~/components/board/random-reveal-overlay";
 import { CLASH } from "./random-reveal-rounds-fixture";
 import RandomRevealRoundsSpecimen from "./random-reveal-rounds-specimen";
 import SideboardingDialog from "~/components/board/sideboarding-dialog";
+import {
+    PROTO_MAIN,
+    PROTO_SIDE,
+} from "~/components/board/prototype-sideboarding/proto-fixture-deck";
 import { Section } from "./lib";
 import OverlaySpecimens, { type OverlaySpecimen } from "./overlay-specimens";
-import {
-    GAME_CONTEXT,
-    GAME_ID,
-    ME,
-    OPP,
-    PLAYERS,
-    PRINT,
-} from "./specimen-fixtures";
+import { GAME_CONTEXT, GAME_ID, ME, OPP, PLAYERS } from "./specimen-fixtures";
 
 /* ── Fixtures ─────────────────────────────────────────────────────────── */
-
-/** `n` copies of a print, the shape a Match deck copy is stored in. The
- *  swap editor lists one row per COPY, so a three-card fixture would have
- *  measured a dialog three rows tall — the one modal whose failure shape is
- *  a list that outgrows a phone. */
-function deckCards(
-    rows: ReadonlyArray<[number, string, string]>
-): { cardId: string; cardName: string }[] {
-    return rows.flatMap(([n, cardId, cardName]) =>
-        Array.from({ length: n }, () => ({ cardId, cardName }))
-    );
-}
 
 function match(status: PublicMatch["status"], bestOf: 1 | 3): PublicMatch {
     return {
@@ -103,15 +88,9 @@ function match(status: PublicMatch["status"], bestOf: 1 | 3): PublicMatch {
                     id: "specimen-deck",
                     name: "Mono Red Burn",
                     format: "freeform",
-                    maindeck: deckCards([
-                        [4, PRINT.bolt, "Lightning Bolt"],
-                        [4, PRINT.goblin, "Mons's Goblin Raiders"],
-                        [4, PRINT.hillGiant, "Hill Giant"],
-                        [4, PRINT.mountain, "Mountain"],
-                    ]),
-                    sideboard: deckCards([
-                        [3, PRINT.minotaur, "Hurloon Minotaur"],
-                    ]),
+                    // PROTOTYPE: realistic 60 + 15 (prototype/sideboarding-revamp)
+                    maindeck: PROTO_MAIN,
+                    sideboard: PROTO_SIDE,
                 },
             },
             {
