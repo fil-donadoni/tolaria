@@ -39055,7 +39055,9 @@
         "oracleId": "c15bb7eb-aaaa-4468-9641-8f706d6137e8",
         "firstSet": "dom",
         "firstPrintId": "d134385d-b01c-41c7-bb2d-30722b44dc5a",
-        "firstPrintSet": "dom"
+        "firstPrintSet": "dom",
+        "rarity": "mythic",
+        "source": "compiled"
     },
     {
         "name": "Hit-Monkey",
