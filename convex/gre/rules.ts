@@ -53,7 +53,11 @@ import {
     protectionSourceCharacteristics,
     type ProtectionSourceView,
 } from "./protection";
-import { isGuardedAgainst, playerHasShroud } from "./permanentGuard";
+import {
+    isGuardedAgainst,
+    playerHasShroud,
+    type GuardActionSource,
+} from "./permanentGuard";
 import {
     castProhibitionReason,
     isCastTimingSorcerySpeedLocked,
@@ -3892,6 +3896,22 @@ export function protectionSourceFromTargeting(
     };
 }
 
+/** CR 611 — the ONE projection from a `TargetingSource` into the
+ *  `permanent-guard` predicate's source view (`isGuardedAgainst`'s
+ *  `cantBeTargeted` clause). Every server consult site reads it — the OFFERED
+ *  set (`getLegalTargets`), the ACCEPTED set (`game.ts::selectTarget`) and the
+ *  CR 608.2b resolution re-check (`state.ts`) — so no source narrowing (CR
+ *  202.2 colour, card types, subtypes, CR 113.3 spell bit) can be honoured on
+ *  one side and dropped on another. `controllerId` is the acting player
+ *  (CR 702.11b hexproof's own-controller allowance). */
+export function guardSourceFromTargeting(
+    source: TargetingSource,
+    controllerId: string | undefined
+): GuardActionSource {
+    const { types, subtypes, isSpell, colors } = source;
+    return { types, subtypes, isSpell, colors, controllerId };
+}
+
 /** The targeting characteristics of the source whose target-selection is in
  *  progress. Locates it the way every `getPendingTargetSource*` helper does —
  *  copy-retarget / retarget / trigger → the stack item; ability → the
@@ -3980,6 +4000,10 @@ export function getLegalTargets(
     // through the SAME projection the accepted set (`selectTarget`) uses.
     const protectionSource: ProtectionSourceView =
         protectionSourceFromTargeting(source, casterId);
+    // CR 611 — the same source, projected ONCE for the `permanent-guard`
+    // predicate (CR 702.11b — `casterId` is the source's controller, so
+    // hexproof bars only an opponent-controlled source).
+    const guardSource = guardSourceFromTargeting(source, casterId);
 
     // CR 601.2c same-controller cross-slot constraint (issue #1104) — the
     // sibling's live controllerId, if one applies (see `siblingControllerIdFor`
@@ -4181,14 +4205,7 @@ export function getLegalTargets(
                 // for opponent-controlled sources only (own caster still legal).
                 if (
                     !ignoreTargetingRestrictions &&
-                    isGuardedAgainst(state, card, "cantBeTargeted", {
-                        types: sourceTypes,
-                        subtypes: sourceSubtypes,
-                        isSpell: sourceIsSpell,
-                        // CR 702.11b — the source's controller, so hexproof bars
-                        // only an opponent-controlled source (the caster).
-                        controllerId: casterId,
-                    })
+                    isGuardedAgainst(state, card, "cantBeTargeted", guardSource)
                 )
                     continue;
                 targets.push({ type: "permanent", id: card.id });
