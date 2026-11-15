@@ -1,7 +1,7 @@
 // PROTOTYPE — throwaway. Variant B "Fan": one horizontal row like the library
 // browse (top on the RIGHT, ADR 0026 parity), 55% overlap, opens scrolled to
 // the top end. Filter: one card-shaped outline per hidden card (thin
-// border, no visible fill), showing a 12% sliver instead of a card's 45%.
+// border, no visible fill), showing a 6% sliver instead of a card's 45%.
 import { useEffect, useRef, type ReactNode } from "react";
 import { V4_COUNT_BADGE } from "~/lib/board-chrome-v4";
 import type { CardInstance } from "~/types/game";
@@ -35,13 +35,13 @@ export default function VariantBFan({
                         // Owner round 1: a hidden card is a card-shaped
                         // outline, thin border, no visible fill. Every item
                         // shows the strip up to the NEXT item: a real card
-                        // 45%, a hidden one only 12% — so the item AFTER a
+                        // 45%, a hidden one only 6% — so the item AFTER a
                         // placeholder steps in tight. The outline's fill is
                         // the dialog surface (reads as empty, but occludes
                         // the item below like a card would).
                         const afterHidden = slots[i - 1]?.kind === "hidden";
                         const ml = afterHidden
-                            ? "ml-[calc(var(--tile)*-0.88)]"
+                            ? "ml-[calc(var(--tile)*-0.94)]"
                             : "ml-[calc(var(--tile)*-0.55)]";
                         return s.kind === "card" ? (
                             <div
@@ -60,7 +60,7 @@ export default function VariantBFan({
                         ) : (
                             <div
                                 key={s.key}
-                                className={`relative ${ml} aspect-5/7 w-(--tile) shrink-0 self-start card-corner border border-border-strong bg-surface`}
+                                className={`relative ${ml} aspect-5/7 w-(--tile) shrink-0 self-start card-corner border border-[#292928] bg-surface`}
                                 title={`Hidden: ${hiddenLabel(s)}`}
                             />
                         );
