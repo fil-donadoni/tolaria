@@ -680,11 +680,16 @@ function deadSubtreeKey(
     taps: number,
     pool: Record<string, number>
 ): string {
-    const entries = Object.keys(pool)
+    return `${index}|${taps}|${poolKey(pool)}`;
+}
+
+/** Canonical string of a pool's non-zero entries, key-sorted. */
+function poolKey(pool: Record<string, number>): string {
+    return Object.keys(pool)
         .filter((k) => (pool[k] ?? 0) !== 0)
         .sort()
-        .map((k) => `${k}:${pool[k]}`);
-    return `${index}|${taps}|${entries.join(",")}`;
+        .map((k) => `${k}:${pool[k]}`)
+        .join(",");
 }
 
 // ---------------------------------------------------------------------------
@@ -698,10 +703,25 @@ function deadSubtreeKey(
 // spine for *hand-spell* Demands; #475/#476/#477 widen the candidate set.
 // ---------------------------------------------------------------------------
 
-/** Hard cap on collected minimal-tap plans before scoring (ADR 0034). A safety
- *  backstop against pathological dual/rock-heavy boards — effectively never hit
- *  on real boards (~≤10 sources). On overflow we keep the best plan so far. */
+/** Hard cap on the DISTINCT plans collected at one tap count (ADR 0034). Plans
+ *  are collected one per {@link planClassKey} — the tapped set, the pool left
+ *  after paying, the riders taken — never one per mana-option assignment, so a
+ *  board of any-colour lands (five options each) collects one plan per land
+ *  set it can pay with: at most C(n, k) for n sources and k taps (C(10, 5) =
+ *  252), more only where over-producing sources leave different leftovers. On
+ *  overflow the plans collected so far compete. The SCORING bound is separate,
+ *  and lower: {@link AUTO_TAP_SCORED_PLAN_CAP}. */
 export const AUTO_TAP_PLAN_CAP = 512;
+
+/** Most plans one ranking hands to the position scorer (`scorePlan`, a state
+ *  clone plus a static `evaluate()` each — about a millisecond apiece on the
+ *  server's payment path). Up to this many collected plans, every one is
+ *  scored and the ranking is exhaustive. Past it, the plans are first ordered
+ *  on the scorer-free terms of the same ranking (preserved Demands, surplus,
+ *  riders, flexibility, cardId order) and only the first this many are
+ *  scored; the rest drop out. The answer is still a covering plan at the
+ *  minimal tap count, never a throw. */
+export const AUTO_TAP_SCORED_PLAN_CAP = 64;
 
 /** Weight of one preserved Demand inside the unified auto-tap position score
  *  (issue #794 review fix). Chosen to strictly dominate any single-position
@@ -782,11 +802,32 @@ function minimalTapCount(
     return plan ? plan.length : null;
 }
 
+/** What every term of the smart ranking reads from a plan: the sources it
+ *  taps, the pool left once `cost` is paid out of what they added, and how
+ *  many sought riders it collects. `scorePlan` (tapped set + leftover pool),
+ *  `scorePreservedDemands`, `planSurplus`, `remainingFlexibility`,
+ *  `planLexKey`, the untap-price gate and `planSoughtRiders` all agree on two
+ *  plans with the same key — such plans differ only in which colour each
+ *  any-colour source was assigned, and score identically. */
+function planClassKey(
+    tappedIds: string,
+    leftover: Record<string, number>,
+    riders: number
+): string {
+    return `${tappedIds}|${poolKey(leftover)}|${riders}`;
+}
+
 /**
- * Enumerate every covering plan of exactly `k` taps, in deterministic order
- * (sources in their given order, options in index order). Stops collecting once
- * `cap` plans are gathered (the caller scores what it has — best-so-far). Pure
- * synchronous DFS; `k` is the minimal covering count so the search is shallow.
+ * Enumerate the covering plans of exactly `k` taps, one per
+ * {@link planClassKey}, in deterministic order (sources in their given order,
+ * options in index order); each class is represented by the first plan of it
+ * the walk reaches. Stops collecting once `cap` plans are gathered (the caller
+ * ranks what it has — best-so-far). Pure synchronous DFS; `k` is the minimal
+ * covering count so the search is shallow.
+ *
+ * Exact: the ranking's winner over these plans is the plan it picks over the
+ * full option-by-option enumeration, because every plan dropped scores the
+ * same as one kept that the walk reached first.
  */
 function enumerateKTapPlans(
     pool: Record<string, number>,
@@ -797,67 +838,100 @@ function enumerateKTapPlans(
     cap: number
 ): { plans: AutoTapPlan[]; overflow: boolean } {
     const plans: AutoTapPlan[] = [];
+    const classes = new Set<string>();
     let overflow = false;
     // Subtrees proven to collect no plan; see {@link deadSubtreeKey}.
     const dead = new Set<string>();
+    // Subtrees already walked from the same tapped prefix into the same pool
+    // with the same riders: everything below them is a plan class already
+    // seen. Value = whether the subtree held a covering plan.
+    const walked = new Map<string, boolean>();
 
+    /** True when the subtree holds a covering plan (collected or not). */
     function dfs(
         index: number,
         trialPool: Record<string, number>,
-        chosen: AutoTapPlan
-    ): void {
-        if (plans.length >= cap) {
-            overflow = true;
-            return;
-        }
+        chosen: AutoTapPlan,
+        riders: number
+    ): boolean {
+        if (overflow) return false;
         if (chosen.length === k) {
-            if (isManaCostCovered(trialPool, cost, substitutions)) {
+            if (!isManaCostCovered(trialPool, cost, substitutions)) {
+                return false;
+            }
+            const cls = planClassKey(
+                tappedIdsKey(chosen),
+                poolAfterSpending(trialPool, cost, substitutions),
+                riders
+            );
+            if (!classes.has(cls)) {
+                if (plans.length >= cap) {
+                    overflow = true;
+                    return true;
+                }
+                classes.add(cls);
                 plans.push(chosen);
             }
-            return;
+            return true;
         }
-        if (index >= sources.length) return;
+        if (index >= sources.length) return false;
         // Prune: not enough sources left to reach exactly k taps.
-        if (sources.length - index < k - chosen.length) return;
+        if (sources.length - index < k - chosen.length) return false;
         const key = deadSubtreeKey(index, chosen.length, trialPool);
-        if (dead.has(key)) return;
-        const before = plans.length;
-        dfsTap(index, trialPool, chosen);
-        if (plans.length === before && !overflow) dead.add(key);
+        if (dead.has(key)) return false;
+        const walkKey = `${key}|${riders}|${tappedIdsKey(chosen)}`;
+        const seen = walked.get(walkKey);
+        if (seen !== undefined) return seen;
+        const found = dfsTap(index, trialPool, chosen, riders);
+        if (overflow) return found;
+        if (!found) dead.add(key);
+        walked.set(walkKey, found);
+        return found;
     }
 
     function dfsTap(
         index: number,
         trialPool: Record<string, number>,
-        chosen: AutoTapPlan
-    ): void {
+        chosen: AutoTapPlan,
+        riders: number
+    ): boolean {
         const src = sources[index];
+        let found = false;
         // Tap this source (one branch per mana option), in index order.
         for (const opt of src.options) {
-            if (plans.length >= cap) {
-                overflow = true;
-                return;
-            }
+            if (overflow) return found;
             // CR 601.2g (issue #3384) — same ordering rule as `solveAutoTap`:
             // a costed option is unreachable until the plan has funded it.
             const nextPool = applyOption(trialPool, opt);
             if (nextPool === null) continue;
-            dfs(index + 1, nextPool, [
-                ...chosen,
-                {
-                    cardId: src.cardId,
-                    ...(opt.manaChoiceIndex !== undefined
-                        ? { manaChoiceIndex: opt.manaChoiceIndex }
-                        : {}),
-                },
-            ]);
+            const below = dfs(
+                index + 1,
+                nextPool,
+                [
+                    ...chosen,
+                    {
+                        cardId: src.cardId,
+                        ...(opt.manaChoiceIndex !== undefined
+                            ? { manaChoiceIndex: opt.manaChoiceIndex }
+                            : {}),
+                    },
+                ],
+                riders + (opt.soughtRider ? 1 : 0)
+            );
+            found = below || found;
         }
         // Or skip it.
-        dfs(index + 1, trialPool, chosen);
+        const skipped = dfs(index + 1, trialPool, chosen, riders);
+        return skipped || found;
     }
 
-    dfs(0, pool, []);
+    dfs(0, pool, [], 0);
     return { plans, overflow };
+}
+
+/** The tapped cardIds of a plan prefix, in walk (source) order. */
+function tappedIdsKey(chosen: AutoTapPlan): string {
+    return chosen.map((step) => step.cardId).join("\u0000");
 }
 
 /** The untapped sources left after a plan taps some of them (by cardId). A
@@ -1475,12 +1549,7 @@ function solveSmartAutoTapCore(
     // among demand ties. Flexibility then lexicographic remain the lower
     // tie-breaks. CR-neutral (601.2g — auto-tap never dictates *which* legal
     // sources are tapped).
-    let best: AutoTapPlan | null = null;
-    let bestPosition = -Infinity;
-    let bestFlex = -1;
-    let bestLex = "";
-    for (const plan of plans) {
-        const evalScore = scorePlan ? scorePlan(plan) : 0;
+    const ranked = plans.map((plan) => {
         const demandScore = scorePreservedDemands(
             pool,
             cost,
@@ -1493,27 +1562,61 @@ function solveSmartAutoTapCore(
         // CR 106.6 (issue #3384) — among plans that tie on everything above,
         // take the one that actually collects the rider the context asked for.
         const riders = planSoughtRiders(sources, plan);
-        const position =
-            evalScore +
-            W_PRESERVED_DEMAND * demandScore -
-            W_SURPLUS * surplus +
-            W_SOUGHT_RIDER * riders;
-        const flex = remainingFlexibility(sources, plan);
-        const lex = planLexKey(plan);
-        // Lexicographic on (position desc, flex desc, lex asc).
-        const better =
-            best === null ||
-            position > bestPosition ||
-            (position === bestPosition && flex > bestFlex) ||
-            (position === bestPosition && flex === bestFlex && lex < bestLex);
-        if (better) {
-            best = plan;
-            bestPosition = position;
-            bestFlex = flex;
-            bestLex = lex;
-        }
+        return {
+            plan,
+            // The unified position score, the same expression in the same
+            // order with or without a scorer (`evalScore` 0 without).
+            position: (evalScore: number): number =>
+                evalScore +
+                W_PRESERVED_DEMAND * demandScore -
+                W_SURPLUS * surplus +
+                W_SOUGHT_RIDER * riders,
+            flex: remainingFlexibility(sources, plan),
+            lex: planLexKey(plan),
+        };
+    });
+    type Ranked = {
+        plan: AutoTapPlan;
+        position: number;
+        flex: number;
+        lex: string;
+    };
+    // Lexicographic on (position desc, flex desc, lex asc); a full tie keeps
+    // the earlier plan.
+    const outranks = (a: Ranked, b: Ranked): boolean =>
+        a.position > b.position ||
+        (a.position === b.position && a.flex > b.flex) ||
+        (a.position === b.position && a.flex === b.flex && a.lex < b.lex);
+    // Bounded scoring (AUTO_TAP_SCORED_PLAN_CAP): past the cap, only the plans
+    // leading on the scorer-free terms reach the scorer. A stable sort keeps
+    // walk order among full ties, so the earlier plan still wins one.
+    const unscored = (entry: (typeof ranked)[number]): Ranked => ({
+        ...entry,
+        position: entry.position(0),
+    });
+    const toScore =
+        scorePlan && ranked.length > AUTO_TAP_SCORED_PLAN_CAP
+            ? ranked
+                  .map((entry) => ({ entry, key: unscored(entry) }))
+                  .sort((a, b) =>
+                      outranks(a.key, b.key)
+                          ? -1
+                          : outranks(b.key, a.key)
+                            ? 1
+                            : 0
+                  )
+                  .slice(0, AUTO_TAP_SCORED_PLAN_CAP)
+                  .map(({ entry }) => entry)
+            : ranked;
+    let best: Ranked | null = null;
+    for (const entry of toScore) {
+        const candidate: Ranked = {
+            ...entry,
+            position: entry.position(scorePlan ? scorePlan(entry.plan) : 0),
+        };
+        if (best === null || outranks(candidate, best)) best = candidate;
     }
-    return best;
+    return best?.plan ?? null;
 }
 
 /**
