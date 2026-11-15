@@ -71,7 +71,9 @@ export function collectDslSites(cards: readonly CardDefinition[]): DslSite[] {
                 ability,
                 host: abilityHost(
                     card,
-                    triggeredAbilitySourceOnBattlefield(ability)
+                    triggeredAbilitySourceOnBattlefield(ability),
+                    false,
+                    ability.event
                 ),
             })),
             // A GRANT template's source is whatever permanent received the

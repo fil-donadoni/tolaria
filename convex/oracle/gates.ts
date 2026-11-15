@@ -175,9 +175,15 @@ function collectScripts(
      *  permanent this definition makes, so its kind is the definition's own. */
     const sourceOf = (
         onBattlefieldAtResolution: boolean,
-        xAnnounced = false
+        xAnnounced = false,
+        triggerEvents?: TriggeredAbility["event"]
     ): SmokeHost =>
-        abilityHost(definition, onBattlefieldAtResolution, xAnnounced);
+        abilityHost(
+            definition,
+            onBattlefieldAtResolution,
+            xAnnounced,
+            triggerEvents
+        );
     push(definition.effects, definition, SPELL_HOST);
     // CR 700.2 — a modal spell's body lives on its MODES; the card-level
     // `effects` is undefined by construction (see `lower.ts`), so a walk that
@@ -207,14 +213,22 @@ function collectScripts(
         push(
             ability.effects,
             ability,
-            sourceOf(triggeredAbilitySourceOnBattlefield(ability))
+            sourceOf(
+                triggeredAbilitySourceOnBattlefield(ability),
+                false,
+                ability.event
+            )
         );
     }
     for (const { ability, head } of rebuiltTriggers) {
         push(
             ability.effects,
             ability,
-            sourceOf(compiledTriggerSourceOnBattlefield(head))
+            sourceOf(
+                compiledTriggerSourceOnBattlefield(head),
+                false,
+                ability.event
+            )
         );
         // CR 700.2b — a modal trigger's body lives on its modes; each is
         // smoked with its own target requirement, like a modal spell's.
@@ -222,7 +236,11 @@ function collectScripts(
             push(
                 mode.effects,
                 { targetRequirement: mode.targetRequirement },
-                sourceOf(compiledTriggerSourceOnBattlefield(head))
+                sourceOf(
+                    compiledTriggerSourceOnBattlefield(head),
+                    false,
+                    ability.event
+                )
             );
         }
     }

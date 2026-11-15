@@ -119,13 +119,20 @@ function flippedPayments(
  *  stack item. When the script acts on `$source` the generator has already
  *  seeded that permanent (`scenario.sourcePermanentId`, issue #3831) and the
  *  assertions were derived from it, so the stack item is pushed under ITS id —
- *  the id `$source` binds to (CR 113.7) — instead of a second source. */
+ *  the id `$source` binds to (CR 113.7) — instead of a second source.
+ *
+ *  A plan carrying a `triggerEvent` (a script acting on an `$event` subject)
+ *  is pushed as a TRIGGERED ability's item instead, with that event on it:
+ *  the interpreter reads `$event` refs off the firing event (ADR 0049), which
+ *  an activated item never carries. */
 function runAbilitySite(
     plan: Extract<Plan, { kind: "run" }>,
     effects: EffectOp[],
     id: string
 ): void {
     const abilityId = `${id}-ab`;
+    const triggerEvent = plan.scenario.triggerEvent;
+    const targetRequirement = requirementFor(plan);
     registerTokenDefinition({
         id,
         name: id,
@@ -135,18 +142,31 @@ function runAbilitySite(
         subtypes: ["Wizard"],
         power: 3,
         toughness: 3,
-        activatedAbilities: [
-            {
-                id: abilityId,
-                oracleText: "smoke",
-                cost: { tap: true },
-                useStack: true,
-                effects,
-                ...(requirementFor(plan)
-                    ? { targetRequirement: requirementFor(plan) }
-                    : {}),
-            },
-        ],
+        ...(triggerEvent === undefined
+            ? {
+                  activatedAbilities: [
+                      {
+                          id: abilityId,
+                          oracleText: "smoke",
+                          cost: { tap: true },
+                          useStack: true,
+                          effects,
+                          ...(targetRequirement ? { targetRequirement } : {}),
+                      },
+                  ],
+              }
+            : {
+                  triggeredAbilities: [
+                      {
+                          id: abilityId,
+                          oracleText: "smoke",
+                          event: triggerEvent.type,
+                          matches: () => true,
+                          effects,
+                          ...(targetRequirement ? { targetRequirement } : {}),
+                      },
+                  ],
+              }),
     });
     const state = plan.scenario.state;
     const seeded = plan.scenario.sourcePermanentId;
@@ -163,7 +183,13 @@ function runAbilitySite(
         ...source,
         zone: "stack",
         castById: CASTER_ID,
-        abilityId,
+        ...(triggerEvent === undefined
+            ? { abilityId }
+            : {
+                  triggeredAbilityId: abilityId,
+                  triggerSourceId: source.id,
+                  triggerEvent,
+              }),
         targets: plan.scenario.targets,
         ...chosenXOf(plan),
         ...kickerPaymentsOf(plan),
