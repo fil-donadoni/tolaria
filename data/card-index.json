@@ -36050,6 +36050,16 @@
         "source": "compiled"
     },
     {
+        "name": "Greel, Mind Raker",
+        "scryfallId": "e9d1f317-efd1-4595-92e2-44815a2b8147",
+        "oracleId": "2b84a10e-4c5c-407f-8b5b-a23d402f0529",
+        "firstSet": "pcy",
+        "firstPrintId": "e9d1f317-efd1-4595-92e2-44815a2b8147",
+        "firstPrintSet": "pcy",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Greel's Caress",
         "scryfallId": "5b25ce3f-fab3-40f8-8a16-fe580f3d97a5",
         "oracleId": "e9e0b78e-07d5-4603-8e3b-27274148d1a1",
@@ -51678,6 +51688,16 @@
         "firstPrintId": "5870d18e-0303-4722-b7f2-a751f8e372be",
         "firstPrintSet": "m13",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Mind Shatter",
+        "scryfallId": "db6b2715-4d19-4980-8f5c-3ae20af6af72",
+        "oracleId": "26809033-a823-4251-887e-0410a545f993",
+        "firstSet": "mor",
+        "firstPrintId": "db6b2715-4d19-4980-8f5c-3ae20af6af72",
+        "firstPrintSet": "mor",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
