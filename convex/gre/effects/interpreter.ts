@@ -3505,7 +3505,10 @@ function attackerIdOf(
  *  (`grantTriggeredAbilityPermanent`'s `"spell"` branch) re-checks that the
  *  id names a permanent spell still on the stack, so an activated ability
  *  whose source left the battlefield, or a spell countered in response, grants
- *  nothing (CR 400.7). */
+ *  nothing (CR 400.7). A spell with the source's id that is still on the
+ *  stack while this ability resolves sits BELOW it, so it was there when the
+ *  ability was put on the stack: a recast of the same card would sit above the
+ *  ability and resolve (or leave) first. */
 function sourceSpellGrantTarget(
     ctx: SpellContext,
     op: Extract<EffectOp, { op: "grantAbility" }>
