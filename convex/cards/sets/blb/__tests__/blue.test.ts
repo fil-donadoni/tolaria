@@ -414,7 +414,7 @@ describe("Stormchaser's Talent — level-gated text box sections (CR 716.2a)", (
     it("CR 716.2a — at level 3 the section's trigger functions", () => {
         const triggers = castTriggersAt(3);
         expect(triggers.map((t) => t.triggeredAbilityId)).toEqual([
-            "stormchasers-talent-level-3-otter",
+            "stormchaser-s-talent-trigger-level-3",
         ]);
     });
 
@@ -434,7 +434,7 @@ describe("Stormchaser's Talent — level-gated text box sections (CR 716.2a)", (
                     subtypes: ["Class"],
                 },
             ]).map((t) => t.triggeredAbilityId)
-        ).toEqual(["class-becomes-level-2"]);
+        ).toEqual(["stormchaser-s-talent-trigger-level-2"]);
     });
 });
 
@@ -470,7 +470,7 @@ describe("Stormchaser's Talent — 'becomes level 2' (CR 716.2a / 603.3d)", () =
         // section trigger on the stack.
         resolveTopOfStack(state);
         expect(state.stack.map((item) => item.triggeredAbilityId)).toEqual([
-            "class-becomes-level-2",
+            "stormchaser-s-talent-trigger-level-2",
         ]);
         // CR 603.3c — exactly one legal target, so the engine locks it with no
         // prompt as the trigger goes on the stack.

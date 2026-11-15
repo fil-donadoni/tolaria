@@ -18,7 +18,7 @@
 // `convex/gre/__tests__/classLevel.bot.test.ts`.
 
 import { describe, it, expect } from "vitest";
-import { stormchasersTalent } from "@convex/cards/sets/blb/blue.cards";
+import { getDefinition } from "@convex/cards";
 import {
     makeInstance,
     makePlayer,
@@ -29,9 +29,14 @@ import { getStackAbilities } from "../card-utils";
 import type { CardInstance } from "~/types/game";
 import type { GameState } from "@convex/gre/state";
 
+// Stormchaser's Talent, resolved through the registry seam (ADR 0114).
+const STORMCHASERS_TALENT_ID = getDefinition(
+    "a36e682d-b43d-4e08-bf5b-70d7e924dbe5"
+).id;
+
 describe("Stormchaser's Talent — class level affordance over the wire (CR 716.2a)", () => {
     const board = (classLevel?: number) => {
-        const talent = makeInstance(stormchasersTalent().id, {
+        const talent = makeInstance(STORMCHASERS_TALENT_ID, {
             id: "talent",
             controllerId: "p1",
             ownerId: "p1",
