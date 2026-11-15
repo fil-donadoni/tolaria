@@ -31359,7 +31359,9 @@
         "oracleId": "6bb00a28-8b5a-4049-93b7-3db02de88aeb",
         "firstSet": "pls",
         "firstPrintId": "676703fe-bd80-413c-8704-1da5d3248b7e",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Forsaken Drifters",
