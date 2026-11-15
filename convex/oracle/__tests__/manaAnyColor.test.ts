@@ -12,9 +12,8 @@
 //     #4134 names) and the production carrying the painland rider (Grand
 //     Coliseum), which composes for free because the rule lowers to the same
 //     CHOICE IR node "Add {B} or {R}" produces.
-//  2. GOLD over the hand-written catalogue — Birds of Paradise and Celestial
-//     Prism compile from their own printed text back into their own shipped
-//     definitions (Guard C).
+//  2. GOLD over the hand-written catalogue — Celestial Prism compiles from its own printed text back into its own shipped
+//     definition (Guard C).
 //  3. REFUSALS — every neighbour that restricts or counts the offered set
 //     stays `unparsed`, fail-closed (ADR 0105 § 2): a board-derived filter, a
 //     commander's colour identity, a count, and a non-painland rider sentence.
