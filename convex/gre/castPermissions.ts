@@ -26,17 +26,12 @@
 // Read-time only, exactly like `cast-restriction`: nothing is materialized onto
 // a permanent, so a permission auto-reverts when its source leaves play.
 //
-// KNOWN BOUNDARY, shared with `cast-restriction` but with a worse polarity than
-// it has: the scan reads `staticEffects` off the registry definition, so a
-// source whose abilities have been REMOVED (an `ability-loss` static, CR 613.1f
-// layer 6) still grants its permission. Over-applying a restriction is
-// conservative; over-applying a GRANT makes an illegal cast legal, and under
-// `withoutPayingManaCost` it makes it legal for free. A face-down permanent is
-// already safe (`FACE_DOWN_CARD_ID` resolves to the vanilla 2/2 sentinel, which
-// declares nothing). No shipped card combination reaches it — nothing in this
-// pool strips an enchantment's abilities — and the fix belongs with the
-// layer-6-aware read the whole family needs, not in this module alone.
-// tracked-by: #3272
+// ABILITY LOSS ENDS IT (CR 613.1f layer 6): the scan reads each source through
+// `liveStaticDefinition`, which yields nothing for a permanent whose abilities
+// are suppressed, so a stripped Aluren grants neither the free cast nor the
+// flash timing — the same read the `cast-restriction` and `cast-timing-lock`
+// scans use. A face-down permanent declares nothing (`FACE_DOWN_CARD_ID`
+// resolves to the vanilla 2/2 sentinel).
 //
 // THE COST HALF IS AN ALTERNATIVE COST (CR 118.9 — "a cost … applied to it from
 // another effect that its controller may pay rather than paying the spell's
@@ -107,8 +102,8 @@ export function castPermissionAltCostId(
  *  taking the hand default.
  *
  *  Mirrors `isCastTimingSorcerySpeedLocked`'s scan shape exactly: read off each
- *  permanent's registry `staticEffects`, never a materialized per-instance
- *  flag. */
+ *  permanent's LIVE definition (none while its abilities are suppressed), never
+ *  a materialized per-instance flag. */
 export function collectCastPermissions(
     state: GameState,
     casterId: string,
