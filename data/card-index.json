@@ -13916,6 +13916,16 @@
         "source": "compiled"
     },
     {
+        "name": "Charmbreaker Devils",
+        "scryfallId": "a9197a67-6609-496c-9aae-825ede4f755b",
+        "oracleId": "1b9df437-6988-4ddc-80c4-893e11076067",
+        "firstSet": "isd",
+        "firstPrintId": "a9197a67-6609-496c-9aae-825ede4f755b",
+        "firstPrintSet": "isd",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Charnelhoard Wurm",
         "scryfallId": "abb7e1ec-572f-4e78-8f12-0a8034e9d0f6",
         "oracleId": "4a430fa3-e693-424b-9981-d7d8193445e3",
@@ -27096,6 +27106,16 @@
         "firstPrintSet": "ons"
     },
     {
+        "name": "Exalted Flamer of Tzeentch",
+        "scryfallId": "b4859462-1a80-40a7-ab42-38ccb6443ea4",
+        "oracleId": "6591a589-deb4-462f-a4f1-f6261f3433c3",
+        "firstSet": "40k",
+        "firstPrintId": "b4859462-1a80-40a7-ab42-38ccb6443ea4",
+        "firstPrintSet": "40k",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Excavated Wall",
         "scryfallId": "fed54d00-b11f-4529-864c-63a114617b36",
         "oracleId": "16e48b95-f030-400c-a2b7-c3f3111cc165",
@@ -33586,6 +33606,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ghoulraiser",
+        "scryfallId": "52c537d1-2d57-4a87-9dac-594d40d95633",
+        "oracleId": "614f748b-5d31-440d-a7c0-3ba12dc63c24",
+        "firstSet": "isd",
+        "firstPrintId": "52c537d1-2d57-4a87-9dac-594d40d95633",
+        "firstPrintSet": "isd",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Giant Adephage",
         "scryfallId": "8bae725f-e582-4377-a855-51af035cdac3",
         "oracleId": "8e1d261d-b8d3-4fb1-922d-47789854b5b3",
@@ -38479,6 +38509,16 @@
         "firstPrintId": "ef142a2a-08e8-4344-8626-239690b3bb87",
         "firstPrintSet": "soi",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Haunted Fengraf",
+        "scryfallId": "84bca9e1-c0b7-4dce-9ee4-370db2c322b6",
+        "oracleId": "7c6143f3-ad2c-4d7f-9041-aa59f01d8fb7",
+        "firstSet": "dka",
+        "firstPrintId": "84bca9e1-c0b7-4dce-9ee4-370db2c322b6",
+        "firstPrintSet": "dka",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -50231,6 +50271,16 @@
         "firstSet": "rix",
         "firstPrintId": "0a012af0-c54e-4658-8a3b-b81cc8835e1b",
         "firstPrintSet": "rix",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Make a Wish",
+        "scryfallId": "d0a8508d-25a7-4fb2-8aa3-349275f80c42",
+        "oracleId": "888ccda6-896f-40f3-93a1-efc48254af34",
+        "firstSet": "isd",
+        "firstPrintId": "d0a8508d-25a7-4fb2-8aa3-349275f80c42",
+        "firstPrintSet": "isd",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -83665,6 +83715,16 @@
         "firstPrintId": "88ec4dc0-09ae-437d-a7d6-cb27c2cb7590",
         "firstPrintSet": "wwk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Surreal Memoir",
+        "scryfallId": "3e9108d6-d103-47f5-98ed-0d0d7564d328",
+        "oracleId": "fa482ded-b24c-4f9e-948e-d0620e907b8b",
+        "firstSet": "roe",
+        "firstPrintId": "3e9108d6-d103-47f5-98ed-0d0d7564d328",
+        "firstPrintSet": "roe",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
