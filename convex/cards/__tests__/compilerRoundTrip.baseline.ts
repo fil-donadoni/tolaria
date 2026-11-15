@@ -389,7 +389,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Fire Covenant",
     "Fire and Brimstone",
     "Fireball",
-    "Firebrand Ranger",
     "Flash",
     "Flash Counter",
     "Flashfires",

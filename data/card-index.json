@@ -1634,6 +1634,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Akul the Unrepentant",
+        "scryfallId": "68fd8548-50db-4243-9154-377f32408d58",
+        "oracleId": "d6b56d6d-e2f6-47f5-a9d1-cd0e17f94a0d",
+        "firstSet": "otj",
+        "firstPrintId": "68fd8548-50db-4243-9154-377f32408d58",
+        "firstPrintSet": "otj",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Alabaster Host Sanctifier",
         "scryfallId": "efbd934a-39c4-4ce7-af2a-34ca226d7f23",
         "oracleId": "ad172d4e-febf-4844-9544-861d03e27ab5",
@@ -16158,6 +16168,16 @@
         "source": "compiled"
     },
     {
+        "name": "Copper Gnomes",
+        "scryfallId": "d5e326b7-6f6a-4249-a315-c5f017931c73",
+        "oracleId": "4fd6d9af-4d53-4e10-bc23-672454803099",
+        "firstSet": "usg",
+        "firstPrintId": "d5e326b7-6f6a-4249-a315-c5f017931c73",
+        "firstPrintSet": "usg",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Copper Host Crusher",
         "scryfallId": "af527344-9d88-4641-8f6d-0263a6797df3",
         "oracleId": "6971eac1-afd0-46c3-a37f-4a26d50ef656",
@@ -21036,6 +21056,16 @@
         "source": "compiled"
     },
     {
+        "name": "Didgeridoo",
+        "scryfallId": "828f8f68-abe2-4e39-b3e4-991dceacd5d9",
+        "oracleId": "e9a2cb10-6526-4a5c-bda7-e2f328b377dc",
+        "firstSet": "hml",
+        "firstPrintId": "828f8f68-abe2-4e39-b3e4-991dceacd5d9",
+        "firstPrintSet": "hml",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Dig Through Time",
         "scryfallId": "5c18c2d8-995c-4736-bdef-464abcd1d31a",
         "oracleId": "f8b17b89-26ce-4208-874a-9e1d66514640",
@@ -24927,6 +24957,16 @@
         "firstPrintId": "7e71fc2d-643b-4fad-89a8-624d330895d6",
         "firstPrintSet": "ons",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Elvish Piper",
+        "scryfallId": "55e76333-0959-4572-a1ca-d77f76da1279",
+        "oracleId": "872ef617-7cdb-4a7a-85f5-efc9e12bece5",
+        "firstSet": "uds",
+        "firstPrintId": "55e76333-0959-4572-a1ca-d77f76da1279",
+        "firstPrintSet": "uds",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -36178,6 +36218,16 @@
         "source": "compiled"
     },
     {
+        "name": "Gretchen Titchwillow",
+        "scryfallId": "3c8b248e-1460-4650-9721-85c134c21b89",
+        "oracleId": "cedeea30-b580-4ea7-bbc3-7358fed8ae61",
+        "firstSet": "afr",
+        "firstPrintId": "3c8b248e-1460-4650-9721-85c134c21b89",
+        "firstPrintSet": "afr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Grey Havens Navigator",
         "scryfallId": "4dd89994-bdff-47ca-a65d-10afcc7e773e",
         "oracleId": "14291205-1ac2-4804-b365-4f65377d5803",
@@ -39451,6 +39501,16 @@
         "firstPrintId": "022f07c5-c644-41cd-9434-a57068f73ab2",
         "firstPrintSet": "wwk",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Horizon of Progress",
+        "scryfallId": "c2ae7cf3-f793-4572-a32c-0d66dba8faf7",
+        "oracleId": "59a82f57-fe2f-4834-a4ee-4b948eef1e12",
+        "firstSet": "m3c",
+        "firstPrintId": "c2ae7cf3-f793-4572-a32c-0d66dba8faf7",
+        "firstPrintSet": "m3c",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -42856,6 +42916,16 @@
         "source": "compiled"
     },
     {
+        "name": "Jefferies Tube",
+        "scryfallId": "6b81db51-ae7e-4f4b-9071-afabc72f61c0",
+        "oracleId": "2ca270f1-a8a2-438f-9321-2c653165f3e4",
+        "firstSet": "trc",
+        "firstPrintId": "6b81db51-ae7e-4f4b-9071-afabc72f61c0",
+        "firstPrintSet": "trc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Jenara, Asura of War",
         "scryfallId": "d643c335-e3a7-461d-a024-095795ab6770",
         "oracleId": "d06cd670-7ffc-4295-97d1-0eff042fb6d5",
@@ -45620,6 +45690,16 @@
         "source": "compiled"
     },
     {
+        "name": "Krosan Wayfarer",
+        "scryfallId": "5356e684-c2fc-465e-a16c-7300824d2a8d",
+        "oracleId": "1729317d-ccfb-4f27-84c6-20b36b2826c9",
+        "firstSet": "jud",
+        "firstPrintId": "5356e684-c2fc-465e-a16c-7300824d2a8d",
+        "firstPrintSet": "jud",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Krovikan Elementalist",
         "scryfallId": "bbedca18-a074-4441-b0a9-7b14fdb07412",
         "oracleId": "43e6fc44-8b23-4bff-91da-936019efe84b",
@@ -47627,6 +47707,16 @@
         "firstSet": "inv",
         "firstPrintId": "e6c75d89-e432-49aa-a407-555b223b7eff",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Llanowar Scout",
+        "scryfallId": "c8026d80-2e91-46f9-ae97-1f137848236c",
+        "oracleId": "3bdc9211-8eff-4b30-8d6f-d26f4087f77f",
+        "firstSet": "dom",
+        "firstPrintId": "c8026d80-2e91-46f9-ae97-1f137848236c",
+        "firstPrintSet": "dom",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Llanowar Sentinel",
@@ -50352,6 +50442,16 @@
         "firstPrintId": "77c273d3-ef0f-40c6-baf5-e39279d10509",
         "firstPrintSet": "m12",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Master Transmuter",
+        "scryfallId": "252482b2-aaa7-49f3-af8c-30923ca98994",
+        "oracleId": "da46786e-28df-4638-ab3d-121011d2f150",
+        "firstSet": "con",
+        "firstPrintId": "252482b2-aaa7-49f3-af8c-30923ca98994",
+        "firstPrintSet": "con",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -53914,6 +54014,16 @@
         "firstPrintId": "efe1c5b2-4356-41ae-ab7e-ad9fc835a911",
         "firstPrintSet": "znr",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Murasa Rootgrazer",
+        "scryfallId": "e70b3b78-9bdc-449b-82a9-c2fc3dd7f120",
+        "oracleId": "ca7964a1-b4ce-412b-bcae-e0dfbb95389a",
+        "firstSet": "znr",
+        "firstPrintId": "e70b3b78-9bdc-449b-82a9-c2fc3dd7f120",
+        "firstPrintSet": "znr",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -62916,6 +63026,16 @@
         "source": "compiled"
     },
     {
+        "name": "Quicksilver Amulet",
+        "scryfallId": "ecfdebbe-6432-426f-ac2a-5a9af3047813",
+        "oracleId": "e1096a98-a631-43f5-97d8-325001d608b3",
+        "firstSet": "ulg",
+        "firstPrintId": "ecfdebbe-6432-426f-ac2a-5a9af3047813",
+        "firstPrintSet": "ulg",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Quicksilver Dagger",
         "scryfallId": "83c74012-6060-4fad-aa73-6e6afd33c482",
         "oracleId": "5c77bf76-bb0f-4e44-babe-0e7b7b555e1f",
@@ -68704,6 +68824,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sakura-Tribe Scout",
+        "scryfallId": "9cbdda50-8a27-4094-849d-b6f66def82ce",
+        "oracleId": "0c319f45-cb0f-4641-acd8-145768acb3fc",
+        "firstSet": "sok",
+        "firstPrintId": "9cbdda50-8a27-4094-849d-b6f66def82ce",
+        "firstPrintSet": "sok",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Salt Flats",
         "scryfallId": "224cb63f-9af0-4b00-ba0b-0b604abf20c8",
         "oracleId": "7a951bd7-4f7d-44ea-9c2f-fe2f6b2f5289",
@@ -69673,6 +69803,16 @@
         "firstPrintId": "5c05a60f-660a-42d3-82b3-06984366afb4",
         "firstPrintSet": "akh",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Scaled Herbalist",
+        "scryfallId": "6cb05274-5a94-44e3-889a-667cba1da033",
+        "oracleId": "6fd9ece7-366f-45c7-a8ea-edb4ca637a06",
+        "firstSet": "afr",
+        "firstPrintId": "6cb05274-5a94-44e3-889a-667cba1da033",
+        "firstPrintSet": "afr",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -75231,6 +75371,16 @@
         "firstPrintId": "0fb4e44e-656e-4294-a53b-1f7aa96fab31",
         "firstPrintSet": "nem",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Skyshroud Ranger",
+        "scryfallId": "efe01296-2b8b-4cdf-a041-a08bebea9c29",
+        "oracleId": "8f47a230-7500-4afb-97cd-dbd444c307c8",
+        "firstSet": "tmp",
+        "firstPrintId": "efe01296-2b8b-4cdf-a041-a08bebea9c29",
+        "firstPrintSet": "tmp",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -83886,6 +84036,16 @@
         "source": "compiled"
     },
     {
+        "name": "Terrain Generator",
+        "scryfallId": "e6fe66a2-8e70-414f-bedb-8f1f85f1d2d9",
+        "oracleId": "a949c96c-362c-45a3-bd5c-ce5ce153ee9e",
+        "firstSet": "nem",
+        "firstPrintId": "e6fe66a2-8e70-414f-bedb-8f1f85f1d2d9",
+        "firstPrintSet": "nem",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Terramorph",
         "scryfallId": "28b08596-f6c7-4366-a4ed-21a11fbc901a",
         "oracleId": "17a34f8d-a80f-4331-8be5-06cbb9d10d7b",
@@ -86061,6 +86221,16 @@
         "firstPrintId": "1c672d38-a1a6-4912-a9a6-b11e7bf0cc67",
         "firstPrintSet": "ecl",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Timmy, Power Gamer",
+        "scryfallId": "e43ce658-12be-4eb2-b679-0aefea348de2",
+        "oracleId": "c32f282f-c9c6-48f2-b226-f0f9e851c69c",
+        "firstSet": "ugl",
+        "firstPrintId": "e43ce658-12be-4eb2-b679-0aefea348de2",
+        "firstPrintSet": "ugl",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -92794,6 +92964,16 @@
         "source": "compiled"
     },
     {
+        "name": "Walking Atlas",
+        "scryfallId": "53515042-e729-4a7c-ac3b-36ef70dbbe8d",
+        "oracleId": "855a4837-7fc8-4b97-afbd-daa88e322c89",
+        "firstSet": "wwk",
+        "firstPrintId": "53515042-e729-4a7c-ac3b-36ef70dbbe8d",
+        "firstPrintSet": "wwk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Walking Ballista",
         "scryfallId": "329a8738-3e17-403a-857a-0ba529ce8cd1",
         "oracleId": "4b515bb0-f275-4400-8032-3173b799ab40",
@@ -94838,6 +95018,16 @@
         "firstSet": "csp",
         "firstPrintId": "368322d7-d399-45e1-8d7f-8001d048071e",
         "firstPrintSet": "csp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "White Tiger, Amulet Keeper",
+        "scryfallId": "babf0f59-0199-4dba-a149-f62261115f5e",
+        "oracleId": "0fa01155-638d-44ed-8963-46b202b0e720",
+        "firstSet": "msc",
+        "firstPrintId": "babf0f59-0199-4dba-a149-f62261115f5e",
+        "firstPrintSet": "msc",
         "rarity": "uncommon",
         "source": "compiled"
     },

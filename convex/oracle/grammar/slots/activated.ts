@@ -52,6 +52,7 @@ import {
 import {
     assembleSentences,
     assemblyTrace,
+    optionalHandDropSentenceRule,
     sentenceRule,
     sourcePronounListRule,
     withoutAbilityWord,
@@ -66,7 +67,7 @@ export const ACTIVATED_SLOT = "activated";
  * (CR 605.1a), whose form is the mana slot's to own — refused here exactly as
  * before, but never blamed here (`disowning`, issue #3822).
  */
-const activatedSentence: Rule<SentenceIR> = disowning(
+const plainActivatedSentence: Rule<SentenceIR> = disowning(
     rule(sentenceRule.label, (span, ctx) =>
         // The shared sentence grammar reads "Add {B}." for the spell and
         // trigger slots (CR 106.1); here it stays the mana slot's alone, or
@@ -76,6 +77,15 @@ const activatedSentence: Rule<SentenceIR> = disowning(
             : sentenceRule.run(span, ctx)
     ),
     (span) => span.startsWith("Add ")
+);
+
+/**
+ * CR 608.2d — "You may put a multicolored creature card from your hand onto
+ * the battlefield" (Dragon Arch): the one optional sentence this site reads,
+ * the resolving controller's pick (`optionalHandDropSentenceRule`).
+ */
+const activatedSentence: Rule<SentenceIR> = optionalHandDropSentenceRule(
+    plainActivatedSentence
 );
 
 const activatedBody: Rule<SlotIR> = rule("activated body", (span, ctx) => {

@@ -5314,6 +5314,35 @@ export function optionalSentenceRule(
     }
 }
 
+/** The printed optional drop, at an ability's sentence-initial casing. */
+const OPTIONAL_HAND_DROP =
+    /^You may put .+ from your hand onto the battlefield(?: tapped)?$/;
+
+/**
+ * Wrap a sentence rule so it also reads "You may put a <descriptor> card from
+ * your hand onto the battlefield" — and no other "You may" sentence.
+ *
+ * CR 608.2d — a choice an effect offers is made while the effect is applied,
+ * so at an activated ability the "may" is the resolving controller's, exactly
+ * as at a trigger; the lowering folds it into the pick's 0..1 range
+ * (`optionalChosenMove`), and CR 400.7 puts the pick onto the battlefield, a
+ * zone change and not a cast. The marker is admitted for this ONE printed
+ * form: every other optional sentence at the site is a reading without a
+ * fixture and stays the inner rule's to refuse (ADR 0105 § 2). A reading of
+ * the form that is not ONE chosen card ("up to two creature cards") reaches
+ * the lowering's own refusal of an unconditional hand → battlefield put.
+ */
+export function optionalHandDropSentenceRule(
+    inner: Rule<SentenceIR>
+): Rule<SentenceIR> {
+    const optional = optionalSentenceRule(inner);
+    return rule(`optional hand drop ${inner.label}`, (span, ctx) =>
+        OPTIONAL_HAND_DROP.test(span)
+            ? optional.run(span, ctx)
+            : inner.run(span, ctx)
+    );
+}
+
 /**
  * Wrap a sentence rule so it also reads CR 702.33e's "If this spell was
  * kicked, <effect>".
