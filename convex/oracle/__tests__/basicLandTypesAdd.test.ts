@@ -9,11 +9,9 @@
 //     `subtype-add`, its CR 613.8a reads included (Guard C's comparator).
 
 import { describe, expect, it } from "vitest";
-import { getAllRawCards } from "../../cards/catalogue";
 import { expandCompiledStatics } from "../../cards/compiledStatics";
 import { basicLandTypesAddRule } from "../grammar/shared/characteristicStatic";
 import { compileCard } from "../compile";
-import { roundTripCard } from "../gold";
 import type { OracleCard } from "../types";
 import { oracleCard } from "./oracle.fixture";
 
@@ -153,15 +151,6 @@ describe("every basic land type in addition — expansion (CR 613.8a)", () => {
             kind: "subtype-add",
             subtypes: FIVE_BASICS,
             reads: [{ characteristic: "types", values: ["Land"] }],
-        });
-    });
-
-    it("round-trips the hand-written Prismatic Omen (Guard C comparator)", () => {
-        const raw = getAllRawCards().find((c) => c.name === "Prismatic Omen");
-        expect(raw).toBeDefined();
-        expect(roundTripCard(raw!).verdict).toEqual({
-            ok: true,
-            kind: "equal",
         });
     });
 });

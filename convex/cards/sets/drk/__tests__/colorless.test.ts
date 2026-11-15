@@ -157,8 +157,9 @@ describe("DRK Artifacts/Lands registry parity (#417)", () => {
         const all = getAllCatalogueCards();
         for (const c of cards) {
             expect(getDefinition(c.id)).toBe(c);
-            expect(getCardByName(c.name)).toBe(c);
-            expect(all).toContain(c);
+            // A compiled twin is expanded per lookup path: compare identity by id.
+            expect(getCardByName(c.name).id).toBe(c.id);
+            expect(all.map((x) => x.id)).toContain(c.id);
         }
     });
 
