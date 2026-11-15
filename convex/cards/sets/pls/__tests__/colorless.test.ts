@@ -44,20 +44,20 @@ import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { compactState, expandState } from "../../../../gre/serialize";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
-import { getDefinition, getCardByName } from "../../../index";
+import { getDefinition } from "../../../index";
 
-const crosissCatacombs = getDefinition(getCardByName("Crosis's Catacombs").id);
+const crosissCatacombs = getDefinition("7caad74f-c0d0-4eca-94be-b89a2c9a3980");
 const draco = getDefinition("212e3edb-62f1-4680-884f-70323547f8ad");
 const stratadon = getDefinition("324bc757-9942-4862-b691-5af42e07f682");
-const darigaazsCaldera = getDefinition(getCardByName("Darigaaz's Caldera").id);
-const dromarsCavern = getDefinition(getCardByName("Dromar's Cavern").id);
+const darigaazsCaldera = getDefinition("752f6f0c-af30-4937-b4a7-48f493e007a0");
+const dromarsCavern = getDefinition("85f10cee-6a63-438e-a9df-6b902dd025b8");
 const meteorCrater = getDefinition("043a2299-1cfc-4732-a10a-58c773b9992c");
-const rithsGrove = getDefinition(getCardByName("Rith's Grove").id);
+const rithsGrove = getDefinition("740fa25d-9c1f-44eb-9eb4-0dd514cb315a");
 const skyshipWeatherlight = getDefinition(
     "63f5498b-bb12-48ec-811b-b52e45ffddaf"
 );
 const starCompass = getDefinition("b1d0beb4-c3dd-4bb1-b49b-a48b2d4ad38d");
-const trevasRuins = getDefinition(getCardByName("Treva's Ruins").id);
+const trevasRuins = getDefinition("8bae2458-b54f-426a-ad40-13529a73c423");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");

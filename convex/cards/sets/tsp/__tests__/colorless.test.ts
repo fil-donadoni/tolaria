@@ -16,7 +16,7 @@ import { projectPublicState } from "../../../../gameProjections";
 import { tapSourceIntoPayment } from "../../../../game";
 import { getDefinition, getCardByName } from "../../../index";
 
-const chromaticStar = getDefinition(getCardByName("Chromatic Star").id);
+const chromaticStar = getDefinition("1d7a1357-debd-49b0-9fd5-560d5b3f589e");
 
 const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
 

@@ -43,14 +43,14 @@ import {
     WIN_SEED,
     LOSE_SEED,
 } from "./set.helper";
-import { getDefinition, getCardByName } from "../../../index";
+import { getDefinition } from "../../../index";
 import { tryAutoCommitPendingActivation } from "../../../../gre/activation";
 
 const aladdinsLamp = getDefinition("8fecc5d2-5298-4d47-b085-f160603f220e");
 const bazaarOfBaghdad = getDefinition("ff37b863-f8c4-4584-8cc2-ac0e096e583f");
 const bottleOfSuleiman = getDefinition("c474cd6b-5610-49eb-ac98-918d900efe8b");
 const brassMan = getDefinition("1a364362-e42b-415c-9d95-b6ec7139f5e7");
-const cityOfBrass = getDefinition(getCardByName("City of Brass").id);
+const cityOfBrass = getDefinition("f4e32327-380d-471e-813b-4c27477787ce");
 const desert = getDefinition("201155ea-f474-4e13-acda-cb071a6ca977");
 const ebonyHorse = getDefinition("9ae81ec7-2b7d-4301-8114-032be5e6b663");
 const elephantGraveyard = getDefinition("18348df2-9037-4db4-bddb-76dc933229bf");
