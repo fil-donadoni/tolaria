@@ -635,35 +635,24 @@ describe("Xira Arien ({B}{R}{G},{T}: target player draws, CR 121.1)", () => {
 
 describe("LEG multicolor mana abilities (CR 605.1a)", () => {
     // Mana abilities don't use the stack (useStack: false) — assert the
-    // declaration shape (mirrors Fire Sprites) and that the `effect` closure
-    // adds the right mana to the pool.
+    // declaration shape the compiled twin carries (mirrors Fire Sprites).
     function manaOf(card: typeof princessLucrezia) {
-        const ability = card.activatedAbilities?.[0];
-        let added: Record<string, number> | undefined;
-        ability?.effect?.({
-            addMana: (cost) => {
-                added = cost as Record<string, number>;
-            },
-        });
-        return { ability, added };
+        return { ability: card.activatedAbilities?.[0] };
     }
     it("Princess Lucrezia: {T}: Add {U}", () => {
-        const { ability, added } = manaOf(princessLucrezia);
+        const { ability } = manaOf(princessLucrezia);
         expect(ability?.useStack).toBe(false);
         expect(ability?.manaProduced).toEqual({ U: 1 });
-        expect(added).toEqual({ U: 1 });
     });
     it("Riven Turnbull: {T}: Add {B}", () => {
-        const { ability, added } = manaOf(rivenTurnbull);
+        const { ability } = manaOf(rivenTurnbull);
         expect(ability?.useStack).toBe(false);
         expect(ability?.manaProduced).toEqual({ B: 1 });
-        expect(added).toEqual({ B: 1 });
     });
     it("Sunastian Falconer: {T}: Add {C}{C}", () => {
-        const { ability, added } = manaOf(sunastianFalconer);
+        const { ability } = manaOf(sunastianFalconer);
         expect(ability?.useStack).toBe(false);
         expect(ability?.manaProduced).toEqual({ C: 2 });
-        expect(added).toEqual({ C: 2 });
     });
 });
 

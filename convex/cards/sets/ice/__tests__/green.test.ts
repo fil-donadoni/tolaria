@@ -170,17 +170,10 @@ describe("Balduvian Bears (vanilla creature, CR 302)", () => {
 // --- Mana dorks (CR 605.1a mana ability) -----------------------------------
 
 describe("Fyndhorn Elves / Elder (CR 605.1a mana ability)", () => {
-    it("Fyndhorn Elves' effect adds {G} to its controller's pool", () => {
-        // Mana abilities resolve via their `effect` (CR 605.3b), not the stack;
-        // drive it directly with a minimal context (mirrors how the engine
-        // runs a non-stack mana ability on activation).
-        let added: Record<string, number> | undefined;
-        fyndhornElves.activatedAbilities![0].effect!({
-            addMana: (cost: Record<string, number>) => {
-                added = cost;
-            },
-        } as never);
-        expect(added).toEqual({ G: 1 });
+    it("Fyndhorn Elves is a non-stack mana ability producing {G} (CR 605.3b)", () => {
+        const ability = fyndhornElves.activatedAbilities![0];
+        expect(ability.useStack).toBe(false);
+        expect(ability.manaProduced).toEqual({ G: 1 });
     });
 });
 

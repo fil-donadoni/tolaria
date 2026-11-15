@@ -55434,7 +55434,6 @@
         {"id":"614.12a","line":"it(\"the counters ride an as-enters park (CR 614.12a) and are placed when the entry resumes\", () => {","sites":1,"status":"confirmed","ruleHash":"ee3dc0335cbf9edc"},
         {"id":"119.3","line":"/** Whether the loss came from damage (CR 119.3). Lets \"whenever you lose","sites":1,"status":"baseline"},
         {"id":"117.3a","line":"// your hand.\" (CR 115 target opponent; CR 608.2 iterative resolution; CR 117.3a","sites":1,"status":"baseline"},
-        {"id":"605.3b","line":"// Mana abilities resolve via their `effect` (CR 605.3b), not the stack;","sites":1,"status":"baseline"},
         {"id":"702.84a","line":"describe(\"Unearth — the activation (CR 702.84a)\", () => {","sites":1,"status":"confirmed","ruleHash":"3b3fad28c53f6cc7"},
         {"id":"118.9","line":"/** CR 118.9 / 701.20a — paying this variant REVEALS the caster's hand (\"you","sites":1,"status":"confirmed","ruleHash":"895e658bfd86a268"},
         {"id":"613.4","line":"// 7a base (0/0) + 7c counter (+1/+1) = 1/1 (CR 613.4).","sites":1,"status":"baseline"},

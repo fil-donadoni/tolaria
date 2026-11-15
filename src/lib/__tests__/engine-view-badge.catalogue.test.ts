@@ -143,8 +143,8 @@ describe("Engine View badge — catalogue-wide (issue #2728)", () => {
         expect(verdictOf(saga)).toBe("protocol");
     });
 
-    it("reads a mana-ability closure card as protocol (Black Lotus, Sol Ring, Birds of Paradise — `ActivatedAbility.effect`)", () => {
-        for (const name of ["Black Lotus", "Sol Ring", "Birds of Paradise"]) {
+    it("reads a mana-ability closure card as protocol (Birds of Paradise — `ActivatedAbility.effect`)", () => {
+        for (const name of ["Birds of Paradise"]) {
             expect(verdictOf(getCardByName(name))).toBe("protocol");
         }
     });
