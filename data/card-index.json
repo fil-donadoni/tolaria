@@ -10410,12 +10410,14 @@
         "source": "compiled"
     },
     {
-        "name": "Brazen Borrower",
+        "name": "Brazen Borrower // Petty Theft",
         "scryfallId": "c2089ec9-0665-448f-bfe9-d181de127814",
         "oracleId": "c7b044c3-3cfa-407e-bf20-2875e8e04b7b",
         "firstSet": "eld",
         "firstPrintId": "c2089ec9-0665-448f-bfe9-d181de127814",
-        "firstPrintSet": "eld"
+        "firstPrintSet": "eld",
+        "rarity": "mythic",
+        "source": "compiled"
     },
     {
         "name": "Brazen Buccaneers",
