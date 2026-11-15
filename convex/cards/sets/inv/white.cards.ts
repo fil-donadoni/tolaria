@@ -37,6 +37,7 @@ import {
     EFFECT_AFFECTS_SELF,
     PERMANENT_TYPES,
 } from "../../types";
+import { COLORED_MANA_COLORS } from "../../../gre/constants";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
@@ -1287,12 +1288,46 @@ export const rout = defineCard(() => ({
 
 // Spirit of Resistance — {2}{W} Enchantment. "As long as you control a
 // permanent of each color, prevent all damage that would be dealt to you."
-// tracked-by: #1331 (needs a per-permanent COLOR DERIVATION inside a
-// `replacementEffects[].appliesTo` predicate, but that context — unlike
-// `StaticEffectContext.getColors`, only threaded into `staticEffects[]`
-// predicates — has no color field and no ctx; Divine Presence / Harsh
-// Judgment above don't hit this gap because their conditions read fields
-// already present directly on the DamageReplacementEvent).
+// CR 615.1a — "prevent" makes it a prevention effect, so it is declared
+// `damageEffectKind: "prevention"` and damage that can't be prevented
+// passes through it (CR 615.12). The condition is a CR 604.1 static
+// ability's, never locked in (CR 611.3a): `appliesTo` re-reads the
+// controller's permanents on every damage event. Each colour of CR 105.1
+// must be among the EFFECTIVE `colors` of some permanent the current
+// controller controls — a multicolored permanent counts for each of its
+// colours (CR 105.2b), a colorless one for none (CR 105.2c). Only damage
+// to the player is prevented, never to the permanents they control.
+// hand-tail: "As long as you control a permanent of each color, prevent all damage that would be dealt to you." (#4596)
+export const spiritOfResistance = defineCard(() => ({
+    id: "5fb66439-df73-4a01-a8d4-6f2334297fdf",
+    name: "Spirit of Resistance",
+    rarity: "rare",
+    oracleText:
+        "As long as you control a permanent of each color, prevent all damage that would be dealt to you.",
+    manaCost: { X: 2, W: 1 },
+    types: ["Enchantment"],
+    replacementEffects: [
+        {
+            id: "spirit-of-resistance-damage-prevention",
+            oracleText:
+                "As long as you control a permanent of each color, prevent all damage that would be dealt to you.",
+            eventKind: "damage",
+            damageEffectKind: "prevention",
+            appliesTo: (event, self, state) => {
+                if (event.kind !== "damage") return false;
+                if (event.target.type !== "player") return false;
+                if (event.target.id !== self.controllerId) return false;
+                const controlled = state.players
+                    .flatMap((p) => p.battlefield)
+                    .filter((c) => c.controllerId === self.controllerId);
+                return COLORED_MANA_COLORS.every((color) =>
+                    controlled.some((c) => c.colors.includes(color))
+                );
+            },
+            replace: () => ({ kind: "consumed" }),
+        },
+    ],
+}));
 
 // Sunscape Apprentice — {W} Creature, 1/1. "{G}, {T}: Target creature gets
 // +1/+1 until end of turn. {U}, {T}: Put target creature you control on top
