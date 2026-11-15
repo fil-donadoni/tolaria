@@ -80321,7 +80321,9 @@
         "oracleId": "00c1788d-c52f-4839-9cd8-11fb86c418b6",
         "firstSet": "blb",
         "firstPrintId": "a36e682d-b43d-4e08-bf5b-70d7e924dbe5",
-        "firstPrintSet": "blb"
+        "firstPrintSet": "blb",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Stormcloud Spirit",
