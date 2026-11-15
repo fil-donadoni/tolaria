@@ -121,6 +121,7 @@ vi.mock("../spatial-zone", () => ({
 import BoardBattlefield from "../board-battlefield";
 import BoardHandCard from "../board-hand-card";
 import SelectableCard from "../../cards/selectable-card";
+import { CARD_RING_TILE_CLASS } from "~/lib/card-ring";
 
 function creature(id: string, ownerId = "me"): CardInstance {
     return {
@@ -544,6 +545,10 @@ describe("board hand choice parity (#279, CR 608.2)", () => {
         const { container } = renderSpatialHand(card);
         const el = container.querySelector('[data-board-hand-card="h1"]')!;
         expect(el.getAttribute("data-choice-selectable")).toBe("true");
+        // Issue #9681 — the candidate ring's z-index stays inside the card:
+        // the hand overlaps its cards, so an uncontained ring paints over the
+        // cards stacked on top of it.
+        expect(el.className.split(/\s+/)).toContain(CARD_RING_TILE_CLASS);
         fireEvent.click(el);
         expect(bufferToggle).toHaveBeenCalledWith("h1");
         // The drag-to-cast pipeline is suppressed during a hand choice.

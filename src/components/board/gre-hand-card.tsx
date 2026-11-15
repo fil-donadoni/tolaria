@@ -40,7 +40,7 @@ import HandCardActionMenu, {
 } from "./hand-card-action-menu";
 import HandCardConfirmPill from "./hand-card-confirm-pill";
 import type { BoardHandCardProps } from "./board-hand-card";
-import { cardRingClass } from "~/lib/card-ring";
+import { CARD_RING_TILE_CLASS, cardRingClass } from "~/lib/card-ring";
 import { expectedInputAdmits } from "~/lib/expected-input";
 
 /** Upward travel (px) of a card STAGED by a touch tap (#1767) — the same
@@ -511,7 +511,7 @@ export default function GreHandCard({
                 data-board-hand-card={card.id}
                 data-choice-selectable="true"
                 data-choice-selected={isChoiceSelected ? "true" : undefined}
-                className={`relative ${ringClass}`}
+                className={`relative ${CARD_RING_TILE_CLASS} ${ringClass}`}
                 onClick={() => {
                     if (activeChoice) bufferCtx.toggle(card.id);
                 }}
@@ -592,7 +592,14 @@ export default function GreHandCard({
             data-board-hand-card={card.id}
             data-drag-armed={state.armed ? "true" : undefined}
             data-tap-staged={tapStage.staged ? "true" : undefined}
+            // `CARD_RING_TILE_CLASS` (issue #9681, the hand twin of #3426): the
+            // hand OVERLAPS its cards, and this root forms no stacking context
+            // at rest — the tilt engages only on hover, so never on touch — so
+            // the ring's `::after` (`z-index: 25`) resolved against the hand
+            // row and painted its whole rectangle over the next cards: a
+            // lattice of playable rings across the mobile hand.
             className={
+                `${CARD_RING_TILE_CLASS} ` +
                 (optionCount > 0 || actionable ? "cursor-pointer " : "") +
                 (allowHorizontalPan ? "touch-pan-x" : "touch-none")
             }
