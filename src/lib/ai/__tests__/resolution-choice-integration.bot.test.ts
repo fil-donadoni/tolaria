@@ -591,7 +591,7 @@ describe("bot resolution-choice full path — discard-hand mana-aware (issue #24
  *  player entering its UNTAP step with Winter Orb (land cap 1) and two tapped
  *  lands of differing card value in play; the dispatcher enqueues a count
  *  `{ min: 0, max: 1 }` `untap-pick` choice for the bot. */
-function makeWinterOrbState(): GameState {
+function makeWinterOrbState({ libraryTapped = true } = {}): GameState {
     const orb = makeInstance(WINTER_ORB, {
         id: "orb",
         controllerId: BOT,
@@ -603,7 +603,7 @@ function makeWinterOrbState(): GameState {
         controllerId: BOT,
         ownerId: BOT,
         zone: "battlefield",
-        isTapped: true,
+        isTapped: libraryTapped,
     });
     const forest = makeInstance(FOREST, {
         id: "bot-forest",
@@ -684,6 +684,39 @@ describe("bot resolution-choice full path — untap-pick (Winter Orb, issue #325
         const forest = bot.battlefield.find((c) => c.id === "bot-forest")!;
         expect(library.isTapped).toBe(false);
         expect(forest.isTapped).toBe(true);
+    });
+
+    // Issue #9806 (Bot fault `ladder-exhausted`, choice/untap-pick): the cap's
+    // land filter alone admits an UNTAPPED land. The best-first policy picked
+    // it (Library of Alexandria outvalues a tapped Forest), the commit refused
+    // it ("Card is not tapped", CR 502.3 — only a tapped permanent untaps) and
+    // every retry repeated the same pick until the fault ladder ran out.
+    it("never proposes an already-untapped land — untaps the tapped one; queue drains", async () => {
+        const state = makeWinterOrbState({ libraryTapped: false });
+        expect(state.pendingChoices?.[0]?.kind).toBe("untap-pick");
+
+        const projected = projectPublicState(state, 1, BOT);
+        const view = buildBotView(projected, BOT);
+        expect(view.owedChoice?.candidates.map((c) => c.id)).toEqual([
+            "bot-forest",
+        ]);
+        const action = decideBotAction(view);
+        if (action.kind !== "resolution-choice") throw new Error("unreachable");
+        expect(action.cardInstanceIds).toEqual(["bot-forest"]);
+
+        const move = botActionToMove(action, projected, BOT);
+        if (!move) throw new Error("unreachable");
+        await executeMove(move, {
+            gameId: "g" as never,
+            botId: BOT,
+            mutations: engineMutations(state),
+        });
+
+        expect(state.pendingChoices).toBeUndefined();
+        const bot = state.players.find((p) => p.id === BOT)!;
+        expect(
+            bot.battlefield.find((c) => c.id === "bot-forest")!.isTapped
+        ).toBe(false);
     });
 });
 

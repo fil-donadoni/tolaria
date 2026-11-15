@@ -793,6 +793,13 @@ export function untapStep(state: GameState): void {
                         : undefined,
             },
             count: { min: 0, max: r.maxUntap },
+            // CR 502.3 (issue #9806) — the eligible set, computed once here,
+            // is the allow-list every reader intersects: the Bot's candidate
+            // pool (`readChoiceZone`), the UI highlight and the submit
+            // validator. A filter alone admits an UNTAPPED land matching the
+            // cap's `types`, which the Bot then picked and the commit refused
+            // ("Card is not tapped") until the fault ladder ran out.
+            candidateIds: eligibles.map((c) => c.id),
 
             prompt: r.oracleText,
         });
