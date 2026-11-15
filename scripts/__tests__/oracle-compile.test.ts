@@ -502,13 +502,9 @@ describe("the committed lockfile", () => {
         // Premodern-legal lands (mana-ability + triggered) took the pool to
         // 1272. Headroom left so the next queued retirements do not each
         // red this floor.
-        //
-        // Floor lowered from 1250 to 1200 (issue #4033): retiring four
-        // Premodern-legal cards (Basalt Monolith, Faerie Conclave, Grim
-        // Monolith, Treetop Village) took the pool to 1245.
         const premodern = deriveFormats(lock!.cards, poolOracleIds()).premodern;
         expect(premodern.total).toBe(5375);
-        expect(premodern.pool).toBeGreaterThanOrEqual(1200);
+        expect(premodern.pool).toBeGreaterThanOrEqual(1250);
     });
 });
 
