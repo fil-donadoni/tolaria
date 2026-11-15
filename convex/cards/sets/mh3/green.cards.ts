@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { PermanentView, TriggerStateView } from "../../types";
+import type { ManaCost, PermanentView, TriggerStateView } from "../../types";
 import { defineCard, PERMANENT_TYPES } from "../../types";
 import { ELDRAZI_SPAWN_TOKEN, GREEN_INSECT_TOKEN } from "../../sharedTokens";
 import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
@@ -11,6 +11,8 @@ import { eternalizeAbility } from "../../abilities/eternalize";
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 import { adaptAbility } from "../../abilities/adapt";
 import { counterAddedTrigger } from "../../abilities/triggers/counterAddedTrigger";
+import { leftTrigger } from "../../abilities/triggers/leftTrigger";
+import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 
 /** CR 111 — Fanatic of Rhonas's own printed eternalize token (tmh3 #15, a 4/4
  *  black Token Creature — Zombie Snake Druid). Pinned by hand: an eternalize token
@@ -175,6 +177,85 @@ export const baskingBroodscale = defineCard(() => ({
                     ],
                 },
             ],
+        }),
+    ],
+}));
+
+// Thief of Existence — {1}{C}{G} Creature — Eldrazi, 3/4 (MH3 174). "Devoid.
+// When you cast this spell, exile up to one target noncreature, nonland
+// permanent an opponent controls with mana value 4 or less. If you do, Thief of
+// Existence gains 'When this creature leaves the battlefield, target opponent
+// draws a card.'"
+//
+// A cast trigger (CR 603.2 / CR 113.6k: it triggers while the spell is on the
+// stack, `scope: "self"`) whose "up to one target" is a real announced target
+// (CR 603.3d, `count 0..1`; the filter is `excludeTypes` Creature + Land,
+// opponent's permanent, `mvFilter.max` 4). "If you do" is the `exile` Op's
+// own `bind`, read by `boundMatchesFilter`: uncaptured (no target chosen, or it
+// became illegal, CR 608.2b) reads false. The grant aims `grantAbility` at
+// `$source`, the permanent SPELL on the stack: CR 400.7a carries an effect that
+// changes a permanent spell's characteristics onto the permanent it becomes, so
+// the leave trigger rides across the move (entry grant rider, issue #9453).
+// The granted trigger is a `triggeredGrantTemplates` entry with its own
+// opponent player target (CR 603.3d). Devoid is the shared `devoid` keyword.
+// hand-tail: When you cast this spell, exile up to one target noncreature, nonland permanent an opponent controls with mana value 4 or less. If you do, {self} gains "When this creature leaves the battlefield, target opponent draws a card." (#8638)
+export const thiefOfExistence = defineCard(() => ({
+    id: "328b02ca-d8eb-401d-9c41-93f8eb909312", // MH3 174
+    rarity: "rare",
+    name: "Thief of Existence",
+    oracleText:
+        'Devoid (This card has no color.)\nWhen you cast this spell, exile up to one target noncreature, nonland permanent an opponent controls with mana value 4 or less. If you do, Thief of Existence gains "When this creature leaves the battlefield, target opponent draws a card."',
+    manaCost: { X: 1, C: 1, G: 1 } as ManaCost,
+    types: ["Creature"],
+    subtypes: ["Eldrazi"],
+    power: 3,
+    toughness: 4,
+    staticAbilities: ["devoid"],
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "thief-of-existence-cast-exile",
+            oracleText:
+                'When you cast this spell, exile up to one target noncreature, nonland permanent an opponent controls with mana value 4 or less. If you do, Thief of Existence gains "When this creature leaves the battlefield, target opponent draws a card."',
+            scope: "self",
+            targetRequirement: {
+                type: [...PERMANENT_TYPES],
+                controller: "opponent",
+                excludeTypes: ["Creature", "Land"],
+                mvFilter: { max: 4 },
+                count: { min: 0, max: 1 },
+            },
+            effects: [
+                { op: "exile", target: { target: 0 }, bind: "$exiled" },
+                {
+                    op: "if",
+                    predicate: {
+                        boundMatchesFilter: { ref: "$exiled" },
+                        filter: {},
+                    },
+                    then: [
+                        {
+                            op: "grantAbility",
+                            target: { ref: "$source" },
+                            grantedTriggeredId:
+                                "thief-of-existence-granted-draw",
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+    triggeredGrantTemplates: [
+        leftTrigger({
+            id: "thief-of-existence-granted-draw",
+            oracleText:
+                "When this creature leaves the battlefield, target opponent draws a card.",
+            scope: "self",
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            effects: [{ op: "draw", player: { target: 0 }, count: 1 }],
         }),
     ],
 }));
