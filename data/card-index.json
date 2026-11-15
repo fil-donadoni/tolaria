@@ -14217,7 +14217,9 @@
         "oracleId": "fedbd40b-e3a5-449c-a8a3-b42e9da191a9",
         "firstSet": "tsp",
         "firstPrintId": "1d7a1357-debd-49b0-9fd5-560d5b3f589e",
-        "firstPrintSet": "tsp"
+        "firstPrintSet": "tsp",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Chrome Cat",
@@ -14513,7 +14515,9 @@
         "oracleId": "f25351e3-539b-4bbc-b92d-6480acf4d722",
         "firstSet": "arn",
         "firstPrintId": "f4e32327-380d-471e-813b-4c27477787ce",
-        "firstPrintSet": "arn"
+        "firstPrintSet": "arn",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "City of Shadows",
@@ -17481,7 +17485,9 @@
         "oracleId": "e9a7dede-3968-4b0e-a707-419d46a6fec9",
         "firstSet": "pls",
         "firstPrintId": "7caad74f-c0d0-4eca-94be-b89a2c9a3980",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Crosis's Charm",
@@ -18601,7 +18607,9 @@
         "oracleId": "19b58ec9-bb88-4193-8ea8-c8f09ceec1ed",
         "firstSet": "pls",
         "firstPrintId": "752f6f0c-af30-4937-b4a7-48f493e007a0",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Darigaaz's Charm",
@@ -23365,7 +23373,9 @@
         "oracleId": "d8b57707-796d-4488-8f91-65bb75bc6281",
         "firstSet": "pls",
         "firstPrintId": "85f10cee-6a63-438e-a9df-6b902dd025b8",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Dromar's Charm",
@@ -68269,7 +68279,9 @@
         "oracleId": "e13289e5-370b-435b-a38e-cf57c3078cec",
         "firstSet": "pls",
         "firstPrintId": "740fa25d-9c1f-44eb-9eb4-0dd514cb315a",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Ritual of Rejuvenation",
@@ -89463,7 +89475,9 @@
         "oracleId": "7b2c7758-2b89-49ff-8838-8dc9880c7209",
         "firstSet": "pls",
         "firstPrintId": "8bae2458-b54f-426a-ad40-13529a73c423",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Triangle of War",

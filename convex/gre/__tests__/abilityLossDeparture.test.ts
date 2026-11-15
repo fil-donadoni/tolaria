@@ -43,7 +43,7 @@ const STAR = getDefinition("1d7a1357-debd-49b0-9fd5-560d5b3f589e").id;
 const SERRA = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f").id; // 4/4 flying, vigilance
 const BEARS = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095").id; // vanilla 2/2
 const PLUS1 = "oko-thief-of-crowns-plus1";
-const STAR_DRAW = "chromatic-star-death-draw";
+const STAR_DRAW = "chromatic-star-trigger";
 
 type Destination = "graveyard" | "exile" | "hand" | "library";
 const DESTINATIONS: readonly Destination[] = [

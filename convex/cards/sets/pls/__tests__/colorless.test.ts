@@ -108,27 +108,27 @@ function fireLairEtb(
 const LAIR_CYCLE = [
     {
         def: crosissCatacombs,
-        triggerId: "crosiss-catacombs-etb",
+        triggerId: "crosis-s-catacombs-trigger",
         colors: ["U", "B", "R"] as const,
     },
     {
         def: darigaazsCaldera,
-        triggerId: "darigaazs-caldera-etb",
+        triggerId: "darigaaz-s-caldera-trigger",
         colors: ["B", "R", "G"] as const,
     },
     {
         def: dromarsCavern,
-        triggerId: "dromars-cavern-etb",
+        triggerId: "dromar-s-cavern-trigger",
         colors: ["W", "U", "B"] as const,
     },
     {
         def: rithsGrove,
-        triggerId: "riths-grove-etb",
+        triggerId: "rith-s-grove-trigger",
         colors: ["R", "G", "W"] as const,
     },
     {
         def: trevasRuins,
-        triggerId: "trevas-ruins-etb",
+        triggerId: "treva-s-ruins-trigger",
         colors: ["G", "W", "U"] as const,
     },
 ];
@@ -206,7 +206,7 @@ describe("Planeshift Lair cycle (CR 117.3a / 701.21 / 400.7, issue #1938)", () =
                 makePlayer("p2"),
             ],
         });
-        fireLairEtb(state, enteringLair, "crosiss-catacombs-etb");
+        fireLairEtb(state, enteringLair, "crosis-s-catacombs-trigger");
         const head = state.pendingChoices![0];
         // Neither the entering Lair nor the pre-existing Lair is offered —
         // only the genuinely non-Lair land.
@@ -221,7 +221,7 @@ describe("Planeshift Lair cycle (CR 117.3a / 701.21 / 400.7, issue #1938)", () =
                 makePlayer("p2"),
             ],
         });
-        fireLairEtb(state, lair, "crosiss-catacombs-etb");
+        fireLairEtb(state, lair, "crosis-s-catacombs-trigger");
         // The return leg is unpayable and nothing can remedy it, so the may-pay
         // is auto-declined (CR 118.12a "unless" resolves as not paid): no prompt.
         expect(state.pendingChoices ?? []).toHaveLength(0);
@@ -238,7 +238,7 @@ describe("Planeshift Lair cycle (CR 117.3a / 701.21 / 400.7, issue #1938)", () =
                 makePlayer("p2"),
             ],
         });
-        fireLairEtb(state, lair, "crosiss-catacombs-etb");
+        fireLairEtb(state, lair, "crosis-s-catacombs-trigger");
 
         const projected = projectPublicState(state, 1, "p1");
         const head = projected.pendingChoices![0];

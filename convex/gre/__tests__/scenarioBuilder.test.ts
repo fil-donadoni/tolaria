@@ -33,8 +33,8 @@ import {
 const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
 import { arboria } from "../../cards/sets/leg/green.cards";
 import { rasputinDreamweaver } from "../../cards/sets/leg/multicolor.cards";
-import { cityOfBrass } from "../../cards/sets/arn/colorless.cards";
 import { fatalPush } from "../../cards/sets/aer/black.cards";
+import { getCardByName } from "../../cards";
 import { startingTown } from "../../cards/sets/fin/colorless.cards";
 import { forest } from "../../cards/sets/lea/colorless.cards";
 import {
@@ -3066,7 +3066,7 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
                     manaCommitted: true,
                 },
                 {
-                    name: cityOfBrass().name,
+                    name: getCardByName("City of Brass").name,
                     owner: "me",
                     tapped: true,
                     tapTriggerCommitted: true,
@@ -3091,9 +3091,10 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
         });
 
         expect(find(state, 0, forest().id)?.manaCommitted).toBe(true);
-        expect(find(state, 0, cityOfBrass().id)?.tapTriggerCommitted).toBe(
-            true
-        );
+        expect(
+            find(state, 0, getCardByName("City of Brass").id)
+                ?.tapTriggerCommitted
+        ).toBe(true);
         expect(
             find(state, 0, rasputinDreamweaver().id)?.startedTurnUntapped
         ).toBe(true);
@@ -3120,7 +3121,7 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
                     manaCommitted: true,
                 },
                 {
-                    name: cityOfBrass().name,
+                    name: getCardByName("City of Brass").name,
                     owner: "opp",
                     tapped: true,
                     tapTriggerCommitted: true,
@@ -3149,8 +3150,9 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
         expect(myForest?.manaCommitted).toBe(true);
         expect(myForest?.tapTriggerCommitted).toBeUndefined();
         expect(
-            lowered.cards.find((c) => c.name === cityOfBrass().name)
-                ?.tapTriggerCommitted
+            lowered.cards.find(
+                (c) => c.name === getCardByName("City of Brass").name
+            )?.tapTriggerCommitted
         ).toBe(true);
         expect(
             lowered.cards.find((c) => c.name === RASPUTIN)?.startedTurnUntapped
@@ -3161,9 +3163,10 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
 
         const rebuilt = buildStateFromScenario(base, lowered);
         expect(find(rebuilt, 0, forest().id)?.manaCommitted).toBe(true);
-        expect(find(rebuilt, 1, cityOfBrass().id)?.tapTriggerCommitted).toBe(
-            true
-        );
+        expect(
+            find(rebuilt, 1, getCardByName("City of Brass").id)
+                ?.tapTriggerCommitted
+        ).toBe(true);
         expect(
             find(rebuilt, 0, rasputinDreamweaver().id)?.startedTurnUntapped
         ).toBe(true);

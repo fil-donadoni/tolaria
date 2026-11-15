@@ -70,7 +70,7 @@ describe("Chromatic Star (any-colour sac + dies-cantrip, CR 605 / 603.6c)", () =
                 makePlayer("p2"),
             ],
         });
-        resolveTrigger(state, star, "chromatic-star-death-draw", {
+        resolveTrigger(state, star, "chromatic-star-trigger", {
             type: "PERMANENT_LEFT",
             instanceId: "star",
             controllerId: "p1",
