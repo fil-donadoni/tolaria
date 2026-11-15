@@ -1,4 +1,5 @@
 import { ConvexError, v, type GenericId, type Infer } from "convex/values";
+import { findOutsideGamePlayable } from "./gre/outsideGame";
 import type { GenericMutationCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { assertIsAdmin, getCurrentUser, isAdminUser } from "./auth";
@@ -4251,7 +4252,13 @@ export const playCard = mutation({
                       ? state.players
                             .flatMap((p) => p.exile)
                             .find((c) => c.id === args.cardInstanceId)
-                      : undefined;
+                      : sourceZone === "outside-game"
+                        ? findOutsideGamePlayable(
+                              state,
+                              player,
+                              args.cardInstanceId
+                          )
+                        : undefined;
         if (!playSource) throw new Error("Card not in hand");
         const face: PlayLandFace = args.face ?? "front";
         if (!args.skipValidation) {

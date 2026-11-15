@@ -7120,6 +7120,13 @@ export interface SpellContext {
      *  battlefield `extraLandDrops` scan; additive, cleared at CLEANUP. Does
      *  NOT lift a "can't play lands" restriction (CR 101.2). */
     grantExtraLandDrops: (playerId: string, count: number) => void;
+    /** CR 400.11b / 514.2 — grants `playerId` `count` plays of a card they own
+     *  from outside the game this turn (Wish: "You may play a card you own
+     *  from outside the game this turn"). Accumulates on
+     *  `state.outsideGamePlaysThisTurn`; each cast or land play from the
+     *  outside-the-game pool spends one; cleared at CLEANUP. Names no card:
+     *  the player chooses which one when they play it, under normal timing. */
+    grantOutsideGamePlays: (playerId: string, count: number) => void;
     /** CR 504.1 (issue #1097 — Elfhame Sanctuary's "you skip your draw step
      *  this turn") — marks `playerId` to skip their OWN draw step the next
      *  time it is reached this turn. A one-shot flag armed at whatever step

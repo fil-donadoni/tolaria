@@ -16,6 +16,11 @@
 // scan + SBA pass, but NOT the caller's surrounding concerns (game.ts owns
 // validation / seq / persistence; applyMove owns its search framing).
 
+import {
+    bringIntoHandFromOutsideGame,
+    findOutsideGamePlayable,
+    spendOutsideGamePlay,
+} from "./outsideGame";
 import { findPermanent } from "./lookup";
 import { isFaceDownExile } from "./faceDown";
 import type {
@@ -654,6 +659,14 @@ export function applyPlayLandFromLibraryTop(
  *  module's historic home, so every existing importer is unaffected. */
 export type { PlayLandSourceZone, LandEntrySourceZone } from "./state";
 
+/** Where a land play starts: one of the {@link PlayLandSourceZone} zones, or
+ *  `"outside-game"` — CR 400.11, not a zone — for a land played from its
+ *  owner's outside-the-game pool under an outside-game play permission. Never
+ *  a PARK origin: `applyPlayLandFromAnyZone` brings that card into its owner's
+ *  hand as the play begins, so every entry choice it raises finds it in a
+ *  zone. */
+export type PlayLandOrigin = PlayLandSourceZone | "outside-game";
+
 /** Resolves WHICH zone `cardInstanceId` is being played from, or `null` when
  *  no permitted source holds it. The permission checks are the same ones
  *  `getLegalActions` uses, so this never widens legality — it only answers
@@ -672,8 +685,13 @@ export function resolvePlayLandSourceZone(
     state: GameState,
     player: PlayerState,
     cardInstanceId: string
-): PlayLandSourceZone | null {
+): PlayLandOrigin | null {
     if (player.hand.some((c) => c.id === cardInstanceId)) return "hand";
+    // CR 400.11b / 116.2a — a land the player owns outside the game, under an
+    // outside-game play permission.
+    if (findOutsideGamePlayable(state, player, cardInstanceId)) {
+        return "outside-game";
+    }
     if (isPlayableLibraryTopLand(state, player, cardInstanceId)) {
         return "library-top";
     }
@@ -752,6 +770,19 @@ export function applyPlayLandFromAnyZone(
         }
         case "exile":
             return applyPlayLandFromExile(state, player, cardInstanceId, face);
+        case "outside-game":
+            // CR 400.11b / 116.2a — the permission is spent as the special
+            // action is taken, like a graveyard play permission above. Outside
+            // the game is no zone (CR 400.11), so the land passes through its
+            // owner's hand on the way in: the hand play is then the one
+            // transition that puts it onto the battlefield, counts the land
+            // drop (CR 305.2) and parks any CR 614.12 / 614.1c entry choice
+            // with the card in a zone. Nothing observes the hand in between.
+            spendOutsideGamePlay(state, player.id);
+            if (!bringIntoHandFromOutsideGame(player, cardInstanceId)) {
+                return null;
+            }
+            return applyPlayLand(state, player, cardInstanceId, face);
         case null:
             return null;
     }
