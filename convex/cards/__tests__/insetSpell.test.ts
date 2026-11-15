@@ -89,11 +89,13 @@ describe("the twin is INVISIBLE to every enumerator (CR 715.2c)", () => {
 
     it("is not in getAllCards()", () => {
         expect(getAllCards().some((c) => c.id === twinId)).toBe(false);
-        expect(getAllCards().filter((c) => c.name === PARENT)).toHaveLength(1);
     });
 
     it("is not in getAllCatalogueCards()", () => {
         expect(getAllCatalogueCards().some((c) => c.id === twinId)).toBe(false);
+        expect(
+            getAllCatalogueCards().filter((c) => c.name === PARENT)
+        ).toHaveLength(1);
     });
 
     it("is not in getAllCardNames()", () => {
