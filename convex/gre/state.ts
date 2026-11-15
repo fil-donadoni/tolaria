@@ -27973,8 +27973,8 @@ export function payMayPayCost(
                 action: "return",
             });
         } else {
-            // The whole sacrifice leg is ONE cost payment (CR 603.3b /
-            // 608.2i occurrence): a victim a CR 614 graveyard-bound replacement
+            // The whole sacrifice leg is ONE cost payment (CR 603.2c, one
+            // event): a victim a CR 614 graveyard-bound replacement
             // redirects to exile joins one batched CARDS_EXILED.
             withCardsExiledBatch(state, () => {
                 for (const v of victims) {
