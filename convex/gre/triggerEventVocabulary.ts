@@ -85,6 +85,17 @@ export const EVENT_FIELD_KINDS: {
         sourceStaticAbilities: "scalar",
         encodedCardIds: "scalar",
     },
+    // CR 615.1a — damage a shield prevented. `preventionWatchId` names the
+    // delayed trigger that fired on it; the fired trigger never reads it back
+    // (its body reads `amount`), so it travels verbatim.
+    DAMAGE_PREVENTED: {
+        sourceInstanceId: "object",
+        target: "target",
+        amount: "scalar",
+        isCombat: "scalar",
+        sourceColors: "scalar",
+        preventionWatchId: "scalar",
+    },
     // CR 500.1 — a step or phase began.
     PHASE_BEGIN: { phase: "scalar", activePlayerId: "player" },
     // CR 603.10 — the dying creature's last known information. The creature

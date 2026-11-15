@@ -6425,9 +6425,48 @@ export const OP_EXECUTORS: {
             // binding — no legal source to choose — creates no shield.
             const sourceIds = resolvePicks(ctx, op.source);
             if (!sourceIds || sourceIds.length === 0) return;
+            // CR 615.1a / 608.2 — "dealt TO YOU": the recipient player is
+            // resolved once, here; a gone player skips the shield.
+            const recipientPlayerId =
+                op.to === undefined
+                    ? undefined
+                    : resolvePlayerRef(ctx, op.to.player);
+            if (op.to !== undefined && recipientPlayerId === undefined) return;
+            // CR 603.7a / 603.7b — "whenever damage … is prevented this way
+            // this turn": the delayed trigger is created WITH the shield, and
+            // the shield reports each prevention to that trigger's id, so no
+            // other shield's preventions reach it. Its colour words are read
+            // through this ability's text changes (CR 612) once, as the
+            // effect is created.
+            const watch = op.whenPrevented;
+            const preventionWatchId =
+                watch === undefined
+                    ? undefined
+                    : ctx.scheduleDelayedTrigger(
+                          ctx.sourceCardId,
+                          INLINE_DELAYED_TRIGGER_ID,
+                          "this-turn-damage-prevented-this-way",
+                          {},
+                          undefined,
+                          {
+                              oracleText: watch.oracleText,
+                              effects: watch.effects,
+                          },
+                          undefined,
+                          undefined,
+                          watch.sourceColors?.map((c) =>
+                              ctx.substituteColorWord(c)
+                          )
+                      );
             ctx.preventAllDamageFromSources({
                 sourceIds,
                 ...(op.combatOnly ? { combatOnly: true } : {}),
+                ...(recipientPlayerId === undefined
+                    ? {}
+                    : { recipientPlayerId }),
+                ...(preventionWatchId === undefined
+                    ? {}
+                    : { preventionWatchId }),
             });
             return;
         }
