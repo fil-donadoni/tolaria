@@ -254,17 +254,16 @@ describe("copying a permanent spell (CR 707.10, CR 707.10f)", () => {
         const original = pushSpell(state, grizzlyBears().id, "p2");
         original.chosenX = 3;
         original.dynamicHasteFromMana = true;
-        original.graveyardPermissionRider = {
-            sourceCardId: "source",
-            abilityId: "rider",
-        };
+        original.entryGrantRiders = [
+            { sourceCardId: "source", abilityId: "rider" },
+        ];
         pushSpell(state, COPIER_ID, "p1", [{ type: "spell", id: original.id }]);
         resolveTopOfStack(state);
         const copy = state.stack[state.stack.length - 1];
 
         expect(copy.chosenX).toBe(3);
         expect(copy.dynamicHasteFromMana).toBeUndefined();
-        expect(copy.graveyardPermissionRider).toBeUndefined();
+        expect(copy.entryGrantRiders).toBeUndefined();
     });
 });
 

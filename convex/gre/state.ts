@@ -3,6 +3,7 @@ import {
     type AnimateSpec,
     type AsEntersChoice,
     type AuthoredEntryState,
+    type EntryGrantRider,
     type AbilityMode,
     type CardDefinition,
     type SpellMode,
@@ -4631,12 +4632,12 @@ function finalizeSpellResolution(
         // `entersTapped` shape), so the CR 722.3c exiled copy exists before
         // any ETB trigger is put on the stack.
         applyEntersPrepared(state, item);
-        // Issue #1239 — the rider of the graveyard play permission
-        // this spell was cast with (Serra Paragon), carried across the stack
-        // by the item itself, so it applies even if the permission's source
-        // left meanwhile. Granted before the ETB scan, as the permanent
-        // enters.
-        applyGraveyardPermissionRider(state, item);
+        // CR 400.7a — the entry grant riders this spell carries: the rider of
+        // the graveyard play permission it was cast with (Serra Paragon), and
+        // a cast trigger's grant to the spell itself. Carried across the stack
+        // by the item, so they apply even if the granting source left
+        // meanwhile. Granted before the ETB scan, as the permanent enters.
+        applyEntryGrantRiders(state, item);
         emitPermanentEntered(state, item, {
             wasCast: !isCopyOfSpell,
             enteredFromGraveyard: item.castFromZone === "graveyard",
@@ -5279,32 +5280,68 @@ function applyDeclinedEntryKeywords(
     }
 }
 
-/** Issue #1239 — converts the graveyard play permission rider a
- *  card carries (`graveyardPermissionRider`, stamped where the permission was
- *  spent) into an INDEFINITE triggered-ability grant on the permanent it has
- *  just become: no duration, no aura link, so it ends only when the permanent
- *  leaves the battlefield — the shape `grantTriggeredAbilityPermanent` writes,
- *  and independent of the granting source still being in play. Consumes the
- *  rider either way. Called by each entry the stamp can reach: the land-play
- *  settlement and the permanent branch of `finalizeSpellResolution`.
- *  `rider` is passed when the caller had to read it before a reset that
- *  clears the field (`settleEnteredLand`). */
-export function applyGraveyardPermissionRider(
+/** Converts the entry grant riders a card carries (`entryGrantRiders`,
+ *  {@link EntryGrantRider}) into INDEFINITE triggered-ability grants on the
+ *  permanent it has just become: no duration, no aura link, so each ends only
+ *  when the permanent leaves the battlefield — the shape
+ *  `grantTriggeredAbilityPermanent` writes, and independent of the granting
+ *  source still being in play. Consumes the riders either way. Called by each
+ *  entry a stamp can reach: the land-play settlement and the permanent branch
+ *  of `finalizeSpellResolution`. `riders` is passed when the caller had to
+ *  read them before a reset that clears the field (`settleEnteredLand`). */
+export function applyEntryGrantRiders(
     state: GameState,
     card: CardInstanceState,
-    rider: CardInstanceState["graveyardPermissionRider"] = card.graveyardPermissionRider
+    riders: CardInstanceState["entryGrantRiders"] = card.entryGrantRiders
 ): void {
-    delete card.graveyardPermissionRider;
-    if (!rider) return;
+    delete card.entryGrantRiders;
+    if (!riders?.length) return;
     card.grantedTriggeredAbilities = [
         ...(card.grantedTriggeredAbilities ?? []),
-        // CR 613.7 timestamp — see `grantActivatedAbility`.
-        {
+        // CR 613.7 timestamp — see `grantActivatedAbility`, one per grant in
+        // the order the riders were stamped.
+        ...riders.map((rider) => ({
             sourceCardId: rider.sourceCardId,
             abilityId: rider.abilityId,
             seq: allocStaticTimestamp(state),
-        },
+        })),
     ];
+}
+
+/** CR 400.7a — "Effects from spells, activated abilities, and triggered
+ *  abilities that change the characteristics … of a permanent spell on the
+ *  stack continue to apply to the permanent that spell becomes." An
+ *  indefinite triggered-ability grant aimed at a permanent SPELL (a cast
+ *  trigger's "this spell gains '…'") is recorded as an entry grant rider on
+ *  the stack item and applied as the permanent enters
+ *  (`applyEntryGrantRiders`); the spell has no `grantedTriggeredAbilities`
+ *  meanwhile, because the granted ability functions only on the battlefield
+ *  (CR 113.6). A no-op when `spellId` names no SPELL on the stack (it was
+ *  countered, CR 400.7 — the grant has no object to apply to) or a spell that
+ *  can never become a permanent (an instant or sorcery). Idempotent like the
+ *  battlefield grant: an identical rider is not stamped twice. */
+function stampSpellEntryGrant(
+    state: GameState,
+    spellId: string,
+    rider: EntryGrantRider
+): void {
+    const spell = state.stack.find(
+        (item) => item.id === spellId && isSpellStackItem(item)
+    );
+    if (!spell) return;
+    const isPermanentSpell = spell.types.some((t) =>
+        CASTABLE_PERMANENT_TYPES.includes(
+            t as (typeof CASTABLE_PERMANENT_TYPES)[number]
+        )
+    );
+    if (!isPermanentSpell) return;
+    const already = (spell.entryGrantRiders ?? []).some(
+        (r) =>
+            r.sourceCardId === rider.sourceCardId &&
+            r.abilityId === rider.abilityId
+    );
+    if (already) return;
+    spell.entryGrantRiders = [...(spell.entryGrantRiders ?? []), { ...rider }];
 }
 
 /** The next free CR 613.7 timestamp: one past every stamp on the board. The
@@ -13411,7 +13448,7 @@ function cloneSpellOntoStack(
     // haste its mana bought (Arena of Glory) and the rider of the graveyard
     // permission it was cast with (Serra Paragon).
     delete copy.dynamicHasteFromMana;
-    delete copy.graveyardPermissionRider;
+    delete copy.entryGrantRiders;
     // CR 707.10 (issue #7211) — a copy copies the DECISIONS made for the
     // original, never the mana that paid for it: "Because mana isn't an object,
     // a copy of Dawnglow Infusion won't cause you to gain any life, no matter
@@ -18276,6 +18313,13 @@ export function buildSpellContext(
             sourceCardId: string,
             abilityId: string
         ): void {
+            if (target.type === "spell") {
+                stampSpellEntryGrant(state, target.id, {
+                    sourceCardId,
+                    abilityId,
+                });
+                return;
+            }
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
