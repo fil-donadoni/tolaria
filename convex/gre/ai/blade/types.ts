@@ -214,6 +214,16 @@ export type BladeSetupStep =
      *  `choose` names cards, never options. Throws when no pending choice
      *  offers that id, or when the answer leaves it at the head. */
     | { kind: "choose-option"; option: string }
+    /** Answer the head `trigger-order` choice (CR 603.3b) through the search's
+     *  own applier. `resolveFirst` names the triggers' SOURCE cards, the one
+     *  that resolves first (topmost) first, and must name every trigger the
+     *  choice orders. Issue #9698: a choice the search answers with ONE
+     *  canonical order (`choiceCandidates.ts`) sat in front of every position
+     *  two different own triggers open — a bounce land entering beside an
+     *  "untap it" trigger — and `choose` names cards, never stack items.
+     *  Throws when no trigger-order choice is pending, when a name matches no
+     *  (further) trigger of the slice, or when the names do not cover it. */
+    | { kind: "order-triggers"; resolveFirst: string[] }
     /** Submit an engine-raised target selection (a spell copy's retarget,
      *  CR 707.10c) naming a seat, through the search's own applier, for the
      *  seat it is owed to. Throws when no selection is pending, or when that

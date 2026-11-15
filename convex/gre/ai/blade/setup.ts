@@ -969,6 +969,67 @@ function applyChoose(
     }
 }
 
+/** Issue #9698 — answer the head `trigger-order` choice (CR 603.3b) with the
+ *  slice ordered by SOURCE name, topmost first, through the search's own
+ *  applier. See the step's doc in `types.ts`. */
+function applyOrderTriggers(
+    state: GameState,
+    label: string,
+    step: Extract<BladeSetupStep, { kind: "order-triggers" }>
+): void {
+    const head = state.pendingChoices?.[0];
+    if (head?.kind !== "trigger-order") {
+        throw new BladeSetupError(
+            label,
+            step,
+            "no trigger-order choice is pending."
+        );
+    }
+    const slice = head.candidateIds ?? [];
+    const batch = state.pendingTriggerBatch ?? [];
+    const ids: string[] = [];
+    for (const name of step.resolveFirst) {
+        const defId = definitionIdForName(name);
+        const item = batch.find(
+            (it) =>
+                slice.includes(it.id) &&
+                !ids.includes(it.id) &&
+                (it.card as { id?: string } | undefined)?.id === defId
+        );
+        if (!item) {
+            throw new BladeSetupError(
+                label,
+                step,
+                `no (further) trigger from "${name}" in the pending trigger-order slice.`
+            );
+        }
+        ids.push(item.id);
+    }
+    if (ids.length !== slice.length) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `the order names ${ids.length} of the slice's ${slice.length} triggers.`
+        );
+    }
+    const answer: Move = {
+        kind: "resolution-choice",
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds: ids,
+    };
+    moveObserver?.(head.playerId, answer, state);
+    applyMoveInSearch(state, head.playerId, answer);
+    if (state.pendingChoices?.[0] === head) {
+        throw new BladeSetupError(
+            label,
+            step,
+            "the trigger-order choice rejected the answer and is still pending."
+        );
+    }
+}
+
 /** Issue #9148 — answer the head OPTION pick (an `option-pick`'s author ids,
  *  never card names) through the search's own applier. See the step's doc in
  *  `types.ts`. */
@@ -1169,6 +1230,9 @@ function applyBladeSetupSteps(
                 break;
             case "choose-option":
                 applyChooseOption(state, scenario.label, step);
+                break;
+            case "order-triggers":
+                applyOrderTriggers(state, scenario.label, step);
                 break;
             case "submit-player-target":
                 applySubmitPlayerTarget(state, scenario.label, step);
