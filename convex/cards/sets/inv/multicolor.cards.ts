@@ -1184,29 +1184,6 @@ export const blazingSpecter = defineCard(() => ({
     ],
 }));
 
-// Bloodstone Cameo — {3} Artifact. "{T}: Add {B} or {R}." (CR 605.1a
-// choice-of-color mana ability — the Fellwar Stone / Nomadic Elf
-// `manaChoices` shape, restricted to the two printed colors instead of
-// "any color.")
-export const bloodstoneCameo = defineCard(() => ({
-    id: "f9db32fa-64b2-4ef6-88f2-28e758d420bb",
-    rarity: "uncommon",
-    name: "Bloodstone Cameo",
-    oracleText: "{T}: Add {B} or {R}.",
-    manaCost: { X: 3 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "bloodstone-cameo-tap",
-            oracleText: "{T}: Add {B} or {R}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ B: 1 }),
-            manaChoices: [{ B: 1 }, { R: 1 }],
-        },
-    ],
-}));
-
 // Plague Spores — {4}{B}{R} Sorcery. "Destroy target nonblack creature and
 // target land. They can't be regenerated." (CR 701.8 destroy +
 // `excludeColors` "nonblack creature" filter, CR 701.19c "can't be
@@ -2038,29 +2015,6 @@ export const savageOffensive = defineCard(() => ({
                     ],
                 },
             ],
-        },
-    ],
-}));
-
-// Troll-Horn Cameo — {3} Artifact. "{T}: Add {R} or {G}." (Colourless,
-// colour-identity RG via its own mana ability — the Bloodstone Cameo
-// choice-of-color shape, this file's BR tranche, ships alongside the true
-// RG gold cards per issue #1078's colour-identity cluster scoping.)
-export const trollHornCameo = defineCard(() => ({
-    id: "42b1ca6c-6ca0-4b02-885a-58cee3fa2aa8",
-    rarity: "uncommon",
-    name: "Troll-Horn Cameo",
-    oracleText: "{T}: Add {R} or {G}.",
-    manaCost: { X: 3 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "troll-horn-cameo-tap",
-            oracleText: "{T}: Add {R} or {G}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ R: 1 }),
-            manaChoices: [{ R: 1 }, { G: 1 }],
         },
     ],
 }));
@@ -3099,125 +3053,6 @@ export const darigaaz = defineCard(() => ({
                     ],
                 },
             ],
-        },
-    ],
-}));
-
-// The five Attendants — {5} Artifact Creature — Golem, 3/3. "{1}, Sacrifice
-// this creature: Add <the paired dragon's three colours>." (CR 605.1a mana
-// ability with a {1} + self-sacrifice cost — the exact Coal Golem shape,
-// `drk/colorless.cards.ts`, generalized from one fixed colour to three.)
-export const crosisAttendant = defineCard(() => ({
-    id: "45edc18c-2046-4d0e-92fe-a6cf4aaf1c6f",
-    rarity: "uncommon",
-    name: "Crosis's Attendant",
-    oracleText: "{1}, Sacrifice this creature: Add {U}{B}{R}.",
-    manaCost: { X: 5 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Golem"],
-    power: 3,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "crosis-attendant-sacrifice-mana",
-            oracleText: "{1}, Sacrifice this creature: Add {U}{B}{R}.",
-            cost: { mana: { X: 1 }, sacrifice: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) =>
-                ctx.addMana({ U: 1, B: 1, R: 1 }),
-            manaProduced: { U: 1, B: 1, R: 1 },
-        },
-    ],
-}));
-
-export const darigaazAttendant = defineCard(() => ({
-    id: "6f22b575-443a-4c06-8e75-d4140cbd3660",
-    rarity: "uncommon",
-    name: "Darigaaz's Attendant",
-    oracleText: "{1}, Sacrifice this creature: Add {B}{R}{G}.",
-    manaCost: { X: 5 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Golem"],
-    power: 3,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "darigaaz-attendant-sacrifice-mana",
-            oracleText: "{1}, Sacrifice this creature: Add {B}{R}{G}.",
-            cost: { mana: { X: 1 }, sacrifice: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) =>
-                ctx.addMana({ B: 1, R: 1, G: 1 }),
-            manaProduced: { B: 1, R: 1, G: 1 },
-        },
-    ],
-}));
-
-export const dromarAttendant = defineCard(() => ({
-    id: "24936fa9-41a3-4da5-91cf-c28fa45f47c9",
-    rarity: "uncommon",
-    name: "Dromar's Attendant",
-    oracleText: "{1}, Sacrifice this creature: Add {W}{U}{B}.",
-    manaCost: { X: 5 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Golem"],
-    power: 3,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "dromar-attendant-sacrifice-mana",
-            oracleText: "{1}, Sacrifice this creature: Add {W}{U}{B}.",
-            cost: { mana: { X: 1 }, sacrifice: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) =>
-                ctx.addMana({ W: 1, U: 1, B: 1 }),
-            manaProduced: { W: 1, U: 1, B: 1 },
-        },
-    ],
-}));
-
-export const rithAttendant = defineCard(() => ({
-    id: "a26e8130-7fe9-4ef4-98af-928814f5b130",
-    rarity: "uncommon",
-    name: "Rith's Attendant",
-    oracleText: "{1}, Sacrifice this creature: Add {R}{G}{W}.",
-    manaCost: { X: 5 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Golem"],
-    power: 3,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "rith-attendant-sacrifice-mana",
-            oracleText: "{1}, Sacrifice this creature: Add {R}{G}{W}.",
-            cost: { mana: { X: 1 }, sacrifice: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) =>
-                ctx.addMana({ R: 1, G: 1, W: 1 }),
-            manaProduced: { R: 1, G: 1, W: 1 },
-        },
-    ],
-}));
-
-export const trevaAttendant = defineCard(() => ({
-    id: "9857af81-fb95-4dc4-b048-9ce4e96d1eca",
-    rarity: "uncommon",
-    name: "Treva's Attendant",
-    oracleText: "{1}, Sacrifice this creature: Add {G}{W}{U}.",
-    manaCost: { X: 5 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Golem"],
-    power: 3,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "treva-attendant-sacrifice-mana",
-            oracleText: "{1}, Sacrifice this creature: Add {G}{W}{U}.",
-            cost: { mana: { X: 1 }, sacrifice: true },
-            useStack: false,
-            effect: (ctx: ActivatedAbilityContext) =>
-                ctx.addMana({ G: 1, W: 1, U: 1 }),
-            manaProduced: { G: 1, W: 1, U: 1 },
         },
     ],
 }));

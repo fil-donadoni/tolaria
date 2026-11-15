@@ -68,10 +68,12 @@ import { crawWurm, grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { illusionaryTerrain } from "../../cards/sets/ice/blue.cards";
 import { forest } from "../../cards/sets/lea/colorless.cards";
 import { lightningBolt } from "../../cards/sets/lea/red.cards";
-import { blackLotus } from "../../cards/sets/lea/colorless.cards";
+
 import { mindStone } from "../../cards/sets/wth/colorless.cards";
 import { kavuChameleon } from "../../cards/sets/inv/green.cards";
 import { motherOfRunes } from "../../cards/sets/ulg/white.cards";
+import { getDefinition } from "../../cards";
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 
 // Index — a one-shot `scryReorder` sorcery (compiled catalogue, state `ready`),
 // the scry-only seat of the issue #1513 ordering test since issue #5151.
@@ -1808,7 +1810,7 @@ describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
         // `noncreatureCardWorth` falls back to — it must still price at the
         // flat floor, not zero — losing the fallback entirely would be its
         // own bug.
-        const state = stateWithLibrarySearch([blackLotus().id]);
+        const state = stateWithLibrarySearch([blackLotus.id]);
         const cands = choiceCandidates(state, state.pendingChoices![0]);
         const lotusCand = cands.find((c) => c.key.includes("Black Lotus"))!;
         expect(lotusCand).toBeDefined();

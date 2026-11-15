@@ -371,8 +371,9 @@ describe("mana abilities, catalogue-wide (CR 605.1a)", () => {
             }
         }
         expect(failures, failures.join("\n\n")).toEqual([]);
-        // The 11 FEM + Invasion sacrifice lands at the time of writing.
-        expect(reached).toBeGreaterThanOrEqual(11);
+        // The 11 FEM + Invasion sacrifice lands at the time of writing; 10 after
+        // Basal Thrull retired to its compiled twin (issue #4026, ADR 0114 §2).
+        expect(reached).toBeGreaterThanOrEqual(10);
     });
 
     it("the sweep is not vacuous — it reached a substantial slice of the catalogue", () => {

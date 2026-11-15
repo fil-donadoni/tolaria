@@ -20,7 +20,7 @@ import {
     makePlayer,
     makeState,
 } from "../cards/__tests__/setup.helper";
-import { blackLotus } from "../cards/sets/lea/colorless.cards";
+
 import type { GameState, PendingTarget } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -29,6 +29,8 @@ import {
     gameStateSeed,
     type Handler,
 } from "./gameMutationHarness.fixture";
+import { getDefinition } from "../cards";
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 
 const GAME_ID = "game-1" as Id<"games">;
 
@@ -124,7 +126,7 @@ describe("selectTarget — distinct targets within one requirement (CR 601.2c)",
     it("rejects picking the SAME permanent twice for a 2-target requirement (Dust to Dust's 'two target artifacts' shape)", async () => {
         const state = twoTargetAnyState({ targetType: "Artifact" });
         state.players[0].battlefield.push(
-            makeInstance(blackLotus().id, {
+            makeInstance(blackLotus.id, {
                 id: "art1",
                 controllerId: "p1",
                 ownerId: "p1",

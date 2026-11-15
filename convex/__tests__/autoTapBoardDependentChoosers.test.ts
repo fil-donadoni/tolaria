@@ -35,7 +35,7 @@ import {
     makeState,
 } from "../cards/__tests__/setup.helper";
 import { thornspireVerge } from "../cards/sets/dsk/index.cards";
-import { fellwarStone } from "../cards/sets/drk/index.cards";
+
 import { blackManaBattery } from "../cards/sets/leg/index.cards";
 import {
     grizzlyBears,
@@ -50,6 +50,8 @@ import {
     gameStateSeed,
     type Handler,
 } from "./gameMutationHarness.fixture";
+import { getDefinition } from "../cards";
+const fellwarStone = getDefinition("dc47e322-f8b8-4685-b035-fda0cc433e6b");
 
 const GAME_ID = "game-1" as Id<"games">;
 const MOUNTAIN = leaMountain().id;
@@ -198,7 +200,7 @@ describe("buildAutoTapSources — Verge land (getManaChoices, own-board chooser,
 
 describe("buildAutoTapSources — Fellwar Stone (manaColorSource, opponent-scanning chooser, issue #2240)", () => {
     it("emits one option per opponent colour, in the shared MANA_COLORS index space — pins a non-zero index to its colour (no aliasing between the planner and the unified option list)", () => {
-        const stone = makeInstance(fellwarStone().id, {
+        const stone = makeInstance(fellwarStone.id, {
             id: "stone",
             controllerId: "p1",
         });
@@ -233,7 +235,7 @@ describe("buildAutoTapSources — Fellwar Stone (manaColorSource, opponent-scann
     });
 
     it("end to end: auto-tap pays a cost only Fellwar Stone can cover (colour read off an OPPONENT's land) via the REAL autoTapForPayment mutation", async () => {
-        const stone = makeInstance(fellwarStone().id, {
+        const stone = makeInstance(fellwarStone.id, {
             id: "stone",
             controllerId: "p1",
         });
@@ -258,7 +260,7 @@ describe("buildAutoTapSources — Fellwar Stone (manaColorSource, opponent-scann
     });
 
     it("end to end with TWO opponent colours: pays a {R} cost via Fellwar Stone's non-zero index — proves the mutation resolves the SAME index the planner emitted, not merely index 0", async () => {
-        const stone = makeInstance(fellwarStone().id, {
+        const stone = makeInstance(fellwarStone.id, {
             id: "stone",
             controllerId: "p1",
         });
@@ -290,7 +292,7 @@ describe("buildAutoTapSources — Fellwar Stone (manaColorSource, opponent-scann
     });
 
     it("with no opponent colour-producing land, Fellwar Stone offers nothing and a {B} cost stays unpaid", async () => {
-        const stone = makeInstance(fellwarStone().id, {
+        const stone = makeInstance(fellwarStone.id, {
             id: "stone",
             controllerId: "p1",
         });

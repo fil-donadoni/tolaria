@@ -29,8 +29,10 @@ import { projectPublicState } from "../../gameProjections";
 import { compactState, expandState } from "../serialize";
 import { makeInstance, makeState } from "../../cards/__tests__/setup.helper";
 import { titaniasSong } from "../../cards/sets/atq/green.cards";
-import { solRing } from "../../cards/sets/lea/colorless.cards";
+
 import { lionSash } from "../../cards/sets/neo/white.cards";
+import { getDefinition } from "../../cards";
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 /** The Song and one Sol Ring on p1's battlefield, animated. */
 function withSong(): {
@@ -44,7 +46,7 @@ function withSong(): {
         controllerId: "p1",
         zone: "battlefield",
     });
-    const ring = makeInstance(solRing().id, {
+    const ring = makeInstance(solRing.id, {
         id: "ring-1",
         controllerId: "p1",
         zone: "battlefield",
@@ -85,7 +87,7 @@ describe("a static effect that lingers after its source leaves (CR 611.3b/611.3d
         const { state } = withSong();
         removePermanentTo(state, "song-1", "graveyard");
 
-        const late = makeInstance(solRing().id, {
+        const late = makeInstance(solRing.id, {
             id: "ring-2",
             controllerId: "p1",
             zone: "battlefield",
@@ -220,7 +222,7 @@ describe("a static effect that lingers after its source leaves (CR 611.3b/611.3d
             controllerId: "p1",
             zone: "battlefield",
         });
-        const ring = makeInstance(solRing().id, {
+        const ring = makeInstance(solRing.id, {
             id: "ring-1",
             controllerId: "p1",
             zone: "battlefield",

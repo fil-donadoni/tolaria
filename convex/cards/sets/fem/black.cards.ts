@@ -28,27 +28,6 @@ const THRULL_TOKEN: EffectTokenSpec = {
     colors: ["B"],
 };
 
-export const basalThrull = defineCard(() => ({
-    id: "0c1d5d13-0160-48cb-8fac-dd86102569b4", // FEM 34a (canonical art)
-    rarity: "common",
-    name: "Basal Thrull",
-    oracleText: "{T}, Sacrifice this creature: Add {B}{B}.",
-    manaCost: { B: 2 },
-    types: ["Creature"],
-    subtypes: ["Thrull"],
-    power: 1,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "basal-thrull-mana",
-            oracleText: "{T}, Sacrifice this creature: Add {B}{B}.",
-            cost: { tap: true, sacrifice: true },
-            useStack: false,
-            manaProduced: { B: 2 },
-        },
-    ],
-}));
-
 export const breedingPit = defineCard(() => ({
     id: BREEDING_PIT_ID,
     rarity: "uncommon",

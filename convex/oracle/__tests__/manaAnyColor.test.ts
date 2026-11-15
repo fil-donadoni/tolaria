@@ -25,7 +25,7 @@ import { sortKeys } from "../gates";
 import { roundTripCard } from "../gold";
 import type { CompiledDefinition, OracleCard } from "../types";
 import { birdsOfParadise } from "../../cards/sets/lea/green.cards";
-import { celestialPrism } from "../../cards/sets/lea/colorless.cards";
+
 import { oracleCard } from "./oracle.fixture";
 
 const ANY_COLOR: ReadonlyArray<Record<string, number>> = [
@@ -147,7 +147,7 @@ describe("golden — the painland rider composes with the any-colour production"
 });
 
 describe("gold — the hand-written any-colour twins round-trip through their own text", () => {
-    it.each([birdsOfParadise(), celestialPrism()])("$name", (card) => {
+    it.each([birdsOfParadise()])("$name", (card) => {
         const verdict = roundTripCard(card).verdict;
         expect(sortKeys(verdict)).toEqual({ ok: true, kind: "equal" });
     });

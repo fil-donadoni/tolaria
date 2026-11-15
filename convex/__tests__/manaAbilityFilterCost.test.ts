@@ -56,7 +56,7 @@ const GAME_ID = "game-1" as Id<"games">;
  *  still deviated to `useStack: true`; issue #3047 flipped the card, so every
  *  test below now proves the shipped definition. */
 const ALTAR = getCardByName("Ashnod's Altar");
-const ALTAR_MANA = "ashnods-altar-mana";
+const ALTAR_MANA = "ashnod-s-altar-mana";
 
 /** Phyrexian Altar — "Sacrifice a creature: Add one mana of any color." The
  *  same tap-less filtered sacrifice, with the output picked from `manaChoices`

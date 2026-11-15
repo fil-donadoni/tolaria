@@ -11,7 +11,7 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { preloadDefinitions } from "../../cards";
 import { grizzlyBears } from "../../cards/sets/lea/index.cards";
-import { solRing } from "../../cards/sets/lea/colorless.cards";
+
 import { grapeshot } from "../../cards/sets/tsp/index.cards";
 import type { CardDefinition } from "../../cards/types";
 import { projectPublicState } from "../../gameProjections";
@@ -26,6 +26,8 @@ import {
     type GameState,
     type StackItem,
 } from "../state";
+import { getDefinition } from "../../cards";
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 const GRAVESTORM_SPELL = "synthetic-gravestorm-spell";
 const DOUBLE_GRAVESTORM_SPELL = "synthetic-double-gravestorm-spell";
@@ -100,7 +102,7 @@ function resolveTriggerDecliningRetargets(state: GameState): number {
 describe("Gravestorm's tally (CR 702.69a)", () => {
     it("counts a noncreature permanent, which `deathsThisTurn` does not", () => {
         const state = makeState();
-        const ring = putOnBattlefield(state, solRing().id, "ring");
+        const ring = putOnBattlefield(state, solRing.id, "ring");
         removePermanentTo(state, ring, "graveyard");
         expect(state.permanentsToGraveyardThisTurn).toBe(1);
         expect(state.deathsThisTurn).toBeUndefined();
@@ -119,7 +121,7 @@ describe("Gravestorm's tally (CR 702.69a)", () => {
         const state = makeState();
         const bears = putOnBattlefield(state, grizzlyBears().id, "bears");
         removePermanentTo(state, bears, "hand");
-        const ring = putOnBattlefield(state, solRing().id, "ring");
+        const ring = putOnBattlefield(state, solRing.id, "ring");
         removePermanentTo(state, ring, "exile");
         expect(state.permanentsToGraveyardThisTurn).toBeUndefined();
     });
@@ -138,7 +140,7 @@ describe("Gravestorm's tally (CR 702.69a)", () => {
         const state = makeState();
         bury(state, 1);
         state.players[1].battlefield.push(
-            makeInstance(solRing().id, {
+            makeInstance(solRing.id, {
                 id: "their-ring",
                 controllerId: "p2",
                 ownerId: "p2",
@@ -179,7 +181,7 @@ describe("Gravestorm's trigger (CR 702.69a)", () => {
         const state = makeState();
         bury(state, 1);
         castGravestormSpell(state);
-        const response = putOnBattlefield(state, solRing().id, "ring");
+        const response = putOnBattlefield(state, solRing.id, "ring");
         removePermanentTo(state, response, "graveyard");
         expect(resolveTriggerDecliningRetargets(state)).toBe(2);
     });
@@ -191,7 +193,7 @@ describe("Gravestorm's trigger (CR 702.69a)", () => {
         const trigger = triggers(state)[0];
         resolveTopOfStack(state);
         expect(state.pendingTarget).toBeDefined();
-        const response = putOnBattlefield(state, solRing().id, "ring");
+        const response = putOnBattlefield(state, solRing.id, "ring");
         removePermanentTo(state, response, "graveyard");
         expect(state.permanentsToGraveyardThisTurn).toBe(3);
         state.pendingTarget = undefined;
@@ -239,7 +241,7 @@ describe("Gravestorm's trigger (CR 702.69a)", () => {
         const round = expandState(compactState(state));
         expect(round.permanentsToGraveyardThisTurn).toBe(1);
         expect(triggers(round)[0].castCopyCountReadOnResolution).toBe(true);
-        const ring = putOnBattlefield(round, solRing().id, "ring");
+        const ring = putOnBattlefield(round, solRing.id, "ring");
         removePermanentTo(round, ring, "graveyard");
         expect(resolveTriggerDecliningRetargets(round)).toBe(2);
     });

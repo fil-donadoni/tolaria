@@ -28,11 +28,9 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
-import {
-    blackLotus,
-    lightningBolt,
-    mountain,
-} from "../../cards/sets/lea/index.cards";
+import { lightningBolt, mountain } from "../../cards/sets/lea/index.cards";
+import { getDefinition } from "../../cards";
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 
 type CastMove = Extract<Move, { kind: "cast-spell" }>;
 
@@ -48,7 +46,7 @@ function boltPosition(): GameState {
                         ownerId: "p1",
                         zone: "battlefield",
                     }),
-                    makeInstance(blackLotus().id, {
+                    makeInstance(blackLotus.id, {
                         id: "lotus",
                         controllerId: "p1",
                         ownerId: "p1",

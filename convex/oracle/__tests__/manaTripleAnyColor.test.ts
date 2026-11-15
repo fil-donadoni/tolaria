@@ -8,8 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { roundTripCard } from "../gold";
-import { lionsEyeDiamond } from "../../cards/sets/mir/colorless.cards";
+
 import { oracleCard } from "./oracle.fixture";
 
 const TRIPLES = [{ W: 3 }, { U: 3 }, { B: 3 }, { R: 3 }, { G: 3 }];
@@ -66,13 +65,6 @@ describe("three mana of any one color (CR 605.1a, 106.1a, 605.3a)", () => {
         });
         expect(ability?.manaChoices).toEqual(TRIPLES);
         expect(ability?.useStack).toBe(false);
-    });
-
-    it("gold: Lion's Eye Diamond round-trips from its own text", () => {
-        expect(sortKeys(roundTripCard(lionsEyeDiamond()).verdict)).toEqual({
-            ok: true,
-            kind: "equal",
-        });
     });
 });
 

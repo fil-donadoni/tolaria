@@ -166,7 +166,8 @@ describe("gold round-trip — the harness is not vacuous", () => {
     it("accepts a meaningful number of cards in each grammar-v0 bucket", () => {
         expect(REPORT.buckets.vanilla.accepted).toBeGreaterThan(10);
         expect(REPORT.buckets["keyword-only"].accepted).toBeGreaterThan(30);
-        expect(REPORT.buckets["mana-ability"].accepted).toBeGreaterThan(10);
+        // The mana-ability bucket is empty by design: every hand-written
+        // twin was retired (issue #4026, ADR 0114 §2).
         // #2697 — without this the activated slot could be switched off
         // entirely and every assertion above would still pass. Floor lowered
         // from 80 (issue #4027): retirement moves `equal` hand-written cards
@@ -183,7 +184,6 @@ describe("gold round-trip — the harness is not vacuous", () => {
     it("exercises every grammar-v0 slot against gold", () => {
         const slotKeys = Object.keys(REPORT.slots);
         expect(slotKeys).toContain("keyword-line");
-        expect(slotKeys).toContain("mana-ability");
         expect(slotKeys).toContain("vanilla");
         expect(slotKeys).toContain("activated");
         expect(slotKeys).toContain("triggered");
@@ -270,8 +270,6 @@ describe("gold fixtures reconstruct a faithful Oracle card", () => {
         expect(goldBucket(bears)).toBe("vanilla");
         const sprites = CARDS.find((c) => c.name === "Scryb Sprites")!;
         expect(goldBucket(sprites)).toBe("keyword-only");
-        const elves = CARDS.find((c) => c.name === "Llanowar Elves")!;
-        expect(goldBucket(elves)).toBe("mana-ability");
         // Prodigal Sorcerer retired in issue #4027 (ADR 0114) — out of
         // `getAllCards()`. Drowned is one of the 14 hand-written activated
         // cards still `equal` after that wave.
@@ -305,23 +303,6 @@ describe("gold fixtures reconstruct a faithful Oracle card", () => {
             );
             expect(outcome.definition.activatedAbilities?.[0]?.useStack).toBe(
                 true
-            );
-        }
-    });
-
-    it("compiles a known mana ability to exactly the hand-written behaviour", () => {
-        const elves = CARDS.find((c) => c.name === "Llanowar Elves")!;
-        const outcome = compileCard(goldOracleCard(elves));
-        expect(outcome.state).toBe("ready");
-        if (outcome.state !== "unparsed") {
-            // The hand-written ability also carries a legacy `effect` closure;
-            // the projection elides it because a fixed-output mana ability's
-            // body is never executed (see `isDeadManaAbilityClosure`).
-            expect(behaviouralProjection(outcome.definition)).toEqual(
-                behaviouralProjection(elves)
-            );
-            expect(outcome.definition.activatedAbilities?.[0]?.id).toBe(
-                "llanowar-elves-mana"
             );
         }
     });

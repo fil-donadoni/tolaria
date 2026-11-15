@@ -50,8 +50,8 @@ import {
     hillGiant,
     mountain,
     savannahLions,
-    solRing,
 } from "../../cards/sets/lea/index.cards";
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 const RIDER_ID = "serra-paragon-granted-exile";
 const RIDER_TEXT =
@@ -241,7 +241,7 @@ describe("Serra Paragon — graveyard play permission rider (issue #1239)", () =
         });
 
         it("a NON-creature permanent cast this way and destroyed is exiled too — the granted trigger is not creature-only", () => {
-            const state = board([inGraveyard(solRing().id, "gy-ring")]);
+            const state = board([inGraveyard(solRing.id, "gy-ring")]);
             const p1 = getPlayer(state, "p1");
             castFromGraveyard(state, "gy-ring");
             resolveTopOfStack(state);

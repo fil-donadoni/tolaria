@@ -14,7 +14,7 @@ import {
     EFFECT_AFFECTS_SELF,
 } from "../../types";
 import { countSnowLands } from "../../snowReads";
-import { makeTapForMana } from "../../abilities";
+import {} from "../../abilities";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
@@ -775,82 +775,6 @@ export const freyalisesWinds = defineCard(() => ({
                 // untap-step seam later keys off this counter.
                 ctx.addCounter({ type: "permanent", id: tapped.id }, "wind", 1);
             },
-        }),
-    ],
-}));
-// ─────────────────────────────────────────────────────────────────────────────
-// Green free tranche (#634)
-//
-// The free-tranche Green cards — expressible entirely with already-shipped
-// primitives — are activated below (intermixed with the remaining commented
-// stubs). Reprints already implemented in LEA (Giant Growth, Hurricane, Lure,
-// Regeneration, Wild Growth) are CardPrints onto their existing definitions
-// (ADR 0014); new-to-ICE Green cards are full CardDefinitions. Lhurgoyf is a
-// `pt-cda` (layer 7a) whose `compute` counts creature cards in all graveyards
-// from game state — MANDATORY wire-format test (projection keeps `.types`).
-//
-// GREEN-COMPLETION (#657): the buildable-now Green stubs the free tranche
-// under-delivered are now active CardDefinitions below — Blizzard, Chub Toad,
-// Dire Wolves, Earthlore, Elder Druid, Essence Filter, Fanatical Fever, Folk of
-// the Pines, Forbidden Lore, Freyalise's Charm, Gorilla Pack, Thermokarst,
-// Thoughtleech, Venomous Breath, Wiitigo. The earlier "needs primitive" defers
-// for Gorilla Pack (attack-restriction + state-sac — Sea Serpent shape),
-// Thoughtleech (`tappedTrigger`), Venomous Breath (delayed end-of-combat
-// destroy), Wiitigo (counter-as-flag tracking) and Dire Wolves (banding grant)
-// were STALE — every primitive ships today.
-//
-// CUMULATIVE UPKEEP (ADR 0042) — Fyndhorn Pollen, Maddening Wind and Ritual of
-//   Subdual are all ACTIVE in the CU section below (#726). Ritual of Subdual
-//   ({4}{G}{G}) is mono-green by colour identity and homes here despite its
-//   triage stub originally sitting in multicolor.ts.
-//   • Next-upkeep delayed cantrip — Pyknite: ACTIVE (#660). Touch of Vitae:
-//     ACTIVE (#738) — the granted "{0}: Untap this creature. Activate only
-//     once." activated ability now rides the duration-scoped
-//     `grantActivatedAbility` seam (see its definition below).
-//   • Snow-matters — Snowblind / Whiteout / Woolly Mammoths / Rime Dryad are
-//     defined below on the snow supertype filter and snow landwalk.
-//   • Blizzard carries its snow-land cast condition (`castCondition`).
-//
-// Cards of this set not defined in this file are owned by the Oracle compiler (ADR 0137): their
-// compile state and Grammar Gaps (gaps:sync) decide the work.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Fyndhorn Elder — "{T}: Add {G}{G}." Mana dork (CR 605.1a mana ability,
-// resolves immediately). The Llanowar Elves shape producing two green.
-export const fyndhornElder = defineCard(() => ({
-    id: "fca8aa11-f7cb-4f88-a041-30098579f1d2",
-    name: "Fyndhorn Elder",
-    rarity: "uncommon",
-    oracleText: "{T}: Add {G}{G}.",
-    manaCost: { X: 2, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Elf", "Druid"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        makeTapForMana({
-            id: "fyndhorn-elder-mana",
-            oracleText: "{T}: Add {G}{G}.",
-            produces: { G: 2 },
-        }),
-    ],
-}));
-// Fyndhorn Elves — "{T}: Add {G}." The Llanowar Elves twin (CR 605.1a).
-export const fyndhornElves = defineCard(() => ({
-    id: "3ba95ffa-990a-4013-98b7-5d8c0b34e9c4",
-    name: "Fyndhorn Elves",
-    rarity: "common",
-    oracleText: "{T}: Add {G}.",
-    manaCost: { G: 1 },
-    types: ["Creature"],
-    subtypes: ["Elf", "Druid"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        makeTapForMana({
-            id: "fyndhorn-elves-mana",
-            oracleText: "{T}: Add {G}.",
-            produces: { G: 1 },
         }),
     ],
 }));

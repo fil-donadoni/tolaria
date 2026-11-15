@@ -66,11 +66,11 @@ import { burstLightning } from "../../cards/sets/zen/red.cards";
 import {
     serraAngel,
     grizzlyBears,
-    blackLotus,
     forest,
-    solRing,
     swamp,
 } from "../../cards/sets/lea/index.cards";
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 // A synthetic probe card carrying BOTH a Kicker (CR 702.33a — an ADDITIONAL
 // mana cost) AND a pitch-style ALTERNATIVE cost (CR 118.9 — "pay 6 life
@@ -436,7 +436,7 @@ describe("Kicker — cast legality considers the kicked target set (CR 702.33 / 
             ownerId: "p1",
             id: "tear2",
         });
-        const lotus = makeInstance(blackLotus().id, {
+        const lotus = makeInstance(blackLotus.id, {
             controllerId: "p2",
             ownerId: "p2",
             id: "lotus1",
@@ -1287,7 +1287,7 @@ describe("Kicker alongside an own sacrifice — the targeted path (CR 601.2f)", 
 
 describe("an alternative cost's permanent leg is paid beside an own sacrifice (CR 118.9d)", () => {
     function artifactOnBoard(id: string) {
-        return makeInstance(solRing().id, {
+        return makeInstance(solRing.id, {
             controllerId: "p1",
             ownerId: "p1",
             id,

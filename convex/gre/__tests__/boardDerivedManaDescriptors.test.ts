@@ -45,18 +45,19 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
-import { gaeasCradle } from "../../cards/sets/usg/colorless.cards";
+
 import {
     badlands,
     forest,
     island,
     swamp,
 } from "../../cards/sets/lea/colorless.cards";
-import { grizzlyBears, llanowarElves } from "../../cards/sets/lea/green.cards";
-import {
-    cityOfShadows,
-    fellwarStone,
-} from "../../cards/sets/drk/colorless.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { cityOfShadows } from "../../cards/sets/drk/colorless.cards";
+import { getDefinition } from "../../cards";
+const gaeasCradle = getDefinition("25b0b816-0583-44aa-9dc5-f3ff48993a51");
+const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
+const fellwarStone = getDefinition("dc47e322-f8b8-4685-b035-fda0cc433e6b");
 
 const PRIEST_OF_TITANIA: CardDefinition = {
     id: "test-5195-priest-of-titania",
@@ -178,9 +179,9 @@ const bf = (state: GameState) =>
 
 describe("manaAmountSource — a count of permanents the controller controls (CR 608.2h / 109.5)", () => {
     it("Gaea's Cradle adds {G} per creature its controller controls, never the opponent's", () => {
-        const cradle = on(gaeasCradle().id, "p1");
+        const cradle = on(gaeasCradle.id, "p1");
         const state = board(
-            [cradle, on(grizzlyBears().id, "p1"), on(llanowarElves().id, "p1")],
+            [cradle, on(grizzlyBears().id, "p1"), on(llanowarElves.id, "p1")],
             [on(grizzlyBears().id, "p2"), on(grizzlyBears().id, "p2")]
         );
         expect(getManaTapOptions(cradle, "p1", bf(state))).toEqual([{ G: 2 }]);
@@ -193,7 +194,7 @@ describe("manaAmountSource — a count of permanents the controller controls (CR
     });
 
     it("an empty Gaea's Cradle offers no payment option and is no mana source (CR 605.1a, issue #1889)", () => {
-        const cradle = on(gaeasCradle().id, "p1");
+        const cradle = on(gaeasCradle.id, "p1");
         const state = board([cradle], [on(grizzlyBears().id, "p2")]);
         expect(getManaTapOptionsDetailed(cradle, "p1", bf(state))).toEqual([]);
         expect(
@@ -202,9 +203,7 @@ describe("manaAmountSource — a count of permanents the controller controls (CR
     });
 
     it("a board-blind caller keeps the printed unit as the representative output", () => {
-        expect(getManaTapOptions(on(gaeasCradle().id, "p1"))).toEqual([
-            { G: 1 },
-        ]);
+        expect(getManaTapOptions(on(gaeasCradle.id, "p1"))).toEqual([{ G: 1 }]);
     });
 });
 
@@ -215,10 +214,10 @@ describe("manaAmountSource — a count over the whole battlefield (CR 109.2)", (
             const state = board(
                 [
                     priest,
-                    on(llanowarElves().id, "p1"),
+                    on(llanowarElves.id, "p1"),
                     on(grizzlyBears().id, "p1"),
                 ],
-                [on(llanowarElves().id, "p2"), on(llanowarElves().id, "p2")]
+                [on(llanowarElves.id, "p2"), on(llanowarElves.id, "p2")]
             );
             expect(getManaTapOptions(priest, "p1", bf(state))).toEqual([
                 { G: 4 },
@@ -238,7 +237,7 @@ describe("manaAmountSource — a count over the whole battlefield (CR 109.2)", (
             const priest = on(PRIEST_OF_TITANIA.id, "p1");
             const state = board(
                 [priest],
-                [on(llanowarElves().id, "p2"), on(llanowarElves().id, "p2")]
+                [on(llanowarElves.id, "p2"), on(llanowarElves.id, "p2")]
             );
             expect(
                 getDynamicManaProduced(priest, state.players[0].battlefield)
@@ -333,7 +332,7 @@ describe('CR 106.7 — "could produce" reads a scaled ability at its CURRENT cou
     it("an empty Gaea's Cradle could produce no {G}, so a Reflecting Pool beside it gains none", () =>
         withDefinitions([REFLECTING_POOL], () => {
             const pool = on(REFLECTING_POOL.id, "p1");
-            const cradle = on(gaeasCradle().id, "p1");
+            const cradle = on(gaeasCradle.id, "p1");
             const state = board([pool, cradle, on(island().id, "p1")]);
             expect(getManaTapOptions(pool, "p1", bf(state))).toEqual([
                 { U: 1 },
@@ -348,7 +347,7 @@ describe('CR 106.7 — "could produce" reads a scaled ability at its CURRENT cou
             const pool = on(REFLECTING_POOL.id, "p1");
             const state = board([
                 pool,
-                on(gaeasCradle().id, "p1"),
+                on(gaeasCradle.id, "p1"),
                 on(grizzlyBears().id, "p1"),
             ]);
             expect(getManaTapOptions(pool, "p1", bf(state))).toEqual([
@@ -357,8 +356,8 @@ describe('CR 106.7 — "could produce" reads a scaled ability at its CURRENT cou
         }));
 
     it("an opponent's empty Cradle gives Fellwar Stone no {G} either", () => {
-        const stone = on(fellwarStone().id, "p1");
-        const state = board([stone], [on(gaeasCradle().id, "p2")]);
+        const stone = on(fellwarStone.id, "p1");
+        const state = board([stone], [on(gaeasCradle.id, "p2")]);
         expect(getManaTapOptions(stone, "p1", bf(state))).toEqual([]);
     });
 });
@@ -396,7 +395,7 @@ describe("CR 106.7 — the count-aware read covers the hand-written closures and
 
     it("a colour read of an opponent's Reflecting Pool never yields {C}, though the Pool itself could produce it (CR 106.1a)", () =>
         withDefinitions([REFLECTING_POOL, CABAL_STRONGHOLD], () => {
-            const stone = on(fellwarStone().id, "p1");
+            const stone = on(fellwarStone.id, "p1");
             const state = board(
                 [stone],
                 [
@@ -414,7 +413,7 @@ describe("CR 106.7 — the count-aware read covers the hand-written closures and
 describe("CR 305.6 — a basic land type's intrinsic tap is never scaled by a count beside it", () => {
     it("an empty Gaea's Cradle that is also a Swamp taps for exactly one {B}", () => {
         // A type-changing effect (Urborg, Tomb of Yawgmoth) made it a Swamp.
-        const cradle = makeInstance(gaeasCradle().id, {
+        const cradle = makeInstance(gaeasCradle.id, {
             id: "cradle-swamp",
             controllerId: "p1",
             ownerId: "p1",

@@ -20,7 +20,7 @@ import {
     makeState,
 } from "../cards/__tests__/setup.helper";
 import { mountain, grizzlyBears } from "../cards/sets/lea/index.cards";
-import { ancientTomb } from "../cards/sets/tmp/colorless.cards";
+
 import type { GameState, PendingCast } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -29,6 +29,8 @@ import {
     gameStateSeed,
     type Handler,
 } from "./gameMutationHarness.fixture";
+import { getDefinition } from "../cards";
+const ancientTomb = getDefinition("30e401e3-282b-4524-87e1-c6cd50cd6d00");
 
 const GAME_ID = "game-1" as Id<"games">;
 
@@ -245,7 +247,7 @@ describe("tapForPayment batch — routes through the shared tap primitive (issue
         // pre-fix batched path cost 0 life; through the shared primitive
         // (`tapForActivationPayment` / `autoTapForPayment`) it costs 2. This
         // test proves the batched path now converges on the SAME primitive.
-        const tomb = makeInstance(ancientTomb().id, {
+        const tomb = makeInstance(ancientTomb.id, {
             id: "tomb",
             controllerId: "p1",
             ownerId: "p1",

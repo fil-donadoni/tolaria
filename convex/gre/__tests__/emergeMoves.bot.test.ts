@@ -34,9 +34,11 @@ import {
     type Handler,
 } from "../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../_generated/dataModel";
-import { solRing, swamp } from "../../cards/sets/lea/index.cards";
+import { swamp } from "../../cards/sets/lea/index.cards";
 import { triskelion } from "../../cards/sets/atq/colorless.cards";
 import { drought } from "../../cards/sets/ice/white.cards";
+import { getDefinition } from "../../cards";
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 // Crabomination's numbers: printed {4}{B}{B}, "Emerge from artifact {5}{B}{B}".
 const PROBE_ID = "test:emerge-moves-probe";
@@ -88,7 +90,7 @@ function emergeBoard(): GameState {
                     own(swamp().id, "swamp-0"),
                     own(swamp().id, "swamp-1"),
                     own(triskelion().id, "tris", true),
-                    own(solRing().id, "ring", true),
+                    own(solRing.id, "ring", true),
                 ],
             }),
             makePlayer("p2"),
@@ -158,8 +160,8 @@ describe("Emerge — the Bot enumerates and pays the emerge cast (CR 702.119a/c)
                         }),
                     ],
                     battlefield: [
-                        own(solRing().id, "ring-b"),
-                        own(solRing().id, "ring-a", true),
+                        own(solRing.id, "ring-b"),
+                        own(solRing.id, "ring-a", true),
                         ...[0, 1, 2, 3].map((i) =>
                             own(swamp().id, `swamp-${i}`)
                         ),
@@ -225,7 +227,7 @@ describe("Emerge beside Drought's tax — the Bot plans and pays the pair (CR 11
             own(swamp().id, "swamp-1"),
             own(swamp().id, "swamp-2"),
             own(triskelion().id, "tris", true),
-            own(solRing().id, "ring", true),
+            own(solRing.id, "ring", true),
         ]);
         const casts = probeCasts(state);
         expect(casts).toHaveLength(1);

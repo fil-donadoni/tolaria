@@ -29,9 +29,9 @@ import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { roundTripCard } from "../gold";
 import type { CompiledDefinition, OracleCard } from "../types";
-import { chromaticSphere } from "../../cards/sets/inv/colorless.cards";
+
 import { saprazzanSkerry } from "../../cards/sets/mmq/colorless.cards";
-import { ancientTomb } from "../../cards/sets/tmp/colorless.cards";
+
 import { oracleCard } from "./oracle.fixture";
 
 const ANY_COLOR: ReadonlyArray<Record<string, number>> = [
@@ -266,13 +266,10 @@ describe("golden — one fixture per accepted rider form", () => {
 });
 
 describe("gold — the hand-written twins round-trip through their own text", () => {
-    it.each([ancientTomb(), chromaticSphere(), saprazzanSkerry()])(
-        "$name",
-        (card) => {
-            const verdict = roundTripCard(card).verdict;
-            expect(sortKeys(verdict)).toEqual({ ok: true, kind: "equal" });
-        }
-    );
+    it.each([saprazzanSkerry()])("$name", (card) => {
+        const verdict = roundTripCard(card).verdict;
+        expect(sortKeys(verdict)).toEqual({ ok: true, kind: "equal" });
+    });
 });
 
 describe("refusals — the neighbours of each rider form", () => {
