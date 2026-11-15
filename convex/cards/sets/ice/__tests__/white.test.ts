@@ -80,6 +80,9 @@ import {
     snowLand,
 } from "./set.helper";
 
+const kjeldoranWarrior = getDefinition("ce76f38f-566e-49ff-b197-510cfa1cb51c");
+const callToArms = getDefinition("a92f0d4a-23d8-47d4-b910-d142e0eefd3d");
+
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 const armorOfFaith = getDefinition("fccbbc47-99c6-4ba9-95c2-992d5d2a67b2");
 const blinkingSpirit = getDefinition("14fc0683-9cfa-4439-a533-8773e7747ec4");
@@ -3084,5 +3087,123 @@ describe("Order of the Sacred Torch ({T}, Pay 1 life: Counter target black spell
         ]);
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.stack.find((s) => s.id === knight.id)).toBeUndefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Call to Arms (CR 611.2c conditional anthem on strict colour plurality +
+// CR 603.8 state-triggered self-sacrifice). Jihad-style colour modal pick.
+// ---------------------------------------------------------------------------
+
+describe("Call to Arms (#653) — white anthem while chosen colour is opponent's strict plurality", () => {
+    /** p1 controls a white creature (Balduvian Bears is green — use a real
+     *  white creature: Kjeldoran Warrior is {W}) + Call to Arms (chosen colour =
+     *  mode id); p2 is the opponent, seeded by `oppBattlefield`. */
+    function withCall(
+        modeColor: "W" | "U" | "B" | "R" | "G",
+        oppBattlefield: CardInstanceState[]
+    ) {
+        const whiteCreature = makeInstance(kjeldoranWarrior.id, {
+            id: "white-creature",
+            controllerId: "p1",
+        });
+        const inst = makeInstance(callToArms.id, {
+            id: "call",
+            controllerId: "p1",
+            chosenModeId: modeColor,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [whiteCreature, inst] }),
+                makePlayer("p2", { battlefield: oppBattlefield }),
+            ],
+        });
+        return { state, whiteCreature, inst };
+    }
+
+    it("buffs white creatures +1/+1 while the chosen colour is the opponent's strict plurality", () => {
+        // Chosen colour black; opponent controls 2 black + 1 blue → black is the
+        // strict plurality.
+        const black1 = makeInstance(knightOfStromgald.id, {
+            id: "b1",
+            controllerId: "p2",
+        });
+        const black2 = makeInstance(knightOfStromgald.id, {
+            id: "b2",
+            controllerId: "p2",
+        });
+        const blue1 = makeInstance("f2d93d05-98bc-4504-9045-dedb925895ae", {
+            id: "u1",
+            controllerId: "p2",
+        });
+        const { state, whiteCreature } = withCall("B", [black1, black2, blue1]);
+        // Kjeldoran Warrior base 1/1 → +1/+1 = 2/2.
+        expect(getEffectivePower(state, whiteCreature)).toBe(2);
+        expect(getEffectiveToughness(state, whiteCreature)).toBe(2);
+    });
+
+    it("no buff when the chosen colour is TIED for most common (not strict)", () => {
+        const black1 = makeInstance(knightOfStromgald.id, {
+            id: "b1",
+            controllerId: "p2",
+        });
+        const blue1 = makeInstance("f2d93d05-98bc-4504-9045-dedb925895ae", {
+            id: "u1",
+            controllerId: "p2",
+        });
+        // 1 black + 1 blue → black is tied, not strict plurality.
+        const { state, whiteCreature } = withCall("B", [black1, blue1]);
+        expect(getEffectivePower(state, whiteCreature)).toBe(1);
+    });
+
+    it("tokens of the chosen colour do NOT count toward plurality (CR 111 nontoken)", () => {
+        const blackToken = makeInstance(knightOfStromgald.id, {
+            id: "b-token",
+            controllerId: "p2",
+            isToken: true,
+        });
+        const { state, whiteCreature } = withCall("B", [blackToken]);
+        expect(getEffectivePower(state, whiteCreature)).toBe(1);
+    });
+
+    it("wire format: the conditional anthem survives projectPublicState (mandatory)", () => {
+        const black1 = makeInstance(knightOfStromgald.id, {
+            id: "b1",
+            controllerId: "p2",
+        });
+        const black2 = makeInstance(knightOfStromgald.id, {
+            id: "b2",
+            controllerId: "p2",
+        });
+        const { state } = withCall("B", [black1, black2]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "white-creature"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(2);
+    });
+
+    it("sacrifices itself when the chosen colour is no longer the strict plurality (CR 603.8)", () => {
+        const { state, inst } = withCall("B", []); // opponent has no permanents
+        resolveTrigger(state, inst, "call-to-arms-sacrifice", {
+            type: "STATE_CHECK",
+        } as StackItem["triggerEvent"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "call")
+        ).toBeUndefined();
+    });
+
+    it("survives the state-trigger while the chosen colour stays the strict plurality (intervening-if)", () => {
+        const black1 = makeInstance(knightOfStromgald.id, {
+            id: "b1",
+            controllerId: "p2",
+        });
+        const { state, inst } = withCall("B", [black1]);
+        resolveTrigger(state, inst, "call-to-arms-sacrifice", {
+            type: "STATE_CHECK",
+        } as StackItem["triggerEvent"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "call")
+        ).toBeDefined();
     });
 });

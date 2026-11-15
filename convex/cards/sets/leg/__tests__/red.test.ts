@@ -20,12 +20,10 @@ import {
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     advancePhase,
-    applyAllCombatDamage,
     emitBlockersConfirmedEvents,
     finalizeCleanup,
     fireDelayedTriggers,
 } from "../../../../gre/phases";
-import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import {
     beginApplyingStaticEffects,
     removePermanentTo,
@@ -42,6 +40,9 @@ import {
 } from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 import { checkStateBasedActions } from "../../../../gre/sba";
+import { STATIC_EFFECT_CTX } from "../../../../gre/layers";
+
+const dwarvenSong = getDefinition("29a50f72-9524-4440-9380-9d3e0b693351");
 
 const activeVolcano = getDefinition("ad402e65-6fac-4005-a2d4-592983df0c30");
 const aerathiBerserker = getDefinition("06673800-22a7-4ee3-92fa-7c7cd4865d30");
@@ -59,7 +60,6 @@ const giantStrength = getDefinition("a86190bb-1f41-4128-b9fb-dfb1d178359d");
 const glyphOfDestruction = getDefinition(
     "8e9c153c-9224-491b-bc84-8a9f0a83ee5a"
 );
-const glyphOfLife = getDefinition("ba1384e5-d140-4074-9548-250af09cb413");
 const gravitySphere = getDefinition("a2749332-e99a-4a0c-b3a3-5578b552fa11");
 const hyperionBlacksmith = getDefinition(
     "44d499a9-fe7c-4a1a-9eb3-a7fd9f85ae08"
@@ -443,167 +443,6 @@ describe("Glyph of Destruction (Wall +10/+0 + prevent + delayed destroy, CR 611.
         expect(
             state.players[0].battlefield.find((c) => c.id === "wall")
         ).toBeUndefined();
-    });
-});
-
-describe("Glyph of Life (delayed lifegain on attacker damage to a Wall, CR 603.7/119)", () => {
-    // Build a combat: p1's Wall blocks p2's attacker. Glyph of Life resolves on
-    // the Wall (p1 controls the Glyph), arming the turn-scoped lifegain.
-    function setupArmedCombat(attackerPower: number) {
-        const wall = makeInstance(wallOfEarth.id, {
-            id: "wall",
-            controllerId: "p1",
-            ownerId: "p1",
-            isBlocking: true,
-        }); // 0/6 Wall
-        const attacker = makeInstance(grizzlyBears.id, {
-            id: "atk",
-            controllerId: "p2",
-            ownerId: "p2",
-            power: attackerPower,
-            isAttacking: true,
-        });
-        const state = makeState({
-            activePlayerId: "p2",
-            priorityPlayerId: "p2",
-            players: [
-                makePlayer("p1", { battlefield: [wall], life: 20 }),
-                makePlayer("p2", { battlefield: [attacker], life: 20 }),
-            ],
-            phase: "COMBAT_DAMAGE",
-            combat: {
-                attackerIds: ["atk"],
-                confirmed: true,
-                blockerAssignments: { wall: ["atk"] },
-                blockersConfirmed: true,
-            },
-        });
-        // p1 casts Glyph of Life targeting the Wall.
-        pushSpell(state, glyphOfLife.id, "p1", [
-            { type: "permanent", id: "wall" },
-        ]);
-        resolveTopOfStack(state);
-        return state;
-    }
-
-    it("only lists Wall creatures as legal targets (CR 205.3)", () => {
-        const wall = makeInstance(wallOfEarth.id, { id: "wall" });
-        const bear = makeInstance(grizzlyBears.id, { id: "bear" }); // not a Wall
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [wall, bear] }),
-                makePlayer("p2"),
-            ],
-        });
-        const legal = getLegalTargets(
-            state,
-            glyphOfLife.targetRequirement!,
-            NO_TARGETING_SOURCE,
-            "p1"
-        )
-            .filter((t) => t.type === "permanent")
-            .map((t) => t.id);
-        expect(legal).toContain("wall");
-        expect(legal).not.toContain("bear");
-    });
-
-    it("arms a turn-scoped lifegain on resolution (CR 603.7)", () => {
-        const state = setupArmedCombat(3);
-        expect(state.damageTriggeredLifegain).toHaveLength(1);
-        expect(state.damageTriggeredLifegain![0].instanceId).toBe("wall");
-        expect(state.damageTriggeredLifegain![0].controllerId).toBe("p1");
-    });
-
-    it("gains the controller life equal to attacker combat damage to the Wall (CR 119)", () => {
-        const state = setupArmedCombat(3);
-        applyAllCombatDamage(state, { atk: { wall: 3 } });
-        // Attacker (power 3) deals 3 to the 0/6 Wall → p1 gains 3 life.
-        expect(state.players[0].life).toBe(23);
-        // Wall survives (3 < 6 toughness).
-        expect(
-            state.players[0].battlefield.find((c) => c.id === "wall")
-        ).toBeDefined();
-    });
-
-    it("routes the gain through the single life-gain choke point — tally + LIFE_GAINED (CR 119.3)", () => {
-        const state = setupArmedCombat(3);
-        // The combat-damage step drains `pendingEvents` into its own trigger
-        // scan, so tap the queue as it is written to observe the emission.
-        const emitted: { type: string }[] = [];
-        let queue = state.pendingEvents;
-        Object.defineProperty(state, "pendingEvents", {
-            configurable: true,
-            get: () => queue,
-            set: (v) => {
-                if (v) emitted.push(...v);
-                queue = v;
-            },
-        });
-        applyAllCombatDamage(state, { atk: { wall: 3 } });
-        expect(state.players[0].life).toBe(23);
-        // "if you gained life this turn" tally (issue #1457) is fed by the
-        // choke point, so the Glyph's gain must land in it...
-        expect(state.lifeGainedThisTurn?.p1).toBe(3);
-        // ...and "whenever you gain life" triggers must see the event.
-        expect(emitted).toContainEqual({
-            type: "LIFE_GAINED",
-            playerId: "p1",
-            amount: 3,
-        });
-    });
-
-    it("does NOT gain life from a non-attacking (blocker) source", () => {
-        // p1's Wall is the ATTACKER's blocker, but here we flip roles: the
-        // damage to the watched permanent comes from a creature that is NOT in
-        // combat.attackerIds. Set up the Wall as a watched attacker-side
-        // creature being hit by a blocker.
-        const wall = makeInstance(wallOfEarth.id, {
-            id: "wall",
-            controllerId: "p1",
-            ownerId: "p1",
-            power: 0,
-            toughness: 6,
-            staticAbilities: [], // strip defender so it can attack
-            isAttacking: true,
-        });
-        const blocker = makeInstance(grizzlyBears.id, {
-            id: "blk",
-            controllerId: "p2",
-            ownerId: "p2",
-            power: 4,
-            isBlocking: true,
-        });
-        const state = makeState({
-            activePlayerId: "p1",
-            priorityPlayerId: "p1",
-            players: [
-                makePlayer("p1", { battlefield: [wall], life: 20 }),
-                makePlayer("p2", { battlefield: [blocker], life: 20 }),
-            ],
-            phase: "COMBAT_DAMAGE",
-            combat: {
-                attackerIds: ["wall"],
-                confirmed: true,
-                blockerAssignments: { blk: ["wall"] },
-                blockersConfirmed: true,
-            },
-        });
-        pushSpell(state, glyphOfLife.id, "p1", [
-            { type: "permanent", id: "wall" },
-        ]);
-        resolveTopOfStack(state);
-        applyAllCombatDamage(state, {});
-        // The blocker (id "blk", NOT in attackerIds) dealt 4 to the watched
-        // Wall — that is a non-attacker source, so NO life is gained.
-        expect(state.players[0].life).toBe(20);
-    });
-
-    it("ends at end of turn — the watch is cleared at CLEANUP (CR 514.2)", () => {
-        const state = setupArmedCombat(3);
-        expect(state.damageTriggeredLifegain).toHaveLength(1);
-        state.phase = "CLEANUP";
-        finalizeCleanup(state);
-        expect(state.damageTriggeredLifegain).toBeUndefined();
     });
 });
 
@@ -1217,5 +1056,65 @@ describe("Chain Lightning (CR 119 / 608.2 / 707.10)", () => {
         expect(head?.kind).toBe("may-pay");
         expect(head?.playerId).toBe("p2");
         expect(head?.cost).toEqual({ R: 2 });
+    });
+});
+
+describe("Dwarven Song (creatures become red EOT, CR 305.7 layer 5)", () => {
+    it("makes targeted creatures red, surviving projection (wire format)", () => {
+        const lion = makeInstance(keepersOfTheFaith.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+        }); // white creature
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lion] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, dwarvenSong.id, "p1", [
+            { type: "permanent", id: "lion" },
+        ]);
+        resolveTopOfStack(state);
+        expect(STATIC_EFFECT_CTX.getColors(lion)).toEqual(["R"]);
+
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "lion"
+        )!;
+        expect(STATIC_EFFECT_CTX.getColors(slim)).toEqual(["R"]);
+    });
+
+    // Issue #1833: the color change is "until end of turn" (CR 305.7) — a
+    // permanent override is a rules violation for every color-matters
+    // interaction (protection, devotion, "target white creature", …) for
+    // the rest of the game.
+    it("reverts to its original color at cleanup (CR 305.7, issue #1833)", () => {
+        const lion = makeInstance(keepersOfTheFaith.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+        }); // white creature
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lion] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, dwarvenSong.id, "p1", [
+            { type: "permanent", id: "lion" },
+        ]);
+        resolveTopOfStack(state);
+        expect(STATIC_EFFECT_CTX.getColors(lion)).toEqual(["R"]);
+
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+
+        expect(STATIC_EFFECT_CTX.getColors(lion)).toEqual(["W"]);
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "lion"
+        )!;
+        expect(STATIC_EFFECT_CTX.getColors(slim)).toEqual(["W"]);
     });
 });

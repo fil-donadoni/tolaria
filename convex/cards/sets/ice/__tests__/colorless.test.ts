@@ -113,6 +113,8 @@ import {
 } from "./set.helper";
 import { checkStateBasedActions } from "../../../../gre/sba";
 
+const vexingArcanix = getDefinition("0c9ea118-6a19-4e1b-aa5a-9b2729efc096");
+
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 const armorOfFaith = getDefinition("fccbbc47-99c6-4ba9-95c2-992d5d2a67b2");
 const brainstorm = getDefinition("8d42d7aa-7f53-4cfc-842a-086aab2448d1");
@@ -4286,5 +4288,65 @@ describe("Elkin Bottle (impulse window until your next upkeep, CR 500.4)", () =>
         expect(card().castableFromExileUntilOwnUpkeep).toBeUndefined();
         expect(card().castableFromExileIncludesLand).toBeUndefined();
         expect(card().zone).toBe("exile");
+    });
+});
+
+describe("Vexing Arcanix ({3},{T}: name + reveal, CR 202.3 / 120.1)", () => {
+    function setup(topCardId: string) {
+        const arcanix = makeInstance(vexingArcanix.id, {
+            id: "arcanix",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const top = makeInstance(topCardId, {
+            id: "top",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [arcanix] }),
+                makePlayer("p2", { life: 20, library: [top] }),
+            ],
+        });
+        return { state, arcanix };
+    }
+    function resolveWithName(
+        state: GameState,
+        arcanix: CardInstanceState,
+        name: string
+    ) {
+        state.stack.push({
+            ...arcanix,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "vexing-arcanix-guess",
+            targets: [{ type: "player", id: "p2" }],
+        });
+        resolveTopOfStack(state); // suspends on the name choice
+        const item = state.stack.find(
+            (s) => s.abilityId === "vexing-arcanix-guess"
+        )!;
+        item.collectedChoices = {
+            ...(item.collectedChoices ?? {}),
+            [`${state.pendingChoices![0].step}:vexing-arcanix-name`]: [name],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+    }
+
+    it("hit: the revealed card goes to the player's hand, no damage", () => {
+        const { state, arcanix } = setup(balduvianBears.id);
+        resolveWithName(state, arcanix, "Balduvian Bears");
+        expect(state.players[1].hand.map((c) => c.id)).toContain("top");
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("miss: the card goes to graveyard and the player takes 2 damage", () => {
+        const { state, arcanix } = setup(balduvianBears.id);
+        resolveWithName(state, arcanix, "Moor Fiend");
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("top");
+        expect(state.players[1].life).toBe(18);
     });
 });

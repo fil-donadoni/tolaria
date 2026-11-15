@@ -35,6 +35,12 @@ import {
     pushSpell,
 } from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
+import { STATIC_EFFECT_CTX } from "../../../../gre/layers";
+
+const touchOfDarkness = getDefinition("eda7177f-1354-4008-aaaa-2c8b823ed5e9");
+
+const jovialEvil = getDefinition("c993c74c-a574-423b-81c8-96b0a7a6e529");
+const keepersOfTheFaith = getDefinition("b63a69ae-99ce-4d26-88b7-784793c43cd4");
 
 const acidRain = getDefinition("ba93c50a-2440-4e92-9cba-d97e20b1d29c");
 const blight = getDefinition("9ca19b39-4201-463c-bd40-fbffa31c9eda");
@@ -893,5 +899,55 @@ describe("Wall of Tombstones (upkeep: base toughness = 1 + GY creatures, indefin
         )!;
         expect(getEffectiveToughness(projected, slim)).toBe(4);
         expect(getEffectivePower(projected, slim)).toBe(0);
+    });
+});
+
+describe("Jovial Evil (X = 2× white creatures opponent controls, CR 120.1)", () => {
+    it("deals twice the opponent's white-creature count", () => {
+        // keepersOfTheFaith is a white creature.
+        const w1 = makeInstance(keepersOfTheFaith.id, {
+            id: "w1",
+            controllerId: "p2",
+        });
+        const w2 = makeInstance(keepersOfTheFaith.id, {
+            id: "w2",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [w1, w2] }),
+            ],
+        });
+        pushSpell(state, jovialEvil.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        // 2 white creatures × 2 = 4 damage.
+        expect(state.players[1].life).toBe(16);
+    });
+});
+
+describe("Touch of Darkness (creatures become black EOT, CR 305.7 layer 5)", () => {
+    it("makes targeted creatures black, surviving projection (wire format)", () => {
+        const lion = makeInstance(keepersOfTheFaith.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lion] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, touchOfDarkness.id, "p1", [
+            { type: "permanent", id: "lion" },
+        ]);
+        resolveTopOfStack(state);
+        expect(STATIC_EFFECT_CTX.getColors(lion)).toEqual(["B"]);
+        const projected = projectPublicState(state, 0, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "lion"
+        )!;
+        expect(STATIC_EFFECT_CTX.getColors(slim)).toEqual(["B"]);
     });
 });

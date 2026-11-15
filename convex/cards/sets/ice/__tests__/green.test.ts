@@ -103,8 +103,6 @@ const trailblazer = getDefinition("9194c69d-c849-4c4a-976c-d1382bd5cf32");
 const wallOfPineNeedles = getDefinition("5d879923-55fc-46ab-9306-5e1f10441c89");
 const woollySpider = getDefinition("e10520b2-b5a7-4328-84c8-20443b6f588a");
 const aurochs = getDefinition("7e973a84-7f7d-4524-9f2f-ec9a014d52ee");
-const vexingArcanix = getDefinition("0c9ea118-6a19-4e1b-aa5a-9b2729efc096");
-const hymnOfRebirth = getDefinition("61d0f2f2-f6e2-4b8a-8418-10b17c5e0ea9");
 const foxfire = getDefinition("88db9685-6a2f-4548-b6c4-669918d653b4");
 const pyknite = getDefinition("6ffc64e4-ae3c-49f9-8ed6-518dd497bfe6");
 const touchOfVitae = getDefinition("48d2cd18-a24d-40e0-a654-777d9e623ae2");
@@ -1378,127 +1376,6 @@ describe("Aurochs — trample + attack pump per other attacking Aurochs (CR 603.
         const ox1 = state.players[0].battlefield.find((c) => c.id === "ox1")!;
         expect(getEffectivePower(state, ox1)).toBe(4); // 2 + 2 others
         expect(aurochs.staticAbilities).toContain("trample");
-    });
-});
-
-describe("Vexing Arcanix ({3},{T}: name + reveal, CR 202.3 / 120.1)", () => {
-    function setup(topCardId: string) {
-        const arcanix = makeInstance(vexingArcanix.id, {
-            id: "arcanix",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const top = makeInstance(topCardId, {
-            id: "top",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "library",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [arcanix] }),
-                makePlayer("p2", { life: 20, library: [top] }),
-            ],
-        });
-        return { state, arcanix };
-    }
-    function resolveWithName(
-        state: GameState,
-        arcanix: CardInstanceState,
-        name: string
-    ) {
-        state.stack.push({
-            ...arcanix,
-            zone: "stack",
-            castById: "p1",
-            abilityId: "vexing-arcanix-guess",
-            targets: [{ type: "player", id: "p2" }],
-        });
-        resolveTopOfStack(state); // suspends on the name choice
-        const item = state.stack.find(
-            (s) => s.abilityId === "vexing-arcanix-guess"
-        )!;
-        item.collectedChoices = {
-            ...(item.collectedChoices ?? {}),
-            [`${state.pendingChoices![0].step}:vexing-arcanix-name`]: [name],
-        };
-        state.pendingChoices = undefined;
-        resolveTopOfStack(state);
-    }
-
-    it("hit: the revealed card goes to the player's hand, no damage", () => {
-        const { state, arcanix } = setup(balduvianBears.id);
-        resolveWithName(state, arcanix, "Balduvian Bears");
-        expect(state.players[1].hand.map((c) => c.id)).toContain("top");
-        expect(state.players[1].life).toBe(20);
-    });
-
-    it("miss: the card goes to graveyard and the player takes 2 damage", () => {
-        const { state, arcanix } = setup(balduvianBears.id);
-        resolveWithName(state, arcanix, "Moor Fiend");
-        expect(state.players[1].graveyard.map((c) => c.id)).toContain("top");
-        expect(state.players[1].life).toBe(18);
-    });
-});
-
-describe("Hymn of Rebirth — cross-graveyard reanimation under your control (CR 400.7 / 800.4a)", () => {
-    it("returns a creature from an opponent's graveyard under the caster's control", () => {
-        const buried = makeInstance(balduvianBears.id, {
-            id: "buried",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "graveyard",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { graveyard: [buried] }),
-            ],
-        });
-        pushSpell(state, hymnOfRebirth.id, "p1", [
-            { type: "graveyard-card", id: "buried", playerId: "p2" },
-        ]);
-        resolveTopOfStack(state);
-        // Reanimated under p1's control, but p2 stays the owner (CR 800.4a).
-        const onBoard = state.players[0].battlefield.find(
-            (c) => c.id === "buried"
-        );
-        expect(onBoard).toBeDefined();
-        expect(onBoard?.controllerId).toBe("p1");
-        expect(onBoard?.ownerId).toBe("p2");
-        expect(state.players[1].graveyard.some((c) => c.id === "buried")).toBe(
-            false
-        );
-    });
-
-    it("getLegalTargets sees creature cards in ANY graveyard (controller: 'any')", () => {
-        const mine = makeInstance(balduvianBears.id, {
-            id: "mine",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "graveyard",
-        });
-        const theirs = makeInstance(balduvianBears.id, {
-            id: "theirs",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "graveyard",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { graveyard: [mine] }),
-                makePlayer("p2", { graveyard: [theirs] }),
-            ],
-        });
-        const legal = getLegalTargets(
-            state,
-            hymnOfRebirth.targetRequirement!,
-            NO_TARGETING_SOURCE,
-            "p1"
-        );
-        const ids = legal.map((t) => t.id);
-        expect(ids).toContain("mine");
-        expect(ids).toContain("theirs");
     });
 });
 
