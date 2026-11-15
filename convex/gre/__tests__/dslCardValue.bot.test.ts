@@ -1189,9 +1189,10 @@ describe("Complete Script and the two-way Latent Floor (issue #5161)", () => {
 
 // CR 602.1a / 118.3 — an activated ability whose whole cost is removing
 // counters from its source is activated as many times as the counters it
-// enters with pay for, all in one priority window (Fading's "remove a fade
-// counter: exile target creature", CR 702.32a). The standing reading counts
-// that budget; a co-cost (tap, mana) or a non-fixed count keeps weight 1.
+// enters with pay for, all in one priority window: a Fading permanent
+// (Fading 5, CR 702.32a) pays five "remove a fade counter" activations. The
+// standing reading counts that budget; a co-cost (tap, mana) or a non-fixed
+// count keeps weight 1.
 describe("counter budget on a standing activated ability (issue #9744)", () => {
     const script: EffectOp[] = [
         { op: "dealDamage", amount: 3, to: { player: "opponent" } },

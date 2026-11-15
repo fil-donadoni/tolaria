@@ -292,13 +292,13 @@ function recurrenceWeight(
 /** How many times an activated ability whose WHOLE activation cost (CR 602.1a)
  *  is removing counters from its own source can be activated off the counters
  *  its permanent enters with: `floor(N / k)` for "enters with N counters" of
- *  the type the cost removes `k` of — Fading 5's "remove a fade counter:
- *  exile target creature" (CR 702.32a) is five exiles. No other cost leg
- *  (tap, mana, life) means nothing paces the budget but the counters
- *  themselves (CR 118.3): it can be spent in one priority window, so this is
- *  a fact of the definition, not the search's to find. 1 for every other
- *  activated ability, a counter count that is not a fixed number (`X`,
- *  sunburst) and a budget below two. */
+ *  the type the cost removes `k` of. A permanent with
+ *  Fading 5 (CR 702.32a) pays five "remove a fade counter" activations.
+ *  With no other cost leg (tap, mana, life), nothing paces the budget but
+ *  the counters themselves (CR 118.3): it can be spent in one priority
+ *  window, so this is a fact of the definition, not the search's to find.
+ *  1 for every other activated ability, a counter count that is not a fixed
+ *  number (`X`, sunburst) and a budget below two. */
 export function counterBudget(
     cost: Partial<ActivatedAbility["cost"]>,
     entersWith: CardDefinition["entersWith"]
