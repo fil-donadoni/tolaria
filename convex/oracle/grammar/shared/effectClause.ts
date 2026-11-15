@@ -5314,6 +5314,58 @@ export function optionalSentenceRule(
     }
 }
 
+/** The printed optional drop, at an ability's sentence-initial casing. */
+const OPTIONAL_HAND_DROP =
+    /^You may put .+ from your hand onto the battlefield(?: tapped)?$/;
+
+/**
+ * Wrap a sentence rule so it also reads "You may put a <descriptor> card from
+ * your hand onto the battlefield" — and no other "You may" sentence.
+ *
+ * CR 608.2d — a choice an effect offers is made while the effect is applied,
+ * so at an activated ability the "may" is the resolving controller's, exactly
+ * as at a trigger; the lowering folds it into the pick's 0..1 range
+ * (`optionalChosenMove`), and CR 400.7 puts the pick onto the battlefield, a
+ * zone change and not a cast. The marker is admitted for this ONE form: every
+ * other optional effect at the site is a reading without a fixture, so the
+ * wrapper's reading is refused unless its inner sentence is a single chosen
+ * card moved from the hand onto the battlefield (ADR 0105 § 2).
+ */
+export function optionalHandDropSentenceRule(
+    inner: Rule<SentenceIR>
+): Rule<SentenceIR> {
+    const optional = optionalSentenceRule(inner);
+    return rule(`optional hand drop ${inner.label}`, (span, ctx) => {
+        if (!OPTIONAL_HAND_DROP.test(span)) return inner.run(span, ctx);
+        const read = optional.run(span, ctx);
+        if (!read.ok) return read;
+        if (
+            read.value.role !== "effect" ||
+            read.value.effect.kind !== "optional" ||
+            !isHandDrop(read.value.effect.effect)
+        )
+            return fail(
+                '"You may" at this site offers a card from your hand onto the battlefield only',
+                span
+            );
+        return read;
+    });
+}
+
+/** One chosen card moved from the hand onto the battlefield (CR 400.7). */
+function isHandDrop(effect: EffectSentenceIR): boolean {
+    if (effect.kind !== undefined || effect.frames.length !== 1) return false;
+    const frame = effect.frames[0]!;
+    return (
+        frame.frame === "moveZone" &&
+        frame.object.kind === "chosen" &&
+        frame.object.zone === "hand" &&
+        frame.object.count === 1 &&
+        frame.object.random !== true &&
+        frame.to.zone === "battlefield"
+    );
+}
+
 /**
  * Wrap a sentence rule so it also reads CR 702.33e's "If this spell was
  * kicked, <effect>".
