@@ -30166,6 +30166,7 @@
         {"id":"603.10","line":"* affected permanent and its controller at event time (CR 603.10 last","sites":1,"status":"baseline"},
         {"id":"601.2c","line":"// CR 601.2c (issue #2912) — a directive read when the target walk ADVANCES","sites":1,"status":"confirmed","ruleHash":"6209ab42af526807"},
         {"id":"603.6a","line":"// \"ETB Ability\"): CR 603.6a \"When [this object] enters\" — counted in a card's","sites":1,"status":"confirmed","ruleHash":"626467d194403c4b"},
+        {"id":"601.2g","line":"describe(\"autoTapForPayment on a five-colour land board (CR 601.2g, issue #9812)\", () => {","sites":1,"status":"confirmed","ruleHash":"2e1360bd5e7e13b7"},
         {"id":"202.2","line":"// cost (CR 202.2): lands and colourless artifacts (no coloured cost) live in","sites":7,"status":"baseline"},
         {"id":"601.3","line":"// Visibility is not permission (CR 601.3): the owner may look, never cast.","sites":1,"status":"baseline"},
         {"id":"400.7","line":"describe(\"Fable of the Mirror-Breaker — chapter III (CR 712.14a / 400.7)\", () => {","sites":1,"status":"baseline"},
