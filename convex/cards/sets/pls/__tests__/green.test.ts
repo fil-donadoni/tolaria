@@ -1302,7 +1302,7 @@ describe("Thornscape Battlemage ({2}{G} 2/2 — Kicker {R} and/or {W}, two indep
         pushTrigger(
             state,
             bm,
-            "thornscape-battlemage-red-kicker",
+            "thornscape-battlemage-trigger",
             triggerEventFor(bm),
             [{ type: "player", id: "p2" }]
         );
@@ -1311,7 +1311,7 @@ describe("Thornscape Battlemage ({2}{G} 2/2 — Kicker {R} and/or {W}, two indep
         pushTrigger(
             state,
             bm,
-            "thornscape-battlemage-white-kicker",
+            "thornscape-battlemage-trigger-2",
             triggerEventFor(bm),
             [{ type: "permanent", id: "art1" }]
         );
@@ -1343,7 +1343,7 @@ describe("Thornscape Battlemage ({2}{G} 2/2 — Kicker {R} and/or {W}, two indep
         pushTrigger(
             state,
             bm,
-            "thornscape-battlemage-red-kicker",
+            "thornscape-battlemage-trigger",
             triggerEventFor(bm),
             [{ type: "player", id: "p2" }]
         );
@@ -1352,7 +1352,7 @@ describe("Thornscape Battlemage ({2}{G} 2/2 — Kicker {R} and/or {W}, two indep
         pushTrigger(
             state,
             bm,
-            "thornscape-battlemage-white-kicker",
+            "thornscape-battlemage-trigger-2",
             triggerEventFor(bm),
             [{ type: "permanent", id: "art2" }]
         );
@@ -1384,7 +1384,7 @@ describe("Thornscape Battlemage ({2}{G} 2/2 — Kicker {R} and/or {W}, two indep
         pushTrigger(
             state,
             bm,
-            "thornscape-battlemage-red-kicker",
+            "thornscape-battlemage-trigger",
             triggerEventFor(bm),
             [{ type: "player", id: "p2" }]
         );
@@ -1393,7 +1393,7 @@ describe("Thornscape Battlemage ({2}{G} 2/2 — Kicker {R} and/or {W}, two indep
         pushTrigger(
             state,
             bm,
-            "thornscape-battlemage-white-kicker",
+            "thornscape-battlemage-trigger-2",
             triggerEventFor(bm),
             [{ type: "permanent", id: "art3" }]
         );
@@ -1428,7 +1428,7 @@ describe("Thornscape Battlemage ({2}{G} 2/2 — Kicker {R} and/or {W}, two indep
         pushTrigger(
             state,
             bm,
-            "thornscape-battlemage-red-kicker",
+            "thornscape-battlemage-trigger",
             triggerEventFor(bm),
             [{ type: "player", id: "p2" }]
         );
@@ -1437,7 +1437,7 @@ describe("Thornscape Battlemage ({2}{G} 2/2 — Kicker {R} and/or {W}, two indep
         pushTrigger(
             state,
             bm,
-            "thornscape-battlemage-white-kicker",
+            "thornscape-battlemage-trigger-2",
             triggerEventFor(bm),
             [{ type: "permanent", id: "art4" }]
         );
@@ -1578,10 +1578,8 @@ describe("Thornscape Battlemage — CR 603.4 per-Kicker check-time gate (issue #
 
     it("kicked with {W} ONLY: the artifact-destroy trigger reaches the stack; the {R} damage trigger does NOT, and announces no target", () => {
         const { state, triggersOnStack } = castKickedWith({ "kicker-w": 1 });
-        expect(triggersOnStack).toEqual(["thornscape-battlemage-white-kicker"]);
-        expect(triggersOnStack).not.toContain(
-            "thornscape-battlemage-red-kicker"
-        );
+        expect(triggersOnStack).toEqual(["thornscape-battlemage-trigger-2"]);
+        expect(triggersOnStack).not.toContain("thornscape-battlemage-trigger");
         // The regression this issue exists for: the {R} trigger used to ride
         // onto the stack on the aggregate `wasKicked` flag and prompt for
         // "any target", firing a real BECAME_TARGET on the chosen target.
@@ -1592,7 +1590,7 @@ describe("Thornscape Battlemage — CR 603.4 per-Kicker check-time gate (issue #
         // auto-selected per CR 603.3d) — the gate suppresses only the unpaid
         // Kicker's trigger, never the paid one.
         const destroyItem = state.stack.find(
-            (s) => s.triggeredAbilityId === "thornscape-battlemage-white-kicker"
+            (s) => s.triggeredAbilityId === "thornscape-battlemage-trigger-2"
         );
         expect(destroyItem?.targets).toEqual([
             { type: "permanent", id: "gate-art" },
@@ -1601,9 +1599,9 @@ describe("Thornscape Battlemage — CR 603.4 per-Kicker check-time gate (issue #
 
     it("kicked with {R} ONLY: the damage trigger reaches the stack and announces a target; the {W} destroy trigger does NOT", () => {
         const { state, triggersOnStack } = castKickedWith({ "kicker-r": 1 });
-        expect(triggersOnStack).toEqual(["thornscape-battlemage-red-kicker"]);
+        expect(triggersOnStack).toEqual(["thornscape-battlemage-trigger"]);
         expect(triggersOnStack).not.toContain(
-            "thornscape-battlemage-white-kicker"
+            "thornscape-battlemage-trigger-2"
         );
         // Choosing the player target DOES fire BECAME_TARGET — the witness
         // proves the event path is live, so the must-NOT rows above are
@@ -1623,8 +1621,8 @@ describe("Thornscape Battlemage — CR 603.4 per-Kicker check-time gate (issue #
             "kicker-w": 1,
         });
         expect(triggersOnStack.sort()).toEqual([
-            "thornscape-battlemage-red-kicker",
-            "thornscape-battlemage-white-kicker",
+            "thornscape-battlemage-trigger",
+            "thornscape-battlemage-trigger-2",
         ]);
     });
 

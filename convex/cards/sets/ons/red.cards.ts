@@ -4,7 +4,6 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import { defineCard } from "../../types";
-import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
@@ -36,66 +35,6 @@ export const lavaDart = defineCard(() => ({
     flashback: { sacrifice: { subtypes: "Mountain" } },
     targetRequirement: { type: "any", count: 1 },
     effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
-}));
-
-// Goblin Piledriver — {1}{R} 1/2 Goblin Warrior. "Protection from blue"
-// (CR 702.16a — the COLOUR family of `parseProtectionQuality`, the shipped
-// `convex/gre/protection.ts` authority every consumer reads) plus "Whenever
-// this creature attacks, it gets +2/+0 until end of turn for each other
-// attacking Goblin." (CR 508.1 attack declaration, CR 613.4c layer 7c
-// buff, CR 611.2 duration.)
-//
-// The buff is a plain `pump` whose `power` is the `count` construct scaled by
-// the grammar's own `times` multiplier (issue #999's "TWICE the number of"
-// factor — no arithmetic composition, the frozen-grammar defence): "for each
-// other attacking Goblin" at +2 apiece is `times: 2` over the count of
-// attacking Goblins excluding the source itself. `isAttacking` (issue #1097)
-// and `excludeSource` (issue #2373) are the two filter fields that make
-// "other attacking" expressible declaratively; `acrossAllPlayers` because a
-// Goblin attacking is a Goblin attacking whoever controls it (nothing in the
-// Oracle line scopes the count to permanents you control).
-//
-export const goblinPiledriver = defineCard(() => ({
-    id: "f6c4df1f-f148-42ec-8e22-e7114216927d", // ONS 205
-    rarity: "rare",
-    name: "Goblin Piledriver",
-    oracleText:
-        "Protection from blue\nWhenever this creature attacks, it gets +2/+0 until end of turn for each other attacking Goblin.",
-    manaCost: { X: 1, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Goblin", "Warrior"],
-    power: 1,
-    toughness: 2,
-    staticAbilities: ["protection from blue"],
-    triggeredAbilities: [
-        attacksTrigger({
-            id: "goblin-piledriver-attack-pump",
-            oracleText:
-                "Whenever this creature attacks, it gets +2/+0 until end of turn for each other attacking Goblin.",
-            scope: "self",
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: {
-                        count: {
-                            zone: "battlefield",
-                            acrossAllPlayers: true,
-                            filter: {
-                                type: "Creature",
-                                subtype: "Goblin",
-                                isAttacking: true,
-                                excludeSource: true,
-                            },
-                            times: 2,
-                        },
-                    },
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        }),
-    ],
 }));
 
 // Goblin Pyromancer — {3}{R} 2/2 Goblin Wizard. Two independent triggered

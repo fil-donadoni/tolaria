@@ -353,26 +353,6 @@ export const eladamrisCall = defineCard(() => ({
     ],
 }));
 
-// Fleetfoot Panther — {1}{G}{W} Creature — Cat, 3/4. Flash (CR 702.8) is the
-// whole point: cast in response, bounce a creature that is about to die or
-// whose ETB you want again.
-export const fleetfootPanther = defineCard(() => ({
-    id: "b70220d8-f81b-44a4-b92e-d66de8c1b4ce", // PLS printing (scryfallId)
-    rarity: "uncommon",
-    name: "Fleetfoot Panther",
-    oracleText:
-        "Flash\nWhen this creature enters, return a green or white creature you control to its owner's hand.",
-    manaCost: { X: 1, G: 1, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Cat"],
-    power: 3,
-    toughness: 4,
-    staticAbilities: ["flash"],
-    triggeredAbilities: [
-        bounceOnEntry("fleetfoot-panther", ["G", "W"], "green or white"),
-    ],
-}));
-
 // Gerrard's Command — {G}{W} Instant. Untap (CR 701.26b) then a CR 613 layer-7c
 // pump, in oracle order.
 export const gerrardsCommand = defineCard(() => ({
@@ -597,43 +577,6 @@ export const razingSnidd = defineCard(() => ({
     ],
 }));
 
-// Shivan Wurm — {3}{R}{G} Creature — Wurm, 7/7 trample. The template's payoff
-// card: a five-mana 7/7 whose drawback is the mandatory bounce.
-export const shivanWurm = defineCard(() => ({
-    id: "4bc72997-78b0-47aa-a029-bf55f77c3e73", // PLS printing (scryfallId)
-    rarity: "rare",
-    name: "Shivan Wurm",
-    oracleText:
-        "Trample\nWhen this creature enters, return a red or green creature you control to its owner's hand.",
-    manaCost: { X: 3, R: 1, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Wurm"],
-    power: 7,
-    toughness: 7,
-    staticAbilities: ["trample"],
-    triggeredAbilities: [
-        bounceOnEntry("shivan-wurm", ["R", "G"], "red or green"),
-    ],
-}));
-
-// Silver Drake — {1}{W}{U} Creature — Drake, 3/3 flying.
-export const silverDrake = defineCard(() => ({
-    id: "ac35ee86-96b2-47aa-a1ba-2988737f11ee", // PLS printing (scryfallId)
-    rarity: "common",
-    name: "Silver Drake",
-    oracleText:
-        "Flying\nWhen this creature enters, return a white or blue creature you control to its owner's hand.",
-    manaCost: { X: 1, W: 1, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Drake"],
-    power: 3,
-    toughness: 3,
-    staticAbilities: ["flying"],
-    triggeredAbilities: [
-        bounceOnEntry("silver-drake", ["W", "U"], "white or blue"),
-    ],
-}));
-
 // Sparkcaster — {2}{R}{G} Creature — Kavu, 5/3. Bounce template plus a targeted
 // ping. CR 603.3d — a triggered ability chooses its targets when it is PUT ON
 // THE STACK, which is what `TriggeredAbility.targetRequirement` wires; the
@@ -667,24 +610,6 @@ export const sparkcaster = defineCard(() => ({
                 },
             ],
         }),
-    ],
-}));
-
-// Steel Leaf Paladin — {4}{G}{W} Creature — Elf Knight, 4/4 first strike.
-export const steelLeafPaladin = defineCard(() => ({
-    id: "28e8697f-fdf3-4a1a-a84d-dd29b17336c2", // PLS printing (scryfallId)
-    rarity: "common",
-    name: "Steel Leaf Paladin",
-    oracleText:
-        "First strike\nWhen this creature enters, return a green or white creature you control to its owner's hand.",
-    manaCost: { X: 4, G: 1, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Elf", "Knight"],
-    power: 4,
-    toughness: 4,
-    staticAbilities: ["first strike"],
-    triggeredAbilities: [
-        bounceOnEntry("steel-leaf-paladin", ["G", "W"], "green or white"),
     ],
 }));
 
@@ -763,62 +688,6 @@ export const urzasGuilt = defineCard(() => ({
             select: { set: "players" },
             effects: [{ op: "loseLife", player: { ref: "$each" }, amount: 4 }],
         },
-    ],
-}));
-
-// Sawtooth Loon — {2}{W}{U} Creature — Bird, 2/2 flying. Bounce template plus
-// a card-filtering ETB.
-//
-// "Put two cards from your hand on the BOTTOM of your library" is deliberately
-// NOT the `putBack` Op: `putBack` is the CR 401.4 top-of-library shape (Jace's
-// 0, Brainstorm) and has no bottom variant. The bottom is the `moveZone`
-// cards-shape with `from: "hand"`, `to: "library"` — `moveCardById` appends to
-// the library array, and `library[0]` is the top by convention, so an append IS
-// the bottom. That `from: "hand"` → `to: "library"` pairing is a construct
-// combination no shipped card exercises yet, so it earns its own hand-written
-// GRE + wire test (per-Op regime, `.claude/rules/gre-development.md`).
-//
-// `count: 2` clamps to hand size (CR 608.2b) — a Loon resolving into an
-// otherwise-empty hand puts back only the two cards it just drew.
-export const sawtoothLoon = defineCard(() => ({
-    id: "31b0a87f-e946-4ef1-b30d-fe32c19a0f52", // PLS printing (scryfallId)
-    rarity: "uncommon",
-    name: "Sawtooth Loon",
-    oracleText:
-        "Flying\nWhen this creature enters, return a white or blue creature you control to its owner's hand.\nWhen this creature enters, draw two cards, then put two cards from your hand on the bottom of your library.",
-    manaCost: { X: 2, W: 1, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Bird"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["flying"],
-    triggeredAbilities: [
-        bounceOnEntry("sawtooth-loon", ["W", "U"], "white or blue"),
-        enteredTrigger({
-            id: "sawtooth-loon-etb-filter",
-            oracleText:
-                "When this creature enters, draw two cards, then put two cards from your hand on the bottom of your library.",
-            scope: "self",
-            effects: [
-                { op: "draw", player: "controller", count: 2 },
-                {
-                    op: "choice",
-                    kind: "choose-hand-card",
-                    player: "controller",
-                    zone: "hand",
-                    count: 2,
-                    prompt: "Put two cards from your hand on the bottom of your library.",
-                    bind: "$bottomed",
-                },
-                {
-                    op: "moveZone",
-                    cards: { ref: "$bottomed" },
-                    player: "controller",
-                    from: "hand",
-                    to: "library",
-                },
-            ],
-        }),
     ],
 }));
 

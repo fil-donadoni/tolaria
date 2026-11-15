@@ -354,7 +354,7 @@ describe("Sol'kanar the Swamp King (black-spell lifegain, CR 603.2)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveTrigger(state, solkanar, "solkanar-black-spell-lifegain", {
+        resolveTrigger(state, solkanar, "sol-kanar-the-swamp-king-trigger", {
             type: "SPELL_CAST",
             casterId: "p2",
             spellInstanceId: "x",
@@ -955,7 +955,7 @@ describe("Elder Dragon Legends (upkeep: sacrifice unless pay {C}{C}{C}, CR 603.6
         { def: arcadesSabboth, ability: "arcades-sabboth-upkeep" },
         { def: chromium, ability: "chromium-upkeep" },
         { def: nicolBolas, ability: "nicol-bolas-upkeep" },
-        { def: palladiaMors, ability: "palladia-mors-upkeep" },
+        { def: palladiaMors, ability: "palladia-mors-trigger" },
         { def: vaevictisAsmadi, ability: "vaevictis-asmadi-upkeep" },
     ] as const;
 

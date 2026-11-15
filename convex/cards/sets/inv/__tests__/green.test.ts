@@ -968,7 +968,7 @@ describe("Verduran Emissary (single Kicker ETB — destroy target artifact, issu
         resolveTrigger(
             state,
             emissary,
-            "verduran-emissary-kicked",
+            "verduran-emissary-trigger",
             {
                 type: "PERMANENT_ENTERED",
                 instanceId: emissary.id,
@@ -1007,7 +1007,7 @@ describe("Verduran Emissary (single Kicker ETB — destroy target artifact, issu
         resolveTrigger(
             state,
             emissary,
-            "verduran-emissary-kicked",
+            "verduran-emissary-trigger",
             {
                 type: "PERMANENT_ENTERED",
                 instanceId: emissary.id,

@@ -61,32 +61,6 @@ export const flyingMen = defineCard(() => ({
     staticAbilities: ["flying"],
 }));
 
-export const serendibEfreet = defineCard(() => ({
-    id: "cf56e862-3169-4f63-acd0-731080fa32f2",
-    rarity: "rare",
-    name: "Serendib Efreet",
-    oracleText:
-        "Flying\nAt the beginning of your upkeep, Serendib Efreet deals 1 damage to you.",
-    manaCost: { X: 2, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Efreet"],
-    power: 3,
-    toughness: 4,
-    staticAbilities: ["flying"],
-    triggeredAbilities: [
-        phaseTrigger({
-            id: "serendib-efreet-upkeep",
-            oracleText:
-                "At the beginning of your upkeep, Serendib Efreet deals 1 damage to you.",
-            phase: "UPKEEP",
-            scope: "your",
-            effects: [
-                { op: "dealDamage", amount: 1, to: { player: "controller" } },
-            ],
-        }),
-    ],
-}));
-
 export const serendibDjinn = defineCard(() => ({
     id: "0458b733-d689-4cb5-8970-3b675c67fc4d",
     rarity: "rare",

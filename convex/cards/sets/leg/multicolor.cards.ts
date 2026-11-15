@@ -7,7 +7,6 @@
 import type { ManaCost } from "../../types";
 import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
-import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { rampageTrigger } from "../../abilities/triggers/rampageTrigger";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 
@@ -312,37 +311,6 @@ export const jacquesLeVert = defineCard(() => ({
 }));
 
 // --- Spell-cast trigger (CR 603.2) -----------------------------------------
-
-// Sol'kanar the Swamp King — Swampwalk (CR 702.14) + "Whenever a player casts a
-// black spell, you gain 1 life." (CR 603.2 spell-cast trigger, any caster,
-// colour-filtered → CR 119.3 lifegain.)
-export const solkanarTheSwampKing = defineCard(() => ({
-    id: "7a20dcb0-5350-40e0-82d3-c8d0186fc9d2",
-    rarity: "rare",
-    name: "Sol'kanar the Swamp King",
-    oracleText:
-        "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)\nWhenever a player casts a black spell, you gain 1 life.",
-    manaCost: { X: 2, U: 1, B: 1, R: 1 },
-    types: ["Creature"],
-    supertypes: ["Legendary"],
-    subtypes: ["Demon"],
-    power: 5,
-    toughness: 5,
-    staticAbilities: ["swampwalk"],
-    triggeredAbilities: [
-        spellCastTrigger({
-            id: "solkanar-black-spell-lifegain",
-            oracleText:
-                "Whenever a player casts a black spell, you gain 1 life.",
-            scope: "any",
-            filter: { colors: "B" },
-            // Migrated resolve()→effects[] (ADR 0045): event-independent
-            // 1-life gain for the source's controller (CR 119.3) via the
-            // `gainLife` Op.
-            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
-        }),
-    ],
-}));
 
 // --- Activated abilities (CR 602) ------------------------------------------
 
@@ -863,31 +831,6 @@ export const nicolBolas = defineCard(() => ({
                     player: { ref: "$event.damagedPlayer" },
                 },
             ],
-        }),
-    ],
-}));
-
-// Palladia-Mors — {2}{R}{R}{G}{G}{W}{W} 7/7 Elder Dragon. Flying, trample +
-// the C7 upkeep tax. CR 603.6a + CR 117.3a.
-export const palladiaMors = defineCard(() => ({
-    id: "ad64874d-ce33-4e0a-bcca-723f129ef415",
-    rarity: "rare",
-    name: "Palladia-Mors",
-    oracleText:
-        "Flying, trample\nAt the beginning of your upkeep, sacrifice Palladia-Mors unless you pay {R}{G}{W}.",
-    manaCost: { X: 2, R: 2, G: 2, W: 2 },
-    types: ["Creature"],
-    supertypes: ["Legendary"],
-    subtypes: ["Elder", "Dragon"],
-    power: 7,
-    toughness: 7,
-    staticAbilities: ["flying", "trample"],
-    triggeredAbilities: [
-        payOrSacrificeUpkeepTrigger({
-            id: "palladia-mors-upkeep",
-            cardName: "Palladia-Mors",
-            cost: { R: 1, G: 1, W: 1 },
-            costText: "{R}{G}{W}",
         }),
     ],
 }));

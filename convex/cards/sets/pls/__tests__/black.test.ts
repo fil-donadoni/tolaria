@@ -854,7 +854,7 @@ describe("Nightscape Battlemage (CR 702.33 plural Kicker — two independent ETB
         advanceTargetGroupOrFinalize(state, state.pendingTarget!, "p1");
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].triggeredAbilityId).toBe(
-            "nightscape-battlemage-bounce"
+            "nightscape-battlemage-trigger"
         );
         resolveTopOfStack(state);
         expect(state.stack).toHaveLength(0);
@@ -887,7 +887,7 @@ describe("Nightscape Battlemage (CR 702.33 plural Kicker — two independent ETB
         resolveTopOfStack(state);
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].triggeredAbilityId).toBe(
-            "nightscape-battlemage-destroy-land"
+            "nightscape-battlemage-trigger-2"
         );
         resolveTopOfStack(state);
         expect(state.stack).toHaveLength(0);

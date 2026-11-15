@@ -1437,7 +1437,7 @@ describe("Waterspout Elemental (single Kicker ETB — bounce + skip, PLS 38, iss
         resolveTopOfStack(state); // Waterspout Elemental enters, ETB trigger lands
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].triggeredAbilityId).toBe(
-            "waterspout-elemental-kicked"
+            "waterspout-elemental-trigger"
         );
         resolveTopOfStack(state); // trigger resolves
         expect(state.stack).toHaveLength(0);

@@ -47,7 +47,7 @@ function snapEtbTriggerOnStack(
         id: "trig-snap-etb",
         zone: "stack",
         castById: source.controllerId,
-        triggeredAbilityId: "snapcaster-mage-etb-flashback",
+        triggeredAbilityId: "snapcaster-mage-trigger",
         triggerSourceId: source.id,
         triggerEvent: {
             type: "PERMANENT_ENTERED",

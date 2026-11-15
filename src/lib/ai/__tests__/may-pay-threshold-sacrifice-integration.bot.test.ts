@@ -118,7 +118,7 @@ function fireDreadnoughtEtb(
         id: "dreadnought-etb-stack-item",
         zone: "stack",
         castById: dreadnought.controllerId,
-        triggeredAbilityId: "phyrexian-dreadnought-etb-sacrifice",
+        triggeredAbilityId: "phyrexian-dreadnought-trigger",
         triggerSourceId: dreadnought.id,
         triggerEvent: {
             type: "PERMANENT_ENTERED",

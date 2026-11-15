@@ -2729,7 +2729,9 @@
         "oracleId": "a2daaf32-dbfe-4618-892e-0da24f63a44a",
         "firstSet": "p02",
         "firstPrintId": "dac5c913-4eb5-4cfb-9c24-223f14f07064",
-        "firstPrintSet": "p02"
+        "firstPrintSet": "p02",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Angel of Renewal",
@@ -3909,7 +3911,9 @@
         "oracleId": "11f17f85-ca97-4551-838f-7cb32f0e5f10",
         "firstSet": "usg",
         "firstPrintId": "9ababc1a-515e-4e20-8819-19d84d9b0af5",
-        "firstPrintSet": "usg"
+        "firstPrintSet": "usg",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Argothian Pixies",
@@ -4669,7 +4673,9 @@
         "oracleId": "abbcb153-0763-44c6-964f-b4ff0eb64257",
         "firstSet": "one",
         "firstPrintId": "4a1f905f-1d55-4d02-9d24-e58070793d3f",
-        "firstPrintSet": "one"
+        "firstPrintSet": "one",
+        "source": "compiled",
+        "rarity": "mythic"
     },
     {
         "name": "Attended Knight",
@@ -5741,7 +5747,9 @@
         "oracleId": "37688720-03de-4eca-a82d-a0afe8d58adc",
         "firstSet": "pc2",
         "firstPrintId": "62090c97-7e3e-4854-bc44-c4a900133ec5",
-        "firstPrintSet": "pc2"
+        "firstPrintSet": "pc2",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Ball Lightning",
@@ -7149,7 +7157,9 @@
         "oracleId": "99f2e195-5da5-4239-87e0-ed552643e7b5",
         "firstSet": "inv",
         "firstPrintId": "6b82d56e-80d7-4be9-ac22-de3257efc458",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Benalish Faithbonder",
@@ -14805,7 +14815,9 @@
         "oracleId": "adc1f3b4-cce7-42c9-a208-dbab1d1924f5",
         "firstSet": "ulg",
         "firstPrintId": "4e76d04a-0038-4b5b-a026-3056ee940da9",
-        "firstPrintSet": "ulg"
+        "firstPrintSet": "ulg",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Cloud Pirates",
@@ -19617,7 +19629,9 @@
         "oracleId": "920684d0-aef3-4408-a66b-a0c9394c58f4",
         "firstSet": "scg",
         "firstPrintId": "f2fc46e2-5e19-4999-a4cd-1e84697066c1",
-        "firstPrintSet": "scg"
+        "firstPrintSet": "scg",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Dedicated Martyr",
@@ -29745,7 +29759,9 @@
         "oracleId": "d99e8f94-4a8a-42a1-b5d0-2b08cacb8676",
         "firstSet": "pls",
         "firstPrintId": "b70220d8-f81b-44a4-b92e-d66de8c1b4ce",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Fleeting Distraction",
@@ -34609,7 +34625,9 @@
         "oracleId": "4d74d12b-1ffb-482f-8bac-635a8d4d32e9",
         "firstSet": "ons",
         "firstPrintId": "f6c4df1f-f148-42ec-8e22-e7114216927d",
-        "firstPrintSet": "ons"
+        "firstPrintSet": "ons",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Goblin Pyromancer",
@@ -34665,7 +34683,9 @@
         "oracleId": "4100e486-0d27-436c-8429-76bc2c1a26ab",
         "firstSet": "apc",
         "firstPrintId": "b6b2cd77-9552-48b1-80cb-26966323c1ea",
-        "firstPrintSet": "apc"
+        "firstPrintSet": "apc",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Goblin Rock Sled",
@@ -41925,7 +41945,9 @@
         "oracleId": "7ed4afc9-959a-4868-8f4a-2221bea1ba32",
         "firstSet": "blb",
         "firstPrintId": "4d70b99d-c8bf-4a56-8957-cf587fe60b81",
-        "firstPrintSet": "blb"
+        "firstPrintSet": "blb",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Intrepid Tenderfoot",
@@ -43485,7 +43507,9 @@
         "oracleId": "afda663e-c5f7-4182-86f7-d95d71793717",
         "firstSet": "arn",
         "firstPrintId": "5f46783a-b91e-4829-a173-5515b09ca615",
-        "firstPrintSet": "arn"
+        "firstPrintSet": "arn",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Just the Wind",
@@ -43883,7 +43907,9 @@
         "oracleId": "6ffbcaba-5437-4fb6-a2d6-e94b1e6dc1d2",
         "firstSet": "apc",
         "firstPrintId": "79adc3af-5fa3-4cb6-9bbc-52ede0c69263",
-        "firstPrintSet": "apc"
+        "firstPrintSet": "apc",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Kavu Monarch",
@@ -55578,7 +55604,9 @@
         "oracleId": "e96e68b4-cb32-4b75-a885-e1781f4b74ab",
         "firstSet": "pls",
         "firstPrintId": "d5389643-4cc0-4a17-bc2d-7f9b76d30f9f",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Nightscape Familiar",
@@ -58160,7 +58188,9 @@
         "oracleId": "652e87af-7cf0-407f-9fb7-1a630fb8dd47",
         "firstSet": "dsk",
         "firstPrintId": "9b911653-7b96-4cf3-a907-13c5c53a14f7",
-        "firstPrintSet": "dsk"
+        "firstPrintSet": "dsk",
+        "source": "compiled",
+        "rarity": "mythic"
     },
     {
         "name": "Overlord of the Boilerbilges",
@@ -58470,7 +58500,9 @@
         "oracleId": "d7121ac7-e425-46cd-b006-1af391d97f87",
         "firstSet": "leg",
         "firstPrintId": "ad64874d-ce33-4e0a-bcca-723f129ef415",
-        "firstPrintSet": "leg"
+        "firstPrintSet": "leg",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Palladium Myr",
@@ -59746,7 +59778,9 @@
         "oracleId": "a7950edb-5670-46fd-a30e-0fe888a5a32b",
         "firstSet": "mir",
         "firstPrintId": "7b8197b9-0cd1-4fa1-9668-d1b5f1759151",
-        "firstPrintSet": "mir"
+        "firstPrintSet": "mir",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Phyrexian Driver",
@@ -64223,7 +64257,9 @@
         "oracleId": "47aabd9d-0f68-490a-a2ae-5cd9ef689be6",
         "firstSet": "ulg",
         "firstPrintId": "b104638d-29aa-490c-8cfb-e08fc94efb59",
-        "firstPrintSet": "ulg"
+        "firstPrintSet": "ulg",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Raven's Crime",
@@ -66623,7 +66659,9 @@
         "oracleId": "8ae8a583-9843-474a-bd46-8090df883621",
         "firstSet": "inv",
         "firstPrintId": "7e42ae1d-62b4-4b19-aafc-f12bdd6fb8cc",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Riptide Laboratory",
@@ -69595,7 +69633,9 @@
         "oracleId": "b917e472-2550-4381-b756-45487c2c187a",
         "firstSet": "pls",
         "firstPrintId": "31b0a87f-e946-4ef1-b30d-fe32c19a0f52",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Sawtooth Thresher",
@@ -71693,7 +71733,9 @@
         "oracleId": "dd520d83-297a-487f-b8f3-4997bbc056e0",
         "firstSet": "arn",
         "firstPrintId": "cf56e862-3169-4f63-acd0-731080fa32f2",
-        "firstPrintSet": "arn"
+        "firstPrintSet": "arn",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Serene Offering",
@@ -72939,7 +72981,9 @@
         "oracleId": "1b885600-def1-4b2c-a6cb-02df34d58a1b",
         "firstSet": "inv",
         "firstPrintId": "945c596e-492e-4cf5-857c-4ddbbdd78485",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Shivan Gorge",
@@ -73015,7 +73059,9 @@
         "oracleId": "fc988ce3-0cad-41a5-8f13-656caca732df",
         "firstSet": "pls",
         "firstPrintId": "4bc72997-78b0-47aa-a029-bf55f77c3e73",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Shivan Zombie",
@@ -73883,7 +73929,9 @@
         "oracleId": "ec7eb7d8-92b2-4442-856e-a9790301c3b3",
         "firstSet": "pls",
         "firstPrintId": "ac35ee86-96b2-47aa-a1ba-2988737f11ee",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Silver Erne",
@@ -76041,7 +76089,9 @@
         "oracleId": "2bb2eda7-3b38-4c56-870f-c3218a1056f5",
         "firstSet": "isd",
         "firstPrintId": "9e5b279e-4670-4a1e-87d0-3cab7e4f9e58",
-        "firstPrintSet": "isd"
+        "firstPrintSet": "isd",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Snapping Drake",
@@ -76355,7 +76405,9 @@
         "oracleId": "b8aac8e8-4588-4cb9-8b95-5c4abab1c48b",
         "firstSet": "leg",
         "firstPrintId": "7a20dcb0-5350-40e0-82d3-c8d0186fc9d2",
-        "firstPrintSet": "leg"
+        "firstPrintSet": "leg",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Solar Blast",
@@ -79403,7 +79455,9 @@
         "oracleId": "15e0250e-a23b-499a-a8d2-24fc13084c28",
         "firstSet": "pls",
         "firstPrintId": "28e8697f-fdf3-4a1a-a84d-dd29b17336c2",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Steel Wall",
@@ -84939,7 +84993,9 @@
         "oracleId": "8d4d6806-cb01-49e3-91cc-fb0e7f7a8684",
         "firstSet": "pls",
         "firstPrintId": "13f24f89-3996-4740-a6c9-d26b8869554b",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Thornscape Familiar",
@@ -86151,7 +86207,9 @@
         "oracleId": "2993dc7d-723d-4a9b-94bd-4bb02a9f7243",
         "firstSet": "lci",
         "firstPrintId": "907b3d1d-8c85-4707-80b5-c4d832df9846",
-        "firstPrintSet": "lci"
+        "firstPrintSet": "lci",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Tishana's Wayfinder",
@@ -90805,7 +90863,9 @@
         "oracleId": "915bd598-c3dd-4982-bdcc-5904a6f17436",
         "firstSet": "inv",
         "firstPrintId": "55f3361b-e2e7-4297-85c2-94323f90cc90",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Verduran Enchantress",
@@ -94013,7 +94073,9 @@
         "oracleId": "f86b8c03-9f1e-4d42-ac45-907c46e9e1c0",
         "firstSet": "pls",
         "firstPrintId": "425156e6-8eee-4bff-8f2f-86edd9a4f73b",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Waterwhirl",
@@ -96677,7 +96739,9 @@
         "oracleId": "13ba9ef8-2010-4d3f-8c62-85b7c5620031",
         "firstSet": "scg",
         "firstPrintId": "6a87911a-3931-46aa-9348-2728c4b73b96",
-        "firstPrintSet": "scg"
+        "firstPrintSet": "scg",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Xenic Poltergeist",

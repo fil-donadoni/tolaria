@@ -58,7 +58,9 @@ import type { CardDefinition } from "../../cards/types";
 import { getEventFieldRow } from "../../cards/mechanicsRegistry";
 import { burstLightning } from "../../cards/sets/zen/red.cards";
 import { everflowingChalice } from "../../cards/sets/wwk/colorless.cards";
-import { thornscapeBattlemage } from "../../cards/sets/pls/green.cards";
+import { getDefinition } from "../../cards";
+const thornscapeBattlemage = () =>
+    getDefinition("13f24f89-3996-4740-a6c9-d26b8869554b");
 import { fork } from "../../cards/sets/lea/red.cards";
 import { regrowth } from "../../cards/sets/lea/green.cards";
 import { remand } from "../../cards/sets/rav/blue.cards";

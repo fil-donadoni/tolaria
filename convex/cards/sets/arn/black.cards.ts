@@ -50,48 +50,6 @@ export const juzamDjinn = defineCard(() => ({
     ],
 }));
 
-export const jununEfreet = defineCard(() => ({
-    id: "5f46783a-b91e-4829-a173-5515b09ca615",
-    rarity: "rare",
-    name: "Junún Efreet",
-    oracleText:
-        "Flying\nAt the beginning of your upkeep, sacrifice Junún Efreet unless you pay {B}{B}.",
-    manaCost: { X: 1, B: 2 },
-    types: ["Creature"],
-    subtypes: ["Efreet"],
-    power: 3,
-    toughness: 3,
-    staticAbilities: ["flying"],
-    triggeredAbilities: [
-        phaseTrigger({
-            id: "junun-efreet-upkeep",
-            oracleText:
-                "At the beginning of your upkeep, sacrifice Junún Efreet unless you pay {B}{B}.",
-            phase: "UPKEEP",
-            scope: "your",
-            effects: [
-                {
-                    // CR 117.3a — the controller decides whether to pay.
-                    op: "mayPay",
-                    player: "controller",
-                    cost: { B: 2 },
-                    prompt: "Pay {B}{B} or sacrifice Junún Efreet?",
-                    bind: "$paid",
-                },
-                {
-                    // CR 701.21 — unless paid, sacrifice Junún Efreet (the
-                    // source). The `sacrifice` Op's `target` form (a single
-                    // object selector, not a `choice`-picked set) resolves
-                    // `$source` to the trigger's own permanent.
-                    op: "if",
-                    predicate: { not: { binding: "$paid" } },
-                    then: [{ op: "sacrifice", target: { ref: "$source" } }],
-                },
-            ],
-        }),
-    ],
-}));
-
 export const hasranOgress = defineCard(() => ({
     id: "9f310cf5-0985-4826-9779-19a713089d6d",
     rarity: "common",
