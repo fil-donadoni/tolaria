@@ -5753,12 +5753,21 @@ export const OP_EXECUTORS: {
         // (a graveyard count, a delirium check) has to see.
         for (const id of revealed) {
             const destination = id === matchId ? op.match : op.rest;
+            // The rest stays where it is: the shuffle below moves it.
+            if (destination === "shuffleIntoLibrary") continue;
             if (destination === "battlefield") {
                 ctx.putFromLibraryOntoBattlefield(playerId, id);
             } else {
                 ctx.moveCardById(playerId, id, "library", destination);
             }
         }
+        // CR 701.24a — "shuffle all other cards revealed this way into your
+        // library": ONE shuffle, after the match has left, also on a walk
+        // that found no match (the whole library was revealed, CR 609.3).
+        // CR 701.20d — the reordered cards stop being revealed, which
+        // `shuffleLibrary` enforces by clearing every library card's
+        // knowledge.
+        if (op.rest === "shuffleIntoLibrary") ctx.shuffleLibrary(playerId);
         // Issue #2608 — "that card", named for a later Op by its id (a picks
         // binding). No match → no referent, the binding stays uncaptured and
         // every reader skips (CR 609.3).

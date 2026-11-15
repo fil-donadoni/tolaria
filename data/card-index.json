@@ -86540,6 +86540,14 @@
         "source": "compiled"
     },
     {
+        "name": "Thicket Elemental",
+        "scryfallId": "f80a56ed-3ebb-4e20-bf6a-e27127f762e8",
+        "oracleId": "a85390b6-e90b-4d0c-9573-eb67ce01a0aa",
+        "firstSet": "inv",
+        "firstPrintId": "f80a56ed-3ebb-4e20-bf6a-e27127f762e8",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Thief of Existence",
         "scryfallId": "328b02ca-d8eb-401d-9c41-93f8eb909312",
         "oracleId": "7abbd5af-a04b-476d-aee5-2b2f5114b019",

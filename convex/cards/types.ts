@@ -56,6 +56,17 @@ export type RevealRouteDestination =
     | "graveyard"
     | "exile";
 
+/** Where `revealUntilMatch` sends every revealed card OTHER than the match:
+ *  any `RevealRouteDestination`, or `"shuffleIntoLibrary"` — the cards stay in
+ *  the library and the Op shuffles it once after the match is routed
+ *  (Thicket Elemental's "shuffle all other cards revealed this way into your
+ *  library", CR 701.24a). Op-local on purpose: `revealTopAndRoute` leaves
+ *  reordering to `scryReorder`, so `RevealRouteDestination` keeps omitting the
+ *  library. */
+export type RevealUntilRestDestination =
+    | RevealRouteDestination
+    | "shuffleIntoLibrary";
+
 /** CR 201.4a — how far a "choose a card name" choice narrows the legal name
  *  space. `"no-basic-land"` is Desperate Research's "other than a basic land
  *  card name"; `"no-land"` is Cabal Therapy's "a nonland card name", which
@@ -20293,8 +20304,9 @@ export type EffectOp =
            *  battlefield"). */
           match: RevealRouteDestination;
           /** Where every OTHER revealed card goes ("all other cards revealed
-           *  this way into their graveyard"). */
-          rest: RevealRouteDestination;
+           *  this way into their graveyard"); `"shuffleIntoLibrary"` leaves
+           *  them in the library and shuffles it once (CR 701.24a). */
+          rest: RevealUntilRestDestination;
           /** Picks binding of the matching card's id (issue #2608). */
           bind?: string;
       }
