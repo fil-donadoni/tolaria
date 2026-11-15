@@ -167,6 +167,10 @@ describe("presetGateMoved (issue #8453)", () => {
             true
         );
     });
+    it("fires on the legality a payload must pass", () => {
+        expect(presetGateMoved(["data/oracle-legality.json"])).toBe(true);
+        expect(presetGateMoved(["convex/formats.ts"])).toBe(true);
+    });
     it("does not fire on a diff the gate never reads", () => {
         expect(
             presetGateMoved(["src/a.tsx", "convex/oracle/grammar/rules.ts"])

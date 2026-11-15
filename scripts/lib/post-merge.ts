@@ -54,13 +54,18 @@ export function cardSetsChanged(files: readonly string[]): boolean {
  * (issue #8453) beside a card set: the compiled lockfile — the card states
  * the gate counts, which a Grammar Rule or a lifted quarantine moves with no
  * card-set diff at all, in `derive:sync`'s commit — the card index (a
- * hand-written card's pool membership) and the canonical lists themselves.
+ * hand-written card's pool membership), the canonical lists themselves, and
+ * the legality the payload must pass (pool maps, Format rules, banlist seeds).
  */
 const PRESET_GATE_PATHS: readonly string[] = [
     "data/oracle-compiled.json",
     "data/card-index.json",
     "data/premodern-metagame-decks.json",
     "data/modern-metagame-decks.json",
+    // The legality the payload is checked against: the generated pool maps
+    // and the Formats' rules and banlist seeds.
+    "data/oracle-legality.json",
+    "convex/formats.ts",
 ];
 
 /** Did the push change anything that can publish a Preset Deck list — a

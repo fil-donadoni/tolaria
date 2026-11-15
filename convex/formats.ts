@@ -627,15 +627,21 @@ interface OracleLegalityFile {
  * `CardDefinition` carries (issue #8453: Witch Enchanter, a Modern MDFC, read
  * as not-in-pool through its combined name alone). Only the front: a back
  * face is never a definition's name, so keying it could only ever legalise an
- * unrelated card printed under that name.
+ * unrelated card printed under that name. `frontFaces` is on for Modern
+ * only: Premodern's pool holds split cards and no double-faced ones, so its
+ * map keeps exactly the keys it had (a split card's front may name another
+ * card, and keying it there would buy nothing).
  */
-function poolNameSet(names: readonly string[]): ReadonlySet<string> {
+function poolNameSet(
+    names: readonly string[],
+    frontFaces: boolean
+): ReadonlySet<string> {
     const set = new Set<string>();
     for (const name of names) {
         const key = name.trim().toLowerCase();
         set.add(key);
         const front = key.split(" // ")[0];
-        if (front !== key) set.add(front);
+        if (frontFaces && front !== key) set.add(front);
     }
     return set;
 }
@@ -657,7 +663,8 @@ function poolNameSet(names: readonly string[]): ReadonlySet<string> {
  * finding 3).
  */
 export const PREMODERN_LEGAL_NAMES: ReadonlySet<string> = poolNameSet(
-    (oracleLegalityData as OracleLegalityFile).premodern
+    (oracleLegalityData as OracleLegalityFile).premodern,
+    false
 );
 
 /** Modern POOL-MEMBER names (issue #8453) — `legalities.modern` of `legal`
@@ -665,7 +672,8 @@ export const PREMODERN_LEGAL_NAMES: ReadonlySet<string> = poolNameSet(
  *  semantics as `PREMODERN_LEGAL_NAMES` above: `checkBanned` stays the sole
  *  ban authority. */
 export const MODERN_LEGAL_NAMES: ReadonlySet<string> = poolNameSet(
-    (oracleLegalityData as OracleLegalityFile).modern
+    (oracleLegalityData as OracleLegalityFile).modern,
+    true
 );
 
 /** The Formats whose pool is a Scryfall `legalities.<format>` name map —

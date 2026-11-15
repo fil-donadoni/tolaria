@@ -433,21 +433,54 @@ describe("seed:preset over the Modern lists (issue #8453)", () => {
         ).toBe(front!.id);
     });
 
-    it("refuses a slug two lists share", () => {
+    // One bad list blocks ONLY itself (the deploy sweep must not die on it).
+    it("refuses a slug two lists share — the later list only, as blocked", () => {
         const one = (format: "premodern" | "modern"): MetagameDeckFile => ({
             source: { supplier: "x", format, note: "" },
             decks: [oathPonza()],
         });
-        expect(() =>
-            sourcedDecks(
-                [
-                    { source: PREMODERN, file: one("premodern") },
-                    { source: MODERN, file: one("modern") },
-                ],
-                LOCK,
-                POOL
-            )
-        ).toThrow(/duplicate Preset Deck slug "oath-ponza"/);
+        const [first, second] = sourcedDecks(
+            [
+                { source: PREMODERN, file: one("premodern") },
+                { source: MODERN, file: one("modern") },
+            ],
+            LOCK,
+            POOL
+        );
+        expect(first.refusal).toBeUndefined();
+        expect(second.refusal).toMatch(
+            /duplicate Preset Deck slug "oath-ponza"/
+        );
+        const row = seedOne(second, true);
+        expect(row.state).toBe("blocked");
+        expect(row.problems?.[0]).toMatch(/duplicate Preset Deck slug/);
+    });
+
+    it("a list naming a card the lockfile cannot resolve blocks itself, not the sweep", () => {
+        const bad: Tier1Deck = {
+            ...oathPonza(),
+            slug: "bad",
+            main: [
+                { count: 59, name: "Forest" },
+                { count: 1, name: "Not A Real Card" },
+            ],
+        };
+        const rows = sourcedDecks(
+            [
+                {
+                    source: MODERN,
+                    file: {
+                        source: { supplier: "x", format: "MO", note: "" },
+                        decks: [bad, oathPonza()],
+                    },
+                },
+            ],
+            LOCK,
+            POOL
+        );
+        expect(rows).toHaveLength(2);
+        expect(rows[0].refusal).toMatch(/Not A Real Card/);
+        expect(rows[1].refusal).toBeUndefined();
     });
 
     it("reads both canonical files without a slug collision", () => {

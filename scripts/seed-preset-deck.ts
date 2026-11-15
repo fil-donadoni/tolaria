@@ -85,7 +85,10 @@
  * takes. It exits non-zero only when a deck that IS seedable could not be
  * written.
  *
- * ONE other non-zero path, and it is deliberate: `--deploy` with no deploy key
+ * Two other non-zero paths, both deliberate configuration faults. An empty
+ * card-index pool (`data/card-index.json` missing): every hand-written card
+ * would read unplayable and the sweep would publish nothing while exiting 0.
+ * And `--deploy` with no deploy key
  * in the environment. Chained into a build command, that exit reds the deploy —
  * for a configuration fault, not a write failure. The alternative is worse. A
  * renamed or dropped key would otherwise make the step exit 0 having seeded
@@ -156,13 +159,33 @@ export interface SourcedDeck {
     readonly deck: Tier1Deck;
     readonly source: PresetSource;
     readonly playability: DeckPlayability;
+    /** Why this list cannot even be counted — a name the lockfile cannot
+     *  resolve, or a slug an earlier list already holds. Set ⇒ the list is
+     *  BLOCKED, never a sweep failure: one bad list must not stop the others
+     *  (nor red the deploy that runs the sweep). */
+    readonly refusal?: string;
+}
+
+/** The count of a list nobody could read: nothing playable. */
+function unreadPlayability(deck: Tier1Deck): DeckPlayability {
+    const total = (es: readonly { count: number }[]): number =>
+        es.reduce((sum, e) => sum + e.count, 0);
+    return {
+        main: 0,
+        mainTotal: total(deck.main),
+        side: 0,
+        sideTotal: total(deck.sideboard),
+        missing: [],
+    };
 }
 
 /**
- * Every list of every source with its playability, refusing a slug two lists
- * share (the `presetDecks` key — the later list would overwrite the earlier
- * on every sweep). Pure over its inputs: the files are read by `source.read`,
- * the lockfile and the pool are handed in.
+ * Every list of every source with its playability. Per LIST, never per
+ * sweep: a name the lockfile cannot resolve (`tier1Reports` is fail-closed)
+ * or a slug an earlier list already holds (the `presetDecks` key — the later
+ * list would overwrite the earlier on every sweep) refuses THAT list, and
+ * every other one is still counted. Pure over its inputs: the files are read
+ * by `source.read`, the lockfile and the pool are handed in.
  */
 export function sourcedDecks(
     files: readonly { source: PresetSource; file: MetagameDeckFile }[],
@@ -172,35 +195,65 @@ export function sourcedDecks(
     const out: SourcedDeck[] = [];
     const owner = new Map<string, FormatId>();
     for (const { source, file } of files) {
-        const reports = tier1Reports(file, lock, pool);
-        file.decks.forEach((deck, i) => {
+        for (const deck of file.decks) {
             const prior = owner.get(deck.slug);
             if (prior !== undefined) {
-                throw new Error(
-                    `duplicate Preset Deck slug "${deck.slug}" — named by the ${prior} AND the ${source.format} list; presetDecks is keyed by slug`
-                );
+                out.push({
+                    deck,
+                    source,
+                    playability: unreadPlayability(deck),
+                    refusal: `duplicate Preset Deck slug "${deck.slug}" — named by the ${prior} AND the ${source.format} list; presetDecks is keyed by slug`,
+                });
+                continue;
             }
             owner.set(deck.slug, source.format);
-            out.push({
-                deck,
-                source,
-                playability: deckPlayability(deck, reports[i]),
-            });
-        });
+            try {
+                const [report] = tier1Reports({ decks: [deck] }, lock, pool);
+                out.push({
+                    deck,
+                    source,
+                    playability: deckPlayability(deck, report),
+                });
+            } catch (err) {
+                out.push({
+                    deck,
+                    source,
+                    playability: unreadPlayability(deck),
+                    refusal: (err as Error).message,
+                });
+            }
+        }
     }
     return out;
 }
 
-/** The lists as this checkout holds them. */
-function readSourcedDecks(): SourcedDeck[] {
+/**
+ * The lists as this checkout holds them, and the files that could not be
+ * read at all (each named, never fatal to the others). Throws on ONE
+ * configuration fault only: an empty card-index pool, which would read every
+ * hand-written card as unplayable and publish nothing while exiting 0 — the
+ * silence issue #3499 ended for the deploy key.
+ */
+function readSourcedDecks(): { decks: SourcedDeck[]; unread: string[] } {
     const lock = parseLockfile(
         readFileSync(join(ROOT, "data", "oracle-compiled.json"), "utf8")
     );
-    return sourcedDecks(
-        PRESET_SOURCES.map((source) => ({ source, file: source.read(ROOT) })),
-        lock,
-        poolOracleIds()
-    );
+    const pool = poolOracleIds();
+    if (pool.size === 0) {
+        throw new Error(
+            "data/card-index.json is missing or empty — every hand-written card would read as unplayable (run `bun run worktree:init`)"
+        );
+    }
+    const files: { source: PresetSource; file: MetagameDeckFile }[] = [];
+    const unread: string[] = [];
+    for (const source of PRESET_SOURCES) {
+        try {
+            files.push({ source, file: source.read(ROOT) });
+        } catch (err) {
+            unread.push(`${source.format} lists: ${(err as Error).message}`);
+        }
+    }
+    return { decks: sourcedDecks(files, lock, pool), unread };
 }
 
 /** Why a list is not yet at 75/75, first missing card first. */
@@ -306,6 +359,14 @@ export function seedOne(
     target: SeedTarget = "local"
 ): SweepRow {
     const { deck, source, playability } = sourced;
+    if (sourced.refusal !== undefined) {
+        return {
+            slug: deck.slug,
+            name: deck.name,
+            state: "blocked",
+            problems: [sourced.refusal],
+        };
+    }
     if (!isFullyPlayable(playability)) {
         return {
             slug: deck.slug,
@@ -363,8 +424,9 @@ function main(): void {
     // read from wherever this runs; only the DEPLOYMENT write needs the
     // primary checkout, whose `.env.local` names the deployment.
     let decks: SourcedDeck[];
+    let unread: string[];
     try {
-        decks = readSourcedDecks();
+        ({ decks, unread } = readSourcedDecks());
     } catch (err) {
         console.error(`${RED}seed:preset: ${(err as Error).message}${RESET}`);
         process.exit(1);
@@ -418,6 +480,9 @@ function main(): void {
         // and burying it between successes is how a list nobody finished stays
         // unnoticed — the exact failure this sweep exists to end.
         const blocked = rows.filter((r) => r.state === "blocked");
+        for (const line of unread) {
+            console.log(`${DIM}· unreadable${RESET} ${line}`);
+        }
         for (const row of blocked) {
             console.log(
                 `${DIM}· not yet playable${RESET} ${row.name} ${DIM}(${row.slug})${RESET}`
@@ -433,8 +498,9 @@ function main(): void {
                 `${blocked.length} not yet playable${failed > 0 ? `, ${failed} refused` : ""}${RESET}`
         );
         // A BLOCKED deck is not a failure — it is the normal state of a list
-        // whose cards nobody has finished. Only a deck that was seedable and
-        // could not be written is.
+        // whose cards nobody has finished, and a list (or a file) the sweep
+        // could not read blocks only itself. Only a deck that was seedable
+        // and could not be written is a failure.
         if (failed > 0) process.exit(1);
         return;
     }
@@ -449,6 +515,10 @@ function main(): void {
         process.exit(1);
     }
     const { deck, source, playability } = sourced;
+    if (sourced.refusal !== undefined) {
+        console.error(`${RED}seed:preset: ${sourced.refusal}${RESET}`);
+        process.exit(1);
+    }
     if (!isFullyPlayable(playability)) {
         console.error(
             `${RED}seed:preset: ${deck.name} is not yet playable${RESET}`
