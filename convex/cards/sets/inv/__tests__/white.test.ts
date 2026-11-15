@@ -1962,7 +1962,7 @@ describe("Samite Ministration (CR 615.1a shield + CR 603.7b per-prevention delay
         expect(state.players[0].life).toBe(10);
     });
 
-    it("CR 615.6 — a source that turns black after the shield resolves triggers on its later damage", () => {
+    it("CR 603.2 — a source that turns black after the shield resolves triggers on its later damage", () => {
         const state = board();
         cast(state, "bears");
         expect(ping(state, "bears", 2)).toEqual([]);
