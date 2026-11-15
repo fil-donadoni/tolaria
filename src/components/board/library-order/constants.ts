@@ -7,7 +7,8 @@ export const CARD_H = Math.round(CARD_W * 1.4); // 5:7-ish, ≈162
 /** Responsive readability floor (issue #1765) — the picker shrinks its tile
  *  width down to fit a narrow phone viewport (`fitTileWidth`,
  *  `~/lib/reorder-strip-width`), but never below this. Below it the strip's
- *  own horizontal scroll takes over instead of shrinking further. */
+ *  own horizontal scroll takes over instead of shrinking further. Phone only
+ *  (issue #9813, `libraryStripShrinksAt`): desktop/tablet never shrink. */
 export const MIN_CARD_W = 72;
 /** 5:7-ish card aspect ratio, applied to whatever tile width the fit picks —
  *  the same ratio `CARD_H` uses at the natural size. */
