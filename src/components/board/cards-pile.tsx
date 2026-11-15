@@ -35,6 +35,11 @@ import { pickerRingClass } from "~/lib/picker-ring";
 import { CARD_RING_TILE_CLASS } from "~/lib/card-ring";
 import { actionableRingClass } from "~/lib/card-actionable";
 import { PileActionableContext } from "~/lib/pile-actionable-context";
+// PROTOTYPE — throwaway (prototype/graveyard-order-overlap).
+import GraveyardOrderPrototype, {
+    GraveyardProtoBar,
+} from "./prototype-graveyard-order/graveyard-order-prototype";
+import { useGraveyardProtoVariant } from "./prototype-graveyard-order/proto-variant";
 
 /** Small counter chips overlaid on a revealed pile card (fan/grid dialog) —
  *  the exile/graveyard pickers need them (Dauthi Voidwalker's void counter is
@@ -106,6 +111,8 @@ function seededRandom(seed: number) {
 
 type CardsPileProps = {
     cards: CardInstance[];
+    /** PROTOTYPE — ordered pile (graveyard, CR 404.3): grid variants. */
+    orderedPile?: boolean;
     isFaceDown?: boolean;
     /** ADR 0026 — per-card face-up override. When provided, a card renders
      *  face-up iff its instance id is in this set, regardless of `isFaceDown`.
@@ -640,7 +647,9 @@ function GridLayout({
     categories,
     captionFor,
     activeFilterType,
+    orderedPile = false,
 }: {
+    orderedPile?: boolean;
     cards: CardInstance[];
     isFaceDown: boolean;
     faceUpIds?: ReadonlySet<string>;
@@ -672,6 +681,7 @@ function GridLayout({
     // `gridImageSizing`'s doc comment on the listener-count rationale).
     const viewportWidth = useViewportWidth();
     const imageSizing = gridImageSizing(viewportWidth);
+    const [protoVariant, setProtoVariant] = useGraveyardProtoVariant();
     const cardProps = {
         isFaceDown,
         faceUpIds,
@@ -683,6 +693,43 @@ function GridLayout({
         captionFor,
         imageSizing,
     };
+
+    if (!categories && orderedPile) {
+        const shown = (c: CardInstance) =>
+            !activeFilterType ||
+            activeFilterType === PILE_FILTER_ALL ||
+            pileFilterType(c) === activeFilterType;
+        return (
+            <>
+                <GraveyardProtoBar
+                    variant={protoVariant}
+                    onChange={setProtoVariant}
+                />
+                {protoVariant === "0" ? (
+                    <div
+                        className={`${PILE_GRID_ROW_CLASS} py-4 ${PILE_GRID_H_PADDING}`}
+                    >
+                        {cards.filter(shown).map((cardInstance) => (
+                            <GridCard
+                                key={cardInstance.id}
+                                cardInstance={cardInstance}
+                                {...cardProps}
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    <GraveyardOrderPrototype
+                        variant={protoVariant as "A" | "B" | "C"}
+                        cards={cards}
+                        isShown={shown}
+                        renderCard={(c) => (
+                            <GridCard cardInstance={c} {...cardProps} />
+                        )}
+                    />
+                )}
+            </>
+        );
+    }
 
     if (!categories) {
         const visibleCards =
@@ -770,6 +817,7 @@ export default function CardsPile({
     categories,
     captionFor,
     hasContextMenu = false,
+    orderedPile = false,
 }: CardsPileProps) {
     // Controlled-open chip mode (#336): the owner drives `open` and supplies the
     // trigger, so this component renders only the dialog.
@@ -1068,6 +1116,7 @@ export default function CardsPile({
                         categories={categories}
                         captionFor={captionFor}
                         activeFilterType={activeFilterType}
+                        orderedPile={orderedPile}
                     />
                 )}
                 {showFilter && (

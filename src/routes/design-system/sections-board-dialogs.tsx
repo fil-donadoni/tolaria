@@ -59,6 +59,8 @@ import { CLASH } from "./random-reveal-rounds-fixture";
 import RandomRevealRoundsSpecimen from "./random-reveal-rounds-specimen";
 import SideboardingDialog from "~/components/board/sideboarding-dialog";
 import { Section } from "./lib";
+// PROTOTYPE — throwaway (prototype/graveyard-order-overlap).
+import CardsPile from "~/components/board/cards-pile";
 import OverlaySpecimens, { type OverlaySpecimen } from "./overlay-specimens";
 import {
     GAME_CONTEXT,
@@ -67,7 +69,32 @@ import {
     OPP,
     PLAYERS,
     PRINT,
+    card,
 } from "./specimen-fixtures";
+
+// PROTOTYPE — 14-card graveyard, bottom→top, mixed types so the type filter
+// shows and hidden runs of every length appear (Instants filter: runs of 1,
+// 2 and 4 creatures/lands between the bolts).
+const PROTO_GRAVEYARD = (
+    [
+        ["bolt", "Instant"],
+        ["mountain", "Land"],
+        ["goblin", "Creature"],
+        ["bolt", "Instant"],
+        ["hillGiant", "Creature"],
+        ["minotaur", "Creature"],
+        ["bolt", "Instant"],
+        ["mountain", "Land"],
+        ["goblin", "Creature"],
+        ["hillGiant", "Creature"],
+        ["mountain", "Land"],
+        ["bolt", "Instant"],
+        ["minotaur", "Creature"],
+        ["goblin", "Creature"],
+    ] as const
+).map(([print, type], i) =>
+    card(`pg${i}`, PRINT[print], "graveyard", { types: [type] })
+);
 
 /* ── Fixtures ─────────────────────────────────────────────────────────── */
 
@@ -137,6 +164,24 @@ const PENDING_TARGET: PendingTarget = {
 /* ── The specimen table ───────────────────────────────────────────────── */
 
 const SPECIMENS: OverlaySpecimen[] = [
+    {
+        slug: "proto-graveyard-browse",
+        label: "PROTOTYPE · Graveyard browse (ordered)",
+        file: "board/cards-pile.tsx",
+        render: (close) => (
+            <CardsPile
+                cards={PROTO_GRAVEYARD}
+                title="Graveyard"
+                emptyLabel="Graveyard"
+                layout="grid"
+                orderedPile
+                open
+                onOpenChange={(o) => {
+                    if (!o) close();
+                }}
+            />
+        ),
+    },
     {
         slug: "activatable-ability",
         label: "Activatable abilities (ActionSheet)",

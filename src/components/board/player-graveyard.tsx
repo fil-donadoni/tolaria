@@ -214,6 +214,7 @@ export default function PlayerGraveyard({
             forceOpen={isGraveyardChoice && !isMinimized}
             onMinimize={isGraveyardChoice ? minimize : undefined}
             layout="grid"
+            orderedPile
             selectedIds={
                 isGraveyardChoice
                     ? bufferCtx.buffer
