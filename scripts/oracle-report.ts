@@ -252,7 +252,7 @@ function reportModernMetagame(lock: ReturnType<typeof parseLockfile>): void {
     const reports = tier1Reports(file, lock, poolOracleIds());
 
     process.stdout.write(
-        `\nModern metagame — per-archetype playable (main names, copies of 60, sideboard)\n` +
+        `\nModern metagame — per-archetype playable copies (main of 60, side of 15, of 75 — the Preset Deck gate)\n` +
             `${file.decks.length} archetypes from ${file.source.supplier}, stored in ${MODERN_METAGAME_DECKS_PATH}\n\n`
     );
     file.decks.forEach((deck, i) => {

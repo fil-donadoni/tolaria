@@ -1,25 +1,13 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import type { FormatId } from "@convex/formats";
+import { type FormatId, isBanlistFormatId } from "@convex/formats";
 import { Button } from "~/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
 import EmptyState from "~/components/ui/empty-state";
 
 interface DeckBanlistPanelProps {
     format: FormatId;
-}
-
-// The two Formats a DB-backed official banlist exists for (PRD #1138,
-// mirrors `BanlistFormatId` in `convex/formats.ts` — kept as a local literal
-// set rather than an import since `BanlistFormatId` isn't exported for
-// frontend consumption; `FormatId` is the wider type this component receives).
-const BANLIST_FORMATS = new Set<FormatId>(["premodern", "old-school"]);
-
-function isBanlistFormat(
-    format: FormatId
-): format is "premodern" | "old-school" {
-    return BANLIST_FORMATS.has(format);
 }
 
 /**
@@ -42,10 +30,10 @@ export default function DeckBanlistPanel({ format }: DeckBanlistPanelProps) {
     // the narrowing through to the ternary below.
     const entries = useQuery(
         api.banlists.getBanlist,
-        isBanlistFormat(format) ? { format } : "skip"
+        isBanlistFormatId(format) ? { format } : "skip"
     );
 
-    if (!isBanlistFormat(format)) return null;
+    if (!isBanlistFormatId(format)) return null;
 
     return (
         <>

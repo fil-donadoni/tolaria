@@ -35,7 +35,8 @@ type ReadCtx = QueryCtx | MutationCtx;
 // validator shapes rather than duplicating the literal unions.
 export const banlistFormatValidator = v.union(
     v.literal("premodern"),
-    v.literal("old-school")
+    v.literal("old-school"),
+    v.literal("modern")
 );
 
 export const banlistEntryValidator = v.object({

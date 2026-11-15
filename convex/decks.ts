@@ -11,6 +11,7 @@ import {
     resolveFeaturedCardId,
 } from "./deckPresets";
 import {
+    BANLIST_FORMAT_IDS,
     type BanlistOverride,
     type FormatId,
     type Reason,
@@ -35,6 +36,7 @@ const formatValidator = v.union(
     v.literal("alpha-40"),
     v.literal("old-school"),
     v.literal("premodern"),
+    v.literal("modern"),
     v.literal("limited"),
     v.literal("manual")
 );
@@ -216,21 +218,23 @@ export function sortLobbyPresets(presets: LobbyPreset[]): LobbyPreset[] {
 }
 
 /**
- * Preload the DB banlist override for BOTH DB-backed Formats (PRD #1138,
- * issue #1144) in two queries total, regardless of how many preset rows
- * `list` maps over — avoids an N+1 `loadBanlistOverrides` call per row for a
- * loop that only ever touches two possible Formats. A row whose Format isn't
+ * Preload the DB banlist override for EVERY DB-backed Format (PRD #1138,
+ * issue #1144; `BANLIST_FORMAT_IDS`) in one query per Format, regardless of
+ * how many preset rows `list` maps over — avoids an N+1
+ * `loadBanlistOverrides` call per row for a loop that only ever touches those
+ * few Formats. A row whose Format isn't
  * DB-backed (Alpha 40, Freeform) simply looks up `undefined` here, which
  * `presetRowToLobby`/`validateDeck` already treat as "use the code fallback".
  */
 export async function loadBanlistOverridesByFormat(
     ctx: QueryCtx
 ): Promise<Partial<Record<FormatId, BanlistOverride>>> {
-    const [premodern, oldSchool] = await Promise.all([
-        loadBanlistOverrides(ctx, "premodern"),
-        loadBanlistOverrides(ctx, "old-school"),
-    ]);
-    return { premodern, "old-school": oldSchool };
+    const overrides = await Promise.all(
+        BANLIST_FORMAT_IDS.map((format) => loadBanlistOverrides(ctx, format))
+    );
+    return Object.fromEntries(
+        BANLIST_FORMAT_IDS.map((format, i) => [format, overrides[i]])
+    );
 }
 
 // Lobby deck list, now sourced from the `presetDecks` DB table (ADR 0033).

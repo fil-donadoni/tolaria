@@ -277,19 +277,29 @@ export interface BanlistOverride {
     restricted: ReadonlySet<string>;
 }
 
-/** The two formats a DB-backed banlist exists for (PRD #1138). Narrower than
- *  `FormatId`: Alpha 40 keeps its bespoke Eternal Central lists fully
- *  code-managed and Freeform has no banlist, so neither is DB-backed. Kept in
- *  sync with the `formatBanlists.format` union in `convex/schema.ts`. */
-export type BanlistFormatId = "premodern" | "old-school";
+/** The formats a DB-backed banlist exists for (PRD #1138; Modern, issue
+ *  #8453). Narrower than `FormatId`: Alpha 40 keeps its bespoke Eternal
+ *  Central lists fully code-managed and Freeform has no banlist, so neither is
+ *  DB-backed. Kept in sync with the `formatBanlists.format` union in
+ *  `convex/schema.ts`. */
+export type BanlistFormatId = "premodern" | "old-school" | "modern";
 
-/** Type guard: is an arbitrary `FormatId` (or raw string) one of the two
+/** Every `BanlistFormatId`, in display order — the one list the guard below,
+ *  the server preload (`loadBanlistOverridesByFormat`) and the client hooks
+ *  iterate, so a new banlist Format is one entry here, never a literal set
+ *  repeated at each site (issue #1144). */
+export const BANLIST_FORMAT_IDS: readonly BanlistFormatId[] = [
+    "premodern",
+    "old-school",
+    "modern",
+] as const;
+
+/** Type guard: is an arbitrary `FormatId` (or raw string) one of the
  *  DB-backed banlist Formats? Mirrors `isFormatId`'s role for `FormatId` —
  *  the single authority both the server helper (`loadBanlistOverrides`,
- *  `convex/banlists.ts`) and any client call site key off, so the
- *  premodern/old-school literal pair is never repeated ad hoc (issue #1144). */
+ *  `convex/banlists.ts`) and any client call site key off (issue #1144). */
 export function isBanlistFormatId(value: string): value is BanlistFormatId {
-    return value === "premodern" || value === "old-school";
+    return (BANLIST_FORMAT_IDS as readonly string[]).includes(value);
 }
 
 /** A single official banlist entry by oracle NAME (never an id — the DB row
@@ -409,12 +419,77 @@ export const OLD_SCHOOL_BANLIST_SEED: readonly BanlistEntry[] = [
     { cardName: "Shahrazad", status: "banned" },
 ];
 
+/**
+ * Modern BANLIST SEED (issue #8453) — the DB fallback used while
+ * `formatBanlists` has no Modern rows yet (pre-first-sync). Unlike the two
+ * seeds above it is the COMPLETE official list at the corpus pin: every name
+ * whose Scryfall `legalities.modern` is `banned` in the pinned `oracle_cards`
+ * bulk (`data/oracle-corpus.pin.json`, 2026-11-08). Modern has no Restricted
+ * list. The admin Scryfall sync (`banned:modern`) supersedes it the moment it
+ * runs; until then this list is the authority, so it is never a subset.
+ */
+export const MODERN_BANLIST_SEED: readonly BanlistEntry[] = [
+    { cardName: "Amped Raptor", status: "banned" },
+    { cardName: "Ancient Den", status: "banned" },
+    { cardName: "Arcum's Astrolabe", status: "banned" },
+    { cardName: "Birthing Pod", status: "banned" },
+    { cardName: "Blazing Shoal", status: "banned" },
+    { cardName: "Bridge from Below", status: "banned" },
+    { cardName: "Chrome Mox", status: "banned" },
+    { cardName: "Cloudpost", status: "banned" },
+    { cardName: "Dark Depths", status: "banned" },
+    { cardName: "Deathrite Shaman", status: "banned" },
+    { cardName: "Dig Through Time", status: "banned" },
+    { cardName: "Dread Return", status: "banned" },
+    { cardName: "Eye of Ugin", status: "banned" },
+    { cardName: "Field of the Dead", status: "banned" },
+    { cardName: "Fury", status: "banned" },
+    { cardName: "Gitaxian Probe", status: "banned" },
+    { cardName: "Glimpse of Nature", status: "banned" },
+    { cardName: "Golgari Grave-Troll", status: "banned" },
+    { cardName: "Great Furnace", status: "banned" },
+    { cardName: "Grief", status: "banned" },
+    { cardName: "Hogaak, Arisen Necropolis", status: "banned" },
+    { cardName: "Hypergenesis", status: "banned" },
+    { cardName: "Jegantha, the Wellspring", status: "banned" },
+    { cardName: "Krark-Clan Ironworks", status: "banned" },
+    { cardName: "Lotus Field", status: "banned" },
+    { cardName: "Lurrus of the Dream-Den", status: "banned" },
+    { cardName: "Mental Misstep", status: "banned" },
+    { cardName: "Mycosynth Lattice", status: "banned" },
+    { cardName: "Mystic Sanctuary", status: "banned" },
+    { cardName: "Nadu, Winged Wisdom", status: "banned" },
+    { cardName: "Oko, Thief of Crowns", status: "banned" },
+    { cardName: "Once Upon a Time", status: "banned" },
+    { cardName: "Phlage, Titan of Fire's Fury", status: "banned" },
+    { cardName: "Ponder", status: "banned" },
+    { cardName: "Punishing Fire", status: "banned" },
+    { cardName: "Rite of Flame", status: "banned" },
+    { cardName: "Seat of the Synod", status: "banned" },
+    { cardName: "Second Sunrise", status: "banned" },
+    { cardName: "Seething Song", status: "banned" },
+    { cardName: "Sensei's Divining Top", status: "banned" },
+    { cardName: "Simian Spirit Guide", status: "banned" },
+    { cardName: "Skullclamp", status: "banned" },
+    { cardName: "Summer Bloom", status: "banned" },
+    { cardName: "The One Ring", status: "banned" },
+    { cardName: "Tibalt's Trickery", status: "banned" },
+    { cardName: "Treasure Cruise", status: "banned" },
+    { cardName: "Tree of Tales", status: "banned" },
+    { cardName: "Underworld Breach", status: "banned" },
+    { cardName: "Up the Beanstalk", status: "banned" },
+    { cardName: "Uro, Titan of Nature's Wrath", status: "banned" },
+    { cardName: "Vault of Whispers", status: "banned" },
+    { cardName: "Yorion, Sky Nomad", status: "banned" },
+];
+
 /** `BanlistFormatId → BanlistEntry[]` seed registry, keyed the same way as
  *  `formatBanlists.format`. The single lookup `convex/banlists.ts` uses when
  *  a format's DB rows are empty. */
 export const BANLIST_SEEDS: Record<BanlistFormatId, readonly BanlistEntry[]> = {
     premodern: PREMODERN_BANLIST_SEED,
     "old-school": OLD_SCHOOL_BANLIST_SEED,
+    modern: MODERN_BANLIST_SEED,
 };
 
 /**
@@ -541,6 +616,28 @@ interface OracleLegalityFile {
     readonly generator: string;
     readonly corpus: { readonly sha256: string };
     readonly premodern: readonly string[];
+    readonly modern: readonly string[];
+}
+
+/**
+ * A generated pool-name array as the lookup set the validators join on:
+ * case-folded (matching `nameRegistry`'s own `.toLowerCase()` convention, ADR
+ * 0057), and a multi-face card's combined Scryfall name (`Front // Back`)
+ * also keyed by its FRONT face — the name a double-faced or modal
+ * `CardDefinition` carries (issue #8453: Witch Enchanter, a Modern MDFC, read
+ * as not-in-pool through its combined name alone). Only the front: a back
+ * face is never a definition's name, so keying it could only ever legalise an
+ * unrelated card printed under that name.
+ */
+function poolNameSet(names: readonly string[]): ReadonlySet<string> {
+    const set = new Set<string>();
+    for (const name of names) {
+        const key = name.trim().toLowerCase();
+        set.add(key);
+        const front = key.split(" // ")[0];
+        if (front !== key) set.add(front);
+    }
+    return set;
 }
 
 /**
@@ -559,11 +656,32 @@ interface OracleLegalityFile {
  * the map itself would still be missing its name (issue #2695 review,
  * finding 3).
  */
-export const PREMODERN_LEGAL_NAMES: ReadonlySet<string> = new Set(
-    (oracleLegalityData as OracleLegalityFile).premodern.map((name) =>
-        name.trim().toLowerCase()
-    )
+export const PREMODERN_LEGAL_NAMES: ReadonlySet<string> = poolNameSet(
+    (oracleLegalityData as OracleLegalityFile).premodern
 );
+
+/** Modern POOL-MEMBER names (issue #8453) — `legalities.modern` of `legal`
+ *  or `banned`, from the same generated map and with the same pool-not-legal
+ *  semantics as `PREMODERN_LEGAL_NAMES` above: `checkBanned` stays the sole
+ *  ban authority. */
+export const MODERN_LEGAL_NAMES: ReadonlySet<string> = poolNameSet(
+    (oracleLegalityData as OracleLegalityFile).modern
+);
+
+/** The Formats whose pool is a Scryfall `legalities.<format>` name map —
+ *  the `format` argument of `checkOracleLegality`. */
+export type OracleLegalityFormatId = "premodern" | "modern";
+
+/** Each name-map Format's generated pool. The deck builder's discovery gate
+ *  (`useCardSearch.ts`) and the validators read the SAME set, so search can
+ *  never offer a card the Format then rejects. */
+export const ORACLE_LEGAL_NAMES: Record<
+    OracleLegalityFormatId,
+    ReadonlySet<string>
+> = {
+    premodern: PREMODERN_LEGAL_NAMES,
+    modern: MODERN_LEGAL_NAMES,
+};
 
 /**
  * Premodern POOL MEMBERSHIP by Scryfall `legalities.premodern`, per oracle id
@@ -592,7 +710,8 @@ export const PREMODERN_LEGAL_NAMES: ReadonlySet<string> = new Set(
 export function checkOracleLegality(
     deck: ValidatableDeck,
     legalNames: ReadonlySet<string>,
-    resolve: ResolveCard
+    resolve: ResolveCard,
+    format: OracleLegalityFormatId = "premodern"
 ): Reason[] {
     const reasons: Reason[] = [];
     const seen = new Set<string>();
@@ -613,8 +732,8 @@ export function checkOracleLegality(
         const key = (cardMeta.name ?? card.cardName).trim().toLowerCase();
         if (!legalNames.has(key)) {
             reasons.push({
-                code: "premodern-illegal",
-                message: `${card.cardName}: not Premodern-legal per Scryfall.`,
+                code: `${format}-illegal`,
+                message: `${card.cardName}: not ${FORMAT_LABELS[format]}-legal per Scryfall.`,
             });
         }
     }
@@ -1228,6 +1347,68 @@ function premodernValidate(
     ];
 }
 
+// --- Modern legality (issue #8453) -----------------------------------------
+//
+// Modern: 60-card constructed, 15-card sideboard, 4-copy limit, a Banned list
+// and no Restricted list. Pool membership is Scryfall `legalities.modern` by
+// name (the Premodern pattern of issue #2695 — a set list would re-open the
+// printing gap), the banlist is DB-backed and Scryfall-synced (ADR 0057/0170).
+
+/** Standard constructed copy ceiling for non-basic cards in Modern. */
+const MODERN_COPY_LIMIT = 4;
+
+/**
+ * The banned card ids of `deck` by NAME against a seed list — the fallback
+ * when no DB banlist is injected. Modern carries no hand-kept id constant
+ * (Premodern's `PREMODERN_BANNED` predates the DB list): the seed's names,
+ * matched against each deck card's resolved name, ban exactly the built cards
+ * the server's live resolution would. Fail-closed: a seed name is banned
+ * whether or not anyone remembered to add an id for it.
+ */
+export function bannedIdsBySeedName(
+    deck: ValidatableDeck,
+    seed: readonly BanlistEntry[],
+    resolve: ResolveCard
+): ReadonlySet<string> {
+    const names = new Set(
+        seed
+            .filter((e) => e.status === "banned")
+            .map((e) => e.cardName.trim().toLowerCase())
+    );
+    const ids = new Set<string>();
+    for (const card of [...deck.cards, ...(deck.sideboard ?? [])]) {
+        const meta = resolve(card.cardId);
+        const name = (meta?.name ?? card.cardName).trim().toLowerCase();
+        if (names.has(name)) ids.add(meta?.cardId ?? card.cardId);
+    }
+    return ids;
+}
+
+/**
+ * The full Modern validator (issue #8453): size (≥60 main, ≤15 side) +
+ * Scryfall pool membership (`MODERN_LEGAL_NAMES`) + the 4-copy limit + the
+ * Banned list. When `banlist` is injected (the DB list, live-resolved), its
+ * `banned` set is the authority; absent, `MODERN_BANLIST_SEED` by name.
+ */
+function modernValidate(
+    deck: ValidatableDeck,
+    resolve: ResolveCard,
+    banlist?: BanlistOverride
+): Reason[] {
+    const meta = FORMAT_RULES.modern;
+    return [
+        ...checkSize(deck, meta),
+        ...checkOracleLegality(deck, MODERN_LEGAL_NAMES, resolve, "modern"),
+        ...checkCopyLimit(deck, MODERN_COPY_LIMIT, resolve),
+        ...checkBanned(
+            deck,
+            banlist?.banned ??
+                bannedIdsBySeedName(deck, MODERN_BANLIST_SEED, resolve),
+            resolve
+        ),
+    ];
+}
+
 // Freeform: no constraints, ever (ADR 0036).
 const noReasons = (): Reason[] => [];
 
@@ -1314,6 +1495,17 @@ export const FORMAT_RULES: Record<FormatId, FormatMeta> = {
         // Full legality: size + sets + 4-copy limit + Banned (0), no restricted
         // list — see premodernValidate.
         validate: premodernValidate,
+    },
+    modern: {
+        label: FORMAT_LABELS.modern,
+        // Pool membership is the Scryfall name map, not a set list (see
+        // modernValidate) — `allowedSets` feeds only the advisory UI
+        // consumers (basic-land art, import printing preference), which for
+        // Modern express no preference.
+        allowedSets: null,
+        minMain: 60,
+        maxSide: 15,
+        validate: modernValidate,
     },
     limited: {
         label: FORMAT_LABELS.limited,

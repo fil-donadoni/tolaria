@@ -14,7 +14,8 @@
  *          claim and idle — by `wt:gc`'s classifier, `--issues-only`.
  *   seed   the `seed` machine only: fast-forward again (a no-op when `sync`
  *          already did), register each merged PR's `## Preset scenario`, and
- *          `seed:preset --all` when the push changed a card set.
+ *          `seed:preset --all` when the push changed a card set or an
+ *          input of the Preset Deck 75/75 gate (issue #8453).
  *
  * Every step is idempotent and runs even when an earlier one failed, except a
  * seed after a failed fast-forward (`seedPlan`). The exit code is 1 when any
@@ -530,7 +531,14 @@ export function seed(
     }
     const ff = target !== null && fastForward(primary, target);
     const { prs, files } = readPush(before, after, primary);
-    const plan = seedPlan(ff, prs, files);
+    // The files the preset gate reads are judged up to the tree the seed
+    // runs on: a stale tip's card states move in `derive:sync`'s commit, not
+    // in the push (issue #8453).
+    const seededFiles =
+        target !== null && target !== after
+            ? readPush(before, target, primary).files
+            : files;
+    const plan = seedPlan(ff, prs, seededFiles);
     if (target === null)
         console.error(
             `post-merge: no derive:sync commit on top of ${after.slice(0, 10)} within ${Math.round(SEED_DERIVE_WAIT_MS / 60_000)} min — nothing seeded for PR(s) ${prs.map((p) => `#${p}`).join(" ") || "(none)"}; seed by hand (bun run seed:scenario <PR>) once it lands`
