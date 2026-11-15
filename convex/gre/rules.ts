@@ -849,7 +849,7 @@ export function markGraveyardPlayPermissionUsed(
  *  '…'" rider onto `card`, the object actually played or cast with it: the
  *  graveyard land as the play is taken, the stack item at cast commit. The
  *  permanent's entry converts it into an indefinite triggered-ability grant
- *  (`applyGraveyardPermissionRider`, `gre/state.ts`). A no-op for a
+ *  (`applyEntryGrantRiders`, `gre/state.ts`). A no-op for a
  *  permission that carries no rider, or when no permission was spent — so a
  *  card played under a rider-less permission never inherits one. */
 export function stampGraveyardPermissionRider(
@@ -857,7 +857,10 @@ export function stampGraveyardPermissionRider(
     permission: LiveGraveyardPlayPermission | undefined
 ): void {
     if (!permission?.rider) return;
-    card.graveyardPermissionRider = { ...permission.rider };
+    card.entryGrantRiders = [
+        ...(card.entryGrantRiders ?? []),
+        { ...permission.rider },
+    ];
 }
 
 /** Selects the permission `player` uses to take `action` with `card` and

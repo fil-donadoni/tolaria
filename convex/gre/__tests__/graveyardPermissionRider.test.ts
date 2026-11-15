@@ -156,7 +156,7 @@ describe("Serra Paragon — graveyard play permission rider (issue #1239)", () =
             expect(riderGrants(land!)).toEqual([
                 expect.objectContaining({ sourceCardId: serraParagon().id }),
             ]);
-            expect(land!.graveyardPermissionRider).toBeUndefined();
+            expect(land!.entryGrantRiders).toBeUndefined();
 
             departAndResolve(state, "gy-mountain", "graveyard");
             expect(p1.graveyard.some((c) => c.id === "gy-mountain")).toBe(
@@ -211,16 +211,15 @@ describe("Serra Paragon — graveyard play permission rider (issue #1239)", () =
             ]);
             const p1 = getPlayer(state, "p1");
             const item = castFromGraveyard(state, "gy-lions");
-            expect(item.graveyardPermissionRider).toEqual({
-                sourceCardId: serraParagon().id,
-                abilityId: RIDER_ID,
-            });
+            expect(item.entryGrantRiders).toEqual([
+                { sourceCardId: serraParagon().id, abilityId: RIDER_ID },
+            ]);
             expect(canPlayLandsFromGraveyard(state, p1)).toBe(false);
 
             resolveTopOfStack(state);
             const lions = p1.battlefield.find((c) => c.id === "gy-lions");
             expect(riderGrants(lions)).toHaveLength(1);
-            expect(lions!.graveyardPermissionRider).toBeUndefined();
+            expect(lions!.entryGrantRiders).toBeUndefined();
         });
 
         it("the rider survives Serra Paragon leaving the battlefield before the licensed spell resolves", () => {
@@ -272,7 +271,7 @@ describe("Serra Paragon — graveyard play permission rider (issue #1239)", () =
             resolveTopOfStack(state);
             const lions = p1.graveyard.find((c) => c.id === "gy-lions");
             expect(lions).toBeDefined();
-            expect(lions!.graveyardPermissionRider).toBeUndefined();
+            expect(lions!.entryGrantRiders).toBeUndefined();
             expect(riderGrants(lions)).toEqual([]);
             expect(canPlayLandsFromGraveyard(state, p1)).toBe(false);
         });
@@ -334,10 +333,10 @@ describe("Serra Paragon — graveyard play permission rider (issue #1239)", () =
                 { extraSources: [onBattlefield(lurrus().id, "lurrus")] }
             );
             const first = castFromGraveyard(state, "gy-lions-1");
-            expect(first.graveyardPermissionRider).toBeUndefined();
+            expect(first.entryGrantRiders).toBeUndefined();
             resolveTopOfStack(state);
             const second = castFromGraveyard(state, "gy-lions-2");
-            expect(second.graveyardPermissionRider).toBeDefined();
+            expect(second.entryGrantRiders).toBeDefined();
             resolveTopOfStack(state);
             const p1 = getPlayer(state, "p1");
             expect(
