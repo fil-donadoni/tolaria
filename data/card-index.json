@@ -83846,6 +83846,14 @@
         "source": "compiled"
     },
     {
+        "name": "Thief of Existence",
+        "scryfallId": "328b02ca-d8eb-401d-9c41-93f8eb909312",
+        "oracleId": "7abbd5af-a04b-476d-aee5-2b2f5114b019",
+        "firstSet": "mh3",
+        "firstPrintId": "328b02ca-d8eb-401d-9c41-93f8eb909312",
+        "firstPrintSet": "mh3"
+    },
+    {
         "name": "Thieving Magpie",
         "scryfallId": "2b6b23b9-4569-40ff-988f-ad1d5d3fe573",
         "oracleId": "2f074636-6a36-46a3-b872-add79e19aa8b",
