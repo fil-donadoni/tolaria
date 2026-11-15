@@ -582,13 +582,6 @@ export const dwarvenCatapult = defineCard(() => ({
     },
 }));
 
-// DIVERGENCE (tracked-by: #2120): the first line — "This enchantment can't be the
-// target of white spells or abilities from white sources" — is NOT modelled.
-// It is a protection-from-white variant restricted to WHITE SOURCES (a
-// source-colour-gated targeting ban, CR 702.16b), which the permanent-guard /
-// protection modules don't yet express (protection.ts keys off "protection
-// from <colour>", not "targeted by a <colour> source"). The Sacrifice-an-Orc
-// raze ability is fully implemented below; the targeting ban is deferred.
 export const raidingParty = defineCard(() => ({
     id: "907a3396-706b-4ca2-9973-bca758986032", // FEM 64
     rarity: "rare",
@@ -597,6 +590,18 @@ export const raidingParty = defineCard(() => ({
         "This enchantment can't be the target of white spells or abilities from white sources.\nSacrifice an Orc: Each player may tap any number of untapped white creatures they control. For each creature tapped this way, that player chooses up to two Plains. Then destroy all Plains that weren't chosen this way by any player.",
     manaCost: { X: 2, R: 1 },
     types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "permanent-guard",
+            id: "raiding-party-cant-be-targeted-by-white",
+            // CR 611 — guards Raiding Party itself. The colour filter narrows
+            // it to white sources (CR 202.2); a spell is its own source and an
+            // ability's source is the object that generated it (CR 113.7).
+            applies: (target, source) => target.id === source.id,
+            cantBeTargeted: true,
+            targetSourceColorFilter: ["W"],
+        },
+    ],
     activatedAbilities: [
         {
             id: "raiding-party-raze",

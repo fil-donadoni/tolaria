@@ -6,7 +6,11 @@ import {
     playerHasShroud,
     type GuardActionSource,
 } from "@convex/gre/permanentGuard";
-import { isProtectedFrom, protectionSourceView } from "@convex/gre/protection";
+import {
+    isProtectedFrom,
+    protectionSourceCharacteristics,
+    protectionSourceView,
+} from "@convex/gre/protection";
 // CR 112.1 / 113.3 (issue #2296) — the SHARED spell-bit derivation, the same
 // function `pendingTargetingSource` (`gre/rules.ts`) runs for the server's
 // offered AND accepted sets. Imported rather than re-derived: the client's own
@@ -99,6 +103,12 @@ function pendingGuardSource(
     return {
         types: found?.types ?? [],
         subtypes: found?.subtypes ?? [],
+        // CR 202.2 — the source's LIVE colours, read by the same layer-aware
+        // authority the server's `targetingSourceFromCard` uses, so a
+        // `targetSourceColorFilter` guard greys exactly what the server bars.
+        colors: found
+            ? protectionSourceCharacteristics(toGuardTarget(found)).colors
+            : [],
         isSpell,
         // CR 702.11b — the source's controller, so hexproof greys only
         // an opponent's targeted spell, never the controller's own.

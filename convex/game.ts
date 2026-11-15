@@ -254,6 +254,7 @@ import {
     pendingTargetingSource,
     isProtectedFrom,
     protectionSourceFromTargeting,
+    guardSourceFromTargeting,
     targetingSourceFromCard,
     pendingTargetFiltersFromRequirement,
     solveHybridGenericLegs,
@@ -10824,17 +10825,14 @@ function assertNewTargetLegal(
         // spell-vs-ability (CR 113.3 "spells only" — Lurker) narrow filtered
         // guards.
         if (
-            isGuardedAgainst(state, matchedCard, "cantBeTargeted", {
-                types: targetingSource.types,
-                subtypes: targetingSource.subtypes,
-                // CR 113.3 — cast and (copy-)retarget are spells; an
-                // activated OR triggered ability is not.
-                isSpell: targetingSource.isSpell,
-                // CR 702.11b — the source's controller (the selecting
-                // player). Hexproof bars only an opponent-controlled source;
-                // the permanent's own controller can still target it.
-                controllerId: playerId,
-            })
+            isGuardedAgainst(
+                state,
+                matchedCard,
+                "cantBeTargeted",
+                // CR 702.11b — the selecting player is the source's
+                // controller, so hexproof bars only an opponent's source.
+                guardSourceFromTargeting(targetingSource, playerId)
+            )
         ) {
             throw new Error(
                 "Target can't be the target of spells or abilities"

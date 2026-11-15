@@ -204,6 +204,7 @@ import {
     raiseTriggerTargetSelection,
     targetingSourceFromCard,
     protectionSourceFromTargeting,
+    guardSourceFromTargeting,
 } from "./rules";
 import { overloadAffectedTargets } from "./overload";
 import {
@@ -2589,15 +2590,14 @@ function targetStillTargetableBySource(
     // CR 702.18a — shroud (every source, the controller's own included).
     // CR 611 — declared `permanent-guard` bundles, with their CR 109.5
     // source narrowings.
-    return !isGuardedAgainst(state, candidate, "cantBeTargeted", {
-        types: source.types,
-        subtypes: source.subtypes,
-        isSpell: source.isSpell,
-        // CR 702.11b — the source's controller. Hexproof bars only an
-        // opponent-controlled source; the permanent's own controller may
-        // still target it, exactly as at announcement.
-        controllerId: sourceControllerId,
-    });
+    // CR 702.11b — the source's controller: hexproof bars only an
+    // opponent-controlled source, exactly as at announcement.
+    return !isGuardedAgainst(
+        state,
+        candidate,
+        "cantBeTargeted",
+        guardSourceFromTargeting(source, sourceControllerId)
+    );
 }
 
 /** Re-checks a single chosen target's legality at resolution (CR 608.2b/c).
@@ -19444,6 +19444,15 @@ export function buildSpellContext(
                     else if (Array.isArray(color))
                         extraColorCodes.push(...color);
                 }
+            }
+            // CR 612.1 — a `permanent-guard`'s source-colour filter is a
+            // colour word in the object's text ("white spells or abilities
+            // from white sources", Raiding Party).
+            for (const effect of def?.staticEffects ?? []) {
+                if (effect.kind === "permanent-guard")
+                    extraColorCodes.push(
+                        ...(effect.targetSourceColorFilter ?? [])
+                    );
             }
             return colorWordsPresent(instance, extraColorCodes);
         },
