@@ -14049,6 +14049,15 @@ export interface TriggerStateView {
          *  no client hint reads a cast trigger, so `buildTriggerStateView`
          *  leaves it absent. */
         spellsCastThisTurn?: number;
+        /** CR 113.6b — this player's exile, engine-read by the intervening-if
+         *  of an ability that functions from exile ("if this card is exiled
+         *  with a scream counter on it", `exiledCardCounterCount`). No client
+         *  hint reads an upkeep trigger, so `buildTriggerStateView` leaves it
+         *  absent. */
+        exile?: ReadonlyArray<{
+            id: string;
+            counters?: Readonly<Record<string, number>>;
+        }>;
         battlefield: ReadonlyArray<{
             id: string;
             controllerId: string;
