@@ -21,7 +21,8 @@ import BugReportButton from "../bug-report/bug-report-button";
  *  for the current step. A CTA reveals the full phase list (with per-phase
  *  stops). It reuses the priority helpers and dispatches the SAME mutations as
  *  the old action bar (`useControllerActions`) — view-layer only, no GRE
- *  changes. Keyboard shortcuts (Space/Enter/U) are wired in that hook. */
+ *  changes. Keyboard shortcuts are wired in that hook, from the declarations
+ *  in `~/lib/hotkeys` its buttons' keycaps read. */
 export default function ControllerPod({
     onOpenMenu,
 }: {
@@ -32,7 +33,8 @@ export default function ControllerPod({
     // absent a provider. One call, at a stable position — the pod is the ONE
     // controller layout `controller.tsx` mounted this render.
     const useControllerState = useControllerActionsSource();
-    const { cue, actions, attackAllConfirm } = useControllerState();
+    const { cue, actions, attackAllConfirm, hotkeyScope } =
+        useControllerState();
     // The pod lists its actions rather than arranging them into slots, but it
     // marks the SAME one the strip and the command row put in their centre
     // slot, so `check:ui`'s one `data-controller-primary` promise addresses
@@ -154,7 +156,7 @@ export default function ControllerPod({
                 className="flex items-center justify-end gap-2"
             >
                 <BugReportButton className="inline-flex cursor-pointer items-center justify-center rounded-sm border border-border-strong bg-surface-elevated p-2 text-text-muted shadow-lg transition-colors hover:text-text" />
-                <HotkeysLegend />
+                <HotkeysLegend scope={hotkeyScope} />
                 <PauseMenuButton onOpen={onOpenMenu} />
             </div>
 

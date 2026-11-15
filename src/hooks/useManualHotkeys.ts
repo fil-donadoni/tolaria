@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { isEditableTarget } from "~/lib/editable-target";
+import { HOTKEYS, matchesHotkey } from "~/lib/hotkeys";
 
 /** The Manual Board's turn hotkeys (manual-mode QA round 3, item 5):
  *  <kbd>Space</kbd> steps the phase marker, <kbd>Enter</kbd> ends the turn.
@@ -10,7 +11,7 @@ import { isEditableTarget } from "~/lib/editable-target";
  *  it injects a plain descriptor function through `ControllerActionsContext`
  *  instead (`manual-controller-actions.ts`), precisely so it doesn't drag in
  *  the GRE priority/attack-sequence reads its inert context can't answer. So
- *  a manual descriptor's `shortcut: "space"` renders the `[Space]` badge and
+ *  a manual descriptor's `shortcut` renders the Space keycap and
  *  binds nothing. This hook is the binding, and it is scoped to nothing but
  *  these two keys — the same shape (and the same guards) as
  *  `useManualSeatSwitchHotkey`.
@@ -39,15 +40,14 @@ export function useManualHotkeys({
             if (isEditableTarget(e.target)) return;
             if (e.repeat) return;
             if (e.metaKey || e.ctrlKey || e.altKey) return;
-            // `e.key === " "` is the space bar; `e.code` would also match the
-            // spacebar on a layout that remaps it, but every other hotkey in
-            // this app reads `key`, so this stays consistent with them.
-            if (e.key === " ") {
+            // The keys are the declarations in `~/lib/hotkeys` (issue
+            // #9833) — the same rows the pod's keycaps and legend read.
+            if (matchesHotkey(e, HOTKEYS.manualNextPhase)) {
                 e.preventDefault();
                 onNextPhase();
                 return;
             }
-            if (e.key === "Enter") {
+            if (matchesHotkey(e, HOTKEYS.manualEndTurn)) {
                 e.preventDefault();
                 onEndTurn();
             }

@@ -3,17 +3,17 @@ import {
     DebugSheetContext,
     type DebugSheetContextValue,
 } from "~/hooks/debugSheetContext";
+import { HOTKEYS, matchesHotkey } from "~/lib/hotkeys";
 
 /** Persisted open flag, per device (issue #3403). "1" = open. */
 const OPEN_KEY = "tolaria:debugSheetOpen";
 
-/** The keyboard shortcut that toggles the sheet. Backquote is the classic
- *  dev-console key and is the one printable character no gameplay surface
- *  binds — Escape belongs to the pause menu (`board.tsx`), and every
+/* The shortcut that toggles the sheet is `HOTKEYS.toggleDebugSheet` (issue
+ * #9833). Backquote is the classic dev-console key and is the one printable
+ *  character no gameplay surface binds — Escape belongs to the pause menu (`board.tsx`), and every
  *  `Ctrl/Cmd+Shift+<letter>` a debug panel would want is already claimed by
  *  the browser itself (`Ctrl+Shift+D` bookmarks every open tab in Chrome, and
  *  a page cannot preventDefault a browser-level chord). */
-export const DEBUG_SHEET_SHORTCUT_KEY = "`";
 
 function readOpen(): boolean {
     try {
@@ -84,7 +84,7 @@ export default function DebugSheetProvider({
     useEffect(() => {
         if (!enabled) return;
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key !== DEBUG_SHEET_SHORTCUT_KEY) return;
+            if (!matchesHotkey(event, HOTKEYS.toggleDebugSheet)) return;
             // OS key-repeat fires every ~30ms once the key is held, and a
             // toggle bound to it would flicker the sheet and land on whatever
             // the repeat count's parity happened to be. Only the first press

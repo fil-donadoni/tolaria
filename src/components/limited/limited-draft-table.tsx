@@ -28,6 +28,7 @@ import ActionSheet from "~/components/ui/action-sheet";
 import type { DeckZoneSelection } from "~/components/deckbuilder/deckZoneSelection";
 import { cardBase } from "~/lib/cardSizing";
 import { useDraftKeyboardPicks } from "~/hooks/useDraftKeyboardPicks";
+import { HOTKEYS } from "~/lib/hotkeys";
 import LimitedDraftPack from "./limited-draft-pack";
 import { autopickTargetId } from "./draft-room/autopickTarget";
 import { useAutopickCountdown } from "./draft-room/useAutopickCountdown";
@@ -597,11 +598,13 @@ export default function LimitedDraftTable({
                   label: "Pick",
                   primary: true,
                   disabled: pending,
+                  hotkey: HOTKEYS.draftPick,
                   onSelect: () => void handlePick(selectedCard.pickId),
               },
               {
                   label: "→ Side",
                   disabled: pending,
+                  hotkey: HOTKEYS.draftPickToSideboard,
                   onSelect: () =>
                       void handlePickToSideboard(selectedCard.pickId),
               },

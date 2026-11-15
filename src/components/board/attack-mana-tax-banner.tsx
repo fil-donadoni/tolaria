@@ -8,6 +8,8 @@ import { Panel } from "~/components/ui/panel";
 import { usePromptCollapsed } from "~/hooks/usePromptCollapsed";
 import CollapsedPromptPill from "./collapsed-prompt-pill";
 import { Button } from "~/components/ui/button";
+import { Keycap } from "~/components/ui/keycap";
+import { HOTKEYS, ariaKeyShortcuts } from "~/lib/hotkeys";
 import ManaSymbol from "~/components/cards/mana-symbol";
 
 type Props = {
@@ -126,17 +128,18 @@ export default function AttackManaTaxBanner({
                             onClick={() =>
                                 run(() => autoTap({ gameId, playerId }))
                             }
+                            aria-keyshortcuts={ariaKeyShortcuts(
+                                HOTKEYS.autoTap
+                            )}
                             onPointerDown={(e) => e.stopPropagation()}
                             disabled={busy}
                             className="flex-1"
                         >
                             Auto-tap
-                            <span
-                                aria-hidden="true"
-                                className="ml-2 hidden text-xs opacity-70 md:inline"
-                            >
-                                [A]
-                            </span>
+                            <Keycap
+                                hotkey={HOTKEYS.autoTap}
+                                className="ml-2 hidden md:inline-flex"
+                            />
                         </Button>
                         <Button
                             type="button"
@@ -145,11 +148,16 @@ export default function AttackManaTaxBanner({
                             onClick={() =>
                                 run(() => cancel({ gameId, playerId }))
                             }
+                            aria-keyshortcuts={ariaKeyShortcuts(HOTKEYS.undo)}
                             onPointerDown={(e) => e.stopPropagation()}
                             disabled={busy}
                             className="flex-1"
                         >
                             Cancel
+                            <Keycap
+                                hotkey={HOTKEYS.undo}
+                                className="ml-2 hidden md:inline-flex"
+                            />
                         </Button>
                     </div>
                 </Panel>

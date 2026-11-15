@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { isEditableTarget } from "~/lib/editable-target";
+import { HOTKEYS, matchesHotkey } from "~/lib/hotkeys";
 
 /** Overlays that own <kbd>Escape</kbd> / right-click themselves: while one is
  *  open the gesture is ITS dismissal, not the target choice's cancel. */
@@ -27,7 +28,7 @@ export function useTargetingCancelGestures(
         if (!active) return;
         const overlayOpen = () => !!document.querySelector(OVERLAY_SELECTORS);
         const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== "Escape") return;
+            if (!matchesHotkey(e, HOTKEYS.cancel)) return;
             if (isEditableTarget(e.target) || overlayOpen()) return;
             e.preventDefault();
             e.stopPropagation();

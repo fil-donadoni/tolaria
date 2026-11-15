@@ -10,6 +10,8 @@ import { Panel } from "~/components/ui/panel";
 import { usePromptCollapsed } from "~/hooks/usePromptCollapsed";
 import CollapsedPromptPill from "./collapsed-prompt-pill";
 import { Button } from "~/components/ui/button";
+import { Keycap } from "~/components/ui/keycap";
+import { HOTKEYS, ariaKeyShortcuts } from "~/lib/hotkeys";
 import { displayCardId, isManaCostCovered } from "~/lib/card-utils";
 import {
     genericSubstitutionsLeft,
@@ -306,17 +308,18 @@ export default function PaymentBanner(props: Props) {
                             variant="primary"
                             size="sm"
                             onClick={handleAutoTap}
+                            aria-keyshortcuts={ariaKeyShortcuts(
+                                HOTKEYS.autoTap
+                            )}
                             onPointerDown={(e) => e.stopPropagation()}
                             disabled={busy}
                             className="mt-2 w-full"
                         >
                             Auto-tap
-                            <span
-                                aria-hidden="true"
-                                className="ml-2 hidden text-xs opacity-70 md:inline"
-                            >
-                                [A]
-                            </span>
+                            <Keycap
+                                hotkey={HOTKEYS.autoTap}
+                                className="ml-2 hidden md:inline-flex"
+                            />
                         </Button>
                     )}
                     {awaitingAssistHandoff && (
@@ -338,11 +341,18 @@ export default function PaymentBanner(props: Props) {
                             variant="primary"
                             size="sm"
                             onClick={handleDeclineSubstitution}
+                            aria-keyshortcuts={ariaKeyShortcuts(
+                                HOTKEYS.passPriority
+                            )}
                             onPointerDown={(e) => e.stopPropagation()}
                             disabled={busy}
                             className="mt-2 w-full"
                         >
                             Pay with mana
+                            <Keycap
+                                hotkey={HOTKEYS.passPriority}
+                                className="ml-2 hidden md:inline-flex"
+                            />
                         </Button>
                     )}
                 </Panel>

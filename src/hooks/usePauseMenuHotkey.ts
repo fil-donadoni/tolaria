@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { HOTKEYS, matchesHotkey } from "~/lib/hotkeys";
 
 /** Every overlay that already owns <kbd>Escape</kbd> on either board. While one
  *  is in the DOM the keystroke is ITS dismissal, so the pause menu must not
@@ -41,7 +42,7 @@ export function usePauseMenuHotkey({
             ? `${POPUP_SELECTORS},${extraBlockers}`
             : POPUP_SELECTORS;
         const handler = (e: KeyboardEvent) => {
-            if (e.key !== "Escape") return;
+            if (!matchesHotkey(e, HOTKEYS.pauseMenu)) return;
             if (document.querySelector(blockers)) return;
             e.preventDefault();
             onOpen();

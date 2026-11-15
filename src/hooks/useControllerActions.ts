@@ -7,6 +7,12 @@ import { usePendingChoicePrimaryAction } from "~/hooks/usePendingChoicePrimaryAc
 import { usePendingGameIntent } from "~/hooks/usePendingGameIntent";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { isEditableTarget } from "~/lib/editable-target";
+import {
+    HOTKEYS,
+    matchesHotkey,
+    type Hotkey,
+    type HotkeyScope,
+} from "~/lib/hotkeys";
 import { eligibleAttackerIds } from "~/lib/attacker-eligibility";
 import { isPlaneswalker } from "~/lib/card-utils";
 import { anyAttackerOffersEnlist } from "~/lib/enlist-offer";
@@ -35,7 +41,11 @@ export type ControllerAction = {
     tone: ControllerActionTone;
     onClick: () => void;
     disabled: boolean;
-    shortcut?: "space" | "enter" | "U" | "S" | "P" | "A";
+    /** The binding this action shares with a hotkey — its declaration in
+     *  `~/lib/hotkeys`, which the keycap, `aria-keyshortcuts` and the hotkeys
+     *  legend all read (issue #9833). Declared only where the keystroke does
+     *  what the button does. */
+    shortcut?: Hotkey;
     /** A "status pill" action (e.g. waiting on opponent / auto-passing) renders
      *  as informative chrome rather than a primary call-to-action button. */
     pill?: boolean;
@@ -67,6 +77,9 @@ export type ControllerState = {
     /** Drives the Space-triggered Attack-with-all confirmation dialog, which
      *  the mounted controller surface (pod or bottom bar) renders. */
     attackAllConfirm: AttackAllConfirm;
+    /** Which bindings are live behind this controller — the scope the pod's
+     *  hotkeys legend lists. Absent = the GRE board's. */
+    hotkeyScope?: HotkeyScope;
 };
 
 /** Hook holding ALL of the controller's mutations, derived priority state,
@@ -385,7 +398,12 @@ export function useControllerActions(): ControllerState {
             // textarea or contenteditable (e.g. renaming a card, chat, forms).
             if (isEditableTarget(e.target)) return;
             if (isBusy) return;
-            if (e.key === "u" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            if (
+                matchesHotkey(e, HOTKEYS.undo) &&
+                !e.metaKey &&
+                !e.ctrlKey &&
+                !e.altKey
+            ) {
                 if (isPayingCast) {
                     e.preventDefault();
                     cancelCast({ gameId, playerId }).catch(reportError);
@@ -399,7 +417,7 @@ export function useControllerActions(): ControllerState {
                 return;
             }
             if (
-                (e.key === "p" || e.key === "P") &&
+                matchesHotkey(e, HOTKEYS.passTurn) &&
                 !e.repeat &&
                 !e.metaKey &&
                 !e.ctrlKey &&
@@ -421,7 +439,7 @@ export function useControllerActions(): ControllerState {
                 return;
             }
             if (
-                (e.key === "a" || e.key === "A") &&
+                matchesHotkey(e, HOTKEYS.autoTap) &&
                 !e.repeat &&
                 !e.metaKey &&
                 !e.ctrlKey &&
@@ -443,7 +461,7 @@ export function useControllerActions(): ControllerState {
                 }
                 return;
             }
-            if (e.code === "Space" && !e.repeat) {
+            if (matchesHotkey(e, HOTKEYS.passPriority) && !e.repeat) {
                 e.preventDefault();
                 if (isSubstitutionOffered) {
                     // CR 701.67a — the banner's button is "Pay with mana" here,
@@ -530,7 +548,7 @@ export function useControllerActions(): ControllerState {
                     handlePass();
                 }
             }
-            if (e.code === "Enter" && !e.repeat) {
+            if (matchesHotkey(e, HOTKEYS.passUntilAction) && !e.repeat) {
                 e.preventDefault();
                 if (isPayingCast) {
                     // PaymentBanner is up: Enter cancels the payment rather than
@@ -610,7 +628,7 @@ export function useControllerActions(): ControllerState {
     useEffect(() => {
         if (!isPayingCast && !isPayingActivation && !isPayingAttackTax) return;
         function onKeyDown(e: KeyboardEvent) {
-            if (e.key !== "Escape") return;
+            if (!matchesHotkey(e, HOTKEYS.cancel)) return;
             if (isEditableTarget(e.target)) return;
             if (isBusy) return;
             e.preventDefault();
@@ -661,13 +679,14 @@ export function useControllerActions(): ControllerState {
         // A standing intent already owns the passing (e.g. armed and halted
         // at declare-blockers): a second press would be a silent no-op.
         disabled: isBusy || hasPassIntent,
-        shortcut: "enter",
+        shortcut: HOTKEYS.passUntilAction,
         onClick: handlePassUntilAction,
     };
 
     if (isPayingCast) {
         actions.push({
             key: "cancel-cast",
+            shortcut: HOTKEYS.undo,
             label: "Cancel Cast",
             tone: "destructive",
             disabled: isBusy,
@@ -676,6 +695,7 @@ export function useControllerActions(): ControllerState {
     } else if (isPayingActivation) {
         actions.push({
             key: "cancel-activation",
+            shortcut: HOTKEYS.undo,
             label: "Cancel Ability",
             tone: "destructive",
             disabled: isBusy,
@@ -688,6 +708,7 @@ export function useControllerActions(): ControllerState {
         // "Confirm Attackers" while the engine waits on tax input.
         actions.push({
             key: "cancel-attack-tax",
+            shortcut: HOTKEYS.undo,
             label: "Cancel Attack",
             tone: "destructive",
             disabled: isBusy,
@@ -720,13 +741,20 @@ export function useControllerActions(): ControllerState {
             label: "Pass Turn",
             tone: "destructive",
             disabled: isBusy,
-            shortcut: "P",
+            shortcut: HOTKEYS.passTurn,
             onClick: handleEndTurn,
         });
         actions.push(passUntilActionDescriptor);
     } else if (isSelectingAttackers) {
         actions.push({
             key: "confirm-attackers",
+            // Space confirms a hand-picked declaration, or skips when nothing
+            // can attack; with attackers available and none picked it offers
+            // "Attack with all" instead (the keydown effect above).
+            shortcut:
+                selectedAttackerIds.length > 0 || eligibleIds.length === 0
+                    ? HOTKEYS.passPriority
+                    : undefined,
             label:
                 selectedAttackerIds.length > 0
                     ? `Confirm Attackers (${selectedAttackerIds.length})`
@@ -740,6 +768,10 @@ export function useControllerActions(): ControllerState {
         if (eligibleIds.length > 0) {
             actions.push({
                 key: "attack-with-all",
+                shortcut:
+                    selectedAttackerIds.length === 0
+                        ? HOTKEYS.passPriority
+                        : undefined,
                 label: `Attack with all (${eligibleIds.length})`,
                 tone: "primary",
                 disabled: isBusy,
@@ -751,13 +783,14 @@ export function useControllerActions(): ControllerState {
             label: "Pass Turn",
             tone: "destructive",
             disabled: isBusy,
-            shortcut: "P",
+            shortcut: HOTKEYS.passTurn,
             onClick: handleEndTurn,
         });
         actions.push(passUntilActionDescriptor);
     } else if (isSelectingBlockers) {
         actions.push({
             key: "confirm-blockers",
+            shortcut: HOTKEYS.passPriority,
             label:
                 blockerCount > 0
                     ? `Confirm Blockers (${blockerCount})`
@@ -771,13 +804,14 @@ export function useControllerActions(): ControllerState {
             label: "Pass Turn",
             tone: "destructive",
             disabled: isBusy,
-            shortcut: "P",
+            shortcut: HOTKEYS.passTurn,
             onClick: handleEndTurn,
         });
         actions.push(passUntilActionDescriptor);
     } else if (isAssigningDamage) {
         actions.push({
             key: "confirm-damage",
+            shortcut: HOTKEYS.passPriority,
             label: "Confirm Damage",
             tone: "primary",
             disabled: isBusy || !allDamageAssigned,
@@ -786,6 +820,7 @@ export function useControllerActions(): ControllerState {
     } else if (hasPriority) {
         actions.push({
             key: "pass",
+            shortcut: HOTKEYS.passPriority,
             label: "Pass",
             tone: "primary",
             disabled: isBusy,
@@ -796,7 +831,7 @@ export function useControllerActions(): ControllerState {
             label: "Pass Turn",
             tone: "destructive",
             disabled: isBusy,
-            shortcut: "P",
+            shortcut: HOTKEYS.passTurn,
             onClick: handleEndTurn,
         });
         actions.push(passUntilActionDescriptor);

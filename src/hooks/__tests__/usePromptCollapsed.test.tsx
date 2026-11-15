@@ -34,7 +34,7 @@ describe("promptCollapsed (issue #7425)", () => {
         fireEvent.keyDown(window, { key: "c" });
         expect(screen.queryByText("prompt body")).toBeNull();
         expect(screen.getByText("Stack (1)")).toBeTruthy();
-        expect(screen.getByText("C to expand")).toBeTruthy();
+        expect(screen.getByText("to expand")).toBeTruthy();
         fireEvent.keyDown(window, { key: "C" });
         expect(screen.getByText("prompt body")).toBeTruthy();
     });

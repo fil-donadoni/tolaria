@@ -184,7 +184,11 @@ describe("solo Manual Game seat switch (#2173)", () => {
     it("offers Switch seat with the S hotkey hint in the controller", () => {
         renderContainer(true);
         expect(screen.getByText("Switch seat")).toBeTruthy();
-        expect(screen.getByText("[S]")).toBeTruthy();
+        const button = screen.getByRole("button", { name: "Switch seat" });
+        expect(button.getAttribute("aria-keyshortcuts")).toBe("S");
+        expect(
+            button.querySelector('[data-slot="kbd"][data-key="S"]')
+        ).not.toBeNull();
     });
 
     it("clicking Switch seat flips the board: the newly-controlled seat's hand becomes the visible bottom hand, the previous one hides", () => {

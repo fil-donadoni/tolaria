@@ -4,6 +4,8 @@ import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import { useDraftStartNowHotkey } from "~/hooks/useDraftStartNowHotkey";
 import { introSecondsLeft } from "~/lib/limited/draftIntro";
 import { Button } from "@/components/ui/button";
+import { Keycap } from "~/components/ui/keycap";
+import { HOTKEYS, ariaKeyShortcuts } from "~/lib/hotkeys";
 import LimitedTableRingView from "./limited-table-ring-view";
 
 /** The Draft's table intro (issue #9167): the seat ring, the pass direction
@@ -51,9 +53,18 @@ export default function LimitedDraftIntro({
                         {seconds > 0 ? seconds : "…"}
                     </span>
                     {canStartNow && (
-                        <Button size="sm" onClick={onStartNow}>
+                        <Button
+                            size="sm"
+                            onClick={onStartNow}
+                            aria-keyshortcuts={ariaKeyShortcuts(
+                                HOTKEYS.draftStartNow
+                            )}
+                        >
                             Start now
-                            <kbd className="ml-2 text-xs opacity-70">Space</kbd>
+                            <Keycap
+                                hotkey={HOTKEYS.draftStartNow}
+                                className="ml-2"
+                            />
                         </Button>
                     )}
                 </div>

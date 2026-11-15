@@ -1,3 +1,6 @@
+import { Keycap } from "~/components/ui/keycap";
+import { HOTKEYS } from "~/lib/hotkeys";
+
 /** One-time hint (issue #9166): hover reads a card, ⌘/Ctrl + scroll resizes
  *  the pack. Visibility lives in `useDraftZoomHint`. */
 export default function DraftZoomHint({
@@ -13,10 +16,12 @@ export default function DraftZoomHint({
         >
             <span>
                 <strong>Hover</strong> a card to read it ·{" "}
-                <kbd className="rounded-sm border border-border-accent/50 px-1.5 font-mono text-xs">
-                    ⌘/Ctrl
-                </kbd>{" "}
-                + <strong>scroll</strong> to resize the whole pack
+                <Keycap
+                    hotkey={HOTKEYS.draftResizePack}
+                    className="align-middle"
+                />
+                <span className="sr-only">Command or Control + scroll</span> to
+                resize the whole pack
             </span>
             <button
                 type="button"
