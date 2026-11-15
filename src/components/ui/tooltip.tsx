@@ -15,8 +15,22 @@ function TooltipProvider({
     );
 }
 
-function Tooltip({ ...props }: TooltipPrimitive.Root.Props) {
-    return <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
+/** `delay` (ms) gives THIS tooltip its own open delay (issue #9835). A
+ *  trigger's `delay` alone cannot: under the app's provider (delay 0) base-ui
+ *  opens every tooltip of the group instantly, so a per-use delay needs its
+ *  own provider — which also takes it out of the instant-reopen group. */
+function Tooltip({
+    delay,
+    ...props
+}: TooltipPrimitive.Root.Props & { delay?: number }) {
+    const root = <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
+    return delay === undefined ? (
+        root
+    ) : (
+        <TooltipPrimitive.Provider delay={delay}>
+            {root}
+        </TooltipPrimitive.Provider>
+    );
 }
 
 function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {

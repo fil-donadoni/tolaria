@@ -454,3 +454,52 @@ describe("ControllerPod bug-report trigger (issue #3419)", () => {
         );
     });
 });
+
+// Issue #9835: Pass Turn and Pass Until Action are always-mounted icon
+// buttons; without priority they queue the intent the server already
+// accepts (issue #157, issue #5782) — before, only P and Enter reached it.
+describe("ControllerPod queued passes (issue #9835)", () => {
+    const NO_PRIORITY = { activePlayerId: "opp", priorityPlayerId: "opp" };
+
+    it("Pass Turn without priority dispatches endTurn (the queued intent)", () => {
+        renderPod(NO_PRIORITY);
+        const button = screen.getByRole("button", { name: "Pass Turn" });
+        expect((button as HTMLButtonElement).disabled).toBe(false);
+        fireEvent.click(button);
+        expect(calls.find((c) => c.ref === "endTurn")?.args).toMatchObject({
+            gameId: "game-id",
+            playerId: "me",
+        });
+    });
+
+    it("Pass Until Action without priority dispatches passUntilAction", () => {
+        renderPod(NO_PRIORITY);
+        fireEvent.click(
+            screen.getByRole("button", { name: "Pass Until Action" })
+        );
+        expect(
+            calls.find((c) => c.ref === "passUntilAction")?.args
+        ).toMatchObject({ gameId: "game-id", playerId: "me" });
+    });
+
+    it.each<[string, Partial<GameContextValue>]>([
+        ["auto-passing", { autoPassPlayers: ["me"] }],
+        ["a queued Pass Turn", { queuedEndTurn: ["me"] }],
+    ])("both are disabled while %s runs", (_, intent) => {
+        renderPod({ ...NO_PRIORITY, ...intent });
+        for (const name of ["Pass Turn", "Pass Until Action"]) {
+            const button = screen.getByRole("button", { name });
+            expect((button as HTMLButtonElement).disabled).toBe(true);
+        }
+    });
+
+    it("without priority the pill is the bare cue, never a call to action", () => {
+        const { container } = renderPod(NO_PRIORITY);
+        const pill = container.querySelector<HTMLButtonElement>(
+            "[data-controller-primary]"
+        );
+        expect(pill?.dataset.controllerPrimary).toBe("status");
+        expect(pill?.textContent).toBe("Opponent to act");
+        expect(pill?.disabled).toBe(true);
+    });
+});

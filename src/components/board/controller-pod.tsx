@@ -5,9 +5,14 @@ import { useControllerActionsSource } from "~/hooks/controllerActionsContext";
 import { useControllerPodHeight } from "~/hooks/useControllerPodHeight";
 import { phaseGroupLabel, phaseLabel } from "~/lib/phase-labels";
 import { V4_EYEBROW, V4_PLATE } from "~/lib/board-chrome-v4";
-import { selectCommandSlots } from "~/lib/controller-action-slots";
-import ActionButton from "./action-button";
+import {
+    selectCommandSlots,
+    selectPodCommandSlots,
+} from "~/lib/controller-action-slots";
+import { CONTROLLER_CUE_COPY } from "~/lib/controller-cue-copy";
 import ControllerCueBadge from "./controller-cue-badge";
+import ControllerPodActionList from "./controller-pod-action-list";
+import ControllerPodCommandRow from "./controller-pod-command-row";
 import ControllerPhasePanel from "./controller-phase-panel";
 import HotkeysLegend from "./hotkeys-legend";
 import PauseMenuButton from "./pause-menu-button";
@@ -17,8 +22,9 @@ import BugReportButton from "../bug-report/bug-report-button";
 /** Collapsed controller pod (#331, variant H). Replaces the old left phase
  *  rail + bottom-right action bar with ONE surface docked to the board's right
  *  edge, ABOVE the viewer's piles. Collapsed it shows: the current phase/step
- *  in plain language, an unmistakable priority cue, and the action button(s)
- *  for the current step. A CTA reveals the full phase list (with per-phase
+ *  in plain language, an unmistakable priority cue, and the step's command
+ *  row (issue #9835) — one line at a constant height, whatever priority does.
+ *  A CTA reveals the full phase list (with per-phase
  *  stops). It reuses the priority helpers and dispatches the SAME mutations as
  *  the old action bar (`useControllerActions`) — view-layer only, no GRE
  *  changes. Keyboard shortcuts are wired in that hook, from the declarations
@@ -33,21 +39,13 @@ export default function ControllerPod({
     // absent a provider. One call, at a stable position — the pod is the ONE
     // controller layout `controller.tsx` mounted this render.
     const useControllerState = useControllerActionsSource();
-    const { cue, actions, attackAllConfirm, hotkeyScope } =
+    const { cue, actions, attackAllConfirm, hotkeyScope, queuedPasses } =
         useControllerState();
-    // The pod lists its actions rather than arranging them into slots, but it
-    // marks the SAME one the strip and the command row put in their centre
-    // slot, so `check:ui`'s one `data-controller-primary` promise addresses
-    // every controller layout (issue #3651).
-    const slots = selectCommandSlots(actions);
-    const primaryMark = (
-        action: (typeof actions)[number]
-    ): "action" | "status" | undefined =>
-        action === slots.primary
-            ? "action"
-            : !slots.primary && action === slots.statusPill
-              ? "status"
-              : undefined;
+    // The GRE board's priority comes and goes, so its pod draws the
+    // constant-height command row (issue #9835). The Manual Board has no
+    // priority — its verbs never change — and keeps the plain list, which
+    // its eight verbs need.
+    const isManual = hotkeyScope === "manual";
     const [expanded, setExpanded] = useState(false);
     // Publishes the pod's height so the desktop stack panel anchors above it
     // (issue #6970).
@@ -68,7 +66,11 @@ export default function ControllerPod({
             // frame itself is quiet, which is the whole register. The pod is a
             // panel, not a control, so it genuinely takes the decorative
             // `--hairline` pair; the BUTTONS inside it do not (round-2 review).
-            className={`fixed bottom-32 right-4 z-hud flex w-52 flex-col gap-2 ${V4_PLATE} p-2.5 shadow-2xl`}
+            // `w-80`: the widest real call to action, "Confirm Attackers
+            // (12)" — 137px of Geist 14px, measured in Chrome — plus its Space
+            // keycap fits the primary pill (196px) beside both icon passes,
+            // untruncated (issue #9835). It was `w-52`.
+            className={`fixed bottom-32 right-4 z-hud flex w-80 flex-col gap-2 ${V4_PLATE} p-2.5 shadow-2xl`}
         >
             {/* Turn-ownership banner (#331 follow-up). The 8px "You/Opp" caption
              *  was too faint to read at a glance, so whose turn it is now reads
@@ -116,35 +118,23 @@ export default function ControllerPod({
                 />
             </button>
 
-            <ControllerCueBadge cue={cue} />
-
-            {actions.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                    {actions.map((action) =>
-                        action.pill ? (
-                            <button
-                                key={action.key}
-                                type="button"
-                                data-controller-primary={primaryMark(action)}
-                                onClick={action.onClick}
-                                disabled={action.disabled}
-                                className="rounded-sm border border-border-strong bg-surface-elevated px-3 py-2 text-center text-xs text-text-muted shadow-md transition-colors hover:text-text disabled:cursor-default disabled:opacity-70"
-                            >
-                                {action.label}
-                            </button>
-                        ) : (
-                            <ActionButton
-                                key={action.key}
-                                onClick={action.onClick}
-                                label={action.label}
-                                tone={action.tone}
-                                disabled={action.disabled}
-                                shortcut={action.shortcut}
-                                controllerPrimary={primaryMark(action)}
-                            />
-                        )
+            {isManual ? (
+                <>
+                    <ControllerCueBadge cue={cue} />
+                    <ControllerPodActionList
+                        actions={actions}
+                        slots={selectCommandSlots(actions)}
+                    />
+                </>
+            ) : (
+                <ControllerPodCommandRow
+                    slots={selectPodCommandSlots(
+                        actions,
+                        CONTROLLER_CUE_COPY[cue],
+                        queuedPasses
                     )}
-                </div>
+                    cueBadge={<ControllerCueBadge cue={cue} />}
+                />
             )}
 
             {/* Trailing control row. The bug-report trigger is its third
