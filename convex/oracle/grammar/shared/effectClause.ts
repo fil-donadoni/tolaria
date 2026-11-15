@@ -1226,6 +1226,14 @@ export type EffectSentenceIR =
           readonly kind: "draw";
           readonly player: PlayerRefIR;
           readonly count: AmountIR;
+          /**
+           * CR 504.1 + CR 121.1 — "Draw N additional cards": cards drawn
+           * beyond the draw step's turn-based draw. The word names WHEN the
+           * draw happens, so only a site that knows its trigger fires at the
+           * beginning of the controller's draw step may lower it
+           * (`SiteOptions.ownDrawStep`); every other site refuses.
+           */
+          readonly additional?: true;
       }
     /**
      * CR 705.2 (issue #3813, ADR 0144) — "Choose a number. Flip a coin that
@@ -5674,6 +5682,8 @@ const BASIC_LAND_TYPE_LEGS: ReadonlyMap<string, string> = new Map(
     ])
 );
 const DRAW_SELF = /^Draw (\S+) cards?$/;
+/** CR 504.1 + CR 121.1 — "Draw N additional cards", whole; plural only. */
+const DRAW_ADDITIONAL_SELF = /^Draw (\S+) additional cards$/;
 const DRAW_PLAYER = /^(.+) draws (\S+) cards?$/;
 /** CR 121.1 + CR 107.1 — "Draw cards equal to the number of <set>". */
 const DRAW_EQUAL_COUNT = /^Draw cards equal to (the number of .+)$/;
@@ -9162,6 +9172,21 @@ function effectSentence(
             kind: "draw" as const,
             player: { kind: "you" as const },
             count,
+        } satisfies EffectSentenceIR);
+    }
+    // CR 504.1 + CR 121.1 — "Draw two additional cards": a fixed count
+    // drawn on top of the draw step's own draw. The lowering refuses it at
+    // any site that is not a trigger at the beginning of your draw step.
+    const drawAdditional = span.match(DRAW_ADDITIONAL_SELF);
+    if (drawAdditional !== null) {
+        const count = readNumberWord(drawAdditional[1]!);
+        if (count === null || count < 2)
+            return fail(`"${drawAdditional[1]}" is not a count`, span);
+        return ok({
+            kind: "draw" as const,
+            player: { kind: "you" as const },
+            count: { kind: "fixed" as const, value: count },
+            additional: true as const,
         } satisfies EffectSentenceIR);
     }
     const drawCount = span.match(DRAW_EQUAL_COUNT);

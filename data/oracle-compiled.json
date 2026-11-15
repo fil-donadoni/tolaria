@@ -2846,7 +2846,6 @@
         {"key":"7cb947b6f984","text":"At the beginning of your draw step, draw an additional card and remove two hour counters from this enchantment.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Draw an additional card and remove two hour counters from this enchantment"}},
         {"key":"08b053e413d7","text":"At the beginning of your draw step, draw an additional card for each opponent who has one or fewer cards in hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Draw an additional card for each opponent who has one or fewer cards in hand"}},
         {"key":"5820a53664c0","text":"At the beginning of your draw step, draw an additional card.","reason":"no slot consumed the line","cards":5,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Draw an additional card"}},
-        {"key":"5a0378257d1f","text":"At the beginning of your draw step, draw two additional cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Draw two additional cards"}},
         {"key":"5e78441a8865","text":"At the beginning of your draw step, if this artifact is tapped, it deals 1 damage to you.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"this artifact is tapped"}},
         {"key":"93df355fb008","text":"At the beginning of your draw step, if you control an enchanted creature, you lose 1 life and you draw an additional card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition","object descriptor"],"span":"enchanted creature"}},
         {"key":"b8c6fa59b2c3","text":"At the beginning of your draw step, this artifact deals damage equal to the number of doom counters on it to each player.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"This artifact deals damage equal to the number of doom counters on it to each player"}},
@@ -38074,7 +38073,7 @@
 
         {"oracleId":"1ecde43f-e418-437b-8b8f-efe120f96cb3","name":"Fateful Handoff","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["886c66cc73ba"]},
 
-        {"oracleId":"1ed24fc6-b1d5-47f8-a1d1-3243372e0c9f","name":"Well of Ideas","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["1b03085b33fa","5a0378257d1f"]},
+        {"oracleId":"1ed24fc6-b1d5-47f8-a1d1-3243372e0c9f","name":"Well of Ideas","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["1b03085b33fa"]},
 
         {"oracleId":"1ed2d8e0-462b-468e-8fd3-1f3c6d99fb8a","name":"Brutal Cathar // Moonrage Brute","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["15e537f66d37","55a114545d88","a0a690145772"]},
 
