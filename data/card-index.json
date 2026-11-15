@@ -77354,6 +77354,14 @@
         "source": "compiled"
     },
     {
+        "name": "Spirit of Resistance",
+        "scryfallId": "5fb66439-df73-4a01-a8d4-6f2334297fdf",
+        "oracleId": "b075b645-2e5a-4d91-9440-02db4e6f5d08",
+        "firstSet": "inv",
+        "firstPrintId": "5fb66439-df73-4a01-a8d4-6f2334297fdf",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Spirit Shackle",
         "scryfallId": "a30bb266-5bd1-4998-ae94-56f0f3354167",
         "oracleId": "ddb770c1-a783-49c9-a36d-2434b8580743",
