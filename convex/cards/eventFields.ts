@@ -288,9 +288,9 @@ export const EVENT_FIELD_REGISTRY: Record<
                     : undefined,
         },
     },
-    // CR 615.1a / 615.5 — damage a shield prevented: "you gain THAT MUCH
-    // life" reads how much this one event prevented, the `DAMAGE_DEALT.amount`
-    // shape on the event that replaced the damage.
+    // CR 615.1a / 603.7b — damage a shield prevented: a "whenever damage is
+    // prevented this way, you gain THAT MUCH life" trigger reads how much this
+    // one event prevented, the `DAMAGE_DEALT.amount` shape.
     DAMAGE_PREVENTED: {
         amount: {
             family: "number",
