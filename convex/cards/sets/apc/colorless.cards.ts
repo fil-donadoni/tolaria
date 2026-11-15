@@ -21,8 +21,6 @@ import { CREATURE_SUBTYPES } from "../../../oracle/grammar/shared/subtypes";
 // `moveZone(from: "hand", to: "battlefield")` is CR 400.7's zone change; the
 // creature is not CAST — casting is the process that puts a spell ON THE
 // STACK (CR 601.2), and this one never goes there, so no cast-triggers fire.
-//
-// hand-tail: "{2}, {T}: You may put a multicolored creature card from your hand onto the battlefield." (#4328)
 export const dragonArch = defineCard(() => ({
     id: "eec581b8-e509-420c-b142-afaa6dd06cc8", // APC 135
     name: "Dragon Arch",

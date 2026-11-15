@@ -1734,6 +1734,21 @@ export function zoneChoiceFilterFromDescriptor(
                 excluded.length === 1 ? excluded[0]! : [...excluded],
         });
     }
+    // CR 105.2b — "a multicolored creature card": two or more of the five
+    // colours, a COUNT (`EffectCardFilter.colorCountAtLeast`), read off the
+    // picked card's own colours by `matchesCardFilter` in the hand or
+    // graveyard. Peeled here like the subtype exclusion above, so the
+    // library-search frame keeps the argument classes its fixtures show.
+    if (descriptor.multicolored === true) {
+        const rest = Object.fromEntries(
+            Object.entries(descriptor).filter(
+                ([field]) => field !== "multicolored"
+            )
+        ) as DescriptorIR;
+        const narrowed = zoneChoiceFilterFromDescriptor(rest);
+        if (!narrowed.ok) return narrowed;
+        return ok({ ...narrowed.value, colorCountAtLeast: 2 });
+    }
     const types = descriptor.types;
     if (
         descriptor.card === true &&
