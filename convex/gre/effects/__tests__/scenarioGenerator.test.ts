@@ -6,7 +6,7 @@
 // in `convex/cards/__tests__/effectScriptSmoke.test.ts`.
 
 import { describe, it, expect } from "vitest";
-import type { EffectOp } from "../../../cards/types";
+import type { EffectOp, GameEventType } from "../../../cards/types";
 import { registerTokenDefinition } from "../../../cards";
 import {
     abilityHost,
@@ -14,6 +14,7 @@ import {
     ASSERTED_OP_KINDS,
     compiledTriggerSourceOnBattlefield,
     CASTER_ID,
+    EVENT_SUBJECT_PERMANENT_ID,
     FILLER_CARD_DEFINITION,
     GRANTED_ABILITY_HOST,
     OPPONENT_ID,
@@ -1722,5 +1723,139 @@ describe("a forced random pick moved to hand (CR 608.2c, CR 400.7)", () => {
             PICK_SKIP,
             MOVE_SKIP,
         ]);
+    });
+});
+
+/** Resolves `effects` as a TRIGGERED ability carrying the plan's firing event —
+ *  the shape the catalogue sweep pushes for a plan with a `triggerEvent`: the
+ *  interpreter reads `$event` refs off the stack item's `triggerEvent`. */
+function resolveAsTrigger(
+    plan: Extract<Plan, { kind: "run" }>,
+    effects: EffectOp[],
+    hostId: string
+): void {
+    const event = plan.scenario.triggerEvent!;
+    registerTokenDefinition({
+        id: hostId,
+        name: hostId,
+        rarity: "common",
+        manaCost: { W: 1 },
+        types: ["Enchantment"],
+        triggeredAbilities: [
+            {
+                id: `${hostId}-tr`,
+                oracleText: "smoke",
+                event: event.type,
+                matches: () => true,
+                effects,
+            },
+        ],
+    });
+    const source = makeInstance(hostId, {
+        id: `${hostId}-src`,
+        controllerId: CASTER_ID,
+        ownerId: CASTER_ID,
+        zone: "battlefield",
+    });
+    plan.scenario.state.players
+        .find((p) => p.id === CASTER_ID)!
+        .battlefield.push(source);
+    plan.scenario.state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: CASTER_ID,
+        triggeredAbilityId: `${hostId}-tr`,
+        triggerSourceId: source.id,
+        triggerEvent: event,
+        targets: plan.scenario.targets,
+    });
+    resolveTopOfStack(plan.scenario.state);
+}
+
+describe("$event object subjects — the object a trigger's firing event names (ADR 0049)", () => {
+    const counterOnCombatant: EffectOp[] = [
+        {
+            op: "counters",
+            action: "add",
+            counter: "+1/+1",
+            target: { ref: "$event.combatant" },
+            count: 1,
+        },
+    ];
+    const triggeredOn = (event: GameEventType | GameEventType[]) =>
+        abilityHost({ types: ["Enchantment"] }, true, false, event);
+
+    // CR 508.3a — "whenever a creature you control attacks, put a +1/+1
+    // counter on it"; CR 509.3a — the blocker twin of the same field.
+    it.each<[string, GameEventType | GameEventType[]]>([
+        ["an attack trigger", "ATTACKERS_DECLARED"],
+        ["a block trigger", "BLOCKER_DECLARED"],
+        [
+            "an attacks-or-blocks trigger",
+            ["ATTACKERS_DECLARED", "BLOCKER_DECLARED"],
+        ],
+    ])(
+        "%s's counter on the event's creature executes and its outcome holds",
+        (name, event) => {
+            const plan = planSmokeTest(counterOnCombatant, triggeredOn(event));
+            expect(plan.kind).toBe("run");
+            if (plan.kind !== "run") return;
+            expect(plan.scenario.eventSubject?.permanentId).toBe(
+                EVENT_SUBJECT_PERMANENT_ID
+            );
+            const subject = plan.scenario.state.players
+                .find((p) => p.id === CASTER_ID)!
+                .battlefield.find((c) => c.id === EVENT_SUBJECT_PERMANENT_ID);
+            expect(subject).toBeDefined();
+            // Unresolved, the counter is missing — a green below is the Op's.
+            expect(failedAssertions(plan)).not.toEqual([]);
+            resolveAsTrigger(
+                plan,
+                counterOnCombatant,
+                `gen-test-event-${name.replace(/\W+/g, "-")}`
+            );
+            expect(failedAssertions(plan)).toEqual([]);
+        }
+    );
+
+    it.each<[string, ReturnType<typeof abilityHost>]>([
+        // An activated ability's item carries no firing event to read.
+        [
+            "an activated host",
+            abilityHost({ types: ["Enchantment"] }, true, true),
+        ],
+        // No builder names an object for this event's `combatant`.
+        [
+            "a trigger with no builder for the field",
+            triggeredOn("CREATURE_DIED"),
+        ],
+    ])("%s keeps the $event subject a card-dependent skip", (_name, host) => {
+        const plan = planSmokeTest(counterOnCombatant, host);
+        if (plan.kind !== "skip") throw new Error("expected a skip");
+        expect(plan.skips.map((s) => s.code)).toEqual([
+            "source-or-each-subject",
+        ]);
+        expect(SMOKE_SKIP_CLASS["source-or-each-subject"]).toBe(
+            "card-dependent"
+        );
+    });
+
+    it("a count set beside the event subject is a skip, not a guess", () => {
+        const plan = planSmokeTest(
+            [
+                ...counterOnCombatant,
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: {
+                        count: { type: "Creature", controller: "controller" },
+                    },
+                },
+            ] as EffectOp[],
+            triggeredOn("ATTACKERS_DECLARED")
+        );
+        if (plan.kind !== "skip") throw new Error("expected a skip");
+        expect(plan.skips.map((s) => s.code)).toEqual(["runtime-amount"]);
+        expect(plan.reason).toMatch(/seeded \$event\.combatant permanent/);
     });
 });
