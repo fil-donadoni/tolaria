@@ -417,6 +417,22 @@ function lowerCondition(
                 atMost: condition.atMost,
             };
         }
+        case "controls-at-least":
+            // CR 109.5 — "you" is the ability's controller, the shape the
+            // singular "if you control a Goblin" lowers to; CR 102.2 — "an
+            // opponent" is some opponent meeting the count.
+            return condition.player === "you"
+                ? {
+                      kind: "controls",
+                      filter: condition.filter,
+                      atLeast: condition.atLeast,
+                  }
+                : {
+                      kind: "controls",
+                      player: "opponent",
+                      filter: condition.filter,
+                      atLeast: condition.atLeast,
+                  };
         case "self-has-type":
             return { kind: "self-has-type", type: condition.type };
         case "self-on-battlefield":
