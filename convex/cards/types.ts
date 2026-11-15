@@ -11539,6 +11539,15 @@ export interface StaticPermanentGuard {
      *  Beast / shroud). Evaluated at the targeting gates, which pass whether the
      *  source is a spell. */
     targetSourceMustBeSpell?: boolean;
+    /** Narrows `cantBeTargeted` to sources whose live colours intersect this
+     *  list (CR 202.2 colour, CR 113.7 an ability's source is the object that
+     *  generated it; a spell is its own source). Raiding Party's "can't be the
+     *  target of white spells or abilities from white sources" (filter
+     *  `["W"]`). A colourless source never matches (CR 105.2c). Each colour is
+     *  read through the GUARDING permanent's colour-word text changes
+     *  (CR 612.1), so a white→blue change makes it bar blue sources instead.
+     *  When omitted, the guard doesn't filter on colour. */
+    targetSourceColorFilter?: Color[];
     /** CR 303.4 "can't be enchanted" — an Aura can't be cast at, or attach to,
      *  the guarded permanent. Already-attached Auras are unaffected (the gate
      *  only blocks new attachment). */

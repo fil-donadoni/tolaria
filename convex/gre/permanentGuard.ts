@@ -35,11 +35,14 @@
 import { liveStaticDefinition } from "./constants";
 import type { CardInstanceState } from "./state/declarations";
 import type {
+    Color,
     PlayerGuardAction,
+    StaticEffect,
     StaticPermanentGuard,
     StaticPlayerGuard,
 } from "../cards/types";
 import { STATIC_EFFECT_CTX } from "./layers";
+import { substituteColorFilter } from "./textChanges";
 
 /** A minimal read-only battlefield view — every game-state shape the engine
  *  passes here (fat `GameState`, projected public state) satisfies it. */
@@ -61,6 +64,9 @@ export interface GuardActionSource {
     /** True if the source is a spell on the stack / being cast; false for an
      *  activated or triggered ability. */
     isSpell?: boolean;
+    /** Live colours of the source (CR 202.2; empty = colourless, CR 105.2c).
+     *  Only consulted by `targetSourceColorFilter` guards. */
+    colors?: ReadonlyArray<Color>;
     /** Controller of the spell/ability source (CR 109.4). Only consulted by the
      *  controller-relative `hexproof` guard (CR 702.11b — "can't be the target
      *  of spells or abilities your OPPONENTS control"): the guard bars the
@@ -109,6 +115,37 @@ function hasShroud(card: CardInstanceState): boolean {
     return card.staticAbilities?.includes(SHROUD_KEYWORD) ?? false;
 }
 
+/** CR 202.2 — true when `sourceColors` (the targeting source's live colours)
+ *  include a colour of `filter`, each filter colour read through the GUARDING
+ *  permanent's colour-word text changes (CR 612.1 — a white→blue change on
+ *  the guard bars blue sources instead). Reads both text-change carriers
+ *  (`textChangesOf`), so the server and the wire-fed click gate agree. */
+function sourceColorsMatch(
+    filter: ReadonlyArray<Color>,
+    guard: CardInstanceState,
+    sourceColors: ReadonlyArray<Color>
+): boolean {
+    return filter.some((c) =>
+        sourceColors.includes(substituteColorFilter(guard, c))
+    );
+}
+
+/** CR 612.1 — the colour words a definition's `permanent-guard` source-colour
+ *  filters put in the object's text ("white spells or abilities from white
+ *  sources", Raiding Party), so a text-changing effect can name them. Lives
+ *  here, beside the filter, so `gre/state.ts` reads no `StaticEffect` kind
+ *  (ADR 0082). */
+export function guardSourceColorWords(
+    staticEffects: ReadonlyArray<StaticEffect> | undefined
+): Color[] {
+    const words: Color[] = [];
+    for (const effect of staticEffects ?? []) {
+        if (effect.kind === "permanent-guard")
+            words.push(...(effect.targetSourceColorFilter ?? []));
+    }
+    return words;
+}
+
 type GuardClause = keyof Pick<
     StaticPermanentGuard,
     | "cantBeTargeted"
@@ -136,6 +173,9 @@ type GuardClause = keyof Pick<
  *                                    spells"): source's SUBTYPES must intersect.
  *    - `targetSourceMustBeSpell`   — Anti-Magic Aura ("can't be the target of
  *                                    spells"): source must be a spell.
+ *    - `targetSourceColorFilter`   — Raiding Party ("white spells or
+ *                                    abilities from white sources"): source's
+ *                                    COLOURS must intersect.
  *  A filtered guard whose filter can't be satisfied (e.g. no source info, or
  *  an ability when the guard is spell-only) does not match and is skipped.
  *  Unfiltered guards (Guardian Beast / shroud) ignore `actionSource` entirely
@@ -221,6 +261,21 @@ export function isGuardedAgainst(
                     if (
                         effect.targetSourceMustBeSpell &&
                         src.isSpell === false
+                    ) {
+                        continue;
+                    }
+                    // CR 202.2 source-colour narrowing (Raiding Party): the
+                    // source's live colours must intersect the filter, each
+                    // filter colour read through the guarding permanent's
+                    // colour-word text changes (CR 612.1). No source colours
+                    // ⇒ a colour filter can't match (CR 105.2c).
+                    if (
+                        effect.targetSourceColorFilter &&
+                        !sourceColorsMatch(
+                            effect.targetSourceColorFilter,
+                            source,
+                            src.colors ?? []
+                        )
                     ) {
                         continue;
                     }
