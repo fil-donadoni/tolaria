@@ -257,8 +257,12 @@ describe("optional hand drop at an activated ability — golden fixtures (CR 608
 describe("optional hand drop at an activated ability — refused neighbours (fail-closed, ADR 0105 § 2)", () => {
     it.each([
         // The marker is admitted for the drop alone: any other optional
-        // effect at the site is a reading with no fixture.
-        ["another 'You may' sentence", "{2}, {T}: You may draw a card."],
+        // effect at the site is a reading with no fixture, even one the
+        // frames would read behind it.
+        [
+            "another 'You may' sentence",
+            "{T}: You may return target creature to its owner's hand.",
+        ],
         // More than one card is not the 0..1 pick the "may" folds into.
         [
             "a pick of more than one card",
