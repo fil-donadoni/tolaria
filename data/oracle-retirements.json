@@ -2,6 +2,7 @@
     "generator": "written by `bun run oracle:retire` — never hand-edited (see docs/adr/0114-retiring-a-hand-written-card.md)",
     "retirements": [
         {"oracleId":"00185f3b-2777-4417-a8e0-4691f41c0ec1","name":"Wyluli Wolf","retiredAt":"2026-09-18","issue":4027},
+        {"oracleId":"00c1788d-c52f-4839-9cd8-11fb86c418b6","name":"Stormchaser's Talent","retiredAt":"2026-11-15","issue":8145},
         {"oracleId":"01565f61-a3c8-42ca-99f3-07cfc64034a2","name":"Stone Kavu","retiredAt":"2026-09-18","issue":4027},
         {"oracleId":"025bbfc8-bccd-4062-b758-7f9e1f8ad420","name":"Nomadic Elf","retiredAt":"2026-11-15","issue":4026},
         {"oracleId":"03f96c23-de0b-4b85-81f8-febc850aa621","name":"Meteor Storm","retiredAt":"2026-09-18","issue":4027},
