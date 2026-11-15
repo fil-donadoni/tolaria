@@ -205,6 +205,25 @@
         "libraryCount": 20
     },
     "attack trigger: Territorial Kavu loots away a surplus land": null,
+    "attack: Ocelot Pride attacks past no blocker that eats it": {
+        "phase": "DECLARE_ATTACKERS",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Ocelot Pride",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "opp",
+                "zone": "library"
+            }
+        ]
+    },
     "attack: Ragavan attacks an empty board": {
         "phase": "DECLARE_ATTACKERS",
         "turn": 5,
@@ -2041,6 +2060,8 @@
         "landCount": 0,
         "libraryCount": 20
     },
+    "energy: Galvanic Discharge pays exactly the energy that kills": null,
+    "energy: Guide of Souls grows the attacker that stays": null,
     "entomb: buries the reanimation target, not one of eight lands": null,
     "entomb: buries the self-reachable card, not the bigger body": null,
     "entry counters: casts a creature priced by the body it enters with": {
