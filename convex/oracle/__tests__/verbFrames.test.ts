@@ -1772,8 +1772,10 @@ describe("sacrifice frame — the quantity argument (CR 107.3, CR 120.3)", () =>
         );
         // No corpus card prints the form alone — every one counts "the
         // permanents sacrificed this way" next, the next slice — so the
-        // form is a probe here and stays quarantined on a real card.
-        expect(outcome.state).toBe("quarantine");
+        // form is a probe here. Its literal { min: 0, max: 99 } range sizes
+        // nothing at runtime, so the smoke planner holds it no longer
+        // (issue #5249): the probe compiles ready.
+        expect(outcome.state).toBe("ready");
         if (outcome.state !== "unparsed")
             expect(outcome.definition.effects).toEqual(
                 edict(EVERY_PERMANENT, "any number of permanents", {
