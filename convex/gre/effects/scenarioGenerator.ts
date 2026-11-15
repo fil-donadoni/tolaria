@@ -42,6 +42,8 @@ import type {
     EffectPlayerRef,
     EffectPredicate,
     EffectValue,
+    GameEvent,
+    GameEventType,
     TargetSelection,
     TriggeredAbility,
 } from "../../cards/types";
@@ -49,6 +51,7 @@ import { isChoiceCountRange } from "../../cards/types";
 import type { CompiledTriggerHead } from "../../cards/compiledTriggers";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 import { EFFECT_OP_REGISTRY } from "../../cards/mechanicsRegistry";
+import { getEventFieldRow } from "../../cards/eventFields";
 // issue #4451 — the amount fields, derived from the tagged Op Schema.
 import { AMOUNT_KEYS } from "./validate";
 import { classLevelOf } from "../../cards/abilities/classLevels";
@@ -78,6 +81,14 @@ export const OPPONENT_ID = "p2";
  *  created it; `seedSourceBindings` in `interpreter.ts` snapshots
  *  `sourceInstanceId`, i.e. the stack item's id). */
 export const SOURCE_PERMANENT_ID = "gen-source";
+
+/** The instance id of the permanent a scenario seeds as the object a trigger's
+ *  firing event names, when a triggered-ability script acts on an
+ *  `{ ref: "$event.<field>" }` subject (ADR 0049). A filler creature on the
+ *  caster's battlefield; `Scenario.triggerEvent` names it, and the caller
+ *  pushes that event on the trigger's stack item, which is where the
+ *  interpreter resolves `$event` refs from (`SpellContext.triggerEvent`). */
+export const EVENT_SUBJECT_PERMANENT_ID = "gen-event-subject";
 
 /** Where a script is hosted. Only an ABILITY has a source permanent for
  *  `$source` to name (CR 113.7); a spell's `$source` is the spell itself on
@@ -130,6 +141,11 @@ export type SmokeHost =
           readonly site: "ability";
           readonly source: SmokeSourceSpec;
           readonly xAnnounced: boolean;
+          /** The event types a TRIGGERED host fires on (CR 603.2) — what an
+           *  `$event.<field>` ref is read off at resolution. Absent for an
+           *  activated ability, whose stack item carries no firing event, so
+           *  an `$event` subject stays unmodelled there. */
+          readonly triggerEvents?: readonly GameEventType[];
       };
 
 /** The host of a spell-site script — the fail-closed default: no source
@@ -291,11 +307,22 @@ export function abilityHost(
     onBattlefieldAtResolution: boolean,
     /** An ACTIVATED ability announces its X (CR 107.3a); a triggered one does
      *  not. Defaults to the fail-closed `false`. */
-    xAnnounced = false
+    xAnnounced = false,
+    /** A TRIGGERED ability's `event` (CR 603.2); omitted for any other
+     *  ability, which leaves `$event` subjects unmodelled. */
+    triggerEvents?: GameEventType | readonly GameEventType[]
 ): SmokeHost {
     return {
         site: "ability",
         xAnnounced,
+        ...(triggerEvents === undefined
+            ? {}
+            : {
+                  triggerEvents:
+                      typeof triggerEvents === "string"
+                          ? [triggerEvents]
+                          : triggerEvents,
+              }),
         source: {
             types: definition.types,
             ...(definition.subtypes === undefined
@@ -403,6 +430,15 @@ export interface Scenario {
      *  (issue #4022); absent otherwise. The caller snapshots it onto the stack
      *  item as `chosenX`, the field `getX()` reads at resolution. */
     chosenX?: number;
+    /** The firing event of a triggered-ability script that acts on an
+     *  `$event.<field>` subject; absent otherwise. The caller pushes the
+     *  script as a TRIGGERED stack item carrying it as `triggerEvent`, the
+     *  field `$event` refs resolve from (ADR 0049). */
+    triggerEvent?: GameEvent;
+    /** The seeded permanent that event names (`EVENT_SUBJECT_PERMANENT_ID`)
+     *  and the one `$event.<field>` ref it answers; present exactly when
+     *  `triggerEvent` is. */
+    eventSubject?: { readonly ref: string; readonly permanentId: string };
     /** The per-Kicker payment record a branch scenario announces (CR 702.33),
      *  keyed by Kicker id; absent when the scenario casts unkicked. The caller
      *  snapshots it onto the stack item as `kickerPayments`, which
@@ -711,6 +747,9 @@ interface Requirements {
     sourceSacrificeAdmitted: boolean;
     /** The forced `selectAtRandom` picks, by binding (`analyseSelectAtRandom`). */
     randomPicks: Map<string, RandomPick>;
+    /** The `$event.<field>` subject an Op acts on, and the firing event built
+     *  to name the seeded permanent there (`eventSubjectFor`). */
+    eventSubject?: EventSubject;
     /** The Op `analyseOp` is walking — stamped on each skip it raises. */
     currentOp?: EffectOp;
 }
@@ -1361,19 +1400,87 @@ function seedableSource(req: Requirements): SmokeSourceSpec | undefined {
         : undefined;
 }
 
+/** An `$event.<field>` subject the scenario seeds: the ref it answers and the
+ *  firing event built to name the seeded permanent. */
+interface EventSubject {
+    readonly ref: string;
+    readonly event: GameEvent;
+}
+
+/**
+ * The firing events the canned scenario can build, per event type and
+ * `$event` OBJECT field: each names `subjectId` — the seeded filler creature —
+ * as the object that field reads (ADR 0049). A row is admitted only where that
+ * object is a creature the caster controls, because that is what the filler
+ * is; `eventSubjectFor` round-trips every build through the field's own
+ * `EVENT_FIELD_REGISTRY` row, so a row that names nothing is a skip, never a
+ * run against the wrong object.
+ */
+const EVENT_SUBJECT_BUILDERS: Partial<
+    Record<
+        GameEventType,
+        Readonly<Record<string, (subjectId: string) => GameEvent>>
+    >
+> = {
+    // CR 508.3a — "whenever a creature attacks" fires once per declared
+    // attacker, each firing a single-attacker declaration naming its own.
+    ATTACKERS_DECLARED: {
+        combatant: (subjectId) => ({
+            type: "ATTACKERS_DECLARED",
+            attackingPlayerId: CASTER_ID,
+            attackerIds: [subjectId],
+        }),
+    },
+    // CR 509.3a — "whenever a creature blocks" fires for the creature declared
+    // as a blocker, one event per blocker.
+    BLOCKER_DECLARED: {
+        combatant: (subjectId) => ({
+            type: "BLOCKER_DECLARED",
+            blockerId: subjectId,
+            blockerControllerId: CASTER_ID,
+            blockerTypes: FILLER_CARD_DEFINITION.types,
+            blockerSubtypes: FILLER_CARD_DEFINITION.subtypes ?? [],
+        }),
+    },
+};
+
+/** The event subject the scenario seeds for `selector`, when it is an
+ *  `$event.<field>` ref at a triggered host one of whose event types has a
+ *  builder for that field; undefined otherwise — an activated or spell host,
+ *  an uncensused field, a non-object family. */
+function eventSubjectFor(
+    req: Requirements,
+    selector: EffectObjectSelector
+): EventSubject | undefined {
+    if (!("ref" in selector) || !selector.ref.startsWith("$event.")) return;
+    if (req.host.site !== "ability") return;
+    const field = selector.ref.slice("$event.".length);
+    for (const type of req.host.triggerEvents ?? []) {
+        const build = EVENT_SUBJECT_BUILDERS[type]?.[field];
+        const row = getEventFieldRow(type, field);
+        if (build === undefined || row?.family !== "object") continue;
+        const event = build(EVENT_SUBJECT_PERMANENT_ID);
+        if (row.resolve(event) !== EVENT_SUBJECT_PERMANENT_ID) continue;
+        return { ref: selector.ref, event };
+    }
+    return undefined;
+}
+
 /** True when the canned scenario can seed the object `selector` names: an
- *  announced target slot, or — at an ability site whose source is on the
- *  battlefield at resolution — the ability's own source permanent (issue
- *  #3831 / #3879). `$each` (a runtime-selected `forEach` member), a spell-site
- *  `$source` and a `$source` that is no longer a permanent when the ability
- *  resolves (CR 608.2h) are not modelled. */
+ *  announced target slot, at an ability site whose source is on the
+ *  battlefield at resolution the ability's own source permanent (issue
+ *  #3831 / #3879), or at a triggered host the object its firing event names
+ *  (`eventSubjectFor`). `$each` (a runtime-selected `forEach` member), a
+ *  spell-site `$source` and a `$source` that is no longer a permanent when the
+ *  ability resolves (CR 608.2h) are not modelled. */
 function subjectModelled(
     req: Requirements,
     selector: EffectObjectSelector
 ): boolean {
     return (
         "target" in selector ||
-        (isSourceRef(selector) && seedableSource(req) !== undefined)
+        (isSourceRef(selector) && seedableSource(req) !== undefined) ||
+        eventSubjectFor(req, selector) !== undefined
     );
 }
 
@@ -1411,6 +1518,24 @@ function recordSubject(
 ): void {
     if ("target" in selector) {
         recordSlot(req, selector.target, "permanent");
+        return;
+    }
+    const eventSubject = eventSubjectFor(req, selector);
+    if (eventSubject !== undefined) {
+        // One seeded event names one object: a second `$event` field would
+        // need an event naming two, which no builder makes.
+        if (
+            req.eventSubject !== undefined &&
+            req.eventSubject.ref !== eventSubject.ref
+        ) {
+            skipBecause(
+                req,
+                "source-or-each-subject",
+                `Ops act on two different $event subjects (${req.eventSubject.ref}, ${eventSubject.ref}) — the canned scenario seeds one firing event naming one object`
+            );
+            return;
+        }
+        req.eventSubject = eventSubject;
         return;
     }
     // The ONE funnel every accepted `$source` subject goes through, which is
@@ -1453,6 +1578,8 @@ function subjectPermanentId(
 ): string | undefined {
     if ("target" in selector)
         return scenario.targetPermanentIds[selector.target];
+    if ("ref" in selector && selector.ref === scenario.eventSubject?.ref)
+        return scenario.eventSubject.permanentId;
     return isSourceRef(selector) ? scenario.sourcePermanentId : undefined;
 }
 
@@ -2859,8 +2986,9 @@ function analyseOp(op: EffectOp, req: Requirements): void {
         case "counters":
             // `counters` (issue #841) puts/removes counters (CR 122). The
             // generator can assert a FIXED-count ADD on an announced permanent
-            // slot (it seeds a filler creature there and reads the counter
-            // tally after resolution). A `$each` (or spell-site `$source`) target, a
+            // slot or a trigger's `$event` object (it seeds a filler creature
+            // there and reads the counter tally after resolution). A `$each`
+            // (or spell-site `$source`) target, a
             // `ref`/`count` amount, or a `remove` (which needs pre-seeded
             // counters the canned generator does not place) is not modelled —
             // skip and let the card's own per-card test cover it.
@@ -3565,6 +3693,33 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
         );
     }
 
+    // ADR 0049 — the object a trigger's firing event names: a filler creature
+    // the caster controls, untapped (combat state is not what the run proves).
+    // A count set or a sweep would see it too, and their predictions are sized
+    // without it — fail-closed rather than guess.
+    const eventSubject = req.eventSubject;
+    if (eventSubject !== undefined) {
+        if (req.countSets.length > 0 || sweeps.length > 0) {
+            return {
+                skip: [
+                    {
+                        code: "runtime-amount",
+                        reason: `a count set or sweep would also see the seeded ${eventSubject.ref} permanent — the predicted outcome would be a guess`,
+                    },
+                ],
+            };
+        }
+        p1Bf.push(
+            makeInstance(FILLER_CARD_ID, {
+                id: EVENT_SUBJECT_PERMANENT_ID,
+                controllerId: CASTER_ID,
+                ownerId: CASTER_ID,
+                zone: "battlefield",
+                isSummoningSick: false,
+            })
+        );
+    }
+
     const state = makeState({
         players: [
             makePlayer(CASTER_ID, {
@@ -3595,6 +3750,15 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
             ? {}
             : { sourcePermanentId, sourceSpec: source }),
         ...(req.readsChosenX ? { chosenX: SMOKE_CHOSEN_X } : {}),
+        ...(eventSubject === undefined
+            ? {}
+            : {
+                  triggerEvent: eventSubject.event,
+                  eventSubject: {
+                      ref: eventSubject.ref,
+                      permanentId: EVENT_SUBJECT_PERMANENT_ID,
+                  },
+              }),
         ...(sourceCounters === undefined ? {} : { sourceCounters }),
         ...(req.readsControllerSpeed
             ? { controllerSpeed: SMOKE_CONTROLLER_SPEED }
