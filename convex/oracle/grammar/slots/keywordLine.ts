@@ -49,6 +49,7 @@ import {
     protectionKeywordsRule,
     protectionListRule,
 } from "../shared/protectionKeyword";
+import { hexproofFromKeywordsRule } from "../shared/hexproofFromKeyword";
 import {
     targetDescriptorRule,
     targetRequirementFromDescriptor,
@@ -103,9 +104,11 @@ const wardManaRule: Rule<readonly KeywordIR[]> = rule("ward", (span) => {
 });
 
 /**
- * One keyword span: a registry name, the parameterised "Ward {N}", or the
+ * One keyword span: a registry name, the parameterised "Ward {N}", the
  * parameterised "Protection from [quality]" (CR 702.16a) — which may name two
- * qualities (CR 702.16g) and so yields a list.
+ * qualities (CR 702.16g) and so yields a list —
+ * or the parameterised "Hexproof from [quality]" (CR 702.11d), the same shape
+ * (CR 702.11f).
  */
 const keyword: Rule<readonly KeywordIR[]> = subGrammar(
     KEYWORD_ABILITY,
@@ -116,6 +119,7 @@ const keyword: Rule<readonly KeywordIR[]> = subGrammar(
         ),
         wardManaRule,
         protectionKeywordsRule,
+        hexproofFromKeywordsRule,
     ]),
     opensWithKeyword
 );

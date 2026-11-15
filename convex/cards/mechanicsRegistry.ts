@@ -848,6 +848,19 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         binding: "hexproof",
         note: "HONOURED (issue #958): CR 702.11b — permanentGuard.ts bridges the `hexproof` staticAbilities string to the shroud `cantBeTargeted` targeting-legality path, narrowed to opponent-controlled sources (the source's controllerId ≠ the permanent's controllerId). Gated in rules.ts getLegalTargets and game.ts selectTarget (server-authoritative) and mirrored client-side in src/lib/targeting.ts so an opponent's targeted spell greys the permanent while the controller's own can still target it. Reads the instance's effective (materialized) staticAbilities, so a dynamically-granted hexproof is honoured like a printed one.",
     },
+    // 702.11d Hexproof from [quality]
+    {
+        id: "hexproof-from",
+        name: "Hexproof from",
+        kind: "keyword-ability",
+        cr: "702.11d",
+        status: "implemented",
+        binding:
+            "gre/hexproofQuality.ts (parseHexproofQuality) + gre/permanentGuard.ts isGuardedAgainst",
+        bindingPattern:
+            /^hexproof from (white|blue|black|red|green|monocolored|multicolored)$/,
+        note: 'HONOURED (issue #2604): CR 702.11d — "hexproof from [quality]" bars [quality] spells an opponent controls and abilities an opponent controls from [quality] sources. Declared as the `staticAbilities` string "hexproof from <quality>"; the ONE fail-closed parser `parseHexproofQuality` (gre/hexproofQuality.ts) names three quality families — a colour (CR 105.1), monocolored (exactly one colour, CR 105.2a) and multicolored (two or more, CR 105.2b); colourless matches none (CR 105.2c). Enforced inside the SAME controller-relative `cantBeTargeted` branch of `permanentGuard.ts::isGuardedAgainst` as plain hexproof, so rules.ts getLegalTargets (offered), game.ts selectTarget (accepted), state.ts isTargetStillLegal (resolution, CR 608.2b) and the client click gate src/lib/targeting.ts agree by construction; the quality is read off `GuardActionSource.colors` — the spell\'s colours, or the ability\'s SOURCE\'s. Read through colour-word text changes (CR 612.1). CR 702.11e — it IS a hexproof ability: `keywordDenotes` makes every removal naming hexproof (layer-6 `keyword-remove`, the `loseAbility` Op) remove it, and every search for hexproof (`requireAbility`/`excludeAbility`/`hasAbility` filters, `SpellContext.hasStaticAbility`) find it. No engine effect lets a player target "as though it didn\'t have hexproof" yet, so the third clause of 702.11e has no consumer. Card-type qualities ("hexproof from artifacts"), "from each color" (CR 702.11g) and ability-kind qualities are NOT parsed: they fail closed.',
+    },
     // 702.12 Indestructible
     {
         id: "indestructible",

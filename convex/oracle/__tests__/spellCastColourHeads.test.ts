@@ -7,7 +7,7 @@
 //     Gnarr, Glade Gnarr — two colours of one form), negated colour for
 //     "you" (Dwarven Patrol), colour filter for an opponent (Warmth).
 //  2. REFUSALS — the neighbours the table must NOT read: a filter it does not
-//     spell (multicolored, colorless), a rider after the noun ("from your
+//     spell (colorless), a rider after the noun ("from your
 //     hand", "during your turn"), a disjunction with another event, and a
 //     colour word outside the five.
 //  3. VOCABULARY — every (caster, colour, polarity) row is one of the five
@@ -171,12 +171,9 @@ describe("spell-cast colour heads — goldens (issue #4135)", () => {
 
 describe("spell-cast colour heads — refusals stay fail-closed (issue #4135)", () => {
     const REFUSED_HEADS: readonly [string, string][] = [
-        // A filter the table does not spell (multicolored is not a colour word
-        // of CR 105.1; colorless is the ABSENCE of colour, CR 105.2c).
-        [
-            "Rewards of Diversity",
-            "Whenever an opponent casts a multicolored spell, you gain 1 life.",
-        ],
+        // A filter the table does not spell (colorless is the ABSENCE of
+        // colour, CR 105.2c). "Multicolored" is read since issue #2604, by the
+        // `colorCountAtLeast` rows (`hexproofFromKeyword.test.ts`).
         [
             "Thought Harvester",
             "Whenever you cast a colorless spell, you gain 1 life.",

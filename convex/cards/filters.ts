@@ -10,6 +10,7 @@
 // definition, CR 110.1 — `BattlefieldFilter` would be redundant).
 
 import type { CardType, Color } from "./types";
+import { hasKeywordAbility } from "../gre/hexproofQuality";
 
 // --- Shared match context ---
 
@@ -267,9 +268,16 @@ export interface SpellFilter {
      *  sixth colour, so "whenever you cast a colorless spell" (Ugin, Eye of the
      *  Storms) is `excludeColors: ["W", "U", "B", "R", "G"]` — a spell with none
      *  of the five. Single value is shorthand for one colour. */
-    excludeColors?:
-        | Color
-        | Color[]; /** OR ACROSS filter dimensions — the SPELL twin of `PermanentFilter.any`
+    excludeColors?: Color | Color[];
+    /** Inclusive lower bound on HOW MANY of the five colours the spell has
+     *  (CR 105.2b — "a multicolored object is two or more of the five
+     *  colors"): "whenever you cast a multicolored spell" is
+     *  `colorCountAtLeast: 2`. The SPELL twin of
+     *  `EffectCardFilter.colorCountAtLeast`, same shape and same reason for a
+     *  count over a flag: monocolored (CR 105.2a) is the same axis at a
+     *  different bound. Colourless fails it (CR 105.2c — no colour to count). */
+    colorCountAtLeast?: number;
+    /** OR ACROSS filter dimensions — the SPELL twin of `PermanentFilter.any`
      *  (issue #897), same semantics: a non-empty array of full `SpellFilter`
      *  clauses, the spell matching if it matches AT LEAST ONE, ANDed with every
      *  other top-level field present alongside it. For a selector whose two
@@ -475,13 +483,13 @@ export function matchesPermanentFilter(
     }
     if (
         filter.requireAbility !== undefined &&
-        !card.staticAbilities.includes(filter.requireAbility)
+        !hasKeywordAbility(card.staticAbilities, filter.requireAbility)
     ) {
         return false;
     }
     if (
         filter.excludeAbility !== undefined &&
-        card.staticAbilities.includes(filter.excludeAbility)
+        hasKeywordAbility(card.staticAbilities, filter.excludeAbility)
     ) {
         return false;
     }
@@ -710,6 +718,15 @@ export function matchesSpellFilter(
         const excluded = asArray(filter.excludeColors);
         if (excluded.some((c) => spell.colors.includes(c))) return false;
     }
+    // CR 105.2b — count the distinct colours among the five; the colourless
+    // marker is no colour (CR 105.2c).
+    if (
+        filter.colorCountAtLeast !== undefined &&
+        new Set(spell.colors.filter((c) => c !== "C")).size <
+            filter.colorCountAtLeast
+    ) {
+        return false;
+    }
     if (
         filter.any !== undefined &&
         !filter.any.some((clause) => matchesSpellFilter(spell, clause))
@@ -739,7 +756,7 @@ export function matchesDamageSourceFilter(
     }
     if (
         filter.requireAbility !== undefined &&
-        !source.staticAbilities.includes(filter.requireAbility)
+        !hasKeywordAbility(source.staticAbilities, filter.requireAbility)
     ) {
         return false;
     }
