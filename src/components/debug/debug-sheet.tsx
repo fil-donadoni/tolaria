@@ -9,13 +9,14 @@ import {
 import { Keycap } from "~/components/ui/keycap";
 import { HOTKEYS } from "~/lib/hotkeys";
 
-/** The toggle key, from its one declaration (issue #9833). */
-const DEBUG_SHEET_SHORTCUT_KEY = HOTKEYS.toggleDebugSheet.keys[0];
 import { ABOVE_CONTROLLER_BAR } from "~/lib/controller-bar-metrics";
 import { useDebugSheet } from "~/hooks/debugSheetContext";
 import AiDecisionTraceBox from "./ai-decision-trace-box";
 import DebugPanel from "./debug-panel";
 import { DEBUG_SHEET_DESKTOP_WIDTH_CLASS } from "./debug-sheet-metrics";
+
+/** The toggle key, from its one declaration (issue #9833). */
+const DEBUG_SHEET_SHORTCUT_KEY = HOTKEYS.toggleDebugSheet.keys[0];
 
 /**
  * The debug area as a LEFT SHEET (issue #3403, PRD #3397).

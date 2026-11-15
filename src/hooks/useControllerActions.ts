@@ -820,7 +820,11 @@ export function useControllerActions(): ControllerState {
     } else if (hasPriority) {
         actions.push({
             key: "pass",
-            shortcut: HOTKEYS.passPriority,
+            // Space passes — unless a choice of this viewer's is open: the
+            // server hands the chooser priority, but Space then confirms the
+            // prompt (the keydown effect above), and the prompt's own button
+            // carries that keycap.
+            shortcut: pendingChoiceAction ? undefined : HOTKEYS.passPriority,
             label: "Pass",
             tone: "primary",
             disabled: isBusy,
