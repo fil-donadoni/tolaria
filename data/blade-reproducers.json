@@ -358,6 +358,8 @@
         "libraryCount": 20
     },
     "boast: eats its Grizzly Bears to boast for lethal after attacking": null,
+    "bounce land: Amulet of Vigor's untapped bounce land taps for mana before its return resolves": null,
+    "bounce land: Simic Growth Chamber taps the other land before returning it": null,
     "bounce sweep: casts Hibernation when the opponent's green board outweighs its mana": {
         "cards": [
             {
@@ -3532,6 +3534,7 @@
     "known top: plays the creature instead when the known top is a blank": null,
     "land search: fetches the basic that is the only source of the hand's colour": null,
     "land search: fetches the utility land when the hand's colours are covered": null,
+    "land search: Primeval Titan searches when it attacks": null,
     "land tempo pair: plays the enters-tapped land on an idle turn": {
         "cards": [
             {
@@ -4402,6 +4405,8 @@
         "libraryCount": 20
     },
     "Oracle combo: responds to the Thassa's Oracle trigger with Demonic Consultation": null,
+    "pact: Summoner's Pact finds the creature the board needs": null,
+    "pact: Summoner's Pact is cast for a flash blocker with the upkeep payable": null,
     "phasing: casts a phasing creature rather than holding it": {
         "cards": [
             {
