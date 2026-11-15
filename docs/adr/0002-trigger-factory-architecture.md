@@ -2,7 +2,9 @@
 
 _Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `convex/cards/sets/lea.ts`._
 
-**Status:** Accepted (2026-05-22)
+**Status:** Accepted (2026-05-22). Amended by ADR 0182 (2026-11-15): the
+factories are the body of the trigger expander; a card authors a Trigger
+Descriptor and no longer calls a factory.
 
 ## Context
 

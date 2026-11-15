@@ -273,6 +273,14 @@ _Avoid_: Action, skill
 An ability that fires automatically when a condition is met ("when/whenever/at"). Uses the **Stack**.
 _Avoid_: Event handler, listener
 
+**Trigger Descriptor**:
+The data form of a **Triggered Ability**: a **Trigger Head**, an optional condition, and the body, with no function deciding when it fires. It is what a **Card Definition** carries — authored by hand or emitted by the **Oracle Compiler**, the same form either way — and the engine derives the firing test from it.
+_Avoid_: Compiled trigger (provenance, not form), trigger config, trigger spec
+
+**Trigger Head**:
+The part of a **Trigger Descriptor** that says which events fire it: the kind of event ("enters", "dies", "attacks", "at the beginning of upkeep"), whose object or step it watches relative to the source, and any filter on that object. It is the "when/whenever/at" clause of the Oracle line, as data.
+_Avoid_: Trigger condition (that is the "if" clause, CR 603.4), event matcher, listener
+
 **Delayed Triggered Ability**:
 A one-shot **Triggered Ability** created during the resolution of a spell or ability rather than printed on a permanent — "at the beginning of the next end step, destroy it" (CR 603.7). It waits for its timing condition, fires exactly once, then ceases to exist. In an **Effect Script** it is written inline: the scheduling **Op** carries the delayed body (itself an Effect Script) and its **Captures**, so the whole card reads like its oracle text.
 _Avoid_: Scheduled effect, deferred callback, timer
