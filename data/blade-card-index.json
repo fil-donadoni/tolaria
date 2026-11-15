@@ -639,6 +639,18 @@
             "needsSetup": false
         }
     ],
+    "Lava Dart": [
+        {
+            "label": "flashback: Lava Dart is flashed back for the last point of life",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "flashback: Lava Dart is flashed back to kill an X/1",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Library of Alexandria": [
         {
             "label": "land: Library of Alexandria draws at seven cards",
@@ -855,6 +867,13 @@
             "label": "loyalty: Oko elks the opposing Craw Wurm",
             "tier": "must",
             "needsSetup": false
+        }
+    ],
+    "Opt": [
+        {
+            "label": "prowess: Monastery Swiftspear casts the instant once blocked",
+            "tier": "must",
+            "needsSetup": true
         }
     ],
     "Phantasmal Image": [
@@ -1098,6 +1117,13 @@
             "label": "land tempo pair: plays the enters-tapped land on an idle turn",
             "tier": "stretch",
             "needsSetup": false
+        }
+    ],
+    "Shock": [
+        {
+            "label": "flurry: Cori-Steel Cutter casts the second spell before combat",
+            "tier": "must",
+            "needsSetup": true
         }
     ],
     "Show and Tell": [
