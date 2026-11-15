@@ -65,7 +65,6 @@ import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import type { CardInstanceState, GameState } from "../state";
 import {
     ankhOfMishra,
-    crusade,
     grizzlyBears,
     island,
     islandSanctuary,
@@ -76,6 +75,8 @@ import { ornithopter } from "../../cards/sets/atq/index.cards";
 import { farrelitePriest } from "../../cards/sets/fem/index.cards";
 import { urzaLordHighArtificer } from "../../cards/sets/mh1/index.cards";
 import { getDefinition } from "../../cards";
+
+const crusade = () => getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
 const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 const moxJet = getDefinition("92bcd1ce-19b1-4d78-8b09-95242ca08d76");
 const moxSapphire = getDefinition("82da0972-b17b-4600-9efd-e9430a0db04b");
