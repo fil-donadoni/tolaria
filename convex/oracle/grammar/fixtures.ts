@@ -6464,6 +6464,49 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 509.3a + CR 613.1f — "When this creature blocks, it loses defender":
+    // the self block head behind an INDEFINITE single-keyword loss on the
+    // source (no duration, CR 611.2a), exhibiting the "loseAbility acts on
+    // $source" card-dependent form without a duration.
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "5948381a-419d-4b8b-8ea2-ea623cb0d606",
+            name: "Elder Land Wurm",
+            manaCost: "{4}{W}{W}{W}",
+            typeLine: "Creature — Dragon Wurm",
+            oracleText:
+                "Defender, trample\nWhen this creature blocks, it loses defender.",
+            power: "5",
+            toughness: "5",
+            layout: "normal",
+        },
+        expected: {
+            name: "Elder Land Wurm",
+            types: ["Creature"],
+            subtypes: ["Dragon", "Wurm"],
+            manaCost: { X: 4, W: 3 },
+            power: 5,
+            toughness: 5,
+            oracleText:
+                "Defender, trample\nWhen this creature blocks, it loses defender.",
+            staticAbilities: ["defender", "trample"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "elder-land-wurm-trigger",
+                    oracleText: "When this creature blocks, it loses defender.",
+                    head: { kind: "blocks" },
+                    effects: [
+                        {
+                            op: "loseAbility",
+                            target: { ref: "$source" },
+                            ability: "defender",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 613.1f + CR 611.2c — "Permanents your opponents control lose hexproof
     // and indestructible until end of turn": a keyword pair lost by the
     // opponents' permanents (CR 109.5 + CR 102.2), one sweep fixed at
