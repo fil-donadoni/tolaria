@@ -9,6 +9,7 @@ import {
     floatingAfterPlan,
     planSurplus,
     AUTO_TAP_PLAN_CAP,
+    AUTO_TAP_SCORED_PLAN_CAP,
     W_PRESERVED_DEMAND,
     SURPLUS_CAP,
     type AutoTapPlan,
@@ -581,6 +582,54 @@ describe("solveSmartAutoTap — determinism & cap (ADR 0034)", () => {
         expect(plan).not.toBeNull();
         expect(plan).toHaveLength(2);
         expect(AUTO_TAP_PLAN_CAP).toBe(512);
+    });
+
+    // Issue #9812: any-colour lands made every mana-option assignment a
+    // separate plan, so seven of them paying {3}{W}{W} hit the cap and the
+    // position scorer (a state clone + evaluate() each) ran 512 times.
+    it("scores each tapped land set once, not each colour assignment", () => {
+        const sources = Array.from({ length: 7 }, (_, i) =>
+            choice(`any${i}`, ["W", "U", "B", "R", "G"])
+        );
+        let calls = 0;
+        const plan = solveSmartAutoTap(
+            EMPTY_POOL,
+            { W: 2, X: 3 },
+            [],
+            sources,
+            [],
+            undefined,
+            () => {
+                calls += 1;
+                return 0;
+            }
+        );
+        expect(plan).toHaveLength(5);
+        // C(7, 5) = 21 land sets, each leaving an empty pool.
+        expect(calls).toBe(21);
+    });
+
+    it("past the scoring cap, scores only the plans leading on the scorer-free terms", () => {
+        // 12 duals paying {2}: C(12, 2) = 66 distinct two-land plans.
+        const sources: AutoTapSource[] = [];
+        for (let i = 0; i < 12; i++) {
+            sources.push(choice(`d${i}`, ["U", "G"]));
+        }
+        let calls = 0;
+        const plan = solveSmartAutoTap(
+            EMPTY_POOL,
+            { X: 2 },
+            [],
+            sources,
+            [],
+            undefined,
+            () => {
+                calls += 1;
+                return 0;
+            }
+        );
+        expect(plan).toHaveLength(2);
+        expect(calls).toBe(AUTO_TAP_SCORED_PLAN_CAP);
     });
 });
 
