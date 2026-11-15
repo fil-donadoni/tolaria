@@ -8738,6 +8738,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bloodline Culling",
+        "scryfallId": "fac827f7-a587-4adf-8408-2d9ccd9c1343",
+        "oracleId": "0b7fabe8-bc44-47b1-93bb-b895a1bd0aa9",
+        "firstSet": "mid",
+        "firstPrintId": "fac827f7-a587-4adf-8408-2d9ccd9c1343",
+        "firstPrintSet": "mid",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Bloodlust Inciter",
         "scryfallId": "b1cd0757-1b06-4e1b-a236-31271bd0d9a3",
         "oracleId": "826b83ba-0fe5-4f1d-91c8-799a1100d1e6",
@@ -17024,6 +17034,16 @@
         "source": "compiled"
     },
     {
+        "name": "Crisis of Conscience",
+        "scryfallId": "308d9672-58a7-4ec8-a20d-7054d76fde37",
+        "oracleId": "d5862292-9ef9-4bf2-b468-45bfe0d70f7a",
+        "firstSet": "who",
+        "firstPrintId": "308d9672-58a7-4ec8-a20d-7054d76fde37",
+        "firstPrintSet": "who",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Crocanura",
         "scryfallId": "b459a988-97b0-4370-b89a-2565f8721b60",
         "oracleId": "2071f278-77ba-46f8-85a0-ccd761199f29",
@@ -20938,6 +20958,16 @@
         "firstSet": "ice",
         "firstPrintId": "1ea01324-1cfb-498c-8299-f690373864bd",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Diamond Kaleidoscope",
+        "scryfallId": "548ff852-274d-4068-818d-58a883e74a5f",
+        "oracleId": "bffa9256-aff4-476f-86f4-4f4c9e57fa69",
+        "firstSet": "vis",
+        "firstPrintId": "548ff852-274d-4068-818d-58a883e74a5f",
+        "firstPrintSet": "vis",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Diamond Lion",
@@ -33476,6 +33506,16 @@
         "source": "compiled"
     },
     {
+        "name": "Glimmer Bairn",
+        "scryfallId": "03250752-bd85-485a-b19a-fa344c4ffd50",
+        "oracleId": "118cdf8b-44fb-4c3e-86c4-e7f4b1267646",
+        "firstSet": "mh2",
+        "firstPrintId": "03250752-bd85-485a-b19a-fa344c4ffd50",
+        "firstPrintSet": "mh2",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Glimmer Lens",
         "scryfallId": "c9262000-e6f3-4da1-ad1c-038f65d3bef6",
         "oracleId": "bb7cebb7-a979-4879-b834-deab13f2a22c",
@@ -37338,6 +37378,16 @@
         "source": "compiled"
     },
     {
+        "name": "Hardened Tactician",
+        "scryfallId": "86b225cb-5c45-4da1-a64e-b04091e483e8",
+        "oracleId": "ca1dc6f0-3ec2-4f62-a08a-1395201bd93f",
+        "firstSet": "tdm",
+        "firstPrintId": "86b225cb-5c45-4da1-a64e-b04091e483e8",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Hardened-Scale Armor",
         "scryfallId": "708e7438-b449-490e-820f-9ecd3199541b",
         "oracleId": "9eb58db8-7934-485c-8606-fb1a6cc60d42",
@@ -39516,6 +39566,16 @@
         "firstSet": "avr",
         "firstPrintId": "0fe68bce-6207-4fd1-9e82-a18fd2d6ddca",
         "firstPrintSet": "avr",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Hour of Reckoning",
+        "scryfallId": "bec7a987-1ef2-40aa-a744-92d90b246df4",
+        "oracleId": "3bc13640-03f8-4b19-b0a4-7e7cb5271c0c",
+        "firstSet": "rav",
+        "firstPrintId": "bec7a987-1ef2-40aa-a744-92d90b246df4",
+        "firstPrintSet": "rav",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -59033,6 +59093,16 @@
         "firstSet": "apc",
         "firstPrintId": "ae4cbb33-4947-49f0-b612-a92141fbfaa6",
         "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Perplexing Test",
+        "scryfallId": "31f2cbcc-d5b8-4659-ae51-e567c555a743",
+        "oracleId": "8682266c-2b0f-496e-b1c6-1fb338feac24",
+        "firstSet": "c21",
+        "firstPrintId": "31f2cbcc-d5b8-4659-ae51-e567c555a743",
+        "firstPrintSet": "c21",
         "rarity": "rare",
         "source": "compiled"
     },
