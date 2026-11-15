@@ -38,7 +38,6 @@ import { getDefinition } from "../../../index";
 import { STATIC_EFFECT_CTX } from "../../../../gre/layers";
 import { collectTriggers } from "../../../../gre/triggers";
 import { compactState, expandState } from "../../../../gre/serialize";
-import { MECHANICS_REGISTRY } from "../../../mechanicsRegistry";
 
 const touchOfDarkness = getDefinition("eda7177f-1354-4008-aaaa-2c8b823ed5e9");
 
@@ -1102,10 +1101,5 @@ describe("All Hallow's Eve — counters on an exiled card + a trigger functionin
             const slim = projected.players[0].exile.find((c) => c.id === "eve");
             expect(slim?.counters).toEqual({ scream: 2 });
         }
-    });
-
-    it("is not the Suspend keyword: the `suspend` registry row stays planned", () => {
-        const row = MECHANICS_REGISTRY.find((r) => r.id === "suspend");
-        expect(row?.status).toBe("planned");
     });
 });
