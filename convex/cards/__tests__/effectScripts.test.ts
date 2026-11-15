@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from "vitest";
 import { getAllCatalogueCards } from "..";
+import type { CardDefinition } from "../types";
 import {
     validateAbilityAiEffectsScript,
     validateAbilityEffectScript,
@@ -82,6 +83,32 @@ describe("Effect Script catalogue sweep (ADR 0045)", () => {
             )
         );
         expect(errors).toEqual([]);
+    });
+
+    // CR 608.2h (issue #2988) — the sweep refuses a script that reads an
+    // announced Target an earlier Op removed: Undermine with its two Ops
+    // swapped, at the card site and at a cast-time mode site.
+    it("refuses a remove-then-read ordering at the card and the mode site (issue #2988)", () => {
+        const undermine = cards.find((c) => c.name === "Undermine")!;
+        const [read, removal] = undermine.effects!;
+        const misOrdered = { ...undermine, effects: [removal!, read!] };
+        const cardErrors = validateEffectScript(misOrdered);
+        expect(cardErrors).toHaveLength(1);
+        expect(cardErrors[0]).toMatch(
+            /^Undermine \(.+\): effects\[1\]: Op "loseLife" reads \{ controllerOf \} of announced Target 0 after Undermine \(.+\): effects\[0\] \(Op "counter"\) removed it from the stack/
+        );
+        const modal = {
+            ...undermine,
+            effects: undefined,
+            modes: [{ id: "m", label: "Mode", effects: [removal!, read!] }],
+        } as CardDefinition;
+        const modeErrors = modeSites(modal).flatMap(({ host }) =>
+            validateEffectScript(host)
+        );
+        expect(modeErrors).toHaveLength(1);
+        expect(modeErrors[0]).toMatch(
+            /^Undermine mode "m" .*Op "loseLife" reads \{ controllerOf \} of announced Target 0 .*\(Op "counter"\)/
+        );
     });
 
     it("every effects[] survives a JSON.stringify round-trip unchanged (ADR 0046 purity)", () => {
