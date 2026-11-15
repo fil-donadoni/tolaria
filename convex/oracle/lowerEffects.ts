@@ -3573,7 +3573,22 @@ function lowerSentenceBody(
             // answer alone.
             let paid = inner.value;
             let then: EffectOp[] = [];
-            if (sentence.then !== undefined) {
+            if (sentence.then !== undefined && searchesAZone(inner.value)) {
+                // CR 118.12b — after an optional search, "If you do" checks
+                // whether the player chose to search, not whether any card
+                // was found or moved: the gate is the answer itself.
+                const gated =
+                    sentence.reflexive === undefined
+                        ? gatedSentence(sentence.then, walk, site)
+                        : lowerReflexive(
+                              sentence.reflexive,
+                              sentence.then,
+                              walk,
+                              site
+                          );
+                if (!gated.ok) return gated;
+                then = gated.value;
+            } else if (sentence.then !== undefined) {
                 const evidence = paidEvidence(inner.value, walk);
                 if (evidence === null)
                     return unlowerable(
@@ -6855,6 +6870,14 @@ function graveyardExileCost(
         filter: pick.filter ?? {},
         count: pick.count,
     };
+}
+
+/**
+ * CR 118.12b — whether an optional action is a search of a zone: its "If you
+ * do" reads the choice to search, so it needs no evidence Op.
+ */
+function searchesAZone(ops: readonly EffectOp[]): boolean {
+    return ops.some((op) => op.op === "choice" && op.kind === "search-library");
 }
 
 /**
