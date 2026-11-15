@@ -14,13 +14,13 @@ import {
     makePlayer,
     makeState,
 } from "@convex/cards/__tests__/setup.helper";
+import { getCardByName, getDefinition } from "@convex/cards";
 import {
     RETURN_A_LAND,
     fireReturnLegEtb,
     returnLegLand,
     returnLegProbeInstance,
 } from "@convex/gre/__tests__/fixtures/mayPayReturnLegProbe.fixture";
-import { crosissCatacombs } from "@convex/cards/sets/pls/colorless.cards";
 import {
     resolveTopOfStack,
     type CardInstanceState,
@@ -187,7 +187,9 @@ function fireLairEtb(state: GameState, lair: CardInstanceState): void {
         ...lair,
         zone: "stack",
         castById: lair.controllerId,
-        triggeredAbilityId: crosissCatacombs().triggeredAbilities![0].id,
+        triggeredAbilityId: getDefinition(
+            getCardByName("Crosis's Catacombs").id
+        ).triggeredAbilities![0].id,
         triggerSourceId: lair.id,
         triggerEvent: {
             type: "PERMANENT_ENTERED",
@@ -202,7 +204,7 @@ function fireLairEtb(state: GameState, lair: CardInstanceState): void {
 
 describe("may-pay return leg — real Lair card, zero legal candidates (issue #1938 fixup)", () => {
     it("mayPaySacrificeCount / mayPayCanAfford / mayPaySacrificePower agree with the server (0 / false / 0)", () => {
-        const lair = makeInstance(crosissCatacombs().id, {
+        const lair = makeInstance(getCardByName("Crosis's Catacombs").id, {
             id: "lair",
             controllerId: "p1",
             ownerId: "p1",

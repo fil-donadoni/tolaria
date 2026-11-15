@@ -75,7 +75,6 @@ import {
 } from "@convex/cards/filters";
 import type { ControlContinuityView } from "@convex/gre/controlContinuity";
 import {
-    crosissCatacombs,
     meteorCrater,
     starCompass,
 } from "@convex/cards/sets/pls/colorless.cards";
@@ -4246,7 +4245,7 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
         excludeSubtypes: [
             {
                 card: makeCardInstance({
-                    card: { id: crosissCatacombs().id },
+                    card: { id: getCardByName("Crosis's Catacombs").id },
                     types: ["Land"],
                     subtypes: ["Lair"],
                 }),
@@ -6953,7 +6952,7 @@ describe("getManaChoices — board-derived colour sources through the wire reduc
             [
                 basic(swampCard().id, "p1", "own-swamp"),
                 // Nonbasic: taps for three colours, contributes none.
-                basic(crosissCatacombs().id, "p1", "own-lair"),
+                basic(getCardByName("Crosis's Catacombs").id, "p1", "own-lair"),
             ],
             [basic(mountainCard().id, "p2", "opp-mountain")]
         );

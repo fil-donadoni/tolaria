@@ -16,7 +16,7 @@ import { projectPublicState } from "../../../../gameProjections";
 import { tapSourceIntoPayment } from "../../../../game";
 import { getDefinition, getCardByName } from "../../../index";
 
-const chromaticStar = getDefinition("1d7a1357-debd-49b0-9fd5-560d5b3f589e");
+const chromaticStar = getDefinition(getCardByName("Chromatic Star").id);
 
 const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
 
@@ -70,7 +70,7 @@ describe("Chromatic Star (any-colour sac + dies-cantrip, CR 605 / 603.6c)", () =
                 makePlayer("p2"),
             ],
         });
-        resolveTrigger(state, star, "chromatic-star-death-draw", {
+        resolveTrigger(state, star, "chromatic-star-trigger", {
             type: "PERMANENT_LEFT",
             instanceId: "star",
             controllerId: "p1",
