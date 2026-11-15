@@ -1379,6 +1379,13 @@
             "needsSetup": false
         }
     ],
+    "Tribal Flames": [
+        {
+            "label": "domain burn: Tribal Flames goes to the face when X covers the life",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Umezawa's Jitte": [
         {
             "label": "equipment: Umezawa's Jitte spends a counter to win the combat",
