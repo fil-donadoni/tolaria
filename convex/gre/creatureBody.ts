@@ -142,6 +142,9 @@ const KEYWORD_FAMILY_BONUS: readonly {
     },
     // Protection (CR 702.16): resilience, one flat value for every quality.
     { pattern: /^protection from /, bonus: () => 15 },
+    // Hexproof from [quality] (CR 702.11d): hexproof against one quality of
+    // source only, so it is worth less than full hexproof's flat 15.
+    { pattern: /^hexproof from /, bonus: () => 10 },
     // Rampage (CR 702.23): its trigger carries no script value.
     { pattern: /^rampage \d+$/, bonus: () => 6 },
 ];

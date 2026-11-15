@@ -21,6 +21,7 @@ const EXAMPLE_STRING: Record<string, string> = {
     shroud: "shroud",
     landwalk: "swampwalk",
     protection: "protection from red",
+    "hexproof-from": "hexproof from monocolored",
     rampage: "rampage 2",
 };
 
