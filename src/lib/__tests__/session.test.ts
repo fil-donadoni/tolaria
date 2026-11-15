@@ -103,7 +103,7 @@ describe("deck-list format filter persistence (issue #513)", () => {
     });
 
     it("falls back to 'all' for a stale/invalid stored value", () => {
-        localStorage.setItem("tolaria:deckFormatFilter", "modern");
+        localStorage.setItem("tolaria:deckFormatFilter", "standard");
         expect(getStoredDeckFormatFilter()).toBe("all");
     });
 });
