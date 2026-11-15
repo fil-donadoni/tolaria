@@ -667,6 +667,10 @@ interface Requirements {
     /** Players an Op discards from at random: their hand is seeded with
      *  `SMOKE_HAND_SIZE` filler cards (`discardAtRandom`). */
     discardingPlayers: Set<string>;
+    /** Players whose graveyard-bound cards an Op redirects this turn
+     *  (`armGraveyardRedirect`): a discard of theirs never reaches the
+     *  graveyard the assertion reads. */
+    redirectedPlayers: Set<string>;
     /** Count sets to populate so a `count` value is non-zero. */
     countSets: EffectCountSpec[];
     /** Every reason the script cannot be scenario-ized; empty when it can. */
@@ -2525,6 +2529,8 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // player id landing in state.graveyardBoundRedirectThisTurn
             // (asserted below).
             analysePlayer(op.player, req, false);
+            if (resolveScenarioPlayer(op.player) !== "ref")
+                req.redirectedPlayers.add(assertionPlayerId(op.player));
             return;
         case "addMana":
             // CR 106.1 (issue #850) — mana added to a player's pool is a
@@ -2557,8 +2563,13 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             if (resolveScenarioPlayer(op.player) === "ref") return;
             // One seeded hand serves one hand-size assertion, read off the
             // pre-resolution state: a second discard from the same hand would
-            // see the first one's remainder.
-            if (req.discardingPlayers.has(assertionPlayerId(op.player))) {
+            // see the first one's remainder. Not on the nested walk of a
+            // skipped script: nothing there runs, and two branches of one `if`
+            // each discarding are not two discards.
+            if (
+                req.sweepsRun &&
+                req.discardingPlayers.has(assertionPlayerId(op.player))
+            ) {
                 skipBecause(
                     req,
                     "runtime-amount",
@@ -3115,20 +3126,17 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
         };
     }
 
-    // A hand another Op of the same script also changes (a draw, a sweep's
-    // bounce) holds more than the seeded cards at the discard: the random pick
-    // and the predicted hand size would both be a guess.
+    // A hand another Op of the same script also fills (a draw) holds more
+    // than the seeded cards at the discard, and a redirected graveyard never
+    // receives them: the predicted delta would be a guess.
     for (const pid of req.discardingPlayers) {
-        if (
-            !req.drawingPlayers.has(pid) &&
-            !req.sweeps.some((sweep) => sweep.outcome.kind === "bounce")
-        )
+        if (!req.drawingPlayers.has(pid) && !req.redirectedPlayers.has(pid))
             continue;
         return {
             skip: [
                 {
                     code: "runtime-amount",
-                    reason: `Op "discardAtRandom" discards from a hand another Op of the same script changes — the predicted hand size would be a guess`,
+                    reason: `Op "discardAtRandom" discards from a hand or into a graveyard another Op of the same script changes — the predicted delta would be a guess`,
                 },
             ],
         };
@@ -5592,6 +5600,7 @@ function emptyRequirements(host: SmokeHost): Requirements {
         drawingPlayers: new Set(),
         floatingManaPlayers: new Set(),
         discardingPlayers: new Set(),
+        redirectedPlayers: new Set(),
         countSets: [],
         skips: [],
         host,

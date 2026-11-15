@@ -1022,6 +1022,22 @@ describe("random discard (CR 701.9b, issue #5943)", () => {
         expect(plan.kind).toBe("run");
     });
 
+    it("discards in two branches of one if are not two discards", () => {
+        const plan = planSmokeTest([
+            {
+                op: "if",
+                predicate: { left: 1, op: "gt", right: 0 },
+                then: [{ op: "discardAtRandom", player: "opponent", count: 1 }],
+                else: [{ op: "discardAtRandom", player: "opponent", count: 2 }],
+            },
+        ] as EffectOp[]);
+        expect(plan.kind).toBe("skip");
+        if (plan.kind !== "skip") return;
+        expect(plan.skips.map((s) => SMOKE_SKIP_CLASS[s.code])).not.toContain(
+            "card-dependent"
+        );
+    });
+
     it("a hand another Op of the script also changes is a card-dependent skip", () => {
         for (const script of [
             [
@@ -1031,6 +1047,10 @@ describe("random discard (CR 701.9b, issue #5943)", () => {
             [
                 { op: "discardAtRandom", player: "opponent", count: 1 },
                 { op: "discardAtRandom", player: { target: 0 }, count: 1 },
+            ],
+            [
+                { op: "armGraveyardRedirect", player: "opponent" },
+                { op: "discardAtRandom", player: "opponent", count: 1 },
             ],
         ] as EffectOp[][]) {
             const plan = planSmokeTest(script);
