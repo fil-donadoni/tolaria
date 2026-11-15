@@ -190,6 +190,12 @@ export type TriggerHeadIR =
           readonly kind: "attacks-or-blocks";
           readonly scope: TriggerSubjectScope;
       }
+    /**
+     * CR 509.3a — "when this creature blocks": the source declared as a
+     * blocker, once each combat however many creatures it blocks. Self only:
+     * the one subject the corpus prints with this head.
+     */
+    | { readonly kind: "blocks" }
     /** CR 510.1 — "whenever this creature deals combat damage to a player". */
     | { readonly kind: "combat-damage-to-player" }
     /**
@@ -697,6 +703,14 @@ export const SELF_HEADS: readonly {
         tail: " enters or attacks",
         ir: { kind: "enters-or-attacks" },
     },
+    // CR 509.3a — the source's own declaration as a blocker. "blocks a
+    // creature", "blocks or becomes blocked" and the "whenever" opener are
+    // other heads, refused until a rule reads them.
+    {
+        opener: "when ",
+        tail: " blocks",
+        ir: { kind: "blocks" },
+    },
     {
         opener: "whenever ",
         tail: " deals combat damage to a player",
@@ -868,6 +882,9 @@ export function headPronounReferent(
         case "enters-or-attacks":
         case "combat-damage-to-player":
         case "attacks-unblocked":
+            return "source";
+        // CR 509.3a — the blocker the head names is the source itself.
+        case "blocks":
             return "source";
         // CR 708.8 — the permanent turned face up is the source itself.
         case "turned-face-up":
