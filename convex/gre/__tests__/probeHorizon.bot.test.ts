@@ -39,7 +39,7 @@ function card(
 const ANIMATE: Move = {
     kind: "activate-ability",
     cardInstanceId: "village",
-    abilityId: "treetop-village-animate",
+    abilityId: "treetop-village-ability-2",
     targets: [],
     confirmTargets: false,
     tapPlan: [
