@@ -6,14 +6,34 @@
 // than the maintainer.
 
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { buildPresetPayload, deckColors } from "../lib/preset-deck-seed";
-import { readTier1Decks, type Tier1Deck } from "../lib/tier1-decks";
+import {
+    deckPlayability,
+    readTier1Decks,
+    tier1Reports,
+    type DeckPlayability,
+    type Tier1Deck,
+} from "../lib/tier1-decks";
 import { tryGetCardByName } from "../../convex/cards";
 import { validateDeck } from "../../convex/formats";
 import { buildSeedPresetRow } from "../../convex/decks";
-import { parseArgs, seedOne } from "../seed-preset-deck";
-import { readMetagameDecks } from "../premodern-metagame-import";
+import {
+    parseArgs,
+    PRESET_SOURCES,
+    resolveListName,
+    seedOne,
+    sourcedDecks,
+    type SourcedDeck,
+} from "../seed-preset-deck";
+import {
+    readMetagameDecks,
+    readModernMetagameDecks,
+    type MetagameDeckFile,
+} from "../premodern-metagame-import";
+import { parseLockfile } from "../lib/oracle-lockfile";
+import { poolOracleIds } from "../oracle-compile";
 
 const resolve = (name: string) => tryGetCardByName(name);
 const SUPPLIED = "2026-08-23";
@@ -24,6 +44,38 @@ const SUPPLIED = "2026-08-23";
 // gate, which runs in a detached worktree at the base tip, to the primary's
 // working tree instead — a different branch, without the file.
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..", "..");
+
+const LOCK = parseLockfile(
+    readFileSync(join(ROOT, "data", "oracle-compiled.json"), "utf8")
+);
+const POOL = poolOracleIds();
+const PREMODERN = PRESET_SOURCES.find((s) => s.format === "premodern")!;
+const MODERN = PRESET_SOURCES.find((s) => s.format === "modern")!;
+
+/** A real list as the sweep sees it: its source and its lockfile playability. */
+function sourced(deck: Tier1Deck, source = PREMODERN): SourcedDeck {
+    const [report] = tier1Reports({ decks: [deck] }, LOCK, POOL);
+    return { deck, source, playability: deckPlayability(deck, report) };
+}
+
+/** A playability count fixed by hand — for a list the lockfile cannot read. */
+function counted(
+    deck: Tier1Deck,
+    playability: Partial<DeckPlayability> = {}
+): SourcedDeck {
+    return {
+        deck,
+        source: PREMODERN,
+        playability: {
+            main: 60,
+            mainTotal: 60,
+            side: 15,
+            sideTotal: 15,
+            missing: [],
+            ...playability,
+        },
+    };
+}
 
 function oathPonza(): Tier1Deck {
     const file = readTier1Decks(ROOT);
@@ -188,9 +240,7 @@ describe("seed:preset --all classification (issue #3254)", () => {
 
     // `--dry-run` is what makes this offline: `seedOne` builds and validates
     // the payload and returns without touching a deployment.
-    const rows = file.decks.map((d) =>
-        seedOne(d, file.source.suppliedOn, true)
-    );
+    const rows = file.decks.map((d) => seedOne(sourced(d), true));
 
     it("classifies every canonical list as seedable or blocked, never failed", () => {
         expect(rows).toHaveLength(file.decks.length);
@@ -220,10 +270,31 @@ describe("seed:preset --all classification (issue #3254)", () => {
             main: [{ count: 60, name: "Nonexistent Card ZZZ" }],
             sideboard: [{ count: 15, name: "Nonexistent Card YYY" }],
         };
-        const row = seedOne(impossible, file.source.suppliedOn, true);
+        // Counted 75/75 by hand: the lockfile cannot read these names, so
+        // the registry is the gate this exercises.
+        const row = seedOne(counted(impossible), true);
         expect(row.state).toBe("blocked");
         expect(row.problems?.join("\n")).toContain("Nonexistent Card ZZZ");
         expect(row.problems?.join("\n")).toContain("Nonexistent Card YYY");
+    });
+
+    // The 75/75 gate (issue #8453): a list whose every name RESOLVES is still
+    // blocked while one copy is not playable, and says which card.
+    it("blocks a resolvable list below 75/75, naming the first missing card", () => {
+        const deck = oathPonza();
+        const [first] = tier1Reports({ decks: [deck] }, LOCK, POOL)[0].cards;
+        const row = seedOne(
+            counted(deck, {
+                side: 14,
+                missing: [{ ...first, state: "unparsed", blocker: "x" }],
+            }),
+            true
+        );
+        expect(row.state).toBe("blocked");
+        expect(row.problems?.[0]).toBe(
+            "74/75 playable (main 60/60, side 14/15) — published at 75/75"
+        );
+        expect(row.problems?.[1]).toBe(`missing: ${first.name} (unparsed: x)`);
     });
 
     it("every blocked list in the canonical file names its blockers", () => {
@@ -283,7 +354,7 @@ describe("seed:preset --all over the metagame lists (issue #6675)", () => {
         for (const deck of file.decks) {
             const unresolved = unresolvedOf(deck);
             if (unresolved.length === 0) continue;
-            const row = seedOne(deck, "mtgtop8.com", true);
+            const row = seedOne(sourced(deck), true);
             expect(row.state).toBe("blocked");
             expect(row.problems?.join("\n")).toContain(unresolved.join(", "));
             blockedRows.push(row);
@@ -303,5 +374,93 @@ describe("seed row slug (issue #6675)", () => {
         ]) {
             expect(buildSeedPresetRow({ name }, slug).slug).toBe(slug);
         }
+    });
+});
+
+describe("seed:preset over the Modern lists (issue #8453)", () => {
+    const file = readModernMetagameDecks(ROOT);
+    const rows = file.decks.map((d) => ({
+        sd: sourced(d, MODERN),
+        row: seedOne(sourced(d, MODERN), true),
+    }));
+
+    it("publishes every 75/75 list as a legal Modern 60 + 15, blocks the rest naming a card", () => {
+        expect(rows).toHaveLength(10);
+        for (const { sd, row } of rows) {
+            const full =
+                sd.playability.main + sd.playability.side ===
+                sd.playability.mainTotal + sd.playability.sideTotal;
+            if (full) {
+                expect({ slug: row.slug, row }).toEqual({
+                    slug: row.slug,
+                    row: { slug: row.slug, name: row.name, state: "seedable" },
+                });
+            } else {
+                expect(row.state).toBe("blocked");
+                expect(row.problems?.[1]).toBe(
+                    `missing: ${sd.playability.missing[0].name} (${sd.playability.missing[0].state}${sd.playability.missing[0].blocker ? `: ${sd.playability.missing[0].blocker}` : ""})`
+                );
+            }
+        }
+        // At least one list publishes — the reason this ticket exists.
+        expect(rows.some(({ row }) => row.state === "seedable")).toBe(true);
+    });
+
+    it("builds a Modern payload described as the Modern metagame", () => {
+        const { sd } = rows.find(({ row }) => row.state === "seedable")!;
+        const { payload } = buildPresetPayload(
+            sd.deck,
+            "modern",
+            MODERN.origin,
+            resolveListName
+        );
+        expect(payload?.format).toBe("modern");
+        expect(payload?.description).toBe(
+            `Modern metagame — list from ${MODERN.origin}.`
+        );
+    });
+
+    // A hand-written double-faced card is registered under its FRONT face;
+    // the lists spell it by its combined name (Boros Energy's Ajani).
+    it("resolves a hand-written double-faced card by its combined name", () => {
+        const front = tryGetCardByName("Ajani, Nacatl Pariah");
+        expect(front).not.toBeNull();
+        expect(
+            tryGetCardByName("Ajani, Nacatl Pariah // Ajani, Nacatl Avenger")
+        ).toBeNull();
+        expect(
+            resolveListName("Ajani, Nacatl Pariah // Ajani, Nacatl Avenger")?.id
+        ).toBe(front!.id);
+    });
+
+    it("refuses a slug two lists share", () => {
+        const one = (format: "premodern" | "modern"): MetagameDeckFile => ({
+            source: { supplier: "x", format, note: "" },
+            decks: [oathPonza()],
+        });
+        expect(() =>
+            sourcedDecks(
+                [
+                    { source: PREMODERN, file: one("premodern") },
+                    { source: MODERN, file: one("modern") },
+                ],
+                LOCK,
+                POOL
+            )
+        ).toThrow(/duplicate Preset Deck slug "oath-ponza"/);
+    });
+
+    it("reads both canonical files without a slug collision", () => {
+        const all = sourcedDecks(
+            PRESET_SOURCES.map((source) => ({
+                source,
+                file: source.read(ROOT),
+            })),
+            LOCK,
+            POOL
+        );
+        expect(all.filter((d) => d.source.format === "modern")).toHaveLength(
+            10
+        );
     });
 });

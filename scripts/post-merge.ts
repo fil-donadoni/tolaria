@@ -442,6 +442,8 @@ export interface SyncIo {
     removeWorktree: (primary: string, pr: number) => boolean;
     /** `seed` only: the derive commit on top of a stale tip, waited for. */
     deriveCommit: (after: string, primary: string) => string | null;
+    /** `seed` only: run one seeding script (`bun <args>`) in the primary. */
+    runSeed: (args: string[], primary: string) => boolean;
 }
 
 const SYNC_IO: SyncIo = {
@@ -450,6 +452,7 @@ const SYNC_IO: SyncIo = {
         bun(["scripts/telemetry-ingest.ts", "--quick"], primary),
     removeWorktree: removeMergedWorktree,
     deriveCommit: awaitDeriveCommit,
+    runSeed: bun,
 };
 
 /**
@@ -516,8 +519,10 @@ export function seed(
     primary: string,
     before: string,
     after: string,
-    io: Pick<SyncIo, "judge" | "deriveCommit"> = SYNC_IO
+    io: Pick<SyncIo, "judge" | "deriveCommit"> &
+        Partial<Pick<SyncIo, "runSeed">> = SYNC_IO
 ): boolean {
+    const run = io.runSeed ?? bun;
     const judged = io.judge(after);
     const held = tipHeldLine(after, primary, judged);
     if (held !== null) console.log(held);
@@ -550,12 +555,12 @@ export function seed(
     // 0140 §4). One query when nothing changed; `--warn-only` keeps a Scryfall
     // outage from redding the seed.
     if (plan.scenarios.length > 0 || plan.presets)
-        bun(["scripts/prints-sync.ts", "--if-stale", "--warn-only"], primary);
+        run(["scripts/prints-sync.ts", "--if-stale", "--warn-only"], primary);
     let ok = true;
     for (const pr of plan.scenarios)
-        ok = bun(["scripts/seed-scenario.ts", String(pr)], primary) && ok;
+        ok = run(["scripts/seed-scenario.ts", String(pr)], primary) && ok;
     if (plan.presets)
-        ok = bun(["scripts/seed-preset-deck.ts", "--all"], primary) && ok;
+        ok = run(["scripts/seed-preset-deck.ts", "--all"], primary) && ok;
     return ok;
 }
 
