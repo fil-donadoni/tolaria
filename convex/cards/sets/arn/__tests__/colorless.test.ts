@@ -222,7 +222,7 @@ describe("City of Brass (becomes tapped → 1 damage; {T}: any color)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveTrigger(state, city, "city-of-brass-tap-damage", {
+        resolveTrigger(state, city, "city-of-brass-trigger", {
             type: "PERMANENT_TAPPED",
             permanentId: "city",
             controllerId: "p1",

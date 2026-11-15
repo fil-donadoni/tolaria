@@ -25,7 +25,6 @@ import {
     resolveTopOfStack,
 } from "../state";
 import { projectPublicState } from "../../gameProjections";
-import { chromaticStar } from "../../cards/sets/tsp/index.cards";
 
 import { soulNet } from "../../cards/sets/lea/index.cards";
 import { getCardByName } from "../../cards";
@@ -41,7 +40,7 @@ const FOREST = getCardByName("Forest").id;
 
 describe("sacrifice-for-mana fires the source's leave-the-battlefield trigger (CR 603.6 / 700.4 / 605.3a, issue #943)", () => {
     it("Chromatic Star: sacrificing it to pay its own mana ability adds mana AND draws a card", () => {
-        const star = makeInstance(chromaticStar().id, {
+        const star = makeInstance(getCardByName("Chromatic Star").id, {
             id: "star",
             controllerId: "p1",
             ownerId: "p1",
@@ -89,7 +88,7 @@ describe("sacrifice-for-mana fires the source's leave-the-battlefield trigger (C
         processPendingActionTriggers(state);
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].triggeredAbilityId).toBe(
-            "chromatic-star-death-draw"
+            "chromatic-star-trigger"
         );
         expect(p1.hand).toHaveLength(0); // trigger not yet resolved
 

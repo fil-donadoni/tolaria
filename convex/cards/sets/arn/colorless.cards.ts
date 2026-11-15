@@ -93,39 +93,6 @@ export const brassMan = defineCard(() => ({
     ],
 }));
 
-export const cityOfBrass = defineCard(() => ({
-    id: "f4e32327-380d-471e-813b-4c27477787ce",
-    rarity: "uncommon",
-    name: "City of Brass",
-    oracleText:
-        "Whenever City of Brass becomes tapped, it deals 1 damage to you.\n{T}: Add one mana of any color.",
-    types: ["Land"],
-    triggeredAbilities: [
-        {
-            id: "city-of-brass-tap-damage",
-            oracleText:
-                "Whenever City of Brass becomes tapped, it deals 1 damage to you.",
-            event: "PERMANENT_TAPPED",
-            matches: (event, self) =>
-                event.type === "PERMANENT_TAPPED" &&
-                event.permanentId === self.id,
-            effects: [
-                { op: "dealDamage", amount: 1, to: { player: "controller" } },
-            ],
-        },
-    ],
-    activatedAbilities: [
-        {
-            id: "city-of-brass-mana",
-            oracleText: "{T}: Add one mana of any color.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx) => ctx.addMana({ W: 1 }),
-            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
-        },
-    ],
-}));
-
 // hand-tail: {T}: Draw a card. Activate only if you have exactly seven cards in hand. (#8505)
 export const libraryOfAlexandria = defineCard(() => ({
     id: "ee266113-34ce-4189-84e7-ee2c86a2722c",

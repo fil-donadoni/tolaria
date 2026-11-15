@@ -143,8 +143,8 @@ describe("Engine View badge — catalogue-wide (issue #2728)", () => {
         expect(verdictOf(saga)).toBe("protocol");
     });
 
-    it("reads a mana-ability closure card as protocol (City of Brass — `ActivatedAbility.effect`)", () => {
-        for (const name of ["City of Brass"]) {
+    it("reads a mana-ability closure card as protocol (Library of Alexandria — `ActivatedAbility.effect`)", () => {
+        for (const name of ["Library of Alexandria"]) {
             expect(verdictOf(getCardByName(name))).toBe("protocol");
         }
     });
