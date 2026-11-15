@@ -92,7 +92,17 @@ function playerGroupCount(reqs: (TargetRequirement | undefined)[]): number {
  *  line names. Each is its own target (CR 601.2c), so each needs its own
  *  group — one declaration does not cover two clauses. */
 function playerTargetClauseCount(oracle: string): number {
-    return (oracle.match(/target (opponent|player)/gi) ?? []).length;
+    return (ownClauses(oracle).match(/target (opponent|player)/gi) ?? [])
+        .length;
+}
+
+/** The Oracle line without its quoted text. A quoted ability ("… gains 'When
+ *  this creature leaves the battlefield, target opponent draws a card.'") is
+ *  the GRANTED ability's own line, with its own target (CR 603.3d, announced
+ *  when that ability triggers): the granting site does not declare it, and
+ *  the template that carries the quote is a scanned site in its own right. */
+function ownClauses(oracle: string): string {
+    return oracle.replace(/"[^"]*"|“[^”]*”/g, "");
 }
 
 function declaresPlayer(reqs: (TargetRequirement | undefined)[]): boolean {
@@ -157,7 +167,7 @@ function playerTargetSites(card: CardDefinition): Site[] {
     if (
         isSpell &&
         typeof c.oracleText === "string" &&
-        PLAYER_TARGET_RE.test(c.oracleText)
+        PLAYER_TARGET_RE.test(ownClauses(c.oracleText))
     ) {
         out.push({ cardId: c.id, label, site: "spell", oracle: c.oracleText });
     }
@@ -170,7 +180,10 @@ function playerTargetSites(card: CardDefinition): Site[] {
     ]) {
         for (const ability of (c[key] ?? []) as Record<string, unknown>[]) {
             const oracle = ability.oracleText;
-            if (typeof oracle !== "string" || !PLAYER_TARGET_RE.test(oracle)) {
+            if (
+                typeof oracle !== "string" ||
+                !PLAYER_TARGET_RE.test(ownClauses(oracle))
+            ) {
                 continue;
             }
             out.push({
