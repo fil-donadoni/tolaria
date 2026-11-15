@@ -71,7 +71,7 @@ import {
     applyExtraCombat,
 } from "./combatSetup";
 import { collectTriggers, placeTriggersOnStack } from "../../triggers";
-import { instanceIdsForName, seatPlayerId } from "./matcher";
+import { instanceIdsForName, matchesMove, seatPlayerId } from "./matcher";
 import type { BladeScenario, BladeSetupStep, BladeSeat } from "./types";
 
 /** Thrown when a setup step finds no purchase in the real engine. A distinct
@@ -1116,6 +1116,42 @@ function applySubmitPlayerTarget(
     applyMoveInSearch(state, owner, answer);
 }
 
+/** Issue #9695 — the card-or-seat twin of `submit-player-target`. See the
+ *  step's doc in `types.ts`. */
+function applySubmitTarget(
+    state: GameState,
+    label: string,
+    step: Extract<BladeSetupStep, { kind: "submit-target" }>
+): void {
+    const owner = state.pendingTarget?.playerId;
+    if (!owner) {
+        throw new BladeSetupError(
+            label,
+            step,
+            "no target selection is pending."
+        );
+    }
+    const matches = enumerateMoves(state, owner).filter(
+        (m) =>
+            m.kind === "submit-target" &&
+            m.targets.length === 1 &&
+            matchesMove(state, m, {
+                kind: "submit-target",
+                target: step.target,
+            })
+    );
+    if (matches.length !== 1) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `the engine offers ${matches.length} single-target submissions naming "${step.target}" (expected exactly one).`
+        );
+    }
+    const answer = matches[0];
+    moveObserver?.(owner, answer, state);
+    applyMoveInSearch(state, owner, answer);
+}
+
 /**
  * Apply a scenario's `setup` sequence to a freshly built state, in order.
  * A no-op when the entry declares none. Mutates `state` in place and returns
@@ -1236,6 +1272,9 @@ function applyBladeSetupSteps(
                 break;
             case "submit-player-target":
                 applySubmitPlayerTarget(state, scenario.label, step);
+                break;
+            case "submit-target":
+                applySubmitTarget(state, scenario.label, step);
                 break;
             case "declare-attackers":
                 // Logic in `combatSetup.ts`; this file keeps only the dispatch.

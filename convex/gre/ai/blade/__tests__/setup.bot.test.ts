@@ -1294,3 +1294,86 @@ describe("blade setup — `order-triggers` answers a CR 603.3b trigger-order cho
         ).toThrow(/names 1 of the slice's 2 triggers/);
     });
 });
+
+describe("blade setup — `submit-target` aims a raised trigger target at a named card (issue #9695)", () => {
+    /** One Plains cannot hard-cast Solitude, so the only cast is the evoke,
+     *  pitching the Lions. Two opposing creatures make the enter trigger's
+     *  CR 603.3d target a real selection. */
+    const evokedSolitude = (): GameState => {
+        const state = build({
+            cards: [
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Savannah Lions", owner: "me", zone: "hand" },
+                { name: "Solitude", owner: "me", zone: "hand" },
+                { name: "Serra Angel", owner: "opp", zone: "battlefield" },
+                { name: "Shivan Dragon", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        });
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [
+                { kind: "cast", card: "Solitude" },
+                { kind: "pass", seat: "opp" },
+            ],
+        });
+        return state;
+    };
+    const ordered = (): GameState => {
+        const state = evokedSolitude();
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [
+                {
+                    kind: "order-triggers",
+                    resolveFirst: ["Solitude", "Solitude"],
+                },
+            ],
+        });
+        return state;
+    };
+
+    it("aims the enter trigger at the named card, the evoke sacrifice waiting under it", () => {
+        const state = ordered();
+        expect(state.pendingTarget).toBeDefined();
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [{ kind: "submit-target", target: "Serra Angel" }],
+        });
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.pendingTarget).toBeUndefined();
+        // Top of the stack is the LAST element. Same-source triggers are
+        // ordered in collection order, which the Esper Blink entry relies on.
+        expect(state.stack.map((s) => s.triggeredAbilityId)).toEqual([
+            "evoke-sacrifice",
+            "solitude-etb",
+        ]);
+        const angelId = state.players[1].battlefield.find(
+            (c) => c.card.id === getCardByName("Serra Angel")?.id
+        )?.id;
+        expect(state.stack[1].targets?.map((t) => t.id)).toEqual([angelId]);
+    });
+
+    it("THROWS when no target selection is pending", () => {
+        const state = evokedSolitude();
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [{ kind: "submit-target", target: "Serra Angel" }],
+            })
+        ).toThrow(/no target selection is pending/);
+    });
+
+    it("THROWS when the named card is not a legal target", () => {
+        const state = ordered();
+        // "other target creature" — Solitude cannot aim at itself.
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [{ kind: "submit-target", target: "Solitude" }],
+            })
+        ).toThrow(/expected exactly one/);
+    });
+});
