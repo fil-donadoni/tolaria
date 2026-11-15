@@ -140,6 +140,8 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
                 : { kind: "attacks", scope: head.scope };
         case "attacks-or-blocks":
             return { kind: "attacks-or-blocks", scope: head.scope };
+        case "blocks":
+            return { kind: "blocks" };
         case "enters-or-attacks":
             return { kind: "enters-or-attacks" };
         case "combat-damage-to-player":
