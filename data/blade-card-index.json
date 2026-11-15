@@ -25,6 +25,13 @@
             "needsSetup": false
         }
     ],
+    "Ambush Viper": [
+        {
+            "label": "pact: Summoner's Pact finds the creature the board needs",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Ancestral Recall": [
         {
             "label": "far behind: Ancestral Recall from hand is cast at the BOT (issue #8954)",
@@ -410,6 +417,16 @@
         }
     ],
     "Forest": [
+        {
+            "label": "bounce land: Amulet of Vigor's untapped bounce land taps for mana before its return resolves",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
+            "label": "bounce land: Simic Growth Chamber taps the other land before returning it",
+            "tier": "stretch",
+            "needsSetup": true
+        },
         {
             "label": "cast during resolution: Plague Spores off Chandra aims its land target at the opponent's land",
             "tier": "must",
@@ -1133,6 +1150,13 @@
             "needsSetup": false
         }
     ],
+    "Simic Growth Chamber": [
+        {
+            "label": "bounce land: Amulet of Vigor's untapped bounce land taps for mana before its return resolves",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Skullclamp": [
         {
             "label": "equipment: Skullclamp equips the 1-toughness creature and draws",
@@ -1257,6 +1281,11 @@
         }
     ],
     "Summoner's Pact": [
+        {
+            "label": "pact: Summoner's Pact is cast for a flash blocker with the upkeep payable",
+            "tier": "must",
+            "needsSetup": true
+        },
         {
             "label": "tutor Pact: casts Summoner's Pact at the opponent's end step when it can pay the upkeep",
             "tier": "must",

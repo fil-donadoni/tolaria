@@ -1222,3 +1222,75 @@ describe("blade setup — `phase-trigger` fires an at-the-beginning trigger (iss
         ).toThrow(BladeSetupError);
     });
 });
+
+describe("blade setup — `order-triggers` answers a CR 603.3b trigger-order choice (issue #9698)", () => {
+    /** A bounce land entering tapped beside Amulet of Vigor: two different
+     *  own triggers, so the engine raises a `trigger-order` choice. */
+    const amuletBoard = (): ScenarioSpec => ({
+        cards: [
+            { name: "Amulet of Vigor", owner: "me", zone: "battlefield" },
+            { name: "Forest", owner: "me", zone: "battlefield" },
+            { name: "Simic Growth Chamber", owner: "me", zone: "hand" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        turn: 4,
+        libraryCount: 20,
+    });
+
+    const sourceOfTop = (state: GameState) =>
+        state.stack[state.stack.length - 1].triggeredAbilityId;
+
+    it.each([
+        [["Amulet of Vigor", "Simic Growth Chamber"], "amulet-of-vigor-untap"],
+        [
+            ["Simic Growth Chamber", "Amulet of Vigor"],
+            "simic-growth-chamber-trigger",
+        ],
+    ])(
+        "resolveFirst %j puts that source's trigger on top",
+        (resolveFirst, top) => {
+            const state = build(amuletBoard());
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [
+                    { kind: "play-land", card: "Simic Growth Chamber" },
+                    { kind: "order-triggers", resolveFirst },
+                ],
+            });
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+            expect(state.stack).toHaveLength(2);
+            expect(sourceOfTop(state)).toBe(top);
+        }
+    );
+
+    it("THROWS when no trigger-order choice is pending", () => {
+        const state = build(amuletBoard());
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [
+                    {
+                        kind: "order-triggers",
+                        resolveFirst: ["Amulet of Vigor"],
+                    },
+                ],
+            })
+        ).toThrow(BladeSetupError);
+    });
+
+    it("THROWS when the names do not cover the slice", () => {
+        const state = build(amuletBoard());
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [
+                    { kind: "play-land", card: "Simic Growth Chamber" },
+                    {
+                        kind: "order-triggers",
+                        resolveFirst: ["Amulet of Vigor"],
+                    },
+                ],
+            })
+        ).toThrow(/names 1 of the slice's 2 triggers/);
+    });
+});

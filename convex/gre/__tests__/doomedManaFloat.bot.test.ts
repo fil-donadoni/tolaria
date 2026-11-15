@@ -200,6 +200,53 @@ describe("doomed mana source float — enumeration (CR 605.3a / 106.4)", () => {
     });
 });
 
+describe("doomed mana source float — the controller's own land pick (CR 608.2d, issue #9698)", () => {
+    const AMULET_LABEL =
+        "bounce land: Amulet of Vigor's untapped bounce land taps for mana before its return resolves";
+    const CHAMBER_LABEL =
+        "bounce land: Simic Growth Chamber taps the other land before returning it";
+
+    it("a bounce land's return parks on a land pick: each land the pick can return is doomed under that answer", () => {
+        const state = build(AMULET_LABEL);
+        expect(state.stack).toHaveLength(1);
+        const offered = floats(enumerateMoves(state, me(state).id))
+            .map((m) => m.cardInstanceId)
+            .sort();
+        expect(offered).toEqual(
+            [
+                idOf(state, 0, "Forest"),
+                idOf(state, 0, "Simic Growth Chamber"),
+            ].sort()
+        );
+    });
+
+    it("the other land is floated when the return would take it, with a one-drop to spend on", () => {
+        const state = build(CHAMBER_LABEL);
+        expect(floats(enumerateMoves(state, me(state).id))).toEqual([
+            {
+                kind: "activate-mana-ability",
+                cardInstanceId: idOf(state, 0, "Forest"),
+            },
+        ]);
+    });
+
+    it("the same land pick with no spender offers no float", () => {
+        const scenario = entry(CHAMBER_LABEL);
+        const state = buildPositionFromSpec(
+            {
+                ...scenario.spec,
+                cards: scenario.spec.cards.filter(
+                    (c) => c.name !== "Llanowar Elves"
+                ),
+            },
+            scenario.setup,
+            "bounce land, no spender"
+        );
+        expect(state.stack).toHaveLength(1);
+        expect(floats(enumerateMoves(state, me(state).id))).toEqual([]);
+    });
+});
+
 describe("doomed mana source float — search application (CR 605.3b / 106.4)", () => {
     it("the float keeps {C}{C} in the pool through the sacrifice, and the three-drop is castable after it", () => {
         const state = build(SPENDER_LABEL);

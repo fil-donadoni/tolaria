@@ -29512,4 +29512,357 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9691, CR 702.170a / 702.170d. The opponent is on 1 with only a ground blocker: cast now, the hasty flier swings for the game. Plotted, it cannot be cast before a later turn.",
     },
+    // Mono-Green Amulet Titan, the modern metagame's level-2 rows
+    // (`docs/agents/modern-metagame-bot-level-2.md`, issue #9698).
+    {
+        label: "bounce land: Amulet of Vigor's untapped bounce land taps for mana before its return resolves",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Amulet of Vigor", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Simic Growth Chamber", owner: "me", zone: "hand" },
+                { name: "Centaur Courser", owner: "me", zone: "hand" },
+            ],
+        },
+        // The Chamber enters tapped: Amulet's untap and the Chamber's return
+        // trigger together. The untap goes on top and resolves; the return is
+        // left on the stack with the Chamber untapped.
+        setup: [
+            { kind: "play-land", card: "Simic Growth Chamber" },
+            {
+                kind: "order-triggers",
+                resolveFirst: ["Amulet of Vigor", "Simic Growth Chamber"],
+            },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-mana-ability",
+                    card: "Simic Growth Chamber",
+                },
+                { kind: "activate-mana-ability", card: "Forest" },
+            ],
+        },
+        note: "Issue #9698, CR 605.3a / 106.4. The return trigger is on the stack and the Chamber is untapped. Tapping a land in response keeps its mana in the pool through the resolution, so either float pays for Centaur Courser: float the Chamber and return it ({G}{U} plus the Forest), or float the Forest and return it ({G} plus the Chamber's {G}{U}). Letting the return resolve unfloated leaves two mana at most. The float window settles the return's land pick once per answer.",
+    },
+    {
+        label: "bounce land: Amulet of Vigor never returns the untapped bounce land without tapping it",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Amulet of Vigor", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Simic Growth Chamber", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+            ],
+        },
+        // As above, then the return trigger resolves up to its land pick.
+        setup: [
+            { kind: "play-land", card: "Simic Growth Chamber" },
+            {
+                kind: "order-triggers",
+                resolveFirst: ["Amulet of Vigor", "Simic Growth Chamber"],
+            },
+            { kind: "resolve-top" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "resolution-choice", cards: ["Simic Growth Chamber"] },
+            ],
+        },
+        note: "Issue #9698. The return resolved with both lands untapped. Returning the Chamber untapped throws its {G}{U} away and leaves the Forest's one mana. Returning the Forest keeps the Chamber, whose {G}{U} casts the Grizzly Bears.",
+    },
+    {
+        label: "bounce land: Simic Growth Chamber taps the other land before returning it",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Simic Growth Chamber", owner: "me", zone: "hand" },
+                { name: "Llanowar Elves", owner: "me", zone: "hand" },
+            ],
+        },
+        setup: [{ kind: "play-land", card: "Simic Growth Chamber" }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        beyondBudget: {
+            cause: "horizon",
+            passesAt: { iterations: 2000 },
+            note: "Issue #9838. The `mana` term counts a mana source, never its yield, so this turn's two leaves score the same: Elves cast and the Chamber kept, or Elves cast and the Forest kept. Only a rollout that reaches the next turn sees the Chamber's {G}{U}. Missing knowledge: a source's yield in the evaluation.",
+        },
+        expect: {
+            moves: [{ kind: "activate-mana-ability", card: "Forest" }],
+        },
+        note: "Issue #9698, CR 605.3a / 106.4. The Chamber entered tapped and its return trigger is on the stack. Tapping the Forest in response and returning it casts the Llanowar Elves and keeps the Chamber, so the next turn has three mana. Passing returns the Chamber and casts the Elves off the Forest, which leaves one mana next turn. Measured: 0/5 seeds at 400 iterations, 4/15 at 1000, 15/15 at 2000.",
+    },
+    {
+        label: "bounce land: Simic Growth Chamber is never played as the only land",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Forest", owner: "me", zone: "hand" },
+                { name: "Simic Growth Chamber", owner: "me", zone: "hand" },
+                { name: "Llanowar Elves", owner: "me", zone: "hand" },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "play-land", card: "Simic Growth Chamber" }],
+        },
+        note: "Issue #9698. No land in play: the Chamber's trigger would return the Chamber itself, spending the land drop for nothing. The Forest is the land drop, and it casts the Llanowar Elves.",
+    },
+    {
+        label: "land search: Primeval Titan searches when it attacks",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 10,
+            cards: [
+                {
+                    name: "Primeval Titan",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 6,
+                },
+                { name: "Forest", owner: "me", zone: "library", count: 4 },
+                { name: "Dryad Arbor", owner: "me", zone: "library" },
+                { name: "Treetop Village", owner: "me", zone: "library" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        // The attack trigger is on the stack; the opponent's pass resolves it
+        // up to its "you may search".
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Primeval Titan"],
+                haltForDefenderResponse: true,
+            },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "may-pay", accept: true }],
+        },
+        note: "Issue #9698, CR 603.2 / 701.23a. The Titan's attack trigger asks whether to search for up to two lands. Two more lands on the battlefield cost nothing, so declining throws them away.",
+    },
+    {
+        label: "land search: Primeval Titan takes utility lands over basics",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 10,
+            cards: [
+                { name: "Primeval Titan", owner: "me", zone: "battlefield" },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 6,
+                    tapped: true,
+                },
+                { name: "Forest", owner: "me", zone: "library", count: 4 },
+                { name: "Dryad Arbor", owner: "me", zone: "library" },
+                { name: "Treetop Village", owner: "me", zone: "library" },
+            ],
+        },
+        // The enter trigger resolves up to its "you may search"; accepting
+        // opens the library pick.
+        setup: [
+            { kind: "etb-trigger", card: "Primeval Titan" },
+            { kind: "resolve-top" },
+            { kind: "answer-may-pay", accept: true },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "resolution-choice", cards: ["Forest"] }],
+        },
+        note: "Issue #9698, CR 701.23a. Four Forests, a Dryad Arbor and a Treetop Village in the library. The Arbor is a creature on arrival and the Village becomes one, so both beat a basic. Measured: the two utility lands on 15/15 seeds. With Tolaria West in the Village's place, 3/10 seeds took a Forest over it: the evaluator prices it as a basic.",
+    },
+    {
+        label: "pact: Summoner's Pact is cast for a flash blocker with the upkeep payable",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 10,
+            activePlayer: "opp",
+            cards: [
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 4,
+                },
+                { name: "Summoner's Pact", owner: "me", zone: "hand" },
+                { name: "Ambush Viper", owner: "me", zone: "library" },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Craw Wurm"],
+                haltForDefenderResponse: true,
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Summoner's Pact" }],
+        },
+        note: "Issue #9698, CR 702.8a / 603.7a. The Craw Wurm attacks. The Pact finds Ambush Viper, whose flash and deathtouch block kills the Wurm. Four Forests untap before the Pact's upkeep trigger, so {2}{G}{G} is payable. This is the last window: the block declaration closes it.",
+    },
+    {
+        label: "pact: Summoner's Pact finds the creature the board needs",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 10,
+            activePlayer: "opp",
+            cards: [
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 4,
+                },
+                { name: "Summoner's Pact", owner: "me", zone: "hand" },
+                { name: "Ambush Viper", owner: "me", zone: "library" },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        // The Pact cast into the attack; the opponent's pass resolves it up
+        // to the library pick.
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Craw Wurm"],
+                haltForDefenderResponse: true,
+            },
+            { kind: "cast", card: "Summoner's Pact" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", cards: ["Ambush Viper"] }],
+        },
+        note: "Issue #9698, CR 701.23a. The same attack. Ambush Viper flashes in and kills the Wurm in the block; Grizzly Bears cannot be cast before blockers.",
+    },
+    {
+        label: "pact: Summoner's Pact is never cast with the upkeep unpayable",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 10,
+            activePlayer: "opp",
+            cards: [
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Summoner's Pact", owner: "me", zone: "hand" },
+                { name: "Ambush Viper", owner: "me", zone: "library" },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Craw Wurm"],
+                haltForDefenderResponse: true,
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Summoner's Pact" }],
+        },
+        note: "Issue #9698, CR 603.7a. The same attack with three Forests. The Viper would still kill the Wurm, but three lands cannot pay {2}{G}{G} at the next upkeep, and not paying loses the game. Taking six from the Wurm at 20 life is the play.",
+    },
 ];

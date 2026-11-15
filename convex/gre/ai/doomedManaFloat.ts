@@ -13,7 +13,11 @@
 //
 // The window is decided by EFFECT, never by card: the top of the stack is
 // resolved on a clone, and a source that is no longer on its controller's
-// battlefield afterwards is doomed. The float is offered only when the mana it
+// battlefield afterwards is doomed. A resolution that asks the controller which
+// ONE of its own permanents leaves (a bounce land's "return a land you control
+// to its owner's hand", issue #9698) is settled once per answer: a source is
+// doomed under the answer that removes it, and its float is weighed against
+// that same answer left unfloated. The float is offered only when the mana it
 // keeps has a SPENDER — a cast or activation that the post-resolution position
 // offers with the floated mana and does not offer without it — so a float that
 // would only empty out unspent is never a candidate, and an ordinary position
@@ -36,6 +40,11 @@ import {
 import { getProducibleManaSourceView } from "../rules";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import { applyTapPlanInSearch } from "../searchTapPlan";
+import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
+import {
+    choiceSpansAllBattlefields,
+    eligibleZonePickCards,
+} from "../zonePickEligibility";
 // Type-only: erased at compile time, so `moves.ts` importing this module back
 // is NOT a runtime import cycle.
 import type { Move } from "../moves";
@@ -154,10 +163,45 @@ export function applyManaFloatInSearch(
     return true;
 }
 
-/** The position after the top of the stack resolves, or `null` when the
- *  sandbox cannot settle it (an engine throw, a resolution that parks on a
- *  choice or a continuation, a game over) — fail closed. */
-function resolveTop(state: GameState): GameState | null {
+/** One way the top of the stack can settle. `answer` is the permanent the
+ *  controller's own mid-resolution pick returned, or `null` when the
+ *  resolution asked nothing. */
+type Settlement = { state: GameState; answer: string | null };
+
+/** A probe that came out of the resolution with nothing left owed — fail
+ *  closed on an engine throw's aftermath, a game over, or any suspension. */
+function isSettled(probe: GameState): boolean {
+    return !(
+        probe.gameOver ||
+        (probe.pendingChoices?.length ?? 0) > 0 ||
+        probe.pendingCast ||
+        probe.pendingTarget ||
+        probe.pendingActivation ||
+        probe.pendingCompanionPay
+    );
+}
+
+/** CR 608.2d — the one mid-resolution pick this window branches on: the
+ *  CONTROLLER choosing exactly one of its own battlefield permanents (a
+ *  bounce land's return). A pick across every battlefield, a sacrifice pick
+ *  and every other suspension still fail closed. */
+function isOwnSinglePermanentPick(probe: GameState, playerId: string): boolean {
+    const head = probe.pendingChoices?.[0];
+    return (
+        probe.pendingChoices?.length === 1 &&
+        head !== undefined &&
+        head.kind === "choose-permanents" &&
+        head.zone === "battlefield" &&
+        !choiceSpansAllBattlefields(head) &&
+        head.playerId === playerId &&
+        (head.zoneOwnerId ?? head.playerId) === playerId &&
+        head.count === 1
+    );
+}
+
+/** The top of the stack resolved on a clone, up to the end or to a pick —
+ *  `null` on an engine throw (fail closed). */
+function resolveProbe(state: GameState): GameState | null {
     const probe = cloneGameState(state);
     try {
         resolveTopOfStack(probe);
@@ -165,17 +209,67 @@ function resolveTop(state: GameState): GameState | null {
     } catch {
         return null;
     }
-    if (
-        probe.gameOver ||
-        (probe.pendingChoices?.length ?? 0) > 0 ||
-        probe.pendingCast ||
-        probe.pendingTarget ||
-        probe.pendingActivation ||
-        probe.pendingCompanionPay
-    ) {
+    return probe;
+}
+
+/** `probe`'s pending single-permanent pick answered with `cardId`, or `null`
+ *  when the resolver rejects it or the resolution does not settle after. */
+function answerPick(
+    probe: GameState,
+    playerId: string,
+    cardId: string
+): GameState | null {
+    const head = probe.pendingChoices![0];
+    const branch = cloneGameState(probe);
+    try {
+        applyPendingChoiceSubmit(branch, {
+            playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [cardId],
+        });
+        checkStateBasedActions(branch);
+    } catch {
         return null;
     }
-    return probe;
+    return isSettled(branch) ? branch : null;
+}
+
+/** Every position the top of the stack can settle into for `playerId`: one
+ *  when the resolution asks nothing, one per eligible permanent when it parks
+ *  on the controller's own single-permanent pick, none when the sandbox cannot
+ *  settle it (an engine throw, a game over, any other suspension) — fail
+ *  closed. */
+function settlements(state: GameState, playerId: string): Settlement[] {
+    const probe = resolveProbe(state);
+    if (!probe) return [];
+    if (isSettled(probe)) return [{ state: probe, answer: null }];
+    if (probe.gameOver || !isOwnSinglePermanentPick(probe, playerId)) {
+        return [];
+    }
+    const out: Settlement[] = [];
+    for (const card of eligibleZonePickCards(probe, probe.pendingChoices![0])) {
+        const branch = answerPick(probe, playerId, card.id);
+        if (branch) out.push({ state: branch, answer: card.id });
+    }
+    return out;
+}
+
+/** `state`'s top of the stack settled under ONE answer — the replay of an
+ *  outcome `settlements` found on the unfloated position. */
+function settleAs(
+    state: GameState,
+    playerId: string,
+    answer: string | null
+): GameState | null {
+    const probe = resolveProbe(state);
+    if (!probe) return null;
+    if (answer === null) return isSettled(probe) ? probe : null;
+    if (probe.gameOver || !isOwnSinglePermanentPick(probe, playerId)) {
+        return null;
+    }
+    return answerPick(probe, playerId, answer);
 }
 
 /** The spend set of a settled position: every cast and activation `playerId`
@@ -224,20 +318,28 @@ export function enumerateDoomedManaFloatMoves(
     );
     if (candidates.length === 0) return [];
 
-    const resolved = resolveTop(state);
-    if (!resolved) return [];
-    const survivors = new Set(
-        resolved.players
-            .find((p) => p.id === player.id)
-            ?.battlefield.map((c) => c.id) ?? []
-    );
-    const doomed = candidates.filter((o) => !survivors.has(o.cardInstanceId));
-    if (doomed.length === 0) return [];
+    const outcomes = settlements(state, player.id);
+    if (outcomes.length === 0) return [];
+    // Each outcome's spend set, computed once and shared by every candidate.
+    const baselines = new Map<Settlement, Set<string> | null>();
+    const baselineOf = (o: Settlement) => {
+        if (!baselines.has(o)) {
+            baselines.set(o, spendKeys(o.state, player.id, enumerate));
+        }
+        return baselines.get(o)!;
+    };
 
-    const baseline = spendKeys(resolved, player.id, enumerate);
-    if (!baseline) return [];
     const moves: ManaFloatMove[] = [];
-    for (const option of doomed) {
+    for (const option of candidates) {
+        // Doomed under an outcome that leaves the source off its controller's
+        // battlefield; that outcome's answer is replayed on the floated clone.
+        const doomedUnder = outcomes.filter(
+            (o) =>
+                !o.state.players
+                    .find((p) => p.id === player.id)
+                    ?.battlefield.some((c) => c.id === option.cardInstanceId)
+        );
+        if (doomedUnder.length === 0) continue;
         const move: ManaFloatMove = {
             kind: "activate-mana-ability",
             cardInstanceId: option.cardInstanceId,
@@ -247,16 +349,17 @@ export function enumerateDoomedManaFloatMoves(
         };
         const floated = cloneGameState(state);
         if (!applyManaFloatInSearch(floated, player.id, move)) continue;
-        const settled = resolveTop(floated);
-        if (!settled) continue;
-        const spend = spendKeys(settled, player.id, enumerate);
-        if (!spend) continue;
-        for (const key of spend) {
-            if (!baseline.has(key)) {
-                moves.push(move);
-                break;
-            }
-        }
+        const hasSpender = doomedUnder.some((outcome) => {
+            const baseline = baselineOf(outcome);
+            if (!baseline) return false;
+            const settled = settleAs(floated, player.id, outcome.answer);
+            if (!settled) return false;
+            const spend = spendKeys(settled, player.id, enumerate);
+            if (!spend) return false;
+            for (const key of spend) if (!baseline.has(key)) return true;
+            return false;
+        });
+        if (hasSpender) moves.push(move);
     }
     return moves;
 }
