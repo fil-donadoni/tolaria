@@ -418,6 +418,7 @@ import {
     playerHasProtectionFromEverything,
 } from "./protection";
 import {
+    guardSourceColorWords,
     isGuardedAgainst,
     isOpponentCauseProhibited,
     isOpponentSearchProhibited,
@@ -19448,12 +19449,7 @@ export function buildSpellContext(
             // CR 612.1 — a `permanent-guard`'s source-colour filter is a
             // colour word in the object's text ("white spells or abilities
             // from white sources", Raiding Party).
-            for (const effect of def?.staticEffects ?? []) {
-                if (effect.kind === "permanent-guard")
-                    extraColorCodes.push(
-                        ...(effect.targetSourceColorFilter ?? [])
-                    );
-            }
+            extraColorCodes.push(...guardSourceColorWords(def?.staticEffects));
             return colorWordsPresent(instance, extraColorCodes);
         },
 

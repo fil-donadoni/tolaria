@@ -37,6 +37,7 @@ import type { CardInstanceState } from "./state/declarations";
 import type {
     Color,
     PlayerGuardAction,
+    StaticEffect,
     StaticPermanentGuard,
     StaticPlayerGuard,
 } from "../cards/types";
@@ -127,6 +128,22 @@ function sourceColorsMatch(
     return filter.some((c) =>
         sourceColors.includes(substituteColorFilter(guard, c))
     );
+}
+
+/** CR 612.1 — the colour words a definition's `permanent-guard` source-colour
+ *  filters put in the object's text ("white spells or abilities from white
+ *  sources", Raiding Party), so a text-changing effect can name them. Lives
+ *  here, beside the filter, so `gre/state.ts` reads no `StaticEffect` kind
+ *  (ADR 0082). */
+export function guardSourceColorWords(
+    staticEffects: ReadonlyArray<StaticEffect> | undefined
+): Color[] {
+    const words: Color[] = [];
+    for (const effect of staticEffects ?? []) {
+        if (effect.kind === "permanent-guard")
+            words.push(...(effect.targetSourceColorFilter ?? []));
+    }
+    return words;
 }
 
 type GuardClause = keyof Pick<
