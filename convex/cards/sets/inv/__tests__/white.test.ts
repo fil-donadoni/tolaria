@@ -40,6 +40,7 @@ import {
     sourcePreventionShieldApplies,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
+import { validateEffectScript } from "../../../../gre/effects/validate";
 import { compactState, expandState } from "../../../../gre/serialize";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
@@ -1898,6 +1899,10 @@ describe("Samite Ministration (CR 615.1a shield + CR 603.7b per-prevention delay
 
     const fired = (state: GameState) =>
         state.stack.filter((i) => i.delayedTriggerId !== undefined);
+
+    it("is a valid Effect Script", () => {
+        expect(validateEffectScript(samiteMinistration)).toEqual([]);
+    });
 
     it("CR 615.1a — prevents ALL the chosen source's damage to you, across a combat and a noncombat event", () => {
         const state = board();

@@ -66,6 +66,7 @@ describe("childOpArrays — every nesting shape (CR 608.2c, issue #4477)", () =>
             "forEach",
             "if",
             "optionChoice",
+            "preventDamage",
             "reflexiveTrigger",
         ]);
         for (const { op } of EFFECT_OP_REGISTRY) {

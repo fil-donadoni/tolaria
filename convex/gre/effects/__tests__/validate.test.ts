@@ -1492,6 +1492,107 @@ describe("preventDamage all-from-source `to` — a player only (CR 615.1a, issue
     });
 });
 
+describe("preventDamage all-from-chosen-source `whenPrevented` (CR 603.7b / 615.1a)", () => {
+    const pick: EffectOp = {
+        op: "choice",
+        kind: "pick-source",
+        player: "controller",
+        zone: "battlefield-or-stack",
+        count: 1,
+        prompt: "Choose a source.",
+        bind: "$chosen",
+    } as never;
+    const gain = (amount: unknown): EffectOp =>
+        ({ op: "gainLife", player: "controller", amount }) as never;
+    const shield = (extra: Record<string, unknown>): EffectOp =>
+        ({
+            op: "preventDamage",
+            mode: "all-from-chosen-source",
+            source: { ref: "$chosen" },
+            ...extra,
+        }) as never;
+    const watch = (effects: EffectOp[], more: object = {}) => ({
+        oracleText:
+            "Whenever damage is prevented this way, gain that much life.",
+        effects,
+        ...more,
+    });
+    const errorsOf = (op: EffectOp) =>
+        validateEffectScript(host({ effects: [pick, op] }));
+
+    it("accepts the trigger beside `to: { player }`, its body reading `$event.amount`", () => {
+        expect(
+            errorsOf(
+                shield({
+                    to: { player: "controller" },
+                    whenPrevented: watch([gain({ ref: "$event.amount" })], {
+                        sourceColors: ["B", "R"],
+                    }),
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("REJECTS the trigger without `to`, a permanent `to` and a malformed trigger", () => {
+        for (const extra of [
+            { whenPrevented: watch([gain(1)]) },
+            { to: { target: 0 } },
+            { to: { player: "controller" }, whenPrevented: watch([]) },
+            {
+                to: { player: "controller" },
+                whenPrevented: watch([gain(1)], { sourceColors: [] }),
+            },
+            {
+                to: { player: "controller" },
+                whenPrevented: watch([gain(1)], { sourceColors: ["X"] }),
+            },
+            {
+                to: { player: "controller" },
+                whenPrevented: watch([gain(1)], { extra: true }),
+            },
+        ]) {
+            expect(errorsOf(shield(extra)).length, JSON.stringify(extra)).toBe(
+                1
+            );
+        }
+    });
+
+    it("REJECTS a `$event` field DAMAGE_PREVENTED does not carry, an outer binding and an invalid body Op", () => {
+        for (const effects of [
+            [gain({ ref: "$event.damagedPlayer" })],
+            [gain({ ref: "$chosen.power" })],
+            [{ op: "gainLife", player: "controller" } as never],
+        ]) {
+            expect(
+                errorsOf(
+                    shield({
+                        to: { player: "controller" },
+                        whenPrevented: watch(effects),
+                    })
+                ).length,
+                JSON.stringify(effects)
+            ).toBeGreaterThan(0);
+        }
+    });
+
+    it("REJECTS the field on another mode", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "preventDamage",
+                        mode: "all-from-source",
+                        source: { target: 0 },
+                        to: { player: "controller" },
+                        whenPrevented: watch([gain(1)]),
+                    } as never,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+});
+
 describe("grantFlashback `card` — a target slot or a forEach member (CR 702.34a)", () => {
     const eachScript = (card: unknown): EffectOp[] => [
         {

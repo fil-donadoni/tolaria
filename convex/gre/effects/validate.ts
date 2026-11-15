@@ -9299,6 +9299,9 @@ function checkOpListRefs(
                 k === "objects" ||
                 k === "chosenEffect" ||
                 k === "otherEffect" ||
+                // `preventDamage.whenPrevented` (CR 603.7b) — a delayed
+                // trigger body, walked in its own fresh scope below.
+                k === "whenPrevented" ||
                 // `choice.candidates` on a `choose-library-card` pick
                 // (issue #3205) or on a PUBLIC-ZONE pick (issue #2600,
                 // graveyard/exile) — the `candidates` shapes that are NOT a
