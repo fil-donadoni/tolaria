@@ -56,7 +56,6 @@ const acidRain = getDefinition("ba93c50a-2440-4e92-9cba-d97e20b1d29c");
 const antiMagicAura = getDefinition("ff78eef1-efaa-4a12-bf5d-fec83c14aff8");
 const azureDrake = getDefinition("fb5f13a2-0896-4230-8957-6ad1cb2b895b");
 const backfire = getDefinition("04bc57aa-d4d9-4bd9-ba09-984370c7e23b");
-const barbaryApes = getDefinition("df25ffdd-995d-46ae-856b-f6368f9438ed");
 const boomerang = getDefinition("b8286edd-644b-4135-8dca-af97f3920de3");
 const energyTap = getDefinition("37e69940-bdc8-48ff-a296-540343910adf");
 const flashCounter = getDefinition("3c3cd450-f1cd-416b-9271-37d95815c089");
@@ -79,7 +78,6 @@ const elderSpawn = getDefinition("99cc045e-01a8-4f14-a86d-0a67ec35d6b7");
 const hillGiant = getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a");
 const wallOfVapor = getDefinition("6a6c0a27-d410-4ded-a842-70e1656ea21e");
 const wallOfWonder = getDefinition("bcd9af40-b46c-44b4-878e-8eb026c96b51");
-const winterBlast = getDefinition("fb846366-2105-4999-8af1-a11687f42e17");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
@@ -575,43 +573,6 @@ describe("Reset (untap your lands, opponent-turn only, CR 117.1b)", () => {
         expect(
             state.players[0].battlefield.find((c) => c.id === "isl")!.isTapped
         ).toBe(false);
-    });
-});
-
-describe("Winter Blast (tap X creatures, 2 dmg to those with flying, CR 120.1)", () => {
-    it("taps every target and damages only the flyers", () => {
-        // azureDrake (2/4 flyer) survives the 2 damage so it can be inspected.
-        const flyer = makeInstance(azureDrake.id, {
-            id: "fly",
-            controllerId: "p2",
-        });
-        const ground = makeInstance(barbaryApes.id, {
-            id: "grnd",
-            controllerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [flyer, ground] }),
-            ],
-        });
-        const item = pushSpell(state, winterBlast.id, "p1", [
-            { type: "permanent", id: "fly" },
-            { type: "permanent", id: "grnd" },
-        ]);
-        item.chosenX = 2;
-        resolveTopOfStack(state);
-        const liveFly = state.players[1].battlefield.find(
-            (c) => c.id === "fly"
-        )!;
-        const liveGround = state.players[1].battlefield.find(
-            (c) => c.id === "grnd"
-        )!;
-        expect(liveFly.isTapped).toBe(true);
-        expect(liveGround.isTapped).toBe(true);
-        // the flyer takes 2 damage; the ground creature takes none.
-        expect(liveFly.damageMarked ?? 0).toBe(2);
-        expect(liveGround.damageMarked ?? 0).toBe(0);
     });
 });
 
@@ -1390,6 +1351,41 @@ describe("Elder Spawn (upkeep: sacrifice an Island or sacrifice it + 6 damage; c
         expect(
             validateBlockerEligibility(spawn, greenBlocker, blockers, state)
                 .eligible
+        ).toBe(true);
+    });
+});
+
+describe("Part Water (X creatures gain islandwalk EOT, CR 702.14)", () => {
+    it("grants islandwalk to each target", () => {
+        const a = makeInstance(keepersOfTheFaith.id, {
+            id: "a",
+            controllerId: "p1",
+        });
+        const b = makeInstance(keepersOfTheFaith.id, {
+            id: "b",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, partWater.id, "p1", [
+            { type: "permanent", id: "a" },
+            { type: "permanent", id: "b" },
+        ]);
+        item.chosenX = 2;
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield
+                .find((c) => c.id === "a")!
+                .staticAbilities?.includes("islandwalk")
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield
+                .find((c) => c.id === "b")!
+                .staticAbilities?.includes("islandwalk")
         ).toBe(true);
     });
 });

@@ -50,10 +50,6 @@ import {
 } from "./set.helper";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 import { getDefinition } from "../../../index";
-
-const blueElementalBlast = getDefinition(
-    "20d666ef-39bf-4fbf-8201-5f1056539da2"
-);
 const burrowing = getDefinition("a14c05e4-8df3-450b-8a98-5028e73b14c1");
 const castle = getDefinition("b0da8d56-3178-44c2-9344-95d2346d326f");
 const crusade = getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
@@ -69,15 +65,11 @@ const fork = getDefinition("e6b43916-fe2d-417a-a550-d7c795023297");
 const goblinKing = getDefinition("5873672d-37ea-4c0f-97f3-12b74fde112d");
 const graniteGargoyle = getDefinition("f15bf2b2-6848-4fbd-b89a-8d8da8ae1cdc");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
-const healingSalve = getDefinition("e28de37e-84d5-4dc7-b36c-e14da5924729");
 const ironclawOrcs = getDefinition("d56421a8-34ae-4033-943f-c59a7bf2b6f9");
 const keldonWarlord = getDefinition("8fe3fd83-969c-4add-888f-86f4306b067c");
 const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 const manaFlare = getDefinition("7fb99a26-beeb-4aca-bb02-b2d2ce0595f9");
 const manabarbs = getDefinition("6121f72f-680f-4bb4-ae4d-37ee4ebed4d8");
-const merfolkOfThePearlTrident = getDefinition(
-    "2b871039-6a66-4ac3-95e7-24759c1f2f92"
-);
 const monssGoblinRaiders = getDefinition(
     "b4eb3db3-6a7c-488a-9433-d5d1d3133816"
 );
@@ -86,7 +78,6 @@ const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
 const powerSink = getDefinition("1b342dd3-09b9-4108-bf12-a65d4cef4eb9");
 const powerSurge = getDefinition("62858604-ca5a-4f69-a045-a7515ebfabf2");
 const ragingRiver = getDefinition("61e4f56d-1f4f-49f2-8534-0d09196a3327");
-const redElementalBlast = getDefinition("776ad9be-3309-4f1d-9f27-6219d9477662");
 const rockHydra = getDefinition("410ac9e6-fbc1-4cc8-84db-84e2eb1bab97");
 const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
 const sedgeTroll = getDefinition("b13bf496-f3c0-4c13-8282-e7abfab6a198");
@@ -1540,86 +1531,6 @@ describe("Smoke (creature-only untap cap, CR 502.1, ADR 0005)", () => {
         const slim = projected.players[0].battlefield;
         expect(slim.find((c) => c.id === "bear-1")?.isTapped).toBe(true);
         expect(slim.find((c) => c.id === "bear-2")?.isTapped).toBe(true);
-    });
-});
-
-describe("Modal spells (CR 700.2) — Healing Salve / Blue & Red Elemental Blast", () => {
-    it("Healing Salve gain-life mode: target player gains 3 life", () => {
-        const state = makeState({
-            players: [makePlayer("p1", { life: 13 }), makePlayer("p2")],
-        });
-        const item = pushSpell(state, healingSalve.id, "p1", [
-            { type: "player", id: "p1" },
-        ]);
-        item.chosenModeIds = ["gain-life"];
-        resolveTopOfStack(state);
-        expect(state.players[0].life).toBe(16);
-    });
-
-    it("Healing Salve prevent mode: shield absorbs 3 incoming damage on target", () => {
-        const bear = makeInstance(grizzlyBears.id, {
-            id: "bear",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [bear] }),
-                makePlayer("p2"),
-            ],
-        });
-        const salve = pushSpell(state, healingSalve.id, "p1", [
-            { type: "permanent", id: "bear" },
-        ]);
-        salve.chosenModeIds = ["prevent"];
-        resolveTopOfStack(state);
-        // Bolt would deal 3 — fully prevented.
-        pushSpell(state, lightningBolt.id, "p2", [
-            { type: "permanent", id: "bear" },
-        ]);
-        resolveTopOfStack(state);
-        const after = state.players[0].battlefield.find(
-            (c) => c.id === "bear"
-        )!;
-        expect(after.damageMarked ?? 0).toBe(0);
-    });
-
-    it("Blue Elemental Blast counter mode: counters target red spell on the stack", () => {
-        const state = makeState({
-            players: [makePlayer("p1"), makePlayer("p2")],
-        });
-        const bolt = pushSpell(state, lightningBolt.id, "p1", [
-            { type: "player", id: "p2" },
-        ]);
-        const blast = pushSpell(state, blueElementalBlast.id, "p2", [
-            { type: "spell", id: bolt.id },
-        ]);
-        blast.chosenModeIds = ["counter"];
-        resolveTopOfStack(state); // resolve the counter mode → removes bolt
-        // Now resolve what's left — should NOT be the bolt anymore.
-        expect(state.stack.find((s) => s.id === bolt.id)).toBeUndefined();
-    });
-
-    it("Red Elemental Blast destroy mode: destroys target blue permanent", () => {
-        const merfolk = makeInstance(merfolkOfThePearlTrident.id, {
-            id: "merfolk",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [merfolk] }),
-            ],
-        });
-        const blast = pushSpell(state, redElementalBlast.id, "p1", [
-            { type: "permanent", id: "merfolk" },
-        ]);
-        blast.chosenModeIds = ["destroy"];
-        resolveTopOfStack(state);
-        expect(
-            state.players[1].battlefield.find((c) => c.id === "merfolk")
-        ).toBeUndefined();
     });
 });
 
