@@ -255,7 +255,8 @@ export function isRecurringTriggerEvent(
  *  1 for everything else:
  *
  *   - an activated ability (its gating is the cost, already valued, and how
- *     often it is used is the search's to find);
+ *     often it is used is the search's to find) — except one whose whole cost
+ *     spends a FIXED budget the permanent enters with (`counterBudget`);
  *   - a one-shot trigger ("when you cast", "when it dies");
  *   - a graveyard-zoned trigger (CR 113.6b, `zone: "graveyard"`): its source
  *     is a card in a graveyard, not a permanent with a lifetime, and what it
@@ -275,14 +276,43 @@ function recurrenceWeight(
     ability: {
         event?: GameEventType | GameEventType[];
         zone?: TriggeredAbility["zone"];
+        cost?: Partial<ActivatedAbility["cost"]>;
     },
     script: EffectOp[] | undefined,
-    ctx: GroundingContext
+    ctx: GroundingContext,
+    entersWith: CardDefinition["entersWith"]
 ): number {
+    if (ability.cost) return counterBudget(ability.cost, entersWith);
     if (!isRecurringTriggerEvent(ability.event)) return 1;
     if (ability.zone === "graveyard") return 1;
     if (script && removesSource(script)) return 1;
     return ctx.latent.weights.recurrence;
+}
+
+/** How many times an activated ability whose WHOLE activation cost (CR 602.1a)
+ *  is removing counters from its own source can be activated off the counters
+ *  its permanent enters with: `floor(N / k)` for "enters with N counters" of
+ *  the type the cost removes `k` of — Fading 5's "remove a fade counter:
+ *  exile target creature" (CR 702.32a) is five exiles. No other cost leg
+ *  (tap, mana, life) means nothing paces the budget but the counters
+ *  themselves (CR 118.3): it can be spent in one priority window, so this is
+ *  a fact of the definition, not the search's to find. 1 for every other
+ *  activated ability, a counter count that is not a fixed number (`X`,
+ *  sunburst) and a budget below two. */
+export function counterBudget(
+    cost: Partial<ActivatedAbility["cost"]>,
+    entersWith: CardDefinition["entersWith"]
+): number {
+    const removal = cost.removeCounter;
+    if (!removal || removal.count < 1) return 1;
+    const onlyLeg = Object.entries(cost).every(
+        ([leg, value]) =>
+            leg === "removeCounter" || value === undefined || value === false
+    );
+    if (!onlyLeg) return 1;
+    const stock = entersWith?.counters?.find((c) => c.type === removal.type);
+    if (!stock || typeof stock.count !== "number") return 1;
+    return Math.max(1, Math.floor(stock.count / removal.count));
 }
 
 /** The Ops that take their `target` off the battlefield for good, or out of
@@ -635,11 +665,7 @@ function abilityScriptOpValue(
         activateFromHand?: boolean;
         etbAbility?: boolean;
         targetRequirement?: TargetRequirement;
-        cost?: {
-            sacrifice?: boolean;
-            exileThis?: boolean;
-            discardThis?: boolean;
-        };
+        cost?: Partial<ActivatedAbility["cost"]>;
         /** CR 605.1a / 605.1b — a mana ability, on either shape: an activated
          *  one classified by the engine's one predicate
          *  (`isManaAbilityDefinition`), a triggered one by its own flag. */
@@ -789,7 +815,9 @@ function abilityScriptOpValue(
             (selection === "realized" && !def.types.includes("Creature"));
         const weight =
             gateWeight(ability, self) *
-            (recurs ? recurrenceWeight(ability, script, abilityCtx) : 1);
+            (recurs
+                ? recurrenceWeight(ability, script, abilityCtx, def.entersWith)
+                : 1);
         if (weight === 0) continue;
         // Tags are a MEMBERSHIP fact, not a magnitude — a weighted ability
         // still loads onto the same feature dimension, so only points scale
