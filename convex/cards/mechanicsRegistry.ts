@@ -4615,6 +4615,16 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // (also shipped in the same slice, never reserved here under its own
     // name — a filter-driven reveal-and-split composition, not a new
     // SpellContext primitive).
+    // CR 611.2c / 101.2 — "Spells you control can't be countered this turn"
+    // (Veil of Summer). The engine half shipped with issue #9466
+    // (SpellContext.grantSpellCounterImmunityThisTurn); the Op waits for the
+    // Grammar Rule that emits it (issue #9836, `/new-op` site 8).
+    {
+        op: "grantSpellCounterImmunity",
+        status: "planned",
+        cr: "611.2c",
+        note: 'Turn-scoped "Spells you control can\'t be countered this turn" for the controller: a skin over SpellContext.grantSpellCounterImmunityThisTurn (GameState.spellCounterImmunityThisTurn, read by counter() through isSpellCounterImmuneThisTurn, cleared at CLEANUP, CR 514.2). Planned until its Grammar Rule lands with a ready corpus card (Veil of Summer, issue #9836).',
+    },
     {
         op: "lockUntap",
         status: "planned",
