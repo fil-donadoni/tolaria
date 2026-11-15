@@ -15,7 +15,6 @@ import { expandUnleash } from "../../cards/abilities/unleash";
 import { withTemporaryDefinition } from "../../cards/registry";
 import { clone } from "../../cards/sets/lea/blue.cards";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
-import { humility } from "../../cards/sets/tmp/white.cards";
 import type { CardDefinition } from "../../cards/types";
 import { projectPublicState } from "../../gameProjections";
 import { validateBlockerEligibility } from "../combat";
@@ -26,6 +25,8 @@ import {
     type CardInstanceState,
     type GameState,
 } from "../state";
+
+const humility = () => getDefinition("a2fb7128-806b-4148-80fe-eb967f248021");
 
 const UNLEASHED: CardDefinition = {
     id: "unleash-test-creature",

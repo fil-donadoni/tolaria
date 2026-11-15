@@ -4,25 +4,6 @@
 
 import { defineCard } from "../../types";
 
-// Crucible of Worlds — {3} Artifact. "You may play lands from your
-// graveyard." One declarative field, no `resolve()` and no Effect Script:
-// `graveyardPlayPermission: { actions: ["play-land"] }` is a row on the one
-// graveyard play permission record (ADR 0093, CR 305.1-analog), read live off
-// the battlefield by the single resolver `getGraveyardPlayPermissions`
-// (`convex/gre/rules.ts`) — the permission ends the instant this artifact
-// leaves play. Unlimited (no `oncePerTurn`); a scoped once-per-turn
-// permission (Serra Paragon, issue #1239) is the same record with its gates
-// set, never a per-instance grant.
-export const crucibleOfWorlds = defineCard(() => ({
-    id: "312a6058-de08-487d-95bd-b3c56807fdd6",
-    name: "Crucible of Worlds",
-    rarity: "rare",
-    oracleText: "You may play lands from your graveyard.",
-    manaCost: { X: 3 },
-    types: ["Artifact"],
-    graveyardPlayPermission: { actions: ["play-land"] },
-}));
-
 // Pentad Prism — {2} Artifact, the catalogue's first Sunburst card (CR 702.44,
 // issue #2378).
 //

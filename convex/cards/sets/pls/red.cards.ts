@@ -4,7 +4,6 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import { defineCard, type SpellContext } from "../../types";
-import { resolveCompiledStatic } from "../../compiledStatics";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
@@ -310,38 +309,6 @@ export const magmaBurst = defineCard(() => ({
             predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
             then: [{ op: "dealDamage", amount: 3, to: { target: 1 } }],
         },
-    ],
-}));
-
-// Mire Kavu — {3}{R} Creature — Kavu, 3/2. "This creature gets +1/+1 as long
-// as you control a Swamp." (CR 611.3a board-conditional layer-7c buff — the
-// Kird Ape shape `arn/red.cards.ts`, Swamp instead of Forest.)
-export const mireKavu = defineCard(() => ({
-    id: "ccdd0086-eb27-48b3-91cb-a113aa1de102", // PLS 67
-    rarity: "common",
-    name: "Mire Kavu",
-    oracleText: "This creature gets +1/+1 as long as you control a Swamp.",
-    manaCost: { X: 3, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Kavu"],
-    power: 3,
-    toughness: 2,
-    // CR 611.3a / 613.4c — a layer-7c modifier gated on the board, built
-    // through the SAME descriptor path the Oracle compiler emits (issue
-    // #4126). It was a `pt-cda`, which the layer walk applies in 7a — so a
-    // 7b set effect (Humility) erased the bonus it must survive.
-    staticEffects: [
-        resolveCompiledStatic({
-            kind: "pt-buff",
-            appliesTo: "self",
-            power: 1,
-            toughness: 1,
-            condition: {
-                kind: "controls",
-                filter: { subtypes: ["Swamp"] },
-                atLeast: 1,
-            },
-        }),
     ],
 }));
 

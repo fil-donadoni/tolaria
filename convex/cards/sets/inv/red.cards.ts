@@ -1028,32 +1028,6 @@ export const ghituFire = defineCard(() => ({
     effects: [{ op: "dealDamage", amount: { X: true }, to: { target: 0 } }],
 }));
 
-// Goblin Spy — CR 401.5 continuous library-top reveal (issue #1095 gap 7).
-// "Play with the top card of your library revealed" is a static ability whose
-// continuous effect runs for exactly as long as the permanent is on the
-// battlefield (CR 604.2), so it is a flat `revealsLibraryTop` scope read LIVE
-// off the battlefield by `computeLibraryTopRevealedPlayers`
-// (`convex/gre/libraryReveal.ts`) — the exact shape `revealsHand` uses for the
-// other hidden zone. Never a stored flag: CR 401.6 / 701.20d make the reveal a
-// property of the POSITION, so a draw / shuffle / mill / put-on-top changes
-// what is revealed with nothing to update, and the reveal simply stops when the
-// Spy leaves play. CR 613.11 — it modifies the rules of the game (what players
-// may see), not any object's characteristics, so it is deliberately not a
-// layered `StaticEffect`. CR 400.2 — the library stays a hidden zone; exactly
-// one card's identity is exposed, symmetrically, to both players.
-export const goblinSpy = defineCard(() => ({
-    id: "2a89a099-8805-4b26-babd-5d9f48ee406a",
-    name: "Goblin Spy",
-    rarity: "uncommon",
-    manaCost: { R: 1 },
-    types: ["Creature"],
-    subtypes: ["Goblin", "Rogue"],
-    power: 1,
-    toughness: 1,
-    oracleText: "Play with the top card of your library revealed.",
-    revealsLibraryTop: "controller",
-}));
-
 // Lightning Dart — {1}{R} Instant. "Lightning Dart deals 1 damage to target
 // creature. If that creature is white or blue, Lightning Dart deals 4 damage
 // to it instead." (CR 120.1 damage, CR 202.2 / 613 layer 5 colour.) Was the

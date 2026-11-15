@@ -7,7 +7,6 @@
 // cost) live in colorless.ts.
 
 import { defineCard, type TargetSelection } from "../../types";
-import { resolveCompiledStatic } from "../../compiledStatics";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 
@@ -94,35 +93,6 @@ export const rukhEgg = defineCard(() => ({
                 },
             ],
         },
-    ],
-}));
-
-export const kirdApe = defineCard(() => ({
-    id: "ebe8845e-df1c-481c-949c-aab84af99a05",
-    rarity: "common",
-    name: "Kird Ape",
-    oracleText: "Kird Ape gets +1/+2 as long as you control a Forest.",
-    manaCost: { R: 1 },
-    types: ["Creature"],
-    subtypes: ["Ape"],
-    power: 1,
-    toughness: 1,
-    // CR 611.3a / 613.4c — a layer-7c modifier gated on the board, built
-    // through the SAME descriptor path the Oracle compiler emits (issue
-    // #4126). It was a `pt-cda`, which the layer walk applies in 7a — so a
-    // 7b set effect (Humility) erased the bonus it must survive.
-    staticEffects: [
-        resolveCompiledStatic({
-            kind: "pt-buff",
-            appliesTo: "self",
-            power: 1,
-            toughness: 2,
-            condition: {
-                kind: "controls",
-                filter: { subtypes: ["Forest"] },
-                atLeast: 1,
-            },
-        }),
     ],
 }));
 

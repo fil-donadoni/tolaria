@@ -387,27 +387,6 @@ export const blueWard = defineCard(() =>
     })
 );
 
-// Castle — "Untapped creatures you control get +0/+2." (CR 611, 613 — static layer 7c)
-export const castle = defineCard(() => ({
-    id: "b0da8d56-3178-44c2-9344-95d2346d326f",
-    rarity: "uncommon",
-    name: "Castle",
-    oracleText: "Untapped creatures you control get +0/+2.",
-    manaCost: { X: 3, W: 1 },
-    types: ["Enchantment"],
-    staticEffects: [
-        {
-            kind: "pt-buff",
-            applies: (target, source, ctx) =>
-                ctx.isCreature(target) &&
-                target.controllerId === source.controllerId &&
-                !target.isTapped,
-            power: 0,
-            toughness: 2,
-        },
-    ],
-}));
-
 // Circle of Protection — "{1}: The next time a source of your choice of
 // [color] would deal damage to you this turn, prevent that damage." The
 // CoPs share identical behavior modulo the color filter (CR 615.1, 615.6),
@@ -530,27 +509,6 @@ export const conversion = defineCard(() => ({
             prompt: "Pay {W}{W} to keep Conversion?",
             onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
-    ],
-}));
-
-// Crusade — "White creatures get +1/+1." (CR 611 — static layer 7c, color via
-// CR 202.2). Mirrors Bad Moon's structure but filtered on white instead of
-// black. Affects creatures of either controller.
-export const crusade = defineCard(() => ({
-    id: "057986c7-20c0-4157-b4df-beae4ef5c66d",
-    rarity: "rare",
-    name: "Crusade",
-    oracleText: "White creatures get +1/+1.",
-    manaCost: { W: 2 },
-    types: ["Enchantment"],
-    staticEffects: [
-        {
-            kind: "pt-buff",
-            applies: (target, _source, ctx) =>
-                ctx.isCreature(target) && ctx.getColors(target).includes("W"),
-            power: 1,
-            toughness: 1,
-        },
     ],
 }));
 

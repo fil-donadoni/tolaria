@@ -7,12 +7,7 @@
 // of their mana cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type {
-    PermanentView,
-    SpellContext,
-    StaticEffectContext,
-    TargetSelection,
-} from "../../types";
+import type { SpellContext, TargetSelection } from "../../types";
 import {
     defineCard,
     AURA_AFFECTS_HOST,
@@ -96,25 +91,6 @@ export const animateDead = defineCard(() => ({
                 ctx.sacrifice(hostId);
             },
         }),
-    ],
-}));
-
-// Bad Moon — "Black creatures get +1/+1." (CR 611 — static layer 7c, color check via CR 202.2)
-export const badMoon = defineCard(() => ({
-    id: "43572906-ea74-4411-a549-5dc401591d2a",
-    rarity: "rare",
-    name: "Bad Moon",
-    oracleText: "Black creatures get +1/+1.",
-    manaCost: { X: 1, B: 1 },
-    types: ["Enchantment"],
-    staticEffects: [
-        {
-            kind: "pt-buff",
-            applies: (target, _source, ctx) =>
-                ctx.isCreature(target) && ctx.getColors(target).includes("B"),
-            power: 1,
-            toughness: 1,
-        },
     ],
 }));
 
@@ -462,38 +438,6 @@ export const fear = defineCard(() => ({
             kind: "keyword-grant",
             applies: AURA_AFFECTS_HOST,
             keyword: "fear",
-        },
-    ],
-}));
-
-// Gloom — "White spells cost {3} more to cast. Activated abilities of white
-// enchantments cost {3} more to activate." (CR 601.2f cost modification).
-export const gloom = defineCard(() => ({
-    id: "a8d10bc7-daeb-4c0d-9e4a-8eae8d11699f",
-    rarity: "uncommon",
-    name: "Gloom",
-    oracleText:
-        "White spells cost {3} more to cast.\nActivated abilities of white enchantments cost {3} more to activate.",
-    manaCost: { X: 2, B: 1 },
-    types: ["Enchantment"],
-    // One effect per Oracle line, the shape the compiler emits; two increases
-    // that never meet the same announcement add nothing to each other.
-    staticEffects: [
-        {
-            kind: "cost-modifier",
-            appliesToSpell: (card: PermanentView, ctx: StaticEffectContext) =>
-                ctx.getColors(card).includes("W"),
-            costIncrease: { X: 3 },
-        },
-        {
-            kind: "cost-modifier",
-            appliesToAbility: (
-                source: PermanentView,
-                ctx: StaticEffectContext
-            ) =>
-                ctx.getColors(source).includes("W") &&
-                source.types.includes("Enchantment"),
-            costIncrease: { X: 3 },
         },
     ],
 }));

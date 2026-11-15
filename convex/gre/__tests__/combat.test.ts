@@ -26,7 +26,6 @@ import {
     savannahLions,
     wallOfSwords,
 } from "../../cards/sets/lea/index.cards";
-import { mightstone } from "../../cards/sets/atq/colorless.cards";
 import { duelingGrounds as duelingGroundsDef } from "../../cards/sets/inv/multicolor.cards";
 import { cavernsOfDespair as cavernsOfDespairDef } from "../../cards/sets/leg/red.cards";
 import { lure } from "../../cards/sets/lea/green.cards";
@@ -37,6 +36,9 @@ import { buildSpellContext, resolveTopOfStack } from "../state";
 import { pushSpell } from "../../cards/__tests__/setup.helper";
 import { getEffectivePower } from "../layers";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../rules";
+import { getDefinition } from "../../cards/index";
+
+const mightstone = () => getDefinition("b28ba599-5299-4831-a118-1712ada10ef6");
 
 // ---------------------------------------------------------------------------
 // Test helpers

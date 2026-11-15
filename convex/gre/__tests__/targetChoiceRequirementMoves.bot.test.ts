@@ -29,7 +29,6 @@ import {
     withTemporaryDefinitionAsync,
 } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
-import { standardBearer } from "../../cards/sets/apc/white.cards";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { mountain } from "../../cards/sets/lea/colorless.cards";
 import { enumerateMoves, type Move } from "../moves";
@@ -42,6 +41,10 @@ import {
 } from "../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../_generated/dataModel";
 import type { GameState } from "../state";
+import { getDefinition } from "../../cards/index";
+
+const standardBearer = () =>
+    getDefinition("e0f8e16a-55f0-4147-a01a-dba7938f31c4");
 
 /** "Up to ONE target creature" — the `min: 0` shape (Teferi, Time Raveler's
  *  +1, Minsc & Boo, Sorin). The chooser may decline the group entirely, so the

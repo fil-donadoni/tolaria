@@ -10,10 +10,13 @@
 import { describe, expect, it } from "vitest";
 import { phantasmalImage } from "../../../cards/sets/m12/blue.cards";
 import { mirrorwoodTreefolk } from "../../../cards/sets/pls/green.cards";
-import { meddlingMage } from "../../../cards/sets/pls/multicolor.cards";
 import { cardValueById } from "../../cardValue";
 import { creatureValueRaw } from "../../creatureBody";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
+import { getDefinition } from "../../../cards/index";
+
+const meddlingMage = () =>
+    getDefinition("176f84c6-aa5e-449c-bd2b-cc91a898f0c7");
 
 const CASES = [
     // body = a representative 2/2 at MV2 (the copied body is unknowable).

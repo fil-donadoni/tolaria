@@ -24,12 +24,14 @@ import { SORIN_LORD_OF_INNISTRAD_EMBLEM_ID } from "@convex/cards/emblems";
 import { smugglersCopter } from "@convex/cards/sets/kld/index.cards";
 import { shorikaiGenesisEngine } from "@convex/cards/sets/nec/index.cards";
 import {
-    crusade,
     grizzlyBears,
     savannahLions,
 } from "@convex/cards/sets/lea/index.cards";
+import { getDefinition } from "@convex/cards";
 import type { CardInstance } from "../../types/game";
 import { buildTriggerStateView, getStackAbilities } from "../card-utils";
+
+const crusade = () => getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
 
 const VIEWER = "p1";
 const CREW_3_VEHICLE_ID = "test-crew-3-vehicle";

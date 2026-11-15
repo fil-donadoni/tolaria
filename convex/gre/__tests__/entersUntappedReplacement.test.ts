@@ -11,7 +11,6 @@ import { describe, it, expect } from "vitest";
 import type { CardDefinition } from "../../cards/types";
 import { expandCompiledStatics } from "../../cards/compiledStatics";
 import { withTemporaryDefinition } from "../../cards/registry";
-import { steamVents } from "../../cards/sets/gpt/colorless.cards";
 import { kismet } from "../../cards/sets/leg/white.cards";
 import {
     makeInstance,
@@ -25,6 +24,9 @@ import {
     putHandCardOntoBattlefield,
 } from "../state";
 import { projectPublicState } from "../../gameProjections";
+import { getDefinition } from "../../cards/index";
+
+const steamVents = () => getDefinition("054f2276-2dd5-43da-bb26-c57c560861fe");
 
 const SOURCE_ID = "test-lands-enter-untapped";
 const TAPLAND_ID = "test-enters-tapped-land";

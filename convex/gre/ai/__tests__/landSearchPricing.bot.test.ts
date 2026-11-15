@@ -18,10 +18,13 @@ import {
 import type { CardInstanceState, GameState } from "../../state";
 import { libraryTargetWorth, prospectiveCardWorth } from "../candidateValue";
 import { sengirVampire } from "../../../cards/sets/lea/black.cards";
-import { hallowedFountain } from "../../../cards/sets/dis/colorless.cards";
 import { scaldingTarn } from "../../../cards/sets/zen/colorless.cards";
 import { mishrasFactory } from "../../../cards/sets/atq/colorless.cards";
 import { island, plains, swamp } from "../../../cards/sets/lea/index.cards";
+import { getDefinition } from "../../../cards/index";
+
+const hallowedFountain = () =>
+    getDefinition("c28aea19-2a39-4934-afda-909e234fa3ba");
 
 const ME = "p1";
 const OPP = "p2";

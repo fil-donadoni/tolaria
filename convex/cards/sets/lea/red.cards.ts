@@ -782,26 +782,6 @@ export const orcishArtillery = defineCard(() => ({
     ],
 }));
 
-export const orcishOriflamme = defineCard(() => ({
-    id: "911538ea-322c-4c40-a9c3-35e47fe60fce",
-    rarity: "uncommon",
-    name: "Orcish Oriflamme",
-    oracleText: "Attacking creatures you control get +1/+0.",
-    manaCost: { X: 3, R: 1 },
-    types: ["Enchantment"],
-    staticEffects: [
-        {
-            kind: "pt-buff",
-            applies: (target, source, ctx) =>
-                ctx.isCreature(target) &&
-                !!target.isAttacking &&
-                target.controllerId === source.controllerId,
-            power: 1,
-            toughness: 0,
-        },
-    ],
-}));
-
 // Power Surge — "At the beginning of each player's upkeep, Power Surge
 // deals damage to that player equal to the number of untapped lands they
 // control." (CR 503.1a upkeep trigger, 120.1 damage). One trigger per upkeep,

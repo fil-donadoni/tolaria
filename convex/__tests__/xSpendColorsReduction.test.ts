@@ -9,7 +9,6 @@ import {
     withTemporaryDefinitionAsync,
 } from "../cards";
 import type { CardDefinition } from "../cards/types";
-import { stoneCalendar } from "../cards/sets/drk/colorless.cards";
 import { soulBurn } from "../cards/sets/ice/black.cards";
 import { drainLife } from "../cards/sets/lea/black.cards";
 import { swamp } from "../cards/sets/lea/colorless.cards";
@@ -36,6 +35,10 @@ import {
     runMutation,
     type Handler,
 } from "./gameMutationHarness.fixture";
+import { getDefinition } from "../cards/index";
+
+const stoneCalendar = () =>
+    getDefinition("a49ba1a5-33b1-40f2-9780-26139ed829d7");
 
 const POOL0 = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
 const BASE = { gameId: "game-1" as Id<"games">, playerId: "p1" };

@@ -56,7 +56,6 @@ import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 import { unstableMutation } from "../../cards/sets/arn/blue.cards";
 import { counterspell } from "../../cards/sets/lea/blue.cards";
 import { conversion } from "../../cards/sets/lea/white.cards";
-import { opalescence } from "../../cards/sets/uds/white.cards";
 import { exclude } from "../../cards/sets/inv/blue.cards";
 import { getLegalTargets } from "../rules";
 import { mountain as mountainCard } from "../../cards/sets/lea/colorless.cards";
@@ -71,6 +70,8 @@ import {
     grantedKeywordRows,
     wireCharacteristicsOf,
 } from "../../cards/__tests__/setup.helper";
+
+const opalescence = () => getDefinition("3c0071fb-afa5-47b5-b266-2b10a4f5a98a");
 
 const NANTUKO = springheartNantuko().id;
 const BEARS = grizzlyBears().id;

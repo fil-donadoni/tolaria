@@ -10,7 +10,6 @@
 
 import { describe, expect, it } from "vitest";
 import { announceCast } from "../../game";
-import { aluren } from "../../cards/sets/tmp/green.cards";
 import { bolassCitadel } from "../../cards/sets/war/black.cards";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { forest } from "../../cards/sets/lea/colorless.cards";
@@ -29,6 +28,9 @@ import {
     runMutation,
     type Handler,
 } from "../../__tests__/gameMutationHarness.fixture";
+import { getDefinition } from "../../cards/index";
+
+const aluren = () => getDefinition("268403bc-733d-446e-a7c1-abc957c42bc2");
 
 const ALUREN_ALT_COST_ID = `${CAST_PERMISSION_ALT_COST_PREFIX}any-player-creature-f9f346f4`;
 

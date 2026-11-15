@@ -54,10 +54,8 @@ import {
 } from "../../cards/sets/lea/index.cards";
 import { snuffOut } from "../../cards/sets/mmq/black.cards";
 import { thaliaGuardianOfThraben } from "../../cards/sets/dka/white.cards";
-import { planarGate } from "../../cards/sets/leg/colorless.cards";
 import { ragavanNimblePilferer } from "../../cards/sets/mh2/red.cards";
 import { exaltedAngel } from "../../cards/sets/ons/white.cards";
-import { gloom } from "../../cards/sets/lea/black.cards";
 import { MORPH_CAST_ALT_COST_ID } from "../morph";
 import { getLegalActions } from "../rules";
 import { drought } from "../../cards/sets/ice/white.cards";
@@ -75,6 +73,9 @@ import {
     makeState,
 } from "../../cards/__tests__/setup.helper";
 import { getDefinition } from "../../cards/index";
+
+const planarGate = () => getDefinition("dd27f0fe-c032-4f61-9f3d-98a6d2e2c426");
+const gloom = () => getDefinition("a8d10bc7-daeb-4c0d-9e4a-8eae8d11699f");
 
 // Retired hand-written twin (ADR 0114): resolved through the registry seam.
 const gush = () => getDefinition("e755bbef-bf34-49c0-ae72-d70e3599de52");

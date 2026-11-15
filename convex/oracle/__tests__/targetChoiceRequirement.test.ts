@@ -18,10 +18,13 @@
 
 import { describe, expect, it } from "vitest";
 import { expandCompiledStatics } from "../../cards/compiledStatics";
-import { standardBearer } from "../../cards/sets/apc/white.cards";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { oracleCard } from "./oracle.fixture";
+import { getDefinition } from "../../cards/index";
+
+const standardBearer = () =>
+    getDefinition("e0f8e16a-55f0-4147-a01a-dba7938f31c4");
 
 const CLAUSE =
     "While an opponent is choosing targets as part of casting a spell they control or activating an ability they control, that player must choose at least one Flagbearer on the battlefield if able.";

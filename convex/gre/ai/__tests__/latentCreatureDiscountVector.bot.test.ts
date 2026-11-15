@@ -4,7 +4,6 @@
 // committed ones; and a held creature a board permission lets its holder cast
 // "as though it had flash" takes the flash discount (CR 601.3b / 702.8a).
 import { describe, expect, it } from "vitest";
-import { aluren } from "../../../cards/sets/tmp/green.cards";
 import { getCardByName } from "../../../cards";
 import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
 import {
@@ -16,6 +15,9 @@ import { cardValueById } from "../../cardValue";
 import { cardValue, evaluateBreakdown } from "../../evaluate";
 import { latentGraveyardValue } from "../graveyardReach";
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
+import { getDefinition } from "../../../cards/index";
+
+const aluren = () => getDefinition("268403bc-733d-446e-a7c1-abc957c42bc2");
 
 /** The production vector with the two creature discounts moved. `latent` stays
  *  the SAME object, which is the case the graveyard memo must not conflate. */

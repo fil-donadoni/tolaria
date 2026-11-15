@@ -10,7 +10,6 @@
 // permission ceasing the instant its source leaves the battlefield.
 
 import { describe, expect, it } from "vitest";
-import { aluren } from "../../cards/sets/tmp/green.cards";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { lightningBolt, shivanDragon } from "../../cards/sets/lea/red.cards";
 import { forest } from "../../cards/sets/lea/colorless.cards";
@@ -37,6 +36,9 @@ import {
 } from "../rules";
 import { getPlayer } from "../state";
 import type { CardInstanceState, GameState } from "../state";
+import { getDefinition } from "../../cards/index";
+
+const aluren = () => getDefinition("268403bc-733d-446e-a7c1-abc957c42bc2");
 
 const ALUREN_ALT_COST_ID = `${CAST_PERMISSION_ALT_COST_PREFIX}any-player-creature-f9f346f4`;
 

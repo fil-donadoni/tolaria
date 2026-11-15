@@ -20,51 +20,6 @@ import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 const FLAGBEARER_TARGET_REQUIREMENT_TEXT =
     "While an opponent is choosing targets as part of casting a spell they control or activating an ability they control, that player must choose at least one Flagbearer on the battlefield if able.";
 
-// Standard Bearer — {1}{W} 1/1 Human Flagbearer.
-export const standardBearer = defineCard(() => ({
-    id: "e0f8e16a-55f0-4147-a01a-dba7938f31c4", // APC 18
-    rarity: "common",
-    name: "Standard Bearer",
-    oracleText: FLAGBEARER_TARGET_REQUIREMENT_TEXT,
-    manaCost: { X: 1, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Flagbearer"],
-    power: 1,
-    toughness: 1,
-    staticEffects: [
-        {
-            kind: "target-choice-requirement",
-            id: "standard-bearer-flagbearer-requirement",
-            oracleText: FLAGBEARER_TARGET_REQUIREMENT_TEXT,
-            binds: "opponents",
-            filter: { subtypes: "Flagbearer" },
-        },
-    ],
-}));
-
-// Coalition Honor Guard — {3}{W} 2/4 Human Flagbearer, the same clause on a
-// tougher body.
-export const coalitionHonorGuard = defineCard(() => ({
-    id: "c5b7be3e-b4af-46d4-bcc6-b44c651f2012", // APC 3
-    rarity: "common",
-    name: "Coalition Honor Guard",
-    oracleText: FLAGBEARER_TARGET_REQUIREMENT_TEXT,
-    manaCost: { X: 3, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Flagbearer"],
-    power: 2,
-    toughness: 4,
-    staticEffects: [
-        {
-            kind: "target-choice-requirement",
-            id: "coalition-honor-guard-flagbearer-requirement",
-            oracleText: FLAGBEARER_TARGET_REQUIREMENT_TEXT,
-            binds: "opponents",
-            filter: { subtypes: "Flagbearer" },
-        },
-    ],
-}));
-
 // Coalition Flag — {W} Aura. "Enchant creature you control / Enchanted creature
 // is a Flagbearer / <the cycle's clause>."
 //

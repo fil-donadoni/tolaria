@@ -5,7 +5,6 @@
 // clause — any other tapped source (Kismet) still applies (CR 616).
 
 import { describe, it, expect } from "vitest";
-import { steamVents } from "../../cards/sets/gpt/colorless.cards";
 import { kismet } from "../../cards/sets/leg/white.cards";
 import { seraph } from "../../cards/sets/ice/white.cards";
 import {
@@ -28,6 +27,9 @@ import {
 import { fireDelayedTriggers } from "../phases";
 import { legalActions } from "../legalActions";
 import { projectPublicState } from "../../gameProjections";
+import { getDefinition } from "../../cards/index";
+
+const steamVents = () => getDefinition("054f2276-2dd5-43da-bb26-c57c560861fe");
 
 function playSteamVents(
     life = 20,

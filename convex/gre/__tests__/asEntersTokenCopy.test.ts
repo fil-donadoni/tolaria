@@ -55,12 +55,15 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
 import { voiceOfAll } from "../../cards/sets/pls/white.cards";
-import { meddlingMage } from "../../cards/sets/pls/multicolor.cards";
 import { primalClay } from "../../cards/sets/atq/colorless.cards";
 import { illusionaryTerrain } from "../../cards/sets/ice/blue.cards";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { sinSpirasPunishment } from "../../cards/sets/fin/multicolor.cards";
 import type { EffectOp, GameEvent } from "../../cards/types";
+import { getDefinition } from "../../cards/index";
+
+const meddlingMage = () =>
+    getDefinition("176f84c6-aa5e-449c-bd2b-cc91a898f0c7");
 
 // --- Harness ----------------------------------------------------------------
 

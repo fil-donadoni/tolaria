@@ -11,7 +11,9 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
-import { crusade } from "../../cards/sets/lea/white.cards";
+import { getDefinition } from "../../cards/index";
+
+const crusade = () => getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
 
 /** Minimal layer-6 registry entry; every field an assertion cares about is
  *  overridden at the call site so the defaults never carry meaning. */

@@ -75,10 +75,12 @@ import { standDeliver } from "@convex/cards/sets/inv/multicolor.cards";
 import { hillGiant } from "@convex/cards/sets/lea/red.cards";
 import { plains, island } from "@convex/cards/sets/lea/colorless.cards";
 import { splitCastAltCostId } from "@convex/gre/splitCast";
-import { aluren } from "@convex/cards/sets/tmp/green.cards";
+import { getDefinition } from "@convex/cards";
 import { withTemporaryDefinition } from "@convex/cards/registry";
 import type { CardDefinition } from "@convex/cards/types";
 import { composeCastPermissionAltCostId } from "@convex/gre/castPermissionAltCostId";
+
+const aluren = () => getDefinition("268403bc-733d-446e-a7c1-abc957c42bc2");
 
 const LEFT_ALT = splitCastAltCostId(standDeliver(), "left");
 const RIGHT_ALT = splitCastAltCostId(standDeliver(), "right");

@@ -43,9 +43,11 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { applyPlayLandFromExile } from "../playLand";
 import { vodalianMerchant } from "../../cards/sets/inv/blue.cards";
-import { castle } from "../../cards/sets/lea/white.cards";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { mountain } from "../../cards/sets/lea/colorless.cards";
+import { getDefinition } from "../../cards/index";
+
+const castle = () => getDefinition("b0da8d56-3178-44c2-9344-95d2346d326f");
 
 /** The card p2 is allowed to cast out of p1's exile: p1 owns it, p1 controls it
  *  while it sits in the exile zone, and the grant names p2 (the shape every

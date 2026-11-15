@@ -5,10 +5,12 @@
 // reference: `makeDualLand({ shockLand: true })`).
 
 import { describe, expect, it } from "vitest";
-import { steamVents } from "../../cards/sets/gpt/colorless.cards";
 import { compileCard } from "../compile";
 import { staticSlot } from "../grammar/slots/staticSlot";
 import { oracleCard, parseContext } from "./oracle.fixture";
+import { getDefinition } from "../../cards/index";
+
+const steamVents = () => getDefinition("054f2276-2dd5-43da-bb26-c57c560861fe");
 
 const LINE =
     "As this land enters, you may pay 2 life. If you don't, it enters tapped.";

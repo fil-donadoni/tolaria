@@ -15,7 +15,6 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
-import { goblinSpy } from "../../cards/sets/inv/red.cards";
 import { bolassCitadel } from "../../cards/sets/war/black.cards";
 import { forest, island, mountain } from "../../cards/sets/lea/colorless.cards";
 import {
@@ -26,6 +25,9 @@ import {
 } from "../libraryReveal";
 import { drawCard, type GameState } from "../state";
 import { projectPublicState } from "../../gameProjections";
+import { getDefinition } from "../../cards/index";
+
+const goblinSpy = () => getDefinition("2a89a099-8805-4b26-babd-5d9f48ee406a");
 
 function board(sourceId: string): GameState {
     return makeState({

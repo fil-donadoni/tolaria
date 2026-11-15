@@ -16,7 +16,6 @@
 
 import { describe, expect, it } from "vitest";
 import { announceCast } from "../game";
-import { aluren } from "../cards/sets/tmp/green.cards";
 import { grizzlyBears } from "../cards/sets/lea/green.cards";
 import { forest } from "../cards/sets/lea/colorless.cards";
 import {
@@ -34,6 +33,9 @@ import {
     runMutation,
     type Handler,
 } from "./gameMutationHarness.fixture";
+import { getDefinition } from "../cards/index";
+
+const aluren = () => getDefinition("268403bc-733d-446e-a7c1-abc957c42bc2");
 
 const GAME_ID = "game-1" as Id<"games">;
 const ALUREN_ALT_COST_ID = "cast-permission:any-player-creature-f9f346f4";
