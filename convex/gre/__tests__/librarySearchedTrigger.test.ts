@@ -664,3 +664,89 @@ describe("search-library overload does NOT fire LIBRARY_SEARCHED for a look-pick
         ).toBe(false);
     });
 });
+
+// CR 701.23a — the DSL side of the same discriminator: the `choice` Op stamps
+// `isSearch` only when its pool looked at the WHOLE library
+// (`ChoicePoolResult.wholeZone` in the interpreter), never on `kind` alone. The
+// second `choice` below is the widening the validator refuses today — a
+// `search-library` pick narrowed to a set an earlier Op supplied — driven
+// past the validator to stand for any future narrowing (a peeked top N, a
+// bound window): it must raise a plain pick, not a second search.
+describe("a DSL search-library choice narrowed to a window is not a search (CR 701.23a)", () => {
+    const NARROWED_ID = "test-library-searched-narrowed";
+    registerTokenDefinition({
+        id: NARROWED_ID,
+        name: NARROWED_ID,
+        rarity: "common",
+        manaCost: { G: 1 },
+        types: ["Sorcery"],
+        effects: [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                count: { min: 0, max: 2 },
+                prompt: "Search your library for up to two cards.",
+                bind: "$window",
+            },
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                candidates: [{ ref: "$window" }],
+                count: 1,
+                prompt: "Choose one of them.",
+                bind: "$picked",
+            },
+        ],
+    } satisfies CardDefinition);
+
+    it("only the whole-library pick sets isSearch and fires the watcher", () => {
+        const watcher = makeInstance(WATCHER_YOU_ID, {
+            id: "watcher-narrowed",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [watcher],
+                    library: libraryOf("p1", ["nw1", "nw2", "nw3"]),
+                    life: 20,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, NARROWED_ID, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+        const searchHead = state.pendingChoices![0];
+        expect(searchHead.isSearch).toBe(true);
+        applyPendingChoiceSubmit(state, {
+            playerId: searchHead.playerId,
+            stackItemId: searchHead.stackItemId,
+            step: searchHead.step,
+            choiceId: searchHead.choiceId,
+            cardInstanceIds: ["nw1", "nw2"],
+        });
+
+        const narrowedHead = state.pendingChoices![0];
+        expect(narrowedHead.choiceId).toBe("$picked");
+        expect(narrowedHead.candidateIds).toEqual(["nw1", "nw2"]);
+        expect(narrowedHead.isSearch).toBeUndefined();
+        applyPendingChoiceSubmit(state, {
+            playerId: narrowedHead.playerId,
+            stackItemId: narrowedHead.stackItemId,
+            step: narrowedHead.step,
+            choiceId: narrowedHead.choiceId,
+            cardInstanceIds: ["nw1"],
+        });
+
+        expect(
+            state.stack.filter(
+                (s) => s.triggeredAbilityId === "test-library-searched-you"
+            )
+        ).toHaveLength(1);
+    });
+});
