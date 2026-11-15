@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from "vitest";
 import { announceCast, tapForPayment } from "../game";
-import { lionsEyeDiamond } from "../cards/sets/mir/colorless.cards";
+
 import { plains } from "../cards/sets/lea/colorless.cards";
 import { serraAngel } from "../cards/sets/lea/white.cards";
 import { grizzlyBears } from "../cards/sets/lea/green.cards";
@@ -35,6 +35,8 @@ import {
     runMutation,
     type Handler,
 } from "./gameMutationHarness.fixture";
+import { getDefinition } from "../cards";
+const lionsEyeDiamond = getDefinition("63bacc32-d6ba-420c-9b49-299c08e5fb39");
 
 const GAME_ID = "game-1" as Id<"games">;
 
@@ -71,7 +73,7 @@ function board(hand: CardInstanceState[]): GameState {
                 battlefield: [
                     owned(plains().id, "plains-a", "battlefield"),
                     owned(plains().id, "plains-b", "battlefield"),
-                    owned(lionsEyeDiamond().id, "diamond", "battlefield"),
+                    owned(lionsEyeDiamond.id, "diamond", "battlefield"),
                 ],
                 hand,
             }),

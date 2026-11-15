@@ -344,28 +344,6 @@ export const skullOfOrm = defineCard(() => ({
     ],
 }));
 
-// Standing Stones — "{1}, {T}, Pay 1 life: Add one mana of any color." (CR 605.1
-// mana ability — resolves immediately, useStack: false, CR 605.3a; CR 106.1 mana
-// of any color via `manaChoices`; CR 119.4 life payment as part of the cost.)
-export const standingStones = defineCard(() => ({
-    id: "6d4c853e-2231-4af2-bcb0-1781c18ec3be",
-    rarity: "uncommon",
-    name: "Standing Stones",
-    oracleText: "{1}, {T}, Pay 1 life: Add one mana of any color.",
-    manaCost: { X: 3 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "standing-stones-mana",
-            oracleText: "{1}, {T}, Pay 1 life: Add one mana of any color.",
-            cost: { mana: { X: 1 }, tap: true, life: 1 },
-            useStack: false,
-            effect: (ctx) => ctx.addMana({ W: 1 }),
-            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
-        },
-    ],
-}));
-
 // Stone Calendar — "Spells you cast cost {1} less to cast." (CR 601.2f cost
 // reduction; CR 118.7 generic-only reduction. A `cost-modifier` static scoped to
 // the controller's own spells via `card.controllerId === effectSource.controllerId`.)
@@ -624,85 +602,6 @@ export const safeHaven = defineCard(() => ({
                 ctx.sacrifice(ctx.sourceInstanceId);
             },
         }),
-    ],
-}));
-
-// ─────────────────────────────────────────────────────────────────────────────
-// C3 — Mana-production lookup / replacement (#420). Three cards that read or
-// rewrite mana production rather than producing fixed mana. They reuse the
-// existing mana-ability machinery generalized along two new, orthogonal axes:
-//   • board-conditional mana CHOICES (`getManaChoices`) — the choice analog of
-//     the shipped board-conditional `manaAmount` (Urza lands). Fellwar Stone.
-//   • a per-turn land-mana TYPE replacement (`replaceLandManaWithBlue`, CR 614)
-//     funnelled through the single `applyLandManaReplacement` hook every tap
-//     path already routes its produced mana through. Deep Water.
-//   • a generic hand → battlefield zone move (`putFromHandOntoBattlefield`,
-//     CR 400.7), mirroring `putFromLibraryOntoBattlefield`. Gaea's Touch.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Fellwar Stone — "{T}: Add one mana of any color that a land an opponent
-// controls could produce." (CR 605.1a mana ability; CR 106.4 "could produce".
-// The colour set is board-derived, so the ability declares a `manaColorSource`
-// descriptor — the DATA form of the `getManaChoices` hook, itself the choice
-// analog of the Urza lands' `manaAmount` — evaluated by the engine at every
-// activation against every opponent's lands. The static `manaChoices` is the
-// representative / fallback list for best-effort callers without a board
-// snapshot (affordability, autoTap).)
-export const fellwarStone = defineCard(() => ({
-    id: "dc47e322-f8b8-4685-b035-fda0cc433e6b",
-    rarity: "uncommon",
-    name: "Fellwar Stone",
-    oracleText:
-        "{T}: Add one mana of any color that a land an opponent controls could produce.",
-    manaCost: { X: 2 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "fellwar-stone-mana",
-            oracleText:
-                "{T}: Add one mana of any color that a land an opponent controls could produce.",
-            cost: { tap: true },
-            useStack: false,
-            // Fallback / representative options (any single colour). The engine
-            // overrides this with `manaColorSource` when a board snapshot exists.
-            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
-            // CR 106.4 — "any color a land an opponent controls could produce":
-            // union the producible colours of every LAND controlled by a player
-            // other than Fellwar Stone's controller, then offer one mana of each
-            // (colourless {C} is not a colour and never contributes, CR 202.2).
-            // Empty when no opponent controls a colour-producing land — the
-            // ability stays activatable per CR 605.1a but yields no legal
-            // choice, so no false affordance is offered.
-            manaColorSource: {
-                filter: { types: "Land", controllerRelation: "opponents" },
-                colors: "produces",
-            },
-        },
-    ],
-}));
-
-// Coal Golem — "{3}, Sacrifice this creature: Add {R}{R}{R}." (CR 605.1a mana
-// ability with a {3} + self-sacrifice cost — the Gaea's Touch sacrifice-for-mana
-// shape, resolves immediately.)
-export const coalGolem = defineCard(() => ({
-    id: "1ad7692d-5a51-493f-a322-7b615446ea8e",
-    rarity: "uncommon",
-    name: "Coal Golem",
-    oracleText: "{3}, Sacrifice this creature: Add {R}{R}{R}.",
-    manaCost: { X: 5 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Golem"],
-    power: 3,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "coal-golem-sacrifice-mana",
-            oracleText: "{3}, Sacrifice this creature: Add {R}{R}{R}.",
-            cost: { mana: { X: 3 }, sacrifice: true },
-            useStack: false,
-            effect: (ctx) => ctx.addMana({ R: 3 }),
-            manaProduced: { R: 3 },
-        },
     ],
 }));
 

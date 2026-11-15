@@ -25,21 +25,14 @@ import {
     lightningBolt,
     lordOfAtlantis,
     mountain,
-    moxJet,
-    moxSapphire,
     plains,
     savannahLions,
     serraAngel,
-    solRing,
     swamp,
 } from "../../cards/sets/lea/index.cards";
 import { metallicRebuke } from "../../cards/sets/aer/index.cards";
 import { startingTown } from "../../cards/sets/fin/index.cards";
-import {
-    archaeologicalDig,
-    nomadicElf,
-    utopiaTree,
-} from "../../cards/sets/inv/index.cards";
+
 import { farrelitePriest } from "../../cards/sets/fem/index.cards";
 import { moxOpal } from "../../cards/sets/som/index.cards";
 import { urzaLordHighArtificer } from "../../cards/sets/mh1/index.cards";
@@ -60,6 +53,13 @@ import type {
     PlayerState,
     StackItem,
 } from "../state";
+import { getDefinition } from "../../cards";
+const moxJet = getDefinition("92bcd1ce-19b1-4d78-8b09-95242ca08d76");
+const moxSapphire = getDefinition("82da0972-b17b-4600-9efd-e9430a0db04b");
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
+const archaeologicalDig = getDefinition("35f55af0-5a46-4900-b3d0-ca796b710e07");
+const nomadicElf = getDefinition("3b69e57a-5b19-450c-9cf5-c189e8505781");
+const utopiaTree = getDefinition("720452e9-3245-4b0e-94b6-843cbcb641a5");
 
 // Same two abilities as Starting Town, declared in the OPPOSITE order (the
 // any-color/life ability first, the free {C} ability second) — a synthetic
@@ -253,7 +253,7 @@ describe("cast affordability with multi-mana sources (issue #132)", () => {
         });
         const player = makePlayer("p1", {
             hand: [ankh],
-            battlefield: [onBattlefield(solRing().id, "ring")],
+            battlefield: [onBattlefield(solRing.id, "ring")],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
         const state = withTurnOf(makeState({ players: [player] }), "p1");
@@ -272,7 +272,7 @@ describe("cast affordability with multi-mana sources (issue #132)", () => {
                 onBattlefield(plains().id, "pl1"),
                 onBattlefield(plains().id, "pl2"),
                 onBattlefield(forest().id, "fo1"),
-                onBattlefield(solRing().id, "ring"),
+                onBattlefield(solRing.id, "ring"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -291,7 +291,7 @@ describe("cast affordability with multi-mana sources (issue #132)", () => {
             battlefield: [
                 onBattlefield(plains().id, "pl1"),
                 onBattlefield(plains().id, "pl2"),
-                onBattlefield(solRing().id, "ring"),
+                onBattlefield(solRing.id, "ring"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -307,7 +307,7 @@ describe("cast affordability with multi-mana sources (issue #132)", () => {
         });
         const player = makePlayer("p1", {
             hand: [bolt],
-            battlefield: [onBattlefield(solRing().id, "ring")],
+            battlefield: [onBattlefield(solRing.id, "ring")],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
         const state = withTurnOf(makeState({ players: [player] }), "p1");
@@ -432,7 +432,7 @@ describe("cast affordability — Archaeological Dig's sacrifice colors aren't pa
         });
         const player = makePlayer("p1", {
             hand: [bolt],
-            battlefield: [onBattlefield(archaeologicalDig().id, "dig")],
+            battlefield: [onBattlefield(archaeologicalDig.id, "dig")],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
         const state = withTurnOf(makeState({ players: [player] }), "p1");
@@ -490,7 +490,7 @@ describe("cast affordability — a cost.mana ability is NET mana, not a free uni
         const player = makePlayer("p1", {
             hand: [spell],
             battlefield: [
-                onBattlefield(nomadicElf().id, "elf"),
+                onBattlefield(nomadicElf.id, "elf"),
                 onBattlefield(forest().id, "forest"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
@@ -508,8 +508,8 @@ describe("cast affordability — a cost.mana ability is NET mana, not a free uni
         const player = makePlayer("p1", {
             hand: [spell],
             battlefield: [
-                onBattlefield(nomadicElf().id, "elf"),
-                onBattlefield(utopiaTree().id, "tree"),
+                onBattlefield(nomadicElf.id, "elf"),
+                onBattlefield(utopiaTree.id, "tree"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -550,7 +550,7 @@ describe("cast affordability — a tapOtherFilter ability must not double-count 
             hand: [spell],
             battlefield: [
                 onBattlefield(urzaLordHighArtificer().id, "urza"),
-                onBattlefield(moxSapphire().id, "sapphire"),
+                onBattlefield(moxSapphire.id, "sapphire"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -568,8 +568,8 @@ describe("cast affordability — a tapOtherFilter ability must not double-count 
             hand: [spell],
             battlefield: [
                 onBattlefield(urzaLordHighArtificer().id, "urza"),
-                onBattlefield(moxSapphire().id, "sapphire"),
-                onBattlefield(moxJet().id, "jet"),
+                onBattlefield(moxSapphire.id, "sapphire"),
+                onBattlefield(moxJet.id, "jet"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -613,7 +613,7 @@ describe("cast affordability — board-dependent canActivate must see the real b
             battlefield: [
                 onBattlefield(moxOpal().id, "mox"),
                 onBattlefield(ankhOfMishra().id, "ankh"),
-                onBattlefield(solRing().id, "ring"),
+                onBattlefield(solRing.id, "ring"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });

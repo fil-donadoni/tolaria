@@ -12,11 +12,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import type { CardInstance, Combat, Player } from "~/types/game";
-import {
-    grizzlyBears,
-    llanowarElves,
-} from "@convex/cards/sets/lea/green.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/green.cards";
 import { GameContext } from "~/hooks/useGameContext";
+import { getDefinition } from "@convex/cards";
+const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
 
 // The dock's own BandFormationPanel calls useMutation (createBand/removeBand)
 // unconditionally — stub it out, irrelevant to this positioning/gating suite.
@@ -103,7 +102,7 @@ describe("CombatPanels — the enlist choice (CR 508.1g / 702.154a)", () => {
             player({
                 battlefield: [
                     creature("atk1", grizzlyBears().id, ["enlist"]),
-                    creature("partner", llanowarElves().id),
+                    creature("partner", llanowarElves.id),
                 ],
             })
         );

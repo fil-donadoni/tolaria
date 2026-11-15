@@ -19,7 +19,7 @@ import {
     AURA_AFFECTS_HOST,
     EFFECT_AFFECTS_SELF,
 } from "../../types";
-import { makeTapForMana } from "../../abilities";
+import {} from "../../abilities";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { damageTakenTrigger } from "../../abilities/triggers/damageTakenTrigger";
@@ -808,25 +808,6 @@ export const livingLands = defineCard(() => ({
             power: 1,
             toughness: 1,
         },
-    ],
-}));
-
-export const llanowarElves = defineCard(() => ({
-    id: "d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb",
-    rarity: "common",
-    name: "Llanowar Elves",
-    oracleText: "{T}: Add {G}.",
-    manaCost: { G: 1 },
-    types: ["Creature"],
-    subtypes: ["Elf", "Druid"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        makeTapForMana({
-            id: "llanowar-elves-mana",
-            oracleText: "{T}: Add {G}.",
-            produces: { G: 1 },
-        }),
     ],
 }));
 

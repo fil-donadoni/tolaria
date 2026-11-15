@@ -13,8 +13,10 @@ import {
 import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
 import { lightningBolt } from "../../../cards/sets/lea/red.cards";
 import { island, mountain } from "../../../cards/sets/lea/colorless.cards";
-import { lotusPetal } from "../../../cards/sets/tmp/colorless.cards";
+
 import { observedOpponentColors } from "../observedColors";
+import { getDefinition } from "../../../cards";
+const lotusPetal = getDefinition("6c877da3-68fa-41d0-8a24-8c79fcd8ecc1");
 
 describe("observedOpponentColors — evidence weighting (issue #2306)", () => {
     it("a battlefield permanent's effective colour is evidence", () => {
@@ -86,7 +88,7 @@ describe("observedOpponentColors — evidence weighting (issue #2306)", () => {
     it("a SACRIFICE-gated mana source (Lotus Petal) is excluded — spending it is a decision not yet made", () => {
         const p1 = makePlayer("p1", {
             battlefield: [
-                makeInstance(lotusPetal().id, {
+                makeInstance(lotusPetal.id, {
                     id: "petal-1",
                     controllerId: "p1",
                     isTapped: false,

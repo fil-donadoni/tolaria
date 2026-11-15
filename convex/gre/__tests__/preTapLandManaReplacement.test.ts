@@ -33,7 +33,7 @@ import { infernalDarkness } from "../../cards/sets/ice/black.cards";
 import { realityTwist } from "../../cards/sets/ice/blue.cards";
 import { nakedSingularity } from "../../cards/sets/ice/colorless.cards";
 import { darkRitual } from "../../cards/sets/lea/black.cards";
-import { llanowarElves } from "../../cards/sets/lea/green.cards";
+
 import { ancestralRecall } from "../../cards/sets/lea/blue.cards";
 import { forest, island, mountain } from "../../cards/sets/lea/colorless.cards";
 import type { Id } from "../../_generated/dataModel";
@@ -43,6 +43,8 @@ import {
     gameStateSeed,
     type Handler,
 } from "../../__tests__/gameMutationHarness.fixture";
+import { getDefinition } from "../../cards";
+const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
 
 const POOL0 = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
 const BASE = { gameId: "game-1" as Id<"games">, playerId: "p1" };
@@ -279,7 +281,7 @@ describe("full path — announceCast + autoTapForPayment (CR 106.7)", () => {
     it("Infernal Darkness: a {G} creature is NOT castable from Forests alone (and is without it)", async () => {
         const castable = async (withDarkness: boolean) => {
             const state = board(
-                [{ id: "elves", cardId: llanowarElves().id }],
+                [{ id: "elves", cardId: llanowarElves.id }],
                 withDarkness
                     ? [permanent(infernalDarkness().id, "dark", "p1")]
                     : []

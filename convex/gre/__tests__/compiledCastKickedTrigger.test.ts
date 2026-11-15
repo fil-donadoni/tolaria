@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import { registerTokenDefinition } from "../../cards";
-import { forest, solRing } from "../../cards/sets/lea/colorless.cards";
+import { forest } from "../../cards/sets/lea/colorless.cards";
 import type { CardDefinition } from "../../cards/types";
 import {
     makeInstance,
@@ -22,11 +22,13 @@ import { compileCard } from "../../oracle/compile";
 import { oracleCard } from "../../oracle/__tests__/oracle.fixture";
 import { compactState, expandState } from "../serialize";
 import { resolveTopOfStack, type GameState } from "../state";
+import { getDefinition } from "../../cards";
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 /** Grizzly Bears — a registered vanilla creature, an inert target. */
 const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
 const FOREST_ID = forest().id;
-const SOL_RING_ID = solRing().id;
+const SOL_RING_ID = solRing.id;
 
 function register(
     id: string,

@@ -4,10 +4,9 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import type { CardInstance, Combat } from "~/types/game";
 import type { Id } from "@convex/_generated/dataModel";
-import {
-    grizzlyBears,
-    llanowarElves,
-} from "@convex/cards/sets/lea/green.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/green.cards";
+import { getDefinition } from "@convex/cards";
+const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
 
 const toggleEnlist = vi.fn(async () => {});
 vi.mock("convex/react", () => ({
@@ -53,7 +52,7 @@ const combat = (over: Partial<Combat> = {}): Combat =>
 
 const board = () => [
     creature(grizzlyBears().id, "attacker", ["enlist"]),
-    creature(llanowarElves().id, "partner"),
+    creature(llanowarElves.id, "partner"),
 ];
 
 function renderPanel(battlefield: CardInstance[], c: Combat = combat()) {

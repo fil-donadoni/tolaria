@@ -7,7 +7,7 @@ import {
     makePlayer,
     makeState,
 } from "@convex/cards/__tests__/setup.helper";
-import { grizzlyBears, solRing } from "@convex/cards/sets/lea/index.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/index.cards";
 import { registerTokenDefinition } from "@convex/cards";
 import { makeVehicle } from "@convex/cards/abilities/vehicle";
 import type { TargetRequirement } from "@convex/cards/types";
@@ -26,6 +26,8 @@ import {
 } from "~/lib/card-utils";
 import { formatTargetLabel } from "~/lib/target-progress";
 import type { CardInstance, PendingTarget, Player } from "~/types/game";
+import { getDefinition } from "@convex/cards";
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 const VEHICLE_ID = "test-client-union-vehicle";
 registerTokenDefinition(
@@ -89,7 +91,7 @@ describe('"creature or Vehicle" on the client (issue #8230)', () => {
         const state = board({
             bear: grizzlyBears().id,
             vehicle: VEHICLE_ID,
-            ring: solRing().id,
+            ring: solRing.id,
         });
         const server = getLegalTargets(
             state,
@@ -144,7 +146,7 @@ describe('"creature or Vehicle" on the client (issue #8230)', () => {
             hasBattlefieldTargetCandidate(
                 requirement,
                 source,
-                view(board({ ring: solRing().id })) as never
+                view(board({ ring: solRing.id })) as never
             )
         ).toBe(false);
         expect(

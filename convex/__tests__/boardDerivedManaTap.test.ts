@@ -30,8 +30,7 @@ import {
     makeState,
 } from "../cards/__tests__/setup.helper";
 import { forest, swamp } from "../cards/sets/lea/colorless.cards";
-import { gaeasCradle } from "../cards/sets/usg/colorless.cards";
-import { llanowarElves } from "../cards/sets/lea/green.cards";
+
 import type { CardInstanceState, GameState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -40,6 +39,9 @@ import {
     gameStateSeed,
     type Handler,
 } from "./gameMutationHarness.fixture";
+import { getDefinition } from "../cards";
+const gaeasCradle = getDefinition("25b0b816-0583-44aa-9dc5-f3ff48993a51");
+const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
 
 const GAME_ID = "game-1" as Id<"games">;
 
@@ -152,12 +154,9 @@ describe("tapUntap — Priest of Titania counts every player's Elves (CR 109.2)"
                     stateOf(
                         [
                             on(PRIEST_OF_TITANIA.id, "p1", "priest"),
-                            on(llanowarElves().id, "p1"),
+                            on(llanowarElves.id, "p1"),
                         ],
-                        [
-                            on(llanowarElves().id, "p2"),
-                            on(llanowarElves().id, "p2"),
-                        ]
+                        [on(llanowarElves.id, "p2"), on(llanowarElves.id, "p2")]
                     )
                 ),
             ]);
@@ -250,7 +249,7 @@ describe("tapSourceIntoPayment — the payment-tap path counts the whole battlef
         withTemporaryDefinition(PRIEST_OF_TITANIA, () => {
             const state = stateOf(
                 [on(PRIEST_OF_TITANIA.id, "p1", "priest")],
-                [on(llanowarElves().id, "p2"), on(llanowarElves().id, "p2")]
+                [on(llanowarElves.id, "p2"), on(llanowarElves.id, "p2")]
             );
             const player = state.players[0];
             const priest = player.battlefield[0];
@@ -264,7 +263,7 @@ describe("tapSourceIntoPayment — the payment-tap path counts the whole battlef
 
 describe("tapUntap — a basic land type's intrinsic tap beside a count (CR 305.6)", () => {
     it("an empty Gaea's Cradle that is also a Swamp adds one {B}", async () => {
-        const cradle = makeInstance(gaeasCradle().id, {
+        const cradle = makeInstance(gaeasCradle.id, {
             id: "cradle",
             controllerId: "p1",
             ownerId: "p1",

@@ -1757,54 +1757,6 @@ export const wallOfShields = defineCard(() => ({
     toughness: 4,
     staticAbilities: ["defender", "banding"],
 }));
-// Painland cycle (Adarkar Wastes, Brushland, Karplusan Forest, Sulfurous
-// Springs, Underground River) — "{T}: Add {C}.  {T}: Add <c1> or <c2>. This
-// land deals 1 damage to you." (CR 605.1a — both are mana abilities,
-// `useStack: false`). Modelled as ONE choice mana ability whose first option is
-// the painless {C} and whose two coloured options carry the
-// `dealsDamageToControllerOnColoredTap: 1` rider, so the colourless tap stays
-// free while only a coloured tap pings the controller. City of Brass's blanket
-// "whenever this becomes tapped" trigger can't express this (it fires on every
-// tap, including the painless {C}); the rider fires only on a coloured choice.
-export const adarkarWastes = defineCard(() => ({
-    id: "09dd9023-f7ee-4e99-8821-7059deb83730",
-    name: "Adarkar Wastes",
-    rarity: "rare",
-    oracleText:
-        "{T}: Add {C}.\n{T}: Add {W} or {U}. This land deals 1 damage to you.",
-    types: ["Land"],
-    activatedAbilities: [
-        {
-            id: "adarkar-wastes-mana",
-            oracleText:
-                "{T}: Add {C}.\n{T}: Add {W} or {U}. This land deals 1 damage to you.",
-            cost: { tap: true },
-            useStack: false,
-            manaChoices: [{ C: 1 }, { W: 1 }, { U: 1 }],
-            dealsDamageToControllerOnColoredTap: 1,
-        },
-    ],
-}));
-// Painland — see Adarkar Wastes note ({C} painless + coloured-tap self-damage).
-export const brushland = defineCard(() => ({
-    id: "170e5ccd-54bf-4c6d-86b4-0359ca8f36e8",
-    name: "Brushland",
-    rarity: "rare",
-    oracleText:
-        "{T}: Add {C}.\n{T}: Add {G} or {W}. This land deals 1 damage to you.",
-    types: ["Land"],
-    activatedAbilities: [
-        {
-            id: "brushland-mana",
-            oracleText:
-                "{T}: Add {C}.\n{T}: Add {G} or {W}. This land deals 1 damage to you.",
-            cost: { tap: true },
-            useStack: false,
-            manaChoices: [{ C: 1 }, { G: 1 }, { W: 1 }],
-            dealsDamageToControllerOnColoredTap: 1,
-        },
-    ],
-}));
 // Glacial Chasm — Land (issue #727). Four clauses over shipped seams:
 //   • Cumulative upkeep—Pay 2 life — the ADR 0042 template with a life cost
 //     (`cost: { life: 2 }`), the `{ life }` MayPayCost union leg.
@@ -1939,26 +1891,6 @@ export const iceFloe = defineCard(() => ({
         },
     ],
 }));
-// Painland — see Adarkar Wastes note ({C} painless + coloured-tap self-damage).
-export const karplusanForest = defineCard(() => ({
-    id: "ba6f1263-d598-49fb-b5f8-09f11822ebd0",
-    name: "Karplusan Forest",
-    rarity: "rare",
-    oracleText:
-        "{T}: Add {C}.\n{T}: Add {R} or {G}. This land deals 1 damage to you.",
-    types: ["Land"],
-    activatedAbilities: [
-        {
-            id: "karplusan-forest-mana",
-            oracleText:
-                "{T}: Add {C}.\n{T}: Add {R} or {G}. This land deals 1 damage to you.",
-            cost: { tap: true },
-            useStack: false,
-            manaChoices: [{ C: 1 }, { R: 1 }, { G: 1 }],
-            dealsDamageToControllerOnColoredTap: 1,
-        },
-    ],
-}));
 // Depletion-dual cycle (Land Cap, Lava Tubes, River Delta, Timberline Ridge,
 // Veldt — CR 605.1a / 502.1 / 603.6a / 122.1). Each:
 //   * "{T}: Add <c1> or <c2>. Put a depletion counter on this land." — ONE
@@ -2053,26 +1985,6 @@ export const riverDelta = defineCard(() =>
         c2: "B",
     })
 );
-// Painland — see Adarkar Wastes note ({C} painless + coloured-tap self-damage).
-export const sulfurousSprings = defineCard(() => ({
-    id: "2fdeab50-b45f-412b-85a3-c6cf009ce567",
-    name: "Sulfurous Springs",
-    rarity: "rare",
-    oracleText:
-        "{T}: Add {C}.\n{T}: Add {B} or {R}. This land deals 1 damage to you.",
-    types: ["Land"],
-    activatedAbilities: [
-        {
-            id: "sulfurous-springs-mana",
-            oracleText:
-                "{T}: Add {C}.\n{T}: Add {B} or {R}. This land deals 1 damage to you.",
-            cost: { tap: true },
-            useStack: false,
-            manaChoices: [{ C: 1 }, { B: 1 }, { R: 1 }],
-            dealsDamageToControllerOnColoredTap: 1,
-        },
-    ],
-}));
 // Depletion-dual — see the `depletionDual` factory note above Land Cap.
 export const timberlineRidge = defineCard(() =>
     depletionDual({
@@ -2082,26 +1994,6 @@ export const timberlineRidge = defineCard(() =>
         c2: "G",
     })
 );
-// Painland — see Adarkar Wastes note ({C} painless + coloured-tap self-damage).
-export const undergroundRiver = defineCard(() => ({
-    id: "92369d7e-5e5a-46f9-bb31-c57d62410283",
-    name: "Underground River",
-    rarity: "rare",
-    oracleText:
-        "{T}: Add {C}.\n{T}: Add {U} or {B}. This land deals 1 damage to you.",
-    types: ["Land"],
-    activatedAbilities: [
-        {
-            id: "underground-river-mana",
-            oracleText:
-                "{T}: Add {C}.\n{T}: Add {U} or {B}. This land deals 1 damage to you.",
-            cost: { tap: true },
-            useStack: false,
-            manaChoices: [{ C: 1 }, { U: 1 }, { B: 1 }],
-            dealsDamageToControllerOnColoredTap: 1,
-        },
-    ],
-}));
 // Depletion-dual — see the `depletionDual` factory note above Land Cap.
 export const veldt = defineCard(() =>
     depletionDual({

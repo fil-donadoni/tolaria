@@ -19,7 +19,7 @@ import {
     makeState,
 } from "../cards/__tests__/setup.helper";
 import { delightedHalfling } from "../cards/sets/ltr/index.cards";
-import { llanowarElves } from "../cards/sets/lea/green.cards";
+
 import { goblinKing } from "../cards/sets/lea/red.cards";
 import { withTemporaryDefinitionAsync } from "../cards/registry";
 import type { CardDefinition } from "../cards/types";
@@ -31,6 +31,9 @@ import {
     gameStateSeed,
     type Handler,
 } from "./gameMutationHarness.fixture";
+import { getDefinition } from "../cards";
+const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
+
 
 const GAME_ID = "game-1" as Id<"games">;
 /** Index 0 = the fixed {C} ability; 1-5 = the restricted ability's
@@ -129,7 +132,7 @@ describe("chosen-type-creature-spell mana — payment path (CR 106.6, issue #938
     it("a creature spell OF the chosen type commits off the mana and can't be countered", async () => {
         await withTemporaryDefinitionAsync(chosenTypeLand(), async () => {
             const stub = makeMutationCtx("p1", [
-                gameStateSeed(castState(llanowarElves().id, 1)),
+                gameStateSeed(castState(llanowarElves.id, 1)),
             ]);
             await runTapForPayment(stub.ctx);
             const state = stub.state();
@@ -165,7 +168,7 @@ describe("chosen-type-creature-spell mana — payment path (CR 106.6, issue #938
     it("a source that chose nothing yields mana that pays for nothing (fail closed)", async () => {
         await withTemporaryDefinitionAsync(chosenTypeLand(), async () => {
             const stub = makeMutationCtx("p1", [
-                gameStateSeed(castState(llanowarElves().id, 1, null)),
+                gameStateSeed(castState(llanowarElves.id, 1, null)),
             ]);
             await runTapForPayment(stub.ctx);
             const state = stub.state();
@@ -179,7 +182,7 @@ describe("chosen-type-creature-spell mana — payment path (CR 106.6, issue #938
     it("untapForPayment reverses the chosen-type bucket (CR 106.4 key symmetry)", async () => {
         await withTemporaryDefinitionAsync(chosenTypeLand(), async () => {
             const stub = makeMutationCtx("p1", [
-                gameStateSeed(castState(llanowarElves().id, 2)),
+                gameStateSeed(castState(llanowarElves.id, 2)),
             ]);
             await runTapForPayment(stub.ctx);
             expect(stub.state().players[0].restrictedMana).toHaveLength(1);

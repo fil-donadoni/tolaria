@@ -756,27 +756,3 @@ export const orcGeneral = defineCard(() => ({
         },
     ],
 }));
-
-// Sisters of the Flame — "{T}: Add {R}." (CR 605.1a mana ability — resolves
-// immediately, no stack, CR 605.3a.)
-export const sistersOfTheFlame = defineCard(() => ({
-    id: "564e0ccd-decb-48d2-981f-cefa8045340f",
-    rarity: "uncommon",
-    name: "Sisters of the Flame",
-    oracleText: "{T}: Add {R}.",
-    manaCost: { X: 1, R: 2 },
-    types: ["Creature"],
-    subtypes: ["Human", "Shaman"],
-    power: 2,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "sisters-of-the-flame-mana",
-            oracleText: "{T}: Add {R}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx) => ctx.addMana({ R: 1 }),
-            manaProduced: { R: 1 },
-        },
-    ],
-}));

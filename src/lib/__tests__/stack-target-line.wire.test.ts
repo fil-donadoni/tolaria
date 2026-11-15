@@ -17,7 +17,7 @@ import { describe, it, expect } from "vitest";
 import { stackTargetLines } from "../stack-target-line";
 import { mahamotiDjinn } from "@convex/cards/sets/lea/blue.cards";
 import { counterspell } from "@convex/cards/sets/lea/blue.cards";
-import { llanowarElves } from "@convex/cards/sets/lea/green.cards";
+
 import { lightningBolt } from "@convex/cards/sets/lea/red.cards";
 import { reanimate } from "@convex/cards/sets/tmp/black.cards";
 import { turnFaceDown } from "@convex/gre/faceDown";
@@ -30,6 +30,8 @@ import {
 } from "@convex/cards/__tests__/setup.helper";
 import type { Player, StackItem } from "~/types/game";
 import { NO_BOARD_LAYER_VIEW } from "../../../convex/gre/layers";
+import { getDefinition } from "@convex/cards";
+const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
 
 /** Project for `viewer` and resolve the lines of stack item `index`. */
 function linesFor(
@@ -70,7 +72,7 @@ function stateWithBoltOnFaceDownDjinn() {
  *  the MIDDLE one, and p2's Counterspell targets the Reanimate. */
 function stateWithReanimateOnMiddleElf() {
     const elves = ["elf-a", "elf-b", "elf-c"].map((id) =>
-        makeInstance(llanowarElves().id, {
+        makeInstance(llanowarElves.id, {
             id,
             controllerId: "p2",
             ownerId: "p2",

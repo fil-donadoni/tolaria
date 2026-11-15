@@ -19,14 +19,12 @@ import {
     makeState,
 } from "@convex/cards/__tests__/setup.helper";
 import { projectPublicState } from "@convex/gameProjections";
-import {
-    solRing,
-    grizzlyBears,
-    swamp,
-} from "@convex/cards/sets/lea/index.cards";
+import { grizzlyBears, swamp } from "@convex/cards/sets/lea/index.cards";
 import { drought } from "@convex/cards/sets/ice/white.cards";
 import { affordableAltCostsForCard } from "../card-utils";
 import type { CardInstance, Player } from "~/types/game";
+import { getDefinition } from "@convex/cards";
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 const EMERGE_PROBE_ID = "test:emerge-alt-cost-probe";
 const emergeProbe: CardDefinition = {
@@ -120,7 +118,7 @@ function emergeOptionOffered(
 
 describe("affordableAltCostsForCard — Emerge cast-option picker gate (CR 702.119b)", () => {
     it("offers emerge from artifact through the projected view when an artifact can be sacrificed", () => {
-        expect(emergeOptionOffered(solRing().id)).toBe(true);
+        expect(emergeOptionOffered(solRing.id)).toBe(true);
     });
 
     it("withholds it when the only permanent is not an artifact", () => {

@@ -478,38 +478,6 @@ export const maggotCarrier = defineCard(() => ({
     ],
 }));
 
-// Morgue Toad — {2}{B} Creature — Frog, 2/2. "Sacrifice this creature: Add
-// {U}{R}." (CR 605.1a mana ability, sacrifice-self cost, NO tap component.)
-//
-// Shipped with issue #2021's fix (it was a commented stub until then): the
-// engine now has a path for a sacrifice-only, tap-less mana ability
-// (`getFixedSacrificeManaAbility` + `activateFixedSacrificeManaAbility`,
-// `gre/constants.ts` / `game.ts`), including the MULTI-colour output this card
-// needs — the old fixed branches resolved a single `Color` through
-// `getActivatedManaColor`, which returns null for {U}{R} even when it matches.
-// CR 302.6 — no {T} in the cost, so summoning sickness does not gate it: the
-// Toad can be sacrificed for mana the turn it enters.
-export const morgueToad = defineCard(() => ({
-    id: "77d8ae73-70d1-4082-8581-5f74c1aaa63b", // PLS 46
-    name: "Morgue Toad",
-    rarity: "common",
-    oracleText: "Sacrifice this creature: Add {U}{R}.",
-    manaCost: { X: 2, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Frog"],
-    power: 2,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "morgue-toad-mana",
-            oracleText: "Sacrifice this creature: Add {U}{R}.",
-            cost: { sacrifice: true },
-            useStack: false, // mana ability (CR 605.3a)
-            manaProduced: { U: 1, R: 1 },
-        },
-    ],
-}));
-
 // Nightscape Battlemage — {2}{B} Creature — Zombie Wizard, 2/2. "Kicker
 // {2}{U} and/or {2}{R}. When this creature enters, if it was kicked with
 // its {2}{U} kicker, return up to two target nonblack creatures to their

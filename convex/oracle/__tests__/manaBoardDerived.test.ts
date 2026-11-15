@@ -25,15 +25,8 @@
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { roundTripCard } from "../gold";
 import type { CompiledDefinition, OracleCard } from "../types";
-import {
-    gaeasCradle,
-    serrasSanctum,
-    tolarianAcademy,
-} from "../../cards/sets/usg/colorless.cards";
-import { fellwarStone } from "../../cards/sets/drk/colorless.cards";
-import { quirionExplorer } from "../../cards/sets/pls/green.cards";
+
 import { oracleCard } from "./oracle.fixture";
 
 function compiledOf(card: OracleCard): CompiledDefinition {
@@ -264,19 +257,6 @@ describe("golden — the any-COLOR read of an opponent's lands lowers to a produ
                 ],
             })
         );
-    });
-});
-
-describe("gold — the hand-written board-count lands round-trip through their own text", () => {
-    it.each([
-        gaeasCradle(),
-        tolarianAcademy(),
-        serrasSanctum(),
-        fellwarStone(),
-        quirionExplorer(),
-    ])("$name", (card) => {
-        const verdict = roundTripCard(card).verdict;
-        expect(sortKeys(verdict)).toEqual({ ok: true, kind: "equal" });
     });
 });
 

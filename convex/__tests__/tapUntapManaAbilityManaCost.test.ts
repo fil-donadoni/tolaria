@@ -24,7 +24,7 @@ import {
     makePlayer,
     makeState,
 } from "../cards/__tests__/setup.helper";
-import { manaCylix } from "../cards/sets/pls/colorless.cards";
+
 import { fireSprites } from "../cards/sets/leg/green.cards";
 import { mountain } from "../cards/sets/lea/index.cards";
 import type { GameState } from "../gre/state";
@@ -35,6 +35,8 @@ import {
     gameStateSeed,
     type Handler,
 } from "./gameMutationHarness.fixture";
+import { getDefinition } from "../cards";
+const manaCylix = getDefinition("c6f95767-afda-4d74-bbd4-1b702eeae54b");
 
 const GAME_ID = "game-1" as Id<"games">;
 
@@ -57,7 +59,7 @@ const runTapUntap = (
 
 /** Mana Cylix on the battlefield with `pool` floating for its controller. */
 function cylixState(pool: Partial<GameState["players"][0]["manaPool"]>) {
-    const cylix = makeInstance(manaCylix().id, {
+    const cylix = makeInstance(manaCylix.id, {
         id: "cylix",
         controllerId: "p1",
         ownerId: "p1",
@@ -118,7 +120,7 @@ describe("tapUntap — a mana ability's own mana cost (CR 605.1a / 601.2f)", () 
         // float the {1} first (the legal sequence — a mana ability can be
         // activated to pay for another, CR 605.3a), then pays it.
         it("auto-taps a land to fund the {1} instead of rejecting", async () => {
-            const cylix = makeInstance(manaCylix().id, {
+            const cylix = makeInstance(manaCylix.id, {
                 id: "cylix",
                 controllerId: "p1",
                 ownerId: "p1",

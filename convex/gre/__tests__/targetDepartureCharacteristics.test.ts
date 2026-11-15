@@ -22,14 +22,12 @@ import { getEffectiveColors } from "../../cards/effectiveColors";
 import { liveSupertypesOf } from "../../cards/snowReads";
 import { projectPublicState } from "../../gameProjections";
 import { syncLayers2to5 } from "../layers2to5";
-import {
-    blackLotus,
-    kormusBell,
-    swamp,
-} from "../../cards/sets/lea/colorless.cards";
+import { kormusBell, swamp } from "../../cards/sets/lea/colorless.cards";
 import { yavimayaCradleOfGrowth } from "../../cards/sets/mh2/colorless.cards";
 import { melting } from "../../cards/sets/ice/red.cards";
 import { snowCoveredSwamp } from "../../cards/sets/ice/colorless.cards";
+import { getDefinition } from "../../cards";
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 
 type Departure = "hand" | "library" | "graveyard" | "exile";
 const DEPARTURES: Departure[] = ["hand", "library", "graveyard", "exile"];
@@ -163,7 +161,7 @@ describe("subtype-add ends with the departing target (CR 400.7, CR 613.1d)", () 
     it.each(DEPARTURES)(
         "a resolved subtype add does not follow a Swamp to %s",
         (zone) => {
-            const { state } = makeBoard(blackLotus().id);
+            const { state } = makeBoard(blackLotus.id);
             const onBoard = onBattlefield(state, "target-a");
             onBoard.subtypeAddHolds = [{ subtype: "Forest", seq: 99 }];
             syncLayers2to5(state);
@@ -263,7 +261,7 @@ describe("a resolved colour change ends with the departing object (CR 400.7, CR 
     it.each(DEPARTURES)(
         "a colour SET does not follow a Swamp to %s",
         (zone) => {
-            const { state, a } = makeBoard(blackLotus().id);
+            const { state, a } = makeBoard(blackLotus.id);
             a.colorOverride = ["U"];
             a.temporaryColorOverrides = [{ colors: ["R"] }];
             expect(getEffectiveColors(a)).not.toEqual([]);
@@ -334,7 +332,7 @@ describe("supertype changes end with the departing target (CR 400.7, CR 613.1d)"
     it.each(DEPARTURES)(
         "a resolved supertype change does not follow a Swamp to %s",
         (zone) => {
-            const { state } = makeBoard(blackLotus().id);
+            const { state } = makeBoard(blackLotus.id);
             const swampOnBoard = onBattlefield(state, "target-a");
             swampOnBoard.supertypeHolds = [{ add: ["Snow"], seq: 99 }];
             syncLayers2to5(state);

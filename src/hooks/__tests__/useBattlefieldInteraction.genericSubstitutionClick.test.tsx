@@ -8,7 +8,6 @@ import { act, render, cleanup } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { CardInstance, PendingActivation, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
-import { solRing } from "@convex/cards/sets/lea/colorless.cards";
 
 type MutArgs = Record<string, unknown>;
 type MutFn = (args?: MutArgs) => Promise<void>;
@@ -67,10 +66,12 @@ vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
 
 // Import AFTER mocks are registered.
 import { useBattlefieldInteraction } from "../useBattlefieldInteraction";
+import { getDefinition } from "@convex/cards";
+const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 const ring: CardInstance = {
     id: "ring",
-    card: { id: solRing().id },
+    card: { id: solRing.id },
     controllerId: "me",
     ownerId: "me",
     zone: "battlefield",
