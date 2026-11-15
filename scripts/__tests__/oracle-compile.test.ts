@@ -486,7 +486,7 @@ describe("the committed lockfile", () => {
         // definition. The corpus size is Scryfall's and must match exactly;
         // the pool grows as cards ship, so it is asserted as a floor.
         //
-        // Floor lowered from 1303 (issue #4027) to the hand-written count
+        // Floor lowered from 1303 (issue #4027; 1252 after issue #4041) to the hand-written count
         // each retirement leaves behind: `pool` is
         // `poolOracleIdsFromIndex` — oracle ids WITHOUT
         // `source: "compiled"` on their `data/card-index.json` row, i.e. the
@@ -504,7 +504,7 @@ describe("the committed lockfile", () => {
         // red this floor.
         const premodern = deriveFormats(lock!.cards, poolOracleIds()).premodern;
         expect(premodern.total).toBe(5375);
-        expect(premodern.pool).toBeGreaterThanOrEqual(1250);
+        expect(premodern.pool).toBeGreaterThanOrEqual(1252);
     });
 });
 

@@ -34,7 +34,7 @@
 // hand-built OwedChoice, so a field dropped in the projection shows up as red.
 
 import { describe, expect, it } from "vitest";
-import { moxDiamond } from "@convex/cards/sets/sth/colorless.cards";
+import { getDefinition } from "@convex/cards/registry";
 import { forest, grizzlyBears } from "@convex/cards/sets/lea/index.cards";
 import {
     makeInstance,
@@ -49,6 +49,9 @@ import { refreshExpectedInput } from "@convex/gre/expectedInput";
 import { buildBotView } from "../bot-view";
 import { escalationLadder } from "../owed-input";
 import type { BotAction } from "../brain";
+
+// Compiled from Oracle text (ADR 0114): the registry is the seam.
+const moxDiamond = getDefinition("28028830-83ed-45e2-b495-3b9ad9d3e988");
 
 const BOT = "p2";
 
@@ -89,7 +92,7 @@ function moxEntering(
         activePlayerId: BOT,
         priorityPlayerId: BOT,
     });
-    const mox = makeInstance(moxDiamond().id, {
+    const mox = makeInstance(moxDiamond.id, {
         id: "mox",
         controllerId: BOT,
         ownerId: BOT,
@@ -197,7 +200,7 @@ describe("bot answers Mox Diamond's as-enters discard (CR 614.1a, issue #2389)",
             activePlayerId: BOT,
             priorityPlayerId: BOT,
         });
-        const mox = makeInstance(moxDiamond().id, {
+        const mox = makeInstance(moxDiamond.id, {
             id: "mox",
             controllerId: BOT,
             ownerId: BOT,

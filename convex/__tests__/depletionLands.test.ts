@@ -51,13 +51,7 @@ import {
     manaTapSacrificesSource,
     mayBeSacrificedForMana,
 } from "../gre/constants";
-import {
-    hickoryWoodlot,
-    peatBog,
-    remoteFarm,
-    sandstoneNeedle,
-    saprazzanSkerry,
-} from "../cards/sets/mmq/colorless.cards";
+import { getDefinition } from "../cards/registry";
 import { titaniaProtectorOfArgoth } from "../cards/sets/c14/green.cards";
 import type { CardDefinition } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "../gre/state";
@@ -68,6 +62,14 @@ import {
     gameStateSeed,
     type Handler,
 } from "./gameMutationHarness.fixture";
+
+// The depletion-land cycle is compiled from Oracle text (ADR 0114): the
+// registry is the seam, the ids are the cards' Oracle ids.
+const hickoryWoodlot = getDefinition("af7aafb7-6870-4d09-a191-70786766c459");
+const peatBog = getDefinition("bcc9d1e0-c8f4-4bac-90d4-8167f7a1515a");
+const remoteFarm = getDefinition("115cab84-60d7-4bf2-9beb-b4ed7b5ceaf4");
+const sandstoneNeedle = getDefinition("82bc7c6b-2e3d-42d1-b2bb-b37b6f34d33b");
+const saprazzanSkerry = getDefinition("006871fd-2641-42cb-a2ac-a33d05fc5a35");
 
 const GAME_ID = "game-1" as Id<"games">;
 const DEPLETION = "depletion";
@@ -114,7 +116,7 @@ function boardWith(
 
 describe("depletion lands — entry (CR 614.1c / 122.1, issue #2712)", () => {
     it("Hickory Woodlot enters TAPPED with two depletion counters, and both survive the wire", () => {
-        const inHand = makeInstance(hickoryWoodlot().id, {
+        const inHand = makeInstance(hickoryWoodlot.id, {
             id: "woodlot",
             controllerId: "p1",
             ownerId: "p1",
@@ -146,7 +148,7 @@ describe("depletion lands — entry (CR 614.1c / 122.1, issue #2712)", () => {
 
 describe("depletion lands — priority tap (CR 605.1a / 118.3 / 701.21)", () => {
     it("the FIRST tap adds {G}{G} and spends one counter, leaving the land on the battlefield", async () => {
-        const { state } = boardWith(hickoryWoodlot(), 2);
+        const { state } = boardWith(hickoryWoodlot, 2);
         const stub = makeMutationCtx("p1", [gameStateSeed(state)]);
 
         await runTapUntap(stub.ctx, "woodlot");
@@ -167,7 +169,7 @@ describe("depletion lands — priority tap (CR 605.1a / 118.3 / 701.21)", () => 
     });
 
     it("the SECOND tap adds {G}{G} and SACRIFICES the land, the mana surviving it", async () => {
-        const { state } = boardWith(hickoryWoodlot(), 1);
+        const { state } = boardWith(hickoryWoodlot, 1);
         const stub = makeMutationCtx("p1", [gameStateSeed(state)]);
 
         await runTapUntap(stub.ctx, "woodlot");
@@ -188,7 +190,7 @@ describe("depletion lands — priority tap (CR 605.1a / 118.3 / 701.21)", () => 
     });
 
     it("untapping to refund unspent mana restores the counter (CR 106.4)", async () => {
-        const { state } = boardWith(hickoryWoodlot(), 2);
+        const { state } = boardWith(hickoryWoodlot, 2);
         const stub = makeMutationCtx("p1", [gameStateSeed(state)]);
 
         await runTapUntap(stub.ctx, "woodlot");
@@ -209,7 +211,7 @@ describe("depletion lands — priority tap (CR 605.1a / 118.3 / 701.21)", () => 
 
 describe("depletion lands — payment tap (CR 605.1a / 118.3 / 701.21)", () => {
     it("pays the counter mid-payment and keeps the land while a counter remains", () => {
-        const { state, player, land } = boardWith(hickoryWoodlot(), 2);
+        const { state, player, land } = boardWith(hickoryWoodlot, 2);
         const tappedLandIds: string[] = [];
 
         tapSourceIntoPayment(state, player, land, undefined, tappedLandIds);
@@ -222,7 +224,7 @@ describe("depletion lands — payment tap (CR 605.1a / 118.3 / 701.21)", () => {
     });
 
     it("a SACRIFICED land is dropped from tappedLandIds, so an aborted payment cannot resurrect it", () => {
-        const { state, player, land } = boardWith(hickoryWoodlot(), 1);
+        const { state, player, land } = boardWith(hickoryWoodlot, 1);
         const tappedLandIds: string[] = [];
 
         tapSourceIntoPayment(state, player, land, undefined, tappedLandIds);
@@ -242,7 +244,7 @@ describe("depletion lands — a land with no counters is not a mana source", () 
     // the mana-source predicates must see that, or the bot's mana proxy counts
     // a land it cannot tap and the client offers a click the server rejects.
     it("offers no tap option, resolves no mana ability, and counts as no source", () => {
-        const { state, player, land } = boardWith(hickoryWoodlot(), 0);
+        const { state, player, land } = boardWith(hickoryWoodlot, 0);
         const battlefields = state.players.map((p) => ({
             playerId: p.id,
             battlefield: p.battlefield,
@@ -254,7 +256,7 @@ describe("depletion lands — a land with no counters is not a mana source", () 
     });
 
     it("still offers the option while a counter remains", () => {
-        const { state, player, land } = boardWith(hickoryWoodlot(), 1);
+        const { state, player, land } = boardWith(hickoryWoodlot, 1);
         const battlefields = state.players.map((p) => ({
             playerId: p.id,
             battlefield: p.battlefield,
@@ -274,12 +276,12 @@ describe("depletion lands — the search's coarse mana model", () => {
     // a depleted land sitting tapped in every simulated future, so the bot
     // plans around mana it no longer has.
     it("mayBeSacrificedForMana admits the conditional shape", () => {
-        const { land } = boardWith(hickoryWoodlot(), 2);
+        const { land } = boardWith(hickoryWoodlot, 2);
         expect(mayBeSacrificedForMana(land)).toBe(true);
     });
 
     it("manaTapSacrificesSource is false on the first tap and true on the last", () => {
-        const twoLeft = boardWith(hickoryWoodlot(), 2);
+        const twoLeft = boardWith(hickoryWoodlot, 2);
         const battlefieldsTwo = twoLeft.state.players.map((p) => ({
             playerId: p.id,
             battlefield: p.battlefield,
@@ -293,7 +295,7 @@ describe("depletion lands — the search's coarse mana model", () => {
             )
         ).toBe(false);
 
-        const oneLeft = boardWith(hickoryWoodlot(), 1);
+        const oneLeft = boardWith(hickoryWoodlot, 1);
         const battlefieldsOne = oneLeft.state.players.map((p) => ({
             playerId: p.id,
             battlefield: p.battlefield,
@@ -311,11 +313,11 @@ describe("depletion lands — the search's coarse mana model", () => {
 
 describe("depletion lands — the whole cycle", () => {
     const CYCLE: [CardDefinition, "W" | "U" | "B" | "R" | "G"][] = [
-        [remoteFarm(), "W"],
-        [saprazzanSkerry(), "U"],
-        [peatBog(), "B"],
-        [sandstoneNeedle(), "R"],
-        [hickoryWoodlot(), "G"],
+        [remoteFarm, "W"],
+        [saprazzanSkerry, "U"],
+        [peatBog, "B"],
+        [sandstoneNeedle, "R"],
+        [hickoryWoodlot, "G"],
     ];
 
     it.each(CYCLE)(
@@ -356,7 +358,7 @@ describe("depletion lands — the CAST payment reversals (CR 106.4 / 118.3)", ()
     // through the registered mutations, because that duplication is what a unit
     // test on the shared helper cannot see.
     function castPaymentState(): GameState {
-        const { state, player, land } = boardWith(hickoryWoodlot(), 2);
+        const { state, player, land } = boardWith(hickoryWoodlot, 2);
         // Pay the land into the cast the way `tapForPayment` does.
         tapSourceIntoPayment(state, player, land, undefined, []);
         state.pendingCast = {
@@ -424,7 +426,7 @@ describe("depletion lands — the sacrifice is a real departure (CR 603.6 / 700.
     // a watcher: Titania, Protector of Argoth — "Whenever a land you control is
     // put into a graveyard from the battlefield, create a 5/3 …" (CR 603.6e).
     it("Titania sees the depleted land hit the graveyard and her trigger goes on the stack", async () => {
-        const { state, player } = boardWith(hickoryWoodlot(), 1);
+        const { state, player } = boardWith(hickoryWoodlot, 1);
         player.battlefield.push(
             makeInstance(titaniaProtectorOfArgoth().id, {
                 id: "titania",

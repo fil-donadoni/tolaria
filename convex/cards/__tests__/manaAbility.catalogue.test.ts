@@ -294,7 +294,6 @@ describe("mana abilities, catalogue-wide (CR 605.1a)", () => {
 
     it("a sacrifice-cost mana ability beside a non-destructive one is the player's to choose, never the planner's (CR 605.3a, issue #3630)", () => {
         const failures: string[] = [];
-        let reached = 0;
         for (const def of getAllCards()) {
             // Every descriptor, not just a fixed output: Archaeological Dig's
             // sacrifice ability is a `manaChoices` "one mana of any color".
@@ -343,7 +342,6 @@ describe("mana abilities, catalogue-wide (CR 605.1a)", () => {
                 );
             }
             for (const ability of destructive) {
-                reached++;
                 const offered = manual.find(
                     (o) =>
                         o.source.kind === "activated" &&
@@ -371,17 +369,18 @@ describe("mana abilities, catalogue-wide (CR 605.1a)", () => {
             }
         }
         expect(failures, failures.join("\n\n")).toEqual([]);
-        // The 11 FEM + Invasion sacrifice lands at the time of writing; 10 after
-        // Basal Thrull retired to its compiled twin (issue #4026, ADR 0114 §2).
-        expect(reached).toBeGreaterThanOrEqual(10);
+        // No hand-written card reaches this sweep now: the FEM + Invasion
+        // sacrifice lands and Basal Thrull all retired to their compiled twins
+        // (ADR 0114 §2), so the floor that pinned a count is gone. The sweep
+        // stays for the next hand-written card of this shape.
     });
 
     it("the sweep is not vacuous — it reached a substantial slice of the catalogue", () => {
         // Without this, a filter that accidentally matches nothing turns the
         // assertion above into a green no-op forever. The floor is well under
         // the current count so it tracks a real regression, not catalogue churn.
-        expect(RESULT.checked).toBeGreaterThan(50);
-        expect(RESULT.cards.size).toBeGreaterThan(40);
+        expect(RESULT.checked).toBeGreaterThan(35);
+        expect(RESULT.cards.size).toBeGreaterThan(35);
     });
 
     // ── The sweep's own blind spot, closed (CR 605.1a) ──────────────────────
