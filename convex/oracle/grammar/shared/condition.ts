@@ -614,9 +614,10 @@ export function singularControlledFilter(
 function controlledFilter(
     descriptor: DescriptorIR,
     span: string,
-    /** `tapped: true` — the site's count reads the live tap status
-     *  (`countControlledMatching`, CR 110.5): the zero count and the counted
-     *  form, whose every consumer goes through it. */
+    /** `tapped: true` — the zero count and the counted form: the trigger
+     *  gate counts through `countControlledMatching`, which reads the live
+     *  tap status (CR 110.5); the activation and effect-count lowerings
+     *  refuse a `tapped` key rather than drop it. */
     allow: { readonly supertypes?: true; readonly tapped?: true } = {}
 ): RuleResult<PermanentFilter> {
     const filter = permanentFilterFromDescriptor(descriptor, {
