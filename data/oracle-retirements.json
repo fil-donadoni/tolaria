@@ -218,12 +218,8 @@
         {"oracleId":"df317532-7d36-40fd-938f-e972749c8792","name":"Fyndhorn Elves","retiredAt":"2026-11-15","issue":4026},
         {"oracleId":"e13289e5-370b-435b-a38e-cf57c3078cec","name":"Rith's Grove","retiredAt":"2026-11-15","issue":5233},
         {"oracleId":"e8eb2abb-daf9-43e0-b909-d96b679f71c2","name":"Flood","retiredAt":"2026-09-18","issue":4027},
-<<<<<<< HEAD
         {"oracleId":"e96e68b4-cb32-4b75-a885-e1781f4b74ab","name":"Nightscape Battlemage","retiredAt":"2026-11-15","issue":4035},
-||||||| parent of 3ae7a69ba (Migration: mana-ability + triggered — retire 7 card(s) (issue #5233))
-=======
         {"oracleId":"e9a7dede-3968-4b0e-a707-419d46a6fec9","name":"Crosis's Catacombs","retiredAt":"2026-11-15","issue":5233},
->>>>>>> 3ae7a69ba (Migration: mana-ability + triggered — retire 7 card(s) (issue #5233))
         {"oracleId":"ea55db87-a5c3-49f7-b968-77510cdeb469","name":"Goblin Chirurgeon","retiredAt":"2026-09-18","issue":4027},
         {"oracleId":"eb228a6c-bceb-45c3-a258-3f209682e1c6","name":"Celestial Prism","retiredAt":"2026-11-15","issue":4026},
         {"oracleId":"ebb68e03-b2a5-4c5c-8e3b-968cd241d1f0","name":"Thornscape Apprentice","retiredAt":"2026-09-18","issue":4027},
