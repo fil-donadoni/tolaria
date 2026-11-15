@@ -2767,6 +2767,14 @@ function isRevealRouteDestination(value: unknown): boolean {
     );
 }
 
+/** Where a `revealUntilMatch` Op may send the revealed cards other than the
+ *  match (`RevealUntilRestDestination`): a `RevealRouteDestination`, or
+ *  `"shuffleIntoLibrary"` — they stay in the library, shuffled once (CR
+ *  701.24a). */
+function isRevealUntilRestDestination(value: unknown): boolean {
+    return value === "shuffleIntoLibrary" || isRevealRouteDestination(value);
+}
+
 /** The ordered `routes` list of a `revealTopAndRoute` Op: a non-empty list of
  *  `{ filter, to }` rules, evaluated first-match-wins per revealed card. Mirrors
  *  `isPickCategoryList`'s exact-key discipline so a typo'd field is a
@@ -6267,7 +6275,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             player: isPlayerRef,
             filter: isCardFilter,
             match: isRevealRouteDestination,
-            rest: isRevealRouteDestination,
+            rest: isRevealUntilRestDestination,
         },
         // Issue #2608 — the matching card's id, a PICKS binding whatever
         // `match` is (an id names the card in any zone; a snapshot's kind
