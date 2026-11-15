@@ -2,7 +2,7 @@
 // the `saga` layout and on a Saga face of a `transform` card.
 //
 //  1. GOLDENS — real Oracle rows, the whole definition, `chapters` asserted.
-//  2. ROUND TRIP — the hand-written History of Benalia (verdict `equal`).
+//  2. REGISTRY SEAM — History of Benalia, retired to its compiled row (ADR 0114).
 //  3. REFUSALS — a card is refused whole, never truncated.
 //  4. THE GATES — a chapter's script is judged like any ability's.
 //  5. THE SEAM — a compiled Saga is what `expandChapterAbilities` expects.
@@ -24,7 +24,6 @@ import { checkStateBasedActions } from "../../gre/sba";
 import { resolveTopOfStack } from "../../gre/state";
 import { compileCard } from "../compile";
 import { runGates, sortKeys } from "../gates";
-import { roundTripCard } from "../gold";
 import { GOLDEN_FIXTURES } from "../grammar/fixtures";
 import type { CompileOutcome, OracleCard } from "../types";
 import { oracleCard } from "./oracle.fixture";
@@ -346,12 +345,20 @@ describe("chapter goldens (CR 714.2b, CR 714.2c)", () => {
     });
 });
 
-describe("Guard C (CR 714.2)", () => {
-    it("History of Benalia round-trips to `equal`", () => {
-        const { verdict } = roundTripCard(
-            getDefinition(getCardByName("History of Benalia").id)
-        );
-        expect(verdict).toEqual({ ok: true, kind: "equal" });
+describe("registry seam (CR 714.2, ADR 0114)", () => {
+    it("History of Benalia resolves to its compiled chapters I, II and III", () => {
+        const def = getDefinition(getCardByName("History of Benalia").id);
+        expect(def.chapterAbilities?.map((c) => c.chapters)).toEqual([
+            [1, 2],
+            [3],
+        ]);
+        expect(def.chapterAbilities?.[0].effects[0]).toMatchObject({
+            op: "createToken",
+            controller: "controller",
+        });
+        expect(def.chapterAbilities?.[1].effects[0]).toMatchObject({
+            op: "forEach",
+        });
     });
 });
 
