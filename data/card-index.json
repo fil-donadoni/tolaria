@@ -24375,7 +24375,9 @@
         "oracleId": "5948381a-419d-4b8b-8ea2-ea623cb0d606",
         "firstSet": "leg",
         "firstPrintId": "ef3651d4-969c-464d-a444-40a640d0c6ba",
-        "firstPrintSet": "leg"
+        "firstPrintSet": "leg",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Elder Spawn",
@@ -97630,6 +97632,16 @@
         "firstSet": "dtk",
         "firstPrintId": "d23ae0d2-0ca1-4095-8710-be5800e389cd",
         "firstPrintSet": "dtk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Zephyr Spirit",
+        "scryfallId": "e6cbe78f-4325-416b-bf23-282efed5b407",
+        "oracleId": "ff640343-6980-4668-a41f-0f01b0bbc0f2",
+        "firstSet": "rav",
+        "firstPrintId": "e6cbe78f-4325-416b-bf23-282efed5b407",
+        "firstPrintSet": "rav",
         "rarity": "common",
         "source": "compiled"
     },

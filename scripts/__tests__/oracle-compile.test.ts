@@ -486,7 +486,8 @@ describe("the committed lockfile", () => {
         // definition. The corpus size is Scryfall's and must match exactly;
         // the pool grows as cards ship, so it is asserted as a floor.
         //
-        // Floor lowered from 1303 (issue #4027) to 1278 (issue #4035): `pool` is
+        // Floor lowered from 1303 (issue #4027) to 1278 (issue #4035), then
+        // 1277 (issue #9621, Elder Land Wurm retired): `pool` is
         // `poolOracleIdsFromIndex` — oracle ids WITHOUT
         // `source: "compiled"` on their `data/card-index.json` row, i.e. the
         // hand-written count specifically. Retirement (ADR 0114 §2) moves a
@@ -498,7 +499,7 @@ describe("the committed lockfile", () => {
         // will keep eroding it.
         const premodern = deriveFormats(lock!.cards, poolOracleIds()).premodern;
         expect(premodern.total).toBe(5375);
-        expect(premodern.pool).toBeGreaterThanOrEqual(1278);
+        expect(premodern.pool).toBeGreaterThanOrEqual(1277);
     });
 });
 
