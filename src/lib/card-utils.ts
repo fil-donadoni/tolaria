@@ -1,3 +1,4 @@
+import { hasKeywordAbility } from "@convex/gre/hexproofQuality";
 import { activationEvidenceUnpayable } from "@convex/gre/collectEvidence";
 import type {
     CardInstance,
@@ -1331,16 +1332,18 @@ export function matchesPermanentFilter(
         const cardSupertypes = liveSupertypesOf(card);
         if (excluded.some((s) => cardSupertypes.includes(s))) return false;
     }
+    // CR 702.11e — looking for hexproof finds "hexproof from [quality]",
+    // exactly as the server filter does.
     const abilities = card.staticAbilities ?? [];
     if (
         filter.requireAbility !== undefined &&
-        !abilities.includes(filter.requireAbility)
+        !hasKeywordAbility(abilities, filter.requireAbility)
     ) {
         return false;
     }
     if (
         filter.excludeAbility !== undefined &&
-        abilities.includes(filter.excludeAbility)
+        hasKeywordAbility(abilities, filter.excludeAbility)
     ) {
         return false;
     }

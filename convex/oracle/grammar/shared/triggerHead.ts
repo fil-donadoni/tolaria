@@ -598,6 +598,22 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
             filter: { colors: ["W", "U", "B", "R"] },
         },
     ],
+    // CR 105.2b — "a multicolored spell" names no colour: two or more of the
+    // five, a COUNT bound (`SpellFilter.colorCountAtLeast`), never an OR over
+    // the colours (that reading admits every monocolored spell). Colourless
+    // fails it (CR 105.2c). Only "you" and "an opponent" are printed with it.
+    [
+        "whenever you cast a multicolored spell",
+        { kind: "spell-cast", scope: "you", filter: { colorCountAtLeast: 2 } },
+    ],
+    [
+        "whenever an opponent casts a multicolored spell",
+        {
+            kind: "spell-cast",
+            scope: "opponent",
+            filter: { colorCountAtLeast: 2 },
+        },
+    ],
     ...typeSpellCastHeads(),
     // CR 603.2 + 205.2a — "a noncreature spell" is a spell without the
     // creature card type: the negative of the type rows above, the same

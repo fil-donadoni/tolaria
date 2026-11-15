@@ -38,6 +38,7 @@
 
 import { tryGetDefinition } from "../cards";
 import { declaresLayer6StaticEffect } from "../cards/registry";
+import { keywordDenotes } from "./hexproofQuality";
 import { staticEffectFunctionsFrom } from "../cards/types";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { sameOrder } from "./constants";
@@ -954,12 +955,14 @@ export function deriveLayer6(
                 // grant strictly later than the removal is pushed after this
                 // point and survives. One row per occurrence taken, as
                 // `ability-loss` records.
-                const taken = staticAbilities.filter(
-                    (kw) => kw === action.keyword
-                ).length;
-                if (taken === 0) break;
+                // CR 702.11e — an effect removing hexproof removes every
+                // "hexproof from [quality]" ability too (`keywordDenotes`).
+                const taken = staticAbilities.filter((kw) =>
+                    keywordDenotes(kw, action.keyword)
+                );
+                if (taken.length === 0) break;
                 const kept = staticAbilities.filter(
-                    (kw) => kw !== action.keyword
+                    (kw) => !keywordDenotes(kw, action.keyword)
                 );
                 staticAbilities.length = 0;
                 staticAbilities.push(...kept);
@@ -968,13 +971,13 @@ export function deriveLayer6(
                 // see attributed to a source (`defensiveGrants.ts` documents
                 // exactly this hazard).
                 const keptGrants = grantedStatic.filter(
-                    (g) => g.ability !== action.keyword
+                    (g) => !keywordDenotes(g.ability, action.keyword)
                 );
                 grantedStatic.length = 0;
                 grantedStatic.push(...keptGrants);
-                for (let i = 0; i < taken; i++) {
+                for (const keyword of taken) {
                     removedKeywords.push({
-                        keyword: action.keyword,
+                        keyword,
                         sourceId:
                             entry.expiry.kind === "source"
                                 ? entry.expiry.sourceId

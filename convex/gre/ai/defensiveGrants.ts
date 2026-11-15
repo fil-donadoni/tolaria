@@ -43,6 +43,7 @@ import type { CardInstanceState, GameState } from "../state";
 import { castableHeldInteraction } from "../heldInteraction";
 import { isInertStackItemFor } from "./futileShield";
 import { isProtectionAbility } from "../protection";
+import { isHexproofFromAbility } from "../hexproofQuality";
 import { renderKeyword } from "../continuousEffects";
 
 /** Whether `keyword`'s worth is purely PROTECTIVE — it does nothing except
@@ -65,7 +66,11 @@ export function isDefensiveKeyword(keyword: string): boolean {
         case "hexproof":
             return true;
         default:
-            return isProtectionAbility(keyword);
+            // CR 702.11d — a "hexproof from [quality]" ability is a hexproof
+            // ability, purely protective like the plain keyword.
+            return (
+                isProtectionAbility(keyword) || isHexproofFromAbility(keyword)
+            );
     }
 }
 

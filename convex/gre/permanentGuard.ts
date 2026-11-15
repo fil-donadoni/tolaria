@@ -42,7 +42,14 @@ import type {
     StaticPlayerGuard,
 } from "../cards/types";
 import { STATIC_EFFECT_CTX } from "./layers";
-import { substituteColorFilter } from "./textChanges";
+import { applySubstitution, substituteColorFilter } from "./textChanges";
+import {
+    HEXPROOF_KEYWORD,
+    hasHexproofQuality,
+    isHexproofFromAbility,
+    parseHexproofQuality,
+    type HexproofQuality,
+} from "./hexproofQuality";
 
 /** A minimal read-only battlefield view — every game-state shape the engine
  *  passes here (fat `GameState`, projected public state) satisfies it. */
@@ -81,11 +88,40 @@ export interface GuardActionSource {
 // same array combat/rules gates read for `haste`/`flying`/`menace`, so a
 // dynamically-granted hexproof (Instill Energy-style grantStaticAbility) is
 // honoured identically to a printed one.
-const HEXPROOF_KEYWORD = "hexproof";
 
-/** True if `card`'s effective keywords include hexproof (CR 702.11). */
+/** True if `card`'s effective keywords include plain hexproof (CR 702.11b). */
 function hasHexproof(card: CardInstanceState): boolean {
     return card.staticAbilities?.includes(HEXPROOF_KEYWORD) ?? false;
+}
+
+/** CR 702.11d — the qualities of every "hexproof from [quality]" ability on
+ *  `card`, read through its colour-word text changes (CR 612.1 — a Sleight of
+ *  Mind turning "hexproof from black" into "hexproof from blue"), the same
+ *  rewritten text `protection.ts` reads. An unparseable quality contributes
+ *  nothing here; the catalogue guard keeps one from shipping. */
+function hexproofFromQualities(card: CardInstanceState): HexproofQuality[] {
+    if (!card.staticAbilities?.some(isHexproofFromAbility)) return [];
+    const abilities = applySubstitution(card).staticAbilities;
+    const qualities: HexproofQuality[] = [];
+    for (const ability of abilities) {
+        const quality = parseHexproofQuality(ability);
+        if (quality) qualities.push(quality);
+    }
+    return qualities;
+}
+
+/** CR 702.11b/d — true when `src` is controlled by an opponent of `target`'s
+ *  controller. An unknown source controller stays conservative and counts as
+ *  an opponent (a synthetic caller can't prove ownership); every real call
+ *  site threads the controller so the own-controller allowance holds. */
+function isOpponentSource(
+    src: GuardActionSource,
+    target: CardInstanceState
+): boolean {
+    return (
+        src.controllerId === undefined ||
+        src.controllerId !== target.controllerId
+    );
 }
 
 // CR 702.18 shroud — the PERMANENT-scoped keyword-string bridge, mirroring
@@ -201,15 +237,21 @@ export function isGuardedAgainst(
     // authored on the card and censused as a keyword in the Mechanics Registry).
     // Only the `cantBeTargeted` clause is controller-relative; the enchant /
     // indestructible / control-change clauses have no hexproof analogue.
-    if (clause === "cantBeTargeted" && hasHexproof(target)) {
+    if (clause === "cantBeTargeted" && isOpponentSource(src, target)) {
         // An opponent-controlled source is barred. A source controlled by the
         // permanent's own controller is allowed (own aura/pump can target it).
-        // Unknown source controller ⇒ stay conservative and block (a synthetic
-        // caller can't prove ownership); every real call site threads the
-        // controller so the own-controller allowance holds.
+        if (hasHexproof(target)) return true;
+        // CR 702.11d — "hexproof from [quality]": only [quality] spells, and
+        // abilities from [quality] sources, are barred. `src.colors` is the
+        // spell's own colours for a spell and its SOURCE's for an ability
+        // (`targetingSourceFromCard` reads the object the ability comes from),
+        // which is exactly the object CR 702.11d asks the quality of. No
+        // colours known ⇒ colourless ⇒ no colour quality matches (CR 105.2c).
+        const colors = src.colors ?? [];
         if (
-            src.controllerId === undefined ||
-            src.controllerId !== target.controllerId
+            hexproofFromQualities(target).some((q) =>
+                hasHexproofQuality(q, colors)
+            )
         ) {
             return true;
         }

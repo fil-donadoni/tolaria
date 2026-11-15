@@ -134,6 +134,7 @@ import {
 } from "./targetRef";
 import { librarySearchFloor } from "./librarySearchFloor";
 import { tallyVotes } from "../voteTally";
+import { keywordDenotes } from "../hexproofQuality";
 import { distinctColorsSpent } from "../../cards/entersWith";
 import {
     categorizedEligibleIds,
@@ -5192,9 +5193,10 @@ export const OP_EXECUTORS: {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
         const ability = op.ability;
+        // CR 702.11e — losing hexproof loses every "hexproof from [quality]".
         ctx.removeStaticAbilities(
             target,
-            (keyword) => keyword === ability,
+            (keyword) => keywordDenotes(keyword, ability),
             op.duration
         );
     },
