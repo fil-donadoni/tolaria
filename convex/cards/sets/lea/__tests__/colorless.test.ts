@@ -1469,7 +1469,7 @@ describe("Basalt Monolith (does-not-untap + {T}: {C}{C}{C} + {3}: untap, CR 502.
             ...monolith,
             zone: "stack",
             castById: "p1",
-            abilityId: "basalt-monolith-untap",
+            abilityId: "basalt-monolith-ability-2",
             targets: [],
         });
         resolveTopOfStack(state);
