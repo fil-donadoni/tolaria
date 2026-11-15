@@ -216,7 +216,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Camouflage",
     "Candelabra of Tawnos",
     "Canopy Surge",
-    "Caribou Range",
     "Carnage Interpreter",
     "Cathedral of Serra",
     "Caverns of Despair",

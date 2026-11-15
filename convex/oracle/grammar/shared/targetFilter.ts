@@ -1437,6 +1437,7 @@ export function permanentFilterFromDescriptor(
                 "excludeSupertypes",
                 "plural",
                 "nontoken",
+                "token",
                 ...(allow.colors === true ? ["colors", "multicolored"] : []),
                 ...(allow.excludeSource === true ? ["excludeSource"] : []),
                 ...(allow.tapped === true ? ["tapped"] : []),
@@ -1463,6 +1464,7 @@ export function permanentFilterFromDescriptor(
     if (descriptor.multicolored === true) filter.colorCountAtLeast = 2;
     // CR 111.1 — `matchesPermanentFilter` reads the instance's own `isToken`.
     if (descriptor.nontoken === true) filter.isToken = false;
+    if (descriptor.token === true) filter.isToken = true;
     // CR 110.5 — the permanent's status, read live by `matchesPermanentFilter`.
     if (descriptor.tapped !== undefined)
         filter.tapped = descriptor.tapped === "tapped";
