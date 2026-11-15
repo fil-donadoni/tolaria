@@ -1,36 +1,24 @@
-import { CornerDownLeft, Keyboard, Space } from "lucide-react";
-import type { ReactNode } from "react";
+import { Keyboard } from "lucide-react";
+import { Keycap } from "~/components/ui/keycap";
 import {
     Popover,
     PopoverContent,
     PopoverTrigger,
 } from "~/components/ui/popover";
+import { hotkeysForScope, type HotkeyScope } from "~/lib/hotkeys";
 
-type HotkeyRow = { keys: (string | ReactNode)[]; label: string };
-
-const isMac =
-    typeof navigator !== "undefined" &&
-    /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-const modKey = isMac ? "⌘" : "Ctrl";
-
-const HOTKEYS: HotkeyRow[] = [
-    {
-        keys: [<Space className="w-3.5 h-3.5" aria-label="Space" />],
-        label: "Pass priority / confirm",
-    },
-    {
-        keys: [<CornerDownLeft className="w-3.5 h-3.5" aria-label="Enter" />],
-        label: "Pass until opponent acts",
-    },
-    { keys: ["P"], label: "Pass turn" },
-    { keys: ["A"], label: "Auto-tap while paying a cost" },
-    { keys: ["U"], label: "Undo / cancel cast" },
-    { keys: ["C"], label: "Collapse / expand the open prompt" },
-    { keys: [modKey, "click"], label: "Keep priority after casting" },
-    { keys: ["Esc"], label: "Concede" },
-];
-
-export default function HotkeysLegend() {
+/** The hotkeys legend (issue #9833): every binding DECLARED live on this
+ *  board, read from `~/lib/hotkeys` — the same rows the handlers match and
+ *  the controls' keycaps draw. It used to be its own hand-written list, which
+ *  could miss a new binding or advertise a dead one. */
+export default function HotkeysLegend({
+    scope = "board",
+}: {
+    /** The board the pod sits on: the GRE board's bindings or the Manual
+     *  Board's (`ControllerState.hotkeyScope`). */
+    scope?: HotkeyScope;
+}) {
+    const rows = hotkeysForScope(scope);
     return (
         <Popover>
             <PopoverTrigger
@@ -44,25 +32,13 @@ export default function HotkeysLegend() {
                     Hotkeys
                 </div>
                 <div className="flex flex-col gap-1.5">
-                    {HOTKEYS.map((row) => (
+                    {rows.map((row) => (
                         <div
                             key={row.label}
+                            data-hotkey-row={row.label}
                             className="flex items-center gap-2"
                         >
-                            <div className="flex gap-1">
-                                {row.keys.map((k, i) => (
-                                    <span key={i} className="inline-flex">
-                                        {i > 0 && (
-                                            <span className="mr-1 text-text-disabled">
-                                                +
-                                            </span>
-                                        )}
-                                        <kbd className="inline-flex items-center rounded-sm border border-[var(--hairline-strong)] bg-surface-elevated px-1.5 py-0.5 font-mono text-[10px] text-text">
-                                            {k}
-                                        </kbd>
-                                    </span>
-                                ))}
-                            </div>
+                            <Keycap hotkey={row} />
                             <span className="text-text-muted">{row.label}</span>
                         </div>
                     ))}

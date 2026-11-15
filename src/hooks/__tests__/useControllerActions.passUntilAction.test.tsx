@@ -3,6 +3,7 @@
 // `queuedPassUntilAction` exactly as `projectPublicState` ships them
 // (`convex/__tests__/passUntilActionFullPath.test.ts` proves the wire half).
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { HOTKEYS } from "~/lib/hotkeys";
 import { renderHook, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { PassUntilActionIntent, Player } from "~/types/game";
@@ -142,11 +143,11 @@ describe("useControllerActions — Pass Until Action (issue #5782)", () => {
             (a) => a.key === "pass-until-action"
         );
         expect(action?.label).toBe("Pass Until Action");
-        expect(action?.shortcut).toBe("enter");
-        // Issue #7423: the [P] badge moved to Pass Turn.
+        expect(action?.shortcut).toBe(HOTKEYS.passUntilAction);
+        // Issue #7423: the P keycap moved to Pass Turn.
         expect(
             result.current.actions.find((a) => a.key === "pass-turn")?.shortcut
-        ).toBe("P");
+        ).toBe(HOTKEYS.passTurn);
         const slots = selectCommandSlots(result.current.actions);
         expect(slots.passUntilAction).toBe(action);
         expect(slots.primary?.key).toBe("pass");

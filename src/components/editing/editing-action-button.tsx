@@ -1,3 +1,5 @@
+import { Keycap } from "~/components/ui/keycap";
+import { ariaKeyShortcuts } from "~/lib/hotkeys";
 import { cn } from "~/lib/utils";
 import type { EditingSurfaceAction } from "./editing-surface-action";
 
@@ -29,6 +31,9 @@ export default function EditingActionButton({
             data-editing-action={action.label}
             data-primary={action.primary ? "true" : undefined}
             disabled={action.disabled}
+            aria-keyshortcuts={
+                action.hotkey ? ariaKeyShortcuts(action.hotkey) : undefined
+            }
             onClick={(event) => {
                 if (stopPropagation) event.stopPropagation();
                 action.onSelect();
@@ -43,6 +48,9 @@ export default function EditingActionButton({
             )}
         >
             {action.label}
+            {action.hotkey && (
+                <Keycap hotkey={action.hotkey} className="ml-1.5" />
+            )}
         </button>
     );
 }

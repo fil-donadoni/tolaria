@@ -23,6 +23,7 @@
 import type { ControllerActionsSource } from "~/hooks/controllerActionsContext";
 import type { ControllerAction } from "~/hooks/useControllerActions";
 import type { ManualRuntime } from "./manual-runtime";
+import { HOTKEYS } from "./hotkeys";
 import { nextManualPhase } from "./manual-phase";
 
 /** Descriptor keys the manual controller offers in a TWO-PLAYER Manual Game,
@@ -84,7 +85,7 @@ export function makeManualControllerActions(
             label: "Next Phase",
             tone: "primary",
             disabled: false,
-            shortcut: "space",
+            shortcut: HOTKEYS.manualNextPhase,
             onClick: () =>
                 dispatch.setPhase({ phase: nextManualPhase(state.phase) }),
         },
@@ -93,7 +94,7 @@ export function makeManualControllerActions(
             label: "End Turn",
             tone: "primary",
             disabled: false,
-            shortcut: "enter",
+            shortcut: HOTKEYS.manualEndTurn,
             onClick: () => dispatch.endTurn({ playerId: viewerId }),
         },
         {
@@ -101,11 +102,10 @@ export function makeManualControllerActions(
             label: "Untap all",
             tone: "primary",
             disabled: false,
-            // The hand-written board bound this to `U`; the shared controller
-            // already reserves that shortcut for its own untap-ish action, so
-            // it is kept here as the same hotkey on a board where nothing else
-            // claims it.
-            shortcut: "U",
+            // No hotkey: the descriptor used to say `U`, but nothing on the
+            // Manual Board binds it (`useManualHotkeys` owns Space/Enter only)
+            // — a keycap advertising a dead key is what issue #9833's single
+            // declaration exists to prevent.
             onClick: () => dispatch.untapAll({ playerId: viewerId }),
         },
         {
@@ -152,7 +152,7 @@ export function makeManualControllerActions(
                       // real keydown binding is `useManualSeatSwitchHotkey`,
                       // scoped to the manual board only when this callback
                       // exists.
-                      shortcut: "S" as const,
+                      shortcut: HOTKEYS.manualSwitchSeat,
                       onClick: log.onSwitchSeat,
                   },
               ]
@@ -174,6 +174,7 @@ export function makeManualControllerActions(
     return () => ({
         cue: "mine",
         actions,
+        hotkeyScope: "manual",
         isAutoPass: false,
         isQueuedEndTurn: false,
         isPassUntilAction: false,

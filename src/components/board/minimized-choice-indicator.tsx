@@ -3,6 +3,8 @@ import type { PendingChoice } from "~/types/game";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { usePromptBannerPosition } from "~/hooks/usePromptBannerPosition";
 import { pendingChoiceSourceLabel } from "~/lib/pending-choice-labels";
+import { Keycap } from "~/components/ui/keycap";
+import { HOTKEYS, ariaKeyShortcuts } from "~/lib/hotkeys";
 import { cn } from "~/lib/utils";
 
 /** Collapsed stand-in for a minimized blocking choice dialog (issue #315).
@@ -62,6 +64,7 @@ export default function MinimizedChoiceIndicator({
                 type="button"
                 onClick={restore}
                 aria-label={`Restore choice dialog: ${label}`}
+                aria-keyshortcuts={ariaKeyShortcuts(HOTKEYS.collapsePrompt)}
                 {...dragHandlers}
                 className={cn(
                     "rounded-full border border-border-strong bg-surface/85 backdrop-blur-md",
@@ -74,9 +77,16 @@ export default function MinimizedChoiceIndicator({
                     className="dot-pulse-ring size-2.5 shrink-0 rounded-full bg-signal-pending"
                 />
                 <span className="text-display">{label} — pending</span>
-                <kbd className="rounded-sm border border-[var(--hairline-strong)] bg-surface-elevated px-1.5 py-0.5 font-mono text-[10px] text-text-muted">
-                    C to expand
-                </kbd>
+                {/* The `C` hint (issue #9833): the shared keycap, from the
+                    declaration `usePromptCollapseHotkey` matches; hidden with
+                    its caption under a coarse pointer. */}
+                <span
+                    aria-hidden
+                    className="inline-flex items-center gap-1 text-[10px] text-text-muted pointer-coarse:hidden"
+                >
+                    <Keycap hotkey={HOTKEYS.collapsePrompt} />
+                    to expand
+                </span>
                 <Maximize2 className="h-3.5 w-3.5 opacity-80" />
             </button>
         </div>

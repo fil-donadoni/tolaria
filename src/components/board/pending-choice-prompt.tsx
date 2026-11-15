@@ -30,6 +30,8 @@ import {
 } from "~/lib/pending-choice-confirm";
 import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
+import { Keycap } from "~/components/ui/keycap";
+import { HOTKEYS, ariaKeyShortcuts } from "~/lib/hotkeys";
 import PendingChoiceOptions from "~/components/board/pending-choice-options";
 import CardNameInput from "~/components/board/card-name-input";
 import MiracleRevealButtons from "~/components/board/miracle-reveal-buttons";
@@ -624,6 +626,9 @@ export default function PendingChoicePrompt({
                                             size="sm"
                                             disabled={!canConfirm}
                                             onClick={() => primary?.confirm()}
+                                            aria-keyshortcuts={ariaKeyShortcuts(
+                                                HOTKEYS.passPriority
+                                            )}
                                         >
                                             {choice.cost ? (
                                                 <>
@@ -635,6 +640,10 @@ export default function PendingChoicePrompt({
                                             ) : (
                                                 "Yes"
                                             )}
+                                            <Keycap
+                                                hotkey={HOTKEYS.passPriority}
+                                                className="hidden md:inline-flex"
+                                            />
                                         </Button>
                                         <Button
                                             type="button"
@@ -697,8 +706,15 @@ export default function PendingChoicePrompt({
                                         disabled={!canConfirm}
                                         className="mt-1"
                                         onClick={() => primary?.confirm()}
+                                        aria-keyshortcuts={ariaKeyShortcuts(
+                                            HOTKEYS.passPriority
+                                        )}
                                     >
                                         {submitLabel}
+                                        <Keycap
+                                            hotkey={HOTKEYS.passPriority}
+                                            className="hidden md:inline-flex"
+                                        />
                                     </Button>
                                 </>
                             )}

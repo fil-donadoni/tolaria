@@ -1,4 +1,6 @@
 import { FastForward, Hand } from "lucide-react";
+import { HotkeyTooltip } from "~/components/ui/hotkey-tooltip";
+import { HOTKEYS } from "~/lib/hotkeys";
 import type { ControllerCommandSlots } from "~/lib/controller-action-slots";
 import {
     CONTROLLER_PRIMARY_TONE,
@@ -116,29 +118,44 @@ export default function ControllerCommandRow({
                     </button>
                 )}
 
-                <button
-                    type="button"
-                    aria-label="Pass Turn"
-                    title="Pass Turn [P]"
-                    onClick={passTurn?.onClick}
-                    disabled={!passTurn || passTurn.disabled}
-                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${EDGE_PILL} text-text-muted shadow-lg transition-colors hover:text-text disabled:opacity-40`}
-                >
-                    <FastForward className="h-4 w-4" aria-hidden />
-                </button>
+                {/* Icon-only: the name and the keycap ride in the tooltip
+                    (issue #9833), from the same declaration the keydown
+                    handler matches. */}
+                <HotkeyTooltip
+                    label="Pass Turn"
+                    hotkey={HOTKEYS.passTurn}
+                    trigger={
+                        <button
+                            type="button"
+                            aria-label="Pass Turn"
+                            onClick={passTurn?.onClick}
+                            disabled={!passTurn || passTurn.disabled}
+                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${EDGE_PILL} text-text-muted shadow-lg transition-colors hover:text-text disabled:opacity-40`}
+                        >
+                            <FastForward className="h-4 w-4" aria-hidden />
+                        </button>
+                    }
+                />
 
                 {/* Pass Until Action (issue #5782): Pass Turn's soft sibling,
                     same geometry, always mounted so the row never reflows. */}
-                <button
-                    type="button"
-                    aria-label="Pass Until Action"
-                    title="Pass Until Action [Enter]"
-                    onClick={passUntilAction?.onClick}
-                    disabled={!passUntilAction || passUntilAction.disabled}
-                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${EDGE_PILL} text-text-muted shadow-lg transition-colors hover:text-text disabled:opacity-40`}
-                >
-                    <Hand className="h-4 w-4" aria-hidden />
-                </button>
+                <HotkeyTooltip
+                    label="Pass Until Action"
+                    hotkey={HOTKEYS.passUntilAction}
+                    trigger={
+                        <button
+                            type="button"
+                            aria-label="Pass Until Action"
+                            onClick={passUntilAction?.onClick}
+                            disabled={
+                                !passUntilAction || passUntilAction.disabled
+                            }
+                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${EDGE_PILL} text-text-muted shadow-lg transition-colors hover:text-text disabled:opacity-40`}
+                        >
+                            <Hand className="h-4 w-4" aria-hidden />
+                        </button>
+                    }
+                />
             </div>
         </div>
     );
