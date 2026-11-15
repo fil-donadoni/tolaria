@@ -656,13 +656,6 @@
     },
     {
         "class": "ability",
-        "cardId": "c1ba83ab-83f5-421d-bba1-0f925870b5c8",
-        "name": "Ball Lightning",
-        "abilityId": "ball-lightning-end-step-sac",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "66eaa7d6-48b2-4b35-a834-790edd679e0e",
         "name": "Banshee",
         "abilityId": "banshee-half-x",

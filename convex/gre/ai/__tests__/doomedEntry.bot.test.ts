@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import type { DelayedTriggerTiming, EffectOp } from "../../../cards/types";
 import { getCardByName } from "../../../cards";
 import { buildBladeState, findBladeScenario } from "../blade";
+import { buildPositionFromSpec } from "../blade/build";
 import { seatPlayerId } from "../blade/matcher";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import { cloneGameState } from "../../clone";
@@ -19,11 +20,13 @@ import {
     rollout,
     searchWithTrace,
 } from "../../search";
-import type { GameState } from "../../state";
+import { evaluateBreakdown } from "../../evaluate";
+import type { CardInstanceState, GameState } from "../../state";
 import type { Phase } from "../../types";
 import {
     enteringBodyDepartureTiming,
     fightsBeforeDeparture,
+    scheduledEndStepDeparture,
 } from "../doomedEntry";
 
 const HOLDS = "cheat into play: holds Sneak Attack after combat";
@@ -300,5 +303,87 @@ describe("the move that makes a doomed entry", () => {
         );
         expect(cast).toBeDefined();
         expect(isDoomedEntryMove(state, me, me, cast!)).toBe(true);
+    });
+});
+
+/** The bot's turn at `phase`: a Ball Lightning and a Grizzly Bears able to
+ *  attack, each carrying `counters`, against an empty board. */
+function departingBoard(
+    phase: Phase,
+    counters: {
+        ball?: Record<string, number>;
+        bears?: Record<string, number>;
+    } = {}
+): GameState {
+    return buildPositionFromSpec({
+        phase,
+        turn: 5,
+        landCount: 0,
+        libraryCount: 20,
+        cards: [
+            {
+                name: "Ball Lightning",
+                owner: "me",
+                zone: "battlefield",
+                summoningSick: false,
+                ...(counters.ball ? { counters: counters.ball } : {}),
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me",
+                zone: "battlefield",
+                summoningSick: false,
+                ...(counters.bears ? { counters: counters.bears } : {}),
+            },
+        ],
+    });
+}
+
+function onBoard(state: GameState, name: string): CardInstanceState {
+    const id = getCardByName(name).id;
+    const found = state.players[0].battlefield.find((c) => c.card.id === id);
+    if (!found) throw new Error(`no ${name} on the battlefield`);
+    return found;
+}
+
+describe("a body on the battlefield that removes itself at an end step (CR 513.1a)", () => {
+    it("reads a card's own end-step sacrifice, this turn until the end step", () => {
+        const state = departingBoard("PRECOMBAT_MAIN");
+        expect(
+            scheduledEndStepDeparture(state, onBoard(state, "Ball Lightning"))
+        ).toBe("this-turn");
+        expect(
+            scheduledEndStepDeparture(state, onBoard(state, "Grizzly Bears"))
+        ).toBeUndefined();
+        state.phase = "END_STEP";
+        expect(
+            scheduledEndStepDeparture(state, onBoard(state, "Ball Lightning"))
+        ).toBe("later");
+    });
+});
+
+describe("what the evaluation credits a body leaving at an end step", () => {
+    const COUNTERS = { "+1/+1": 2, flying: 1 };
+    const creatures = (state: GameState): number =>
+        evaluateBreakdown(state, seatPlayerId(state, "me")).self.creatures;
+
+    it("inside its combat window, nothing added to it is lasting material", () => {
+        const bare = creatures(departingBoard("PRECOMBAT_MAIN"));
+        expect(
+            creatures(departingBoard("PRECOMBAT_MAIN", { ball: COUNTERS }))
+        ).toBe(bare);
+        expect(
+            creatures(departingBoard("PRECOMBAT_MAIN", { bears: COUNTERS }))
+        ).toBeGreaterThan(bare);
+    });
+
+    it("past its combat window, it is worth nothing", () => {
+        const state = departingBoard("POSTCOMBAT_MAIN");
+        const withBall = creatures(state);
+        const me = state.players[0];
+        me.battlefield = me.battlefield.filter(
+            (c) => c !== onBoard(state, "Ball Lightning")
+        );
+        expect(creatures(state)).toBe(withBall);
     });
 });
