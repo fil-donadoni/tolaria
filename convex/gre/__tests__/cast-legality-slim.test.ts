@@ -30,7 +30,6 @@ import {
     serraAngel,
     swamp,
 } from "../../cards/sets/lea/index.cards";
-import { metallicRebuke } from "../../cards/sets/aer/index.cards";
 import { startingTown } from "../../cards/sets/fin/index.cards";
 
 import { farrelitePriest } from "../../cards/sets/fem/index.cards";
@@ -60,6 +59,8 @@ const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 const archaeologicalDig = getDefinition("35f55af0-5a46-4900-b3d0-ca796b710e07");
 const nomadicElf = getDefinition("3b69e57a-5b19-450c-9cf5-c189e8505781");
 const utopiaTree = getDefinition("720452e9-3245-4b0e-94b6-843cbcb641a5");
+const metallicRebuke = () =>
+    getDefinition("f712ac26-dca4-459b-84c1-010597007f60");
 
 // Same two abilities as Starting Town, declared in the OPPOSITE order (the
 // any-color/life ability first, the free {C} ability second) — a synthetic

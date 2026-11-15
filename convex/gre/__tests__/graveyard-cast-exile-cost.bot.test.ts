@@ -36,7 +36,6 @@ import { underworldBreach } from "../../cards/sets/thb/red.cards";
 import { uroTitanOfNaturesWrath } from "../../cards/sets/thb/multicolor.cards";
 import { lavaDart } from "../../cards/sets/ons/red.cards";
 import { flashOfInsight } from "../../cards/sets/jud/blue.cards";
-import { treasureCruise } from "../../cards/sets/ktk/blue.cards";
 import { nethergoyf } from "../../cards/sets/mh3/black.cards";
 import { countDistinctCardTypes } from "../escape";
 
@@ -49,6 +48,8 @@ import {
 } from "../../cards/sets/lea/index.cards";
 import { getDefinition } from "../../cards";
 const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
+const treasureCruise = () =>
+    getDefinition("7a59d4b1-6cf4-44ec-8a96-1bb7094fea21");
 
 const ME = "p1";
 const OPP = "p2";

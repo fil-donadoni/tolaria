@@ -100,7 +100,6 @@ const RULES_VOCABULARY_NAMES: ReadonlyArray<{
         vocabulary:
             "keyword ability flash (CR 702.8), and flashback (CR 702.34)",
     },
-    { card: "Overload", vocabulary: "keyword ability overload (CR 702.96)" },
     {
         card: "Regeneration",
         vocabulary: "keyword action regenerate (CR 701.19)",

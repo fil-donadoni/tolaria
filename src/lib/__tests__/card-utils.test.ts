@@ -115,7 +115,6 @@ import { whiteout } from "@convex/cards/sets/ice/green.cards";
 import { sorrowsPath } from "@convex/cards/sets/drk/colorless.cards";
 import { dauthiVoidwalker } from "@convex/cards/sets/mh2/black.cards";
 import { viviOrnitier } from "@convex/cards/sets/fin/index.cards";
-import { metallicRebuke } from "@convex/cards/sets/aer/blue.cards";
 import { millstone } from "@convex/cards/sets/atq/colorless.cards";
 import { gateToPhyrexia } from "@convex/cards/sets/atq/black.cards";
 import { moxOpal } from "@convex/cards/sets/som/colorless.cards";
@@ -151,6 +150,8 @@ import type { CardInstanceState } from "@convex/gre/state";
 import { NO_BOARD_LAYER_VIEW } from "../../../convex/gre/layers";
 const quirionExplorer = getDefinition("141a031d-f899-497b-adf7-4af142078085");
 const fellwarStone = getDefinition("dc47e322-f8b8-4685-b035-fda0cc433e6b");
+const metallicRebuke = () =>
+    getDefinition("f712ac26-dca4-459b-84c1-010597007f60");
 
 // Real card ids from convex/cards/sets/lea.ts, used to exercise the
 // definition-vs-instance keyword diff in getDisplayAbilities (#156).

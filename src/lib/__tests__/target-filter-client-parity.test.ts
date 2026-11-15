@@ -41,7 +41,6 @@ import {
 } from "~/lib/card-utils";
 import { getEligibleGraveyards } from "~/lib/graveyard-targets";
 
-import { prohibit } from "@convex/cards/sets/inv/blue.cards";
 import { gainsay } from "@convex/cards/sets/pls/blue.cards";
 import { fireAndBrimstone } from "@convex/cards/sets/drk/white.cards";
 import { forgottenLore } from "@convex/cards/sets/ice/green.cards";
@@ -55,6 +54,7 @@ import { thermokarst } from "@convex/cards/sets/ice/green.cards";
 import { oathOfDruids } from "@convex/cards/sets/exo/green.cards";
 import { getDefinition } from "@convex/cards";
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
+const prohibit = () => getDefinition("0daa5458-2a97-40d0-b18d-2381a7a68ee1");
 
 const CHOOSER = "p1";
 

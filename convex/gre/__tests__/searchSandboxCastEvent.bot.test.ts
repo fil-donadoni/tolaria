@@ -26,9 +26,10 @@ import {
     makeState,
 } from "../../cards/__tests__/setup.helper";
 import { lightningBolt, mountain } from "../../cards/sets/lea/index.cards";
-import { grapeshot } from "../../cards/sets/tsp/index.cards";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
+import { getDefinition } from "../../cards";
+const grapeshot = () => getDefinition("4ee33cb6-768e-44a0-b6f4-b8638aa84330");
 
 /** A storm COUNTERSPELL — no such card ships, and none needs to: this fixture
  *  exists to reach the one shape that distinguishes "the cast segment is

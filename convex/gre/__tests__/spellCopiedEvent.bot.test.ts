@@ -15,8 +15,10 @@ import {
     makeState,
 } from "../../cards/__tests__/setup.helper";
 import { lightningBolt } from "../../cards/sets/lea/index.cards";
-import { emptyTheWarrens } from "../../cards/sets/tsp/red.cards";
 import { witherbloomApprentice } from "../../cards/sets/stx/multicolor.cards";
+import { getDefinition } from "../../cards";
+const emptyTheWarrens = () =>
+    getDefinition("952bb27c-c58a-478a-b637-eb4f7e1e0ab4");
 
 // Base-owned `data/catalogue` (ADR 0157) lacks a card this PR ships.
 preloadDefinitions([witherbloomApprentice()]);

@@ -19,9 +19,14 @@ import { projectPublicState } from "../../gameProjections";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import { lightningBolt, grizzlyBears } from "../../cards/sets/lea/index.cards";
-import { brainFreeze, tendrilsOfAgony } from "../../cards/sets/scg/index.cards";
-import { grapeshot, emptyTheWarrens } from "../../cards/sets/tsp/index.cards";
 import type { GameState, StackItem } from "../state";
+import { getDefinition } from "../../cards";
+const brainFreeze = () => getDefinition("59a43ef5-08f0-44fc-802d-b6cfd56b7d1f");
+const tendrilsOfAgony = () =>
+    getDefinition("0559352e-95c1-403b-bd8f-d0679717cfa2");
+const grapeshot = () => getDefinition("4ee33cb6-768e-44a0-b6f4-b8638aa84330");
+const emptyTheWarrens = () =>
+    getDefinition("952bb27c-c58a-478a-b637-eb4f7e1e0ab4");
 
 // A player-scoped shroud fixture (CR 702.18 / 115.4) — mirrors the pattern
 // `targeting.test.ts` established for `StaticPlayerGuard` ("no shipped card

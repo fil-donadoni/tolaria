@@ -35,60 +35,6 @@ function noOpponentWhiteOrBlueCreature(
         );
 }
 
-// Overload — "Kicker {2}. Destroy target artifact if its mana value is 2 or
-// less. If this spell was kicked, destroy that artifact if its mana value is 5
-// or less instead." (CR 702.33 Kicker — the on-resolution effect is DSL; only
-// the optional additional cost lives in the engine `kicker` field.) The MV
-// threshold, not the target set, changes with the kick, so there is no
-// `kickedTargetRequirement`: the spell always targets an artifact and the
-// `manaValue` value member (CR 202.3) gates the destroy at resolution.
-// Vintage Cube Kicker cluster (issue #692, ADR 0041).
-export const overload = defineCard(() => ({
-    id: "c91fca91-7296-422e-b251-d571b710ff71",
-    rarity: "common",
-    name: "Overload",
-    oracleText:
-        "Kicker {2} (You may pay an additional {2} as you cast this spell.)\nDestroy target artifact if its mana value is 2 or less. If this spell was kicked, destroy that artifact if its mana value is 5 or less instead.",
-    manaCost: { R: 1 },
-    types: ["Instant"],
-    kickers: [
-        {
-            id: "kicker",
-            description: "Kicker {2}",
-            mana: { X: 2 },
-        },
-    ],
-    targetRequirement: { type: "Artifact", count: 1 },
-    effects: [
-        {
-            op: "if",
-            predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
-            then: [
-                {
-                    op: "if",
-                    predicate: {
-                        left: { manaValue: { of: { target: 0 } } },
-                        op: "le",
-                        right: 5,
-                    },
-                    then: [{ op: "destroy", target: { target: 0 } }],
-                },
-            ],
-            else: [
-                {
-                    op: "if",
-                    predicate: {
-                        left: { manaValue: { of: { target: 0 } } },
-                        op: "le",
-                        right: 2,
-                    },
-                    then: [{ op: "destroy", target: { target: 0 } }],
-                },
-            ],
-        },
-    ],
-}));
-
 // Obliterate — "This spell can't be countered. Destroy all artifacts,
 // creatures, and lands. They can't be regenerated." (CR 113.6g can't-be-
 // countered flag, issue #1065; CR 701.8 destroy + CR 701.19c regen
