@@ -29124,4 +29124,402 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9694, CR 603.3d / 107.14. The row names a token sacrificed at end step; Ball Lightning is the same leaving attacker as a card. The counters on it die with it at the end step.",
     },
+    // Izzet Prowess, the modern metagame's level-2 rows
+    // (`docs/agents/modern-metagame-bot-level-2.md`, issue #9691).
+    {
+        label: "flurry: Cori-Steel Cutter casts the second spell before combat",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 7 },
+            cards: [
+                {
+                    name: "Cori-Steel Cutter",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                { name: "Shock", owner: "me", zone: "hand" },
+            ],
+        },
+        // The first spell of the turn, resolved: the Shock is the second.
+        setup: [
+            { kind: "cast", card: "Lightning Bolt", target: "opp" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Shock" }],
+        },
+        note: "Issue #9691. The Bolt took the opponent to 4. The Shock is the second spell, so Flurry makes the Monk; the Cutter on it makes a 2/2 with haste and trample. Shock (2) plus the Monk's swing (2) is lethal before combat. Cast after combat, the Monk never attacks.",
+    },
+    {
+        label: "flurry: Cori-Steel Cutter goes on the Monk it makes",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 7 },
+            cards: [
+                {
+                    name: "Cori-Steel Cutter",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                { name: "Shock", owner: "me", zone: "hand" },
+            ],
+        },
+        // Both spells cast before combat; the opponent's pass resolves the
+        // Flurry trigger up to its "you may attach".
+        setup: [
+            { kind: "cast", card: "Lightning Bolt", target: "opp" },
+            { kind: "pass", seat: "opp" },
+            { kind: "cast", card: "Shock", target: "opp" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "may-pay", accept: true }],
+        },
+        note: "Issue #9691, CR 702.6a. The free attach is the only way the Monk gets haste this turn (equip itself costs {1}{R}, and both Mountains are tapped). Declining leaves a summoning-sick 1/1 and the opponent alive on 2.",
+    },
+    {
+        label: "flurry: Cori-Steel Cutter never attacks before the second spell",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 9 },
+            cards: [
+                {
+                    name: "Cori-Steel Cutter",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                { name: "Shock", owner: "me", zone: "hand" },
+                {
+                    name: "Monastery Swiftspear",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+            ],
+        },
+        // The Bolt raises the Swiftspear's prowess trigger above it: the
+        // first pair of passes resolves the trigger, the second the Bolt.
+        setup: [
+            { kind: "cast", card: "Lightning Bolt", target: "opp" },
+            { kind: "pass", seat: "opp" },
+            { kind: "pass", seat: "me" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "pass" }],
+        },
+        note: "Issue #9691, CR 702.108a. A Monastery Swiftspear is ready to attack, so going to combat is tempting. The Bolt took the opponent to 6. Shock before combat makes the Swiftspear 3/4 and the Monk a hasty 2/2: 2 + 3 + 2 is lethal. Attacking first and casting the Shock after combat deals 2 + 2.",
+    },
+    {
+        label: "prowess: Monastery Swiftspear casts the instant once blocked",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Monastery Swiftspear",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Opt", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        setup: [
+            { kind: "declare-attackers", cards: ["Monastery Swiftspear"] },
+            {
+                kind: "declare-blockers",
+                blocks: [
+                    {
+                        blocker: "Grizzly Bears",
+                        attacker: "Monastery Swiftspear",
+                    },
+                ],
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Opt" }],
+        },
+        note: "Issue #9691, CR 702.108a. The Grizzly Bears blocked the 1/2. Opt's own effect does nothing in this combat, but the prowess trigger makes the Swiftspear 2/3: it kills the Bears and survives. Without the cast, the Swiftspear dies.",
+    },
+    {
+        label: "prowess: Monastery Swiftspear holds the instant before attackers",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Monastery Swiftspear",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Opt", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 1000 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Opt" }],
+        },
+        note: "Issue #9691, CR 509.1a. The same board before combat. Opt cast now makes the Swiftspear 2/3 before the opponent declares blockers, so the Bears simply stay home. Held, Opt wins the combat if the Bears block, and can still be cast after combat if they do not. Measured at 400 iterations, two of five seeds were a near-tie (material tie-break) that cast it; at 1000 every seed holds it.",
+    },
+    {
+        label: "flashback: Lava Dart is flashed back for the last point of life",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 1 },
+            cards: [
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Lava Dart", owner: "me", zone: "graveyard" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Lava Dart", target: "opp" }],
+        },
+        note: "Issue #9691, CR 702.34a (Flashback). The opponent is on 1: sacrificing a Mountain to flash the Dart back at their face wins the game.",
+    },
+    {
+        label: "flashback: Lava Dart is flashed back to kill an X/1",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Lava Dart", owner: "me", zone: "graveyard" },
+                {
+                    name: "Llanowar Elves",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Lava Dart",
+                    target: "Llanowar Elves",
+                },
+            ],
+        },
+        note: "Issue #9691, CR 702.34a (Flashback). The 1 damage kills the opponent's Llanowar Elves, which is worth the third Mountain.",
+    },
+    {
+        label: "flashback: Lava Dart never sacrifices a Mountain with no such target",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Lava Dart", owner: "me", zone: "graveyard" },
+                { name: "Gray Ogre", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        beyondBudget: {
+            cause: "valuation",
+            sweptTo: { iterations: 4000 },
+            note: "Issue #9733. The search scores the flashback and the pass alike: every seed is settled by the material tie-break, 0/5 at 400, 1200 and 4000 iterations, while the 1-ply greedy pick passes on every seed. So the evaluator prices the Mountain right, and the tie forms below the root.",
+        },
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Lava Dart" }],
+        },
+        note: "Issue #9691, CR 702.34a (Flashback). The opponent is on 20 behind a 2/2, so 1 damage kills nothing and ends nothing. Sacrificing a Mountain for it leaves one land and delays the Gray Ogre in hand by a turn.",
+    },
+    {
+        label: "plot: Slickshot Show-Off is plotted out of a Pestilence's reach",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "POSTCOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Slickshot Show-Off", owner: "me", zone: "hand" },
+                { name: "Pestilence", owner: "opp", zone: "battlefield" },
+                { name: "Swamp", owner: "opp", zone: "battlefield", count: 2 },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE, kept out of the weight fit on purpose (measured): as a
+        // `moves` verdict the fit moves `latentCreatureDiscount` 0.624 → 0.660,
+        // past the value that flips the `must` entry "Self-growing sacrifice
+        // outlet: casts the creature". The committed weights already plot here.
+        expect: {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "plot",
+                    card: "Slickshot Show-Off",
+                }),
+            describe: "plots Slickshot Show-Off",
+        },
+        note: "Issue #9691, CR 702.170a / 702.170d. The {1}{R} buys the plot or the cast. A Serra Angel walls the flier, so there is no attack worth making, and two Swamps under the opponent's Pestilence kill a 1/2 cast now. Plotted, it waits in exile and is cast for free on a later turn. On the same board with a Wind Drake and no Pestilence, the search casts it: board presence now is worth the same mana there.",
+    },
+    {
+        label: "plot: Slickshot Show-Off is cast, not plotted, when its haste swing is lethal",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 1 },
+            cards: [
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Slickshot Show-Off", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "plot", card: "Slickshot Show-Off" }],
+        },
+        note: "Issue #9691, CR 702.170a / 702.170d. The opponent is on 1 with only a ground blocker: cast now, the hasty flier swings for the game. Plotted, it cannot be cast before a later turn.",
+    },
 ];
