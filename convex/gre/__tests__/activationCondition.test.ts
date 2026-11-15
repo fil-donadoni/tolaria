@@ -29,7 +29,7 @@ import type { CardInstanceState, GameState } from "../state";
 const FILLER = getCardByName("Grizzly Bears").id;
 
 const THRESHOLD_ABILITIES = [
-    { card: "Barbarian Ring", abilityId: "barbarian-ring-sac" },
+    { card: "Barbarian Ring", abilityId: "barbarian-ring-ability-2" },
     { card: "Cephalid Coliseum", abilityId: "cephalid-coliseum-threshold" },
 ] as const;
 
@@ -355,7 +355,9 @@ function ringWith(activationCondition: EffectPredicate): CardDefinition {
     return {
         ...ring,
         activatedAbilities: ring.activatedAbilities!.map((a) =>
-            a.id === "barbarian-ring-sac" ? { ...a, activationCondition } : a
+            a.id === "barbarian-ring-ability-2"
+                ? { ...a, activationCondition }
+                : a
         ),
     };
 }
@@ -364,10 +366,10 @@ describe("battlefield activationCondition — the server gate (CR 602.5, issue #
     it('"you control five or more lands": four refuse, five accept — the source counts', () => {
         withTemporaryDefinition(ringWith(lands(5)), () => {
             expect(() =>
-                activate(landBoard(3, 9), "barbarian-ring-sac")
+                activate(landBoard(3, 9), "barbarian-ring-ability-2")
             ).toThrow("Ability cannot be activated right now");
             expect(() =>
-                activate(landBoard(4, 0), "barbarian-ring-sac")
+                activate(landBoard(4, 0), "barbarian-ring-ability-2")
             ).not.toThrow();
         });
     });
@@ -376,10 +378,10 @@ describe("battlefield activationCondition — the server gate (CR 602.5, issue #
         withTemporaryDefinition(ringWith(OPPONENT_MORE_LANDS), () => {
             // p1: the Ring + 2 Forests = 3 lands.
             expect(() =>
-                activate(landBoard(2, 3), "barbarian-ring-sac")
+                activate(landBoard(2, 3), "barbarian-ring-ability-2")
             ).toThrow("Ability cannot be activated right now");
             expect(() =>
-                activate(landBoard(2, 4), "barbarian-ring-sac")
+                activate(landBoard(2, 4), "barbarian-ring-ability-2")
             ).not.toThrow();
         });
     });

@@ -138,7 +138,7 @@ describe("copy effect gains an activated ability — CR 707.9a (issue #7207)", (
             // Stage's own mana ability, which the copy overwrote (CR 707.2).
             expect(abilityIds(stage)).toEqual([
                 "strip-mine-mana",
-                "strip-mine-destroy",
+                "strip-mine-ability-2",
                 COPY_ABILITY,
             ]);
             expect(stage.copyExcept?.additionalActivatedAbilities).toEqual([

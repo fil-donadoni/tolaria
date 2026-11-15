@@ -9,7 +9,7 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { breakTheIce } from "../../cards/sets/mh2/index.cards";
 import { forest } from "../../cards/sets/lea/index.cards";
-import { stripMine } from "../../cards/sets/atq/index.cards";
+import { getDefinition } from "../../cards";
 import { snowCoveredForest } from "../../cards/sets/ice/index.cards";
 import {
     getLegalTargets,
@@ -19,6 +19,8 @@ import {
 import { permanentFilterValuesFromCarrier } from "../targetFilters";
 import { resolveTopOfStack } from "../state";
 import type { PendingTarget } from "../state";
+
+const stripMine = () => getDefinition("e7880157-7f27-4f1b-9cdc-ab36a6252376");
 
 function board() {
     const plainForest = makeInstance(forest().id, {

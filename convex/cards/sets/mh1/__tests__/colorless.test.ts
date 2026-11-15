@@ -18,8 +18,8 @@ const prismaticVista = getDefinition("e37da81e-be12-45a2-9128-376f1ad7b3e8");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 const cases: { card: Def; draw: string }[] = [
-    { card: waterloggedGrove, draw: "waterlogged-grove-draw" },
-    { card: sunbakedCanyon, draw: "sunbaked-canyon-draw" },
+    { card: waterloggedGrove, draw: "waterlogged-grove-ability-2" },
+    { card: sunbakedCanyon, draw: "sunbaked-canyon-ability-2" },
 ];
 
 describe.each(cases)(

@@ -9,9 +9,17 @@ import {
     resolveActivated,
 } from "../../../__tests__/setup.helper";
 import {
+    tapUntap,
     applyUnconditionalTapSelfDamage,
     tapSourceIntoPayment,
 } from "../../../../game";
+import {
+    makeMutationCtx,
+    runMutation,
+    gameStateSeed,
+    type Handler,
+} from "../../../../__tests__/gameMutationHarness.fixture";
+import type { Id } from "../../../../_generated/dataModel";
 import { projectPublicState } from "../../../../gameProjections";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import {
@@ -165,27 +173,34 @@ describe("Lotus Petal ({T}, Sacrifice: any color, CR 605.1a / 701.21)", () => {
 });
 
 describe("Wasteland (CR 701.26a tap for a 605.1a mana ability / CR 701.8 destroy nonbasic land)", () => {
-    it("{T}: Add {C} (CR 106.1)", () => {
+    it("{T}: Add {C} through the real tapUntap mutation (CR 106.1 / 605.1a)", async () => {
         const w = makeInstance(wasteland.id, {
             id: "w",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const state = makeState({
-            players: [makePlayer("p1", { battlefield: [w] })],
+        const seeded = makeState({
+            players: [makePlayer("p1", { battlefield: [w] }), makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
         });
-        const manaAbility = wasteland.activatedAbilities!.find(
-            (a) => a.id === "wasteland-mana"
-        )!;
-        manaAbility.effect!({
-            addMana: (amount) => {
-                for (const [color, count] of Object.entries(amount)) {
-                    if (color === "X" || typeof count !== "number") continue;
-                    state.players[0].manaPool[color] =
-                        (state.players[0].manaPool[color] ?? 0) + count;
-                }
-            },
-        });
+        type Args = {
+            gameId: Id<"games">;
+            playerId: string;
+            cardInstanceId: string;
+        };
+        const stub = makeMutationCtx("p1", [gameStateSeed(seeded)]);
+        await runMutation<Args, void>(
+            tapUntap as unknown as Handler<Args, void>,
+            stub.ctx,
+            {
+                gameId: "game-1" as Id<"games">,
+                playerId: "p1",
+                cardInstanceId: "w",
+            }
+        );
+        const state = stub.state();
+        expect(state.players[0].battlefield[0].isTapped).toBe(true);
         expect(state.players[0].manaPool.C).toBe(1);
     });
 
@@ -245,7 +260,7 @@ describe("Wasteland (CR 701.26a tap for a 605.1a mana ability / CR 701.8 destroy
                 zone: "stack",
             }),
             castById: "p1",
-            abilityId: "wasteland-destroy",
+            abilityId: "wasteland-ability-2",
             targets: [{ type: "permanent", id: "nonbasic" }],
         });
         resolveTopOfStack(state);
@@ -285,7 +300,7 @@ describe("Wasteland (CR 701.26a tap for a 605.1a mana ability / CR 701.8 destroy
                 zone: "stack",
             }),
             castById: "p1",
-            abilityId: "wasteland-destroy",
+            abilityId: "wasteland-ability-2",
             targets: [{ type: "permanent", id: "nonbasic" }],
         });
         resolveTopOfStack(state);

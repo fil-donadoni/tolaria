@@ -8,39 +8,6 @@ import { equipAbility } from "../../abilities/equipment";
 import { colorChoiceModes } from "../../abilities/chooseColor";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
-// Horizon Canopy — {T}, Pay 1 life: Add {G} or {W}; {1}, {T}, Sacrifice: Draw a
-// card. (CR 605.1a mana ability — useStack: false, CR 605.3a; CR 119.4 life
-// payment as part of the cost; CR 305 land. The cantrip-sacrifice ability is a
-// normal activated ability that uses the stack, CR 602.) Composed entirely from
-// existing primitives — the painland mana ability mirrors Standing Stones (DRK).
-export const horizonCanopy = defineCard(() => ({
-    id: "d5dfc25d-a17b-4ead-9484-e8a18b8fa176",
-    rarity: "rare",
-    name: "Horizon Canopy",
-    oracleText:
-        "{T}, Pay 1 life: Add {G} or {W}.\n{1}, {T}, Sacrifice this land: Draw a card.",
-    types: ["Land"],
-    activatedAbilities: [
-        {
-            id: "horizon-canopy-mana",
-            oracleText: "{T}, Pay 1 life: Add {G} or {W}.",
-            cost: { tap: true, life: 1 },
-            useStack: false,
-            effect: (ctx) => ctx.addMana({ G: 1 }),
-            manaChoices: [{ G: 1 }, { W: 1 }],
-        },
-        {
-            id: "horizon-canopy-draw",
-            oracleText: "{1}, {T}, Sacrifice this land: Draw a card.",
-            cost: { mana: { X: 1 }, tap: true, sacrifice: true },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, issue #1264): CR 121.1
-            // draw via the DSL `draw` Op.
-            effects: [{ op: "draw", player: "controller", count: 1 }],
-        },
-    ],
-}));
-
 // Coalition Relic — {3} Artifact. "{T}: Add one mana of any color.\n{T}: Put
 // a charge counter on this artifact.\nAt the beginning of your first main
 // phase, remove all charge counters from this artifact. Add one mana of any

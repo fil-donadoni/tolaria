@@ -4,36 +4,6 @@
 // (ADR 0004); generic mana is encoded as `X: n` (e.g. {2} → { X: 2 }).
 import { defineCard } from "../../types";
 
-// Mind Stone — {2} Artifact. A mana rock that can be cashed in for a card late
-// (CR 605.1a mana ability resolves immediately; CR 605 activated draw goes on
-// the stack).
-export const mindStone = defineCard(() => ({
-    id: "162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71",
-    name: "Mind Stone",
-    rarity: "uncommon",
-    oracleText:
-        "{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.",
-    manaCost: { X: 2 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "mind-stone-mana",
-            oracleText: "{T}: Add {C}.",
-            cost: { tap: true },
-            useStack: false,
-            manaProduced: { C: 1 },
-        },
-        {
-            id: "mind-stone-draw",
-            oracleText: "{1}, {T}, Sacrifice this artifact: Draw a card.",
-            cost: { mana: { X: 1 }, tap: true, sacrifice: true },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, issue #1264).
-            effects: [{ op: "draw", player: "controller", count: 1 }],
-        },
-    ],
-}));
-
 // Phyrexian Furnace — {1} Artifact, a two-ability graveyard-hate rock:
 //  • "{T}: Exile the bottom card of target player's graveyard." The target is
 //    the PLAYER (CR 115.1); WHICH card leaves is not a choice at all but the

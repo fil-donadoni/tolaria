@@ -6,46 +6,6 @@
 import { defineCard, type SpellContext } from "../../types";
 import {} from "../../abilities";
 
-// Wasteland — "{T}: Add {C}.\n{T}, Sacrifice this land: Destroy target
-// nonbasic land." (CR 701.26 tap mana ability; CR 701.21 sacrifice cost;
-// CR 701.8 destroy.) "Nonbasic" needs a NEGATIVE supertype filter — the
-// engine only had the positive `supertypeFilter` (Avalanche's "target snow
-// lands"); this card motivates a small, general, orthogonal addition
-// (`TargetRequirement.excludeSupertypes`, mirroring the existing
-// `excludeTypes`/`excludeColors`/`excludeSubtypes` fields) rather than a
-// card-shaped workaround.
-export const wasteland = defineCard(() => ({
-    id: "99ff731b-8399-40c8-b539-ba6ba5783771",
-    rarity: "uncommon",
-    name: "Wasteland",
-    oracleText:
-        "{T}: Add {C}.\n{T}, Sacrifice this land: Destroy target nonbasic land.",
-    types: ["Land"],
-    activatedAbilities: [
-        {
-            id: "wasteland-mana",
-            oracleText: "{T}: Add {C}.",
-            cost: { tap: true },
-            useStack: false,
-            effect: (ctx) => ctx.addMana({ C: 1 }),
-            manaProduced: { C: 1 },
-        },
-        {
-            id: "wasteland-destroy",
-            oracleText:
-                "{T}, Sacrifice this land: Destroy target nonbasic land.",
-            cost: { tap: true, sacrifice: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Land",
-                count: 1,
-                excludeSupertypes: "Basic",
-            },
-            effects: [{ op: "destroy", target: { target: 0 } }],
-        },
-    ],
-}));
-
 // Cursed Scroll — {1} Artifact. "{3}, {T}: Choose a card name, then reveal a
 // card at random from your hand. If that card has the chosen name, this
 // artifact deals 2 damage to any target." (CR 201.3 name-a-card, CR 701.20a
