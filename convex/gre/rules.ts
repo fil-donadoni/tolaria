@@ -1970,9 +1970,9 @@ export function getLegalActions(
     // (`anyCastAnnouncementLegal`). Owns the "cast" decision for a pool card
     // and returns, so the hand branch below never sees one.
     //
-    // A pool card WITHOUT the permission is no play at all (CR 400.11c — cards
-    // outside the game can't be affected): returned here too, fail-closed,
-    // so the zone-blind hand fallback below never offers it a cast.
+    // A pool card WITHOUT the permission is no play at all: returned here too,
+    // fail-closed, so the zone-blind hand fallback below never offers it a
+    // cast.
     if (outsideGamePool(player).some((c) => c.id === card.id)) {
         if (
             !types.includes("Land") &&

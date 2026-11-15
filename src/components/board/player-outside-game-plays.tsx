@@ -12,7 +12,8 @@ import LibraryPlayLandButton from "./library-play-land-button";
  *  outside the game this turn"). Rendered in the viewer's own pile rail while
  *  the projection carries `outsideGamePlayable`: their outside-the-game pool,
  *  present only while they hold the permission and never on the opponent's
- *  view (CR 400.11c), so this renders nothing for anyone else.
+ *  view (the holder is hidden information, projected to its owner alone), so
+ *  this renders nothing for anyone else.
  *
  *  Each card's affordance is the same pair the library top uses — a land is
  *  played, anything else is cast (CR 305.9) — because both buttons read only

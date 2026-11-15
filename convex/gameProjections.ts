@@ -346,7 +346,7 @@ export type PublicPlayer = Omit<
     /** CR 400.11a — the viewer's OWN outside-the-game holder (their
      *  sideboard), set only on the viewer's player; never another's. */
     outsideGame?: SlimCardInstance[];
-    /** CR 400.11b / 400.11c — while the viewer holds an outside-game play
+    /** CR 400.11b — while the viewer holds an outside-game play
      *  permission ("you may play a card you own from outside the game this
      *  turn"), every card of their outside-the-game pool (`outsideGamePool`:
      *  the holder, then an unspent companion) with its `legalActions`, so the

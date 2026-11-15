@@ -175,7 +175,7 @@ describe("outside-game play permission — lifetime (CR 514.2)", () => {
     });
 });
 
-describe("outside-game play permission — the wire (CR 400.11c)", () => {
+describe("outside-game play permission — the wire (CR 400.11b)", () => {
     it("the owner's view carries the pool with its legal actions", () => {
         const state = board();
         grant(state);
