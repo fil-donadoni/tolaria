@@ -283,34 +283,6 @@ export const ruhamDjinn = defineCard(() => ({
 // Kicker + Effect Script (spell-level kickerCount read, CR 702.33e)
 // ─────────────────────────────────────────────────────────────────────────
 
-// Dismantling Blow — "Kicker {2}{U}. Destroy target artifact or enchantment.
-// If this spell was kicked, draw two cards."
-export const dismantlingBlow = defineCard(() => ({
-    id: "39514d54-cb6c-4b3b-a3be-46db991be4d4",
-    rarity: "common",
-    name: "Dismantling Blow",
-    oracleText:
-        "Kicker {2}{U} (You may pay an additional {2}{U} as you cast this spell.)\nDestroy target artifact or enchantment. If this spell was kicked, draw two cards.",
-    manaCost: { X: 2, W: 1 },
-    types: ["Instant"],
-    kickers: [
-        {
-            id: "kicker",
-            description: "Kicker {2}{U}",
-            mana: { X: 2, U: 1 },
-        },
-    ],
-    targetRequirement: { type: ["Artifact", "Enchantment"], count: 1 },
-    effects: [
-        { op: "destroy", target: { target: 0 } },
-        {
-            op: "if",
-            predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
-            then: [{ op: "draw", player: "controller", count: 2 }],
-        },
-    ],
-}));
-
 // Orim's Touch — "Kicker {1}. Prevent the next 2 damage that would be dealt
 // to any target this turn. If this spell was kicked, prevent the next 4
 // damage instead."

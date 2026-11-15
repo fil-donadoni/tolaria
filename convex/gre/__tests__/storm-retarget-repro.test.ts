@@ -15,8 +15,9 @@ import { emitSpellCastEvent, resolveTopOfStack } from "../state";
 import { drainAutoPasses } from "../phases";
 import { finalizeTargetSelection } from "../../game";
 import { lightningBolt, grizzlyBears } from "../../cards/sets/lea/index.cards";
-import { brainFreeze } from "../../cards/sets/scg/index.cards";
 import type { GameState } from "../state";
+import { getDefinition } from "../../cards";
+const brainFreeze = () => getDefinition("59a43ef5-08f0-44fc-802d-b6cfd56b7d1f");
 
 function fillLibrary(count: number, controllerId: string) {
     return Array.from({ length: count }, (_, i) =>

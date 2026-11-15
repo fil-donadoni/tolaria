@@ -6,8 +6,9 @@ import { render, cleanup } from "@testing-library/react";
 import CardPreviewFace from "../card-preview-face";
 import { buildPreviewBody } from "~/lib/preview-body";
 import { grizzlyBears } from "@convex/cards/sets/lea/index.cards";
-import { grapeshot } from "@convex/cards/sets/tsp/index.cards";
 import type { CardInstance, Player } from "~/types/game";
+import { getDefinition } from "@convex/cards";
+const grapeshot = () => getDefinition("4ee33cb6-768e-44a0-b6f4-b8638aa84330");
 
 const STORM = grapeshot();
 

@@ -11,7 +11,6 @@ import {
     pushSpell,
 } from "@convex/cards/__tests__/setup.helper";
 import { sageOfTheSkies } from "@convex/cards/sets/tdm/white.cards";
-import { grapeshot } from "@convex/cards/sets/tsp/index.cards";
 import { projectPublicState } from "@convex/gameProjections";
 import {
     emitSpellCastEvent,
@@ -19,6 +18,8 @@ import {
     type GameState,
 } from "@convex/gre/state";
 import { projectedToGameState } from "../state-adapter";
+import { getDefinition } from "@convex/cards";
+const grapeshot = () => getDefinition("4ee33cb6-768e-44a0-b6f4-b8638aa84330");
 
 // Base-owned `data/catalogue` (ADR 0157) lacks a card this PR ships.
 preloadDefinitions([sageOfTheSkies()]);

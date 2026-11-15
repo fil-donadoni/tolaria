@@ -10145,7 +10145,9 @@
         "oracleId": "464c0150-3dbc-403b-9ada-fef25ab1f29d",
         "firstSet": "scg",
         "firstPrintId": "59a43ef5-08f0-44fc-802d-b6cfd56b7d1f",
-        "firstPrintSet": "scg"
+        "firstPrintSet": "scg",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Brain Weevil",
@@ -18097,7 +18099,9 @@
         "oracleId": "b01d61cc-9844-4191-86a0-f2db6d42d6e5",
         "firstSet": "mh2",
         "firstPrintId": "efeae088-9ac5-4d2f-a15c-d8675a471ac5",
-        "firstPrintSet": "mh2"
+        "firstPrintSet": "mh2",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Damnation",
@@ -21383,7 +21387,9 @@
         "oracleId": "300cba5a-adbb-4852-be06-ac00d9d6fd37",
         "firstSet": "inv",
         "firstPrintId": "39514d54-cb6c-4b3b-a3be-46db991be4d4",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Dismember",
@@ -25249,7 +25255,9 @@
         "oracleId": "3a59c882-8bb8-49ba-862f-125020dd5bec",
         "firstSet": "tsp",
         "firstPrintId": "952bb27c-c58a-478a-b637-eb4f7e1e0ab4",
-        "firstPrintSet": "tsp"
+        "firstPrintSet": "tsp",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Emrakul, the Aeons Torn",
@@ -35465,7 +35473,9 @@
         "oracleId": "ebd2d760-5ad8-4027-b124-171822f3edfe",
         "firstSet": "tsp",
         "firstPrintId": "4ee33cb6-768e-44a0-b6f4-b8638aa84330",
-        "firstPrintSet": "tsp"
+        "firstPrintSet": "tsp",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Grapeshot Catapult",
@@ -47886,7 +47896,9 @@
         "oracleId": "1cea6439-7ae5-4887-8c33-7da9fb36e2d4",
         "firstSet": "mh2",
         "firstPrintId": "985bdb0c-ce6c-4506-8163-76f3b2fdf5fb",
-        "firstPrintSet": "mh2"
+        "firstPrintSet": "mh2",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Lose Hope",
@@ -51064,7 +51076,9 @@
         "oracleId": "c4920e95-a6fc-4373-a0d6-244f51851364",
         "firstSet": "aer",
         "firstPrintId": "f712ac26-dca4-459b-84c1-010597007f60",
-        "firstPrintSet": "aer"
+        "firstPrintSet": "aer",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Metallic Sliver",
@@ -52030,7 +52044,9 @@
         "oracleId": "9078db26-3a54-4a11-9aae-e45c38da7226",
         "firstSet": "ulg",
         "firstPrintId": "4b4956a2-9a39-4152-9c98-70e4b2acfa26",
-        "firstPrintSet": "ulg"
+        "firstPrintSet": "ulg",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Miscast",
@@ -57976,7 +57992,9 @@
         "oracleId": "07159efc-c69f-4164-a8ca-9da641dbf702",
         "firstSet": "inv",
         "firstPrintId": "c91fca91-7296-422e-b251-d571b710ff71",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Overlord of the Balemurk",
@@ -61768,7 +61786,9 @@
         "oracleId": "d95f1797-56f9-41be-a5fe-8398961f4b8b",
         "firstSet": "inv",
         "firstPrintId": "0daa5458-2a97-40d0-b18d-2381a7a68ee1",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Project Deathlok Soldier",
@@ -67927,7 +67947,9 @@
         "oracleId": "6e2a695d-305a-4bbe-b302-11fdc5c2a451",
         "firstSet": "pls",
         "firstPrintId": "52ddf7bf-de9c-4657-8d5b-79869d36fa63",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Rushwood Dryad",
@@ -83513,7 +83535,9 @@
         "oracleId": "78db3190-59bc-4033-95bc-32d8ed872b6a",
         "firstSet": "scg",
         "firstPrintId": "0559352e-95c1-403b-bd8f-d0679717cfa2",
-        "firstPrintSet": "scg"
+        "firstPrintSet": "scg",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Tendrils of Corruption",
@@ -87127,7 +87151,9 @@
         "oracleId": "5b6bdf5a-2742-4851-92cd-a857a3852836",
         "firstSet": "ktk",
         "firstPrintId": "7a59d4b1-6cf4-44ec-8a96-1bb7094fea21",
-        "firstPrintSet": "ktk"
+        "firstPrintSet": "ktk",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Treasure Hunter",
@@ -88811,7 +88837,9 @@
         "oracleId": "4e0b647a-6e1a-421b-bca9-8d5e346bda80",
         "firstSet": "ulg",
         "firstPrintId": "b6cb2549-e485-44d6-9d65-7605c568909e",
-        "firstPrintSet": "ulg"
+        "firstPrintSet": "ulg",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Unending Whisper",
@@ -95179,7 +95207,9 @@
         "oracleId": "499a4715-6776-461b-bee4-22ed172d455e",
         "firstSet": "mh1",
         "firstPrintId": "3bb17913-fe4d-4acd-9b75-71f5a90f898b",
-        "firstPrintSet": "mh1"
+        "firstPrintSet": "mh1",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Winds of Change",

@@ -53,11 +53,14 @@ import {
     lightningBolt,
 } from "../../cards/sets/lea/index.cards";
 import { chainLightning } from "../../cards/sets/leg/red.cards";
-import { emptyTheWarrens, grapeshot } from "../../cards/sets/tsp/red.cards";
 import { saprolingInfestation } from "../../cards/sets/inv/green.cards";
 import { witherbloomApprentice } from "../../cards/sets/stx/multicolor.cards";
 import { sedgemoorWitch } from "../../cards/sets/stx/black.cards";
 import { applyMayPaySubmit } from "../pendingChoiceSubmit";
+import { getDefinition } from "../../cards";
+const emptyTheWarrens = () =>
+    getDefinition("952bb27c-c58a-478a-b637-eb4f7e1e0ab4");
+const grapeshot = () => getDefinition("4ee33cb6-768e-44a0-b6f4-b8638aa84330");
 
 // Base-owned `data/catalogue` (ADR 0157) lacks a card this PR ships.
 preloadDefinitions([witherbloomApprentice(), sedgemoorWitch()]);

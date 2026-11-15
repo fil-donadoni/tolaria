@@ -14,7 +14,8 @@ import { emitSpellCastEvent, resolveTopOfStack } from "../state";
 import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
 import { lightningBolt, grizzlyBears } from "../../cards/sets/lea/index.cards";
-import { grapeshot } from "../../cards/sets/tsp/index.cards";
+import { getDefinition } from "../../cards";
+const grapeshot = () => getDefinition("4ee33cb6-768e-44a0-b6f4-b8638aa84330");
 
 function castBolt(state: ReturnType<typeof makeState>, who: "p1" | "p2") {
     const bolt = pushSpell(state, lightningBolt().id, who, [

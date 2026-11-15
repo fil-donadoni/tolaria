@@ -45,7 +45,6 @@ import {
     zombieMaster,
 } from "../../cards/sets/lea/black.cards";
 import { onceUponATime } from "../../cards/sets/eld/green.cards";
-import { grapeshot } from "../../cards/sets/tsp/index.cards";
 import {
     getDefinition,
     tokenDefinitionId,
@@ -92,6 +91,7 @@ import {
 } from "../../debugScenarioSpec";
 import { removedKeywordRows } from "../../cards/__tests__/setup.helper";
 import { checkStateBasedActions } from "../sba";
+const grapeshot = () => getDefinition("4ee33cb6-768e-44a0-b6f4-b8638aa84330");
 
 /** A live position at DECLARE_BLOCKERS with the attack declared and confirmed
  *  and one blocker locked in (CR 508.1 / 509.1) — the class of board

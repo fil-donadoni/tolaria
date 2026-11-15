@@ -5,13 +5,11 @@
 //  1. GOLDEN — Damn compiled whole: the cost lands in `CardDefinition.overload`
 //     and the spell body is the `forEach { set: "targets" }` shape
 //     `validateEffectScript` requires, never a `{ target: n }` slot.
-//  2. GOLD — the hand-written Damn is exactly what the compiler produces.
-//  3. REFUSALS — the neighbours the rule must not read: a cost the payment
+//  2. REFUSALS — the neighbours the rule must not read: a cost the payment
 //     path is not exercised on, a non-mana cost, a second declaration, a
 //     permanent, and a body with no target to change.
 
 import { describe, expect, it } from "vitest";
-import { getAllRawCards } from "../../cards/catalogue";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { keywordLineSlot } from "../grammar/slots/keywordLine";
@@ -63,15 +61,6 @@ describe("Overload [cost] (CR 702.96a)", () => {
                 ],
             })
         );
-    });
-
-    it("gold: the hand-written Damn is what the compiler produces", () => {
-        const raw = getAllRawCards().find((c) => c.name === "Damn");
-        expect(raw).toBeDefined();
-        const outcome = compileCard(sorcery("Damn", "{B}{B}", DAMN_TEXT));
-        if (outcome.state === "unparsed") throw new Error("unparsed");
-        expect(outcome.definition.overload).toEqual(raw!.overload);
-        expect(outcome.definition.effects).toEqual(raw!.effects);
     });
 });
 

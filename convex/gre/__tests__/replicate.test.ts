@@ -28,7 +28,6 @@ import {
     makeState,
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
-import { loseFocus } from "../../cards/sets/mh2/blue.cards";
 import { lightningBolt } from "../../cards/sets/lea/index.cards";
 import {
     additionalCostPaidCount,
@@ -38,6 +37,8 @@ import {
 } from "../kicker";
 import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
+import { getDefinition } from "../../cards";
+const loseFocus = () => getDefinition("985bdb0c-ce6c-4506-8163-76f3b2fdf5fb");
 
 const LOSE_FOCUS = "lf";
 

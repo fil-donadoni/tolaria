@@ -227,37 +227,6 @@ export const manipulateFate = defineCard(() => ({
     ],
 }));
 
-// Prohibit — {1}{U} Instant. Kicker {2}. "Counter target spell if its mana
-// value is 2 or less. If this spell was kicked, counter that spell if its
-// mana value is 4 or less instead." (CR 702.33 Kicker.) The kick WIDENS the
-// mana-value ceiling, so — exactly like Bloodchief's Thirst (znr/black.cards.ts) —
-// the kicked/unkicked split is expressed via `kickedTargetRequirement`
-// (announcement swaps in the wider mv ceiling), not a runtime `if`: no
-// runtime branch needed, `effects` is a plain counter.
-export const prohibit = defineCard(() => ({
-    id: "0daa5458-2a97-40d0-b18d-2381a7a68ee1",
-    name: "Prohibit",
-    rarity: "common",
-    oracleText:
-        "Kicker {2} (You may pay an additional {2} as you cast this spell.)\nCounter target spell if its mana value is 2 or less. If this spell was kicked, counter that spell if its mana value is 4 or less instead.",
-    manaCost: { X: 1, U: 1 },
-    types: ["Instant"],
-    kickers: [
-        {
-            id: "kicker",
-            description: "Kicker {2}",
-            mana: { X: 2 },
-        },
-    ],
-    targetRequirement: { type: "spell", count: 1, mvFilter: { max: 2 } },
-    kickedTargetRequirement: {
-        type: "spell",
-        count: 1,
-        mvFilter: { max: 4 },
-    },
-    effects: [{ op: "counter", target: { target: 0 } }],
-}));
-
 // Repulse — {2}{U} Instant. "Return target creature to its owner's hand.
 // Draw a card." (CR 400.7 zone move + CR 121.1 draw — the shipped
 // bounce-and-draw template.)
