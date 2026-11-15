@@ -148,6 +148,10 @@ describe("useControllerActions — Pass Until Action (issue #5782)", () => {
         expect(
             result.current.actions.find((a) => a.key === "pass-turn")?.shortcut
         ).toBe(HOTKEYS.passTurn);
+        // Issue #9833: Pass shows the Space keycap — the key that passes.
+        expect(
+            result.current.actions.find((a) => a.key === "pass")?.shortcut
+        ).toBe(HOTKEYS.passPriority);
         const slots = selectCommandSlots(result.current.actions);
         expect(slots.passUntilAction).toBe(action);
         expect(slots.primary?.key).toBe("pass");
