@@ -73,6 +73,15 @@ const RANDOM_DISCARD_X = oracleCard({
     power: undefined,
     toughness: undefined,
 });
+const SACRIFICE_IF_YOU_DO = oracleCard({
+    name: "Aang's Iceberg",
+    manaCost: "{2}{W}",
+    typeLine: "Enchantment",
+    oracleText:
+        "Flash\nWhen this enchantment enters, exile up to one other target nonland permanent until this enchantment leaves the battlefield.\nWaterbend {3}: Sacrifice this enchantment. If you do, scry 2. (While paying a waterbend cost, you can tap your artifacts and creatures to help. Each one pays for {1}.)",
+    power: undefined,
+    toughness: undefined,
+});
 const MILL_X = oracleCard({
     name: "Mill Probe",
     manaCost: "{X}{U}",
@@ -243,6 +252,15 @@ describe("card-dependent smoke skips quarantine until a fixture exhibits the for
         // The canned scenario seeds the target's hand and asserts the
         // hand-to-graveyard delta (issue #5943): the X count is exercised.
         const outcome = compileCard(RANDOM_DISCARD_X);
+        expect(smokeReasons(outcome)).toEqual([]);
+        expect(outcome.state).toBe("ready");
+    });
+
+    it('a source sacrifice\'s "if you do" gate withholds nothing (CR 701.21a)', () => {
+        // The canned scenario seeds the source the ability sacrifices, so the
+        // sacrifice always happens and the gated body is analysed as written
+        // (issue #6423): the binding the `if` reads is no runtime unknown.
+        const outcome = compileCard(SACRIFICE_IF_YOU_DO);
         expect(smokeReasons(outcome)).toEqual([]);
         expect(outcome.state).toBe("ready");
     });

@@ -322,10 +322,7 @@
         "code": "op-own-tests",
         "reason": "Op \"revealUntilMatch\" reveals a prefix whose size depends on the library composition — the canned generator cannot provision a known library; covered by the Op's interpreter tests"
     },
-    "sacrifice": {
-        "code": "choice-binding",
-        "reason": "Op \"sacrifice\" consumes a choice binding — covered by the card's own suspension/resume tests"
-    },
+    "sacrifice": "runs",
     "sacrificeAndReturn": {
         "code": "unmodelled-object-or-zone",
         "reason": "Op \"sacrificeAndReturn\" pairs a battlefield target with a graveyard-card target of the same player — covered by the Op's own interpreter test"
