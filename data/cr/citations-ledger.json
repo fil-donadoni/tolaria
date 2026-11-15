@@ -27086,6 +27086,7 @@
         {"id":"105.2","line":"* `color` + hybrid pips containing `color`, CR 700.5/105.2). Read live","sites":1,"status":"baseline"},
         {"id":"102.1","line":"/** CR 102.1 / 117.1 (issue #3454) — a draft field narrowed to ONE seat plus","sites":1,"status":"baseline"},
         {"id":"711.7","line":"* precise trap CR 711.7 warns about. It is also why it is NOT cleared","sites":1,"status":"baseline"},
+        {"id":"603.3d","line":"* the GRANTED ability's own line, with its own target (CR 603.3d, announced","sites":1,"status":"confirmed","ruleHash":"ebc2c87f28be3a1e"},
         {"id":"613.4a","line":"* 7c and adds, and `pt-cda` lands in 7a, where CR 613.4a makes the latest","sites":1,"status":"baseline"},
         {"id":"701.20a","line":"// CR 701.20a) the picker IS that player's view of the reveal, it shows the","sites":1,"status":"baseline"},
         {"id":"611.1","line":"// CR 611.1 temp P/T mods; CR 701.19 regeneration; CR 502.1 untap restriction)","sites":1,"status":"baseline"},
