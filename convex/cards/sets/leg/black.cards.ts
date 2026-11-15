@@ -13,6 +13,7 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
+import { exiledCardCounterCount } from "../../exileCounters";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Black free tranche (#373) — every mono-black Legends card expressible with
@@ -23,8 +24,7 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 // Cards owned by feature clusters (#369 C1–C9) are NOT here:
 //   • Nether Void → C8 (cast-tax "counter unless pay" World enchantment).
 //   • Cosmic Horror, Mold Demon → C7 (upkeep / ETB pay-or-sacrifice).
-//   • Spirit Shackle, Takklemaggot, All Hallow's Eve → C5 (named counters:
-//     -0/-2, -0/-1, scream).
+//   • Spirit Shackle, Takklemaggot → C5 (named counters: -0/-2, -0/-1).
 //   • Wall of Shadows → C6 (can't-be-the-target-of Wall-only spells/abilities).
 //   • Lesser Werewolf → C5 (-0/-1 counters on a combatant).
 //
@@ -662,8 +662,8 @@ export const moldDemon = defineCard(() => ({
 //     turn" = new turn-scoped per-instance flags (CR 502.1 / 120.3).
 //
 // Deferred (need a primitive owned by another cluster; documented at the end of
-// this section): Glyph of Delusion (tracked-by: #2227), All Hallow's Eve
-// (tracked-by: #2226), plus the C7-noted Takklemaggot (tracked-by: #2228).
+// this section): Glyph of Delusion (tracked-by: #2227), plus the C7-noted
+// Takklemaggot (tracked-by: #2228). All Hallow's Eve ships below it.
 // ═════════════════════════════════════════════════════════════════════════════
 
 // Spirit Shackle — {B}{B} Aura. "Whenever enchanted creature becomes tapped,
@@ -722,14 +722,6 @@ export const spiritShackle = defineCard(() => ({
 //     The named-counter half (glyph counters + does-not-untap + upkeep removal)
 //     is expressible today, but neither of those is a counter feature;
 //     deferred whole to avoid a partial card.
-//   • All Hallow's Eve (tracked-by: #2226) — exiles ITSELF with two scream
-//     counters and ticks them down from EXILE each upkeep, mass-reanimating all
-//     creatures at zero. This is a suspend-like "card waits in exile with
-//     counters and an upkeep trigger that functions from exile" mechanism
-//     (CR 603.6e off-battlefield trigger + counters on an exiled card); the
-//     engine's exile infrastructure today is the return-bundle (ADR 0028), not
-//     a counter-ticking exiled spell. Owned by that substrate, not by Suspend
-//     (CR 702.62), whose registry row stays `planned`.
 //   • Voodoo Doll (tracked-by: #2225) — its named-counter core (upkeep pin
 //     accrual + end-step self-destruct-and-ping) is fully expressible, and the
 //     board-derived cost primitive its "{X}{X}, {T}" activation needs DOES now
@@ -743,6 +735,90 @@ export const spiritShackle = defineCard(() => ({
 //     "enchant creature" and gains a new upkeep trigger. Blocked on four
 //     continuous-effect capabilities (CR 613), none of them counter-related.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// All Hallow's Eve — {2}{B}{B} Sorcery. A card that waits in exile carrying
+// counters, ticked by its own upkeep trigger from there. CR 608.2n's
+// graveyard default is replaced by the spell's own last instruction:
+// `exileSelf { withCounters }` puts the card into exile as a NEW object
+// (CR 400.7) with the two scream counters on it (CR 122.1), so CR 122.2 never
+// strips them. CR 113.6b — the trigger states the zone it functions in
+// (`zone: "exile"`), so `collectTriggers` scans its owner's exile for it, and
+// `$source` is the exiled card. CR 603.4 — the intervening-if reads the LIVE
+// exile pile both when the upkeep begins and as the ability resolves
+// (`exiledCardCounterCount`): a card that has left exile, or carries no
+// scream counter, does nothing. At zero the card goes to its owner's
+// graveyard and every player's creature cards return in ONE batch
+// (`forEach { set: "graveyard" } simultaneous`, Twilight's Call's idiom), each
+// under its owner's control. Not Suspend (CR 702.62): no time counters, no
+// cast from exile, and the `suspend` registry row stays `planned`.
+// hand-tail: "Exile {self} with two scream counters on it." (#2226)
+// hand-tail: "At the beginning of your upkeep, if this card is exiled with a scream counter on it, remove a scream counter from it. If there are no more scream counters on it, put it into your graveyard and each player returns all creature cards from their graveyard to the battlefield." (#2226)
+export const allHallowsEve = defineCard(() => ({
+    id: "18787a2d-6688-47e9-94bc-ccf229df823f",
+    rarity: "rare",
+    name: "All Hallow's Eve",
+    oracleText:
+        "Exile All Hallow's Eve with two scream counters on it.\nAt the beginning of your upkeep, if this card is exiled with a scream counter on it, remove a scream counter from it. If there are no more scream counters on it, put it into your graveyard and each player returns all creature cards from their graveyard to the battlefield.",
+    manaCost: { X: 2, B: 2 },
+    types: ["Sorcery"],
+    effects: [{ op: "exileSelf", withCounters: { scream: 2 } }],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "all-hallows-eve-scream",
+            oracleText:
+                "At the beginning of your upkeep, if this card is exiled with a scream counter on it, remove a scream counter from it. If there are no more scream counters on it, put it into your graveyard and each player returns all creature cards from their graveyard to the battlefield.",
+            phase: "UPKEEP",
+            scope: "your",
+            zone: "exile",
+            interveningIf: (_event, self, state) =>
+                (exiledCardCounterCount(state, self, "scream") ?? 0) > 0,
+            effects: [
+                {
+                    op: "counters",
+                    action: "remove",
+                    counter: "scream",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            counters: {
+                                of: { ref: "$source" },
+                                type: "scream",
+                            },
+                        },
+                        op: "eq",
+                        right: 0,
+                    },
+                    then: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            to: "graveyard",
+                        },
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "graveyard",
+                                filter: { type: "Creature" },
+                            },
+                            simultaneous: true,
+                            effects: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$each" },
+                                    to: "battlefield",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+}));
 
 // Pit Scorpion — {2}{B} Creature — Scorpion 1/1. "Whenever this creature deals
 // damage to a player, that player gets a poison counter." (modern Oracle, ADR

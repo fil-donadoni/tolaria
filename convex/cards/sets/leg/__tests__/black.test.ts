@@ -36,6 +36,9 @@ import {
 } from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
 import { STATIC_EFFECT_CTX } from "../../../../gre/layers";
+import { collectTriggers } from "../../../../gre/triggers";
+import { compactState, expandState } from "../../../../gre/serialize";
+import { MECHANICS_REGISTRY } from "../../../mechanicsRegistry";
 
 const touchOfDarkness = getDefinition("eda7177f-1354-4008-aaaa-2c8b823ed5e9");
 
@@ -949,5 +952,160 @@ describe("Touch of Darkness (creatures become black EOT, CR 305.7 layer 5)", () 
             (c) => c.id === "lion"
         )!;
         expect(STATIC_EFFECT_CTX.getColors(slim)).toEqual(["B"]);
+    });
+});
+
+describe("All Hallow's Eve — counters on an exiled card + a trigger functioning from exile (CR 113.6b, 122.1, 603.4)", () => {
+    const AHE = getDefinition("18787a2d-6688-47e9-94bc-ccf229df823f");
+    const TRIGGER = "all-hallows-eve-scream";
+    const upkeep = (activePlayerId: string) =>
+        ({
+            type: "PHASE_BEGIN" as const,
+            phase: "UPKEEP" as const,
+            activePlayerId,
+        }) as const;
+
+    function graveyardCreature(id: string, ownerId: string) {
+        return makeInstance(HEADLESS, {
+            id,
+            controllerId: ownerId,
+            ownerId,
+            zone: "graveyard",
+        });
+    }
+
+    /** All Hallow's Eve already in p1's exile with `scream` counters, and a
+     *  creature card in each graveyard plus a non-creature card in p1's. */
+    function exiledState(scream: number) {
+        const eve = makeInstance(AHE.id, {
+            id: "eve",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+            ...(scream > 0 ? { counters: { scream } } : {}),
+        });
+        const sorcery = makeInstance(acidRain.id, {
+            id: "rain",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        return makeState({
+            activePlayerId: "p1",
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", {
+                    exile: [eve],
+                    graveyard: [graveyardCreature("mine", "p1"), sorcery],
+                }),
+                makePlayer("p2", {
+                    graveyard: [graveyardCreature("theirs", "p2")],
+                }),
+            ],
+        });
+    }
+
+    function runUpkeep(state: ReturnType<typeof exiledState>) {
+        const triggers = collectTriggers(state, [upkeep("p1")]);
+        state.stack.push(...triggers);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        return triggers;
+    }
+
+    it("resolves by exiling ITSELF with two scream counters, never reaching the graveyard (CR 608.2n, 122.1)", () => {
+        const state = makeState({
+            activePlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const spell = pushSpell(state, AHE.id, "p1");
+        resolveTopOfStack(state);
+        const p1 = state.players[0];
+        const exiled = p1.exile.find((c) => c.id === spell.id);
+        expect(exiled?.counters).toEqual({ scream: 2 });
+        expect(exiled?.zone).toBe("exile");
+        expect(p1.graveyard.some((c) => c.id === spell.id)).toBe(false);
+    });
+
+    it("its upkeep trigger fires from exile on its owner's upkeep only (CR 113.6b)", () => {
+        const state = exiledState(2);
+        const mine = collectTriggers(state, [upkeep("p1")]);
+        expect(mine.map((t) => t.triggeredAbilityId)).toEqual([TRIGGER]);
+        expect(collectTriggers(state, [upkeep("p2")])).toHaveLength(0);
+    });
+
+    it("ticks one counter per upkeep, then at zero goes to the graveyard and every player's creature cards return together", () => {
+        const state = exiledState(2);
+        runUpkeep(state);
+        const eve = () => state.players[0].exile.find((c) => c.id === "eve");
+        expect(eve()?.counters).toEqual({ scream: 1 });
+        expect(state.players[0].battlefield).toHaveLength(0);
+
+        runUpkeep(state);
+        const [p1, p2] = state.players;
+        expect(eve()).toBeUndefined();
+        expect(p1.graveyard.map((c) => c.id).sort()).toEqual(["eve", "rain"]);
+        // CR 400.7 — each under its OWN owner's control.
+        expect(p1.battlefield.map((c) => c.id)).toEqual(["mine"]);
+        expect(p2.battlefield.map((c) => c.id)).toEqual(["theirs"]);
+        expect(p2.battlefield[0].controllerId).toBe("p2");
+    });
+
+    it("does not trigger while exiled with no scream counter (CR 603.4)", () => {
+        expect(collectTriggers(exiledState(0), [upkeep("p1")])).toHaveLength(0);
+    });
+
+    it("re-checks the intervening-if on resolution: a counter gone meanwhile does nothing (CR 603.4)", () => {
+        const state = exiledState(1);
+        state.stack.push(...collectTriggers(state, [upkeep("p1")]));
+        delete state.players[0].exile[0].counters;
+        resolveTopOfStack(state);
+        expect(state.players[0].exile.map((c) => c.id)).toEqual(["eve"]);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[1].battlefield).toHaveLength(0);
+    });
+
+    it("re-checks the intervening-if on resolution: a card no longer exiled does nothing (CR 603.4, 400.7)", () => {
+        const state = exiledState(1);
+        state.stack.push(...collectTriggers(state, [upkeep("p1")]));
+        const [card] = state.players[0].exile.splice(0, 1);
+        state.players[0].hand.push({ ...card, zone: "hand" });
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["eve"]);
+        expect(state.players[0].hand[0].counters).toEqual({ scream: 1 });
+        expect(state.players[0].battlefield).toHaveLength(0);
+    });
+
+    it("the exiled card's counters survive a DB round trip (compact → expand)", () => {
+        const state = exiledState(2);
+        const round = expandState(compactState(state));
+        expect(round.players[0].exile[0].counters).toEqual({ scream: 2 });
+    });
+
+    it("a mid-resolution save keeps the exile-with-counters load on the stack item", () => {
+        const state = makeState({
+            activePlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const spell = pushSpell(state, AHE.id, "p1");
+        spell.exileOnResolve = true;
+        spell.exileOnResolveCounters = { scream: 2 };
+        const round = expandState(compactState(state));
+        expect(round.stack[0].exileOnResolveCounters).toEqual({ scream: 2 });
+    });
+
+    it("both players see the scream count on the exiled card through the projection", () => {
+        const state = exiledState(2);
+        for (const viewer of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewer);
+            const slim = projected.players[0].exile.find((c) => c.id === "eve");
+            expect(slim?.counters).toEqual({ scream: 2 });
+        }
+    });
+
+    it("is not the Suspend keyword: the `suspend` registry row stays planned", () => {
+        const row = MECHANICS_REGISTRY.find((r) => r.id === "suspend");
+        expect(row?.status).toBe("planned");
     });
 });

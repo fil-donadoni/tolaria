@@ -2871,6 +2871,12 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  (CR 614.1a), which is why `sendStackItemToGraveyard` reads it too: a
      *  countered or fizzled spell is exiled, one returned to a hand is not. */
     exileOnResolve?: boolean;
+    /** CR 122.1 / 400.7 — the counters the card is exiled WITH by its own
+     *  `exileOnResolve` instruction ("Exile ~ with two scream counters on
+     *  it"). Read once by `finalizeSpellResolution`'s exile branch and put on
+     *  the NEW exile-zone object; never counters on the spell itself. Set via
+     *  `SpellContext.exileSelf(…, withCounters)`. */
+    exileOnResolveCounters?: Record<string, number>;
     /** True iff this spell is exiled instead of going anywhere else "any time
      *  it would leave the stack" (flashback CR 702.34a, jump-start CR 702.133a):
      *  countered, fizzled, or moved to a hand or library, not only on resolving.

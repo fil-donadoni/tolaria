@@ -4398,13 +4398,16 @@ export const OP_EXECUTORS: {
     // `finalizeSpellResolution` reads the flag once resolution completes.
     exileSelf(ctx, op) {
         if (op.encodedOn === undefined) {
-            ctx.exileSelf();
+            // CR 122.1 — "Exile ~ with N <kind> counters on it" (All Hallow's
+            // Eve): the load rides the same flag onto the exile-zone object.
+            ctx.exileSelf(undefined, op.withCounters);
             return;
         }
         // CR 702.99a — "you may": nothing chosen, nothing encoded, and the
         // spell goes where it would have gone.
         const creatureId = resolvePicks(ctx, op.encodedOn)?.[0];
-        if (creatureId !== undefined) ctx.exileSelf(creatureId);
+        if (creatureId !== undefined)
+            ctx.exileSelf(creatureId, op.withCounters);
     },
     // CR 603.7a / 701.13 / ADR 0028 — exile the announced target keyed to
     // `$source`, arming the exile-and-return bundle (O-Ring / Banishing Light /
@@ -9472,6 +9475,21 @@ function seedSourceBindings(ctx: SpellContext): void {
                 id: hostId,
             });
         }
+        return;
+    }
+    // CR 113.6b — an ability that functions from EXILE (`TriggeredAbility.zone:
+    // "exile"`) has the exiled card itself as its source: it never left the
+    // battlefield (the departure guard above answered nothing), so `$source`
+    // is that card, carried as the generic non-battlefield card selection
+    // `resolveObjectRef`'s own exile fallback produces. "Remove a counter
+    // from it" / "put it into your graveyard" then reach it declaratively.
+    const exileOwner = ctx.getExileCardOwner(ctx.sourceInstanceId);
+    if (exileOwner !== undefined) {
+        bindSnapshot(ctx, SOURCE_BINDING, {
+            type: "graveyard-card",
+            id: ctx.sourceInstanceId,
+            playerId: exileOwner,
+        });
     }
 }
 
