@@ -353,6 +353,10 @@
         "reason": "Op \"restrictAttackers\" only manifests at a later declare-attackers step — covered by hand-written tests"
     },
     "setLevel": "runs",
+    "grantPlayerKeyword": {
+        "code": "op-own-tests",
+        "reason": "Op \"grantPlayerKeyword\" grants a player keyword that only bars a later spell's targeting — covered by the Op's interpreter tests"
+    },
     "setProtectionFromEverything": {
         "code": "op-own-tests",
         "reason": "Op \"setProtectionFromEverything\" sets a global player-scoped protection designation — covered by the Op's interpreter tests"

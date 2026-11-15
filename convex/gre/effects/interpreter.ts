@@ -1195,6 +1195,17 @@ function resolveValue(
         if (playerId === undefined) return undefined;
         return ctx.getCardsDrawnThisTurn(playerId);
     }
+    // spellsCastThisTurn (CR 601.2i / 202.2) — how many spells a PLAYER has
+    // cast this turn, optionally only those of `colors`: the same PLAYER
+    // selector path, undefined when the player cannot be resolved (CR 608.2b).
+    if ("spellsCastThisTurn" in value) {
+        const playerId = resolvePlayerRef(ctx, value.spellsCastThisTurn.of);
+        if (playerId === undefined) return undefined;
+        return ctx.getSpellsCastThisTurn(
+            playerId,
+            value.spellsCastThisTurn.colors
+        );
+    }
     // nontokenCreaturesToGraveyardThisTurn (CR 700.4) — nontoken creatures put into a PLAYER's graveyard from
     // the battlefield this turn, a thin skin over the per-owner tally. `of`
     // names the graveyard's owner (CR 404.1), resolved through the SAME
@@ -8372,6 +8383,15 @@ export const OP_EXECUTORS: {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
         ctx.setPlayerProtectionFromEverything(playerId);
+    },
+    // CR 611.2a — "You gain hexproof until end of turn". A thin declarative
+    // skin over the single SpellContext primitive
+    // `grantPlayerKeywordUntilEndOfTurn`, one execution path (ADR 0045).
+    // Skipped when the player cannot be resolved (CR 608.2b).
+    grantPlayerKeyword(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.grantPlayerKeywordUntilEndOfTurn(playerId, op.keyword);
     },
     // CR 119.4 / 121.1 (issue #1283) — a single ranged 0..N pick over the
     // resolved player's "drawn this turn" hand cards: each NOT selected costs

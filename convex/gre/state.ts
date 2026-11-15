@@ -17598,6 +17598,16 @@ export function buildSpellContext(
                     ?.length ?? 0
             );
         },
+        // CR 601.2i / 202.2 — the per-player cast tally, or (with `colors`)
+        // the spells in the turn's colour record that were any of them.
+        getSpellsCastThisTurn(playerId: string, colors?: Color[]): number {
+            const player = state.players.find((p) => p.id === playerId);
+            if (!player) return 0;
+            if (colors === undefined) return player.spellsCastThisTurn ?? 0;
+            return (player.spellColorsCastThisTurn ?? []).filter((cast) =>
+                cast.some((c) => colors.includes(c))
+            ).length;
+        },
         // CR 506.2 / 508.1b (issue #3244) — the player or planeswalker an
         // attacking creature is attacking, for the `dealDamage` Op's
         // `{ attackTargetOf }` recipient. Read the way the combat damage step

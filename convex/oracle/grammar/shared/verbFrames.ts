@@ -387,6 +387,19 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 611.2a — "you gain <keyword> until end of turn": the controller
+           * gains a targeting keyword for the rest of the turn — shroud
+           * (CR 702.18a), hexproof (CR 702.11c) or hexproof from a colour
+           * (CR 702.11d), "hexproof from A and from B" read as the two
+           * abilities CR 702.11f says it is. The controller only, and only
+           * until end of turn: "until your next turn" is a longer effect the
+           * Op does not hold.
+           */
+          readonly frame: "playerKeyword";
+          readonly keywords: readonly string[];
+      }
+    | {
+          /**
            * CR 500.7 — "Take an extra turn after this one" / "Target player
            * takes an extra turn after this one": `player` is the one who
            * takes the turn. A count ("two extra turns") and a rider on the
@@ -903,6 +916,10 @@ export const VERB_FRAMES: readonly {
         opens: /^you gain protection from everything\b/i,
     },
     {
+        name: "playerKeyword",
+        opens: /^you gain (?:hexproof|shroud)\b/i,
+    },
+    {
         name: "extraTurn",
         opens: /^(?:take|(?:you take|target player takes)) an extra turn\b/i,
     },
@@ -1089,6 +1106,10 @@ const NAMED = /^(.+?) named (.+)$/;
 const NAME_LIST = /\b(and|or|and\/or|named)\b/i;
 const PROTECTION_FROM_EVERYTHING =
     "you gain protection from everything until your next turn";
+/** CR 611.2a — the player-keyword frame's whole spelling: one keyword, or
+ *  "hexproof from A and from B" (CR 702.11f), until end of turn. */
+const PLAYER_KEYWORD =
+    /^you gain (shroud|hexproof|hexproof from (white|blue|black|red|green)(?: and from (white|blue|black|red|green))?) until end of turn$/;
 const COPY_TOKEN_OPENER = "create a token that's a copy of ";
 /** CR 707.2 — "<recipient> becomes a copy of <source>[ <duration>]". */
 const BECOME_COPY =
@@ -2391,6 +2412,23 @@ function readMember(
             };
         return {
             frames: [{ frame: "protectionFromEverything" }],
+            referent,
+        };
+    }
+    if (opensFrame("playerKeyword", lower)) {
+        const gained = lower.match(PLAYER_KEYWORD);
+        if (gained === null)
+            return {
+                refused: `"${member}" — only "you gain shroud / hexproof / hexproof from <colour> until end of turn" is read`,
+            };
+        const keywords =
+            gained[2] === undefined
+                ? [gained[1]!]
+                : [gained[2], gained[3]]
+                      .filter((c): c is string => c !== undefined)
+                      .map((color) => `hexproof from ${color}`);
+        return {
+            frames: [{ frame: "playerKeyword", keywords }],
             referent,
         };
     }
