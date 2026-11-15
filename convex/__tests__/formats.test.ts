@@ -17,6 +17,10 @@ import {
     isDeckAdmitted,
     resolveMatchFormat,
     isFormatId,
+    isBanlistFormatId,
+    BANLIST_SEEDS,
+    MODERN_BANLIST_SEED,
+    MODERN_LEGAL_NAMES,
     OLD_SCHOOL_BANLIST_SEED,
     OLD_SCHOOL_RESTRICTED,
     PREMODERN_BANLIST_SEED,
@@ -2040,5 +2044,105 @@ describe("resolveMatchFormat — tolerant reader for pre-ADR-0153 Matches", () =
         // An unknown string reads as Freeform, like `assertDeckLegal`.
         expect(resolveMatchFormat(undefined, "vintage")).toBe("freeform");
         expect(resolveMatchFormat(undefined, undefined)).toBeNull();
+    });
+});
+
+// --- Modern (issue #8453) ----------------------------------------------------
+//
+// Real registry, real generated map: the Format a Preset Deck is published
+// under must accept the real lists and refuse what Modern refuses.
+describe("Modern Format — pool by Scryfall name, 4-copy, Banned list (issue #8453)", () => {
+    const card = (name: string): DeckCard => {
+        const def = tryGetCardByName(name);
+        if (!def) throw new Error(`${name} is not built`);
+        return { cardId: def.id, cardName: def.name };
+    };
+    const copies = (name: string, n: number): DeckCard[] =>
+        Array.from({ length: n }, () => card(name));
+    /** 4 Bolts + 56 Mountains + a 15-card sideboard of Ragavan/Mountain. */
+    const base = (): ValidatableDeck => ({
+        cards: [...copies("Lightning Bolt", 4), ...copies("Mountain", 56)],
+        sideboard: [
+            ...copies("Ragavan, Nimble Pilferer", 4),
+            ...copies("Mountain", 11),
+        ],
+    });
+
+    it("is a registered Format with a DB-backed banlist", () => {
+        expect(isFormatId("modern")).toBe(true);
+        expect(FORMAT_IDS).toContain("modern");
+        expect(isBanlistFormatId("modern")).toBe(true);
+        expect(BANLIST_SEEDS.modern).toBe(MODERN_BANLIST_SEED);
+        expect(FORMAT_RULES.modern.minMain).toBe(60);
+        expect(FORMAT_RULES.modern.maxSide).toBe(15);
+    });
+
+    it("accepts a legal 60 + 15", () => {
+        expect(validateDeck(base(), "modern")).toEqual({
+            isLegal: true,
+            reasons: [],
+        });
+    });
+
+    it("refuses a card outside the Modern pool, naming the Format", () => {
+        const deck = base();
+        deck.cards = [...deck.cards.slice(0, 59), card("Brainstorm")];
+        const { reasons } = validateDeck(deck, "modern");
+        expect(reasons).toContainEqual({
+            code: "modern-illegal",
+            message: "Brainstorm: not Modern-legal per Scryfall.",
+        });
+    });
+
+    // The fallback with no DB rows injected: the seed, by NAME — no id list.
+    it("bans a seed-listed card with no banlist injected", () => {
+        expect(MODERN_BANLIST_SEED.map((e) => e.cardName)).toContain(
+            "The One Ring"
+        );
+        const deck = base();
+        deck.cards = [...deck.cards.slice(0, 59), card("The One Ring")];
+        const { reasons } = validateDeck(deck, "modern");
+        expect(reasons.map((r) => r.code)).toEqual(["banned"]);
+    });
+
+    it("the injected DB banlist is the authority over the seed", () => {
+        const deck = base();
+        deck.cards = [...deck.cards.slice(0, 59), card("The One Ring")];
+        const unbanned: BanlistOverride = {
+            banned: new Set(),
+            restricted: new Set(),
+        };
+        expect(validateDeck(deck, "modern", undefined, unbanned).isLegal).toBe(
+            true
+        );
+        const boltBanned: BanlistOverride = {
+            banned: new Set([card("Lightning Bolt").cardId]),
+            restricted: new Set(),
+        };
+        expect(
+            validateDeck(base(), "modern", undefined, boltBanned).reasons.map(
+                (r) => r.code
+            )
+        ).toEqual(["banned"]);
+    });
+
+    it("enforces the 4-copy limit", () => {
+        const deck = base();
+        deck.cards = [
+            ...copies("Lightning Bolt", 5),
+            ...copies("Mountain", 55),
+        ];
+        expect(
+            validateDeck(deck, "modern").reasons.map((r) => r.code)
+        ).toContain("copy-limit");
+    });
+
+    // A modal double-faced card's definition carries its FRONT name; the
+    // generated map, Scryfall's combined one. The join keys both.
+    it("accepts a double-faced card through its front-face name", () => {
+        expect(MODERN_LEGAL_NAMES.has("witch enchanter")).toBe(true);
+        const deck = base();
+        deck.cards = [...deck.cards.slice(0, 59), card("Witch Enchanter")];
+        expect(validateDeck(deck, "modern").isLegal).toBe(true);
     });
 });

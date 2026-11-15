@@ -1,9 +1,22 @@
 #!/usr/bin/env bun
 /**
  * `bun run seed:preset <slug|--all> [--dry-run]` — register the 25 Premodern
- * metagame lists from `data/premodern-metagame-decks.json` as Preset Decks
- * (the source is the metagame file, issue #6675 — ONE source for Preset Decks — where an archetype also had a
- * hand-curated Tier 1 list the mtgtop8 list replaces it on the same slug).
+ * metagame lists from `data/premodern-metagame-decks.json` AND the 10 Modern
+ * ones from `data/modern-metagame-decks.json` as Preset Decks
+ * of their own Format (the source is the metagame file — ONE
+ * source for Preset Decks — where an archetype also had a hand-curated Tier 1
+ * list the mtgtop8 list replaces it on the same slug). A slug both files name
+ * is refused: `presetDecks` is keyed by slug, and two lists on one slug would
+ * overwrite each other on every sweep.
+ *
+ * **A list is published at 75/75** (owner decision 2026-11-08): seedable only
+ * when every copy of its main 60 AND sideboard 15 is playable by
+ * `deckPlayability` (`scripts/lib/tier1-decks.ts`) — the same count
+ * `oracle:report --decks` prints, never a second one — and every name resolves
+ * in the card registry. The sweep is what publishes: `post-merge` runs it
+ * locally after a landing that may move a card's state, the hosting build runs
+ * it on production after every release, so a list goes live on the first
+ * sweep after its last card lands, with nobody remembering to.
  *
  * Why this exists: Preset Decks are rows in the `presetDecks` table (ADR 0033
  * / PRD #466), and the only writer was `createPreset`, driven by a human in
@@ -72,7 +85,10 @@
  * takes. It exits non-zero only when a deck that IS seedable could not be
  * written.
  *
- * ONE other non-zero path, and it is deliberate: `--deploy` with no deploy key
+ * Two other non-zero paths, both deliberate configuration faults. An empty
+ * card-index pool (`data/card-index.json` missing): every hand-written card
+ * would read unplayable and the sweep would publish nothing while exiting 0.
+ * And `--deploy` with no deploy key
  * in the environment. Chained into a build command, that exit reds the deploy —
  * for a configuration fault, not a write failure. The alternative is worse. A
  * renamed or dropped key would otherwise make the step exit 0 having seeded
@@ -80,16 +96,37 @@
  * to end. Nothing else here can fail a deploy.
  */
 
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tryGetCardByName } from "../convex/cards/index";
+import type { CardDefinition } from "../convex/cards/types";
+import {
+    BANLIST_SEEDS,
+    isBanlistFormatId,
+    resolveBanlistEnforcement,
+    type BanlistOverride,
+    type FormatId,
+} from "../convex/formats";
 import { buildPresetPayload } from "./lib/preset-deck-seed";
 import {
     resolveSeedTarget,
     seedPreset,
     type SeedTarget,
 } from "./lib/seed-preset-run";
-import { readMetagameDecks } from "./premodern-metagame-import";
-import type { Tier1Deck } from "./lib/tier1-decks";
+import { parseLockfile, type Lockfile } from "./lib/oracle-lockfile";
+import { poolOracleIds } from "./oracle-compile";
+import {
+    readMetagameDecks,
+    readModernMetagameDecks,
+    type MetagameDeckFile,
+} from "./premodern-metagame-import";
+import {
+    deckPlayability,
+    isFullyPlayable,
+    tier1Reports,
+    type DeckPlayability,
+    type Tier1Deck,
+} from "./lib/tier1-decks";
 
 // This checkout's root. The canonical list and the card registry are
 // git-tracked, so they are read from HERE — from a worktree, the primary's
@@ -101,11 +138,161 @@ const GREEN = "\x1b[32m";
 const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
 
-/** Where the lists come from, as the preset description names it. */
-const ORIGIN = "mtgtop8.com";
+/** One canonical list file and the Format its decks are published under —
+ *  the Format is the file's, never a CLI choice. */
+export interface PresetSource {
+    readonly format: FormatId;
+    /** Where the lists come from, as the preset description names it. */
+    readonly origin: string;
+    readonly read: (root: string) => MetagameDeckFile;
+}
 
-/** Every metagame list is a Premodern deck; the format is not a CLI choice. */
-const FORMAT = "premodern" as const;
+/** Every list file the sweep publishes, in sweep order. */
+export const PRESET_SOURCES: readonly PresetSource[] = [
+    { format: "premodern", origin: "mtgtop8.com", read: readMetagameDecks },
+    // The owner's lists of 2026-11-06 (issue #8276).
+    { format: "modern", origin: "2026-11-06", read: readModernMetagameDecks },
+];
+
+/** One list, the file it came from, and how much of its 75 is playable. */
+export interface SourcedDeck {
+    readonly deck: Tier1Deck;
+    readonly source: PresetSource;
+    readonly playability: DeckPlayability;
+    /** Why this list cannot even be counted — a name the lockfile cannot
+     *  resolve, or a slug an earlier list already holds. Set ⇒ the list is
+     *  BLOCKED, never a sweep failure: one bad list must not stop the others
+     *  (nor red the deploy that runs the sweep). */
+    readonly refusal?: string;
+}
+
+/** The count of a list nobody could read: nothing playable. */
+function unreadPlayability(deck: Tier1Deck): DeckPlayability {
+    const total = (es: readonly { count: number }[]): number =>
+        es.reduce((sum, e) => sum + e.count, 0);
+    return {
+        main: 0,
+        mainTotal: total(deck.main),
+        side: 0,
+        sideTotal: total(deck.sideboard),
+        missing: [],
+    };
+}
+
+/**
+ * Every list of every source with its playability. Per LIST, never per
+ * sweep: a name the lockfile cannot resolve (`tier1Reports` is fail-closed)
+ * or a slug an earlier list already holds (the `presetDecks` key — the later
+ * list would overwrite the earlier on every sweep) refuses THAT list, and
+ * every other one is still counted. Pure over its inputs: the files are read
+ * by `source.read`, the lockfile and the pool are handed in.
+ */
+export function sourcedDecks(
+    files: readonly { source: PresetSource; file: MetagameDeckFile }[],
+    lock: Lockfile,
+    pool: ReadonlySet<string>
+): SourcedDeck[] {
+    const out: SourcedDeck[] = [];
+    const owner = new Map<string, FormatId>();
+    for (const { source, file } of files) {
+        for (const deck of file.decks) {
+            const prior = owner.get(deck.slug);
+            if (prior !== undefined) {
+                out.push({
+                    deck,
+                    source,
+                    playability: unreadPlayability(deck),
+                    refusal: `duplicate Preset Deck slug "${deck.slug}" — named by the ${prior} AND the ${source.format} list; presetDecks is keyed by slug`,
+                });
+                continue;
+            }
+            owner.set(deck.slug, source.format);
+            try {
+                const [report] = tier1Reports({ decks: [deck] }, lock, pool);
+                out.push({
+                    deck,
+                    source,
+                    playability: deckPlayability(deck, report),
+                });
+            } catch (err) {
+                out.push({
+                    deck,
+                    source,
+                    playability: unreadPlayability(deck),
+                    refusal: (err as Error).message,
+                });
+            }
+        }
+    }
+    return out;
+}
+
+/**
+ * The lists as this checkout holds them, and the files that could not be
+ * read at all (each named, never fatal to the others). Throws on ONE
+ * configuration fault only: an empty card-index pool, which would read every
+ * hand-written card as unplayable and publish nothing while exiting 0 — the
+ * silence issue #3499 ended for the deploy key.
+ */
+function readSourcedDecks(): { decks: SourcedDeck[]; unread: string[] } {
+    const lock = parseLockfile(
+        readFileSync(join(ROOT, "data", "oracle-compiled.json"), "utf8")
+    );
+    const pool = poolOracleIds();
+    if (pool.size === 0) {
+        throw new Error(
+            "data/card-index.json is missing or empty — every hand-written card would read as unplayable (run `bun run worktree:init`)"
+        );
+    }
+    const files: { source: PresetSource; file: MetagameDeckFile }[] = [];
+    const unread: string[] = [];
+    for (const source of PRESET_SOURCES) {
+        try {
+            files.push({ source, file: source.read(ROOT) });
+        } catch (err) {
+            unread.push(`${source.format} lists: ${(err as Error).message}`);
+        }
+    }
+    return { decks: sourcedDecks(files, lock, pool), unread };
+}
+
+/** Why a list is not yet at 75/75, first missing card first. */
+export function playabilityProblems(p: DeckPlayability): string[] {
+    const total = p.mainTotal + p.sideTotal;
+    const head = `${p.main + p.side}/${total} playable (main ${p.main}/${p.mainTotal}, side ${p.side}/${p.sideTotal}) — published at ${total}/${total}`;
+    return [
+        head,
+        ...p.missing.map(
+            (c) =>
+                `missing: ${c.name} (${c.state}${c.blocker ? `: ${c.blocker}` : ""})`
+        ),
+    ];
+}
+
+/**
+ * A canonical list's card name as a definition. The lists spell a
+ * multi-face card by its combined Scryfall name (`Front // Back`, the
+ * lockfile's key), which a compiled card registers but a hand-written
+ * double-faced one does not — it is registered under its front face, the
+ * name it carries. So: the name as written, else its front face.
+ */
+export function resolveListName(name: string): CardDefinition | null {
+    const front = name.split(" // ")[0];
+    return (
+        tryGetCardByName(name) ??
+        (front !== name ? tryGetCardByName(front) : null)
+    );
+}
+
+/** The offline banlist a payload is checked against: the Format's code seed,
+ *  resolved by name exactly as `convex/banlists.ts` resolves it pre-sync. */
+function seedBanlist(format: FormatId): BanlistOverride | undefined {
+    return isBanlistFormatId(format)
+        ? resolveBanlistEnforcement(BANLIST_SEEDS[format], (name) =>
+              tryGetCardByName(name)
+          )
+        : undefined;
+}
 
 export interface SeedPresetArgs {
     /** The one list to seed. Empty exactly when `all` is set. */
@@ -163,20 +350,37 @@ export interface SweepRow {
 }
 
 /** Builds the payload for one deck and, unless `dryRun`, writes it. Shared by
- *  both entry points so "what counts as seedable" has ONE definition: the card
- *  registry resolving every name plus the offline legality check inside
- *  `buildPresetPayload`. */
+ *  both entry points so "what counts as seedable" has ONE definition: all 75
+ *  copies playable (`isFullyPlayable`), the card registry resolving every
+ *  name, and the offline legality check inside `buildPresetPayload`. */
 export function seedOne(
-    deck: Tier1Deck,
-    suppliedOn: string,
+    sourced: SourcedDeck,
     dryRun: boolean,
     target: SeedTarget = "local"
 ): SweepRow {
+    const { deck, source, playability } = sourced;
+    if (sourced.refusal !== undefined) {
+        return {
+            slug: deck.slug,
+            name: deck.name,
+            state: "blocked",
+            problems: [sourced.refusal],
+        };
+    }
+    if (!isFullyPlayable(playability)) {
+        return {
+            slug: deck.slug,
+            name: deck.name,
+            state: "blocked",
+            problems: playabilityProblems(playability),
+        };
+    }
     const { payload, problems } = buildPresetPayload(
         deck,
-        FORMAT,
-        suppliedOn,
-        (name) => tryGetCardByName(name)
+        source.format,
+        source.origin,
+        resolveListName,
+        seedBanlist(source.format)
     );
     if (!payload) {
         return {
@@ -216,10 +420,17 @@ function main(): void {
         process.exit(1);
     }
 
-    // The canonical file and the registry both live in the repo, so they are
+    // The canonical files and the registry all live in the repo, so they are
     // read from wherever this runs; only the DEPLOYMENT write needs the
     // primary checkout, whose `.env.local` names the deployment.
-    const file = readMetagameDecks(ROOT);
+    let decks: SourcedDeck[];
+    let unread: string[];
+    try {
+        ({ decks, unread } = readSourcedDecks());
+    } catch (err) {
+        console.error(`${RED}seed:preset: ${(err as Error).message}${RESET}`);
+        process.exit(1);
+    }
 
     // A deploy-time run has no env file and no operator watching it: the build
     // log is the only place the chosen deployment is ever visible, and a
@@ -252,9 +463,7 @@ function main(): void {
     }
 
     if (args.all) {
-        const rows = file.decks.map((d) =>
-            seedOne(d, ORIGIN, args.dryRun, args.target)
-        );
+        const rows = decks.map((d) => seedOne(d, args.dryRun, args.target));
         for (const row of rows) {
             if (row.state === "blocked") continue;
             const verb = args.dryRun
@@ -271,6 +480,9 @@ function main(): void {
         // and burying it between successes is how a list nobody finished stays
         // unnoticed — the exact failure this sweep exists to end.
         const blocked = rows.filter((r) => r.state === "blocked");
+        for (const line of unread) {
+            console.log(`${DIM}· unreadable${RESET} ${line}`);
+        }
         for (const row of blocked) {
             console.log(
                 `${DIM}· not yet playable${RESET} ${row.name} ${DIM}(${row.slug})${RESET}`
@@ -286,27 +498,42 @@ function main(): void {
                 `${blocked.length} not yet playable${failed > 0 ? `, ${failed} refused` : ""}${RESET}`
         );
         // A BLOCKED deck is not a failure — it is the normal state of a list
-        // whose cards nobody has finished. Only a deck that was seedable and
-        // could not be written is.
+        // whose cards nobody has finished, and a list (or a file) the sweep
+        // could not read blocks only itself. Only a deck that was seedable
+        // and could not be written is a failure.
         if (failed > 0) process.exit(1);
         return;
     }
 
-    const deck = file.decks.find((d) => d.slug === args.slug);
-    if (!deck) {
-        const known = file.decks.map((d) => d.slug).join(", ");
+    const sourced = decks.find((d) => d.deck.slug === args.slug);
+    if (!sourced) {
+        const known = decks.map((d) => d.deck.slug).join(", ");
         console.error(
             `${RED}seed:preset: no list with slug "${args.slug}"${RESET}\n` +
                 `${DIM}  known slugs: ${known}${RESET}`
         );
         process.exit(1);
     }
+    const { deck, source, playability } = sourced;
+    if (sourced.refusal !== undefined) {
+        console.error(`${RED}seed:preset: ${sourced.refusal}${RESET}`);
+        process.exit(1);
+    }
+    if (!isFullyPlayable(playability)) {
+        console.error(
+            `${RED}seed:preset: ${deck.name} is not yet playable${RESET}`
+        );
+        for (const p of playabilityProblems(playability))
+            console.error(`${DIM}  ${p}${RESET}`);
+        process.exit(1);
+    }
 
     const { payload, problems } = buildPresetPayload(
         deck,
-        FORMAT,
-        ORIGIN,
-        (name) => tryGetCardByName(name)
+        source.format,
+        source.origin,
+        resolveListName,
+        seedBanlist(source.format)
     );
     if (!payload) {
         console.error(
@@ -317,7 +544,7 @@ function main(): void {
     }
 
     console.log(
-        `${deck.name} ${DIM}(${args.slug})${RESET} — ${payload.cards.length} maindeck, ` +
+        `${deck.name} ${DIM}(${args.slug}, ${source.format})${RESET} — ${payload.cards.length} maindeck, ` +
             `${payload.sideboard.length} sideboard, colours ${payload.colors.join("") || "—"}`
     );
 

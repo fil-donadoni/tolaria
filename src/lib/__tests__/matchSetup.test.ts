@@ -198,6 +198,8 @@ describe("matchFormatOptions — step 3", () => {
             ["alpha-40", 0],
             ["old-school", 1],
             ["premodern", 2],
+            // Issue #8453: Modern is offered too; no fixture deck is Modern.
+            ["modern", 0],
         ]);
         expect(options[0].hint).toBe("Admits every Arena deck · 3 decks");
         expect(options[2].hint).toBe("1 deck");

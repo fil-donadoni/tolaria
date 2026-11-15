@@ -233,7 +233,6 @@
     "scripts/lib/umbrella-detach.ts#8b69541a1c",
     "scripts/lib/worktree-seed.ts#4d298c7337",
     "scripts/measure-client-heap.ts#5abc4be73a",
-    "scripts/post-merge.ts#372f9d177a",
     "scripts/pr-fixup.ts#5ef8447c7d",
     "scripts/purge-identity-tests.ts#2498981475",
     "scripts/ui-gate/attempt-console.ts#4edf4833a1",

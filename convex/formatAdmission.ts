@@ -7,15 +7,17 @@
 // import from; only a card-free module imports this file directly.
 
 /**
- * The three shipped Formats (ADR 0036). A row's `format` field is one of these
- * three literals — the schema types it as a `v.union` of exactly these values,
- * so a non-conforming string is rejected at the DB boundary.
+ * The shipped Formats (ADR 0036, ADR 0170 — the registry is whatever this
+ * union says). A row's `format` field is one of these literals — the schema
+ * types it as a `v.union` of exactly these values, so a non-conforming string
+ * is rejected at the DB boundary.
  */
 export type FormatId =
     | "freeform"
     | "alpha-40"
     | "old-school"
     | "premodern"
+    | "modern"
     | "limited"
     | "manual";
 
@@ -26,6 +28,7 @@ export const FORMAT_IDS: readonly FormatId[] = [
     "alpha-40",
     "old-school",
     "premodern",
+    "modern",
     "limited",
     "manual",
 ] as const;
@@ -43,6 +46,7 @@ export const FORMAT_LABELS: Record<FormatId, string> = {
     "alpha-40": "Alpha 40",
     "old-school": "Old School (93/94)",
     premodern: "Premodern",
+    modern: "Modern",
     limited: "Limited",
     manual: "Tabletop",
 };

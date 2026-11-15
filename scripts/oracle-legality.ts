@@ -97,7 +97,10 @@ export const LEGALITY_PATH = join(ROOT, "data", "oracle-legality.json");
 // not `legalIn` (legal only) — issue #2695 review finding 3 — and the file
 // carries a `contentHash` self-check (finding 4). Both are schema/semantics
 // changes over @1, hence the bump.
-export const LEGALITY_GENERATOR = "oracle-legality@2";
+// @3: the file carries `modern[]` beside `premodern[]` (issue #8453, the
+// Modern Format) and `contentHash` covers BOTH arrays — a schema change over
+// @2, hence the bump.
+export const LEGALITY_GENERATOR = "oracle-legality@3";
 
 /** The one format this ticket (#2695) consumes. Extending to the rest of
  *  `REPORTED_FORMATS` is straightforward (the corpus already carries every
@@ -128,6 +131,11 @@ export interface OracleLegalityFile {
      *  Consumed by `checkOracleLegality` (`convex/formats.ts`) for POOL
      *  membership only; `checkBanned` remains the sole ban authority. */
     readonly premodern: readonly string[];
+    /** Card names that are Modern POOL MEMBERS (`legalities.modern` is
+     *  `legal` or `banned`), with exactly `premodern`'s semantics, sort and
+     *  dedup (issue #8453). Consumed by `checkOracleLegality` for the Modern
+     *  Format. */
+    readonly modern: readonly string[];
 }
 
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
@@ -141,9 +149,18 @@ const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 export function buildPremodernLegalNames(
     corpus: readonly CorpusCard[]
 ): string[] {
+    return buildPoolNames(corpus, "premodern");
+}
+
+/** The pool-member names of one format — `buildPremodernLegalNames`'s rule,
+ *  union-by-name and pool-not-legal, for any reported format (issue #8453). */
+export function buildPoolNames(
+    corpus: readonly CorpusCard[],
+    format: "premodern" | "modern"
+): string[] {
     const byKey = new Map<string, string>(); // lower(name) -> original-cased name
     for (const card of corpus) {
-        if (!card.poolIn.includes("premodern")) continue;
+        if (!card.poolIn.includes(format)) continue;
         const trimmed = card.name.trim();
         if (!trimmed) continue;
         const key = trimmed.toLowerCase();
@@ -152,12 +169,18 @@ export function buildPremodernLegalNames(
     return [...byKey.values()].sort(cmp);
 }
 
-/** sha256 hex digest of the exact JSON the `premodern` array serializes to.
- *  Pure and order-sensitive by design — `premodern` is already a fixed,
- *  sorted array, so two builds from the same logical set hash identically,
- *  and a hand-edit (add/remove/reorder a name) changes the digest. */
-export function legalityContentHash(premodern: readonly string[]): string {
-    return createHash("sha256").update(JSON.stringify(premodern)).digest("hex");
+/** sha256 hex digest of the exact JSON the two name arrays serialize to,
+ *  as `{ premodern, modern }`. Pure and order-sensitive by design — both are
+ *  fixed, sorted arrays, so two builds from the same logical sets hash
+ *  identically, and a hand-edit (add/remove/reorder a name in EITHER array)
+ *  changes the digest. */
+export function legalityContentHash(
+    premodern: readonly string[],
+    modern: readonly string[]
+): string {
+    return createHash("sha256")
+        .update(JSON.stringify({ premodern, modern }))
+        .digest("hex");
 }
 
 export function buildLegalityFile(
@@ -165,11 +188,13 @@ export function buildLegalityFile(
     pin: CorpusPin
 ): OracleLegalityFile {
     const premodern = buildPremodernLegalNames(corpus);
+    const modern = buildPoolNames(corpus, "modern");
     return {
         generator: LEGALITY_GENERATOR,
         corpus: pin,
-        contentHash: legalityContentHash(premodern),
+        contentHash: legalityContentHash(premodern, modern),
         premodern,
+        modern,
     };
 }
 
@@ -182,6 +207,7 @@ export function serializeLegalityFile(file: OracleLegalityFile): string {
         corpus: file.corpus,
         contentHash: file.contentHash,
         premodern: file.premodern,
+        modern: file.modern,
     };
     return JSON.stringify(ordered, null, 4) + "\n";
 }
@@ -211,7 +237,7 @@ async function main(): Promise<void> {
     writeFileSync(LEGALITY_PATH, text);
     const parsed = JSON.parse(text) as OracleLegalityFile;
     process.stderr.write(
-        `oracle:legality — ${parsed.premodern.length} Premodern-legal names -> data/oracle-legality.json\n`
+        `oracle:legality — ${parsed.premodern.length} Premodern, ${parsed.modern.length} Modern pool names -> data/oracle-legality.json\n`
     );
 }
 

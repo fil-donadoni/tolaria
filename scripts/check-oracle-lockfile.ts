@@ -411,11 +411,14 @@ function checkLegality(): void {
     // Tier "content hash" — always, offline, no corpus/pin needed. Proves
     // `premodern[]` matches its own committed `contentHash`; see the file
     // header for why pin agreement alone cannot catch this.
-    const expectedContentHash = legalityContentHash(legality.premodern);
+    const expectedContentHash = legalityContentHash(
+        legality.premodern,
+        legality.modern
+    );
     if (legality.contentHash !== expectedContentHash) {
         fail(
             "oracle legality",
-            `content-hash mismatch — data/oracle-legality.json's premodern[] array ` +
+            `content-hash mismatch — data/oracle-legality.json's premodern[]/modern[] arrays ` +
                 `does not match its own committed contentHash (hand-edited or corrupted)\n` +
                 `    committed: ${legality.contentHash}\n` +
                 `    computed:  ${expectedContentHash}`,
@@ -449,7 +452,7 @@ function checkLegality(): void {
         }
         process.stdout.write(
             `${GREEN}✓ oracle legality${RESET} ${DIM}(content-hash + pin + full regenerate-and-diff, ` +
-                `${legality.premodern.length} Premodern names)${RESET}\n`
+                `${legality.premodern.length} Premodern, ${legality.modern.length} Modern names)${RESET}\n`
         );
         return;
     }

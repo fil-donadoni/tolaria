@@ -1938,8 +1938,9 @@ owner is elsewhere are pointers.
   at 2.5 PR/h during a pre-PR lane run).
 - **The preset scenario `land` seeds**: ADR 0044 (33 specs silently dropped
   between ADR 0110 and the wiring, recovered by `bun run seed:backlog`).
-- **`seed:preset --all` after a card-set merge** (issue #3254): the
-  derivation is the header of `scripts/seed-preset-deck.ts`.
+- **`seed:preset --all` after a merge that can move a list's 75/75 gate**
+  (issue #3254; card set, compiled lockfile, card index or metagame list,
+  issue #8453): the derivation is the header of `scripts/seed-preset-deck.ts`.
 
 ## Latency per issue — the measurement, and what it does to ADR 0110's target
 

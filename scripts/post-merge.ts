@@ -9,12 +9,13 @@
  *   sync   fetch + fast-forward the primary checkout (on the MacBook
  *          `convex dev` serves the deployment from it), remove the worktree
  *          each merged PR left standing, ingest the telemetry.
- *   sweep  hourly, on every machine (issue #6083): remove the issue worktrees
+ *   sweep  hourly, on every machine: remove the issue worktrees
  *          no merge will ever clean up — PR closed unmerged, or no PR, no
  *          claim and idle — by `wt:gc`'s classifier, `--issues-only`.
  *   seed   the `seed` machine only: fast-forward again (a no-op when `sync`
  *          already did), register each merged PR's `## Preset scenario`, and
- *          `seed:preset --all` when the push changed a card set.
+ *          `seed:preset --all` when the push changed a card set or an
+ *          input of the Preset Deck 75/75 gate.
  *
  * Every step is idempotent and runs even when an earlier one failed, except a
  * seed after a failed fast-forward (`seedPlan`). The exit code is 1 when any
@@ -441,6 +442,8 @@ export interface SyncIo {
     removeWorktree: (primary: string, pr: number) => boolean;
     /** `seed` only: the derive commit on top of a stale tip, waited for. */
     deriveCommit: (after: string, primary: string) => string | null;
+    /** `seed` only: run one seeding script (`bun <args>`) in the primary. */
+    runSeed: (args: string[], primary: string) => boolean;
 }
 
 const SYNC_IO: SyncIo = {
@@ -449,6 +452,7 @@ const SYNC_IO: SyncIo = {
         bun(["scripts/telemetry-ingest.ts", "--quick"], primary),
     removeWorktree: removeMergedWorktree,
     deriveCommit: awaitDeriveCommit,
+    runSeed: bun,
 };
 
 /**
@@ -515,8 +519,10 @@ export function seed(
     primary: string,
     before: string,
     after: string,
-    io: Pick<SyncIo, "judge" | "deriveCommit"> = SYNC_IO
+    io: Pick<SyncIo, "judge" | "deriveCommit"> &
+        Partial<Pick<SyncIo, "runSeed">> = SYNC_IO
 ): boolean {
+    const run = io.runSeed ?? bun;
     const judged = io.judge(after);
     const held = tipHeldLine(after, primary, judged);
     if (held !== null) console.log(held);
@@ -530,7 +536,14 @@ export function seed(
     }
     const ff = target !== null && fastForward(primary, target);
     const { prs, files } = readPush(before, after, primary);
-    const plan = seedPlan(ff, prs, files);
+    // The files the preset gate reads are judged up to the tree the seed
+    // runs on: a stale tip's card states move in `derive:sync`'s commit, not
+    // in the push (issue #8453).
+    const seededFiles =
+        target !== null && target !== after
+            ? readPush(before, target, primary).files
+            : files;
+    const plan = seedPlan(ff, prs, seededFiles);
     if (target === null)
         console.error(
             `post-merge: no derive:sync commit on top of ${after.slice(0, 10)} within ${Math.round(SEED_DERIVE_WAIT_MS / 60_000)} min — nothing seeded for PR(s) ${prs.map((p) => `#${p}`).join(" ") || "(none)"}; seed by hand (bun run seed:scenario <PR>) once it lands`
@@ -542,12 +555,12 @@ export function seed(
     // 0140 §4). One query when nothing changed; `--warn-only` keeps a Scryfall
     // outage from redding the seed.
     if (plan.scenarios.length > 0 || plan.presets)
-        bun(["scripts/prints-sync.ts", "--if-stale", "--warn-only"], primary);
+        run(["scripts/prints-sync.ts", "--if-stale", "--warn-only"], primary);
     let ok = true;
     for (const pr of plan.scenarios)
-        ok = bun(["scripts/seed-scenario.ts", String(pr)], primary) && ok;
+        ok = run(["scripts/seed-scenario.ts", String(pr)], primary) && ok;
     if (plan.presets)
-        ok = bun(["scripts/seed-preset-deck.ts", "--all"], primary) && ok;
+        ok = run(["scripts/seed-preset-deck.ts", "--all"], primary) && ok;
     return ok;
 }
 

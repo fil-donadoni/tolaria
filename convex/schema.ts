@@ -52,6 +52,7 @@ const formatValidator = v.union(
     v.literal("alpha-40"),
     v.literal("old-school"),
     v.literal("premodern"),
+    v.literal("modern"),
     v.literal("limited"),
     v.literal("manual")
 );
@@ -779,7 +780,11 @@ export default defineSchema({
     // `convex/banlists.ts` falls back to a code-side seed when a format has no
     // rows, so the display list is never empty pre-sync.
     formatBanlists: defineTable({
-        format: v.union(v.literal("premodern"), v.literal("old-school")),
+        format: v.union(
+            v.literal("premodern"),
+            v.literal("old-school"),
+            v.literal("modern")
+        ),
         cardName: v.string(),
         status: v.union(v.literal("banned"), v.literal("restricted")),
         source: v.string(),

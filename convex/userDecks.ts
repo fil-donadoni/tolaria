@@ -54,6 +54,7 @@ const formatValidator = v.union(
     v.literal("alpha-40"),
     v.literal("old-school"),
     v.literal("premodern"),
+    v.literal("modern"),
     v.literal("limited"),
     v.literal("manual")
 );
