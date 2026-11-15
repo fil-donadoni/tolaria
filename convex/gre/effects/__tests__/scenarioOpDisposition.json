@@ -237,10 +237,7 @@
         "code": "op-own-tests",
         "reason": "Op \"moveSpellFromStack\" targets a spell on the stack — covered by the Op's interpreter tests"
     },
-    "moveZone": {
-        "code": "unmodelled-object-or-zone",
-        "reason": "Op \"moveZone\" changes zones on an object/zone the canned generator does not model — covered by the card's own per-card test"
-    },
+    "moveZone": "runs",
     "nameCard": {
         "code": "suspends-for-input",
         "reason": "Op \"nameCard\" suspends for a live card-name choice (CR 201.4) — covered by the Op's interpreter tests"
@@ -329,10 +326,7 @@
         "code": "suspends-for-input",
         "reason": "Op \"scryReorder\" suspends for a look/reorder-top choice — covered by the Op's interpreter tests and the card's suspension/resume tests"
     },
-    "selectAtRandom": {
-        "code": "randomness",
-        "reason": "Op \"selectAtRandom\" binds a random subset of a zone pool and moves nothing — covered by the Op's interpreter tests"
-    },
+    "selectAtRandom": "runs",
     "setBasePT": {
         "code": "op-own-tests",
         "reason": "Op \"setBasePT\" sets base P/T (CR 613.4b) — covered by the Op's own interpreter + wire-format tests"
