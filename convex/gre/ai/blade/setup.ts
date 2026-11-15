@@ -174,7 +174,7 @@ function applyEtbTrigger(
     // by default, else the named watcher's (CR 603.6a).
     let sourceId = permanent.id;
     if (step.watcher !== undefined) {
-        const watchers = battlefieldMatches(state, step.watcher);
+        const watchers = battlefieldMatches(state, step.watcher, undefined);
         if (watchers.length !== 1) {
             throw new BladeSetupError(
                 label,
