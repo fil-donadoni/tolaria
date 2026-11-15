@@ -5326,43 +5326,20 @@ const OPTIONAL_HAND_DROP =
  * so at an activated ability the "may" is the resolving controller's, exactly
  * as at a trigger; the lowering folds it into the pick's 0..1 range
  * (`optionalChosenMove`), and CR 400.7 puts the pick onto the battlefield, a
- * zone change and not a cast. The marker is admitted for this ONE form: every
- * other optional effect at the site is a reading without a fixture, so the
- * wrapper's reading is refused unless its inner sentence is a single chosen
- * card moved from the hand onto the battlefield (ADR 0105 § 2).
+ * zone change and not a cast. The marker is admitted for this ONE printed
+ * form: every other optional sentence at the site is a reading without a
+ * fixture and stays the inner rule's to refuse (ADR 0105 § 2). A reading of
+ * the form that is not ONE chosen card ("up to two creature cards") reaches
+ * the lowering's own refusal of an unconditional hand → battlefield put.
  */
 export function optionalHandDropSentenceRule(
     inner: Rule<SentenceIR>
 ): Rule<SentenceIR> {
     const optional = optionalSentenceRule(inner);
-    return rule(`optional hand drop ${inner.label}`, (span, ctx) => {
-        if (!OPTIONAL_HAND_DROP.test(span)) return inner.run(span, ctx);
-        const read = optional.run(span, ctx);
-        if (!read.ok) return read;
-        if (
-            read.value.role !== "effect" ||
-            read.value.effect.kind !== "optional" ||
-            !isHandDrop(read.value.effect.effect)
-        )
-            return fail(
-                '"You may" at this site offers a card from your hand onto the battlefield only',
-                span
-            );
-        return read;
-    });
-}
-
-/** One chosen card moved from the hand onto the battlefield (CR 400.7). */
-function isHandDrop(effect: EffectSentenceIR): boolean {
-    if (effect.kind !== undefined || effect.frames.length !== 1) return false;
-    const frame = effect.frames[0]!;
-    return (
-        frame.frame === "moveZone" &&
-        frame.object.kind === "chosen" &&
-        frame.object.zone === "hand" &&
-        frame.object.count === 1 &&
-        frame.object.random !== true &&
-        frame.to.zone === "battlefield"
+    return rule(`optional hand drop ${inner.label}`, (span, ctx) =>
+        OPTIONAL_HAND_DROP.test(span)
+            ? optional.run(span, ctx)
+            : inner.run(span, ctx)
     );
 }
 
