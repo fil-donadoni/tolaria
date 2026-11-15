@@ -228,6 +228,11 @@ export type EvalWeights = {
      *  reason `deckingWeight` is: the first counter is a chip, the ninth is
      *  one hit from losing. */
     poisonWeight: number;
+    /** CR 107.14 / 122.1 (issue #9694) — per energy counter the player holds
+     *  (`energyTerm`, evaluate.ts). Linear: energy is a spendable pool, every
+     *  counter buys the same thing back. Exactly zero with no energy, so a
+     *  game with no energy card in it is byte-identical. */
+    energyWeight: number;
     /** Per spell a graveyard-play ENGINE can still cast out of its
      *  controller's graveyard (`graveyardEngineTerm`, evaluate.ts). Zero
      *  contribution unless such an engine is on the battlefield, so the term
@@ -470,6 +475,11 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     // a chip (2), the tenth the game (38).
     poisonHorizon: 10,
     poisonWeight: 2,
+    // Issue #9694 — 6, the energy Op valuer's `ENERGY_PER_POINT`
+    // (`ai/opValuers.ts`): the counter a spell ANNOUNCES and the counter the
+    // player HOLDS are one resource, so they carry one price. Below a life
+    // point (`lifeWeight` 8): energy only buys what an energy card offers.
+    energyWeight: 6,
     graveyardEngineWeight: 60,
     graveyardEngineCap: 5,
     graveyardEngineFraction: 0.5,

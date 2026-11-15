@@ -151,8 +151,18 @@ export type BladeSetupStep =
      *  (CR 603.2/603.6). The trigger ends up on the stack UNRESOLVED, so the
      *  seat with priority may respond to it — the Stifle-on-its-own-trigger
      *  shape. Throws when the name matches no (or more than one) battlefield
-     *  permanent, or when it puts nothing on the stack. */
-    | { kind: "etb-trigger"; card: string; controller?: BladeSeat }
+     *  permanent, or when it puts nothing on the stack.
+     *
+     *  `watcher` (issue #9694) names a DIFFERENT battlefield permanent whose
+     *  "whenever another creature enters" trigger the event must fire (CR
+     *  603.6a) — the entering creature itself may trigger nothing. The throw
+     *  then checks the watcher's triggers, not the entering card's. */
+    | {
+          kind: "etb-trigger";
+          card: string;
+          controller?: BladeSeat;
+          watcher?: string;
+      }
     /** Resolve the top of the stack through the real `resolveTopOfStack`
      *  (CR 608). Throws on an empty stack. */
     | { kind: "resolve-top" }

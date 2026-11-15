@@ -61,6 +61,7 @@ import {
     FORCED_SACRIFICE_BOARD,
     sacrificeKeepsOrder,
     PASSES_TO_OWN_NEXT_MAIN,
+    enterTriggersThenAttack,
 } from "./scenarioPredicates";
 
 export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
@@ -28892,5 +28893,235 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         note: "Issue #9690, CR 107.4f. The Bot's own main phase and no combat to shrink it for: -5/-5 leaves the 8/8 a 3/3 until end of turn, for 4 life and a card.",
+    },
+    // Boros Energy, the modern metagame's level-2 rows
+    // (`docs/agents/modern-metagame-bot-level-2.md`, issue #9694). Goblin
+    // Bombardment's pair predates the row (issue #8271).
+    {
+        label: "attack: Ocelot Pride attacks past no blocker that eats it",
+        pairOf: {
+            anchor: "attack: Ocelot Pride stays home from the first striker that kills it",
+            discriminant: { kind: "card", detail: "the first-strike blocker" },
+        },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Ocelot Pride",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Serra Angel", owner: "opp", zone: "library" },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "declare-attackers", card: "Ocelot Pride" }],
+        },
+        note: "Issue #9694, CR 702.15b / 603.4. An empty opposing board: the lifelink hit is the life gain the end-step Cat reads.",
+    },
+    {
+        label: "attack: Ocelot Pride stays home from the first striker that kills it",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "card", detail: "the first-strike blocker" },
+        },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Ocelot Pride",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "White Knight",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "declare-attackers", card: "Ocelot Pride" }],
+        },
+        note: "Issue #9694, CR 702.7b / 510.4. The White Knight's first strike meets Ocelot Pride's in the same first-strike damage step: 2 damage kills the 1/1, 1 leaves the 2/2 standing.",
+    },
+    {
+        label: "energy: Galvanic Discharge pays exactly the energy that kills",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Galvanic Discharge", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Galvanic Discharge",
+                target: "Grizzly Bears",
+            },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", option: "2" }],
+        },
+        note: "Issue #9694, CR 107.14. Three energy gained, a 2/2 target: 2 kills it and keeps the third counter.",
+    },
+    {
+        label: "energy: Galvanic Discharge never pays all into a target that needs less",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Galvanic Discharge", owner: "me", zone: "hand" },
+                {
+                    name: "Llanowar Elves",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Galvanic Discharge",
+                target: "Llanowar Elves",
+            },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "resolution-choice", option: "3" }],
+        },
+        note: "Issue #9694, CR 107.14. Three energy gained, a 1/1 target: paying all three spends two counters for nothing.",
+    },
+    {
+        label: "energy: Guide of Souls grows the attacker that stays",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Guide of Souls", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Ball Lightning",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Llanowar Elves", owner: "me", zone: "battlefield" },
+            ],
+        },
+        // The spec seeds no energy: Guide of Souls makes it, one {E} per other
+        // creature entering (its first ability), then the attack.
+        setup: enterTriggersThenAttack(
+            "Guide of Souls",
+            ["Grizzly Bears", "Ball Lightning", "Llanowar Elves"],
+            ["Grizzly Bears", "Ball Lightning"]
+        ),
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        beyondBudget: {
+            cause: "valuation",
+            sweptTo: { iterations: 4000 },
+            note: "Issue #9796. Chosen 0/5 at 400, 1200 and 4000 iterations, every pick settled by `announcement-variant`: the two targets are outcome-equal (reward 0.75 each) and `meanMargin` already favours the attacker that stays, but `castVariantScore` ranks the variants by a 1-ply resolved margin, in which the counters on Ball Lightning read as permanent. The evaluation has no notion of a body leaving at the next end step.",
+        },
+        expect: {
+            moves: [{ kind: "submit-target", target: "Grizzly Bears" }],
+        },
+        note: "Issue #9694, CR 603.3d / 107.14. The attack trigger's target is chosen as it goes on the stack. Ball Lightning is sacrificed at the end step: the two +1/+1 counters and the flying counter on it are gone tonight, on the Grizzly Bears they stay.",
+    },
+    {
+        label: "energy: Guide of Souls never grows the attacker sacrificed at end step",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Guide of Souls", owner: "me", zone: "battlefield" },
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Ball Lightning",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Llanowar Elves", owner: "me", zone: "battlefield" },
+            ],
+        },
+        setup: enterTriggersThenAttack(
+            "Guide of Souls",
+            ["Hill Giant", "Ball Lightning", "Llanowar Elves"],
+            ["Hill Giant", "Ball Lightning"]
+        ),
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        beyondBudget: {
+            cause: "valuation",
+            sweptTo: { iterations: 4000 },
+            note: "Issue #9796. Chosen 0/5 at 400, 1200 and 4000 iterations, every pick settled by `announcement-variant`: the two targets are outcome-equal (reward 0.75 each) and `meanMargin` already favours the attacker that stays, but `castVariantScore` ranks the variants by a 1-ply resolved margin, in which the counters on Ball Lightning read as permanent. The evaluation has no notion of a body leaving at the next end step.",
+        },
+        expect: {
+            forbidden: [{ kind: "submit-target", target: "Ball Lightning" }],
+        },
+        note: "Issue #9694, CR 603.3d / 107.14. The row names a token sacrificed at end step; Ball Lightning is the same leaving attacker as a card. The counters on it die with it at the end step.",
     },
 ];

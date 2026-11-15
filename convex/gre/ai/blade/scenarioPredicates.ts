@@ -45,6 +45,35 @@ export const PASSES_TO_OWN_NEXT_MAIN: BladeSetupStep[] = [
     ...(["me", "opp", "me", "opp"] as const),
 ].map((seat) => ({ kind: "pass" as const, seat }));
 
+/** CR 603.6a / 107.14 (issue #9694) — fire each named creature's
+ *  enters-the-battlefield event in turn and resolve the `watcher`'s trigger
+ *  it fires, then attack with `attackers`, halting as the defender first gets
+ *  priority.
+ *
+ *  It reaches what a `ScenarioSpec` cannot write: the spec seeds no energy, so
+ *  a board whose "whenever another creature you control enters … get {E}"
+ *  permanent has already been fed is rebuilt by feeding it, through the
+ *  engine's own trigger collection. Each `etb-trigger` throws if the event
+ *  fires none of the watcher's triggers, so a board that banked no energy cannot pass for one
+ *  that did. */
+export function enterTriggersThenAttack(
+    watcher: string,
+    entering: readonly string[],
+    attackers: readonly string[]
+): BladeSetupStep[] {
+    return [
+        ...entering.flatMap((card): BladeSetupStep[] => [
+            { kind: "etb-trigger", card, watcher },
+            { kind: "resolve-top" },
+        ]),
+        {
+            kind: "declare-attackers",
+            cards: [...attackers],
+            haltForDefenderResponse: true,
+        },
+    ];
+}
+
 /** CR 702.34a — five untapped Mountains, exactly Firebolt's {4}{R} flashback
  *  cost, shared by the two halves of the issue-#2971 graveyard-cast pair so the
  *  ONLY difference between them is the zone the Firebolt sits in. Basics rather

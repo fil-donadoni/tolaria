@@ -15,7 +15,8 @@ rule (ADR 0124).
 
 `Has` names an existing `must` entry by its label. An entry marked `wrong:` pins
 only the row's wrong half. A row still owes whichever half has no entry.
-Everything else is new.
+`stretch (issue #N)` marks a pair the Bot still gets wrong: report-only until
+issue #N fixes the class. Everything else is new.
 
 A card in several lists sits under the deck it defines most. Every card here is
 playable today (`bun run oracle:report --targets modern-metagame`, 123/210), or
@@ -60,12 +61,12 @@ is listed in [Not playable yet](#not-playable-yet) with the issue making it so.
 
 ## Boros Energy
 
-| Card               | Right                                                    | Wrong: must not                                          | Has                                                                                                                                                      |
-| ------------------ | -------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide of Souls     | {E}{E}{E} on attack: pay it on the attacker that stays   | pay it on a token sacrificed at end step                 |                                                                                                                                                          |
-| Ocelot Pride       | no blocker that eats it: attack, gain life, make the Cat | attack into a blocker that kills it through first strike |                                                                                                                                                          |
-| Galvanic Discharge | pay exactly the energy that kills the target             | pay all the energy into a target that needs less         |                                                                                                                                                          |
-| Goblin Bombardment | a creature about to die anyway: sacrifice it for damage  | sacrifice a creature with no combat around it            | `sacrifice outlet: Goblin Bombardment takes the blocked creature before it dies`; wrong: `sacrifice outlet: keeps the creature with no combat around it` |
+| Card               | Right                                                    | Wrong: must not                                          | Has                                                                                                                                                            |
+| ------------------ | -------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide of Souls     | {E}{E}{E} on attack: pay it on the attacker that stays   | pay it on a token sacrificed at end step                 | stretch (issue #9796): `energy: Guide of Souls grows the attacker that stays`; wrong: `energy: Guide of Souls never grows the attacker sacrificed at end step` |
+| Ocelot Pride       | no blocker that eats it: attack, gain life, make the Cat | attack into a blocker that kills it through first strike | `attack: Ocelot Pride attacks past no blocker that eats it`; wrong: `attack: Ocelot Pride stays home from the first striker that kills it`                     |
+| Galvanic Discharge | pay exactly the energy that kills the target             | pay all the energy into a target that needs less         | `energy: Galvanic Discharge pays exactly the energy that kills`; wrong: `energy: Galvanic Discharge never pays all into a target that needs less`              |
+| Goblin Bombardment | a creature about to die anyway: sacrifice it for damage  | sacrifice a creature with no combat around it            | `sacrifice outlet: Goblin Bombardment takes the blocked creature before it dies`; wrong: `sacrifice outlet: keeps the creature with no combat around it`       |
 
 ## Esper Blink
 

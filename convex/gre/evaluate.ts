@@ -586,6 +586,10 @@ export type EvalTerms = {
      *  is untouched; steeply negative as the counters near ten. See
      *  `poisonTerm`. */
     poison: number;
+    /** CR 107.14 / 122.1 (issue #9694) — the energy counters this player
+     *  holds, a spendable pool. Zero (exactly) with no energy. See
+     *  `energyTerm`. */
+    energy: number;
     /** CR 702.138 — worth of the cards in this player's own graveyard while a
      *  permanent they control makes that graveyard castable. Zero (exactly)
      *  with no such engine on the battlefield. See `graveyardEngineTerm`. */
@@ -1641,6 +1645,16 @@ function poisonTerm(poisonCounters: number, weights: EvalWeights): number {
     return -weights.poisonWeight * deficit * deficit;
 }
 
+/** CR 107.14 / 122.1 (issue #9694) — the energy counters a player holds,
+ *  priced linearly at `energyWeight`. Before it the evaluator never read
+ *  `energyCounters`, so a choice between spending two energy and spending
+ *  three (Galvanic Discharge into a 2/2) scored both worlds identically and
+ *  the pick fell to rollout noise. NARROW SUPPORT (ADR 0070 §5): exactly zero
+ *  with no energy. */
+function energyTerm(player: PlayerState, weights: EvalWeights): number {
+    return (player.energyCounters ?? 0) * weights.energyWeight;
+}
+
 /** The defender's loss, in margin points, from combat damage reaching them:
  *  `lifeDamage` priced linearly at `lifeWeight` (the `life` term's slope),
  *  `poison` — damage from an infect source (CR 702.90b) — as the drop it
@@ -2242,6 +2256,7 @@ function playerTerms(
         landTempo: 0,
         library: libraryTerm(state, player, weights),
         poison: poisonTerm(player.poisonCounters ?? 0, weights),
+        energy: energyTerm(player, weights),
         graveyard: graveyardEngineTerm(player, weights),
         graveyardReach: graveyardReachTerm(state, player, weights),
     };
@@ -2386,6 +2401,7 @@ function sumTerms(t: EvalTerms): number {
         t.landTempo +
         t.library +
         t.poison +
+        t.energy +
         t.graveyard +
         t.graveyardReach
     );
@@ -3480,6 +3496,7 @@ export function evaluateBreakdown(
         landTempo: 0,
         library: 0,
         poison: 0,
+        energy: 0,
         graveyard: 0,
         graveyardReach: 0,
     };
