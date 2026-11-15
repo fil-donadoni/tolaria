@@ -11,11 +11,20 @@
 // phase-boundary timing, only a body-level `sacrifice` / `destroy` / `exile` of a
 // captured binding (not one under an `if` or a `forEach`, and not an `exile` that
 // binds its card, which is how a body says it brings it back).
+//
+// The same departure, read off a body already on the battlefield, is what the
+// evaluation discounts (`scheduledEndStepDeparture`): such a body is worth only
+// what it does before it goes.
 
-import type { DelayedTriggerTiming, EffectOp } from "../../cards/types";
+import type {
+    DelayedTriggerTiming,
+    EffectOp,
+    TriggeredAbility,
+} from "../../cards/types";
 import { evaluateAttackerKeywords } from "../combatRegistry";
 import { isCreature, isTapLockedBySummoningSickness } from "../constants";
-import type { GameState } from "../state";
+import { effectiveTriggeredAbilities } from "../copy";
+import type { CardInstanceState, GameState } from "../state";
 import type { Phase } from "../types";
 
 /** The timings that fire at the next occurrence of a step, unconditionally,
@@ -172,4 +181,85 @@ export function enteringBodyDepartureTiming(
     }
     ENTRY_DEPARTURE_MEMO.set(effects, timing);
     return timing ?? undefined;
+}
+
+/** When a body on the battlefield is scheduled to leave at an end step: at
+ *  this turn's, or at a later turn's (the trigger was armed in or past its
+ *  step, CR 603.7b, or it fires only on its controller's end step and this is
+ *  not that player's turn). */
+export type EndStepDeparture = "this-turn" | "later";
+
+/** The steps at or past the end step: a trigger at the beginning of the end
+ *  step (CR 513.1a) has already had its chance this turn. */
+const AT_OR_PAST_END_STEP: ReadonlySet<Phase> = new Set([
+    "END_STEP",
+    "CLEANUP",
+]);
+
+const SELF_DEPARTURE_MEMO = new WeakMap<TriggeredAbility, boolean>();
+
+/** Whether `ability` is a card's own unconditional "at the beginning of the
+ *  end step, sacrifice this" (CR 513.1a): a phase trigger on the end step whose
+ *  script removes its own source at the top level. A gated or intervening-if
+ *  trigger, a scope this read cannot place, and a closure body all read as
+ *  no departure. */
+function isSelfEndStepDeparture(ability: TriggeredAbility): boolean {
+    const memo = SELF_DEPARTURE_MEMO.get(ability);
+    if (memo !== undefined) return memo;
+    const departs =
+        ability.event === "PHASE_BEGIN" &&
+        ability.phaseStep === "END_STEP" &&
+        (ability.phaseScope === "each" || ability.phaseScope === "your") &&
+        !ability.gate &&
+        !ability.interveningIf &&
+        !ability.sourceTapCondition &&
+        !!ability.effects &&
+        departingRefsIn(ability.effects).includes("$source");
+    SELF_DEPARTURE_MEMO.set(ability, departs);
+    return departs;
+}
+
+/** When `body` leaves at an end step, or `undefined` for a body nothing
+ *  removes there. Two sources, both read as data:
+ *
+ *    - a scheduled delayed trigger (CR 603.7a) whose inline body sacrifices,
+ *      destroys or exiles the captured `body` at the top level (Sneak Attack, a
+ *      Kiki-Jiki token), or a warp exile (CR 702.185a);
+ *    - the body's own end-step trigger removing itself (Ball Lightning), read
+ *      off the abilities it has now, so one it lost (CR 613.1f) is no departure.
+ *
+ *  A trigger already fired is a stack item and is not read. */
+export function scheduledEndStepDeparture(
+    state: GameState,
+    body: CardInstanceState
+): EndStepDeparture | undefined {
+    let departure: EndStepDeparture | undefined;
+    const atOrPastEnd = AT_OR_PAST_END_STEP.has(state.phase);
+    for (const trigger of state.delayedTriggers ?? []) {
+        let thisTurn: boolean;
+        if (trigger.timing === "next-end-step") thisTurn = !atOrPastEnd;
+        else if (trigger.timing === "next-cleanup-step") {
+            thisTurn = state.phase !== "CLEANUP";
+        } else continue;
+        // Payload keys are stored without the `$` sigil, as in
+        // `pendingBattlefieldReturns`.
+        const removes =
+            trigger.warpCardInstanceId === body.id ||
+            (!!trigger.effects &&
+                departingRefsIn(trigger.effects).some(
+                    (ref) => trigger.payload[ref.slice(1)] === body.id
+                ));
+        if (!removes) continue;
+        if (thisTurn) return "this-turn";
+        departure = "later";
+    }
+    for (const ability of effectiveTriggeredAbilities(body)) {
+        if (!isSelfEndStepDeparture(ability)) continue;
+        const ownStep =
+            ability.phaseScope === "each" ||
+            body.controllerId === state.activePlayerId;
+        if (ownStep && !atOrPastEnd) return "this-turn";
+        departure = "later";
+    }
+    return departure;
 }
