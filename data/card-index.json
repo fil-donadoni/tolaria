@@ -70358,6 +70358,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Samite Ministration",
+        "scryfallId": "b1de62ed-79e6-4daf-a2ab-dc0726e1f7df",
+        "oracleId": "af669df1-3526-46ca-b90c-19b112b7ba44",
+        "firstSet": "inv",
+        "firstPrintId": "b1de62ed-79e6-4daf-a2ab-dc0726e1f7df",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Samite Pilgrim",
         "scryfallId": "c12529e4-f4b1-45be-8252-28783badbec5",
         "oracleId": "542c5eaf-8b03-4406-a794-30c56b61d637",

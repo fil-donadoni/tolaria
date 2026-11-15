@@ -4727,6 +4727,15 @@ export interface SourceDamagePreventionShield {
      *  this list creates. `markAssignsNoCombatDamage` — the single CR 510.1c
      *  producer — sets it explicitly. */
     assignsNone?: boolean;
+    /** CR 603.7b / 615.1a — the id of the `DelayedTriggerInstance` that
+     *  listens for THIS shield's preventions ("whenever damage from a black or
+     *  red source is prevented THIS WAY this turn"). Each time the shield
+     *  actually prevents damage, the damage funnel emits a `DAMAGE_PREVENTED`
+     *  event carrying this id, and only the instance with that id fires on it
+     *  — another shield preventing the same source's damage does not. Set only
+     *  on a recipient-keyed shield (the one place the prevented amount is
+     *  read); absent on every shield nothing listens to. */
+    preventionWatchId?: string;
 }
 
 /** CR 615.1a (issue #3810) — a RECIPIENT-scoped damage-prevention shield: it
@@ -7019,7 +7028,11 @@ export interface SpellContext {
      *  binding environment and the interpreter runs the body directly — no
      *  card-def lookup. Used by the `delayedTrigger` Effect Script Op; the
      *  template path (`triggerId` lookup) remains the legacy seam for
-     *  `resolve()` cards. */
+     *  `resolve()` cards.
+     *
+     *  Returns the scheduled instance's id (`delayed-N`), which a shield that
+     *  reports its preventions to this trigger carries as its
+     *  `preventionWatchId`. */
     scheduleDelayedTrigger: (
         sourceCardId: string,
         triggerId: string,
@@ -7038,8 +7051,13 @@ export interface SpellContext {
         /** CR 509.3d (issue #3809) — the `becomes-blocked-by` timing's
          *  blocker-colour condition (`DelayedTriggerInstance.blockerColors`).
          *  Undefined for every other timing. */
-        blockerColors?: Color[]
-    ) => void;
+        blockerColors?: Color[],
+        /** CR 603.7b / 615.1a — the `this-turn-damage-prevented-this-way`
+         *  timing's source-colour condition
+         *  (`DelayedTriggerInstance.preventedSourceColors`). Undefined for
+         *  every other timing. */
+        preventedSourceColors?: Color[]
+    ) => string;
     /** CR 603.12 — creates a REFLEXIVE triggered ability from inside a
      *  resolving effect ("Sacrifice a creature. **When you do**, ~ deals X
      *  damage to any target"). Unlike `scheduleDelayedTrigger` there is no
@@ -9210,7 +9228,21 @@ export type DelayedTriggerTiming =
      *  after firing, so an extra combat fires it again (CR 603.7b); purged at
      *  CLEANUP (CR 514.2). The firing event is threaded onto the stack item.
      *  Rejects `targetPlayer` / `watch`. */
-    | "this-turn-you-attack";
+    | "this-turn-you-attack"
+    /** CR 603.7b / 615.1a — a REPEATING, this-turn-bounded watch on ONE
+     *  prevention shield: "Whenever damage from a black or red source is
+     *  prevented this way this turn, you gain that much life" (Samite
+     *  Ministration). Fires once per `DAMAGE_PREVENTED` event whose
+     *  `preventionWatchId` is this instance's own id — the shield created
+     *  beside it by the same `preventDamage` Op (`whenPrevented`), never a
+     *  different shield that prevents the same source's damage. The optional
+     *  `preventedSourceColors` condition is part of the trigger EVENT: damage
+     *  from a source with none of those colours is still prevented, but
+     *  triggers nothing. The firing event is threaded onto the stack item, so
+     *  the body reads `{ ref: "$event.amount" }`. Purged at CLEANUP (CR 514.2)
+     *  with the shield. Scheduled ONLY by `preventDamage`'s `whenPrevented`;
+     *  the `delayedTrigger` Op rejects it (it has no shield to watch). */
+    | "this-turn-damage-prevented-this-way";
 
 /** What one "until your next turn" attack window watches: the two axes its
  *  Oracle line varies on, as data (`UNTIL_NEXT_TURN_ATTACK_WATCHES`).
@@ -12664,6 +12696,7 @@ export const TARGET_ACL_PERMANENT: TargetRequirement = {
 
 export type GameEventType =
     | "DAMAGE_DEALT"
+    | "DAMAGE_PREVENTED"
     | "PHASE_BEGIN"
     | "CREATURE_DIED"
     | "PERMANENT_ENTERED"
@@ -12734,6 +12767,33 @@ export interface DamageDealtEvent {
      *  source whose granted ability it still had at emit time; each fires one
      *  trigger (`encodedCardsGrantingAbility`, `gre/cipher.ts`). */
     encodedCardIds?: ReadonlyArray<string>;
+}
+
+/** CR 615.1a / 615.6 — damage a prevention shield stopped. Prevented damage
+ *  is never dealt, so no `DAMAGE_DEALT` exists for it; this is the event a
+ *  "whenever damage … is prevented" trigger listens to. Emitted only by a
+ *  shield that reports its preventions (`SourceDamagePreventionShield.
+ *  preventionWatchId`), once per damage event it prevents with `amount > 0`.
+ *  Damage that can't be prevented (CR 615.12) is not prevented, so it emits
+ *  nothing.
+ *
+ *  `sourceColors` is the source's colours AT THE MOMENT the damage was
+ *  prevented: the layer-5 read (CR 613) for a permanent, so a source that
+ *  became black after the shield resolved counts as black from then on. */
+export interface DamagePreventedEvent {
+    type: "DAMAGE_PREVENTED";
+    /** Instance id of the permanent or stack item whose damage was prevented. */
+    sourceInstanceId: string;
+    /** The recipient the prevented damage would have been dealt to. */
+    target: TargetSelection;
+    /** How much damage this event prevented. */
+    amount: number;
+    /** True for combat damage (CR 510). */
+    isCombat: boolean;
+    /** Colours of the source when the damage was prevented (CR 202.2). */
+    sourceColors: ReadonlyArray<Color>;
+    /** The `preventionWatchId` of the shield that prevented the damage. */
+    preventionWatchId: string;
 }
 
 /** Phase/step entry event emitted by the turn structure at the start of
@@ -14031,6 +14091,7 @@ export interface LibrarySearchedEvent {
 
 export type GameEvent =
     | DamageDealtEvent
+    | DamagePreventedEvent
     | PhaseBeginEvent
     | CreatureDiedEvent
     | PermanentEnteredEvent
@@ -20904,6 +20965,30 @@ export type EffectOp =
           mode: "all-from-chosen-source";
           source: { ref: string };
           combatOnly?: boolean;
+          /** CR 615.1a — narrows the shield to damage dealt TO this player
+           *  ("Prevent all damage that would be dealt to you this turn by a
+           *  source of your choice"), exactly as on `"all-from-source"`:
+           *  resolved once as the effect is created (CR 608.2) and stored as
+           *  `SourceDamagePreventionShield.recipientPlayerId`. Omitted = every
+           *  recipient (Rith's Charm). */
+          to?: { player: EffectPlayerRef };
+          /** CR 603.7a / 603.7b — a delayed triggered ability created with
+           *  the shield, triggering each time THIS shield prevents damage this
+           *  turn ("Whenever damage from a black or red source is prevented
+           *  this way this turn, you gain that much life" — Samite
+           *  Ministration). Requires `to`: the prevented amount is read where
+           *  the recipient-keyed shields are, against the event's final
+           *  recipient. `sourceColors` is an OR-set read off the source's
+           *  colours at the moment of prevention (absent = any source); the
+           *  body reads the prevented amount as `{ ref: "$event.amount" }`
+           *  and goes on the stack controlled by the resolving controller.
+           *  Each prevented event is its own trigger with its own amount;
+           *  both the shield and the trigger end at CLEANUP (CR 514.2). */
+          whenPrevented?: {
+              sourceColors?: Color[];
+              oracleText: string;
+              effects: EffectOp[];
+          };
       }
     /** `"all-from-matching"` (CR 615, issue #1955) → the same primitive with a
      *  FILTER-scoped shield and no target named at all: prevent all damage
