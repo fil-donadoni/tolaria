@@ -2564,6 +2564,7 @@ function graveyardFedElsewhere(req: Requirements): boolean {
  *  moves, or whose graveyard another part of the script feeds, raises the
  *  Op's skip (and its mover's) at the position it would have had. */
 function settleRandomPicks(req: Requirements): void {
+    if (req.randomPicks.size === 0) return;
     const raised: SmokeSkip[][] = [];
     const fed = graveyardFedElsewhere(req);
     for (const [bind, pick] of req.randomPicks) {
