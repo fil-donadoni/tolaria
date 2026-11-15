@@ -32,6 +32,10 @@ export function countControlledMatching(
                     staticAbilities: permanent.staticAbilities,
                     controllerId: permanent.controllerId,
                     isToken: permanent.isToken,
+                    // CR 110.5 — tapped / untapped is a live status of the
+                    // permanent ("if you control no untapped lands"); left
+                    // out, a `tapped` clause would read every row as untapped.
+                    isTapped: permanent.isTapped,
                     power: permanent.power,
                     toughness: permanent.toughness,
                     // CR 105.2 / 613.1e — the LIVE colours, through the one

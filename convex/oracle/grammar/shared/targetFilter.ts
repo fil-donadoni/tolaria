@@ -1412,8 +1412,14 @@ export function permanentFilterFromDescriptor(
      * gate and the static gate both read live colours (issue #4126).
      * `excludeSource: true` admits "other" (CR 201.5): only a site whose
      * payment or match path honours `PermanentFilter.excludeSource` opts in.
+     * `tapped: true` admits "tapped" / "untapped" (CR 110.5): only a site whose
+     * match path reads the permanent's live `isTapped` opts in.
      */
-    allow: { readonly colors?: true; readonly excludeSource?: true } = {}
+    allow: {
+        readonly colors?: true;
+        readonly excludeSource?: true;
+        readonly tapped?: true;
+    } = {}
 ): RuleResult<PermanentFilter> {
     if (descriptor.player !== undefined || descriptor.anyTarget === true)
         return fail("a player cannot be sacrificed", "player");
@@ -1433,6 +1439,7 @@ export function permanentFilterFromDescriptor(
                 "nontoken",
                 ...(allow.colors === true ? ["colors", "multicolored"] : []),
                 ...(allow.excludeSource === true ? ["excludeSource"] : []),
+                ...(allow.tapped === true ? ["tapped"] : []),
             ].includes(field)
         ) {
             return fail(
@@ -1456,6 +1463,9 @@ export function permanentFilterFromDescriptor(
     if (descriptor.multicolored === true) filter.colorCountAtLeast = 2;
     // CR 111.1 — `matchesPermanentFilter` reads the instance's own `isToken`.
     if (descriptor.nontoken === true) filter.isToken = false;
+    // CR 110.5 — the permanent's status, read live by `matchesPermanentFilter`.
+    if (descriptor.tapped !== undefined)
+        filter.tapped = descriptor.tapped === "tapped";
     if (Object.keys(filter).length === 0)
         return fail("cost filter matches everything", "filter");
     // CR 201.5 — "other": the filter's own self-exclusion flag.
