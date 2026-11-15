@@ -1,4 +1,5 @@
 // lane-scans: src/**
+// lane-cost: 4 s (vitest Duration 3.89 s, tests 0.54 s, 2026-11-15)
 // Static guard for issue #9833: ONE keycap primitive draws every hotkey the UI
 // shows (`ui/keycap.tsx`), from the declarations in `~/lib/hotkeys`. Before
 // it, five components drew their own bordered `<kbd>` and the controller's
