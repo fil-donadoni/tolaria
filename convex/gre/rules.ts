@@ -3908,13 +3908,8 @@ export function guardSourceFromTargeting(
     source: TargetingSource,
     controllerId: string | undefined
 ): GuardActionSource {
-    return {
-        types: source.types,
-        subtypes: source.subtypes,
-        isSpell: source.isSpell,
-        colors: source.colors,
-        controllerId,
-    };
+    const { types, subtypes, isSpell, colors } = source;
+    return { types, subtypes, isSpell, colors, controllerId };
 }
 
 /** The targeting characteristics of the source whose target-selection is in
