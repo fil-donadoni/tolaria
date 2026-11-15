@@ -135,6 +135,10 @@ const PROTECTION_COMPLETENESS = {
      *  — strictly stronger than Island Sanctuary (no evasion carve-out,
      *  covers burn and abilities too). */
     fromEverything: { num: 3, den: 4 },
+    /** Player-wide untargetable (hexproof / shroud) until end of turn — no
+     *  damage prevented, and only targeted spells and abilities stopped, for
+     *  one turn: weaker than the ground-attack shield. */
+    playerUntargetableThisTurn: { num: 1, den: 6 },
 } as const;
 
 /** Price `units` units of `feature` under the context's fitted weights. */
@@ -3421,6 +3425,18 @@ const setProtectionFromEverything: Valuer<"setProtectionFromEverything"> = (
     tags: ["protection"],
 });
 
+// "You gain hexproof / shroud until end of turn" (CR 611.2a) — the player
+// can't be targeted for the rest of the turn: blanks targeted burn and discard
+// aimed at them, but no combat damage and nothing untargeted.
+const grantPlayerKeyword: Valuer<"grantPlayerKeyword"> = (_op, ctx) => ({
+    points: pricedFraction(
+        ctx,
+        "protection",
+        PROTECTION_COMPLETENESS.playerUntargetableThisTurn
+    ),
+    tags: ["protection"],
+});
+
 // Tamiyo, Seasoned Scholar's +2 ("Until your next turn, whenever a creature
 // attacks you or a planeswalker you control, it gets -1/-0 until end of
 // turn", CR 606 / 603.7a, issue #2385) is now a real `delayedTrigger` +
@@ -3707,6 +3723,7 @@ export const OP_VALUERS: {
     restrictCombat,
     restrictAttackers,
     setProtectionFromEverything,
+    grantPlayerKeyword,
     reveal,
     lookRandomHand,
     lookHand,
@@ -3956,6 +3973,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     cascade: "beneficial",
     returnExiledForSource: "beneficial",
     setProtectionFromEverything: "beneficial",
+    grantPlayerKeyword: "beneficial",
     restrictAttackers: "beneficial",
     emblem: "beneficial",
     // CR 712 / 400.7 (issue #2380) — the ORI flip-walker template: the

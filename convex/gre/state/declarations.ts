@@ -2233,6 +2233,26 @@ export type PlayerState = {
      *  only observable at the cast: once the spell has resolved there is
      *  nothing on the board that records which cost paid for it. */
     spellsWarpedThisTurn?: number;
+    /** CR 601.2i / 202.2 — the colours of each spell THIS PLAYER has cast
+     *  during the current turn, one entry per spell, in cast order: the
+     *  spell's colours as it became cast (layer 5 included), `[]` for a
+     *  colourless spell. A list of colour SETS rather than a per-colour count
+     *  so "a blue or black spell" counts a blue-black spell once. Recorded at
+     *  the cast choke point (`emitSpellCastEvent`) beside the tallies above, so
+     *  a copy (never cast, CR 707.10) is absent; reset at the start of each
+     *  turn (`advanceTurn`). Read by the `spellsCastThisTurn` Effect Value
+     *  ("if an opponent has cast a blue or black spell this turn"). */
+    spellColorsCastThisTurn?: Color[][];
+    /** CR 611.2a / 514.2 — keyword abilities THIS PLAYER has gained "until end
+     *  of turn" from a resolved spell or ability ("You gain hexproof from blue
+     *  and from black until end of turn", "You gain shroud until end of
+     *  turn"): `"hexproof"` (CR 702.11c), `"hexproof from <quality>"` (CR
+     *  702.11d, read by `parseHexproofQuality`) and `"shroud"` (CR 702.18a).
+     *  The player carries it, not a permanent, so it outlasts the spell that
+     *  granted it; cleared at CLEANUP. Read by `playerKeywordBarsTargeting`
+     *  (`gre/permanentGuard.ts`) at every player-target gate. Rides the public
+     *  projection via the `...player` spread. */
+    keywordsUntilEndOfTurn?: string[];
     /** Number of spells THIS PLAYER has cast during the WHOLE GAME (CR 601.2i),
      *  NEVER reset — the lifetime sibling of `spellsCastThisTurn` (issue #790).
      *  Incremented at the same choke point (`emitSpellCastEvent`), pre-
@@ -5883,6 +5903,14 @@ export type GameState = {
      *  turns overlaps the two windows, and a single slot would clobber the
      *  first grant. */
     playerProtectionFromEverything?: string[];
+    /** CR 611.2a / 611.2c / 101.2 — the players whose spells can't be
+     *  countered for the rest of this turn ("Spells you control can't be
+     *  countered this turn"), an effect a resolved spell or ability created
+     *  with no permanent to carry it. A rules-modifying effect (CR 611.2c), so
+     *  it covers spells cast after it began too. Read by `SpellContext.counter`
+     *  through `isSpellCounterImmuneThisTurn` (`gre/spellCounterImmunity.ts`);
+     *  cleared at CLEANUP (CR 514.2). */
+    spellCounterImmunityThisTurn?: string[];
     /** CR 611.2a — player-scoped rules-modifying effects a resolved spell or
      *  ability created with NO object left to carry them: "they can't gain
      *  life for the rest of the game" (Screaming Nemesis, Stigma Lasher). The

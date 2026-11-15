@@ -6390,6 +6390,12 @@ export interface SpellContext {
      *  you later discarded. Used by the `{ cardsDrawnThisTurn: { of } }`
      *  EffectValue grammar member (Proft's Eidetic Memory). */
     getCardsDrawnThisTurn: (playerId: string) => number;
+    /** CR 601.2i — how many spells `playerId` has cast so far this turn, 0
+     *  when none; with `colors`, only those that were at least one of them as
+     *  they became cast (CR 202.2, `PlayerState.spellColorsCastThisTurn`).
+     *  Used by the `{ spellsCastThisTurn: { of, colors? } }` EffectValue
+     *  grammar member. */
+    getSpellsCastThisTurn: (playerId: string, colors?: Color[]) => number;
     /** CR 700.4 — how many NONTOKEN creatures were put into `playerId`'s
      *  graveyard from the battlefield this turn (CR 111.7: tokens never
      *  count). Reads `PlayerState.nontokenCreaturesToGraveyardThisTurn`. Used by the
@@ -7274,6 +7280,21 @@ export interface SpellContext {
      *  and sources are barred too. Idempotent per player (CR 702.16m);
      *  the grant is dropped at the START of that player's next turn. */
     setPlayerProtectionFromEverything: (playerId: string) => void;
+    /** CR 611.2a — `playerId` gains `keyword` until end of turn: `"hexproof"`
+     *  (CR 702.11c), `"hexproof from <quality>"` (CR 702.11d) or `"shroud"`
+     *  (CR 702.18a). Carried on `PlayerState.keywordsUntilEndOfTurn`, read by
+     *  every player-target gate through `playerKeywordBarsTargeting`, cleared
+     *  at CLEANUP (CR 514.2). Idempotent per keyword; no-op for an unknown
+     *  player. */
+    grantPlayerKeywordUntilEndOfTurn: (
+        playerId: string,
+        keyword: string
+    ) => void;
+    /** CR 611.2c / 101.2 — "Spells you control can't be countered this turn"
+     *  for `playerId`: every spell they control, including one cast later this
+     *  turn, ignores an instruction to counter it (`counter()` returns
+     *  `countered: false`). Cleared at CLEANUP (CR 514.2). Idempotent. */
+    grantSpellCounterImmunityThisTurn: (playerId: string) => void;
     /** Adds a one-shot damage cap shield (Forcefield, CR 615). The next time
      *  an unblocked creature deals combat damage to `playerId`, reduce to
      *  `maxDamage`. Consumed on first use; cleared at CLEANUP. */
@@ -17012,6 +17033,7 @@ export type EffectValue =
     | EffectLifeGainedThisTurnValue
     | EffectLifeLostThisTurnValue
     | EffectCardsDrawnThisTurnValue
+    | EffectSpellsCastThisTurnValue
     | EffectNontokenCreaturesToGraveyardThisTurnValue
     | EffectOpponentsAttackedThisCombatValue
     | EffectSpeedValue
@@ -17143,6 +17165,26 @@ export type EffectLifeLostThisTurnValue = {
  *  never reaches the interpreter. */
 export type EffectCardsDrawnThisTurnValue = {
     cardsDrawnThisTurn: { of: EffectPlayerRef };
+};
+
+/** spellsCastThisTurn — how many spells a PLAYER has cast so far this turn
+ *  (CR 601.2i), optionally only those that were at least one of `colors`
+ *  (CR 202.2) as they became cast — a thin JSON-pure skin over
+ *  `SpellContext.getSpellsCastThisTurn`, and like the tallies beside it NOT
+ *  an Op and NOT a structural construct (ADR 0045 stays closed).
+ *
+ *  `of` is a PLAYER selector resolved through `resolvePlayerRef`; an
+ *  unresolvable player yields undefined (CR 608.2b). `colors` reads the
+ *  per-spell record `PlayerState.spellColorsCastThisTurn`, so a blue-black
+ *  spell counts once toward `["U", "B"]`; a copy was never cast (CR 707.10)
+ *  and never counts.
+ *
+ *  Its reason to exist is the retrospective cast question a SPELL_CAST event
+ *  cannot answer after the fact: "if an opponent has cast a blue or black
+ *  spell this turn" is the `if` predicate
+ *  `{ left: { spellsCastThisTurn: { of: "opponent", colors: ["U", "B"] } }, op: "ge", right: 1 }`. */
+export type EffectSpellsCastThisTurnValue = {
+    spellsCastThisTurn: { of: EffectPlayerRef; colors?: Color[] };
 };
 
 /** nontokenCreaturesToGraveyardThisTurn — how many NONTOKEN creatures were put into a PLAYER's graveyard from
@@ -22918,6 +22960,24 @@ export type EffectOp =
      *  this shape). Duration is intrinsic, no `duration` field.
      *  Skipped when the player cannot be resolved (CR 608.2b). */
     | { op: "setProtectionFromEverything"; player: EffectPlayerRef }
+    /** CR 611.2a / 514.2 — "You gain shroud until end of turn", "You gain
+     *  hexproof from blue until end of turn": `player` gains `keyword` until
+     *  end of turn. `keyword` is `"hexproof"` (CR 702.11c), `"hexproof from
+     *  <quality>"` (CR 702.11d; a quality `parseHexproofQuality` names) or
+     *  `"shroud"` (CR 702.18a). A thin declarative skin over the single
+     *  SpellContext primitive `grantPlayerKeywordUntilEndOfTurn`, one
+     *  execution path (ADR 0045): the keyword lands on
+     *  `PlayerState.keywordsUntilEndOfTurn`, read by every player-target gate
+     *  (`playerKeywordBarsTargeting` — `getLegalTargets`, `selectTarget`, the
+     *  CR 608.2b resolution re-check, the client nameplate) and cleared at
+     *  CLEANUP. Duration intrinsic, so no `duration` field.
+     *
+     *  PLAYER-scoped, which is what separates it from `grantAbility` (a
+     *  permanent's layer-6 ability) and from the `player-guard` static (a
+     *  permanent's continuous grant, gone when its source leaves). "Hexproof
+     *  from blue and from black" is two Ops (CR 702.11f — two separate
+     *  abilities). Skipped when the player cannot be resolved (CR 608.2b). */
+    | { op: "grantPlayerKeyword"; player: EffectPlayerRef; keyword: string }
     /** CR 119.4 / 121.1 (issue #1283) — Sylvan Library's single ranged 0..N
      *  "cards drawn this turn" hand pick, with a per-NOT-chosen life cost. A
      *  thin declarative composition over EXISTING SpellContext primitives —

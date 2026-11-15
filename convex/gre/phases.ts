@@ -3203,6 +3203,9 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // that imposes it). The defending player still can't cast during the
     // postcombat main phase.
     "cannotCastSpellsThisTurn",
+    // CR 611.2c / 514.2 — "Spells you control can't be countered this turn":
+    // a counterspell cast in the postcombat main phase still meets it.
+    "spellCounterImmunityThisTurn",
     // CR 602.1 / 605.1a / 514.2 (issue #1124) — Abeyance's per-player "can't
     // activate non-mana abilities this turn" lock, same boundary as the cast
     // lock above.
@@ -3712,6 +3715,11 @@ function tickAllDurations(state: GameState): void {
             (state as Record<OptionalGameStateKey, undefined>)[flag] =
                 undefined;
         }
+        // CR 611.2a / 514.2 — keywords a player gained "until end of turn"
+        // (CR 702.11c hexproof, 702.18a shroud) end with the turn's other
+        // "until end of turn" effects. Player-carried rather than a global
+        // flag so the public projection's `...player` spread delivers them.
+        for (const p of state.players) p.keywordsUntilEndOfTurn = undefined;
     }
 }
 
@@ -3787,6 +3795,8 @@ function advanceTurn(state: GameState): void {
     for (const p of state.players) p.spellsCastThisTurn = 0;
     // CR 601.2i — the per-type split of that tally resets with it.
     for (const p of state.players) p.spellTypesCastThisTurn = undefined;
+    // CR 601.2i — so does the record of each spell's colours.
+    for (const p of state.players) p.spellColorsCastThisTurn = undefined;
     // CR 702.185c (issue #1268) — "a spell was warped THIS TURN": the tally
     // resets with its cast sibling above and for the same reason.
     for (const p of state.players) p.spellsWarpedThisTurn = 0;

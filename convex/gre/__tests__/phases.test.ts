@@ -3196,6 +3196,7 @@ describe("CR 514.2 — turn-scoped global flags clear at CLEANUP, not END_OF_COM
             [{ playerId: "p2", toPermanentId: "guard" }],
         ],
         ["cannotCastSpellsThisTurn", [{ playerId: "p2" }]],
+        ["spellCounterImmunityThisTurn", ["p1"]],
         ["cannotActivateAbilitiesThisTurn", ["p2"]],
         ["cannotPlayLandsThisTurn", ["p2"]],
         ["extraLandDropsThisTurn", [{ playerId: "p1", count: 1 }]],

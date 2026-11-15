@@ -125,6 +125,7 @@ const TALLY_STATE_KEYS = [
  *  either seat), on top of the mover keys `dominance.ts` already ignores. */
 const TALLY_PLAYER_KEYS = [
     "spellsWarpedThisTurn",
+    "spellColorsCastThisTurn",
     "drawnThisTurn",
     "leftGraveyardThisTurn",
     "nontokenCreaturesToGraveyardThisTurn",

@@ -40,6 +40,12 @@ export type TargetCandidateEnv = {
     assignedIds?: readonly string[];
 };
 
+/** The player predicate's extra fact: the stack, so the pending source can be
+ *  located for a player's source-relative keywords (CR 702.11c). */
+export type PlayerCandidateEnv = TargetCandidateEnv & {
+    stackItems: readonly StackItem[];
+};
+
 /** The permanent predicate's extra facts. `controlContinuity` stays REQUIRED
  *  (see {@link matchesPermanentTargetFilters}): `undefined` fails CLOSED. */
 export type PermanentCandidateEnv = TargetCandidateEnv & {
@@ -97,7 +103,7 @@ export function isLegalPermanentTarget(
 export function isLegalPlayerTarget(
     player: Player,
     pendingTarget: PendingTarget | undefined | null,
-    env: TargetCandidateEnv
+    env: PlayerCandidateEnv
 ): boolean {
     if (!isViewersSelection(pendingTarget, env)) return false;
     return (
@@ -112,10 +118,18 @@ export function isLegalPlayerTarget(
             env.allPlayers
         ) &&
         // CR 702.18a shroud / CR 702.16b protection bar the player.
+        // CR 702.11c — a player's until-end-of-turn hexproof bars an
+        // opponent's source, so the pending source rides along.
         !isPlayerUntargetableByPending(
             env.allPlayers,
             player.id,
-            env.playerProtectionFromEverything
+            env.playerProtectionFromEverything,
+            {
+                sourceCardInstanceId: pendingTarget.cardInstanceId,
+                kind: pendingTarget.kind,
+                stackItems: env.stackItems,
+                sourceControllerId: pendingTarget.playerId,
+            }
         ) &&
         // CR 601.2c — a binding target-choice requirement names permanents
         // only, so no nameplate is a legal click.
