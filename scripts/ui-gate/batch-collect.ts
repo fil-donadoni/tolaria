@@ -5,7 +5,7 @@
  *
  *   CLEAN     → `ui-owed` removed, `land:ready <PR#>` run (it carries the
  *               receipt the batch wrote into the body); a refusal there
- *               (issue #10010) → `land-failed` added, the refusal commented;
+ *               → `land-failed` added, the refusal commented;
  *   RED       → `ui-owed` removed, `land-failed` added, red lines commented;
  *   DROPPED / UNPROVEN → stays `ui-owed`, a comment says why (cells left
  *               `UNWALKED` / `INFRA` by the batch AND a solo re-walk are
@@ -19,8 +19,8 @@
  * head. A refusal there — `land:ready`'s own, or the collector's checkout /
  * `worktree:init` (INFRA) — labels the PR `land-failed`, the repair pick's
  * marker, and comments it; `ui-owed` stays off (it would block the very
- * `land:ready` that fixes the cause). Unlabelled, no consumer ever read the
- * PR again (issue #10010: PR #9815 sat ~20 h).
+ * `land:ready` that fixes the cause). Unlabelled, no consumer would ever
+ * read the PR again.
  *
  * A held PR (DROPPED / UNPROVEN) keeps `ui-owed`; its comment carries the
  * head it was judged at (`heldMarker`), so a scheduled run never re-walks the
@@ -231,10 +231,11 @@ const defaultIo: CollectIo = { gh, land: landFromPrHead };
 
 /** The comment a CLEAN PR whose hand-off refused gets (issue #10010). Pure. */
 export function refusalComment(pr: number, refusal: LandRefusal): string {
+    const run = `run \`bun run land:ready ${pr}\` from the PR's worktree`;
     const cause = refusal.infra
-        ? `the collector could not run \`land:ready\` (INFRA: ${refusal.output}). Nothing in the PR needs fixing`
-        : `\`land:ready\` refused:\n\n\`\`\`\n${refusal.output}\n\`\`\`\nFix the cause`;
-    return `check:ui batch walk: CLEAN, receipt written, but ${cause}, then run \`bun run land:ready ${pr}\` from the PR's worktree. Labelled \`${FAILED_LABEL}\` (a repair pick); \`${UI_OWED_LABEL}\` stays off — it would block that \`land:ready\`.`;
+        ? `the collector could not run \`land:ready\` (INFRA: ${refusal.output}). Nothing in the PR needs fixing: ${run}.`
+        : `\`land:ready\` refused:\n\n\`\`\`\n${refusal.output}\n\`\`\`\nFix the cause, then ${run}.`;
+    return `check:ui batch walk: CLEAN, receipt written, but ${cause} Labelled \`${FAILED_LABEL}\` (a repair pick); \`${UI_OWED_LABEL}\` stays off — it would block that \`land:ready\`.`;
 }
 
 /** Applies one action to its PR. Exported for its test (issue #10010). */
