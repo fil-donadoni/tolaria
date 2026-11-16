@@ -5462,13 +5462,21 @@ function isWastedManaCast(
  *  Kept as the narrow HOLD trigger only (see the tie-break below). The
  *  friendly-vs-enemy REDIRECT it used to drive is now one term of the general
  *  `castVariantScore` (issue #1888), which also covers the beneficial mirror
- *  (an aura/ramp handed to the opponent) the margin can't see. */
-function isSelfHarmRemovalCast(
+ *  (an aura/ramp handed to the opponent) the margin can't see.
+ *
+ *  Answers `null` for a move that is not self-harm, else whether the REWARD
+ *  band is blind to the drop (issue #9964): the move's settled position and
+ *  the settled `pass` map to the SAME reward although the margin dropped, so
+ *  the leaf that drives every mean in the search scores the loss as nothing.
+ *  That happens when the bot is already more than `materialFull` behind (or
+ *  ahead): the open band clips, and a creature thrown away is the same 0.25 as
+ *  one kept. */
+function selfHarmRemovalReading(
     state: GameState,
     move: Move,
     botId: string,
     weights: EvalWeights
-): boolean {
+): { rewardBlind: boolean } | null {
     if (
         !targetsOnlyOwnPermanents(state, move, botId) &&
         // CAST-only, exactly as the tie-break comment below says this hold is
@@ -5486,13 +5494,44 @@ function isSelfHarmRemovalCast(
             reachesOnlyOwnSideThroughChoice(state, move, botId)
         )
     ) {
-        return false;
+        return null;
     }
     // A boon on the bot's own permanent is not self-harm however the margin
     // reads it: the payoff (a keyword until end of turn, issue #4273) is not
     // on the board the margin sums, so the drop is only the card and the mana.
-    if (boonsEveryTarget(state, move)) return false;
-    return resolvedMarginDelta(state, move, botId, weights) < 0;
+    if (boonsEveryTarget(state, move)) return null;
+    const probe = cloneGameState(state);
+    let settled: GameState;
+    try {
+        applyMoveInSearch(probe, botId, move);
+        settled = settleStackForBreakdown(probe, botId, weights);
+    } catch {
+        // The resolution could not be simulated: no measurable change, the
+        // same reading `resolvedMarginDelta` gives a throw.
+        return null;
+    }
+    const after = materialMargin(settled, botId, weights);
+    if (after - materialMargin(state, botId, weights) >= 0) return null;
+    // The blind reading is taken against `pass` SETTLED, not against the root:
+    // it licenses holding over a `pass` whatever its mean, so it must not
+    // inherit the root baseline's blind spot. With an opponent's removal on
+    // the stack, the root still counts the creature that removal is about to
+    // take, and a flicker cast in response reads as a drop against it
+    // (`docs/findings/3687-self-harm-hold-ignores-pending-removal.md`).
+    // Against the settled pass the creature is gone on that side too, and the
+    // save reads as the gain it is. With an empty stack the two baselines are
+    // the same position.
+    const baseline = settleStackForBreakdown(
+        cloneGameState(state),
+        botId,
+        weights
+    );
+    return {
+        rewardBlind:
+            after < materialMargin(baseline, botId, weights) &&
+            reward(settled, botId, weights) ===
+                reward(baseline, botId, weights),
+    };
 }
 
 /** The RESOLUTION-TIME twin of `targetsOnlyOwnPermanents` (issue #3194).
@@ -6402,6 +6441,30 @@ export function selectRootMove(
             (best.move.kind === "submit-target" &&
                 rootState.pendingTarget?.kind === "trigger"))
     ) {
+        // Issue #9964 — the self-harm reading, taken BEFORE the variant
+        // ranking. When the picked cast only hurts the bot and the reward band
+        // is blind to it, the means of its siblings are the same rollout
+        // residue as its own, so outcome-equality is no bar for them either:
+        // every visited sibling is ranked. Measured on the issue's board plus
+        // an opposing mana value 4 creature in revolt's reach: the old gate
+        // cast at the bot's own Emperor on 3 of 23 seeds, the Giant variant
+        // `outcomeEps` below it.
+        const selfHarmReadings = new Map<
+            Edge,
+            ReturnType<typeof selfHarmRemovalReading>
+        >();
+        const selfHarmOf = (e: Edge) => {
+            if (!selfHarmReadings.has(e)) {
+                selfHarmReadings.set(
+                    e,
+                    selfHarmRemovalReading(rootState, e.move, botId, weights)
+                );
+            }
+            return selfHarmReadings.get(e) ?? null;
+        };
+        const blindSelfHarm =
+            ruleOn("self-harm-removal") &&
+            selfHarmOf(best)?.rewardBlind === true;
         if (ruleOn("announcement-variant")) {
             const scoreCache = new Map<Edge, number>();
             const scoreOf = (e: Edge) => {
@@ -6414,7 +6477,8 @@ export function selectRootMove(
             };
             const variants = pool.filter(
                 (e) =>
-                    mean(e) >= bestMean - weights.outcomeEps &&
+                    (blindSelfHarm ||
+                        mean(e) >= bestMean - weights.outcomeEps) &&
                     isCastVariantOf(e.move, best.move)
             );
             // Issue #6985 — a starved root opens only a few of an
@@ -6439,7 +6503,10 @@ export function selectRootMove(
                     best.move.kind === "activate-ability")
             ) {
                 for (const e of unopenedVariantEdges(root, moves, best)) {
-                    if (mean(e) >= bestMean - weights.outcomeEps) {
+                    if (
+                        blindSelfHarm ||
+                        mean(e) >= bestMean - weights.outcomeEps
+                    ) {
                         variants.push(e);
                     }
                 }
@@ -6459,19 +6526,35 @@ export function selectRootMove(
         // shape alone — a beneficence misdirection with no better sibling (a
         // "target opponent draws" punisher, which can only point at the
         // opponent) must still be castable, so it never triggers a hold.
-        // `isSelfHarmRemovalCast` stays CAST-only by construction
+        // `selfHarmRemovalReading` stays CAST-only by construction
         // (`targetsOnlyOwnPermanents` rejects any other kind): "hold it for
         // later" is a spell-in-hand affordance, and an already-on-board ability
         // that only hurts the bot loses on reward, not by being held.
-        if (
-            ruleOn("self-harm-removal") &&
-            isSelfHarmRemovalCast(rootState, best.move, botId, weights)
-        ) {
-            const hold = pool.find(
-                (e) =>
-                    e.move.kind === "pass" &&
-                    mean(e) >= bestMean - weights.outcomeEps
-            );
+        //
+        // `pass` is a contender on outcome-equality — OR unconditionally when
+        // the reward band is blind to the drop (issue #9964). `outcomeEps` is a
+        // band on MEAN REWARD, and reward carries material only inside
+        // +/-`materialFull`: a bot already that far behind maps the cast's
+        // settled position and the untouched one to the same clipped reward,
+        // so the gap between the two means is not a reading of the loss at
+        // all, only the residue of which rollouts reached a terminal. MEASURED
+        // on the issue's board (Fatal Push with revolt, the opponent's
+        // creatures all above mana value 4, only the bot's own 2-drops in
+        // reach): every candidate's one-ply reward is the floor 0.25 while
+        // the settled margin drops 168 (Phelia) and 413 (Emperor of Bones),
+        // and the hold fired only on the seeds whose noise kept `pass` inside
+        // the band. The same gate distrust, and the same admission, as the
+        // empty block declaration in the block-quality rule above.
+        if (ruleOn("self-harm-removal")) {
+            const selfHarm = selfHarmOf(best);
+            const hold =
+                selfHarm &&
+                pool.find(
+                    (e) =>
+                        e.move.kind === "pass" &&
+                        (selfHarm.rewardBlind ||
+                            mean(e) >= bestMean - weights.outcomeEps)
+                );
             if (hold) return finish(hold, "self-harm-removal", hold !== best);
         }
 
