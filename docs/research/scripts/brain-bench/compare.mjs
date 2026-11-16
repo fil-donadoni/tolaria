@@ -75,7 +75,8 @@ function extractTree(ref) {
     const sha = git("rev-parse", "--verify", `${ref}^{commit}`);
     const dir = path.join(cache, "trees", sha);
     if (!existsSync(dir)) {
-        const partial = `${dir}.partial`;
+        // Per process: a concurrent run on the same commit never shares it.
+        const partial = `${dir}.partial-${process.pid}`;
         rmSync(partial, { recursive: true, force: true });
         mkdirSync(partial, { recursive: true });
         execFileSync(
@@ -90,7 +91,13 @@ function extractTree(ref) {
             ],
             { cwd: root, stdio: ["ignore", "ignore", "inherit"] }
         );
-        renameSync(partial, dir);
+        try {
+            renameSync(partial, dir);
+        } catch (error) {
+            // A concurrent run extracted the same commit first: keep its tree.
+            if (!existsSync(dir)) throw error;
+            rmSync(partial, { recursive: true, force: true });
+        }
     }
     return { sha, dir };
 }
@@ -140,9 +147,10 @@ const load = () => Number(loadavg()[0].toFixed(2));
 
 const base = await buildSide("base", baseRef);
 const head = await buildSide("head", headRef);
-if (base.bench.count !== head.bench.count) {
+// Positions pair by index: both sides must hold the same set, in order.
+if (base.bench.labels.join("\n") !== head.bench.labels.join("\n")) {
     console.error(
-        `position sets differ: base ${base.bench.count}, head ${head.bench.count}`
+        `position sets differ: base ${base.bench.count}, head ${head.bench.count} (or a different order)`
     );
     process.exit(1);
 }
