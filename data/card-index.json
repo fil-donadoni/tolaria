@@ -6443,7 +6443,9 @@
         "oracleId": "6b8cf2a0-b045-4d91-9d91-c602d40c6237",
         "firstSet": "lea",
         "firstPrintId": "66a74c89-6f86-4ec8-af17-391cd5026054",
-        "firstPrintSet": "lea"
+        "firstPrintSet": "lea",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Bash to Bits",
@@ -27785,7 +27787,9 @@
         "oracleId": "0c25f6b1-8fb3-4406-9605-0282d2dbbcec",
         "firstSet": "ulg",
         "firstPrintId": "ae3ede87-b026-4781-81ab-8652664f8e41",
-        "firstPrintSet": "ulg"
+        "firstPrintSet": "ulg",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Faerie Duelist",
@@ -37081,7 +37085,9 @@
         "oracleId": "229d6627-1292-4ae1-8849-b0f956fa6540",
         "firstSet": "ulg",
         "firstPrintId": "9ddc9fe1-17c8-4e1d-aeb8-c4214e881280",
-        "firstPrintSet": "ulg"
+        "firstPrintSet": "ulg",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Grim Physician",
@@ -89579,7 +89585,9 @@
         "oracleId": "b53f216d-1592-4eee-b204-502a805fbc8c",
         "firstSet": "ulg",
         "firstPrintId": "02212bd8-0c0f-4e8e-99f1-a8477476c03a",
-        "firstPrintSet": "ulg"
+        "firstPrintSet": "ulg",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Treetop Warden",
