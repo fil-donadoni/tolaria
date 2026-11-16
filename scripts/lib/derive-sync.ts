@@ -43,6 +43,13 @@ export const DERIVED_PATHS: readonly string[] = [
     ...REFIT_ARTIFACT_PATHS,
 ];
 
+/** The four catalogue files `catalogue:pack` writes — the card pool the
+ *  registry (and so the refit) reads: `convex/cards/compiledPool.ts` imports
+ *  `packed-corpus.json`. */
+export const CATALOGUE_PATHS: readonly string[] = DERIVED_PATHS.filter((p) =>
+    p.startsWith("data/catalogue/")
+);
+
 /** Whether `path` is one of the Bot's refit artefacts — the derived paths a
  *  refit writes, named apart in a refusal so the remedy is the refit's. */
 export function isRefitArtifact(path: string): boolean {
@@ -287,6 +294,52 @@ export function runDriftSweep(io: DriftSweepIo): DriftSweepResult {
     if (outcome.gained.length === 0) return { ok: true, indexed: false };
     if (io.index()) return { ok: true, indexed: true };
     return carried("`oracle:index` failed for the newly `ready` card(s)");
+}
+
+/** The write path's generators, injected: the script wires them, a test
+ *  records the order. */
+export interface RegenerationIo {
+    /** `catalogue:pack` on the tree as it stands. */
+    readonly pack: () => boolean;
+    /** The packed catalogue's bytes, fingerprinted (`CATALOGUE_PATHS`). */
+    readonly catalogue: () => string;
+    /** `bot:refit --derive`; a failure puts the refit artefacts back. */
+    readonly refit: () => boolean;
+    /** Step 1, the drift sweep (`runDriftSweep`). */
+    readonly sweep: () => DriftSweepResult;
+}
+
+/** What the generators left: `ok` false when the commit cannot be built
+ *  (the sweep wrote no lockfile, or a pack failed); `refitted` whether the
+ *  weights on disk are the fit of the catalogue on disk. */
+export interface RegenerationResult {
+    readonly ok: boolean;
+    readonly refitted: boolean;
+    readonly indexed: boolean;
+}
+
+/**
+ * The write path's order (issue #9915). The refit fits the card pool the
+ * registry imports from `data/catalogue/`, so it runs on a catalogue packed
+ * from THIS tree, never on the one HEAD commits: after a revert or a
+ * migration the committed catalogue is the previous tree's, and on
+ * 2026-11-16 a refit on it wrote `boardRemoval` 122.5 where the tree fits
+ * 156.7 — six Bot test files red at the tip `9ea881da`, green under every
+ * bisect probe (they regenerate as `derive:regenerate` does: pack, then
+ * refit). Then the drift sweep, on the weights the tip will hold; then the
+ * catalogue the commit carries. A sweep that moved the catalogue (a card in
+ * or out of `ready`) refits once more, so the committed weights are always
+ * the fit of the committed catalogue.
+ */
+export function runRegeneration(io: RegenerationIo): RegenerationResult {
+    if (!io.pack()) return { ok: false, refitted: false, indexed: false };
+    const fitted = io.catalogue();
+    let refitted = io.refit();
+    const swept = io.sweep();
+    if (!swept.ok || !io.pack())
+        return { ok: false, refitted, indexed: swept.indexed };
+    if (io.catalogue() !== fitted) refitted = io.refit();
+    return { ok: true, refitted, indexed: swept.indexed };
 }
 
 /** Which maintenance job a late tip waits on: the drift sweep
