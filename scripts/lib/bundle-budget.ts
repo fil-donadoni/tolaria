@@ -81,7 +81,8 @@ export function scaledBudgetBytes(b: ScaledBudget, units: number): number {
 }
 
 /** The mean gzip weight of one unit at the anchor. The most a retired unit is
- *  taken to shed: retirement takes the lightest units first. */
+ *  ASSUMED to shed when the lower horizon is sized. One stretch was measured:
+ *  the Set chunks' retired cards shed 135 B against a mean of 217 B. */
 export function meanUnitBytes(b: ScaledBudget): number {
     return b.anchorBytes / b.anchorUnits;
 }
