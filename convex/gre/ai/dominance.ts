@@ -1941,6 +1941,9 @@ function probeEligible(
             // names a separate permanent the probe never gives back, and
             // re-buying its enters-the-battlefield effect can BE the point.
             cost.returnToHandFilter ||
+            // CR 701.13a — "Exile a creature you control" spends a separate
+            // permanent the same way.
+            cost.exileFilter ||
             cost.tapOtherFilter ||
             cost.discardFilter ||
             cost.discardThis ||

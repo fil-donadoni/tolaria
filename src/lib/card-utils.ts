@@ -2607,6 +2607,9 @@ export function getStackAbilities(
              *  control"). Like `sacrificeFilter`, the source itself is a legal
              *  candidate when it matches. */
             returnToHandFilter?: PermanentFilter;
+            /** CR 701.13a — "exile a permanent matching <filter> you control"
+             *  (City of Shadows' "Exile a creature you control"). */
+            exileFilter?: PermanentFilter;
         };
         activationPhaseRestriction?: ReadonlyArray<Phase>;
         sorcerySpeedOnly?: boolean;

@@ -165,6 +165,14 @@ export type CostAtomIR =
     | {
           readonly kind: "return-other";
           readonly filter: PermanentFilter;
+      }
+    /** CR 602.1a / 701.13a — "Exile a creature you control" as a cost (City
+     *  of Shadows): the payer picks ONE matching permanent they control and
+     *  exiles it while activating. Lowers to `cost.exileFilter`, which holds
+     *  exactly one permanent, so a count other than one is refused. */
+    | {
+          readonly kind: "exile-other";
+          readonly filter: PermanentFilter;
       };
 
 export interface ActivationCostIR {
@@ -238,6 +246,45 @@ function readTapOtherAtom(
         filter: { ...filter.value, controllerRelation: "you" as const },
         count,
     });
+}
+
+/**
+ * CR 602.1a / 701.13a — "Exile a creature you control" / "Exile another
+ * artifact you control" as an activation cost (City of Shadows): ONE chosen
+ * permanent the payer controls. CR 109.5 — a cost is paid with the payer's own
+ * permanents, so the printed "you control" is REQUIRED and is the scope, not a
+ * filter field. `exileFilter` holds exactly one permanent: any other count is
+ * refused, never dropped.
+ */
+function exileOtherAtom(
+    object: string,
+    span: string,
+    ctx: RuleContext
+): RuleResult<CostAtomIR> {
+    // CR 109.2 — "another creature" is "an other creature": the source is
+    // excluded by the descriptor's own "other".
+    const counted = object.startsWith("another ")
+        ? { count: 1, rest: `other ${object.slice("another ".length)}` }
+        : splitCount(object);
+    if (counted === null) return fail("exile cost has no count word", span);
+    if (counted.count !== 1)
+        return fail(
+            "an exile cost of more than one permanent has no encoding",
+            span
+        );
+    const descriptor = descriptorRule.run(counted.rest, ctx);
+    if (!descriptor.ok) return descriptor;
+    const { controller, ...scoped } = descriptor.value;
+    if (controller !== "you")
+        return fail(
+            'an exile cost names its permanent with "you control"',
+            span
+        );
+    const filter = permanentFilterFromDescriptor(scoped, {
+        excludeSource: true,
+    });
+    if (!filter.ok) return filter;
+    return ok({ kind: "exile-other" as const, filter: filter.value });
 }
 
 /**
@@ -375,6 +422,9 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
                 isSelfPhrase(span.slice("Exile ".length, -fromGraveyard.length))
             )
                 return ok({ kind: "exile-self-from-graveyard" as const });
+            const youControl = " you control";
+            if (span.endsWith(youControl))
+                return exileOtherAtom(span.slice("Exile ".length), span, ctx);
             const match = span.match(EXILE_GRAVEYARD);
             if (match === null)
                 return fail("not an exile cost this grammar knows", span);
@@ -781,6 +831,9 @@ export function lowerActivationCost(
                 break;
             case "return-other":
                 cost.returnToHandFilter = atom.filter;
+                break;
+            case "exile-other":
+                cost.exileFilter = atom.filter;
                 break;
             case "loyalty":
                 cost.loyalty = atom.amount;
