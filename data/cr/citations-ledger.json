@@ -46722,7 +46722,7 @@
         {"id":"702.83a","line":"/** The synthesized exalted trigger's id (CR 702.83a — `keywordTriggers.ts`). */","sites":1,"status":"baseline"},
         {"id":"603.8","line":"// CR 603.8 — the source is on the battlefield with the power that triggers.","sites":1,"status":"confirmed","ruleHash":"13828235f0a8ee87"},
         {"id":"601.2a","line":"// for exile. The picks never include the cast card itself (CR 601.2a).","sites":1,"status":"confirmed","ruleHash":"794572517487b69d"},
-        {"id":"202.2","line":"// Cards are classified by the colour identity of their mana cost (CR 202.2):","sites":514,"status":"confirmed","ruleHash":"223ac4dfab3c4c25"},
+        {"id":"202.2","line":"// Cards are classified by the colour identity of their mana cost (CR 202.2):","sites":513,"status":"confirmed","ruleHash":"223ac4dfab3c4c25"},
         {"id":"707.9a","line":"/** CR 707.9a — the activated abilities a copy effect made part of `card`'s","sites":1,"status":"confirmed","ruleHash":"e001b54a195c65fb"},
         {"id":"508.1","line":"// optional card draw (CR 508.1 attack trigger, CR 117.3a may-draw). The","sites":1,"status":"baseline"},
         {"id":"305.7","line":"// Swamp until end of turn.\" (CR 305.7 land-type change, layer 4 — CR 613.1d.)","sites":1,"status":"confirmed","ruleHash":"3732d69b3e76433c"},
