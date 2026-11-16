@@ -31027,6 +31027,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     zone: "battlefield",
                     summoningSick: false,
                 },
+                { name: "Forest", owner: "opp", zone: "library", count: 20 },
             ],
         },
         bot: "me",
