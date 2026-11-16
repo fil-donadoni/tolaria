@@ -1082,3 +1082,33 @@ export function castExilesAtMost(card: string, max: number) {
         return exiled.length > 0 && exiled.length <= max;
     };
 }
+
+/** Issue #9551 — the chosen move names a card that is in `seat`'s HAND in the
+ *  built position: a hand-sought name (Cabal Therapy's discard, CR 701.9)
+ *  that strips a card rather than whiffing. */
+export function namesCardInHand(
+    move: Move | null,
+    state: GameState,
+    seat: BladeSeat = "opp"
+): boolean {
+    if (move === null || move.kind !== "name-card") return false;
+    const pid = seatPlayerId(state, seat);
+    const hand = state.players.find((p) => p.id === pid)?.hand ?? [];
+    return hand.some(
+        (card) =>
+            tryGetDefinition(String(card.card.id ?? ""))?.name === move.cardName
+    );
+}
+
+/** Issue #9551 — the chosen move names one of `names`: a decklist's nonland
+ *  cards, when the hand the name is sought in is known only through it. */
+export function namesOneOf(
+    move: Move | null,
+    names: readonly string[]
+): boolean {
+    return (
+        move !== null &&
+        move.kind === "name-card" &&
+        names.includes(move.cardName)
+    );
+}
