@@ -19,9 +19,8 @@ type ControllerLifeTabProps = {
  *
  *  It is also the viewer's player-target surface — see {@link useSelfTargetTab}
  *  for the seam. Click-to-target and the choose-damage-target buffer route are
- *  both reachable through this tab now (#1766); the divide-as-you-choose
- *  stepper gap {@link useSelfTargetTab} documents is folded into #1770's
- *  mobile QA sweep. */
+ *  both reachable through this tab (#1766); the divide-as-you-choose stepper
+ *  lives in the divide dialog instead (see {@link useSelfTargetTab}). */
 export default function ControllerLifeTab({
     me,
     opponent,
