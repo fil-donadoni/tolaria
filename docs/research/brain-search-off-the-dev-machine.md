@@ -316,6 +316,18 @@ node docs/research/scripts/brain-bench/compare.mjs origin/<base>          # head
 node docs/research/scripts/brain-bench/compare.mjs origin/<base> HEAD --rounds 3 --iterations 400 --out /tmp/cmp.json
 ```
 
-Base against itself is the noise floor to quote beside it; its first reading
-is below. `--iterations` defaults to the `medium` preset's count; the extracted
-base trees are cached under `node_modules/.cache/brain-bench/`.
+Base against itself is the noise floor to quote beside it. Its first
+reading, 2026-11-16 on base `7700f6300` against itself (Node v24.21.0, 400
+iterations, 3 rounds + 1 warm-up, load average 6.57 → 2.29, 336 s):
+
+| 56 searched positions           | p10   | median | p90   |
+| ------------------------------- | ----- | ------ | ----- |
+| head/base, CPU ms per iteration | 0.971 | 1.002  | 1.032 |
+
+and 0 of 56 chosen moves differ (a fixed seed and iteration count make a
+search deterministic; the script flags a side whose choice changes between
+rounds as `UNSTABLE`). One null run: the per-position spread (0.97–1.03 at
+p10–p90) is measured, the median's own run-to-run spread is not — quote a
+head reading beside a null run taken at a similar load. `--iterations`
+defaults to the `medium` preset's count; the extracted base trees are cached
+under `node_modules/.cache/brain-bench/`.
