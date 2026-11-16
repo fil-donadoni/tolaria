@@ -111,6 +111,95 @@ describe("stylesheetConfinement (issue #9295)", () => {
     });
 });
 
+describe("stylesheetConfinement — a new colour token (issue #9874)", () => {
+    const THEME = [
+        /* 1 */ "@theme inline {",
+        /* 2 */ "    --color-surface: #14171c;",
+        /* 3 */ "    /* the new token's comment */",
+        /* 4 */ "    --color-slot-edge: #292928;",
+        /* 5 */ "}",
+        /* 6 */ ".frame-half {",
+        /* 7 */ "    border-color: var(--color-surface);",
+        /* 8 */ "}",
+        /* 9 */ "",
+    ].join("\n");
+    const before = THEME.split("\n")
+        .filter((_, i) => i !== 2 && i !== 3)
+        .join("\n");
+
+    it("an added NEW colour token is confined to that token", () => {
+        const c = stylesheetConfinement({
+            before,
+            after: THEME,
+            removed: [],
+            added: [3, 4],
+        });
+        expect(sorted(c?.colorTokens)).toEqual(["slot-edge"]);
+        expect(sorted(c?.classes)).toEqual([]);
+    });
+
+    it("re-valuing an EXISTING colour token stays global", () => {
+        expect(
+            stylesheetConfinement({
+                before: THEME,
+                after: THEME.replace("#14171c", "#000000"),
+                removed: [2],
+                added: [2],
+            })
+        ).toBeNull();
+    });
+
+    it("a new token another sheet line already reads stays global", () => {
+        const after = THEME.replace(
+            "var(--color-surface)",
+            "var(--color-slot-edge)"
+        );
+        expect(
+            stylesheetConfinement({
+                before: before.replace(
+                    "var(--color-surface)",
+                    "var(--color-slot-edge)"
+                ),
+                after,
+                removed: [],
+                added: [4],
+            })
+        ).toBeNull();
+    });
+
+    it("a new token outside @theme stays global", () => {
+        const after = ":root {\n    --color-slot-edge: #292928;\n}\n";
+        expect(
+            stylesheetConfinement({
+                before: ":root {\n}\n",
+                after,
+                removed: [],
+                added: [2],
+            })
+        ).toBeNull();
+    });
+
+    it("its owners are the modules writing a utility on it or the variable", () => {
+        const files = new Map([
+            ["src/a.tsx", `<div className="border border-slot-edge" />`],
+            ["src/b.tsx", `<div className="hover:bg-slot-edge/40" />`],
+            ["src/c.tsx", `style={{ color: "var(--color-slot-edge)" }}`],
+            ["src/d.tsx", `<div className="border-slot-edgeless" />`],
+            ["src/e.tsx", `const slotEdge = 1;`],
+        ]);
+        expect(
+            classOwners(
+                {
+                    classes: new Set(),
+                    keyframes: new Set(),
+                    colorTokens: new Set(["slot-edge"]),
+                },
+                files
+            )
+        ).toEqual(["src/a.tsx", "src/b.tsx", "src/c.tsx"]);
+    });
+});
+
 describe("selectorClasses", () => {
     it.each([
         [".a", ["a"]],
