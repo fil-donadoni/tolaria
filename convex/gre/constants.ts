@@ -2003,22 +2003,26 @@ export function hasFilteredGiveUpCost(cost: ActivatedAbility["cost"]): boolean {
 /** CR 602.1a / 118.3 — one activation-cost leg that gives up CHOSEN
  *  permanents the activator controls, matching `filter`: `count` of them leave
  *  the battlefield by `action` (CR 701.21 sacrifice, or a bounce to the
- *  owner's hand). */
+ *  owner's hand, or CR 701.13a exile). */
 export type PermanentGiveUpCostLeg = {
     filter: PermanentFilter;
     count: number;
-    action: "sacrifice" | "return";
+    action: "sacrifice" | "return" | "exile";
 };
 
 /** The cost keys {@link permanentGiveUpCostLegs} reads — a `Pick`, so a
  *  narrowed client-side cost shape (`getStackAbilities`) can be passed too. */
 export type PermanentGiveUpCostFields = Pick<
     ActivatedAbility["cost"],
-    "sacrificeFilter" | "sacrificeFilterCount" | "returnToHandFilter"
+    | "sacrificeFilter"
+    | "sacrificeFilterCount"
+    | "returnToHandFilter"
+    | "exileFilter"
 >;
 
 /** The filtered give-up-a-permanent legs of an activation cost —
- *  `sacrificeFilter` (× `sacrificeFilterCount`) and `returnToHandFilter`. The
+ *  `sacrificeFilter` (× `sacrificeFilterCount`), `returnToHandFilter` and
+ *  `exileFilter`. The
  *  single authority on WHICH cost keys name a chosen permanent and how many
  *  each owes, read by the selection builder
  *  (`buildActivationSacrificeSelection`), the server gate
@@ -2043,6 +2047,9 @@ export function permanentGiveUpCostLegs(
             count: 1,
             action: "return",
         });
+    }
+    if (cost.exileFilter) {
+        legs.push({ filter: cost.exileFilter, count: 1, action: "exile" });
     }
     return legs;
 }

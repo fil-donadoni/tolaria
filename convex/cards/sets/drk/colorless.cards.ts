@@ -422,9 +422,9 @@ export const towerOfCoireall = defineCard(() => ({
 
 // City of Shadows — "{T}, Exile a creature you control: Put a storage counter on
 // this land.\n{T}: Add {C} for each storage counter on this land." (CR 605
-// activated abilities. The first's "Exile a creature you control" is modeled as
-// a creature TARGET you control (timing differs, tracked-by: #7632: the cost
-// union has no exile-a-permanent cost). The second is a mana ability whose
+// activated abilities. The first's "Exile a creature you control" is an
+// `exileFilter` activation cost, paid while activating. The second is a mana
+// ability whose
 // colorless output is computed from the source's storage counters via
 // `manaAmount`, CR 106.1 / 605.1a.)
 export const cityOfShadows = defineCard(() => ({
@@ -440,17 +440,15 @@ export const cityOfShadows = defineCard(() => ({
             id: "city-of-shadows-store",
             oracleText:
                 "{T}, Exile a creature you control: Put a storage counter on this land.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                controller: "you",
+            // CR 602.2b / 701.13a — the creature is exiled as a COST while
+            // activating, not targeted; CR 122 then puts one storage counter
+            // on the source.
+            cost: {
+                tap: true,
+                exileFilter: { types: "Creature" },
             },
-            // CR 701.13 exile the target creature, then CR 122 put one storage
-            // counter on the source (issue #841).
+            useStack: true,
             effects: [
-                { op: "exile", target: { target: 0 } },
                 {
                     op: "counters",
                     action: "add",

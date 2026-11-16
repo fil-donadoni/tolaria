@@ -224,6 +224,14 @@ export const COST_LEG_CLAIMS = {
         why: 'CR 602.1a / 118.3 — the bounce twin of `sacrificeFilter`: the enumerator gates on a matching permanent existing through the shared `canPayPermanentGiveUpCostLegs`, and this helper turns the leg into an `action: "return"` requirement on the same selection, so the picks ride `sacrificeIds` and `applySacrificeSelection` bounces the named permanent exactly as the mutation does.',
         autoPayable: false,
     },
+    exileFilter: {
+        paidBy: {
+            file: "convex/gre/activationCostPicks.ts",
+            symbol: "buildActivationSacrificeSelection",
+        },
+        why: 'CR 602.1a / 701.13a — the exile twin of `sacrificeFilter`: the enumerator gates on a matching permanent existing through the shared `canPayPermanentGiveUpCostLegs`, and this helper turns the leg into an `action: "exile"` requirement on the same selection, so the picks ride `sacrificeIds` and `applySacrificeSelection` exiles the named permanent exactly as the mutation does.',
+        autoPayable: false,
+    },
     returnUnblockedAttacker: {
         paidBy: {
             file: "convex/gre/applyMove.ts",

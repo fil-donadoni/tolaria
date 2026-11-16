@@ -70,8 +70,9 @@ export type SacrificeRequirement = {
      *  static tax entirely (an activation that owed a Swamp paid nothing).
      *  Absent = the selection's action, which is the shape every pre-existing
      *  producer uses. `"tap"` (CR 702.78a conspire) exists only here: the picked
-     *  permanent stays on the battlefield, tapped. */
-    action?: "sacrifice" | "return" | "tap";
+     *  permanent stays on the battlefield, tapped. `"exile"` (CR 701.13a, an
+     *  activation's `exileFilter` cost) moves the pick to its owner's exile. */
+    action?: "sacrifice" | "return" | "tap" | "exile";
 };
 
 export type SacrificeSelection = {
@@ -538,6 +539,10 @@ function applyPicks(
             emitPermanentTapped(state, victim, false);
         } else if (action === "return") {
             removePermanentTo(state, id, "hand");
+        } else if (action === "exile") {
+            // CR 701.13a — an "Exile a creature you control" cost: the pick
+            // moves to exile as the cost is paid (CR 602.2b / 601.2h).
+            removePermanentTo(state, id, "exile");
         } else {
             // A CR 614 graveyard-bound replacement can redirect the sacrifice
             // to exile; `removePermanentTo` reports it, batched below.
