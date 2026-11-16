@@ -199,7 +199,12 @@ export function describeMove(move: Move, state: GameState): string {
                 move.castFromZone && move.castFromZone !== "hand"
                     ? ` [from ${move.castFromZone}]`
                     : "";
-            return `cast ${name}${x}${alt}${zone}${kicker}${buyback}${withTargets(state, move.targets)}`;
+            // CR 702.126a — how many artifacts the cast taps for Improvise:
+            // the artifacts it leaves tapped are part of what the move costs.
+            const improvise = move.improviseArtifactIds?.length
+                ? ` [improvise:${move.improviseArtifactIds.length}]`
+                : "";
+            return `cast ${name}${x}${alt}${zone}${kicker}${buyback}${improvise}${withTargets(state, move.targets)}`;
         }
         case "activate-ability": {
             const name = instanceName(state, move.cardInstanceId);

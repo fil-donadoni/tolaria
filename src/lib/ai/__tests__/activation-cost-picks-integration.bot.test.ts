@@ -128,6 +128,7 @@ function engineMutations(state: GameState): MoveMutations {
         },
         selectAdditionalCost: reject,
         selectCastExileCost: reject,
+        tapArtifactForImprovise: reject,
         selectActivationCost: reject,
         selectActivationExileCost: reject,
         selectActivationDiscardCost: async ({ playerId, cardInstanceIds }) => {

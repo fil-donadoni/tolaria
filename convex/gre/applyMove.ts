@@ -1548,6 +1548,16 @@ export function commitCastInSearch(
               move.chosenX
           )
         : {};
+    // CR 702.126a — the artifacts the Move taps for Improvise, each paying {1}
+    // of generic already taken off its tap plan (`enumerateCastMovesFromZone`).
+    // A stale Move whose artifact is gone or already tapped is skipped.
+    if (move.improviseArtifactIds) {
+        const artifacts = move.improviseArtifactIds.map((id) =>
+            player.battlefield.find((c) => c.id === id && !c.isTapped)
+        );
+        if (artifacts.some((a) => a === undefined)) return null;
+        for (const artifact of artifacts) artifact!.isTapped = true;
+    }
     applyTapPlanInSearch(state, playerId, move.tapPlan);
     // CR 609.4b / 118.14 (issue #2890) — a one-shot "for one spell this turn,
     // you may spend mana as though it were mana of any type" grant (North Star)

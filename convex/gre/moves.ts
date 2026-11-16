@@ -140,6 +140,7 @@ import {
     solveHybridGenericLegs,
     solvePhyrexianSplit,
     genericManaShortfall,
+    improviseArtifacts,
     targetingSourceFromCard,
     pendingTargetingSource,
     castPermissionRequiredFor,
@@ -224,6 +225,7 @@ import {
     finiteManaUsesRemaining,
     manaGateBattlefields,
     handDiscardCostsNothing,
+    isCreature,
     isHandDiscardManaCost,
     manaValue,
     manaTapOptionSpendsUnplannedResource,
@@ -673,6 +675,12 @@ export type Move =
            *  reduction, forwarded to `announceCast`'s `harmonizeCreatureId`.
            *  Absent = tap none. */
           harmonizeCreatureId?: string;
+          /** CR 702.126a — the artifacts this cast taps for Improvise, each
+           *  paying {1} of the generic cost (already taken off `tapPlan`).
+           *  The executor taps each with `tapArtifactForImprovise` before the
+           *  mana payment; the sandboxes tap them in `commitCastInSearch`.
+           *  Absent = tap none. */
+          improviseArtifactIds?: string[];
       }
     | {
           kind: "activate-ability";
@@ -3689,6 +3697,23 @@ function kickerXValues(
     return range(ceiling);
 }
 
+/** CR 702.126a — the order an Improvise cast taps its artifacts in: every
+ *  artifact pays the same {1}, so the ones that cost the caster least go
+ *  first — a non-creature artifact before a creature (a tapped creature can
+ *  neither attack nor block), then the lowest-power creature. Stable, so a
+ *  board of identical artifacts keeps battlefield order. */
+function improviseTapOrder(
+    state: GameState,
+    artifacts: CardInstanceState[]
+): CardInstanceState[] {
+    const cost = (a: CardInstanceState) =>
+        isCreature(a) ? 1 + Math.max(0, getEffectivePower(state, a)) : 0;
+    return artifacts
+        .map((a, i) => ({ a, i, c: cost(a) }))
+        .sort((x, y) => x.c - y.c || x.i - y.i)
+        .map(({ a }) => a);
+}
+
 function enumerateCastMovesFromZone(
     state: GameState,
     player: PlayerState,
@@ -4272,6 +4297,15 @@ function enumerateCastMovesFromZone(
     const harmonizeReduction = harmonizeCreature
         ? harmonizeReductionFor(state, harmonizeCreature)
         : 0;
+    // CR 702.126a — the artifacts an Improvise cast may tap for its generic
+    // cost beyond what the mana census already pays with, cheapest tap first.
+    // Board-only, so hoisted beside the modifiers; `[]` for every other spell.
+    const improvisable = improviseTapOrder(
+        state,
+        improviseArtifacts(player, card, state).filter(
+            (a) => a.id !== harmonizeCreature?.id
+        )
+    );
 
     // CR 601.3c / 601.2f (issue #2146) — the conditional-flash SURCHARGE the
     // Invasion cycle prices its off-window cast at ("You may cast this spell as
@@ -4600,6 +4634,39 @@ function enumerateCastMovesFromZone(
                 ? kickerTapLegPicks(state, player, card, def, kickerPayments)
                 : undefined;
             if (tapLegPicks === null) continue;
+            // CR 702.126a — Improvise: each artifact tapped pays {1} of the
+            // GENERIC cost (`tapArtifactIntoImprovisePayment` reduces the
+            // pending cast's numeric `X` only). Tap exactly the MINIMUM the
+            // caster is forced to — what mana alone cannot cover, the same
+            // `genericManaShortfall` the delve discount above reads (an
+            // Improvise tap is a `payWith` pseudo-source it excludes) — so
+            // the tap plan below and these taps pay the cost between them
+            // with nothing left over. Without this the cast is never offered
+            // on a board that needs its artifacts to pay for it.
+            let improviseArtifactIds: string[] | undefined;
+            if (improvisable.length > 0) {
+                const sacrificed = new Set(castCostPicks?.sacrificeIds ?? []);
+                const fuel = improvisable.filter(
+                    (a) => !sacrificed.has(a.id) && !tapLegPicks?.has(a.id)
+                );
+                const shortfall = genericManaShortfall(
+                    player,
+                    card,
+                    normCost,
+                    state
+                );
+                const forced = Math.min(
+                    normCost.X ?? 0,
+                    Number.isFinite(shortfall) ? shortfall : 0
+                );
+                if (forced > fuel.length) continue;
+                if (forced > 0) {
+                    improviseArtifactIds = fuel
+                        .slice(0, forced)
+                        .map((a) => a.id);
+                    normCost.X = (normCost.X ?? 0) - forced;
+                }
+            }
             const tapPlans = castTapPlans(state, player, normCost, {
                 cardInstanceId: card.id,
                 cardDef: def,
@@ -4609,7 +4676,8 @@ function enumerateCastMovesFromZone(
                     !plan.some(
                         (tap) =>
                             tapLegPicks?.has(tap.cardInstanceId) ||
-                            tap.cardInstanceId === harmonizeCreature?.id
+                            tap.cardInstanceId === harmonizeCreature?.id ||
+                            improviseArtifactIds?.includes(tap.cardInstanceId)
                     )
             );
             if (tapPlans.length === 0) continue;
@@ -4690,6 +4758,9 @@ function enumerateCastMovesFromZone(
                         ...(castCostPicks ? { castCostPicks } : {}),
                         ...(harmonizeCreature
                             ? { harmonizeCreatureId: harmonizeCreature.id }
+                            : {}),
+                        ...(improviseArtifactIds
+                            ? { improviseArtifactIds }
                             : {}),
                     });
                     if (!perModeCombination && moves.length >= MAX_COMBINATIONS)

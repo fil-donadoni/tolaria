@@ -521,6 +521,9 @@ export function useVsAiDriver(
         // park. The direct handle below stays — it still answers the DELVE
         // offset and any park the executor did not pre-pay.
         selectCastExileCost: useMutation(api.game.selectCastExileCost),
+        // CR 702.126a — an Improvise cast's artifact taps, Move-realised: the
+        // artifacts travel on the `cast-spell` Move (`improviseArtifactIds`).
+        tapArtifactForImprovise: useMutation(api.game.tapArtifactForImprovise),
         // CR 602.1 / 118 — the deferred activation-cost pickers. Unlike the
         // attack-tax / mana-spend pickers below these ARE Move-realised: the
         // picks travel on the `activate-ability` Move (`costPicks`), so they
