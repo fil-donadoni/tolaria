@@ -13079,7 +13079,9 @@
         "oracleId": "6a4e8d44-e6ee-40f7-8df4-52fa4cb346aa",
         "firstSet": "drk",
         "firstPrintId": "72746a5d-faa1-44b7-97b5-0ef9302a3c13",
-        "firstPrintSet": "drk"
+        "firstPrintSet": "drk",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Cave Sense",
@@ -25335,7 +25337,9 @@
         "oracleId": "91fe1075-e170-4575-ae28-8d692f051637",
         "firstSet": "fem",
         "firstPrintId": "40a9710e-b2f8-4746-8640-d450f58a6e49",
-        "firstPrintSet": "fem"
+        "firstPrintSet": "fem",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Elvish Harbinger",
@@ -28909,7 +28913,9 @@
         "oracleId": "3953fd17-03f4-4431-99b5-87dcac5a279d",
         "firstSet": "fem",
         "firstPrintId": "e585241e-c647-456d-b3b1-3d48dd78c372",
-        "firstPrintSet": "fem"
+        "firstPrintSet": "fem",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Ferenginar",
@@ -45725,7 +45731,9 @@
         "oracleId": "61e00946-7df7-4298-91b2-c656169e6601",
         "firstSet": "ice",
         "firstPrintId": "d3f7b614-6075-4b7c-acc7-ab63185b570b",
-        "firstPrintSet": "ice"
+        "firstPrintSet": "ice",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Kjeldoran Elite Guard",
@@ -47326,7 +47334,9 @@
         "oracleId": "2232c38e-49eb-4823-a325-2342a952db72",
         "firstSet": "pls",
         "firstPrintId": "fd87185b-1242-4fb3-abee-44bc267ee5fb",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Lava-Field Overlord",
@@ -86161,7 +86171,9 @@
         "oracleId": "46abaabe-7015-4d82-a5aa-2706b1f51bed",
         "firstSet": "fem",
         "firstPrintId": "4caaf31b-86a9-485b-8da7-d5b526ed1233",
-        "firstPrintSet": "fem"
+        "firstPrintSet": "fem",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Thallid Devourer",
@@ -86169,7 +86181,9 @@
         "oracleId": "b7326fd9-7648-4db3-b506-61a7de8a4094",
         "firstSet": "fem",
         "firstPrintId": "aa533845-4c4b-4072-aa39-8e56ce7ec325",
-        "firstPrintSet": "fem"
+        "firstPrintSet": "fem",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Thallid Germinator",
@@ -86925,7 +86939,9 @@
         "oracleId": "1239d3bf-06e8-4732-b1e2-f6eb145e5894",
         "firstSet": "fem",
         "firstPrintId": "16e61c00-3e94-4f6f-8515-65b430829e91",
-        "firstPrintSet": "fem"
+        "firstPrintSet": "fem",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Thornado",

@@ -19,8 +19,6 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 import { payOrSacrificeUpkeepTrigger } from "../leg/index.cards";
 
-const THALLID_ID = "4caaf31b-86a9-485b-8da7-d5b526ed1233"; // FEM 74a (canonical art)
-
 // Shared by every Saproling-producing FEM card (Thallid, Thallid Devourer,
 // Elvish Farmer, Night Soil) — Scryfall links the SAME printed Saproling
 // token (10E art) to all of them, so one lookup covers the whole engine.
@@ -55,141 +53,6 @@ function sporeUpkeepTrigger(id: string) {
     });
 }
 
-export const thallid = defineCard(() => ({
-    id: THALLID_ID,
-    rarity: "common",
-    name: "Thallid",
-    oracleText:
-        "At the beginning of your upkeep, put a spore counter on this creature.\nRemove three spore counters from this creature: Create a 1/1 green Saproling creature token.",
-    manaCost: { G: 1 },
-    types: ["Creature"],
-    subtypes: ["Fungus"],
-    power: 1,
-    toughness: 1,
-    triggeredAbilities: [sporeUpkeepTrigger("thallid-spore-upkeep")],
-    activatedAbilities: [
-        {
-            id: "thallid-make-saproling",
-            oracleText:
-                "Remove three spore counters from this creature: Create a 1/1 green Saproling creature token.",
-            cost: { removeCounter: { type: "spore", count: 3 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #847): create one 1/1
-            // green Saproling token on the controller's battlefield (CR 111 /
-            // 707.1).
-            effects: [
-                {
-                    op: "createToken",
-                    token: SAPROLING_TOKEN,
-                    controller: "controller",
-                    count: 1,
-                },
-            ],
-        },
-    ],
-}));
-
-export const thallidDevourer = defineCard(() => ({
-    id: "aa533845-4c4b-4072-aa39-8e56ce7ec325", // FEM 75
-    rarity: "uncommon",
-    name: "Thallid Devourer",
-    oracleText:
-        "At the beginning of your upkeep, put a spore counter on this creature.\nRemove three spore counters from this creature: Create a 1/1 green Saproling creature token.\nSacrifice a Saproling: This creature gets +1/+2 until end of turn.",
-    manaCost: { X: 1, G: 2 },
-    types: ["Creature"],
-    subtypes: ["Fungus"],
-    power: 2,
-    toughness: 2,
-    triggeredAbilities: [sporeUpkeepTrigger("thallid-devourer-spore-upkeep")],
-    activatedAbilities: [
-        {
-            id: "thallid-devourer-make-saproling",
-            oracleText:
-                "Remove three spore counters from this creature: Create a 1/1 green Saproling creature token.",
-            cost: { removeCounter: { type: "spore", count: 3 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #847): create one 1/1
-            // green Saproling token on the controller's battlefield (CR 111 /
-            // 707.1).
-            effects: [
-                {
-                    op: "createToken",
-                    token: SAPROLING_TOKEN,
-                    controller: "controller",
-                    count: 1,
-                },
-            ],
-        },
-        {
-            id: "thallid-devourer-devour",
-            oracleText:
-                "Sacrifice a Saproling: This creature gets +1/+2 until end of turn.",
-            cost: { sacrificeFilter: { subtypes: ["Saproling"] } },
-            useStack: true,
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 2,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
-
-export const thornThallid = defineCard(() => ({
-    id: "16e61c00-3e94-4f6f-8515-65b430829e91", // FEM 80a
-    rarity: "common",
-    name: "Thorn Thallid",
-    oracleText:
-        "At the beginning of your upkeep, put a spore counter on this creature.\nRemove three spore counters from this creature: It deals 1 damage to any target.",
-    manaCost: { X: 1, G: 2 },
-    types: ["Creature"],
-    subtypes: ["Fungus"],
-    power: 2,
-    toughness: 2,
-    triggeredAbilities: [sporeUpkeepTrigger("thorn-thallid-spore-upkeep")],
-    activatedAbilities: [
-        {
-            id: "thorn-thallid-ping",
-            oracleText:
-                "Remove three spore counters from this creature: It deals 1 damage to any target.",
-            cost: { removeCounter: { type: "spore", count: 3 } },
-            useStack: true,
-            targetRequirement: { type: "any", count: 1 },
-            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
-        },
-    ],
-}));
-
-export const feralThallid = defineCard(() => ({
-    id: "e585241e-c647-456d-b3b1-3d48dd78c372", // FEM 69
-    rarity: "uncommon",
-    name: "Feral Thallid",
-    oracleText:
-        "At the beginning of your upkeep, put a spore counter on this creature.\nRemove three spore counters from this creature: Regenerate this creature.",
-    manaCost: { X: 3, G: 3 },
-    types: ["Creature"],
-    subtypes: ["Fungus"],
-    power: 6,
-    toughness: 3,
-    triggeredAbilities: [sporeUpkeepTrigger("feral-thallid-spore-upkeep")],
-    activatedAbilities: [
-        {
-            id: "feral-thallid-regenerate",
-            oracleText:
-                "Remove three spore counters from this creature: Regenerate this creature.",
-            cost: { removeCounter: { type: "spore", count: 3 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.19a) via the implicit $source.
-            effects: [{ op: "regenerate", target: { ref: "$source" } }],
-        },
-    ],
-}));
-
 export const sporeFlower = defineCard(() => ({
     id: "f9681dc0-d0fc-4d5b-a23c-63ec1cc8343d", // FEM 73
     rarity: "uncommon",
@@ -212,47 +75,6 @@ export const sporeFlower = defineCard(() => ({
             // Migrated resolve()→effects[] (ADR 0045, #845): the "all-combat"
             // mode of preventDamage is a turn-scoped global Fog (CR 615).
             effects: [{ op: "preventDamage", mode: "all-combat" }],
-        },
-    ],
-}));
-
-export const elvishFarmer = defineCard(() => ({
-    id: "40a9710e-b2f8-4746-8640-d450f58a6e49", // FEM 66
-    rarity: "common",
-    name: "Elvish Farmer",
-    oracleText:
-        "At the beginning of your upkeep, put a spore counter on this creature.\nRemove three spore counters from this creature: Create a 1/1 green Saproling creature token.\nSacrifice a Saproling: You gain 2 life.",
-    manaCost: { X: 1, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Elf"],
-    power: 0,
-    toughness: 2,
-    triggeredAbilities: [sporeUpkeepTrigger("elvish-farmer-spore-upkeep")],
-    activatedAbilities: [
-        {
-            id: "elvish-farmer-make-saproling",
-            oracleText:
-                "Remove three spore counters from this creature: Create a 1/1 green Saproling creature token.",
-            cost: { removeCounter: { type: "spore", count: 3 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #847): create one 1/1
-            // green Saproling token on the controller's battlefield (CR 111 /
-            // 707.1).
-            effects: [
-                {
-                    op: "createToken",
-                    token: SAPROLING_TOKEN,
-                    controller: "controller",
-                    count: 1,
-                },
-            ],
-        },
-        {
-            id: "elvish-farmer-gain-life",
-            oracleText: "Sacrifice a Saproling: You gain 2 life.",
-            cost: { sacrificeFilter: { subtypes: ["Saproling"] } },
-            useStack: true,
-            effects: [{ op: "gainLife", player: "controller", amount: 2 }],
         },
     ],
 }));
