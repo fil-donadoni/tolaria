@@ -75,6 +75,7 @@ import type {
     Color,
     EffectOp,
 } from "../cards/types";
+import type { PermanentFilter } from "../cards/filters";
 import { childOpArrays } from "./ai/effectOpChildren";
 import { manaUnitsFor } from "./manaAvailability";
 import { observedOpponentColors } from "./ai/observedColors";
@@ -185,6 +186,8 @@ import {
 import { tryGetDefinition } from "../cards";
 import { getAlternativeCost } from "./alternativeCost";
 import { sacrificeCandidates } from "./sacrificeChoice";
+import { hasEscape } from "./escape";
+import { getFlashbackAdditionalCost } from "./flashback";
 import { spendableManaTotal } from "./state";
 // Choice-node spine (PRD #1423, issue #1425).
 import {
@@ -3368,7 +3371,10 @@ export type BodyCostMemo = Map<string, boolean>;
 
 /** Whether `move` is the BOT's own cast through an ALTERNATIVE cost whose
  *  permanent leg SACRIFICES lands (CR 118.9 / 701.21a), in ANY window (issue
- *  #5445) — lands given up for a spell.
+ *  #5445) — lands given up for a spell. A flashback cast is one: CR 702.34a
+ *  pays its cost "rather than paying its mana cost", by the alternative-cost
+ *  rules, so its "Sacrifice a <filter>" leg counts on a graveyard cast that
+ *  escape does not claim (`flashbackSacrificeLeg`).
  *
  *  The cast-side sibling of the activation predicates above, on the same
  *  terms. The cast edge pays the cost once, at the node it is taken from;
@@ -3396,19 +3402,47 @@ export function isManaBaseSacrificeCast(
     botId: string,
     move: Move
 ): boolean {
-    if (pid !== botId) return false;
-    if (move.kind !== "cast-spell" || move.alternativeCostId === undefined) {
-        return false;
-    }
+    if (pid !== botId || move.kind !== "cast-spell") return false;
     const card = findCardInAnyZone(state, move.cardInstanceId);
-    const cardId = (card?.card as { id?: string } | undefined)?.id;
+    if (!card) return false;
+    const filter =
+        move.alternativeCostId !== undefined
+            ? alternativeCostSacrificeLeg(card, move.alternativeCostId)
+            : flashbackSacrificeLeg(state, card, move);
+    return (
+        filter !== undefined &&
+        sacrificeCandidates(state, pid, filter).some(isLand)
+    );
+}
+
+/** The filter of an alternative cost's permanent leg when that leg
+ *  SACRIFICES (CR 118.9 / 701.21a); `undefined` for a return leg or none. */
+function alternativeCostSacrificeLeg(
+    card: CardInstanceState,
+    alternativeCostId: string
+): PermanentFilter | undefined {
+    const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     const leg = getAlternativeCost(
         def ?? undefined,
-        move.alternativeCostId
+        alternativeCostId
     )?.permanent;
-    if (!leg || leg.action !== "sacrifice") return false;
-    return sacrificeCandidates(state, pid, leg.filter).some(isLand);
+    return leg?.action === "sacrifice" ? leg.filter : undefined;
+}
+
+/** The flashback cost's "Sacrifice a <filter>" leg (CR 702.34a) when `move`
+ *  casts `card` from the graveyard by flashback: escape claims a graveyard
+ *  cast first (CR 702.138a), the precedence `buildCastCostSelection` charges
+ *  by, so an escape cast owes no flashback leg. */
+function flashbackSacrificeLeg(
+    state: GameState,
+    card: CardInstanceState,
+    move: Extract<Move, { kind: "cast-spell" }>
+): PermanentFilter | undefined {
+    if (move.castFromZone !== "graveyard" || hasEscape(state, card)) {
+        return undefined;
+    }
+    return getFlashbackAdditionalCost(card)?.sacrifice;
 }
 
 /** Whether `move` is the bot putting a body onto the battlefield that its own
