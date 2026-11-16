@@ -14,14 +14,6 @@
  * The other half of the guard is the `Budget` type in
  * `scripts/check-bundle-size.ts`: a `sum` row cannot carry a fixed byte
  * literal (`tsc` refuses it).
- *
- * Issue #10048: the corpus also SHRINKS. The Oracle migrations retired 259
- * hand-written cards, the budget gave back the growth allowance for each
- * (340 B against ~136 B shed), and base tip `7700f6300f9d` went RED with
- * nothing back in the graph. The second `describe` pins the shrink leg the
- * same way, and the horizon assertion is two-sided. `check:lane` runs this
- * file on every diff that moves the corpus (the `bundle-budget` cheap guard):
- * the landing that leaves the horizons is refused, not the base tip.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -92,6 +84,16 @@ describe("card-set bundle budget scales with the hand-written corpus (issue #948
     });
 });
 
+/**
+ * The corpus also SHRINKS (issue #10048). The Oracle migrations retired 259
+ * hand-written cards, the budget gave back the growth allowance for each
+ * (340 B against ~136 B shed), and base tip `7700f6300f9d` went RED with
+ * nothing back in the graph. These assertions pin the shrink leg the way the
+ * block above pins growth, and the horizon assertion is two-sided.
+ * `check:lane` runs this file on every diff that moves the corpus (the
+ * `bundle-budget` cheap guard): the landing that leaves the horizons is
+ * refused, not the base tip.
+ */
 describe("card-set bundle budget follows a shrinking corpus at the shed rate (issue #10048)", () => {
     it("ordinary retirement stays under budget down to the lower re-anchor horizon", () => {
         // A shrink rate above the shed spends the headroom card by card: the

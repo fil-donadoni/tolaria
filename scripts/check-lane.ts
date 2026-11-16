@@ -1159,11 +1159,6 @@ function revertPlan(
  *     ~2, 4.5–9.2 s wall at load 33 (2026-10-18). Without it a registry entry
  *     landed with a stale index and the base went RED (PR #5868); with it
  *     `pr-fixup`'s `blade-index` row regenerates the index on the PR.
- *   - `bundle-budget` (issue #10048) is the `card-set-` bundle budget's model
- *     test, a `node-engine` file: it counts the hand-written cards under
- *     `convex/cards/sets/**` and reds when the count leaves the range the
- *     budget is sound in. `check:bundle`, which measures the bytes, is
- *     health's; this is the part of it a lane can afford.
  *   - `check:baseline-shrink` (issue #5942) refuses a row ADDED to Guard C's
  *     baseline — a graduated card coming back — which only the diff can see.
  *     Admitted by the baseline file alone; ~0.3 s (two `git show`s). A
