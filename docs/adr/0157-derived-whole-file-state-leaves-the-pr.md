@@ -257,7 +257,10 @@ tree-wide by content but by churn: every Bot PR refits, and in the week to
 2026-10-31 20 of 27 rebase conflicts were on these files. They join
 `DERIVED_PATHS` with the same remedy as the catalogue: `derive:sync` refits on
 the base as step 0 of its write path (`bot:refit --derive`, before the drift
-sweep plays), `derive:regenerate` refits in every draft, `land:ready`
+sweep plays) on a catalogue packed from the tip — the refit reads the card
+pool the registry imports from `data/catalogue/`, and HEAD's is the previous
+tree's after a revert (issue #9915) — and once more when the sweep moved
+the catalogue, `derive:regenerate` refits in every draft, `land:ready`
 restores them whole, `check:derived-in-diff` refuses a diff that moves one,
 and the queue fixup's `derived` row (`derive:restore`) cures that red. The
 fitted vector moved out of `evalWeights.ts` into the whole generated file

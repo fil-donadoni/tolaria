@@ -10,12 +10,16 @@
  * after each merge, from `housekeeping`'s throwaway worktree at
  * `origin/<base>`:
  *
- *   0. the BOT REFIT: `bot:refit --derive` re-fits the eval
- *      weights and re-records the search / census pins (`REFIT_ARTIFACT_PATHS`,
- *      derived paths since the PR stopped carrying them). First, so the drift
- *      sweep below plays on the weights the tip will hold. A refit that fails
- *      is put back to HEAD and said — the header and catalogue still land;
- *      `--settled` reports the lag until a run refits;
+ *   0. the BOT REFIT: `catalogue:pack` on the tip, then `bot:refit --derive`
+ *      re-fits the eval weights and re-records the search / census pins
+ *      (`REFIT_ARTIFACT_PATHS`, derived paths since the PR stopped carrying
+ *      them) on THAT catalogue — the refit reads the card pool the registry
+ *      imports from `data/catalogue/`, and the one HEAD commits is the
+ *      previous tree's after a revert (`runRegeneration`).
+ *      Before the sweep, so the drift sweep below plays on the weights the
+ *      tip will hold. A refit that fails is put back to HEAD and said — the
+ *      header and catalogue still land; `--settled` reports the lag until a
+ *      run refits;
  *   1. the DRIFT SWEEP (ADR 0158 § 2b, issue #6687): the tip's misses —
  *      `ready` rows whose Bot verdict was not played on the definition the
  *      tip compiles (`staleVerdicts`, `check-oracle-lockfile.ts`) — counted
@@ -27,9 +31,10 @@
  *      Bot Gap is `gaps:sync`'s to file; one it brought in gets its
  *      `oracle:index` row. Misses, played and wall are logged and appended
  *      to `$GITHUB_STEP_SUMMARY`;
- *   2. `catalogue:pack` on the tip — every generator on a corpus cache
+ *   2. `catalogue:pack` on the tip again — every generator on a corpus cache
  *      matching the tip's pin: the primary checkout's when it matches, else
- *      the pinned bulk (`lib/corpus-cache.ts`);
+ *      the pinned bulk (`lib/corpus-cache.ts`); a catalogue the sweep moved
+ *      (a card in or out of `ready`) is refitted once more;
  *   3. the derived paths (and the card index) compared, blob by blob, with
  *      the tip's (`lib/derive-sync.ts` `derivePlan`): equal everywhere → no
  *      commit;
@@ -99,6 +104,7 @@
  * The decisions are `lib/derive-sync.ts`; this file is the I/O.
  */
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
     appendFileSync,
     copyFileSync,
@@ -125,6 +131,7 @@ import {
     BOT_REGRESSION_LABELS,
     BOT_REPLAY_COMMIT_SUBJECT,
     BOT_REPLAY_PATHS,
+    CATALOGUE_PATHS,
     DERIVED_LATE_LABELS,
     DERIVED_LATE_TITLE_PREFIX,
     DERIVED_PATHS,
@@ -147,6 +154,7 @@ import {
     sweepPoolLosses,
     renderDerivedLateIssue,
     runDriftSweep,
+    runRegeneration,
     verdictCurrency,
     type CatalogueEntry,
     type Currency,
@@ -472,7 +480,22 @@ function refitLag(): string[] {
     return failed;
 }
 
-/** Step 0 of the write path (issue #7653): re-fit the weights and re-record
+/** The packed catalogue on disk, one digest over `CATALOGUE_PATHS` — what
+ *  `runRegeneration` compares to tell whether the sweep moved the pool the
+ *  refit read. An absent file digests as empty. */
+function catalogueFingerprint(): string {
+    const hash = createHash("sha256");
+    for (const path of CATALOGUE_PATHS) {
+        const file = join(ROOT, path);
+        hash.update(path).update("\0");
+        if (existsSync(file)) hash.update(readFileSync(file));
+        hash.update("\0");
+    }
+    return hash.digest("hex");
+}
+
+/** The write path's refit (issue #7653), on a catalogue packed from this
+ *  tree (`runRegeneration`, issue #9915): re-fit the weights and re-record
  *  the pins on this tree. A refit that fails leaves no half-written file
  *  behind — the paths go back to HEAD — and the run goes on: the header and
  *  catalogue commit must still land, and `--settled` reports the lag. False
@@ -749,20 +772,23 @@ function write(dryRun: boolean, check = false): number {
         }
     }
     if (!ensureCorpus()) return 1;
-    // A failed refit still lets the header and catalogue land; the run's
-    // exit says it, so housekeeping files the writer's failure (review of
-    // PR for issue #7653) rather than health finding it past the grace.
-    const refitted = refit();
+    // Pack, refit, sweep, pack (`runRegeneration`, issue #9915): the refit
+    // reads the catalogue, so never the one HEAD commits. A failed refit
+    // still lets the header and catalogue land; the run's exit says it, so
+    // housekeeping files the writer's failure (review of PR for issue #7653)
+    // rather than health finding it past the grace.
+    const regenerated = runRegeneration({
+        pack: () =>
+            generate("catalogue:pack", ["scripts/catalogue-artifact.ts"]),
+        catalogue: catalogueFingerprint,
+        refit,
+        sweep: () => driftSweep(head),
+    });
+    if (!regenerated.ok) return 1;
     const refitExit = (code: number): number =>
-        refitted || code !== 0 ? code : 1;
-    const swept = driftSweep(head);
-    if (
-        !swept.ok ||
-        !generate("catalogue:pack", ["scripts/catalogue-artifact.ts"])
-    )
-        return 1;
+        regenerated.refitted || code !== 0 ? code : 1;
     // The card index only when `oracle:index` ran — never a stray edit.
-    const owned = swept.indexed ? DERIVE_SYNC_PATHS : DERIVED_PATHS;
+    const owned = regenerated.indexed ? DERIVE_SYNC_PATHS : DERIVED_PATHS;
     const found = entries(owned);
     if (found === null) return 1;
     const plan = derivePlan(found, owned);
@@ -1346,8 +1372,16 @@ function replayBot(dryRun: boolean): number {
             )
                 return 1;
         }
+        const unpacked = catalogueFingerprint();
         if (!generate("catalogue:pack", ["scripts/catalogue-artifact.ts"]))
             return 1;
+        // A replay that moved the pool (a card in or out of `ready`) refits:
+        // the committed weights stay the fit of the committed catalogue
+        // (issue #9915). A failed refit is put back to HEAD; the commit
+        // still lands and the exit says it, as on the write path.
+        const refitted = catalogueFingerprint() === unpacked || refit();
+        const refitExit = (code: number): number =>
+            refitted || code !== 0 ? code : 1;
         const found = entries(BOT_REPLAY_PATHS);
         if (found === null) return 1;
         const plan2 = derivePlan(found, BOT_REPLAY_PATHS);
@@ -1388,7 +1422,7 @@ function replayBot(dryRun: boolean): number {
             });
             return pushed.code;
         }
-        if (pushed.outcome !== "coalesced") return pushed.code;
+        if (pushed.outcome !== "coalesced") return refitExit(pushed.code);
         say(
             `re-applying the sweep over the moved tip (${moves + 1}/${MAX_TIP_MOVES})`
         );
