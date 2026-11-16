@@ -20704,6 +20704,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Demonic Lore",
+        "scryfallId": "47733f20-f7b2-4a01-b429-0ec49b230fd9",
+        "oracleId": "47a9df32-7588-4430-a40e-56a9041e0360",
+        "firstSet": "cmr",
+        "firstPrintId": "47733f20-f7b2-4a01-b429-0ec49b230fd9",
+        "firstPrintSet": "cmr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Demonic Ruckus",
         "scryfallId": "5b491d11-d00a-4541-8389-2785a455eeee",
         "oracleId": "a861ee41-a2c6-4530-9974-82f55ce712b1",
@@ -42560,6 +42570,16 @@
         "firstSet": "spm",
         "firstPrintId": "f0252819-4eda-457d-9688-b08b83b1edc9",
         "firstPrintSet": "spm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Inner Fire",
+        "scryfallId": "b1d886a2-ae83-4d95-9ec0-582c563181e6",
+        "oracleId": "27348fe5-21d4-40f7-9feb-bba2c2321008",
+        "firstSet": "sok",
+        "firstPrintId": "b1d886a2-ae83-4d95-9ec0-582c563181e6",
+        "firstPrintSet": "sok",
         "rarity": "common",
         "source": "compiled"
     },
