@@ -420,13 +420,13 @@ describe("a TRIGGER suspended on a Pending Choice lowers and rebuilds, counted o
     it("lowers the Strossus sacrifice pick: the rebuild resumes the trigger, offers the same candidates, and tallies the resolution once", () => {
         const { state, botId } = triggerChoicePending();
         const item = top(state);
-        expect(item.triggeredAbilityId).toBe("devouring-strossus-upkeep");
+        expect(item.triggeredAbilityId).toBe("devouring-strossus-trigger");
         expect(item.abilityResolutionRecorded).toBe(true);
         expect(item.resolutionStep).toBeDefined();
         expect(state.pendingChoices?.[0].kind).toBe("sacrifice-permanents");
         expect(state.pendingChoices?.[0].playerId).toBe(botId);
         expect(resolutionTallies(state)).toEqual({
-            "devouring-strossus-upkeep": 1,
+            "devouring-strossus-trigger": 1,
         });
 
         const outcome = lower(state, botId);
@@ -448,7 +448,7 @@ describe("a TRIGGER suspended on a Pending Choice lowers and rebuilds, counted o
         // The tally the card entry carries already counts THIS resolution;
         // the resume must not count it a second time.
         expect(resolutionTallies(rebuilt)).toEqual({
-            "devouring-strossus-upkeep": 1,
+            "devouring-strossus-trigger": 1,
         });
         expect(
             stackRebuildMismatch(
