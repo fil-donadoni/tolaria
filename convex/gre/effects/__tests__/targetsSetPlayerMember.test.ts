@@ -58,8 +58,6 @@ function playerMemberErrors(effects: EffectOp[]): string[] {
     return validateEffectScript({
         id: "test-targets-member-host",
         name: "Targets Member Host",
-        rarity: "common",
-        manaCost: { B: 1 },
         types: ["Sorcery"],
         effects,
     }).filter((e) => /bare player position/.test(e));
@@ -87,7 +85,7 @@ describe("targets-set forEach $each in a bare player position (CR 115.4)", () =>
         expect(state.players[0].life).toBe(before);
     });
 
-    it("skips a permanent target member in the player position (CR 608.2b)", () => {
+    it("skips a permanent target member in the player position", () => {
         const bear = makeInstance(BEAR_ID, {
             controllerId: "p1",
             ownerId: "p1",
