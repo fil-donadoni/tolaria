@@ -29184,11 +29184,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         tier: "must",
         // A PREDICATE, kept out of the weight fit on purpose (measured), like
         // every Esper Blink entry the Bot already plays right: as a `moves`
-        // verdict this one moves `latent.recursion` 135.9 → 117.2, and even
-        // the other three verdicts alone (`latentCreatureDiscount` 0.62674 →
-        // 0.62704) flip seed 2 of the `must` entry "loyalty: Wrenn and Six
-        // holds its -1 with no target worth it", a material tie-break on a
-        // 0.23 `meanMargin` gap (issue #9884).
+        // verdict this one moves `latent.recursion` 135.9 → 117.2.
         expect: {
             predicate: (move, state) =>
                 matchesMove(state, move, {
