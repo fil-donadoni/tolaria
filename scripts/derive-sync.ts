@@ -15,7 +15,7 @@
  *      (`REFIT_ARTIFACT_PATHS`, derived paths since the PR stopped carrying
  *      them) on THAT catalogue — the refit reads the card pool the registry
  *      imports from `data/catalogue/`, and the one HEAD commits is the
- *      previous tree's after a revert (issue #9915, `runRegeneration`).
+ *      previous tree's after a revert (`runRegeneration`).
  *      Before the sweep, so the drift sweep below plays on the weights the
  *      tip will hold. A refit that fails is put back to HEAD and said — the
  *      header and catalogue still land; `--settled` reports the lag until a
