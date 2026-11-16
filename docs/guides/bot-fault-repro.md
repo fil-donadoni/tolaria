@@ -54,11 +54,13 @@ id carries the counters on `bugReports:getReport` as `botConsultFailures`.
 
 A Bot that answers every consult can still be starved: the search stops at its
 wall-clock cap long before its iteration budget, and nothing fails. Every
-vs-Bot game reports once, at game over or when the game is left, how its
-searches went on the player's device (issue #9526) — a structured log named
-`bot search`, counters and a coarse device class only, no consent-gated
-payload. A game with no Brain consult, or whose tab was closed mid-play, has no
-report.
+vs-Bot game reports once how its searches went on the player's device (issue
+#9526) — a structured log named `bot search`, counters and a coarse device
+class only, no consent-gated payload. The report goes out at game over, when
+the game is left (30 s after the board unmounts, so a remount continues the
+same report), or when the page is hidden or closed, whichever comes first
+(issue #10022); a game whose page was hidden mid-play reports only the part
+before it. A game with no Brain consult has no report.
 
 Read one game in Sentry (Explore → Logs):
 
@@ -73,7 +75,7 @@ message:"bot search" gameId:<gameId>
 | `msPerIteration.p50` / `.p90`                                      | the device's speed, comparable across games                     |
 | `searchMs.*` against `consultMs.*`                                 | the gap is what stood before the search (Worker start, a queue) |
 | `consults.timeout` / `.worker-error` / `.search-error` / `.inline` | consults that gave no answer, or ran in-thread                  |
-| `device.engine` / `.cores` / `.mobile`                             | browser engine family, core-count bucket, mobile flag           |
+| `device.engine` / `.cores` / `.mobile`                             | engine family, core bucket, phone/tablet (iPad by touch)        |
 
 Across games, group the same query by `device.engine` or `device.cores` and
 average `iterations.ratio`.

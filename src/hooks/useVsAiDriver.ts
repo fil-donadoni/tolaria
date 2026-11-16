@@ -111,7 +111,8 @@ import {
 } from "~/lib/ai/brain-client";
 import { seatKnowledge } from "~/lib/ai/seat-knowledge";
 import {
-    openBotSearchReport,
+    acquireBotSearchReport,
+    releaseBotSearchReport,
     telemetryNow,
     type BotSearchRecorder,
 } from "~/lib/ai/bot-search-telemetry";
@@ -238,10 +239,12 @@ export function useVsAiDriver(
     botId: string | null
 ): VsAiDriverStatus {
     // This game's Bot search report (issue #9526): every consult's ending is
-    // folded in, and it is flushed ONCE — at game over or when the game is
-    // left, whichever comes first. Opened and closed by the same per-game
-    // effect that owns the Brain, so a rematch on this hook instance starts a
-    // fresh one. A consult still in flight at the flush is not in the report.
+    // folded in, and it is flushed ONCE — at game over, when the game is left
+    // or when the page is hidden, whichever comes first. Acquired and released
+    // by the same per-game effect that owns the Brain; the report itself lives
+    // in `bot-search-telemetry`, not here, so a remount of this driver on the
+    // same game continues it and a rematch starts a fresh one (issue #10022).
+    // A consult still in flight at the flush is not in the report.
     const searchReport = useRef<BotSearchRecorder | null>(null);
 
     // Cheap wake-up signal (issue #1778): mount the fat `getPublicState`
@@ -258,7 +261,7 @@ export function useVsAiDriver(
     // download instead of on the search.
     useEffect(() => {
         if (botId) warmBrain();
-        searchReport.current = botId ? openBotSearchReport(gameId) : null;
+        searchReport.current = botId ? acquireBotSearchReport(gameId) : null;
         // Tear the Brain down when the bot seat goes away (issue #3040). It
         // frees a thread that had no owner otherwise — `disposeBrain` had no
         // caller in the app at all — and, more to the point, it resets the
@@ -268,7 +271,11 @@ export function useVsAiDriver(
         // never even tried to spawn one.
         return () => {
             disposeBrain();
-            searchReport.current?.flush();
+            // Not a flush: a remount of the same game folds into this report
+            // (issue #10022); it goes out once the game is really left.
+            if (searchReport.current) {
+                releaseBotSearchReport(searchReport.current);
+            }
             searchReport.current = null;
             // The trace ring is per-GAME evidence (issue #3404). Left standing
             // across a rematch it shows eight decisions from a match that is
