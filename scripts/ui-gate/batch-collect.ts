@@ -4,7 +4,8 @@
  * The decision per PR is pure (`planCollect`); this file is the gh glue.
  *
  *   CLEAN     → `ui-owed` removed, `land:ready <PR#>` run (it carries the
- *               receipt the batch wrote into the body);
+ *               receipt the batch wrote into the body); a refusal there
+ *               → `land-failed` added, the refusal commented;
  *   RED       → `ui-owed` removed, `land-failed` added, red lines commented;
  *   DROPPED / UNPROVEN → stays `ui-owed`, a comment says why (cells left
  *               `UNWALKED` / `INFRA` by the batch AND a solo re-walk are
@@ -15,7 +16,11 @@
  * Trigger (issue #9264): the `ui-batch` workflow — a hosted `--probe` every
  * 30 min, then this collector on the `lane` runner only when a PR is owed —
  * or by hand. `land:ready` runs in a throwaway worktree of each PR's pushed
- * head. A refusal there is commented and the label stays off.
+ * head. A refusal there — `land:ready`'s own, or the collector's checkout /
+ * `worktree:init` (INFRA) — labels the PR `land-failed`, the repair pick's
+ * marker, and comments it; `ui-owed` stays off (it would block the very
+ * `land:ready` that fixes the cause). Unlabelled, no consumer would ever
+ * read the PR again.
  *
  * A held PR (DROPPED / UNPROVEN) keeps `ui-owed`; its comment carries the
  * head it was judged at (`heldMarker`), so a scheduled run never re-walks the
@@ -208,17 +213,42 @@ function listOwed(): OwedPr[] {
     ) as OwedPr[];
 }
 
-function comment(pr: number, body: string): void {
-    gh(["pr", "comment", String(pr), "--body", body]);
+/** Why `land:ready` did not hand a CLEAN PR off: its own refusal, or an
+ *  INFRA failure of the collector's checkout / bootstrap of the PR head. */
+export interface LandRefusal {
+    output: string;
+    infra: boolean;
 }
 
-function apply(
+/** The side effects `applyAction` performs — `gh`, and `land:ready` on a
+ *  PR's pushed head — injectable so a test stubs them. */
+export interface CollectIo {
+    gh: (args: string[]) => string;
+    land: (pr: number) => LandRefusal | null;
+}
+
+const defaultIo: CollectIo = { gh, land: landFromPrHead };
+
+/** The comment a CLEAN PR whose hand-off refused gets (issue #10010). Pure. */
+export function refusalComment(pr: number, refusal: LandRefusal): string {
+    const run = `run \`bun run land:ready ${pr}\` from the PR's worktree`;
+    const cause = refusal.infra
+        ? `the collector could not run \`land:ready\` (INFRA: ${refusal.output}). Nothing in the PR needs fixing: ${run}.`
+        : `\`land:ready\` refused:\n\n\`\`\`\n${refusal.output}\n\`\`\`\nFix the cause, then ${run}.`;
+    return `check:ui batch walk: CLEAN, receipt written, but ${cause} Labelled \`${FAILED_LABEL}\` (a repair pick); \`${UI_OWED_LABEL}\` stays off — it would block that \`land:ready\`.`;
+}
+
+/** Applies one action to its PR. Exported for its test (issue #10010). */
+export function applyAction(
     action: CollectAction,
     heads: ReadonlyMap<number, string>,
     base: string,
-    log: (m: string) => void
+    log: (m: string) => void,
+    io: CollectIo = defaultIo
 ): void {
     const pr = String(action.pr);
+    const comment = (n: number, body: string) =>
+        io.gh(["pr", "comment", String(n), "--body", body]);
     if (action.kind === "hold") {
         const head = heads.get(action.pr);
         const marker = action.intrinsic
@@ -230,28 +260,29 @@ function apply(
         );
         return;
     }
-    gh(["pr", "edit", pr, "--remove-label", UI_OWED_LABEL]);
+    io.gh(["pr", "edit", pr, "--remove-label", UI_OWED_LABEL]);
     if (action.kind === "fail") {
-        gh(["pr", "edit", pr, "--add-label", FAILED_LABEL]);
+        io.gh(["pr", "edit", pr, "--add-label", FAILED_LABEL]);
         comment(action.pr, action.comment);
         return;
     }
     if (action.comment) comment(action.pr, action.comment);
-    const refusal = landFromPrHead(action.pr);
+    const refusal = io.land(action.pr);
     if (refusal !== null) {
-        // The walk is done and its receipt is in the body: the label stays
-        // off (it would block the very `land:ready` that fixes the cause).
-        comment(
-            action.pr,
-            `check:ui batch walk: CLEAN, receipt written, but \`land:ready\` refused:\n\n\`\`\`\n${refusal}\n\`\`\`\nFix the cause and run \`bun run land:ready ${pr}\` from the PR's worktree.`
+        // The walk is done and its receipt is in the body. `ui-owed` stays
+        // off (it would block the very `land:ready` that fixes the cause);
+        // `land-failed` makes it the next pass's repair pick (issue #10010).
+        io.gh(["pr", "edit", pr, "--add-label", FAILED_LABEL]);
+        comment(action.pr, refusalComment(action.pr, refusal));
+        log(
+            `collect: land:ready ${pr} refused${refusal.infra ? " (INFRA)" : ""} — \`${FAILED_LABEL}\`, commented, #${pr} not queued`
         );
-        log(`collect: land:ready ${pr} refused — commented, #${pr} not queued`);
     }
 }
 
 /** `land:ready` must run in a checkout of the PR's pushed head: a throwaway
- *  detached worktree, bootstrapped. Returns the refusal output, or null. */
-function landFromPrHead(pr: number): string | null {
+ *  detached worktree, bootstrapped. Returns the refusal, or null. */
+function landFromPrHead(pr: number): LandRefusal | null {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), `ui-collect-${pr}-`));
     const run = (cmd: string, args: string[], cwd: string) =>
         spawnSync(cmd, args, { cwd, encoding: "utf8" });
@@ -269,16 +300,24 @@ function landFromPrHead(pr: number): string | null {
                       process.cwd()
                   )
                 : fetched;
-        if (add.status !== 0) return `could not check out pull/${pr}/head`;
+        if (add.status !== 0)
+            return {
+                output: `could not check out pull/${pr}/head`,
+                infra: true,
+            };
         const init = run("bun", ["run", "worktree:init"], dir);
-        if (init.status !== 0) return "worktree:init failed";
+        if (init.status !== 0)
+            return { output: "worktree:init failed", infra: true };
         const r = run("bun", ["run", "land:ready", String(pr)], dir);
         if (r.status === 0) return null;
-        return `${r.stdout}${r.stderr}`
-            .trim()
-            .split("\n")
-            .slice(-15)
-            .join("\n");
+        return {
+            output: `${r.stdout}${r.stderr}`
+                .trim()
+                .split("\n")
+                .slice(-15)
+                .join("\n"),
+            infra: false,
+        };
     } finally {
         run("git", ["worktree", "remove", "--force", dir], process.cwd());
         fs.rmSync(dir, { recursive: true, force: true });
@@ -334,7 +373,7 @@ async function main(): Promise<number> {
     if (ci)
         writeTo("GITHUB_STEP_SUMMARY", `${summaryRows(settled).join("\n")}\n`);
     for (const action of planCollect(settled))
-        apply(action, heads, settled.base, log);
+        applyAction(action, heads, settled.base, log);
     return code;
 }
 

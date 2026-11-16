@@ -1228,7 +1228,12 @@ UNPROVEN) also names the base and is retried once the base moves. With none, the
 run ends on the hosted runner: no worktree, no browser, no `lane` time. Else
 `collect` walks them in one batch from its [job worktree](#g-job-worktree):
 the clean ones get their receipt and `land:ready`, a red one `land-failed`
-(the [dispatcher](#g-dispatcher)'s repair pick), a held one a comment. It
+(the [dispatcher](#g-dispatcher)'s repair pick), a held one a comment. A
+clean one whose `land:ready` refuses — its own refusal, or the collector's
+checkout / `worktree:init` of the PR head, commented as INFRA — also gets
+`land-failed` and the refusal as a comment; `ui-owed` stays off, since it
+would block the `land:ready` that fixes the cause (issue #10010: unlabelled,
+no consumer ever read the PR again). It
 writes as the owner (the runner's gh login, no `GH_TOKEN`), so the
 `ready-to-land` label fires what a bot token would not.
 
