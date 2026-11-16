@@ -43,12 +43,12 @@ is listed in [Not playable yet](#not-playable-yet) with the issue making it so.
 
 ## Izzet Affinity
 
-| Card                     | Right                                                           | Wrong: must not                                         | Has                                                                                                                                                                                     |
-| ------------------------ | --------------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Mox Opal                 | it makes the third artifact, metalcraft on: cast it and tap it  | cast a second Opal ahead of the play the mana is for    | `metalcraft: Mox Opal goes down as the third artifact to pay for the Wind Drake`; wrong: `free mana: a second Mox Opal does not go ahead of the Grizzly Bears`                          |
-| Kappa Cannoneer          | artifacts pay the rest through improvise: cast it               | crack an artifact first and fall one short of the cast  | stretch (issue #9909): `improvise: Kappa Cannoneer is cast with four artifacts paying the generic`; wrong: `improvise: Mind Stone is not cracked when its tap pays for Kappa Cannoneer` |
-| Engineered Explosives    | counters match the opponent's mana value: sacrifice it to sweep | sweep when its own board loses more than the opponent's | `sweep: Engineered Explosives on two takes three attacking two-drops`; wrong: `sweep: Engineered Explosives stays put when its own board loses more`                                    |
-| Emry, Lurker of the Loch | a payable artifact in the graveyard: tap her and cast it        | tap her for an artifact it cannot pay this turn         | `graveyard cast: Emry is tapped for the Juggernaut four lands can pay`; wrong: `graveyard cast: Emry stays untapped for an artifact the mana cannot pay`                                |
+| Card                     | Right                                                           | Wrong: must not                                         | Has                                                                          |
+| ------------------------ | --------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Mox Opal                 | it makes the third artifact, metalcraft on: cast it and tap it  | cast a second Opal ahead of the play the mana is for    | wrong: `free mana: a second Mox Opal does not go ahead of the Grizzly Bears` |
+| Kappa Cannoneer          | artifacts pay the rest through improvise: cast it               | crack an artifact first and fall one short of the cast  |                                                                              |
+| Engineered Explosives    | counters match the opponent's mana value: sacrifice it to sweep | sweep when its own board loses more than the opponent's |                                                                              |
+| Emry, Lurker of the Loch | a payable artifact in the graveyard: tap her and cast it        | tap her for an artifact it cannot pay this turn         |                                                                              |
 
 ## Domain Zoo
 
