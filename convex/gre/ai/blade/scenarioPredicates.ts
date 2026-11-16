@@ -1069,3 +1069,16 @@ export function sacrificeKeepsOrder(
     const basicsGiven = given.filter((n) => n === order.basic).length;
     return !given.includes(order.dual) || basicsGiven === order.basicsInPool;
 }
+
+/** CR 702.138a (Escape) — the picked move casts `card` and its graveyard exile cost
+ *  names at most `max` cards: a variable escape cost ("exile any number of
+ *  other cards … with four or more card types among them") paid with no more
+ *  of the graveyard than the threshold needs. */
+export function castExilesAtMost(card: string, max: number) {
+    return (move: Move | null, state: GameState): boolean => {
+        if (!castsCardNamed(move, state, card)) return false;
+        if (move?.kind !== "cast-spell") return false;
+        const exiled = move.castCostPicks?.exileCostCardIds ?? [];
+        return exiled.length > 0 && exiled.length <= max;
+    };
+}
