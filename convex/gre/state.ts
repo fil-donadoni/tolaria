@@ -15690,13 +15690,18 @@ export function buildSpellContext(
             if (target.type !== "permanent") return 0;
             const found = findOnBattlefield(state, target.id);
             if (found) return found.card.counters?.[type] ?? 0;
-            // CR 608.2g / last-known information: a "Sacrifice this creature:
-            // ... for each [counter] on it" ability (Icatian Moneychanger) pays
-            // its sacrifice cost at activation, so by resolution the source is
-            // gone from the battlefield. The resolving stack item is a snapshot
-            // of the source taken AFTER cost payment but it retains the counters
-            // it had — read them so the count reflects the pre-sacrifice state.
-            if (target.id === item.id) return item.counters?.[type] ?? 0;
+            // CR 608.2h last-known information: a "Sacrifice this artifact:
+            // ... equal to the number of [counter] counters on it" ability
+            // (Engineered Explosives, Powder Keg) pays its sacrifice cost at
+            // activation, so by resolution the source is gone from the
+            // battlefield. The resolving stack item is a snapshot of the source
+            // taken AFTER cost payment, when the departure has already deleted
+            // its live `counters` (CR 122.2) and kept them as `countersAtLeave`,
+            // so the departure snapshot is the count; `counters` answers a
+            // snapshot taken while the source was still on the battlefield.
+            if (target.id === item.id) {
+                return (item.countersAtLeave ?? item.counters)?.[type] ?? 0;
+            }
             return 0;
         },
         isEscaped(target: TargetSelection): boolean {
