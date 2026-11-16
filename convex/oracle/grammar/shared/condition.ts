@@ -650,7 +650,7 @@ const AT_MOST_CONTROLLED = /^(\S+) or fewer (.+)$/;
 /**
  * `"two or fewer other lands"` — the object of a controls clause counted from
  * above: a number word, "or fewer", then a PLURAL descriptor with no
- * controller clause of its own. "Other" (CR 109.2, the source excluded) is
+ * controller clause of its own. "Other" (the source itself excluded) is
  * admitted: the static gate (`controlsHolds`) hands the filter its source as
  * `selfInstanceId`, so `excludeSource` is honoured where this count is read.
  */

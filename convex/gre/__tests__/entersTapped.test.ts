@@ -168,7 +168,7 @@ describe("entersTappedUnlessControls — the atMost bound (CR 614.1d)", () => {
         expect(played(mine, []).isTapped).toBe(false);
     });
 
-    it('"other" leaves the source out of its own count (CR 109.2)', () => {
+    it('"other" leaves the source out of its own count', () => {
         const source = owned(COPPERLINE_GORGE, "p1");
         const player = makePlayer("p1", {
             battlefield: [source, owned(ISLAND, "p1"), owned(ISLAND, "p1")],
