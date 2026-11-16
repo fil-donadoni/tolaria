@@ -380,7 +380,7 @@ describe("Shimmering Wings (Aura grants flying; {U}: return to hand; CR 702.9 / 
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, aura, "shimmering-wings-ability");
+        resolveActivated(state, aura, "shimmering-wings-return");
         expect(
             state.players[0].battlefield.find((c) => c.id === "aura")
         ).toBeUndefined();
