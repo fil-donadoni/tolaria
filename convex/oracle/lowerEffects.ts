@@ -85,7 +85,12 @@ import type {
 import { SELF_MARKER } from "./normalize";
 import type { PlayerRefIR } from "./grammar/shared/playerRef";
 import type { CountedSetIR } from "./grammar/shared/quantity";
-import type { LinkedExileTokenIR } from "./grammar/shared/tokenSpec";
+import type {
+    CreateDefinedTokenIR,
+    CreatePredefinedTokenIR,
+    LinkedExileTokenIR,
+} from "./grammar/shared/tokenSpec";
+import { PREDEFINED_TOKEN_SPECS } from "../cards/sharedTokens";
 import type { ZoneRefIR } from "./grammar/shared/zoneRef";
 import type { QuotedAbilityIR } from "./grammar/shared/staticClause";
 
@@ -3514,8 +3519,10 @@ function lowerSentenceBody(
         case "each-player-puts":
             return lowerEachPlayerPuts(sentence, site);
         case "create-token":
-            return "linkedExileToken" in sentence
-                ? lowerLinkedExileToken(sentence.linkedExileToken, site)
+            if ("linkedExileToken" in sentence)
+                return lowerLinkedExileToken(sentence.linkedExileToken, site);
+            return "predefined" in sentence
+                ? lowerPredefinedToken(sentence, site)
                 : lowerCreateToken(sentence, walk, site);
         case "optional": {
             // CR 603.2 — an optional triggered ability's controller chooses on
@@ -7498,9 +7505,9 @@ function lowerEachPlayerPuts(
  * not the announced object's type names an object we cannot point at.
  */
 function lowerCreateToken(
-    sentence: Exclude<
-        Extract<EffectSentenceIR, { kind: "create-token" }>,
-        { readonly linkedExileToken: LinkedExileTokenIR }
+    sentence: Extract<
+        EffectSentenceIR,
+        { kind: "create-token" } & CreateDefinedTokenIR
     >,
     walk: SentenceWalk,
     site: SiteOptions
@@ -7568,6 +7575,42 @@ function lowerCreateToken(
     const bind = actedOn.op.bind ?? walk.nextBind("that");
     actedOn.op.bind = bind;
     op.count = { ref: `${bind}.manaValue` };
+    return lowered([op]);
+}
+
+/**
+ * CR 111.10 — "Create <count> [tapped] <Name> token[s]": the predefined token's
+ * characteristics are its definition's (CR 111.10a Treasure … 111.10v
+ * Mutagen), looked up in the engine's one name→spec table, so a compiled
+ * Treasure is the very token every hand-written producer creates. The
+ * controller creates them (CR 111.2). "Tapped" is the creating effect's own
+ * modification (CR 111.10), carried on the spec as `entersTapped` — the shape
+ * Mishra, Lost to Phyrexia's hand-written "two tapped Powerstone tokens"
+ * writes.
+ *
+ * A predefined token is no creature, so it introduces no referent for a later
+ * "that creature"; nothing after it is read as naming it.
+ */
+function lowerPredefinedToken(
+    sentence: CreatePredefinedTokenIR,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
+    const shared = PREDEFINED_TOKEN_SPECS[sentence.predefined];
+    const token: EffectTokenSpec = structuredClone(shared);
+    if (sentence.tapped) token.entersTapped = true;
+    const op: Extract<EffectOp, { op: "createToken" }> = {
+        op: "createToken",
+        token,
+        controller: "controller",
+    };
+    const { count } = sentence;
+    if (count.kind === "announced-x") {
+        // CR 107.3 — the count is the X this site announced; a site that
+        // announces none refuses, exactly as every other X magnitude does.
+        const x = lowerAmount({ kind: "x" }, site);
+        if (!x.ok) return x;
+        op.count = x.value;
+    } else if (count.value !== 1) op.count = count.value;
     return lowered([op]);
 }
 
