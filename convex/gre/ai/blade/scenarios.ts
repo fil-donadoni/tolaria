@@ -25426,11 +25426,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #8271 — the land it exists to rebuy.",
     },
     {
-        label: "loyalty: Wrenn and Six holds its -1 with no target worth it",
+        label: "loyalty: Wrenn and Six never spends its -1 on a Serra Angel one damage cannot kill",
         classification: { kind: "absolute" },
         spec: {
             phase: "PRECOMBAT_MAIN",
             turn: 5,
+            // The Bot holds NO answer to the Angel: no hand, no lands, no
+            // creature to block a flier, a library of filler basics. Only
+            // then is the face ping as good as the empty `+1` (see `note`).
             landCount: 0,
             libraryCount: 20,
             cards: [
@@ -25457,15 +25460,29 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
+            // Every `-1` but the one at the opponent's face.
             forbidden: [
                 {
                     kind: "activate-ability",
                     card: "Wrenn and Six",
                     ability: "wrenn-and-six-minus1",
+                    target: "Serra Angel",
+                },
+                {
+                    kind: "activate-ability",
+                    card: "Wrenn and Six",
+                    ability: "wrenn-and-six-minus1",
+                    target: "Wrenn and Six",
+                },
+                {
+                    kind: "activate-ability",
+                    card: "Wrenn and Six",
+                    ability: "wrenn-and-six-minus1",
+                    target: "me",
                 },
             ],
         },
-        note: "Issue #8271 — one damage to a Serra Angel kills nothing.",
+        note: "Issue #8271 — one damage to a Serra Angel kills nothing. Issue #9884 narrowed it to the `-1` at the Angel (and at the Bot's own side): with no land in the graveyard the `+1` does nothing either, and the Angel reaches Wrenn and Six at 4 loyalty as at 2, so the `-1` at the opponent's face (one damage) is as good an answer. That holds ONLY because the Bot has no answer to the Angel — if it could block or remove it, Wrenn would survive and the loyalty the face `-1` spends would matter. Forbidding every `-1` pinned a `+1` / face tie on rollout noise: seed 2 flipped under a 3e-4 refit.",
     },
     {
         label: "loyalty: Teferi bounces the opposing Craw Wurm",
