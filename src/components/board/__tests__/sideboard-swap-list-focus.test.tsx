@@ -67,14 +67,14 @@ describe("SideboardSwapList focus fallback (issue #9819)", () => {
                 <GameDialog open title="Sideboarding">
                     <SideboardSwapList
                         title="Maindeck"
-                        cards={main}
+                        cards={[...main]}
                         moveLabel="→ Side"
                         onMove={() => setMain((c) => c.slice(1))}
                         emptyMessage="empty"
                     />
                     <SideboardSwapList
                         title="Sideboard"
-                        cards={side}
+                        cards={[...side]}
                         moveLabel="→ Main"
                         onMove={() => setSide([])}
                         emptyMessage="empty side"
