@@ -268,3 +268,26 @@ export function retirementRefusal(
         `      - <card name> — what changed about its row and why it is still correct`
     );
 }
+
+/**
+ * The `## Retired rows` section a producer owes a PR whose diff changes
+ * retired rows (issue #10060): one `- <card name> — <what>` line per row, the
+ * format `acknowledgedNames` / `acknowledges` read, so the PR passes
+ * `retirementRefusal` for exactly the rows `changedRetiredRows` reported.
+ * No lines for no rows: a diff with no retired-row change has no section.
+ * The opening blank line is included, like `renderTargetFilesSection`.
+ */
+export function retiredRowsSection(
+    rows: readonly ChangedRetiredRow[],
+    why: string
+): string[] {
+    if (rows.length === 0) return [];
+    return [
+        "",
+        "## Retired rows",
+        "",
+        ...rows.map(
+            (row) => `- ${row.name} \u2014 ${why}${CHANGE_LABEL[row.change]}`
+        ),
+    ];
+}

@@ -60,6 +60,8 @@ import type {
     ReadyRegression,
     RegressionAcknowledgement,
 } from "./oracle-state-regressions";
+import { retiredRowsSection, type ChangedRetiredRow } from "./retirement-ack";
+import { renderTargetFilesSection } from "./gap-target-files";
 import { revertRestoresLine } from "./ui-scope";
 
 /** Fixer attempts per RED episode (ADR 0156 Amendment I, rung 4). */
@@ -778,6 +780,25 @@ function dependentsLine(dependents: readonly Culprit[] | undefined): string[] {
     ];
 }
 
+/** Past this many paths a revert's `## Target files` collapses to one
+ *  `dir/**` glob per directory: coarse globs are allowed (issue #10060). */
+const TARGET_FILES_COARSE_AFTER = 12;
+
+/** The `## Target files` of a repair issue: the reverted commits' paths,
+ *  or their directories' globs when there are many. */
+export function revertTargetFiles(paths: readonly string[]): string[] {
+    const unique = [...new Set(paths.filter((p) => p !== ""))].sort();
+    if (unique.length <= TARGET_FILES_COARSE_AFTER) return unique;
+    return [
+        ...new Set(
+            unique.map((p) => {
+                const slash = p.lastIndexOf("/");
+                return slash === -1 ? p : `${p.slice(0, slash)}/**`;
+            })
+        ),
+    ].sort();
+}
+
 export function revertIssueBody(input: {
     red: string;
     /** Every culprit the bisect named, oldest first (issue #7446). */
@@ -786,6 +807,9 @@ export function revertIssueBody(input: {
     evidence: string | null;
     /** Later commits reverted together with the culprits (issue #6766). */
     dependents?: readonly Culprit[];
+    /** The reverted commits' paths, coarse globs allowed (issue #10060):
+     *  `deny-guard`'s blast-radius check refuses a claim without them. */
+    targetFiles?: readonly string[];
 }): string {
     const whoOf = (c: Culprit) =>
         c.pr !== null
@@ -810,6 +834,8 @@ export function revertIssueBody(input: {
         "",
         input.evidence ?? "_none published_",
         "",
+        ...renderTargetFilesSection(input.targetFiles ?? null),
+        "",
         "## Band",
         "",
         "P0 — base tip RED",
@@ -826,6 +852,10 @@ export function revertPrBody(input: {
     culpritIssues: readonly number[];
     /** Later commits reverted together with the culprits (issue #6766). */
     dependents?: readonly RevertedCommit[];
+    /** The retired lockfile rows the revert changes (issue #10060): a
+     *  retirement migration's revert restores them, and `retired-rows` refuses
+     *  a body that does not name each. */
+    retiredRows?: readonly ChangedRetiredRow[];
 }): string {
     const who = culpritsRef(input.culprits);
     return [
@@ -848,6 +878,10 @@ export function revertPrBody(input: {
             ...(input.dependents ?? []).map((d) => d.full),
             ...[...input.culprits].reverse().map((c) => c.full),
         ].map(revertRestoresLine),
+        ...retiredRowsSection(
+            input.retiredRows ?? [],
+            `RED-ladder revert of ${who} changes its retired lockfile row; the revert restores the state before the culprit`
+        ),
         "",
         "## Preset scenario",
         "",
