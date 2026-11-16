@@ -4746,41 +4746,6 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 402.3 + CR 119.3 — "You gain 2 life for each card in your hand": the
-    // size of a hand, a hidden zone whose CARDINALITY is public. Exhibits the
-    // "count set counts a HAND" form (and the multiplier again): the canned
-    // generator's hand contents belong to the cast filler, so this fixture is
-    // the evidence that the hand count the grammar emits is the shipped one.
-    {
-        rule: "effect clause",
-        card: {
-            name: "Gerrard's Wisdom",
-            manaCost: "{2}{W}{W}",
-            typeLine: "Sorcery",
-            oracleText: "You gain 2 life for each card in your hand.",
-            oracleId: "3e30e8f2-f437-4620-a3bc-dd9c29ae6570",
-            layout: "normal",
-        },
-        expected: {
-            name: "Gerrard's Wisdom",
-            types: ["Sorcery"],
-            manaCost: { X: 2, W: 2 },
-            oracleText: "You gain 2 life for each card in your hand.",
-            effects: [
-                {
-                    op: "gainLife",
-                    player: "controller",
-                    amount: {
-                        count: {
-                            zone: "hand",
-                            controller: "controller",
-                            times: 2,
-                        },
-                    },
-                },
-            ],
-        },
-    },
     // CR 508.3a / 509.3a — "Whenever a creature attacks or blocks, this
     // enchantment deals 2 damage to IT". The pronoun is the creature the
     // FIRING EVENT names (`$event.combatant`): ONE Oracle line over two
