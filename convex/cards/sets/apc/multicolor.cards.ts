@@ -328,6 +328,29 @@ export const squeesRevenge = defineCard(() => ({
     ],
 }));
 
+// Temporal Spring — "Put target permanent on top of its owner's library."
+// CR 300.1 — "target permanent" of any type uses the full permanent-type set
+// (incl. Land), as Vindicate does. CR 108.3 — the card goes to its OWNER's
+// library, not the controller's: `moveZone` to `"library"` at `position: 1`
+// puts it on TOP (CR 400.3, issue #1726), the shape the compiler emits.
+export const temporalSpring = defineCard(() => ({
+    id: "b584dfd1-a56c-406e-8504-47ea136dc102", // APC 125
+    rarity: "common",
+    name: "Temporal Spring",
+    oracleText: "Put target permanent on top of its owner's library.",
+    manaCost: { X: 1, G: 1, U: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: [...PERMANENT_TYPES], count: 1 },
+    effects: [
+        {
+            op: "moveZone",
+            target: { target: 0 },
+            to: "library",
+            position: 1,
+        },
+    ],
+}));
+
 // Putrid Warrior — {W}{B} 2/2 Zombie Soldier Warrior. "Whenever this creature
 // deals damage, choose one — • Each player loses 1 life. • Each player gains
 // 1 life." (CR 603.2 damage trigger, CR 700.2b modal triggered ability, CR
