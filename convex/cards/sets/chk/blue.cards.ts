@@ -46,3 +46,69 @@ export const hondenOfSeeingWinds = defineCard(() => ({
         }),
     ],
 }));
+
+// Gifts Ungiven — {3}{U} Instant. "Search your library for up to four cards
+// with different names and reveal them. Target opponent chooses two of those
+// cards. Put the chosen cards into your graveyard and the rest into your hand.
+// Then shuffle."
+//
+// Intuition's shape (search -> reveal -> the target opponent picks from the
+// revealed pile -> split -> shuffle) with the one new thing: the search's
+// description is on the SET. `distinctBy: "name"` (CR 701.23a, issue #6475)
+// makes the found cards pairwise distinct by name, and `count: { min: 0,
+// max: 4 }` is a ceiling because the zone is hidden and the searcher may find
+// fewer (CR 701.23b). The opponent's pick of two clamps to however many were
+// found; the picks go to the graveyard, and the rest — still in the library
+// after the first `moveZone` — go to hand.
+//
+// The compiler reads the line to this same definition
+// (`search-reveal-pile-pick`, issues #5254 and #6475).
+export const giftsUngiven = defineCard(() => ({
+    id: "32b91eb5-ea53-4a21-a2e5-9c545a42fa30",
+    rarity: "rare",
+    name: "Gifts Ungiven",
+    oracleText:
+        "Search your library for up to four cards with different names and reveal them. Target opponent chooses two of those cards. Put the chosen cards into your graveyard and the rest into your hand. Then shuffle.",
+    manaCost: { X: 3, U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "player", count: 1, controller: "opponent" },
+    effects: [
+        {
+            op: "choice",
+            kind: "search-library",
+            player: "controller",
+            zone: "library",
+            count: { min: 0, max: 4 },
+            distinctBy: "name",
+            prompt: "Search your library for up to four cards with different names.",
+            bind: "$found1",
+        },
+        { op: "reveal", player: "controller", cards: { ref: "$found1" } },
+        {
+            op: "choice",
+            kind: "choose-library-card",
+            player: { target: 0 },
+            zoneOwnerId: "controller",
+            zone: "library",
+            candidates: [{ ref: "$found1" }],
+            count: 2,
+            prompt: "Choose two of the revealed cards. Its owner puts the chosen cards into their graveyard and the rest into their hand.",
+            bind: "$picked2",
+        },
+        {
+            op: "moveZone",
+            cards: { ref: "$picked2" },
+            player: "controller",
+            from: "library",
+            to: "graveyard",
+        },
+        {
+            op: "moveZone",
+            cards: { ref: "$found1" },
+            player: "controller",
+            from: "library",
+            to: "hand",
+        },
+        { op: "libraryLook", action: "shuffle", player: "controller" },
+    ],
+}));

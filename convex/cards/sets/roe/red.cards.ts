@@ -4,6 +4,19 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 
+// Flame Slash — "Flame Slash deals 4 damage to target creature." (CR 120.1
+// damage.)
+export const flameSlash = defineCard(() => ({
+    id: "006d2bf1-20f7-4b09-8d98-8233d91682bd",
+    rarity: "common",
+    name: "Flame Slash",
+    oracleText: "Flame Slash deals 4 damage to target creature.",
+    manaCost: { R: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "Creature", count: 1 },
+    effects: [{ op: "dealDamage", amount: 4, to: { target: 0 } }],
+}));
+
 // Splinter Twin — {2}{R}{R} Enchantment — Aura. Enchant creature. Enchanted
 // creature has "{T}: Create a token that's a copy of this creature, except it
 // has haste. Exile that token at the beginning of the next end step."

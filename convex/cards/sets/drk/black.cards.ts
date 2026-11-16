@@ -315,6 +315,38 @@ export const inquisition = defineCard(() => ({
     },
 }));
 
+// Marsh Gas — "All creatures get -2/-0 until end of turn." (CR 611.2 temporary
+// P/T mod on every creature; mirrors Holy Light's iterate-all-creatures shape.)
+export const marshGas = defineCard(() => ({
+    id: "b80ecb15-258b-4fc9-86e4-c2bf01891606",
+    rarity: "common",
+    name: "Marsh Gas",
+    oracleText: "All creatures get -2/-0 until end of turn.",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    // Migrated resolve()→effects[] (ADR 0045, #840): all-creatures pump →
+    // forEach over every battlefield's creatures, pump each -2/0 EOT (CR 611.2).
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature" },
+            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$each" },
+                    power: -2,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+}));
+
 // Murk Dwellers — "Whenever this creature attacks and isn't blocked, it gets
 // +2/+0 until end of combat." (CR 509.1h — the new ATTACKER_UNBLOCKED combat
 // event fires once per unblocked attacker when the block graph is finalized;
