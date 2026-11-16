@@ -13487,10 +13487,13 @@ export const concede = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
 
         getPlayer(state, args.playerId);
         assertSeatOwnership(args.playerId, user._id);
+        // Conceding a finished Game is idempotent (issue #9310): the outcome is
+        // settled, so a late Concede (menu opened as a lethal spell resolved)
+        // is a no-op — after the seat check, so a stranger is still refused.
+        if (state.gameOver) return;
         // The per-GAME twin of `forfeitMatch`'s bot-seat gate. Without it a
         // Bo3 pairing is still a per-Game sweep: concede the bot's seat once
         // per Game and `finalizeGameOver` → `recordLimitedPairingResult`
