@@ -6,19 +6,11 @@
 //   node docs/research/scripts/brain-bench/summarize.mjs profile <profile.json>
 
 import { readFileSync } from "node:fs";
+import { percentile, median } from "./stats.mjs";
 
 const [mode, ...files] = process.argv.slice(2);
 const read = (file) => JSON.parse(readFileSync(file, "utf8"));
 
-const sorted = (values) => [...values].sort((a, b) => a - b);
-function percentile(values, p) {
-    if (values.length === 0) return NaN;
-    const s = sorted(values);
-    return s[
-        Math.min(s.length, Math.max(1, Math.ceil((p / 100) * s.length))) - 1
-    ];
-}
-const median = (values) => percentile(values, 50);
 const fmt = (n, digits = 0) => (Number.isFinite(n) ? n.toFixed(digits) : "–");
 const pct = (n) => `${fmt(100 * n, 0)}%`;
 const row = (...cells) => `| ${cells.join(" | ")} |`;
