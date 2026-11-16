@@ -2708,6 +2708,57 @@ function spellHasImprovise(card: CardInstanceState): boolean {
     );
 }
 
+/** CR 702.126a — the untapped artifacts `player` may tap for Improvise that
+ *  the mana census has NOT already counted as a mana source: an artifact with
+ *  an uncosted mana ability (unless summoning sickness locks it) or a
+ *  converter's fodder (issue #2420) contributes its one unit as mana, and it
+ *  can be tapped only once. Summoning sickness does not gate the Improvise
+ *  tap itself — it carries no tap symbol. The context is the mana census's
+ *  own, so the castability probe and the Bot's enumerator count the same
+ *  artifacts. */
+function improviseArtifactsWith(
+    player: PlayerState,
+    ctx: {
+        cantSpendMana: boolean;
+        converterColors: ReadonlyMap<string, ReadonlySet<Color>>;
+        controllerId: string | undefined;
+        battlefields: ReturnType<typeof manaGateBattlefields> | undefined;
+    }
+): CardInstanceState[] {
+    return player.battlefield.filter((perm) => {
+        if (perm.isTapped) return false;
+        if (!perm.types.includes("Artifact")) return false;
+        if (!ctx.cantSpendMana && ctx.converterColors.has(perm.id)) {
+            return false;
+        }
+        const producesMana =
+            !isTapLockedBySummoningSickness(perm) &&
+            producesUncostedMana(perm, ctx.controllerId, ctx.battlefields);
+        return !producesMana;
+    });
+}
+
+/** CR 702.126a — the artifacts a cast of `card` may tap for Improvise beyond
+ *  what the mana census already pays with (`improviseArtifactsWith`), or `[]`
+ *  when the spell has no Improvise. The Bot's cast enumerator picks its taps
+ *  from these. */
+export function improviseArtifacts(
+    player: PlayerState,
+    card: CardInstanceState,
+    state: GameState
+): CardInstanceState[] {
+    if (!spellHasImprovise(card)) return [];
+    const battlefields = manaGateBattlefields(state);
+    return improviseArtifactsWith(player, {
+        cantSpendMana:
+            tryGetDefinition((card.card as { id?: string }).id ?? "")
+                ?.cantSpendManaToCast ?? false,
+        converterColors: manaConverterColors(state, player),
+        controllerId: player.id,
+        battlefields,
+    });
+}
+
 /** CR 601.2g / 609.4b / 602.5b (issue #4506) — the mana-producing UNITS a
  *  castability probe draws from: pool mana, spendable restricted mana, every
  *  board mana source (`boardManaUnits`), CR 609.4b substitutions widening what
@@ -2959,23 +3010,19 @@ export function buildManaSourceUnits(
     // source too would double-count it. Without this the castability gate
     // ignored Improvise entirely and hid the Cast action for a spell payable
     // only by tapping artifacts (e.g. Metallic Rebuke with too few lands).
-    if (spellHasImprovise(card)) {
-        for (const perm of player.battlefield) {
-            if (perm.isTapped) continue;
-            if (!perm.types.includes("Artifact")) continue;
-            // Issue #2420 — an artifact already counted above as a CONVERTER's
-            // fodder (Urza taps it for {U}) has contributed its one unit, and
-            // it can be tapped only once: adding an Improvise source for it
-            // would double-count it, exactly as its own mana ability would.
-            if (!cantSpendMana && converterColors.has(perm.id)) continue;
-            const producesMana =
-                !isTapLockedBySummoningSickness(perm) &&
-                producesUncostedMana(
-                    perm,
-                    boardControllerId,
-                    boardBattlefields
-                );
-            if (producesMana) continue;
+    //
+    // A `payWith` pseudo-source like Delve and Convoke below: an Improvise tap
+    // pays "rather than pay that mana", so `genericManaShortfall` (which asks
+    // what MANA alone cannot cover) must not see it — that shortfall is the
+    // number of artifacts the caster is forced to tap.
+    if (includePayWith && spellHasImprovise(card)) {
+        const artifacts = improviseArtifactsWith(player, {
+            cantSpendMana,
+            converterColors,
+            controllerId: boardControllerId,
+            battlefields: boardBattlefields,
+        });
+        for (let i = 0; i < artifacts.length; i++) {
             sources.push(new Set<Color>());
         }
     }

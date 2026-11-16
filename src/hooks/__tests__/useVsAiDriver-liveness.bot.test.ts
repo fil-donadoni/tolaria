@@ -99,6 +99,7 @@ vi.mock("@convex/_generated/api", () => {
         "cancelAttackTax",
         "resolveManaSpendChoice",
         "selectCastExileCost",
+        "tapArtifactForImprovise",
         "selectConvokeCreatures",
         "selectAdditionalCost",
         "selectCastAlternativeHandCost",

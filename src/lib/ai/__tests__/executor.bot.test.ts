@@ -31,6 +31,7 @@ function fakeMutations() {
         selectSacrifice: vi.fn().mockResolvedValue(null),
         selectAdditionalCost: vi.fn().mockResolvedValue(null),
         selectCastExileCost: vi.fn().mockResolvedValue(null),
+        tapArtifactForImprovise: vi.fn().mockResolvedValue(null),
         selectActivationCost: vi.fn().mockResolvedValue(null),
         selectActivationExileCost: vi.fn().mockResolvedValue(null),
         selectActivationDiscardCost: vi.fn().mockResolvedValue(null),

@@ -8,7 +8,8 @@
 //   play-land        → playCard
 //   summon-companion → summonCompanion (CR 116.2 / 702.139a, ADR 0064)
 //   turn-face-up     → turnPermanentFaceUp (CR 116.2b / 702.37e, issue #2705)
-//   cast-spell       → announceCast → selectTargets? [→ confirmTargets] → tapForPayment?
+//   cast-spell       → announceCast → selectTargets? [→ confirmTargets]
+//                      → tapArtifactForImprovise* → tapForPayment?
 //   activate-mana-ability → tapUntap (the doomed-source float)
 //   activate-ability → activateAbility → selectTargets? [→ confirmTargets] → tapForActivationPayment*
 //   declare-attackers→ declareAttackers → confirmAttackers
@@ -182,6 +183,12 @@ export type MoveMutations = {
      *  validates the whole pick against the parked picker at once. */
     selectCastExileCost: (
         a: GP & { cardInstanceIds: string[] }
+    ) => Promise<unknown>;
+    /** CR 702.126a — taps one artifact toward the generic cost of the spell
+     *  being cast (Improvise). Per artifact, exactly as a human's click; the
+     *  server auto-commits the cast once its cost is covered. */
+    tapArtifactForImprovise: (
+        a: GP & { cardInstanceId: string }
     ) => Promise<unknown>;
     /** CR 602.1 / 118.5 — names the cards exiled from ONE graveyard for an
      *  `exileFromGraveyard` activation cost (Grim Lavamancer, Night Soil). */
@@ -701,6 +708,17 @@ export async function executeMove(
                         cardInstanceIds: castPicks.exileCostCardIds,
                     });
                 }
+            }
+            // CR 702.126a — the artifacts the enumerator tapped for Improvise,
+            // each {1} of generic already off `tapPlan`. After the cost picks
+            // (each asserts the "priority" input a live park blocks) and before
+            // the mana: when the plan is empty the last tap covers the cost and
+            // the server commits the cast on it.
+            for (const cardInstanceId of move.improviseArtifactIds ?? []) {
+                await mutations.tapArtifactForImprovise({
+                    ...base,
+                    cardInstanceId,
+                });
             }
             if (move.tapPlan.length > 0) {
                 // issue #1779 / PRD #1776 T4 — one batched call instead of N

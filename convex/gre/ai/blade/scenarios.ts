@@ -30649,4 +30649,33 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9699, CR 118.9 / 701.6a. Lightning Bolt at the Bot on 3 life, on the opponent's turn, no land untapped: exiling Brainstorm pays for the counter that keeps the Bot alive.",
     },
+    {
+        label: "improvise: Kappa Cannoneer is cast with four artifacts paying the generic",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                {
+                    name: "Ornithopter",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Memnite", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Kappa Cannoneer", owner: "me", zone: "hand" },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Kappa Cannoneer" }],
+        },
+        note: "Issue #9909, CR 702.126a. Two Islands pay {1}{U} and the four artifacts tap for the other {4}: the 4/4 ward comes down this turn. The cast Move names the artifacts it taps for Improvise (`improviseArtifactIds`, the minimum mana alone cannot cover) and the executor taps each through `tapArtifactForImprovise` before the mana payment. Before it the cast was never enumerated and the Bot passed on every seed.",
+    },
 ];

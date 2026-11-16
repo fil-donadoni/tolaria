@@ -181,6 +181,7 @@ vi.mock("@convex/_generated/api", () => ({
             cancelAttackTax: "cancelAttackTax",
             resolveManaSpendChoice: "resolveManaSpendChoice",
             selectCastExileCost: "selectCastExileCost",
+            tapArtifactForImprovise: "tapArtifactForImprovise",
             selectConvokeCreatures: "selectConvokeCreatures",
             // ADR 0091 / issue #1209 — the owed-payment pickers.
             selectSacrifice: "selectSacrifice",
