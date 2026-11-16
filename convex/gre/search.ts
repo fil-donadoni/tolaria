@@ -1736,6 +1736,7 @@ export function rollout(
                     !isDrainExchangeSacrifice(state, pid, botId, m) &&
                     !isDrawExchangeSacrifice(state, pid, botId, m) &&
                     !isDenialExchangeSacrifice(state, pid, botId, m) &&
+                    !isEvokeCast(state, pid, botId, m) &&
                     !isSourceBodyDamageConversion(
                         state,
                         pid,
@@ -3300,6 +3301,46 @@ export function isDenialExchangeSacrifice(
     );
 }
 
+/** Whether `move` is the BOT's own cast of a card for its EVOKE cost, in ANY
+ *  window (issue #9864). CR 702.74a: evoke is an alternative cost, and the
+ *  permanent's controller sacrifices it as it enters, so the cast trades the
+ *  card, and whatever the evoke cost spends with it, for its enter triggers
+ *  alone.
+ *
+ *  The cast-side sibling of `isRemovalExchangeSacrifice`, on the same terms.
+ *  An evoke card held in hand is re-offered at every later window of the
+ *  `pass` subtree, its own turn and the opponent's, because evoke usually
+ *  needs no mana and an evoke creature usually has flash. The rollout's
+ *  random draw then takes it in most `pass` lines, and the tree opens it as a
+ *  child at every node. So `pass` reads as "evoke a little later", and its
+ *  mean margin absorbs the evoke line's leaves while the evoke edge's does
+ *  not. Measured: evoking at 0 lands to exile a 0/2 with no ability, the
+ *  pitched card included, left 13 of 60 `pass` rollouts without an evoke. The
+ *  two root edges then sat inside `outcomeEps` on every seed, and the
+ *  material tie-break evoked.
+ *
+ *  Kept out of the rollout's random draw and out of the tree below the root;
+ *  the greedy rollout policy still plays it when the evaluation says it
+ *  gains, so a later evoke that answers a real threat stays in the `pass`
+ *  line. The root is never pruned, so an evoke the bot could take NOW stays a
+ *  scored option, re-weighed at every real decision. The bot's own moves
+ *  only; the opponent's evoke stays in the tree.
+ *
+ *  Per-card-agnostic, never a card name (ADR 0102). */
+export function isEvokeCast(
+    state: GameState,
+    pid: string,
+    botId: string,
+    move: Move
+): boolean {
+    if (pid !== botId || move.kind !== "cast-spell") return false;
+    if (move.alternativeCostId === undefined) return false;
+    const card = findCardInAnyZone(state, move.cardInstanceId);
+    const cardId = (card?.card as { id?: string } | undefined)?.id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    return def?.evoke?.id === move.alternativeCostId;
+}
+
 /** Whether `move` is the BOT's own activation that pays for damage out of its
  *  source's BODY (`costShrinksSource`: the counters it removes are part of
  *  the source's power or toughness), on an empty stack (issue #3376).
@@ -3980,6 +4021,7 @@ function iterate(
                             ))
                     ) &&
                     !isManaBaseSacrificeCast(world, pid, botId, k.move) &&
+                    !isEvokeCast(world, pid, botId, k.move) &&
                     !isDoomedEntryMove(world, pid, botId, k.move) &&
                     !isOneSidedPutCast(world, pid, botId, k.move)
             );
