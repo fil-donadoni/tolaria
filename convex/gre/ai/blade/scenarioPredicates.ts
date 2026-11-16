@@ -1070,7 +1070,7 @@ export function sacrificeKeepsOrder(
     return !given.includes(order.dual) || basicsGiven === order.basicsInPool;
 }
 
-/** CR 702.138a — the picked move casts `card` and its graveyard exile cost
+/** CR 702.138a (Escape) — the picked move casts `card` and its graveyard exile cost
  *  names at most `max` cards: a variable escape cost ("exile any number of
  *  other cards … with four or more card types among them") paid with no more
  *  of the graveyard than the threshold needs. */
