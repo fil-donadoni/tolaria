@@ -95,6 +95,13 @@
             "needsSetup": false
         }
     ],
+    "Blood Moon": [
+        {
+            "label": "nonbasic hate: Blood Moon is cast against the opponent's nonbasic mana",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Blue Elemental Blast": [
         {
             "label": "charter: picks the modal mode that survives a lethal red spell",
@@ -879,6 +886,13 @@
             "needsSetup": false
         }
     ],
+    "Nethergoyf": [
+        {
+            "label": "escape: Nethergoyf escapes with four card types and spares in the graveyard",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Nightscape Familiar": [
         {
             "label": "regeneration shield: Nightscape Familiar regenerates against lethal burn",
@@ -1510,6 +1524,13 @@
     "Underworld Breach": [
         {
             "label": "escape: casts Underworld Breach with a burn spell to escape at lethal",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Unholy Heat": [
+        {
+            "label": "delirium: Unholy Heat deals 6 at the biggest threat",
             "tier": "must",
             "needsSetup": false
         }
