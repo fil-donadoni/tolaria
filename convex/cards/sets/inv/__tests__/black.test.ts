@@ -836,7 +836,7 @@ describe("Mourning (Aura -2/-0 pt-buff + {B}: return to owner's hand; CR 613.4c 
         });
         expect(getEffectivePower(state, bears)).toBe(0);
 
-        resolveActivated(state, aura, "mourning-return");
+        resolveActivated(state, aura, "mourning-ability");
 
         expect(
             state.players[0].battlefield.some((c) => c.id === "mourning-aura")
