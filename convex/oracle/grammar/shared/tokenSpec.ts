@@ -39,13 +39,28 @@
  *    form of its own ({@link linkedExileTokenRule}): the creator is not the
  *    controller (CR 111.2), and the size is not a printed number.
  *
+ *  - `Create <count> [tapped] <Name> token[s]` — a PREDEFINED token
+ *    (CR 111.10): the name is the whole definition, so the rule reads only
+ *    the name, the count and "tapped", and looks the token up in
+ *    the engine's one name→spec table (`PREDEFINED_TOKEN_SPECS`). "Tapped"
+ *    is the creating effect modifying the token as it is created (CR 111.10:
+ *    "The effect that creates a predefined token may also modify or add to
+ *    the predefined characteristics"). A name the table does not define
+ *    (Gold, Junk, a Role) is refused, never read as a creature subtype. The
+ *    count is a printed cardinal or the announced X (CR 107.3); "that many",
+ *    "half X" and every other count are refused.
+ *
  * Singular and plural must agree with the count ("a … token", "two …
  * tokens"): a disagreement is a line we have misread, not a typo to forgive.
  */
 
+import {
+    predefinedTokenName,
+    type PredefinedTokenName,
+} from "../../../cards/sharedTokens";
 import type { Color } from "../../../cards/types";
 import type { KeywordIR } from "../ir";
-import { fail, ok, rule, type Rule } from "../../rule";
+import { fail, ok, rule, type Rule, type RuleResult } from "../../rule";
 import { keywordVocabulary } from "./keywordVocabulary";
 import { readNumberWord } from "./quantity";
 import { CREATURE_SUBTYPES } from "./subtypes";
@@ -89,10 +104,33 @@ export type TokenCountIR =
      */
     | { readonly kind: "nontoken-creatures-to-your-graveyard-this-turn" };
 
-export interface CreateTokenIR {
+/** A creature token the sentence defines characteristic by characteristic. */
+export interface CreateDefinedTokenIR {
     readonly count: TokenCountIR;
     readonly token: TokenIR;
 }
+
+/**
+ * CR 111.10 — a predefined token, named: its characteristics are the
+ * definition's, never the line's, so the IR carries only the name.
+ */
+export interface CreatePredefinedTokenIR {
+    readonly predefined: PredefinedTokenName;
+    /**
+     * The printed cardinal ("a" = 1), or CR 107.3's X the
+     * ability announced (Treasure Vault's "{X}{X}, {T}, Sacrifice this
+     * land: Create X Treasure tokens"), gated by the lowering on a site
+     * that announces one.
+     */
+    readonly count: Extract<
+        TokenCountIR,
+        { kind: "fixed" } | { kind: "announced-x" }
+    >;
+    /** CR 111.10 — "tapped": the creating effect's own modification. */
+    readonly tapped: boolean;
+}
+
+export type CreateTokenIR = CreateDefinedTokenIR | CreatePredefinedTokenIR;
 
 /** What the descriptor words between P/T and "creature" define. */
 interface DescribedToken {
@@ -115,6 +153,12 @@ const CREATE_X_ANNOUNCED =
 /** The per-death form: singular by construction ("a … token for each …"). */
 const CREATE_FOR_EACH_NONTOKEN_DEATH =
     /^Create a (\d+)\/(\d+) (.+) creature token for each nontoken creature put into your graveyard from the battlefield this turn$/;
+
+/**
+ * The predefined form: a capitalised name directly before "token[s]", so a
+ * creature token's "1/1" or a colour word never reaches it.
+ */
+const CREATE_PREDEFINED = /^Create (\S+) (tapped )?([A-Z][a-z]+) (tokens?)$/;
 
 const KEYWORDS = keywordVocabulary();
 
@@ -198,6 +242,8 @@ function readToken(
 export const createTokenRule: Rule<CreateTokenIR> = rule<CreateTokenIR>(
     "create token",
     (span) => {
+        const predefined = span.match(CREATE_PREDEFINED);
+        if (predefined !== null) return readPredefined(span, predefined);
         const x = span.match(CREATE_X_THAT);
         if (x !== null) {
             const token = readToken(x[1]!, x[2]!, x[3]!, undefined);
@@ -264,6 +310,43 @@ export const createTokenRule: Rule<CreateTokenIR> = rule<CreateTokenIR>(
         return ok({ count: { kind: "fixed" as const, value: count }, token });
     }
 );
+
+/**
+ * CR 111.10 — "Create <count> [tapped] <Name> token[s]": the name must be one
+ * the engine defines, the count a printed cardinal agreeing with "token[s]".
+ */
+function readPredefined(
+    span: string,
+    match: RegExpMatchArray
+): RuleResult<CreateTokenIR> {
+    const name = predefinedTokenName(match[3]!);
+    if (name === null)
+        return fail(
+            `"${match[3]}" is not a predefined token the engine defines`,
+            span
+        );
+    const tapped = match[2] !== undefined;
+    // CR 107.3 — "Create X <Name> tokens": plural by construction.
+    if (match[1] === "X") {
+        if (match[4] !== "tokens")
+            return fail('"X" does not agree with "token"', span);
+        return ok({
+            predefined: name,
+            count: { kind: "announced-x" as const },
+            tapped,
+        });
+    }
+    const count = readNumberWord(match[1]!);
+    if (count === null || count < 1)
+        return fail(`"${match[1]}" is not a count`, span);
+    if ((count === 1) !== (match[4] === "token"))
+        return fail(`"${match[1]}" does not agree with "${match[4]}"`, span);
+    return ok({
+        predefined: name,
+        count: { kind: "fixed" as const, value: count },
+        tapped,
+    });
+}
 
 /**
  * CR 607.2a + CR 608.2h + CR 111.2 — "The exiled card's owner creates an X/X
