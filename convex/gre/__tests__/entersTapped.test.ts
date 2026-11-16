@@ -11,7 +11,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup.helper";
 import { applyPlayLand } from "../playLand";
-import type { CardInstanceState } from "../state";
+import { shouldEnterTapped, type CardInstanceState } from "../state";
 
 describe("entersTapped / entersTappedUnless at land-play (CR 614.1c)", () => {
     it("a land with entersTapped: true enters tapped when played", () => {
@@ -123,5 +123,57 @@ describe("entersTappedUnlessControls at land-play (CR 614.1d)", () => {
     it("a basic non-land does not satisfy the land half of the filter", () => {
         const notALand = island("p1", { types: ["Creature"] });
         expect(played([notALand], []).isTapped).toBe(true);
+    });
+});
+
+// CR 614.1d — the fast land's `atMost` bound over "other lands": the would-be
+// controller's lands only (CR 109.5), lands only, and never the source itself.
+// The entering land is not on the battlefield while its entry replacement is
+// checked (CR 614.12), so "other" bites only where the source IS on the
+// battlefield — pinned through `shouldEnterTapped` with the source placed there.
+describe("entersTappedUnlessControls — the atMost bound (CR 614.1d)", () => {
+    const COPPERLINE_GORGE = "28f1d784-f286-418d-a712-bc07ad10d4a2";
+    const ISLAND = "90a57c0e-fa61-45ef-955d-d296403967d5";
+    const GRIZZLY_BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870";
+
+    function owned(cardId: string, controllerId: string) {
+        return makeInstance(cardId, {
+            zone: "battlefield",
+            controllerId,
+            ownerId: controllerId,
+        });
+    }
+
+    function played(mine: CardInstanceState[], theirs: CardInstanceState[]) {
+        const land = makeInstance(COPPERLINE_GORGE, { zone: "hand" });
+        const player = makePlayer("p1", { battlefield: mine, hand: [land] });
+        const state = makeState({
+            players: [player, makePlayer("p2", { battlefield: theirs })],
+        });
+        return applyPlayLand(state, player, land.id)!;
+    }
+
+    it("an opponent's lands do not count toward the bound (CR 109.5)", () => {
+        const mine = [owned(ISLAND, "p1"), owned(ISLAND, "p1")];
+        const theirs = [0, 1, 2].map(() => owned(ISLAND, "p2"));
+        expect(played(mine, theirs).isTapped).toBe(false);
+    });
+
+    it("a non-land permanent does not count toward the bound", () => {
+        const mine = [
+            owned(ISLAND, "p1"),
+            owned(ISLAND, "p1"),
+            owned(GRIZZLY_BEARS, "p1"),
+        ];
+        expect(played(mine, []).isTapped).toBe(false);
+    });
+
+    it('"other" leaves the source out of its own count', () => {
+        const source = owned(COPPERLINE_GORGE, "p1");
+        const player = makePlayer("p1", {
+            battlefield: [source, owned(ISLAND, "p1"), owned(ISLAND, "p1")],
+        });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        expect(shouldEnterTapped(state, source)).toBe(false);
     });
 });
