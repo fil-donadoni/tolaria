@@ -17,7 +17,7 @@ import {
     DEFAULT_BLADE_SEED,
 } from "../../../../convex/gre/ai/blade/runner";
 import { seatPlayerId } from "../../../../convex/gre/ai/blade/matcher";
-import { searchWithTrace } from "../../../../convex/gre/search";
+import { moveKey, searchWithTrace } from "../../../../convex/gre/search";
 import { DIFFICULTY_BUDGETS } from "../../../../convex/gre/difficulty";
 
 const POSITIONS = bladeScenariosForTier("must").slice(0, 60);
@@ -57,7 +57,7 @@ function run(index, options = {}) {
     };
     const wall0 = wallMs();
     const cpu0 = hasCpuClock ? cpuMs() : null;
-    const { trace } = searchWithTrace(
+    const { move, trace } = searchWithTrace(
         state,
         botId,
         budget,
@@ -73,6 +73,9 @@ function run(index, options = {}) {
         requested: trace ? trace.iterationsRequested : null,
         completed: trace ? trace.iterationsCompleted : null,
         stoppedBy: trace ? trace.stoppedBy : null,
+        // The chosen move's structural key: two bundles that pick the same
+        // move at a position print the same string (`compare.mjs`).
+        move: move ? moveKey(move) : null,
         // The search's own elapsed time, in DEVICE milliseconds (scaled).
         deviceMs: trace ? trace.elapsedMs : null,
         wallMs: wall,
