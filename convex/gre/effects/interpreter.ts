@@ -2284,8 +2284,14 @@ function resolvePlayerRef(
                 return undefined;
             }
             const bound = readBinding(ctx, ref.ref);
-            return bound && bound.length === 1
-                ? bound[PLAYER_BINDING_ID]
+            if (!bound) return undefined;
+            if (bound.length === 1) return bound[PLAYER_BINDING_ID];
+            // CR 115.4 — a targets-set `$each` is a snapshot of the announced
+            // target; it reads as a player only when that target is one (a
+            // permanent member in a player position skips the Op).
+            const id = bound[SNAP_ID];
+            return id !== undefined && ctx.apNapOrder().includes(id)
+                ? id
                 : undefined;
         }
         const snap = readBinding(ctx, parsed.binding);

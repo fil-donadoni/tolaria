@@ -8284,7 +8284,18 @@ type BindingKind =
      *  that construct: one capture per iteration, readable only as a whole
      *  through `boundCount` (CR 701.23h). Every single-object position
      *  rejects it — after the sweep there is no one object it names. */
-    | "iterated";
+    | "iterated"
+    /** A targets-set `forEach` `$each`: the snapshot of one announced
+     *  target, which may be a PLAYER (CR 115.4). It reads wherever the
+     *  `{ target: n }` slot it stands for reads — every snapshot position,
+     *  and a bare player position, where a permanent member skips the Op. */
+    | "target";
+
+/** Whether `family` holds a bindSnapshot capture — a snapshot, or a
+ *  targets-set `$each` (whose member is snapshotted the same way). */
+function holdsSnapshot(family: BindingKind): boolean {
+    return family === "snapshot" || family === "target";
+}
 
 /** Declares, in `declared`, every UNSCOPED binding `entry`'s Op declares — each
  *  field its schema tags `bindingDeclaration(kind)`, in schema order, in the
@@ -8573,6 +8584,16 @@ function checkEventRef(
     }
 }
 
+/** The family a `forEach` declares its `$each` in, read off the selector. A
+ *  graveyard-narrowed targets set holds cards alone, so it stays a snapshot. */
+function forEachMemberKind(
+    select: Record<string, unknown> | null
+): BindingKind {
+    if (select?.set === "players") return "player";
+    if (select?.set === "targets" && select.zone === undefined) return "target";
+    return "snapshot";
+}
+
 /** Validates one recorded ref use against the bindings declared so far, pushing
  *  a human-readable error for a dangling binding, a family mismatch, or an
  *  unknown property path. */
@@ -8637,7 +8658,7 @@ function checkRefUse(
             );
             return;
         }
-        if (family !== "snapshot") {
+        if (!holdsSnapshot(family)) {
             errors.push(
                 `${at}: ref "${use.ref}" names a ${family} binding in a name position — ".name" reads a SNAPSHOT binding (any bind outside choice/mayPay/nameCard, e.g. destroy/exile/moveZone/sacrifice, or a graveyard/permanents-set forEach "$each"). A snapshot written by something other than bindSnapshot carries no name slot and resolves to nothing — fail-closed, never a silent match-everything.`
             );
@@ -8720,7 +8741,7 @@ function checkRefUse(
             );
             return;
         }
-        if (family !== "snapshot") {
+        if (!holdsSnapshot(family)) {
             errors.push(
                 `${at}: ref "${use.ref}" names a ${family} binding in an object position — object refs read a permanents-set "$each" snapshot`
             );
@@ -8738,9 +8759,9 @@ function checkRefUse(
             );
             return;
         }
-        if (family !== "player") {
+        if (family !== "player" && family !== "target") {
             errors.push(
-                `${at}: ref "${use.ref}" names a ${family} binding in a bare player position — only a players-set forEach "$each" is a player binding`
+                `${at}: ref "${use.ref}" names a ${family} binding in a bare player position — only a players-set or targets-set forEach "$each" reads as a player`
             );
         }
         return;
@@ -8780,7 +8801,7 @@ function checkRefUse(
         );
         return;
     }
-    if (family !== "snapshot") {
+    if (!holdsSnapshot(family)) {
         errors.push(
             `${at}: ref "${use.ref}" names a ${family} binding in a ${use.kind} position — power/toughness/manaValue/controller refs read snapshot bindings`
         );
@@ -8979,7 +9000,7 @@ function checkCaptureSource(
             return;
         }
         if (verbatim) return;
-        if (family !== "snapshot" && family !== "player") {
+        if (!holdsSnapshot(family) && family !== "player") {
             errors.push(
                 `${at}: capture "${name}" ref "${ref}" names a ${family} binding — only single-value snapshot/player bindings can cross to fire time (list captures are a tracked grammar gap, ADR 0048)`
             );
@@ -8998,7 +9019,7 @@ function checkCaptureSource(
         errors.push(
             `${at}: capture "${name}" ref "${ref}" references undefined binding "${parsed.binding}" — no earlier Op binds it`
         );
-    } else if (family !== "snapshot") {
+    } else if (!holdsSnapshot(family)) {
         errors.push(
             `${at}: capture "${name}" ref "${ref}" — ".controller" reads a snapshot binding, not a ${family} binding`
         );
@@ -9550,7 +9571,8 @@ function checkOpListRefs(
 
         // Recurse into the forEach body (issue #807) with a CLONED scope that
         // additionally declares `$each` — its family follows the selector (a
-        // players member is a player id, a permanents member is a snapshot).
+        // players member is a player id, a permanents member is a snapshot, an
+        // announced target a snapshot that may be a player, CR 115.4).
         // Body-local binds live in the clone, so they never leak past the
         // construct (they are iteration-scoped at runtime); outer bindings
         // stay readable (the clone carries them).
@@ -9577,10 +9599,7 @@ function checkOpListRefs(
             // object or a player: `$each` stays undeclared, so a body reading
             // it is rejected as an undefined binding.
             if (select?.set !== "times") {
-                bodyScope.set(
-                    "$each",
-                    select?.set === "players" ? "player" : "snapshot"
-                );
+                bodyScope.set("$each", forEachMemberKind(select));
             }
             // forEach body stays in the SAME trigger scope — `$event` is still
             // legal inside a trigger's own forEach (ADR 0049).
