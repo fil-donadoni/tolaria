@@ -66,7 +66,9 @@ import {
     reopenComment,
     revertAcknowledgements,
     revertBranch,
+    revertIssueBody,
     revertPrBody,
+    revertTargetFiles,
     type EpisodeRed,
     type ForeignRepair,
     type LadderFacts,
@@ -85,6 +87,8 @@ import { repairItems } from "../lib/queue-plan";
 import { closingIssueRefs } from "../lib/red-land-gate";
 import { hasNoWalkOwedLine, revertedCommitOf } from "../lib/ui-scope";
 import { prNumberOfUrl } from "../health-revert";
+import { radiusRefusal } from "../lib/radius-check";
+import { changedRetiredRows, retirementRefusal } from "../lib/retirement-ack";
 
 /**
  * The RED ladder's last rungs (issue #5646, ADR 0156 Amendment I): fix
@@ -2422,5 +2426,70 @@ describe("the bisect grants Contained RED (ADR 0163 §§ 2-3)", () => {
                 })
             ).toBeUndefined();
         });
+    });
+});
+
+describe("the revert a retirement migration gets is born green on `retired-rows` (issue #10060)", () => {
+    const row = (name: string, retired: boolean) =>
+        JSON.stringify({
+            oracleId: `id-${name}`,
+            name,
+            ...(retired
+                ? { retired: { at: "2026-11-10", issue: 4028, pr: 9944 } }
+                : {}),
+        });
+    // What reverting a retirement does to the lockfile: the marked rows
+    // lose their marker, rewritten in place.
+    const revertDiff = ["Fog Bank", "Circle of Protection: Red"]
+        .flatMap((n) => [`-${row(n, true)},`, `+${row(n, false)},`])
+        .join("\n");
+    const input = {
+        issue: 10052,
+        red: RED,
+        culprits: [{ ...CULPRIT, full: "c".repeat(40) }],
+        culpritIssues: [4028],
+    };
+
+    it("a body carrying the section passes the real check; one without is refused", () => {
+        const rows = changedRetiredRows(revertDiff);
+        expect(rows).toHaveLength(2);
+        const bare = revertPrBody(input);
+        expect(retirementRefusal(rows, bare)).not.toBeNull();
+        const body = revertPrBody({ ...input, retiredRows: rows });
+        expect(retirementRefusal(rows, body)).toBeNull();
+    });
+
+    it("a revert with no retired-row change has no section", () => {
+        const body = revertPrBody({
+            ...input,
+            retiredRows: changedRetiredRows(""),
+        });
+        expect(body).not.toMatch(/^## Retired rows$/m);
+    });
+
+    it("the repair issue declares `## Target files`, which the claim's radius check reads", () => {
+        const issue = {
+            red: RED,
+            culprits: [CULPRIT],
+            why: "bisect",
+            evidence: null,
+        };
+        expect(radiusRefusal("Revert", revertIssueBody(issue))).not.toBeNull();
+        const body = revertIssueBody({
+            ...issue,
+            targetFiles: [
+                "data/oracle-compiled.json",
+                "convex/cards/sets/a.ts",
+            ],
+        });
+        expect(radiusRefusal("Revert", body)).toBeNull();
+    });
+
+    it("many paths collapse to directory globs", () => {
+        const paths = Array.from({ length: 40 }, (_, i) => `a/b/c${i}.ts`);
+        expect(revertTargetFiles([...paths, "x.json"])).toEqual([
+            "a/b/**",
+            "x.json",
+        ]);
     });
 });

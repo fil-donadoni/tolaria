@@ -45,6 +45,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
+import { changedRetiredRows } from "./lib/retirement-ack";
 import { CLAIM_LABEL, PR_OPEN_LABEL } from "./lib/claim-labels";
 import { isBaseMaintenanceSubject } from "./lib/derive-sync";
 import { fixAttemptStore, type FixAttempt } from "./lib/health-fix-attempts";
@@ -60,6 +61,7 @@ import {
     revertIssueTitle,
     revertAcknowledgements,
     revertPrBody,
+    revertTargetFiles,
 } from "./lib/health-ladder";
 import { recordPivotRepairIssue } from "./lib/health-pivot";
 import {
@@ -389,6 +391,27 @@ function openRevertPr(
     const { red, why, evidence, wt, culprits, dependents, losses } = g;
     // A retry after a failed try reuses what that try made.
     const title = revertIssueTitle(culprits, culprits[0].subject);
+    // Read off the revert's own tree (issue #10060): the paths it changes
+    // are the repair issue's blast radius, its lockfile diff the retired rows
+    // the PR body must name.
+    const targetFiles = revertTargetFiles(
+        must("git", ["diff", "--name-only", `${ORIGIN_BASE}...HEAD`], wt).split(
+            "\n"
+        )
+    );
+    const retiredRows = changedRetiredRows(
+        must(
+            "git",
+            [
+                "diff",
+                "-U0",
+                `${ORIGIN_BASE}...HEAD`,
+                "--",
+                "data/oracle-compiled.json",
+            ],
+            wt
+        )
+    );
     const issue =
         openIssueTitled(root, title) ??
         issueOfUrl(
@@ -406,6 +429,7 @@ function openRevertPr(
                         why,
                         evidence,
                         dependents,
+                        targetFiles,
                     }),
                     "--label",
                     "bug",
@@ -506,6 +530,7 @@ function openRevertPr(
                           culprits,
                           culpritIssues,
                           dependents,
+                          retiredRows,
                       }),
                   ],
                   wt
