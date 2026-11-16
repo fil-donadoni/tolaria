@@ -1932,6 +1932,16 @@
         "source": "compiled"
     },
     {
+        "name": "Alive // Well",
+        "scryfallId": "db84415e-048a-4cfc-9121-5ae17a412198",
+        "oracleId": "57ad3c3a-6ac7-4a35-bc07-00f6ea0988c5",
+        "firstSet": "dgm",
+        "firstPrintId": "db84415e-048a-4cfc-9121-5ae17a412198",
+        "firstPrintSet": "dgm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "All Hallow's Eve",
         "scryfallId": "18787a2d-6688-47e9-94bc-ccf229df823f",
         "oracleId": "ebed900f-6de3-4ae7-9795-fae34882298d",
@@ -2545,6 +2555,16 @@
         "firstPrintId": "625690d3-7131-45de-adea-9c927241e661",
         "firstPrintSet": "lci",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Ancestral Tribute",
+        "scryfallId": "3f28b2af-7891-49eb-a07f-5552b5fe3d15",
+        "oracleId": "380ea3b6-8eb4-466a-8680-ce5cfed9b8c4",
+        "firstSet": "ody",
+        "firstPrintId": "3f28b2af-7891-49eb-a07f-5552b5fe3d15",
+        "firstPrintSet": "ody",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -3670,6 +3690,16 @@
         "source": "compiled"
     },
     {
+        "name": "Archangel's Light",
+        "scryfallId": "f99837b3-b487-43bb-846b-7a0e8afb6eef",
+        "oracleId": "fc734a75-93bf-448b-b347-810ae835fe49",
+        "firstSet": "dka",
+        "firstPrintId": "f99837b3-b487-43bb-846b-7a0e8afb6eef",
+        "firstPrintSet": "dka",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Archers of Qarsi",
         "scryfallId": "0fcf0074-162a-4cc0-9726-8672a0261307",
         "oracleId": "ad6bdd24-5a32-4046-83ee-2fe51bf8bb7a",
@@ -3755,6 +3785,16 @@
         "firstPrintId": "ab707e7f-8ab5-43f1-9428-6a17c1b672fa",
         "firstPrintSet": "eve",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Archway Angel",
+        "scryfallId": "b209d219-b946-4226-a8b4-65a5f3837fac",
+        "oracleId": "f2cf087a-d89a-4145-9394-945ce41c8cca",
+        "firstSet": "rna",
+        "firstPrintId": "b209d219-b946-4226-a8b4-65a5f3837fac",
+        "firstPrintSet": "rna",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -8392,6 +8432,16 @@
         "firstSet": "mir",
         "firstPrintId": "b5f2b33c-8d4d-406e-98de-b92d92a3012a",
         "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Blighted Steppe",
+        "scryfallId": "f43df8ee-d3e4-419e-aed0-1059d95f9cab",
+        "oracleId": "db16a2fb-dc42-4086-9928-52076043097f",
+        "firstSet": "bfz",
+        "firstPrintId": "f43df8ee-d3e4-419e-aed0-1059d95f9cab",
+        "firstPrintSet": "bfz",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -29112,6 +29162,16 @@
         "source": "compiled"
     },
     {
+        "name": "Festival of Trokin",
+        "scryfallId": "f5bd783b-d4cd-4a53-8fec-a5ead7c14738",
+        "oracleId": "a5a3cd2c-20ae-49a8-88fa-e8e3e7cc50db",
+        "firstSet": "p02",
+        "firstPrintId": "f5bd783b-d4cd-4a53-8fec-a5ead7c14738",
+        "firstPrintSet": "p02",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Fetid Heath",
         "scryfallId": "0fbb9790-3744-4dcb-881a-452573298822",
         "oracleId": "42bf259d-4bb9-49c3-b4ec-223dca62f4d6",
@@ -29340,6 +29400,16 @@
         "firstSet": "ecl",
         "firstPrintId": "e0ef33dd-5f6d-48fa-8ef6-a8092868d50f",
         "firstPrintSet": "ecl"
+    },
+    {
+        "name": "Filigree Angel",
+        "scryfallId": "7a0c7a2a-85c1-4b20-95b9-04aab0bd0d3b",
+        "oracleId": "4a261c42-825d-4965-8ea7-80d50c43474e",
+        "firstSet": "arb",
+        "firstPrintId": "7a0c7a2a-85c1-4b20-95b9-04aab0bd0d3b",
+        "firstPrintSet": "arb",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Filigree Crawler",
@@ -34776,6 +34846,16 @@
         "firstSet": "mbs",
         "firstPrintId": "27dcb0c8-e6d5-4f6b-a74f-e495b5e42606",
         "firstPrintSet": "mbs",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Gnaw to the Bone",
+        "scryfallId": "416148c8-13d3-46d3-ac93-6eb7cbab2881",
+        "oracleId": "7b92ac54-3883-48cf-b01e-be9797dc1649",
+        "firstSet": "isd",
+        "firstPrintId": "416148c8-13d3-46d3-ac93-6eb7cbab2881",
+        "firstPrintSet": "isd",
         "rarity": "common",
         "source": "compiled"
     },
@@ -57201,6 +57281,16 @@
         "source": "compiled"
     },
     {
+        "name": "Nissa Revane",
+        "scryfallId": "1b4c26ab-0f7b-4163-b9e4-a415b91352a6",
+        "oracleId": "113fc13a-6df9-4eed-b9d4-002a85a036a1",
+        "firstSet": "zen",
+        "firstPrintId": "1b4c26ab-0f7b-4163-b9e4-a415b91352a6",
+        "firstPrintSet": "zen",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Nissa, Who Shakes the World",
         "scryfallId": "f857bbe4-5619-4733-a0c7-69700f2ef4f3",
         "oracleId": "5aa3abf1-d56b-4f42-8c84-7e5a2c15ee0f",
@@ -60287,6 +60377,16 @@
         "firstSet": "mbs",
         "firstPrintId": "55710eb0-ae16-420a-9f99-6a245e0f4c14",
         "firstPrintSet": "mbs",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Peach Garden Oath",
+        "scryfallId": "41bfd51a-0aca-4686-a9c5-11288f409a22",
+        "oracleId": "ad66a99b-c7e7-4b2c-8525-299d3609d1df",
+        "firstSet": "ptk",
+        "firstPrintId": "41bfd51a-0aca-4686-a9c5-11288f409a22",
+        "firstPrintSet": "ptk",
         "rarity": "uncommon",
         "source": "compiled"
     },

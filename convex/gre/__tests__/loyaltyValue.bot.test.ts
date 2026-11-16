@@ -69,6 +69,9 @@ const EXPECTED_CEILING: Record<string, number> = {
     "Samut, Tyrant Smasher": 6,
     // start 5, spends 1/8
     "Nissa, Who Shakes the World": 9,
+    // start 2, spend 7; compiled `ready` once the smoke predictor modelled a
+    // count set's `times` multiplier (issue #4204)
+    "Nissa Revane": 8,
     // start 4, spend 5
     "Oko, Thief of Crowns": 6,
     // start 4, spends 2/8 — compiled, ready once a choice range stopped

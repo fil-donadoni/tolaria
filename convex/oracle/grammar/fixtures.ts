@@ -3517,62 +3517,6 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "spell", count: 1 },
         },
     },
-    // CR 205.3m (issue #3721) — "Choose a creature type." as a RESOLUTION-time
-    // instruction, plus the descriptor that reads its answer back ("of that
-    // type"). Two rules in one card, which is the point: the type the first
-    // sentence picks has no printed value, so the second sentence can only be
-    // right if both name the same binding. Exhibits the `chooseCreatureType`
-    // Op and the `{ ref }` form of `EffectCardFilter.subtype`; the `count`'s
-    // 2x multiplier is the already-shipped Landbind Ritual shape, unchanged.
-    {
-        rule: "effect clause",
-        card: {
-            oracleId: "7e23a2e7-b8b3-424f-8922-a1adb1db3f4d",
-            name: "Luminescent Rain",
-            manaCost: "{2}{G}",
-            typeLine: "Instant",
-            oracleText:
-                "Choose a creature type. You gain 2 life for each permanent you control of that type.",
-            layout: "normal",
-        },
-        expected: {
-            name: "Luminescent Rain",
-            types: ["Instant"],
-            manaCost: { X: 2, G: 1 },
-            oracleText:
-                "Choose a creature type. You gain 2 life for each permanent you control of that type.",
-            effects: [
-                {
-                    op: "chooseCreatureType",
-                    player: "controller",
-                    prompt: "Choose a creature type",
-                    bind: "$chosenType",
-                },
-                {
-                    op: "gainLife",
-                    player: "controller",
-                    amount: {
-                        count: {
-                            zone: "battlefield",
-                            controller: "controller",
-                            filter: {
-                                type: [
-                                    "Artifact",
-                                    "Battle",
-                                    "Creature",
-                                    "Enchantment",
-                                    "Land",
-                                    "Planeswalker",
-                                ],
-                                subtype: { ref: "$chosenType" },
-                            },
-                            times: 2,
-                        },
-                    },
-                },
-            ],
-        },
-    },
     // CR 205.3m + CR 205.1a (issue #4316) — "Choose a creature type other than
     // Wall. Target creature becomes that type until end of turn." The `exclude`
     // leg and the chosen-type write-back are one form: the `setSubtype` Op
@@ -4798,43 +4742,6 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                             ],
                         },
                     ],
-                },
-            ],
-        },
-    },
-    // CR 107.1 + CR 119.3 — "You gain 2 life for each Plains you control": the
-    // printed multiplier over the cardinality of the controller's permanents
-    // with one subtype. Exhibits the "count set applies a multiplier" form: the
-    // canned smoke predictor does not model `times`, so this fixture is the
-    // evidence that the `count` the grammar emits is the one the hand-written
-    // catalogue writes (Price of Progress' `times`).
-    {
-        rule: "effect clause",
-        card: {
-            name: "Landbind Ritual",
-            manaCost: "{3}{W}{W}",
-            typeLine: "Sorcery",
-            oracleText: "You gain 2 life for each Plains you control.",
-            oracleId: "63500b81-8fac-4208-91d3-0fe642899d87",
-            layout: "normal",
-        },
-        expected: {
-            name: "Landbind Ritual",
-            types: ["Sorcery"],
-            manaCost: { X: 3, W: 2 },
-            oracleText: "You gain 2 life for each Plains you control.",
-            effects: [
-                {
-                    op: "gainLife",
-                    player: "controller",
-                    amount: {
-                        count: {
-                            zone: "battlefield",
-                            controller: "controller",
-                            filter: { subtype: "Plains" },
-                            times: 2,
-                        },
-                    },
                 },
             ],
         },

@@ -1317,11 +1317,12 @@ function analyseValue(value: EffectValue, req: Requirements): void {
             `count set filters by card name "${value.count.filter.name}" — filler doesn't synthesize an exact name`
         );
     }
-    // issue #999 — the filler seeds cards by type/subtype only and predicts a
-    // plain cardinality. A supertype-exclusion filter ("nonbasic land") or a
-    // `times` multiplier ("twice the number of …") aren't modelled by the
-    // seeder/predictor, so skip-with-reason — the construct's hand-written
-    // interpreter test is the behavioural guarantor (new-construct regime).
+    // issue #999 — the filler seeds cards by type/subtype only. A
+    // supertype-exclusion filter ("nonbasic land") isn't modelled by the
+    // seeder, so skip-with-reason — the construct's hand-written interpreter
+    // test is the behavioural guarantor (new-construct regime). A `times`
+    // multiplier ("twice the number of …") needs no skip: it scales the
+    // seeded cardinality, and `predictAmount` applies the same factor.
     if (value.count.filter?.excludeSupertype !== undefined) {
         skipBecause(
             req,
@@ -1341,13 +1342,6 @@ function analyseValue(value: EffectValue, req: Requirements): void {
             req,
             "runtime-amount",
             `count set filters by color "${value.count.filter.color}" — the filler doesn't model color`
-        );
-    }
-    if (value.count.times !== undefined) {
-        skipBecause(
-            req,
-            "runtime-amount",
-            `count set applies a ${value.count.times}× multiplier — not modelled by the canned predictor`
         );
     }
 }
@@ -4791,7 +4785,9 @@ function sourceContributesTo(
 
 /** Reads the size of a count set in the scenario: COUNT_SET_SIZE per
  *  contributing spec (the generator seeds exactly that many), plus the seeded
- *  `$source` permanent when the spec really counts it (issue #3879). */
+ *  `$source` permanent when the spec really counts it (issue #3879), times the
+ *  spec's fixed `times` multiplier (CR 608.2h — "twice the number of …"), the
+ *  factor the interpreter applies to the counted cardinality. */
 function predictAmount(value: EffectValue, scenario: Scenario): number | null {
     if (typeof value === "number") return value;
     if ("ref" in value) return null; // skipped earlier — defensive
@@ -4816,12 +4812,14 @@ function predictAmount(value: EffectValue, scenario: Scenario): number | null {
     if ("scaled" in value) return null; // skipped earlier — defensive
     if ("divide" in value) return null; // skipped earlier — defensive
     if (!("count" in value)) return null; // skipped earlier — defensive
+    const times = value.count.times ?? 1;
     const source = scenario.sourceSpec;
-    if (source === undefined) return COUNT_SET_SIZE;
+    if (source === undefined) return times * COUNT_SET_SIZE;
     // "undecidable" never reaches here — `buildScenario` skipped the script.
     return (
-        COUNT_SET_SIZE +
-        (sourceContributesTo(source, value.count) === true ? 1 : 0)
+        times *
+        (COUNT_SET_SIZE +
+            (sourceContributesTo(source, value.count) === true ? 1 : 0))
     );
 }
 
