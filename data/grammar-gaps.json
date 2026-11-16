@@ -26,6 +26,11 @@
         },
         {
             "kind": "bot",
+            "key": "harness-error › The Definition Index is stale: Granite Gargoyle (f15bf2b2-6848-4fbd-b89a-8d8da8ae1cdc) is not lea.graniteGargoyle. Run: ",
+            "issue": 10080
+        },
+        {
+            "kind": "bot",
             "key": "harness-error › The Definition Index is stale: Vaevictis Asmadi (22ea73ec-1325-4437-a23f-dcda1767c713) is not leg.vaevictisAsmadi. Run: ",
             "issue": 9927
         },
