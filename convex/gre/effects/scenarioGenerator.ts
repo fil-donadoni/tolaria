@@ -758,6 +758,9 @@ interface Requirements {
     /** The `$event.<field>` subject an Op acts on, and the firing event built
      *  to name the seeded permanent there (`eventSubjectFor`). */
     eventSubject?: EventSubject;
+    /** The hand count sets, by the player whose hand is banked
+     *  (`settleHandCounts`). */
+    handCounts: HandCount[];
     /** The Op `analyseOp` is walking — stamped on each skip it raises. */
     currentOp?: EffectOp;
 }
@@ -1263,6 +1266,10 @@ function analyseValue(value: EffectValue, req: Requirements): void {
             `count set controller is a ref "${c.ref}"`
         );
     }
+    // A targeted player's zone: the slot is announced as the opponent, the
+    // player whose zone the count filler banks.
+    if (typeof c === "object" && c !== null && "target" in c)
+        recordSlot(req, c.target, "player");
     // issue #985 — the filler seeds ONE player's zone with cards matched by
     // type/subtype only. An `acrossAllPlayers` scope (every graveyard) or a
     // `name` filter (an exact printed name the filler doesn't synthesize) can't
@@ -1299,16 +1306,19 @@ function analyseValue(value: EffectValue, req: Requirements): void {
             `count set counts a LIBRARY — the canned generator's library depth is owned by the draw filler, not the count filler`
         );
     }
-    // issue #2006 — a HAND count set, the library skip's twin. The hand is
-    // seeded by the cast filler (the spell being resolved came from it), not by
-    // the count filler, so predicting COUNT_SET_SIZE would be a silently wrong
-    // assertion rather than an honest skip.
+    // CR 402.3 — a HAND count set: the hand's size is public, and the count
+    // filler banks COUNT_SET_SIZE cards there. Sizable only when nothing else
+    // in the script seeds or changes that hand; `settleHandCounts` decides
+    // once every Op is read.
     if (value.count.zone === "hand") {
-        skipBecause(
-            req,
-            "runtime-amount",
-            `count set counts a HAND — the canned generator's hand contents are owned by the cast filler, not the count filler`
-        );
+        req.handCounts.push({
+            owner:
+                value.count.controller === "controller"
+                    ? CASTER_ID
+                    : OPPONENT_ID,
+            skipAt: req.skips.length,
+            op: req.currentOp,
+        });
     }
     if (value.count.filter?.name !== undefined) {
         skipBecause(
@@ -2827,6 +2837,53 @@ function settleChoiceDiscards(req: Requirements): void {
         if (raised[at] !== undefined) req.skips.splice(at, 0, ...raised[at]!);
 }
 
+/** A hand count set, and where its skip would sit in `Requirements.skips`. */
+interface HandCount {
+    readonly owner: string;
+    readonly skipAt: number;
+    readonly op?: EffectOp;
+}
+
+const HAND_COUNT_SKIP: ScenarioSkipRow = {
+    code: "runtime-amount",
+    reason: `count set counts a HAND another part of the script seeds or changes — the banked count would not be the one read`,
+};
+
+/** Whether another part of the script puts cards in `playerId`'s hand or
+ *  takes them out, so a count banked there is no longer COUNT_SET_SIZE: a
+ *  draw, a discard's seeded hand, a forced pick moved to the caster's hand, a
+ *  sweep that bounces, a second hand count set banked in the same hand. */
+function handTouchedElsewhere(req: Requirements, playerId: string): boolean {
+    return (
+        req.drawingPlayers.has(playerId) ||
+        req.discardingPlayers.has(playerId) ||
+        [...req.choiceDiscards.values()].some(
+            (pick) => assertionPlayerId(pick.choice.player) === playerId
+        ) ||
+        (playerId === CASTER_ID && req.randomPicks.size > 0) ||
+        req.sweeps.some((plan) => plan.outcome.kind === "bounce") ||
+        req.handCounts.filter((count) => count.owner === playerId).length > 1
+    );
+}
+
+/** Settles the script's hand count sets once every Op is read: a count whose
+ *  hand another part of the script touches raises its skip at the position it
+ *  would have had. */
+function settleHandCounts(req: Requirements): void {
+    const raised = req.handCounts.filter((count) =>
+        handTouchedElsewhere(req, count.owner)
+    );
+    // Later positions first, so an earlier insertion point stays valid.
+    for (const count of raised.reverse())
+        req.skips.splice(
+            count.skipAt,
+            0,
+            count.op === undefined
+                ? { ...HAND_COUNT_SKIP }
+                : { ...HAND_COUNT_SKIP, op: count.op }
+        );
+}
+
 /** Whether another part of the script feeds the caster's graveyard, so a
  *  forced pick's pool is no longer the seeded one: a count set banked there, a
  *  discard of the caster's seeded hand, a sweep over a seeded board, the
@@ -3659,6 +3716,7 @@ function randomPickDecoy(
 function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
     settleChoiceDiscards(req);
     settleRandomPicks(req);
+    settleHandCounts(req);
     if (req.skips.length > 0) return { skip: req.skips };
 
     // A permanent target lives on the OPPONENT's battlefield (so destroy/exile
@@ -3754,6 +3812,8 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
         req.discardingPlayers.has(pid)
             ? spawnFiller(pid, "hand", SMOKE_HAND_SIZE, "gen-hand")
             : (answeredHands.get(pid) ?? []);
+    const p1Hand = seededHand(CASTER_ID);
+    const p2Hand = seededHand(OPPONENT_ID);
 
     // Libraries for drawing players.
     const p1Library = req.drawingPlayers.has(CASTER_ID)
@@ -3798,6 +3858,8 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
             (owner === CASTER_ID ? p1Bf : p2Bf).push(...bank);
         } else if (spec.zone === "graveyard") {
             (owner === CASTER_ID ? p1Gy : p2Gy).push(...bank);
+        } else if (spec.zone === "hand") {
+            (owner === CASTER_ID ? p1Hand : p2Hand).push(...bank);
         } else {
             (owner === CASTER_ID ? p1Library : p2Library).push(...bank);
         }
@@ -3907,7 +3969,7 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
     const state = makeState({
         players: [
             makePlayer(CASTER_ID, {
-                hand: seededHand(CASTER_ID),
+                hand: p1Hand,
                 library: p1Library,
                 battlefield: p1Bf,
                 graveyard: p1Gy,
@@ -3917,7 +3979,7 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
                     : {}),
             }),
             makePlayer(OPPONENT_ID, {
-                hand: seededHand(OPPONENT_ID),
+                hand: p2Hand,
                 library: p2Library,
                 battlefield: p2Bf,
                 graveyard: p2Gy,
@@ -4425,6 +4487,7 @@ function bodySpeaksForItself(op: ForEachOp, host: SmokeHost): boolean {
         analyseOpFully(nested, body);
     settleChoiceDiscards(body);
     settleRandomPicks(body);
+    settleHandCounts(body);
     return body.skips.some(
         (skip) => SMOKE_SKIP_CLASS[skip.code] === "card-dependent"
     );
@@ -6418,6 +6481,7 @@ function planWith(
         for (const op of nestedOps(effects, host)) analyseOpFully(op, nested);
         settleChoiceDiscards(nested);
         settleRandomPicks(nested);
+        settleHandCounts(nested);
         return skipPlan([...built.skip, ...nested.skips]);
     }
 
@@ -6480,6 +6544,7 @@ function emptyRequirements(host: SmokeHost): Requirements {
         sourceSacrificeAdmitted: false,
         randomPicks: new Map(),
         choiceDiscards: new Map(),
+        handCounts: [],
     };
 }
 
