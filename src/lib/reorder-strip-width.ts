@@ -94,3 +94,16 @@ export function modalChromePaddingX(viewportW: number): number {
     const bucket = viewportW < MOBILE_BREAKPOINT_PX ? "mobile" : "desktop";
     return (OVERLAY_PADDING_X[bucket] + STRIP_WRAPPER_PADDING_X[bucket]) * 2;
 }
+
+/** Whether the library-order strip (`LibraryOrderPicker`) still SHRINKS its
+ *  tiles to fit the viewport (issue #9813). Only below the mobile breakpoint:
+ *  on a desktop or tablet viewport a large reorder (a 22-card mass mill into a
+ *  graveyard) used to bottom out at the readability floor — an overlapped fan
+ *  of unreadable 72px cards — so there every tile keeps its natural width and
+ *  the strip's horizontal scroll (with edge auto-scroll while dragging)
+ *  absorbs the overflow instead. A phone keeps the issue #1765 fit + floor.
+ *  Scoped to the library-order strip: `TriggerOrderPrompt` calls
+ *  `fitTileWidth` unconditionally and is unaffected. */
+export function libraryStripShrinksAt(viewportW: number): boolean {
+    return viewportW < MOBILE_BREAKPOINT_PX;
+}

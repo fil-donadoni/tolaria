@@ -34,7 +34,11 @@ import { SLOT_SPRING } from "~/lib/board-motion";
 import { Minus, Hand, Layers, Skull, Swords } from "lucide-react";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { useViewportWidth } from "~/hooks/useViewportWidth";
-import { fitTileWidth, modalChromePaddingX } from "~/lib/reorder-strip-width";
+import {
+    fitTileWidth,
+    libraryStripShrinksAt,
+    modalChromePaddingX,
+} from "~/lib/reorder-strip-width";
 import OrderCard from "./order-card";
 import DeckMock from "./deck-mock";
 import {
@@ -47,6 +51,7 @@ import {
     REVEAL,
 } from "./constants";
 import { computeLayout, insertionIndex, type Zone } from "./layout";
+import { useEdgeAutoScroll } from "./useEdgeAutoScroll";
 
 /** Zone label chrome (phase 2, winner A): every picker zone declares its name
  *  + ordering hint + icon up front — the fused text labels under the strip are
@@ -354,6 +359,9 @@ export default function LibraryOrderPicker({
     const [drag, setDrag] = useState<Drag | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
+    /** The strip's horizontal scroll container (`overflow-x-auto`) — the
+     *  element edge auto-scroll moves (issue #9813). */
+    const scrollerRef = useRef<HTMLDivElement>(null);
     const press = useRef<{
         id: string;
         pointerId: number;
@@ -361,6 +369,9 @@ export default function LibraryOrderPicker({
         startY: number;
         grabOffsetX: number;
         active: boolean;
+        /** Latest pointer client x — auto-scroll re-derives the strip-local
+         *  position from it when the strip scrolls under a still pointer. */
+        lastClientX: number;
     } | null>(null);
 
     const localX = useCallback((clientX: number) => {
@@ -383,23 +394,30 @@ export default function LibraryOrderPicker({
     // smaller chrome, not a desktop-shaped fixed constant, feeds the fit —
     // otherwise even a 2-4 card scry always bottomed out at MIN_CARD_W and
     // deferred to scroll.
+    //
+    // Desktop/tablet (issue #9813): no shrink at all — every tile keeps the
+    // natural CARD_W whatever the batch size, and the horizontal scroll plus
+    // edge auto-scroll (below) carry a large reorder. Only a phone fits.
     const viewportW = useViewportWidth();
     const cardW = useMemo(
         () =>
-            fitTileWidth({
-                stripWidthAt: (w) =>
-                    computeLayout(
-                        second.length,
-                        top.length,
-                        hasSecond,
-                        detached,
-                        detachRight,
-                        w
-                    ).stripW,
-                naturalTileW: CARD_W_NATURAL,
-                minTileW: MIN_CARD_W,
-                availableWidth: viewportW - modalChromePaddingX(viewportW),
-            }),
+            !libraryStripShrinksAt(viewportW)
+                ? CARD_W_NATURAL
+                : fitTileWidth({
+                      stripWidthAt: (w) =>
+                          computeLayout(
+                              second.length,
+                              top.length,
+                              hasSecond,
+                              detached,
+                              detachRight,
+                              w
+                          ).stripW,
+                      naturalTileW: CARD_W_NATURAL,
+                      minTileW: MIN_CARD_W,
+                      availableWidth:
+                          viewportW - modalChromePaddingX(viewportW),
+                  }),
         [second.length, top.length, hasSecond, detached, detachRight, viewportW]
     );
     const cardH = cardHeightFor(cardW);
@@ -559,6 +577,7 @@ export default function LibraryOrderPicker({
                 startY: e.clientY,
                 grabOffsetX: localX(e.clientX) - center,
                 active: false,
+                lastClientX: e.clientX,
             };
         },
         [
@@ -577,6 +596,7 @@ export default function LibraryOrderPicker({
         (e: React.PointerEvent<HTMLDivElement>) => {
             const p = press.current;
             if (!p) return;
+            p.lastClientX = e.clientX;
             if (!p.active) {
                 if (
                     Math.hypot(e.clientX - p.startX, e.clientY - p.startY) <
@@ -594,6 +614,32 @@ export default function LibraryOrderPicker({
         },
         [localX]
     );
+
+    // ---- Edge auto-scroll (issue #9813) ----
+    // The strip scrolled under the pointer (auto-scroll frame, wheel, manual
+    // scroll) without a pointermove: re-derive the strip-local pointer x from
+    // the last client x — `localX` reads the container's LIVE rect, which
+    // already carries the new `scrollLeft` — so the gap preview, the zone
+    // side (library-mock hit-test) and the commit-on-release all follow the
+    // card to where it visually is. Bails out on an unchanged x.
+    const refreshDragPointer = useCallback(() => {
+        const p = press.current;
+        if (!p?.active) return;
+        const pointerX = localX(p.lastClientX);
+        setDrag((d) => (d && d.pointerX !== pointerX ? { ...d, pointerX } : d));
+    }, [localX]);
+    const getPointerClientX = useCallback(
+        () => (press.current?.active ? press.current.lastClientX : null),
+        []
+    );
+    // Scrolls only the outer container — pointer capture stays on the strip
+    // container, so neither mouse nor touch loses the gesture mid-scroll.
+    useEdgeAutoScroll({
+        active: drag !== null,
+        scrollerRef,
+        getPointerClientX,
+        onScrolled: refreshDragPointer,
+    });
 
     const commit = useCallback(() => {
         const p = press.current;
@@ -713,7 +759,10 @@ export default function LibraryOrderPicker({
                     can't fit even at the readability floor (MIN_CARD_W) falls
                     back to an obvious horizontal scroll rather than clipping
                     cards off-screen — mirrors TriggerOrderPrompt's own
-                    fallback. The dragged card's `dragX` is clamped within
+                    fallback. On desktop/tablet (issue #9813) the tiles never
+                    shrink, so this scroll carries every large reorder, and
+                    holding a dragged card near either edge auto-scrolls it
+                    (`useEdgeAutoScroll`). The dragged card's `dragX` is clamped within
                     `stripW` (never past either strip edge), so a drag never
                     fights the scroll. Horizontal padding gives the scaled edge
                     cards + their drop-shadow room to breathe (shrunk to 0 on
@@ -728,7 +777,11 @@ export default function LibraryOrderPicker({
                     by scroll. `safe center` (CR-of-CSS: falls back to `start`
                     alignment when the content overflows) keeps both ends
                     scrollable. */}
-                <div className="flex justify-center-safe overflow-x-auto overflow-y-hidden px-0 sm:px-10 py-8">
+                <div
+                    ref={scrollerRef}
+                    onScroll={refreshDragPointer}
+                    className="flex justify-center-safe overflow-x-auto overflow-y-hidden px-0 sm:px-10 py-8"
+                >
                     <div
                         ref={containerRef}
                         className="relative shrink-0 touch-none select-none"
