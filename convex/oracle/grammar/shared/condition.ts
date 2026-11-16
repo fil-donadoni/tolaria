@@ -634,6 +634,53 @@ export function singularControlledFilter(
 }
 
 /**
+ * CR 614.1d — the upper-bound reading of the controls count over the
+ * controller's own permanents: "you control two or fewer other lands". The
+ * trigger site's {@link ControlsAtMostIR} names a subject; a static has only
+ * "you".
+ */
+export type YouControlAtMostIR = {
+    readonly kind: "controls";
+    readonly filter: PermanentFilter;
+    readonly atMost: number;
+};
+
+const AT_MOST_CONTROLLED = /^(\S+) or fewer (.+)$/;
+
+/**
+ * `"two or fewer other lands"` — the object of a controls clause counted from
+ * above: a number word, "or fewer", then a PLURAL descriptor with no
+ * controller clause of its own. "Other" (the source itself excluded) is
+ * admitted: the static gate (`controlsHolds`) hands the filter its source as
+ * `selfInstanceId`, so `excludeSource` is honoured where this count is read.
+ */
+export function atMostControlledFilter(
+    rest: string,
+    span: string,
+    ctx: RuleContext,
+    /** `supertypes: true` — as {@link singularControlledFilter}. */
+    allow: { readonly supertypes?: true } = {}
+): RuleResult<YouControlAtMostIR> {
+    const match = AT_MOST_CONTROLLED.exec(rest);
+    if (match === null) return fail('not an "or fewer" count', span);
+    const atMost = /^[a-z]+$/.test(match[1]!)
+        ? readNumberWord(match[1]!)
+        : null;
+    if (atMost === null || atMost < 1)
+        return fail(`"${match[1]}" is not a permanent-count bound`, span);
+    const descriptor = descriptorRule.run(match[2]!, ctx);
+    if (!descriptor.ok) return descriptor;
+    if (!readsPlural(descriptor.value))
+        return fail('"or fewer" introduces a plural descriptor', span);
+    const filter = controlledFilter(descriptor.value, span, {
+        ...allow,
+        excludeSource: true,
+    });
+    if (!filter.ok) return filter;
+    return ok({ kind: "controls" as const, filter: filter.value, atMost });
+}
+
+/**
  * The descriptor of a controls clause as the `PermanentFilter` its count
  * reads — whatever article or quantifier introduced it.
  */
@@ -643,12 +690,21 @@ function controlledFilter(
     /** `tapped: true` — the zero count and the counted form: the trigger
      *  gate counts through `countControlledMatching`, which reads the live
      *  tap status (CR 110.5); the activation and effect-count lowerings
-     *  refuse a `tapped` key rather than drop it. */
-    allow: { readonly supertypes?: true; readonly tapped?: true } = {}
+     *  refuse a `tapped` key rather than drop it. `excludeSource: true` —
+     *  "other": only a site whose count honours the filter's
+     *  `excludeSource` opts in. */
+    allow: {
+        readonly supertypes?: true;
+        readonly tapped?: true;
+        readonly excludeSource?: true;
+    } = {}
 ): RuleResult<PermanentFilter> {
     const filter = permanentFilterFromDescriptor(descriptor, {
         colors: true,
         ...(allow.tapped === true ? { tapped: true as const } : {}),
+        ...(allow.excludeSource === true
+            ? { excludeSource: true as const }
+            : {}),
     });
     if (!filter.ok) return filter;
     // The list holds only supertype clauses, so a site that reads live
