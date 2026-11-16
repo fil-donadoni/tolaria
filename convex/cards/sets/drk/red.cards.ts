@@ -273,6 +273,27 @@ export const fireDrake = defineCard(() => ({
     ],
 }));
 
+// Fissure — "Destroy target creature or land. It can't be regenerated."
+// (CR 701.8 destroy with the regen-shield suppression; CR 114 multi-type
+// target.)
+export const fissure = defineCard(() => ({
+    id: "aa2d778d-d74b-45ec-a86b-5d52ffad6ba5",
+    rarity: "common",
+    name: "Fissure",
+    oracleText: "Destroy target creature or land. It can't be regenerated.",
+    manaCost: { X: 3, R: 2 },
+    types: ["Instant"],
+    targetRequirement: { type: ["Creature", "Land"], count: 1 },
+    // CR 701.8 / CR 701.19c — the rider is a `destroy` Op field. The marker
+    // that stood here ("a destroy option the `destroy` Op does not carry")
+    // outlived the Op that grew it; the behavioural gold harness (issue #2703)
+    // compiled this card's own Oracle text to exactly the script below and ran
+    // its per-card tests against the result.
+    effects: [
+        { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
+    ],
+}));
+
 // Goblin Caves — Aura. "Enchant land\nAs long as enchanted land is a basic
 // Mountain, Goblin creatures get +0/+2." (CR 303.4 Aura enchant land; CR 611
 // layer 7c conditional anthem — a `pt-buff` whose `applies` filters Goblin
