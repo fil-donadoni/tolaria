@@ -1562,6 +1562,56 @@ describe("a speed amount (CR 702.179f)", () => {
     });
 });
 
+// CR 608.2h — "twice the number of …": the count is read once at resolution
+// and scaled by the count set's fixed `times` multiplier.
+describe("a count set's times multiplier (CR 608.2h)", () => {
+    const effects: EffectOp[] = [
+        {
+            op: "gainLife",
+            player: "controller",
+            amount: {
+                count: {
+                    zone: "graveyard",
+                    controller: "controller",
+                    times: 2,
+                },
+            },
+        },
+    ];
+
+    function resolveAsSpell(plan: Extract<Plan, { kind: "run" }>): void {
+        const id = "test-4204-times-spell";
+        registerTokenDefinition({
+            id,
+            name: id,
+            rarity: "common",
+            manaCost: { W: 1 },
+            types: ["Sorcery"],
+            effects,
+        });
+        plan.scenario.state.stack.push({
+            ...makeInstance(id, {
+                controllerId: CASTER_ID,
+                ownerId: CASTER_ID,
+                zone: "hand",
+            }),
+            castById: CASTER_ID,
+            targets: [],
+        });
+        resolveTopOfStack(plan.scenario.state);
+    }
+
+    it("predicts the seeded set size times the multiplier", () => {
+        const plan = planSmokeTest(effects);
+        expect(plan.kind).toBe("run");
+        if (plan.kind !== "run") return;
+        // Seeded 3 cards in the caster's graveyard, ×2 → 6 life predicted.
+        expect(plan.assertions[0].label).toContain("gainLife 6");
+        resolveAsSpell(plan);
+        expect(failedAssertions(plan)).toEqual([]);
+    });
+});
+
 describe("a forced random pick moved to hand (CR 608.2c, CR 400.7)", () => {
     // Ghoulraiser's shape: "return a Zombie card at random from your graveyard
     // to your hand" — the pick, then the move.
