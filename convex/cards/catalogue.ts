@@ -13,7 +13,6 @@ import {
     setPrintedBackFaceIndex,
     tryGetDefinition,
     getDefinition,
-    resolveIsolated,
 } from "./registry";
 // A hand-written export is a `defineCard` factory (issue #4857); this is the
 // one reader of it, and the only resolution path (issue #4860).
@@ -756,18 +755,11 @@ export const getChooseableCardNames = (): string[] => {
 let expandedAllCards: CardDefinition[] | null = null;
 export const getAllCards = (): CardDefinition[] => {
     if (!expandedAllCards)
-        expandedAllCards = isolatedDefinitions(
-            handWrittenIndex.entries.map(([id]) => id)
+        expandedAllCards = handWrittenIndex.entries.map(([id]) =>
+            getDefinition(id)
         );
     return expandedAllCards;
 };
-
-/** `getDefinition` over `ids`, an entry that throws skipped and reported
- *  (`reportBrokenCatalogueEntry`, issue #9927): one broken entry is one card
- *  missing from a catalogue-wide population, never the population. */
-function isolatedDefinitions(ids: readonly string[]): CardDefinition[] {
-    return ids.flatMap((id) => resolveIsolated(id, getDefinition) ?? []);
-}
 
 /** Every card in the CATALOGUE — hand-written and compiled alike — expanded,
  *  and nothing else.
@@ -786,7 +778,7 @@ export const getAllCatalogueCards = (): CardDefinition[] => {
     if (!expandedCatalogueCards)
         expandedCatalogueCards = [
             ...getAllCards(),
-            ...isolatedDefinitions(orderedCompiledIds()),
+            ...orderedCompiledIds().map((id) => getDefinition(id)),
         ];
     return expandedCatalogueCards;
 };
