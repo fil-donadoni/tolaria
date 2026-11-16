@@ -32,6 +32,8 @@ import {
 import { EFFECT_OP_REGISTRY } from "../../../cards/mechanicsRegistry";
 import { makeInstance } from "../../../cards/__tests__/setup.helper";
 import { resolveTopOfStack } from "../../state";
+import { applyPendingChoiceSubmit } from "../../pendingChoiceSubmit";
+import { resolveAnsweringChoices } from "../../../cards/__tests__/smokeChoices.helper";
 import OP_DISPOSITION_SNAPSHOT from "./scenarioOpDisposition.json";
 
 // The generator references FILLER_CARD_ID by id; register the ONE canonical
@@ -269,21 +271,27 @@ describe("unsatisfiable-requirement reporting (issue #804)", () => {
 
     it("skips a script with a `choice` Op — a canned scenario cannot submit picks (issue #805)", () => {
         // A `choice` Op suspends resolution for a live player decision; a
-        // canned scenario has no way to answer, so the plan is an explicit
-        // skip with a reason (never a silent pass or a crash). Execution
-        // coverage for choice cards comes from their own suspension/resume
-        // tests.
+        // canned scenario answers only a discard pick from the chooser's own
+        // hand, so any other pick is an explicit skip with a reason (never a
+        // silent pass or a crash). Execution coverage for those choice cards
+        // comes from their own suspension/resume tests.
         const plan = planSmokeTest([
             {
                 op: "choice",
-                kind: "discard-hand",
-                player: { target: 0 },
-                zone: "hand",
-                count: 2,
-                prompt: "discard two cards",
+                kind: "choose-graveyard-card",
+                player: "controller",
+                zone: "graveyard",
+                count: 1,
+                prompt: "return a card",
                 bind: "$picked",
             },
-            { op: "discard", player: { target: 0 }, cards: { ref: "$picked" } },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "graveyard",
+                to: "hand",
+            },
         ] as EffectOp[]);
         expect(plan.kind).toBe("skip");
         if (plan.kind !== "skip") return;
@@ -1723,6 +1731,246 @@ describe("a forced random pick moved to hand (CR 608.2c, CR 400.7)", () => {
             PICK_SKIP,
             MOVE_SKIP,
         ]);
+    });
+});
+
+describe("a discard pick answered by the canned run (CR 701.9a/b, CR 608.2d)", () => {
+    // Mind Rot's shape: "Target player discards two cards." The affected player
+    // chooses (CR 701.9b), and the discard moves what they chose.
+    const pickThenDiscard = (
+        player: unknown,
+        count: number,
+        choice: Record<string, unknown> = {},
+        discard: Record<string, unknown> = {}
+    ): EffectOp[] =>
+        [
+            {
+                op: "choice",
+                kind: "discard-hand",
+                player,
+                zone: "hand",
+                count,
+                prompt: "Discard a card.",
+                bind: "$discard1",
+                ...choice,
+            },
+            {
+                op: "discard",
+                player,
+                cards: { ref: "$discard1" },
+                ...discard,
+            },
+        ] as EffectOp[];
+
+    function pushSpell(
+        plan: Extract<Plan, { kind: "run" }>,
+        effects: EffectOp[],
+        id: string
+    ): void {
+        registerTokenDefinition({
+            id,
+            name: id,
+            rarity: "common",
+            manaCost: { B: 1 },
+            types: ["Sorcery"],
+            effects,
+            ...(plan.scenario.targetKind === "player"
+                ? { targetRequirement: { type: "player", count: 1 } }
+                : {}),
+        });
+        plan.scenario.state.stack.push({
+            ...makeInstance(id, {
+                controllerId: CASTER_ID,
+                ownerId: CASTER_ID,
+                zone: "hand",
+            }),
+            castById: CASTER_ID,
+            targets: plan.scenario.targets,
+        });
+    }
+
+    const handOf = (plan: Extract<Plan, { kind: "run" }>, id: string) =>
+        plan.scenario.state.players.find((p) => p.id === id)!.hand;
+
+    it.each<[string, unknown, number, string]>([
+        ["a targeted player, two cards", { target: 0 }, 2, OPPONENT_ID],
+        ["the opponent, one card", "opponent", 1, OPPONENT_ID],
+        ["the controller, one card", "controller", 1, CASTER_ID],
+    ])(
+        "with %s, seeds count + 1 cards and its chosen discard holds",
+        (name, player, count, chooser) => {
+            const effects = pickThenDiscard(player, count);
+            const plan = planSmokeTest(effects);
+            if (plan.kind !== "run") throw new Error(plan.reason);
+            const answer = plan.scenario.choiceAnswers?.["$discard1"];
+            expect(answer?.playerId).toBe(chooser);
+            expect(answer?.handIds).toHaveLength(count + 1);
+            expect(answer?.picks).toEqual(answer?.handIds.slice(1));
+            expect(handOf(plan, chooser).map((c) => c.id)).toEqual(
+                answer?.handIds
+            );
+            expect(plan.assertions.map((a) => a.label)).toEqual([
+                expect.stringContaining(`hand ${count + 1}→1`),
+            ]);
+            pushSpell(plan, effects, `gen-discard-${name.replace(/\W/g, "")}`);
+            resolveAnsweringChoices(plan.scenario.state, plan.scenario);
+            expect(plan.scenario.state.pendingChoices).toBeUndefined();
+            expect(failedAssertions(plan)).toEqual([]);
+        }
+    );
+
+    it("an unanswered pick leaves the resolution suspended and fails the assertion", () => {
+        const effects = pickThenDiscard("opponent", 1);
+        const plan = planSmokeTest(effects);
+        if (plan.kind !== "run") throw new Error(plan.reason);
+        pushSpell(plan, effects, "gen-discard-unanswered");
+        resolveTopOfStack(plan.scenario.state);
+        expect(plan.scenario.state.pendingChoices).toHaveLength(1);
+        expect(failedAssertions(plan)).toHaveLength(1);
+    });
+
+    it("a discard of the card left over, not the chosen one, fails the assertion", () => {
+        const effects = pickThenDiscard("opponent", 1);
+        const plan = planSmokeTest(effects);
+        if (plan.kind !== "run") throw new Error(plan.reason);
+        const answer = plan.scenario.choiceAnswers!["$discard1"]!;
+        pushSpell(plan, effects, "gen-discard-other-card");
+        resolveTopOfStack(plan.scenario.state);
+        const head = plan.scenario.state.pendingChoices![0]!;
+        applyPendingChoiceSubmit(plan.scenario.state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: answer.handIds.filter(
+                (id) => !answer.picks.includes(id)
+            ),
+        });
+        expect(handOf(plan, OPPONENT_ID)).toHaveLength(1);
+        expect(failedAssertions(plan)).toHaveLength(1);
+    });
+
+    it.each<[string, EffectOp]>([
+        [
+            "the whole hand discarded",
+            { op: "discard", player: "opponent" } as EffectOp,
+        ],
+        [
+            "the chosen card exiled instead",
+            {
+                op: "moveZone",
+                cards: { ref: "$discard1" },
+                player: "opponent",
+                from: "hand",
+                to: "exile",
+            } as EffectOp,
+        ],
+    ])("%s fails the assertion", (name, mover) => {
+        const effects = pickThenDiscard("opponent", 1);
+        const plan = planSmokeTest(effects);
+        if (plan.kind !== "run") throw new Error(plan.reason);
+        pushSpell(
+            plan,
+            [effects[0]!, mover],
+            `gen-discard-${name.replace(/\W/g, "")}`
+        );
+        resolveAnsweringChoices(plan.scenario.state, plan.scenario);
+        expect(plan.scenario.state.pendingChoices).toBeUndefined();
+        expect(failedAssertions(plan)).toHaveLength(1);
+    });
+
+    it("a runtime-ref chooser names the ref as what holds the discard, never the binding", () => {
+        // Oppression's shape: "Whenever a player casts a spell, that player
+        // discards a card."
+        const plan = planSmokeTest(
+            pickThenDiscard({ ref: "$event.caster" }, 1)
+        );
+        if (plan.kind !== "skip") throw new Error("expected a skip");
+        expect(plan.skips.map((s) => [s.op?.op, s.code])).toEqual([
+            ["choice", "suspends-for-input"],
+            ["choice", "runtime-amount"],
+            ["discard", "runtime-amount"],
+        ]);
+        expect(
+            plan.skips.filter((s) => /consumes a choice binding/.test(s.reason))
+        ).toEqual([]);
+    });
+
+    const CHOICE_SKIP = ["choice", "suspends-for-input"];
+    const DISCARD_SKIP = ["discard", "choice-binding"];
+    it.each<[string, EffectOp[], string[][]]>([
+        [
+            "a pick from another zone owner",
+            pickThenDiscard("opponent", 1, { zoneOwnerId: "controller" }),
+            [CHOICE_SKIP, DISCARD_SKIP],
+        ],
+        [
+            "a ranged count",
+            pickThenDiscard("opponent", 1, { count: { min: 0, max: 1 } }),
+            [CHOICE_SKIP, DISCARD_SKIP],
+        ],
+        [
+            "a filtered pick",
+            pickThenDiscard("opponent", 1, { filter: { type: "Creature" } }),
+            [CHOICE_SKIP, DISCARD_SKIP],
+        ],
+        [
+            "a discard by another player",
+            [
+                pickThenDiscard("opponent", 1)[0]!,
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discard1" },
+                },
+            ],
+            [CHOICE_SKIP, DISCARD_SKIP],
+        ],
+        [
+            "a pick nothing discards",
+            [
+                pickThenDiscard("opponent", 1)[0]!,
+                { op: "draw", player: "controller", count: 1 },
+            ],
+            [CHOICE_SKIP],
+        ],
+        [
+            "a whole-hand discard",
+            [{ op: "discard", player: "opponent" }],
+            [DISCARD_SKIP],
+        ],
+        [
+            "a hand the same script draws into",
+            [
+                { op: "draw", player: "controller", count: 1 },
+                ...pickThenDiscard("controller", 1),
+            ],
+            [CHOICE_SKIP, DISCARD_SKIP],
+        ],
+        [
+            "a hand the same script also discards at random",
+            [
+                ...pickThenDiscard("opponent", 1),
+                { op: "discardAtRandom", player: "opponent", count: 1 },
+            ],
+            [CHOICE_SKIP, DISCARD_SKIP],
+        ],
+        [
+            "a second pick in one script",
+            [
+                ...pickThenDiscard("opponent", 1),
+                ...pickThenDiscard("controller", 1).map((op) =>
+                    JSON.parse(
+                        JSON.stringify(op).replace(/\$discard1/g, "$discard2")
+                    )
+                ),
+            ],
+            [CHOICE_SKIP, DISCARD_SKIP],
+        ],
+    ])("%s keeps the Ops' skips", (_name, effects, skips) => {
+        const plan = planSmokeTest(effects);
+        if (plan.kind !== "skip") throw new Error("expected a skip");
+        expect(plan.skips.map((s) => [s.op?.op, s.code])).toEqual(skips);
     });
 });
 
