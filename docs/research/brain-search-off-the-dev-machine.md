@@ -300,3 +300,22 @@ node docs/research/scripts/brain-bench/summarize.mjs profile /tmp/profile.json
 
 `entry.mjs` is the payload: it exposes `globalThis.__brainBench.run(index,
 { iterations, timeMs, clock, scale, seed })`.
+
+### An engine change against its base
+
+The reading an engine-speed PR quotes (issue #10023). One command bundles the
+base and the head (a ref, or the working tree when omitted) with the same
+`entry.mjs`, searches every position at a fixed iteration count on the CPU
+clock in interleaved rounds (§ Method), and prints the head/base ratio of CPU
+time per iteration (p10 / median / p90 over the searched positions) and the
+share of searches whose chosen move differs. A research script, never a gate:
+
+```bash
+# <base> = `branches.base` in tolaria.config.json
+node docs/research/scripts/brain-bench/compare.mjs origin/<base>          # head = working tree
+node docs/research/scripts/brain-bench/compare.mjs origin/<base> HEAD --rounds 3 --iterations 400 --out /tmp/cmp.json
+```
+
+Base against itself is the noise floor to quote beside it; its first reading
+is below. `--iterations` defaults to the `medium` preset's count; the extracted
+base trees are cached under `node_modules/.cache/brain-bench/`.
