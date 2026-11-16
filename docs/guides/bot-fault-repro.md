@@ -75,7 +75,7 @@ message:"bot search" gameId:<gameId>
 | `msPerIteration.p50` / `.p90`                                      | the device's speed, comparable across games                     |
 | `searchMs.*` against `consultMs.*`                                 | the gap is what stood before the search (Worker start, a queue) |
 | `consults.timeout` / `.worker-error` / `.search-error` / `.inline` | consults that gave no answer, or ran in-thread                  |
-| `device.engine` / `.cores` / `.mobile`                             | engine family, core bucket, phone/tablet (iPad by touch)        |
+| `device.engine` / `.cores` / `.mobile`                             | engine family, core bucket, phone or iPad (Chromium's own hint) |
 
 Across games, group the same query by `device.engine` or `device.cores` and
 average `iterations.ratio`.

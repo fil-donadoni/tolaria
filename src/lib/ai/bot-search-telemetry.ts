@@ -164,8 +164,9 @@ type NavigatorLike = {
     userAgentData?: { mobile?: boolean };
 };
 
-/** Whether a device is a phone or a tablet (issue #10022). The browser's own
- *  hint wins where it exists (Chromium's `userAgentData.mobile`); Safari and
+/** Whether a device is mobile (issue #10022). The browser's own hint wins
+ *  where it exists (Chromium's `userAgentData.mobile`, which calls an Android
+ *  TABLET desktop — so does this flag, there); Safari and
  *  Firefox have none, so the user agent decides — a phone or tablet token, or
  *  a DESKTOP Mac agent on a touch screen. That last case is an Apple device
  *  presenting itself as a Mac: iPadOS sends the Mac agent by default, and an
