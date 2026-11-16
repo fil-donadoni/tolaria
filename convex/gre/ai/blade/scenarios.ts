@@ -29240,16 +29240,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
-        beyondBudget: {
-            cause: "valuation",
-            note: "Issue #9864. The Bot evokes on 5 of 5 seeds at 400 and at 1600 iterations. The evaluation reads the trade almost even: the two uncastable cards in hand are priced at 162, the 0/2 at 128 plus 5.3. The saturated rollouts leave both moves inside `outcomeEps`, and `material-tiebreak` takes the evoke on rollout `meanMargin`. Missing: a board price for a creature that threatens nothing, and a tie-break that does not discard the blended score's reading.",
-        },
+        tier: "must",
         // A PREDICATE, kept out of the weight fit on purpose (measured): as a
-        // `forbidden` verdict the fit chases this failing position and moves
+        // `forbidden` verdict the fit chases this position and moves
         // `latentCreatureDiscount` 0.627 → 0.641, past the value that flips
         // the `must` entry "Self-growing sacrifice outlet: casts the
-        // creature". Back to `forbidden` when issue #9864 promotes it.
+        // creature". The search answers it (`isEvokeCast`), but the one-ply
+        // reading still puts the evoke 3.2 above `pass`, which is the reading
+        // the fit would chase.
         expect: {
             predicate: (move, state) =>
                 !matchesMove(state, move, {
@@ -29258,7 +29256,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 }),
             describe: "never casts Solitude",
         },
-        note: "Issue #9695, CR 702.74a. The mirror of `evoke with no mana: evokes Solitude to exile a lethal attacker`: the same hand with no mana, but the only creature to exile is a 0/2 Ornithopter. Evoking spends Solitude and the Lions on it.",
+        note: "Issue #9695, CR 702.74a. The mirror of `evoke with no mana: evokes Solitude to exile a lethal attacker`: the same hand with no mana, but the only creature to exile is a 0/2 Ornithopter. Evoking spends Solitude and the Lions on it. Issue #9864: the `pass` subtree re-offered the evoke at every later window, so `pass` read as a later evoke and the material tie-break took it.",
     },
     {
         label: "attack trigger: Phelia exiles the blocker that would kill it",
