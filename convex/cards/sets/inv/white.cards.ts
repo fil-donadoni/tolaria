@@ -528,6 +528,20 @@ export const restrain = defineCard(() => ({
     ],
 }));
 
+// Reviving Dose — "You gain 3 life. Draw a card."
+export const revivingDose = defineCard(() => ({
+    id: "8d44dd88-ad20-4d89-8831-d2dfa6873428",
+    rarity: "common",
+    name: "Reviving Dose",
+    oracleText: "You gain 3 life.\nDraw a card.",
+    manaCost: { X: 2, W: 1 },
+    types: ["Instant"],
+    effects: [
+        { op: "gainLife", player: "controller", amount: 3 },
+        { op: "draw", player: "controller", count: 1 },
+    ],
+}));
+
 // ─────────────────────────────────────────────────────────────────────────
 // Spell-cast triggers (CR 603.2 + 601.2i)
 // ─────────────────────────────────────────────────────────────────────────

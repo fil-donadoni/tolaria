@@ -516,6 +516,19 @@ export const hurricane = defineCard(() => ({
     },
 }));
 
+// Ice Storm — "Destroy target land." (CR 701.8). Identical shape to Sinkhole
+// / Stone Rain, distinct only in cost / color.
+export const iceStorm = defineCard(() => ({
+    id: "9914836e-2fa6-4390-94b2-431427848a54",
+    rarity: "uncommon",
+    name: "Ice Storm",
+    oracleText: "Destroy target land.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "Land", count: 1 },
+    effects: [{ op: "destroy", target: { target: 0 } }],
+}));
+
 // Instill Energy — "Enchant creature. Enchanted creature can attack as
 // though it had haste. {0}: Untap enchanted creature. Activate only during
 // your turn and only once each turn." (CR 303.4 aura, CR 702.10 haste
