@@ -4,6 +4,7 @@ import PrintedFaceImage from "./printed-face-image";
 import CardPreviewModeToggle, {
     type CardPreviewView,
 } from "./card-preview-mode-toggle";
+import CardPreviewPrintedPair from "./card-preview-printed-pair";
 import CardPreviewRulings from "./card-preview-rulings";
 import CardPreviewReportButton from "./card-preview-report-button";
 import type { PreviewBodyContent } from "~/lib/preview-body";
@@ -11,7 +12,8 @@ import { getPreviewPreferenceDefault } from "~/lib/preview-preference-store";
 
 // Composes the card-preview content shown by all three surfaces (desktop
 // anchored dock, hover/hold dock, mobile overlay). Normally one face; for a copy
-// permanent (CR 707.2) it renders TWO faces side by side — the CURRENT
+// permanent (CR 707.2) or a full-text effect (CR 612.6, issue #9795) it renders
+// TWO faces side by side, in Live text AND Printed card — the CURRENT
 // (presented) identity and the ORIGINAL (printed) identity — each with a small
 // label, mirroring Arena's copy treatment. A spell copy on the stack (CR
 // 707.10 — Fork, storm) has no distinct printed identity, so it gets a `Copy`
@@ -20,9 +22,10 @@ export type CardPreviewBodyProps = PreviewBodyContent & {
     size: "sm" | "md";
     onImageLoaded?: () => void;
     imageLoaded?: boolean;
-    /** The SECOND face's content, when this object has one. Two producers, one
-     *  composition (issue #2904): the printed identity of a copy permanent
-     *  (`copiedFrom`, CR 707.2), or the real card behind a face-down object for
+    /** The SECOND face's content, when this object has one. Three producers, one
+     *  composition (issues #2904, #9795): the printed identity of a copy
+     *  permanent (`copiedFrom`, CR 707.2), the card's own identity under a
+     *  full-text effect (`fullTextAnchor`, CR 612.6), or the real card behind a face-down object for
      *  a viewer entitled to look at it (CR 708.5 / CR 406.3). Null → one face. */
     originalBody?: PreviewBodyContent | null;
     /** Labels over the two faces. Default to the copy treatment's
@@ -103,6 +106,54 @@ export default function CardPreviewBody({
             {report}
         </div>
     );
+    // `printedImageId` rather than `printedImageSrc`: the renderer builds its
+    // own responsive srcset from the id (issue #3553), and the two are null
+    // together by construction.
+    if (mode === "rulings" && rulingsPrintId) {
+        return (
+            <div className="flex w-full flex-col">
+                <CardPreviewRulings printId={rulingsPrintId} />
+                <CardPreviewModeToggle
+                    mode={mode}
+                    onChange={setToggledMode}
+                    showRulings
+                    hideComputed={isManualGame}
+                    trailing={report}
+                />
+            </div>
+        );
+    }
+
+    // A two-face preview has the same view switch as a one-face one (issue
+    // #9795); one without a print for the presented face (a face-down object's
+    // anonymous face) has nothing to switch to, so it keeps the bare report bar.
+    const twoFaceToggle =
+        content.printedImageSrc && !isManualGame ? (
+            <CardPreviewModeToggle
+                mode={mode}
+                onChange={setToggledMode}
+                showRulings={!!rulingsPrintId}
+                trailing={report}
+            />
+        ) : (
+            reportBar
+        );
+    // Two faces, Printed card view: both prints side by side.
+    if (originalBody && mode === "printed" && content.printedImageId) {
+        return (
+            <div className="flex w-full flex-col">
+                <CardPreviewPrintedPair
+                    presented={content}
+                    original={originalBody}
+                    presentedLabel={primaryFaceLabel}
+                    originalLabel={secondaryFaceLabel}
+                    onImageLoaded={onImageLoaded}
+                />
+                {twoFaceToggle}
+            </div>
+        );
+    }
+
     if (originalBody) {
         return (
             <div className="flex w-full flex-col">
@@ -126,25 +177,7 @@ export default function CardPreviewBody({
                         />
                     </div>
                 </div>
-                {reportBar}
-            </div>
-        );
-    }
-
-    // `printedImageId` rather than `printedImageSrc`: the renderer builds its
-    // own responsive srcset from the id (issue #3553), and the two are null
-    // together by construction.
-    if (mode === "rulings" && rulingsPrintId) {
-        return (
-            <div className="flex w-full flex-col">
-                <CardPreviewRulings printId={rulingsPrintId} />
-                <CardPreviewModeToggle
-                    mode={mode}
-                    onChange={setToggledMode}
-                    showRulings
-                    hideComputed={isManualGame}
-                    trailing={report}
-                />
+                {twoFaceToggle}
             </div>
         );
     }

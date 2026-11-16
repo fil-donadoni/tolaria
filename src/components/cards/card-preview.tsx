@@ -16,6 +16,10 @@ import {
     isFaceDownCard,
     resolveFaceDownFace,
 } from "~/lib/face-down";
+import {
+    originalFaceLabel,
+    type PreviewOriginalMechanism,
+} from "~/lib/preview-original-face";
 import { releasePreview, requestOpenPreview } from "./card-preview-singleton";
 import CardPreviewBody from "./card-preview-body";
 import CardPreviewDock from "./card-preview-dock";
@@ -533,9 +537,27 @@ export default function CardPreview({
     // face-down face wins, because while the permanent is face down its
     // copiable values are the CR 708.2a vanilla ones and the copied identity
     // is exactly as hidden as the printed one.
-    const secondaryDefId = faceDownFace
+    //  - a full-text effect (CR 612.6): the card's own identity underneath the
+    //    full text it presents (`fullTextAnchor`). A copy wins over it: a
+    //    permanent that copies is not presenting a full text.
+    const fullTextAnchor = cardInstance?.fullTextAnchor;
+    const originalMechanism: PreviewOriginalMechanism | null = faceDownFace
         ? faceDownRealId
-        : cardInstance?.copiedFrom;
+            ? "faceDown"
+            : null
+        : cardInstance?.copiedFrom
+          ? "copy"
+          : fullTextAnchor
+            ? "fullText"
+            : null;
+    const secondaryDefId =
+        originalMechanism === "faceDown"
+            ? faceDownRealId
+            : originalMechanism === "copy"
+              ? cardInstance?.copiedFrom
+              : originalMechanism === "fullText"
+                ? fullTextAnchor?.underlyingDefId
+                : undefined;
     // The face-down leg shows the real card in the printing its owner chose:
     // the wire carries `imagePrintId` only to a viewer entitled to look
     // (`hideFaceDownIdentity`, gameProjections.ts). A copy's original face
@@ -547,16 +569,21 @@ export default function CardPreview({
               undefined,
               undefined,
               undefined,
-              faceDownFace
+              originalMechanism === "faceDown"
                   ? cardInstance?.imagePrintId
-                  : cardInstance?.preCopyImagePrintId
+                  : originalMechanism === "fullText"
+                    ? fullTextAnchor?.underlyingImagePrintId
+                    : cardInstance?.preCopyImagePrintId
           )
         : null;
     // CR 708.5 / CR 406.3 — "Current"/"Original" is the COPY treatment's
     // wording and would misdescribe these two: the primary face is not this
     // permanent's current identity, it is the absence of one.
     const primaryFaceLabel = faceDownFace ? "Face down" : undefined;
-    const secondaryFaceLabel = faceDownFace ? "Actual card" : undefined;
+    const secondaryFaceLabel = originalFaceLabel(
+        originalMechanism,
+        currentBody.displayName
+    );
     const imageSrc = currentBody.imageSrc;
     // Two faces double the surface width; keep the mobile overlay clamped by
     // its max-w so it never exceeds the viewport.
