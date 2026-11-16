@@ -51,13 +51,15 @@ describe("cloneGameState (structural sharing, issue #108)", () => {
         );
     });
 
-    it("deep-copies mutable nested collections (types/counters)", () => {
+    it("shares the characteristic lists the engine only ever replaces (issue #10026)", () => {
         const state = representativeState();
         const clone = cloneGameState(state);
-        const orig = state.players[0].battlefield[0];
-        const copy = clone.players[0].battlefield[0];
-        expect(copy.types).not.toBe(orig.types);
-        expect(copy.staticAbilities).not.toBe(orig.staticAbilities);
+        const orig = state.players[0].library[0];
+        const copy = clone.players[0].library[0];
+        expect(copy).not.toBe(orig);
+        expect(copy.types).toBe(orig.types);
+        expect(copy.subtypes).toBe(orig.subtypes);
+        expect(copy.staticAbilities).toBe(orig.staticAbilities);
     });
 
     it("mutating the clone in place never reaches the original", () => {
@@ -67,7 +69,7 @@ describe("cloneGameState (structural sharing, issue #108)", () => {
         const copy = clone.players[0].battlefield[0];
         copy.isTapped = true;
         copy.power = 99;
-        copy.types.push("Artifact");
+        copy.types = [...copy.types, "Artifact"];
         copy.counters = { "+1/+1": 3 };
         clone.players[0].life = 1;
         clone.players[0].battlefield.push(makeInstance(BEARS, { id: "added" }));
