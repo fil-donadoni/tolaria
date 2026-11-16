@@ -865,6 +865,19 @@ on the self-hosted lane; the hosted advisory run skips it
 weights stopped being their fit, and it surfaced as a second RED
 (issue #6558).
 
+One row is a vitest file in `node-engine`, `bundle-budget` (issue #10048): the
+`card-set-` bundle budget's model test (`scripts/__tests__/bundle-budget.test.ts`).
+`check:bundle` measures the Set chunks and is health-only by cost; the budget
+it applies scales with the hand-written card count and is sound only within a
+re-anchor horizon on each side of its anchor (`scripts/lib/bundle-budget.ts`).
+The test counts the cards through `fs`, so no `cards` diff ran it, and 259
+retirements turned base tip `7700f6300f9d` RED. It is admitted by
+`convex/cards/sets/**` and `data/card-index.json`; a landing that carries the
+corpus outside a horizon is refused, and the fix is a re-anchor in the same
+PR: `bun run check:bundle` prints the sum. Health covers it through
+`test:app`. 1.9 s (4.1 s wall) warm, 6.4 s (10.2 s wall) on a fresh worktree's
+cold transform cache, load ~5 on the MacBook (2026-11-16).
+
 Added lane cost, measured with the guard cache off at load 141 (2026-10-02):
 `check:gaps` 1.0 s, `check:targets` 2.0 s, `check:test-hygiene` 5.0 s — at
 most 8 s on a landing that admits all three, nothing on one that admits none.

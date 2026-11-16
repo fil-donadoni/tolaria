@@ -73,7 +73,9 @@ const DIST_ASSETS = join(ROOT, "dist", "assets");
  *  Set, one definition per card), so its budget MUST scale with it: a fixed
  *  byte count there catches ordinary growth instead of the accident, and
  *  turned base tip `18ba7b7be854` RED (issue #9489). The type forbids the
- *  fixed form on a `sum` row. */
+ *  fixed form on a `sum` row. One rate for both directions did the same on
+ *  a shrinking corpus (tip `7700f6300f9d`, issue #10048): `ScaledBudget`
+ *  carries a growth allowance and a shrink rate. */
 type Budget =
     | {
           /** Chunk filename prefix (hash suffix varies per build). */
@@ -104,7 +106,9 @@ const BUDGETS: Budget[] = [
     // The Sets are one chunk each (`card-set-<code>`) and the row bounds
     // their SUM, a corpus that grows with every hand-written card: the
     // budget scales with the card count (`SET_CHUNK_BUDGET`, issue #9489),
-    // and literal-pool re-entry still exceeds its headroom.
+    // and literal-pool re-entry still exceeds its headroom. It shrinks with
+    // every card the Oracle migrations retire too, and the budget follows at
+    // the smaller shed rate (issue #10048).
     { prefix: SET_CHUNK_PREFIX, scope: "sum", scaled: SET_CHUNK_BUDGET },
     // measured 610,101 B (issue #3053); RE-ANCHORED to 675,412 B at issue #3230,
     // to 689,547 B at issue #3808 and to 703,501 B at issue #4781 — every time

@@ -31,6 +31,7 @@ import {
     hasLintStagedStash,
     stashListOf,
     CHEAP_GUARDS,
+    BUNDLE_BUDGET_TEST,
     SEARCH_COST_TEST,
     EVAL_WEIGHTS_FIT_TEST,
     EVAL_WEIGHTS_FIT_FILTER,
@@ -1012,6 +1013,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:gaps",
             "check:targets",
             "check:cube-ratings",
+            "bundle-budget",
             "check:weight-noise",
             "check:test-hygiene",
             // Nor the blade registry or its artefacts (issue #5940).
@@ -1251,6 +1253,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "bundle",
             // The engine module is not a blade registry input (issue #5940).
             "check:cube-ratings",
+            "bundle-budget",
             "check:weight-noise",
             "blade-index",
             "blade-noise-notes",
@@ -1282,6 +1285,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:gaps",
             "check:targets",
             "check:cube-ratings",
+            "bundle-budget",
             "check:test-hygiene",
             "search-cost",
             "eval-weights-fit",
@@ -1316,6 +1320,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:gaps",
             "check:targets",
             "check:cube-ratings",
+            "bundle-budget",
             "check:weight-noise",
             "check:test-hygiene",
             "blade-index",
@@ -2697,11 +2702,23 @@ describe("check-lane — cheap census guards run in the lane (issue #4963)", () 
 
     it("stays in health too — health is the full gate", () => {
         // A script guard is a HEALTH_SCRIPTS step. A vitest-file guard is
-        // covered by health's `test` step, whose `test:bot` runs the bot-node
-        // project — so its file must exist and that project must select it
-        // (issue #5940).
-        const botNode = vitestProjects.find((p) => p.name === "bot-node");
-        expect(botNode).toBeDefined();
+        // covered by health's `test` step: its command names one project,
+        // `test:app` or `test:bot` runs that project, and the project
+        // selects the file, which must exist (issue #5940; a `node-engine`
+        // file since issue #10048). No `--project` means `bot-node`.
+        const scripts = (
+            JSON.parse(readFileSync(resolve(ROOT, "package.json"), "utf8")) as {
+                scripts: Record<string, string>;
+            }
+        ).scripts;
+        const healthProjects = new Set(
+            [scripts["test:app"]!, scripts["test:bot"]!].flatMap((script) =>
+                [...script.matchAll(/--project ([\w-]+)/g)].map((m) => m[1]!)
+            )
+        );
+        expect([...healthProjects]).toEqual(
+            expect.arrayContaining(["node-engine", "bot-node"])
+        );
         for (const guard of CHEAP_GUARDS) {
             if (guard.diffOnly) continue;
             if (guard.command === undefined) {
@@ -2714,8 +2731,64 @@ describe("check-lane — cheap census guards run in the lane (issue #4963)", () 
                 .split(/\s+/)
                 .find((w) => /\.test\.tsx?$/.test(w))!;
             expect(existsSync(resolve(ROOT, file)), file).toBe(true);
-            expect(selectedBy(botNode!, file), file).toBe(true);
+            const name =
+                /--project ([\w-]+)/.exec(guard.command)?.[1] ?? "bot-node";
+            expect(healthProjects.has(name), `${guard.id}: ${name}`).toBe(true);
+            const project = vitestProjects.find((p) => p.name === name);
+            expect(project, name).toBeDefined();
+            expect(selectedBy(project!, file), file).toBe(true);
         }
+    });
+});
+
+/**
+ * Issue #10048 — the `card-set-` bundle budget scales with the hand-written
+ * card count, and `check:bundle` is health-only by cost. Its model test reads
+ * the corpus through `fs`, so no `cards` diff ran it: 259 retirements took
+ * the corpus out of the range the budget was sound in and base tip
+ * `7700f6300f9d` went RED. The guard is admitted by the card sources and the
+ * card index.
+ */
+describe("check-lane — the bundle budget's model test runs where its corpus moves (issue #10048)", () => {
+    const guard = (plan: LanePlan) =>
+        plan.run.find((c) => c.id === "bundle-budget");
+    const command = `bunx vitest run --project node-engine ${BUNDLE_BUDGET_TEST}`;
+
+    it("a hand-written card or the card index plans it, in the node-engine project", () => {
+        for (const files of [
+            ["convex/cards/sets/lea/red.cards.ts"],
+            ["data/card-index.json"],
+            ["convex/cards/sets/lea/red.cards.ts", "convex/gre/layers.ts"],
+        ]) {
+            expect(guard(classifyLane(files))?.command, files[0]).toBe(command);
+        }
+    });
+
+    it("the cards lane runs it — the lane every retirement lands through", () => {
+        const plan = classifyLane([
+            "convex/cards/sets/lea/red.cards.ts",
+            "data/card-index.json",
+        ]);
+        expect(plan.lane).toBe("cards");
+        expect(guard(plan)?.command).toBe(command);
+    });
+
+    it("a diff that moves no hand-written card skips it, by name", () => {
+        for (const file of [
+            "convex/gre/layers.ts",
+            "convex/cards/mechanicsRegistry.ts",
+            "src/components/board/Card.tsx",
+            "scripts/land-ready.ts",
+        ]) {
+            const plan = classifyLane([file]);
+            expect(guard(plan), file).toBeUndefined();
+            const skipped = plan.skip.find((s) => s.id === "bundle-budget");
+            expect(skipped?.reason.length ?? 0, file).toBeGreaterThan(10);
+        }
+    });
+
+    it("the full lane runs it with its own command, never `bun run bundle-budget`", () => {
+        expect(guard(classifyLane(["package.json"]))?.command).toBe(command);
     });
 });
 
