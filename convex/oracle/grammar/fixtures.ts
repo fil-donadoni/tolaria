@@ -33,6 +33,9 @@ export interface GoldenFixture {
 const TOLARIA_WEST_TEXT =
     "This land enters tapped.\n{T}: Add {U}.\nTransmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with mana value 0, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)";
 
+const VEIL_OF_SUMMER_TEXT =
+    "Draw a card if an opponent has cast a blue or black spell this turn. Spells you control can't be countered this turn. You and permanents you control gain hexproof from blue and from black until end of turn. (You and they can't be the targets of blue or black spells or abilities your opponents control.)";
+
 // Frozen: `fixtureForms` caches by array identity, so the registry may never
 // change in place.
 export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
@@ -17059,6 +17062,77 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                             op: "gainLife",
                             player: "controller",
                             amount: 2,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 608.2c + CR 601.2i — the trailing cast gate reads the spells an
+    // opponent cast this turn, which the canned smoke scenario (nothing cast
+    // before the spell resolves) cannot size; and CR 611.2c — "You and
+    // permanents you control gain hexproof from blue …" grants the swept
+    // `$each` a hexproof-from keyword it cannot stage.
+    {
+        rule: "trailing gate",
+        card: {
+            oracleId: "002965be-a36f-4a09-9ce0-c6535bca1703",
+            name: "Veil of Summer",
+            manaCost: "{G}",
+            typeLine: "Instant",
+            oracleText: VEIL_OF_SUMMER_TEXT,
+            layout: "normal",
+        },
+        expected: {
+            name: "Veil of Summer",
+            types: ["Instant"],
+            manaCost: { G: 1 },
+            oracleText: VEIL_OF_SUMMER_TEXT,
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            spellsCastThisTurn: {
+                                of: "opponent",
+                                colors: ["U", "B"],
+                            },
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [{ op: "draw", player: "controller", count: 1 }],
+                },
+                { op: "grantSpellCounterImmunity", player: "controller" },
+                {
+                    op: "grantPlayerKeyword",
+                    player: "controller",
+                    keyword: "hexproof from blue",
+                },
+                {
+                    op: "grantPlayerKeyword",
+                    player: "controller",
+                    keyword: "hexproof from black",
+                },
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: "controller",
+                    },
+                    effects: [
+                        {
+                            op: "grantAbility",
+                            target: { ref: "$each" },
+                            ability: "hexproof from blue",
+                            duration: { phase: "end-of-turn" },
+                        },
+                        {
+                            op: "grantAbility",
+                            target: { ref: "$each" },
+                            ability: "hexproof from black",
+                            duration: { phase: "end-of-turn" },
                         },
                     ],
                 },

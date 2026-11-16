@@ -136,6 +136,7 @@ import type { CompiledSpellFilter } from "../../../cards/compiledStatics";
 import { PERMANENT_TYPES } from "../../../cards/types";
 import type {
     CardType,
+    Color,
     PlayerCounterKind,
     EffectCardFilter,
     EffectChoiceSuperlative,
@@ -146,7 +147,9 @@ import { SELF_MARKER } from "../../normalize";
 import {
     fail,
     ok,
+    rule,
     type FailureTrace,
+    type Rule,
     type RuleContext,
     type RuleResult,
 } from "../../rule";
@@ -162,11 +165,13 @@ import {
     whereXAmount,
     type AmountIR,
     type EffectSentenceIR,
+    type SentenceIR,
     type SubjectIR,
 } from "./effectClause";
 import { PLAYER_PHRASES, playerRefRule, type PlayerRefIR } from "./playerRef";
 import {
     COLOR_OR_LIST,
+    COLOR_WORDS,
     descriptorRule,
     type DescriptorIR,
     librarySearchFilterFromDescriptor,
@@ -180,6 +185,8 @@ import {
 } from "./targetFilter";
 import { CREATURE_SUBTYPES } from "./subtypes";
 import { keywordVocabulary } from "./keywordVocabulary";
+import { hexproofFromKeywordsRule } from "./hexproofFromKeyword";
+import type { KeywordIR } from "../ir";
 import { readUnlessPayment, type UnlessPaymentIR } from "./unlessPayment";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 import {
@@ -398,6 +405,40 @@ export type FrameIR =
            */
           readonly frame: "playerKeyword";
           readonly keywords: readonly string[];
+      }
+    | {
+          /**
+           * CR 611.2c — "permanents you control gain <keyword> until end of
+           * turn", the second half of the compound subject "You and permanents
+           * you control gain …" (read beside a `playerKeyword` frame): the
+           * permanents the controller controls as the effect begins gain each
+           * keyword, and the set does not change afterwards. Hexproof
+           * (CR 702.11c) or hexproof from a colour (CR 702.11d), one keyword
+           * per ability (CR 702.11f).
+           */
+          readonly frame: "controlledPermanentsKeyword";
+          readonly keywords: readonly KeywordIR[];
+      }
+    | {
+          /**
+           * CR 611.2c + CR 101.2 — "Spells you control can't be countered this
+           * turn": a rules-modifying effect, so it covers every spell the
+           * controller controls this turn, including one cast after it began.
+           * The controller only, every spell, this turn only: "other spells"
+           * and a spell class are different effects.
+           */
+          readonly frame: "spellCounterImmunity";
+      }
+    | {
+          /**
+           * CR 608.2c — "<effect> if <condition>": the effect happens only if
+           * the condition holds as the spell resolves. A trailing condition
+           * GATES the sentence it ends, which the sentence table reads as
+           * usual; the gate reads no verb of its own.
+           */
+          readonly frame: "gate";
+          readonly condition: GateConditionIR;
+          readonly effect: EffectSentenceIR;
       }
     | {
           /**
@@ -867,6 +908,16 @@ export interface FrameChainIR {
 
 export type FrameName = FrameIR["frame"];
 
+/**
+ * CR 601.2i + CR 202.2 — the conditions a trailing gate reads: "an opponent
+ * has cast a blue or black spell this turn", at least one spell an opponent
+ * cast this turn that was one of `colors` as it became cast.
+ */
+export type GateConditionIR = {
+    readonly kind: "opponent-cast-spell-this-turn";
+    readonly colors: readonly Color[];
+};
+
 /** Every keyword spelling the vocabulary reads, longest first so "first
  *  strike" wins over a shorter prefix, as one regex alternation. */
 const KEYWORD_ALTERNATION = [...keywordVocabulary().keys()]
@@ -918,7 +969,11 @@ export const VERB_FRAMES: readonly {
     },
     {
         name: "playerKeyword",
-        opens: /^you gain (?:hexproof|shroud)\b/i,
+        opens: /^you (?:and permanents you control )?gain (?:hexproof|shroud)\b/i,
+    },
+    {
+        name: "spellCounterImmunity",
+        opens: /^spells you control can't be countered this turn\b/i,
     },
     {
         name: "extraTurn",
@@ -1111,6 +1166,15 @@ const PROTECTION_FROM_EVERYTHING =
  *  "hexproof from A and from B" (CR 702.11f), until end of turn. */
 const PLAYER_KEYWORD =
     /^you gain (shroud|hexproof|hexproof from (white|blue|black|red|green)(?: and from (white|blue|black|red|green))?) until end of turn$/;
+/** CR 611.2c — the compound subject "You and permanents you control gain
+ *  <keyword> until end of turn": hexproof, or "hexproof from A[ and from
+ *  B]" (CR 702.11f), the only keywords the corpus prints there. */
+const PLAYER_AND_PERMANENTS_KEYWORD =
+    /^you and permanents you control gain (hexproof|hexproof from (?:white|blue|black|red|green)(?: and from (?:white|blue|black|red|green))?) until end of turn$/;
+/** CR 611.2c — the frame's whole spelling: every spell, the controller's,
+ *  this turn. */
+const SPELL_COUNTER_IMMUNITY =
+    "spells you control can't be countered this turn";
 const COPY_TOKEN_OPENER = "create a token that's a copy of ";
 /** CR 707.2 — "<recipient> becomes a copy of <source>[ <duration>]". */
 const BECOME_COPY =
@@ -2264,6 +2328,24 @@ function readExileReturnTransformed(
 }
 
 /**
+ * CR 702.11c / 702.11d / 702.11f — the keywords "You and permanents you
+ * control gain <keyword>" grants, as the registry rows a permanent's grant is
+ * censused against: plain hexproof, or one "hexproof from <colour>" per
+ * quality. `null` when the registry or the quality parser cannot name one.
+ */
+function playerAndPermanentsKeywords(
+    keyword: string,
+    ctx: unknown
+): readonly KeywordIR[] | null {
+    if (keyword === "hexproof") {
+        const row = keywordVocabulary().get("hexproof");
+        return row === undefined ? null : [row];
+    }
+    const read = hexproofFromKeywordsRule.run(keyword, ctx);
+    return read.ok ? read.value : null;
+}
+
+/**
  * Read one member of the chain. Returns the frames it adds (a member may add
  * two: "shuffle and put that card on top"), the reveal it attaches to the
  * last search (`reveal`), or the reason it is refused. `null` when the member
@@ -2413,6 +2495,37 @@ function readMember(
             };
         return {
             frames: [{ frame: "protectionFromEverything" }],
+            referent,
+        };
+    }
+    if (opensFrame("spellCounterImmunity", lower)) {
+        if (lower !== SPELL_COUNTER_IMMUNITY)
+            return {
+                refused: `"${member}" — only "spells you control can't be countered this turn" is read`,
+            };
+        return { frames: [{ frame: "spellCounterImmunity" }], referent };
+    }
+    if (opensFrame("playerKeyword", lower) && lower.startsWith("you and ")) {
+        const compound = lower.match(PLAYER_AND_PERMANENTS_KEYWORD);
+        if (compound === null)
+            return {
+                refused: `"${member}" — only "you and permanents you control gain hexproof[ from <colour>] until end of turn" is read`,
+            };
+        const keywords = playerAndPermanentsKeywords(compound[1]!, ctx);
+        if (keywords === null)
+            return {
+                refused: `"${member}" — "${compound[1]}" is not a hexproof the engine can name (CR 702.11d)`,
+            };
+        // CR 611.2c — two recipients, one keyword list: the player, and the
+        // permanents they control as the effect begins.
+        return {
+            frames: [
+                {
+                    frame: "playerKeyword",
+                    keywords: keywords.map((k) => k.ability),
+                },
+                { frame: "controlledPermanentsKeyword", keywords },
+            ],
             referent,
         };
     }
@@ -2935,6 +3048,59 @@ function splitMembers(body: string): string[] {
         out.push(current);
     }
     return out;
+}
+
+/** The trailing-gate Composition Rule's label (a fixture's `rule`). */
+export const TRAILING_GATE = "trailing gate";
+
+/** CR 601.2i — "<effect> if an opponent has cast a <colour>[ or <colour>]
+ *  spell this turn". */
+const OPPONENT_CAST_SPELL_THIS_TURN =
+    /^(.+) if an opponent has cast an? (white|blue|black|red|green)(?: or (white|blue|black|red|green))? spell this turn$/;
+
+/**
+ * CR 608.2c — the trailing-gate Composition Rule: "Draw a card if an opponent
+ * has cast a blue or black spell this turn." The head is read by `inner` like
+ * any sentence and the condition gates it as the spell resolves, so the gate
+ * is a frame of its own (`gate`) around whatever the head reads.
+ *
+ * Only the cast condition reads here (CR 601.2i + CR 202.2): an opponent's
+ * spells of the named colours this turn. Fail-closed: a span that does not end
+ * on exactly that condition goes to `inner` whole, and a head `inner` cannot
+ * read fails the span.
+ */
+export function trailingGateSentenceRule(
+    inner: Rule<SentenceIR>
+): Rule<SentenceIR> {
+    return rule(TRAILING_GATE, (span, ctx) => {
+        const gated = span.match(OPPONENT_CAST_SPELL_THIS_TURN);
+        if (gated === null) return inner.run(span, ctx);
+        const parsed = inner.run(gated[1]!, ctx);
+        if (!parsed.ok) return parsed;
+        if (parsed.value.role !== "effect")
+            return fail(
+                `a condition gates an effect, not a ${parsed.value.role}`,
+                span
+            );
+        const colors = [gated[2]!, gated[3]]
+            .filter((word): word is string => word !== undefined)
+            .map((word) => COLOR_WORDS.get(word)!);
+        return ok({
+            role: "effect" as const,
+            effect: {
+                frames: [
+                    {
+                        frame: "gate" as const,
+                        condition: {
+                            kind: "opponent-cast-spell-this-turn" as const,
+                            colors,
+                        },
+                        effect: parsed.value.effect,
+                    },
+                ],
+            },
+        });
+    });
 }
 
 /**

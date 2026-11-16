@@ -2951,7 +2951,7 @@ const RULES_MODIFIERS: MechanicRow[] = [
         status: "implemented",
         binding:
             'StaticEffect kind "spell-counter-immunity" (cards/types.ts StaticSpellCounterImmunity) + gre/spellCounterImmunity.ts (spellCounterImmunitySource, isSpellCounterImmuneThisTurn) + gre/state.ts (SpellContext.counter, SpellContext.grantSpellCounterImmunityThisTurn)',
-        note: 'CR 701.6a: "To counter a spell or ability means to cancel it, removing it from the stack." CR 101.2: the "can\'t" effect takes precedence over the instruction to counter. A PERMANENT\'s continuous ability covering a CLASS of spells — Gaea\'s Herald ("Creature spells can\'t be countered.", any player\'s spells) and the "Spells you control can\'t be countered" family (`controlledBy: "controller"`, CR 601.2a: the caster controls the spell). Declarative: `spells` is an ordinary `SpellFilter` matched by the single `matchesSpellFilter` authority against the spell\'s CURRENT stack characteristics (absent = every spell). Read live at the ONE counter choke point, `SpellContext.counter()`, beside the two per-spell carriers (`CardDefinition.cantBeCountered`, CR 113.6g; `StackItem.dynamicCantBeCountered`, the mana rider): nothing is stamped on the spell, so a spell already on the stack becomes counterable the moment the source leaves the battlefield or loses its abilities (CR 611.3b, 613.1f). Targeting is untouched — a counterspell still targets the covered spell and simply fails to counter it. Abilities are never covered (CR 113.9). Server-only: the client never decides a counter, and the board shows the source permanent. Its SOURCE-LESS twin is the turn-scoped "Spells you control can\'t be countered this turn" (CR 611.2a / 611.2c): `SpellContext.grantSpellCounterImmunityThisTurn` lists the player on `GameState.spellCounterImmunityThisTurn`, read at the same choke point by `isSpellCounterImmuneThisTurn` and cleared at CLEANUP (CR 514.2); a rules-modifying effect, so it covers spells cast after it began. No Op emits it yet: the Grammar Gap that reads the printed sentence owns it.',
+        note: 'CR 701.6a: "To counter a spell or ability means to cancel it, removing it from the stack." CR 101.2: the "can\'t" effect takes precedence over the instruction to counter. A PERMANENT\'s continuous ability covering a CLASS of spells — Gaea\'s Herald ("Creature spells can\'t be countered.", any player\'s spells) and the "Spells you control can\'t be countered" family (`controlledBy: "controller"`, CR 601.2a: the caster controls the spell). Declarative: `spells` is an ordinary `SpellFilter` matched by the single `matchesSpellFilter` authority against the spell\'s CURRENT stack characteristics (absent = every spell). Read live at the ONE counter choke point, `SpellContext.counter()`, beside the two per-spell carriers (`CardDefinition.cantBeCountered`, CR 113.6g; `StackItem.dynamicCantBeCountered`, the mana rider): nothing is stamped on the spell, so a spell already on the stack becomes counterable the moment the source leaves the battlefield or loses its abilities (CR 611.3b, 613.1f). Targeting is untouched — a counterspell still targets the covered spell and simply fails to counter it. Abilities are never covered (CR 113.9). Server-only: the client never decides a counter, and the board shows the source permanent. Its SOURCE-LESS twin is the turn-scoped "Spells you control can\'t be countered this turn" (CR 611.2a / 611.2c): `SpellContext.grantSpellCounterImmunityThisTurn` lists the player on `GameState.spellCounterImmunityThisTurn`, read at the same choke point by `isSpellCounterImmuneThisTurn` and cleared at CLEANUP (CR 514.2); a rules-modifying effect, so it covers spells cast after it began. The `grantSpellCounterImmunity` Op emits it.',
     },
     {
         id: "damage-as-counters",
@@ -4257,6 +4257,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'A PLAYER gains a targeting keyword until end of turn (CR 611.2a / 514.2): "You gain shroud until end of turn" (Gilded Light), "You gain hexproof until end of turn", "You gain hexproof from blue and from black until end of turn" (two Ops, CR 702.11f). A thin declarative skin over the single SpellContext primitive `grantPlayerKeywordUntilEndOfTurn`, one execution path (ADR 0045): `keyword` lands on `PlayerState.keywordsUntilEndOfTurn` and is read by ONE predicate, `playerKeywordBarsTargeting` (`gre/permanentGuard.ts`), at every player-target gate — `getLegalTargets` (offered), `selectTarget` (accepted), the CR 608.2b resolution re-check and the client nameplate — so they cannot diverge. `keyword` is `"shroud"` (CR 702.18a, every source), `"hexproof"` (CR 702.11c, an opponent\'s source) or `"hexproof from <quality>"` (CR 702.11d read on a player: an opponent\'s [quality] spell or an ability from an opponent\'s [quality] source; a quality `parseHexproofQuality` cannot name is refused by the validator, fail-closed). Cleared at CLEANUP (CR 514.2) with the player\'s other "until end of turn" effects; rides the public projection on the player object. Duration intrinsic, no `duration` field. DISTINCT from `grantAbility` (a permanent\'s layer-6 ability), from the `player-guard` static (a permanent\'s continuous grant, gone with its source) and from `setProtectionFromEverything` (also blanks damage, until your next turn). Skipped when the player cannot be resolved (CR 608.2b).',
     },
     {
+        op: "grantSpellCounterImmunity",
+        status: "implemented",
+        cr: "611.2c",
+        binding: "SpellContext.grantSpellCounterImmunityThisTurn",
+        note: "Turn-scoped \"Spells you control can't be countered this turn\" (Veil of Summer; CR 611.2c — a rules-modifying effect, so it covers spells cast after it began; CR 101.2 — the \"can't\" beats the instruction to counter). A thin declarative skin over the single SpellContext primitive `grantSpellCounterImmunityThisTurn`, one execution path (ADR 0045): `player` is listed on `GameState.spellCounterImmunityThisTurn`, read at the ONE counter choke point (`SpellContext.counter()` through `isSpellCounterImmuneThisTurn`, `gre/spellCounterImmunity.ts`) and cleared at CLEANUP (CR 514.2). Every spell the player controls is covered (no spell filter); abilities never are (CR 113.9). Targeting is untouched — a counterspell still targets the spell and fails to counter it. Duration intrinsic, no `duration` field. DISTINCT from the `spell-counter-immunity` static (a permanent's continuous ability, gone with its source) and from `CardDefinition.cantBeCountered` (a spell's own text). Skipped when the player cannot be resolved (CR 608.2b).",
+    },
+    {
         op: "rangedTopdeck",
         status: "implemented",
         cr: "118.4",
@@ -4615,16 +4622,6 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // (also shipped in the same slice, never reserved here under its own
     // name — a filter-driven reveal-and-split composition, not a new
     // SpellContext primitive).
-    // CR 611.2c / 101.2 — "Spells you control can't be countered this turn"
-    // (Veil of Summer). The engine half is live
-    // (SpellContext.grantSpellCounterImmunityThisTurn); the Op waits for the
-    // Grammar Rule that emits it (issue #9836, `/new-op` site 8).
-    {
-        op: "grantSpellCounterImmunity",
-        status: "planned",
-        cr: "611.2c",
-        note: 'Turn-scoped "Spells you control can\'t be countered this turn" for the controller: a skin over SpellContext.grantSpellCounterImmunityThisTurn (GameState.spellCounterImmunityThisTurn, read by counter() through isSpellCounterImmuneThisTurn, cleared at CLEANUP, CR 514.2). Planned until its Grammar Rule lands with a ready corpus card (Veil of Summer, issue #9836).',
-    },
     {
         op: "lockUntap",
         status: "planned",

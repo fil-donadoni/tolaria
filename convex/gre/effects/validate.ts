@@ -7582,6 +7582,11 @@ const OP_SCHEMAS: OpSchemaTable = {
     grantPlayerKeyword: {
         required: { player: isPlayerRef, keyword: isPlayerKeyword },
     },
+    // CR 611.2c / 101.2 — "Spells you control can't be countered this turn":
+    // the player whose spells the turn-scoped immunity covers.
+    grantSpellCounterImmunity: {
+        required: { player: isPlayerRef },
+    },
     // CR 119.4 / 121.1 (issue #1283) — a single ranged 0..N "drawn this turn"
     // hand pick with a per-NOT-chosen life cost (Sylvan Library). `pool` is
     // the candidate-set discriminator (only `"drawn-this-turn"` today); `max`
