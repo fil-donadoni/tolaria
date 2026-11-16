@@ -8,17 +8,29 @@ import { getCardByName } from "../../../cards";
 import { BOT_REACH_BUDGET, playBotReachSeats } from "../botReach";
 
 describe("Bot-play sweep (ADR 0105 § 7.2) — sacrifice creatures, second half", () => {
-    // Issue #4273: an instant whose only effect grants an ability to a target
-    // creature; the race it decides is posed by the sweep's positions.
-    it("played — an instant that grants an ability to a target creature", () => {
+    // An instant whose only effect grants an ability to a target creature
+    // until end of turn changes no combat on the sweep's boards, so the card
+    // is worth holding in every window. Its one cast was in the opponent's end
+    // step, where the grant expires unused: the `pass` line there was a chain
+    // of passes the tree deepened past the bot's next turn and scored a round
+    // later than the cast (ADR 0015 Amendment I).
+    it("ignored — an until-end-of-turn grant no window of the sweep can use", () => {
         for (const name of [
             "Defy Gravity",
             "Double Cleave",
             "Unnatural Speed",
         ]) {
-            expect(playBotReachSeats(getCardByName(name)), name).toEqual([
-                { holderId: "p1", verdict: { outcome: "played" } },
-                { holderId: "p2", verdict: { outcome: "played" } },
+            const seats = playBotReachSeats(getCardByName(name));
+            expect(
+                seats.map(({ holderId, verdict }) => [
+                    holderId,
+                    verdict.outcome,
+                    "cause" in verdict ? verdict.cause : null,
+                ]),
+                name
+            ).toEqual([
+                ["p1", "ignored", "never-chosen"],
+                ["p2", "ignored", "never-chosen"],
             ]);
         }
     }, 600_000);
