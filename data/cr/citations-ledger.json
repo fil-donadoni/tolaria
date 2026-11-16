@@ -41180,6 +41180,7 @@
         {"id":"701.59","line":"// CR 701.59 — the grammar of collect evidence's two compiled surfaces (issue","sites":1,"status":"confirmed","ruleHash":"ddd3781bcdb58a4b"},
         {"id":"611.2a","line":"describe(\"Effect Script Op: grantAbility (CR 611.2a / 613.1f, layer 6, issue #843)\", () => {","sites":1,"status":"baseline"},
         {"id":"603.2","line":"// turn\" is `maxTriggersPerTurn: 1` (CR 603.2, per-source tallied).","sites":1,"status":"baseline"},
+        {"id":"603.5","line":"// pair: where a given density lands between the CR 603.5 clamp (0)","sites":1,"status":"confirmed","ruleHash":"1149438f50a9f8cf"},
         {"id":"702.119","line":"// (CR 702.119, issue #3218). `affordableAltCostsForCard` (src/lib/card-utils.ts)","sites":1,"status":"confirmed","ruleHash":"e6443b4bf6f45b74"},
         {"id":"503.1a","line":"describe(\"Elder Spawn (upkeep: sacrifice an Island or sacrifice it + 6 damage; can't be blocked by red, CR 503.1a / 118.3 / 509.1b)\", () => {","sites":1,"status":"confirmed","ruleHash":"3120cb280ef0dd94"},
         {"id":"702.94a","line":"/** CR 702.94a — raise a STACKLESS reveal window for the card a just-committed","sites":1,"status":"confirmed","ruleHash":"a60572195b3a47a2"},
