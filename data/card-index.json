@@ -2687,7 +2687,9 @@
         "oracleId": "2160849a-184f-4a49-8931-fd021e16f7cb",
         "firstSet": "inv",
         "firstPrintId": "004eefa4-947b-45fc-b45c-5263bfd763bc",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Ancient Stirrings",
@@ -24233,7 +24235,9 @@
         "oracleId": "cbef6ad5-717f-4b02-9c62-e5deba407ad1",
         "firstSet": "fem",
         "firstPrintId": "0dfe1352-27be-4c99-a58f-b961f911f270",
-        "firstPrintSet": "fem"
+        "firstPrintSet": "fem",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Dwarven Soldier",
@@ -24557,7 +24561,9 @@
         "oracleId": "4d4b9512-d29d-4b99-9249-d37e1199a1f5",
         "firstSet": "fem",
         "firstPrintId": "3fb2a11f-a8e4-4acf-871a-11171e3304ef",
-        "firstPrintSet": "fem"
+        "firstPrintSet": "fem",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Ebony Charm",
@@ -33229,7 +33235,9 @@
         "oracleId": "83f9d84a-a011-4fa9-a3a4-51eb39159c54",
         "firstSet": "inv",
         "firstPrintId": "e744b593-13fe-4967-b492-ac02f5815e57",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Geralf's Messenger",
@@ -38613,7 +38621,9 @@
         "oracleId": "18cbb47a-85b1-48f6-a024-8c3bbffa0d87",
         "firstSet": "fem",
         "firstPrintId": "9028f200-80dd-4c53-877f-ea380ff417cb",
-        "firstPrintSet": "fem"
+        "firstPrintSet": "fem",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Havenwood Wurm",
@@ -39567,7 +39577,9 @@
         "oracleId": "26259c65-8f4e-42a6-b8a7-f65c36d35c4d",
         "firstSet": "mmq",
         "firstPrintId": "af7aafb7-6870-4d09-a191-70786766c459",
-        "firstPrintSet": "mmq"
+        "firstPrintSet": "mmq",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Hidden Gibbons",
@@ -43259,7 +43271,9 @@
         "oracleId": "e0c3c87b-83e3-4cff-b05f-78a192e2bba4",
         "firstSet": "inv",
         "firstPrintId": "977f1b44-166c-4faf-8a7b-d431707e90ce",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Isamaru, Hound of Konda",
@@ -55084,7 +55098,9 @@
         "oracleId": "f3c5978a-70fa-431f-933b-b954bd0db0ea",
         "firstSet": "sth",
         "firstPrintId": "28028830-83ed-45e2-b495-3b9ad9d3e988",
-        "firstPrintSet": "sth"
+        "firstPrintSet": "sth",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Mox Emerald",
@@ -60324,7 +60340,9 @@
         "oracleId": "a176924c-78fc-4151-b2b5-1547b1114a40",
         "firstSet": "mmq",
         "firstPrintId": "bcc9d1e0-c8f4-4bac-90d4-8167f7a1515a",
-        "firstPrintSet": "mmq"
+        "firstPrintSet": "mmq",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Peek",
@@ -64517,7 +64535,9 @@
         "oracleId": "e2975a88-5a5a-462a-90b9-d8c00150b6d3",
         "firstSet": "mir",
         "firstPrintId": "be9a64fb-1e8d-4ed8-b4c5-3d44db9c1d3b",
-        "firstPrintSet": "mir"
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Quirion Explorer",
@@ -67025,7 +67045,9 @@
         "oracleId": "2c38f4c7-1b3f-42b4-a175-edab7acd6cc6",
         "firstSet": "mmq",
         "firstPrintId": "115cab84-60d7-4bf2-9beb-b4ed7b5ceaf4",
-        "firstPrintSet": "mmq"
+        "firstPrintSet": "mmq",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Remote Isle",
@@ -69471,7 +69493,9 @@
         "oracleId": "ad7b610c-e276-4c71-9b53-1ccb6d2dafd2",
         "firstSet": "fem",
         "firstPrintId": "4ce2e734-8cff-4bfe-85f8-17b3e1903f18",
-        "firstPrintSet": "fem"
+        "firstPrintSet": "fem",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Ruins Recluse",
@@ -70733,7 +70757,9 @@
         "oracleId": "c8e0a1a5-8188-4677-9d8a-a18eb593343a",
         "firstSet": "mmq",
         "firstPrintId": "82bc7c6b-2e3d-42d1-b2bb-b37b6f34d33b",
-        "firstPrintSet": "mmq"
+        "firstPrintSet": "mmq",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Sandstone Warrior",
@@ -70893,7 +70919,9 @@
         "oracleId": "e4e6e796-39ce-4a63-8c61-c7c956d75d78",
         "firstSet": "mmq",
         "firstPrintId": "006871fd-2641-42cb-a2ac-a33d05fc5a35",
-        "firstPrintSet": "mmq"
+        "firstPrintSet": "mmq",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Saproling Cluster",
@@ -74773,7 +74801,9 @@
         "oracleId": "9b64c0f4-b917-4a0d-b033-30ab71aab807",
         "firstSet": "inv",
         "firstPrintId": "9841f7e8-162c-44a3-96f3-af944fce15d1",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Shivan Phoenix",
@@ -82941,7 +82971,9 @@
         "oracleId": "bc2906cd-9e0c-4aa8-b656-fb1045d810ac",
         "firstSet": "inv",
         "firstPrintId": "22c66ed6-55fb-4c65-aac4-26d9cc3053b8",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Sulfuric Vortex",
@@ -83919,7 +83951,9 @@
         "oracleId": "5578cf33-62f5-456c-a58c-f744a25df79b",
         "firstSet": "fem",
         "firstPrintId": "8b3fde62-ab21-459b-9c5d-01aa6fe1d08e",
-        "firstPrintSet": "fem"
+        "firstPrintSet": "fem",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Swab Goblin",
@@ -88185,7 +88219,9 @@
         "oracleId": "af0ad159-8264-4526-9a95-eddd32c0a13f",
         "firstSet": "inv",
         "firstPrintId": "989b5901-aeb0-4a48-8c53-3b0ec0e0deba",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Tinder Wall",
@@ -91826,7 +91862,9 @@
         "oracleId": "018129dd-f578-4fc9-b6f8-b13ed0c75a8d",
         "firstSet": "inv",
         "firstPrintId": "c76f346c-ae34-4f5f-8e3b-6c77b0c4d530",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Urborg, Tomb of Yawgmoth",
