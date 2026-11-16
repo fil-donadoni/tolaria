@@ -334,42 +334,6 @@ export const deathBomb = defineCard(() => ({
     ],
 }));
 
-// Diabolic Intent — {1}{B} Sorcery. "As an additional cost to cast this
-// spell, sacrifice a creature. Search your library for a card, put that
-// card into your hand, then shuffle." (CR 601.2b/118.8 additional sacrifice
-// cost, CR 401.4 search.) The tutor body is Demonic Tutor's own effect body
-// verbatim (`lea/black.cards.ts`) — this card's only distinguishing clause is the
-// additional cost.
-export const diabolicIntent = defineCard(() => ({
-    id: "76d1b5c5-cc47-465f-8549-4fd1ca4280df", // PLS 42
-    name: "Diabolic Intent",
-    rarity: "rare",
-    oracleText:
-        "As an additional cost to cast this spell, sacrifice a creature.\nSearch your library for a card, put that card into your hand, then shuffle.",
-    manaCost: { X: 1, B: 1 },
-    types: ["Sorcery"],
-    additionalCosts: { sacrificeFilter: { types: "Creature" } },
-    effects: [
-        {
-            op: "choice",
-            kind: "search-library",
-            player: "controller",
-            zone: "library",
-            count: 1,
-            prompt: "Search your library for a card.",
-            bind: "$picked",
-        },
-        {
-            op: "moveZone",
-            cards: { ref: "$picked" },
-            player: "controller",
-            from: "library",
-            to: "hand",
-        },
-        { op: "libraryLook", action: "shuffle", player: "controller" },
-    ],
-}));
-
 // Exotic Disease — {4}{B} Sorcery. "Domain — Target player loses X life and
 // you gain X life, where X is the number of basic land types among lands
 // you control." (CR 702 preamble Domain ability word, issue #1066's shipped
@@ -662,28 +626,6 @@ export const planeswalkersScorn = defineCard(() => ({
     ],
 }));
 
-// Shriek of Dread — {1}{B} Instant. "Target creature gains fear until end
-// of turn." (CR 702.14b fear, CR 611.2a temporary keyword grant via the
-// shipped `grantAbility` Op — Hooded Kavu's own self-targeted shape
-// (`inv/multicolor.cards.ts`) with an announced target instead of `$source`.)
-export const shriekOfDread = defineCard(() => ({
-    id: "54a7fb3b-8e81-4763-b2a1-7c2108a00afe", // PLS 53
-    name: "Shriek of Dread",
-    rarity: "common",
-    oracleText: "Target creature gains fear until end of turn.",
-    manaCost: { X: 1, B: 1 },
-    types: ["Instant"],
-    targetRequirement: { type: "Creature", count: 1 },
-    effects: [
-        {
-            op: "grantAbility",
-            ability: "fear",
-            target: { target: 0 },
-            duration: { phase: "end-of-turn" },
-        },
-    ],
-}));
-
 // Sinister Strength — {1}{B} Enchantment — Aura. "Enchant creature.
 // Enchanted creature gets +3/+1 and is black." (CR 303.4 aura; CR 611 layer
 // 7c pt-buff + layer 5 color-grant, both scoped via the shared
@@ -731,25 +673,6 @@ export const sinisterStrength = defineCard(() => ({
             applies: AURA_AFFECTS_HOST,
             colors: ["B"],
         },
-    ],
-}));
-
-// Slay — {2}{B} Instant. "Destroy target green creature. It can't be
-// regenerated. Draw a card." (CR 701.8/701.19c destroy + can't-be-
-// regenerated — Terror's shape (`lea/black.cards.ts`) with a positive
-// `colorFilter: "G"` instead of `excludeColors`; CR 120.1 draw.)
-export const slay = defineCard(() => ({
-    id: "eccda747-2680-4793-8a13-35e49b4de12f", // PLS 55
-    name: "Slay",
-    rarity: "uncommon",
-    oracleText:
-        "Destroy target green creature. It can't be regenerated.\nDraw a card.",
-    manaCost: { X: 2, B: 1 },
-    types: ["Instant"],
-    targetRequirement: { type: "Creature", count: 1, colorFilter: "G" },
-    effects: [
-        { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
-        { op: "draw", player: "controller", count: 1 },
     ],
 }));
 

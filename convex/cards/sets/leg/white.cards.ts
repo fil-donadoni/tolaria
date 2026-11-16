@@ -538,32 +538,6 @@ export const infiniteAuthority = defineCard(() => ({
     ],
 }));
 
-// --- Sweepers / removal spells (CR 701.7) ----------------------------------
-
-// Cleanse — "Destroy all black creatures." (CR 701.8 mass destroy filtered on
-// colour, CR 202.2.)
-// Migrated resolve()→effects[] (ADR 0045): `forEach` over every player's
-// battlefield creatures filtered to color B (CR 202.2) → `destroy` each.
-export const cleanse = defineCard(() => ({
-    id: "2fbd611b-ac97-4516-bad7-cc9ee4ef74f7",
-    rarity: "rare",
-    name: "Cleanse",
-    oracleText: "Destroy all black creatures.",
-    manaCost: { X: 2, W: 2 },
-    types: ["Sorcery"],
-    effects: [
-        {
-            op: "forEach",
-            select: {
-                set: "permanents",
-                zone: "battlefield",
-                filter: { type: "Creature", color: "B" },
-            },
-            effects: [{ op: "destroy", target: { ref: "$each" } }],
-        },
-    ],
-}));
-
 // Divine Offering — "Destroy target artifact. You gain life equal to its mana
 // value." (CR 701.8 + 118.3 lifegain; snapshot the MV before the destroy.)
 // Migrated resolve()→effects[] (ADR 0045): `destroy` binds the target's
@@ -709,40 +683,6 @@ export const greatDefender = defineCard(() => ({
         const mv = ctx.getManaValue(target);
         ctx.addTemporaryPTBuff(target, 0, mv, { phase: "end-of-turn" });
     },
-}));
-
-// Shield Wall — "Creatures you control get +0/+2 until end of turn." (CR 611.1
-// one-shot team buff applied per matching permanent.)
-export const shieldWall = defineCard(() => ({
-    id: "a5032bf0-f9c0-4ef0-8ec2-fe7ccea9bdf3",
-    rarity: "uncommon",
-    name: "Shield Wall",
-    oracleText: "Creatures you control get +0/+2 until end of turn.",
-    manaCost: { X: 1, W: 1 },
-    types: ["Instant"],
-    // Migrated resolve()→effects[] (ADR 0045, #840): `forEach` over the
-    // caster's battlefield creatures (CR 110/205) → `pump` each +0/+2 until
-    // end of turn (CR 611.1).
-    effects: [
-        {
-            op: "forEach",
-            select: {
-                set: "permanents",
-                zone: "battlefield",
-                controller: "controller",
-                filter: { type: "Creature" },
-            },
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$each" },
-                    power: 0,
-                    toughness: 2,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
 }));
 
 // --- Damage prevention (CR 615) --------------------------------------------

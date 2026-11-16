@@ -65,41 +65,6 @@ export const squirrelNest = defineCard(() => ({
     ],
 }));
 
-const CALL_OF_THE_HERD_ID = "429a88cc-53db-4c5e-a061-f0f49a38c675";
-
-// Call of the Herd — {2}{G} Sorcery. "Create a 3/3 green Elephant creature
-// token." plus "Flashback {3}{G}" (CR 702.34a — the graveyard cast pays the
-// flashback cost instead of the mana cost and exiles the card as it leaves the
-// stack; the whole keyword is engine infra, `convex/gre/flashback.ts`, driven
-// by the `flashback` printed-cost field, exactly as Krosan Reclamation
-// `jud/green.ts` uses it). The body is the plain `createToken` Op (CR 111 /
-// 701.7) with the token's printed art resolved by the client from the creating
-// printing's Token Print (a missing image renders a placeholder silently).
-export const callOfTheHerd = defineCard(() => ({
-    id: CALL_OF_THE_HERD_ID,
-    name: "Call of the Herd",
-    rarity: "rare",
-    oracleText: "Create a 3/3 green Elephant creature token.\nFlashback {3}{G}",
-    manaCost: { X: 2, G: 1 },
-    types: ["Sorcery"],
-    flashback: { X: 3, G: 1 },
-    effects: [
-        {
-            op: "createToken",
-            token: {
-                name: "Elephant",
-                types: ["Creature"],
-                subtypes: ["Elephant"],
-                power: 3,
-                toughness: 3,
-                colors: ["G"],
-            },
-            controller: "controller",
-            count: 1,
-        },
-    ],
-}));
-
 // Terravore — {1}{G}{G} Creature — Lhurgoyf with trample (CR 702.19a) whose
 // power AND toughness are each the number of land cards in ALL graveyards
 // (CR 604.3 characteristic-defining ability, applied in layer 7a per

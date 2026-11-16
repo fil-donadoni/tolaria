@@ -5,33 +5,6 @@
 
 import { defineCard } from "../../types";
 
-// Cabal Ritual — {1}{B} Instant. "Add {B}{B}{B}. Threshold — Add {B}{B}{B}{B}{B}
-// instead if there are seven or more cards in your graveyard." (CR 704.5n
-// Threshold ability word — engine infra, no registry row.)
-export const cabalRitual = defineCard(() => ({
-    id: "5403b49d-03a7-4cc3-af3c-df098c1c9c2e",
-    rarity: "uncommon",
-    name: "Cabal Ritual",
-    oracleText:
-        "Add {B}{B}{B}.\nThreshold — Add {B}{B}{B}{B}{B} instead if there are seven or more cards in your graveyard.",
-    manaCost: { X: 1, B: 1 },
-    types: ["Instant"],
-    effects: [
-        {
-            op: "if",
-            predicate: {
-                left: {
-                    count: { zone: "graveyard", controller: "controller" },
-                },
-                op: "ge",
-                right: 7,
-            },
-            then: [{ op: "addMana", mana: { B: 5 } }],
-            else: [{ op: "addMana", mana: { B: 3 } }],
-        },
-    ],
-}));
-
 // Sickening Dreams — {1}{B} Sorcery. "As an additional cost to cast this spell,
 // discard X cards.\nSickening Dreams deals X damage to each creature and each
 // player." (CR 601.2b/118.4 — a variable additional cost; CR 701.9a discard;
