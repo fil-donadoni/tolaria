@@ -30161,4 +30161,479 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9698, CR 603.7a. The same attack with three Forests. The Viper would still kill the Wurm, but three lands cannot pay {2}{G}{G} at the next upkeep, and not paying loses the game. Taking six from the Wurm at 20 life is the play.",
     },
+    // W-U-B-G Goryo's, the modern metagame's level-2 rows
+    // (`docs/agents/modern-metagame-bot-level-2.md`, issue #9699). The Bot's
+    // library is spells, never `libraryCount`'s basics: Griselbrand's seven
+    // cards are the payoff, and seven basic lands are worth about the 7 life
+    // they cost, so a library of basics turns every one of these positions
+    // into a different question.
+    {
+        label: "reanimation: Goryo's Vengeance returns the strongest legend before combat",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 0,
+            cards: [
+                { name: "Swamp", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Goryo's Vengeance", owner: "me", zone: "hand" },
+                { name: "Griselbrand", owner: "me", zone: "graveyard" },
+                {
+                    name: "Ragavan, Nimble Pilferer",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                    count: 30,
+                },
+                { name: "Plains", owner: "opp", zone: "library", count: 20 },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Goryo's Vengeance",
+                    target: "Griselbrand",
+                },
+            ],
+        },
+        note: "Issue #9699, CR 702.10b. Precombat main, an empty opposing board: Griselbrand returns with haste, attacks for 7 lifelink and pays 7 for seven cards before the end step exiles it. Ragavan is the weaker legend.",
+    },
+    {
+        label: "reanimation: Goryo's Vengeance never takes the weaker legend",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 0,
+            cards: [
+                { name: "Swamp", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Goryo's Vengeance", owner: "me", zone: "hand" },
+                {
+                    name: "Ragavan, Nimble Pilferer",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                { name: "Griselbrand", owner: "me", zone: "graveyard" },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                    count: 30,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "opp", zone: "library", count: 20 },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Goryo's Vengeance",
+                    target: "Ragavan, Nimble Pilferer",
+                },
+            ],
+        },
+        note: "Issue #9699. The 2/1 Ragavan, the Bears on guard, against a 7/7 flying lifelink with seven cards behind it: the one target is never the lesser legend.",
+    },
+    {
+        label: "pay life: Griselbrand never pays 7 life down to lethal",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "life", detail: "the Bot's life total" },
+        },
+        spec: {
+            phase: "POSTCOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 0,
+            life: { me: 7, opp: 20 },
+            cards: [
+                { name: "Swamp", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Goryo's Vengeance", owner: "me", zone: "hand" },
+                { name: "Griselbrand", owner: "me", zone: "graveyard" },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                    count: 20,
+                },
+                { name: "Plains", owner: "opp", zone: "library", count: 20 },
+            ],
+        },
+        // Goryo's Vengeance returns Griselbrand; both seats pass on the empty
+        // stack and the turn reaches its end step, where the delayed exile
+        // trigger goes on the stack (CR 603.7) with the Bot holding priority:
+        // the last window Griselbrand's ability has.
+        setup: [
+            { kind: "cast", card: "Goryo's Vengeance", target: "Griselbrand" },
+            { kind: "pass", seat: "opp" },
+            { kind: "pass", seat: "me" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Griselbrand" }],
+        },
+        note: "Issue #9699, CR 119.4 / 704.5a. At 7 life the cost is payable, and paying it leaves the Bot at 0: it loses before the seven cards matter.",
+    },
+    {
+        label: "pay life: Griselbrand pays 7 and draws seven with life to spare",
+        pairOf: {
+            anchor: "pay life: Griselbrand never pays 7 life down to lethal",
+            discriminant: { kind: "life", detail: "the Bot's life total" },
+        },
+        spec: {
+            phase: "POSTCOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 0,
+            life: { me: 20, opp: 20 },
+            cards: [
+                { name: "Swamp", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Goryo's Vengeance", owner: "me", zone: "hand" },
+                { name: "Griselbrand", owner: "me", zone: "graveyard" },
+                {
+                    name: "Serra Angel",
+                    owner: "me",
+                    zone: "library",
+                    count: 20,
+                },
+                { name: "Plains", owner: "opp", zone: "library", count: 20 },
+            ],
+        },
+        setup: [
+            { kind: "cast", card: "Goryo's Vengeance", target: "Griselbrand" },
+            { kind: "pass", seat: "opp" },
+            { kind: "pass", seat: "me" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Griselbrand" }],
+        },
+        note: "Issue #9699, CR 119.4. The same exile trigger at 20 life: 13 left over an empty opposing board, and seven cards drawn before Griselbrand leaves.",
+    },
+    {
+        label: "blink: Ephemerate saves the Goryo's Vengeance legend from its end-step exile",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "POSTCOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 5, opp: 20 },
+            cards: [
+                { name: "Swamp", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Goryo's Vengeance", owner: "me", zone: "hand" },
+                { name: "Ephemerate", owner: "me", zone: "hand" },
+                { name: "Griselbrand", owner: "me", zone: "graveyard" },
+            ],
+        },
+        // The Griselbrand pair's walk to the end-step exile trigger.
+        setup: [
+            { kind: "cast", card: "Goryo's Vengeance", target: "Griselbrand" },
+            { kind: "pass", seat: "opp" },
+            { kind: "pass", seat: "me" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Ephemerate",
+                    target: "Griselbrand",
+                },
+            ],
+        },
+        note: "Issue #9699, CR 400.7 / 603.7c. The exile trigger is on the stack. Blinked, Griselbrand returns as a new object the trigger no longer finds, and stays. At 5 life its own ability is unpayable (CR 119.4), so the blink is the only line.",
+    },
+    {
+        label: "blink: Ephemerate never lets the Goryo's Vengeance legend be exiled",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "POSTCOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 5, opp: 20 },
+            cards: [
+                { name: "Swamp", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Goryo's Vengeance", owner: "me", zone: "hand" },
+                { name: "Ephemerate", owner: "me", zone: "hand" },
+                { name: "Griselbrand", owner: "me", zone: "graveyard" },
+            ],
+        },
+        setup: [
+            { kind: "cast", card: "Goryo's Vengeance", target: "Griselbrand" },
+            { kind: "pass", seat: "opp" },
+            { kind: "pass", seat: "me" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "pass" },
+                {
+                    kind: "cast-spell",
+                    card: "Ephemerate",
+                    target: "Grizzly Bears",
+                },
+            ],
+        },
+        note: "Issue #9699, CR 603.7c. The exile trigger is on the stack and Ephemerate castable: passing loses Griselbrand, and blinking the Bears saves nothing.",
+    },
+    {
+        label: "discard pump: Psychic Frog discards the spare land to win its blocked combat",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                {
+                    name: "Psychic Frog",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Island", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        setup: [
+            { kind: "declare-attackers", cards: ["Psychic Frog"] },
+            {
+                kind: "declare-blockers",
+                blocks: [
+                    { blocker: "Grizzly Bears", attacker: "Psychic Frog" },
+                ],
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Psychic Frog",
+                    ability: "psychic-frog-discard-pump",
+                },
+            ],
+        },
+        note: "Issue #9699, CR 510.1. Blocked by the 2/2, the 1/2 Frog dies and the Bears live. One counter makes it 2/3: it survives and kills the Bears. The land in hand is the spare card.",
+    },
+    {
+        label: "discard pump: Psychic Frog never discards a live hand with no combat to win",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "POSTCOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 0,
+            landsPlayed: { me: 1 },
+            cards: [
+                { name: "Island", owner: "me", zone: "battlefield" },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Psychic Frog",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Counterspell", owner: "me", zone: "hand" },
+                { name: "Serra Angel", owner: "me", zone: "hand" },
+                {
+                    name: "Counterspell",
+                    owner: "me",
+                    zone: "library",
+                    count: 20,
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "library",
+                    count: 20,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Psychic Frog",
+                    ability: "psychic-frog-discard-pump",
+                },
+            ],
+        },
+        note: "Issue #9699. Combat is over: a counter wins nothing this turn, the 2/3 Frog still cannot fight the opposing 4/4 flyer, and each card in hand is a spell.",
+    },
+    {
+        label: "pitch counter: Force of Negation never pitches a card at an irrelevant spell",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "a lethal Lightning Bolt aimed at the Bot",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            activePlayer: "opp",
+            priority: "me",
+            passCount: 1,
+            life: { me: 3, opp: 20 },
+            cards: [
+                { name: "Force of Negation", owner: "me", zone: "hand" },
+                { name: "Brainstorm", owner: "me", zone: "hand" },
+                {
+                    name: "Island",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+            ],
+            // The opponent cast Opt and passed: the Bot holds priority.
+            stack: [{ kind: "spell", name: "Opt", controller: "opp" }],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Force of Negation" }],
+        },
+        note: "Issue #9699, CR 118.9. The opponent's Opt on the stack: two cards for a cantrip, the pitch spent before the spell that matters.",
+    },
+    {
+        label: "pitch counter: Force of Negation exiles a blue card to counter a lethal spell",
+        pairOf: {
+            anchor: "pitch counter: Force of Negation never pitches a card at an irrelevant spell",
+            discriminant: {
+                kind: "stack",
+                detail: "a lethal Lightning Bolt aimed at the Bot",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            activePlayer: "opp",
+            priority: "me",
+            passCount: 1,
+            life: { me: 3, opp: 20 },
+            cards: [
+                { name: "Force of Negation", owner: "me", zone: "hand" },
+                { name: "Brainstorm", owner: "me", zone: "hand" },
+                {
+                    name: "Island",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+            ],
+            // The opponent cast Lightning Bolt at the Bot and passed.
+            stack: [
+                {
+                    kind: "spell",
+                    name: "Lightning Bolt",
+                    controller: "opp",
+                    targets: [{ kind: "player", seat: "me" }],
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            // The anchor's forbidden move, verbatim (a right-hand half names
+            // the move its anchor ruled out); the Bolt is the one target.
+            moves: [{ kind: "cast-spell", card: "Force of Negation" }],
+        },
+        note: "Issue #9699, CR 118.9 / 701.6a. Lightning Bolt at the Bot on 3 life, on the opponent's turn, no land untapped: exiling Brainstorm pays for the counter that keeps the Bot alive.",
+    },
 ];
