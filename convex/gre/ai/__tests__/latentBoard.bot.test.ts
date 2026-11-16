@@ -25,7 +25,7 @@ import {
     representativeVictimLoss,
     targetSlotRequirements,
 } from "../latentBoard";
-import { shivanDragon, stoneRain } from "../../../cards/sets/lea/red.cards";
+import { stoneRain } from "../../../cards/sets/lea/red.cards";
 import {
     armageddon,
     disenchant,
@@ -39,6 +39,8 @@ import { pyroclasm } from "../../../cards/sets/ice/red.cards";
 import { hibernation } from "../../../cards/sets/usg/blue.cards";
 import { forceOfVigor } from "../../../cards/sets/mh1/green.cards";
 import { getDefinition } from "../../../cards";
+const shivanDragon = () =>
+    getDefinition("fefbf149-f988-4f8b-9f53-56f5878116a6");
 const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
 const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 const mindStone = () => getDefinition("162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71");

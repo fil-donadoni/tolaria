@@ -903,31 +903,6 @@ export const libraryOfLeng = defineCard(() => ({
     ],
 }));
 
-export const livingWall = defineCard(() => ({
-    id: "4a98ada6-923a-44a5-bdef-ea6a160b481e",
-    rarity: "uncommon",
-    name: "Living Wall",
-    oracleText:
-        "Defender (This creature can't attack.)\n{1}: Regenerate Living Wall.",
-    manaCost: { X: 4 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Wall"],
-    power: 0,
-    toughness: 6,
-    staticAbilities: ["defender"],
-    activatedAbilities: [
-        {
-            id: "living-wall-regenerate",
-            oracleText: "{1}: Regenerate Living Wall.",
-            cost: { mana: { X: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.19a) via the implicit $source.
-            effects: [{ op: "regenerate", target: { ref: "$source" } }],
-        },
-    ],
-}));
-
 // Mana Vault — "This artifact doesn't untap during your untap step. At the
 // beginning of your upkeep, you may pay {4}. If you do, untap this artifact.
 // At the beginning of your draw step, if this artifact is tapped, it deals 1

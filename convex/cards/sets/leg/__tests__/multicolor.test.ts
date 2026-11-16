@@ -595,7 +595,7 @@ describe("Tuknir Deathlock ({R}{G},{T}: target +2/+2 EOT, CR 611.1)", () => {
         });
         const baseP = getEffectivePower(state, bear);
         const baseT = getEffectiveToughness(state, bear);
-        resolveActivated(state, tuknir, "tuknir-deathlock-pump", [
+        resolveActivated(state, tuknir, "tuknir-deathlock-ability", [
             { type: "permanent", id: "bear" },
         ]);
         const live = state.players[0].battlefield.find((c) => c.id === "bear")!;
@@ -623,7 +623,7 @@ describe("Xira Arien ({B}{R}{G},{T}: target player draws, CR 121.1)", () => {
             ],
         });
         expect(state.players[0].hand.length).toBe(0);
-        resolveActivated(state, xira, "xira-arien-draw", [
+        resolveActivated(state, xira, "xira-arien-ability", [
             { type: "player", id: "p1" },
         ]);
         expect(state.players[0].hand.length).toBe(1);

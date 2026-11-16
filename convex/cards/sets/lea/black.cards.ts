@@ -1312,33 +1312,6 @@ export const unholyStrength = defineCard(() => ({
     ],
 }));
 
-// Wall of Bone — "Defender. {B}: Regenerate Wall of Bone." Same regen shape as
-// Drudge Skeletons; blocked from attacking by the Defender keyword (CR 702.3).
-export const wallOfBone = defineCard(() => ({
-    id: "ae20d442-a544-4a03-9ebf-5ecb137c67dd",
-    rarity: "uncommon",
-    name: "Wall of Bone",
-    oracleText:
-        "Defender (This creature can't attack.)\n{B}: Regenerate this creature. (The next time this creature would be destroyed this turn, instead tap it, remove it from combat, and heal all damage on it.)",
-    manaCost: { X: 2, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Skeleton", "Wall"],
-    power: 1,
-    toughness: 4,
-    staticAbilities: ["defender"],
-    activatedAbilities: [
-        {
-            id: "wall-of-bone-regenerate",
-            oracleText: "{B}: Regenerate Wall of Bone.",
-            cost: { mana: { B: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.19a) via the implicit $source.
-            effects: [{ op: "regenerate", target: { ref: "$source" } }],
-        },
-    ],
-}));
-
 // Warp Artifact — "Enchant artifact. At the beginning of the upkeep of
 // enchanted artifact's controller, Warp Artifact deals 1 damage to that
 // player." Mirror of Cursed Land/Feedback, hosting on Artifact instead.
@@ -1392,33 +1365,6 @@ export const weakness = defineCard(() => ({
             applies: AURA_AFFECTS_HOST,
             power: -2,
             toughness: -1,
-        },
-    ],
-}));
-
-// Will-o'-the-Wisp — "Flying. {B}: Regenerate Will-o'-the-Wisp." Flying static
-// + self-regen activated. Same shape as Drudge Skeletons / Wall of Bone.
-export const willOTheWisp = defineCard(() => ({
-    id: "a1a6f8e9-7bc1-4151-b55f-acf877b1a7a6",
-    rarity: "rare",
-    name: "Will-o'-the-Wisp",
-    oracleText:
-        "Flying (This creature can't be blocked except by creatures with flying or reach.)\n{B}: Regenerate this creature. (The next time this creature would be destroyed this turn, instead tap it, remove it from combat, and heal all damage on it.)",
-    manaCost: { B: 1 },
-    types: ["Creature"],
-    subtypes: ["Spirit"],
-    power: 0,
-    toughness: 1,
-    staticAbilities: ["flying"],
-    activatedAbilities: [
-        {
-            id: "will-o-the-wisp-regenerate",
-            oracleText: "{B}: Regenerate Will-o'-the-Wisp.",
-            cost: { mana: { B: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.19a) via the implicit $source.
-            effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 }));

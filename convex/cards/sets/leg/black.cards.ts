@@ -155,43 +155,6 @@ export const lostSoul = defineCard(() => ({
 
 // --- Activated-ability creatures (CR 605) ----------------------------------
 
-// Fallen Angel — Flying; "Sacrifice a creature: This creature gets +2/+1 until
-// end of turn." (CR 702.9 flying + CR 602.1 sacrifice-another cost via
-// `sacrificeFilter`, CR 611.1 buff.)
-export const fallenAngel = defineCard(() => ({
-    id: "0f4174e4-0be8-49b5-8c52-22001790f6eb",
-    rarity: "uncommon",
-    name: "Fallen Angel",
-    oracleText:
-        "Flying\nSacrifice a creature: This creature gets +2/+1 until end of turn.",
-    manaCost: { X: 3, B: 2 },
-    types: ["Creature"],
-    subtypes: ["Angel"],
-    power: 3,
-    toughness: 3,
-    staticAbilities: ["flying"],
-    activatedAbilities: [
-        {
-            id: "fallen-angel-feast",
-            oracleText:
-                "Sacrifice a creature: This creature gets +2/+1 until end of turn.",
-            cost: { sacrificeFilter: { types: "Creature" } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #840): self-pump +2/+1
-            // until end of turn (CR 611.1) via the `pump` Op.
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 2,
-                    toughness: 1,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
-
 // Hell's Caretaker — "{T}, Sacrifice a creature: Return target creature card
 // from your graveyard to the battlefield. Activate only during your upkeep."
 // (CR 602.5b activation-window restriction + CR 400.7 reanimation.)

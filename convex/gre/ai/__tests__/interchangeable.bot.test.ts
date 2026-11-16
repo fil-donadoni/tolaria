@@ -215,7 +215,7 @@ describe("negative controls — one axis a rule can read keeps two options", () 
         movesOf(state, "activate-ability", collapsed).filter(
             (m) =>
                 m.kind === "activate-ability" &&
-                m.abilityId === "shivan-dragon-pump"
+                m.abilityId === "shivan-dragon-ability"
         );
 
     it("BASELINE: two identical Shivan Dragons collapse to one pump", () => {

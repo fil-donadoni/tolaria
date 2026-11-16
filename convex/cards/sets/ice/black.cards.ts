@@ -1336,57 +1336,6 @@ export const infernalDenizen = defineCard(() => ({
         },
     ],
 }));
-// Knight of Stromgald — the black "Order" cycle shape: protection from white
-// (CR 702.16) plus a first-strike grant and a power pump (CR 611.2a).
-export const knightOfStromgald = defineCard(() => ({
-    id: "2b87069b-ebaf-4705-b5da-446932af9b73",
-    name: "Knight of Stromgald",
-    rarity: "uncommon",
-    oracleText:
-        "Protection from white\n{B}: This creature gains first strike until end of turn.\n{B}{B}: This creature gets +1/+0 until end of turn.",
-    manaCost: { B: 2 },
-    types: ["Creature"],
-    subtypes: ["Human", "Knight"],
-    power: 2,
-    toughness: 1,
-    staticAbilities: ["protection from white"],
-    activatedAbilities: [
-        {
-            id: "knight-of-stromgald-first-strike",
-            oracleText:
-                "{B}: This creature gains first strike until end of turn.",
-            cost: { mana: { B: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant first
-            // strike until end of turn (CR 611.2a).
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "first strike",
-                    target: { ref: "$source" },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-        {
-            id: "knight-of-stromgald-pump",
-            oracleText: "{B}{B}: This creature gets +1/+0 until end of turn.",
-            cost: { mana: { B: 2 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
-            // on this creature (CR 611.2a) via the pump Op.
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
 // Krovikan Elementalist — "{2}{R}: Target creature gets +1/+0 until end of turn.
 // {U}{U}: Target creature you control gains flying until end of turn. Sacrifice
 // it at the beginning of the next end step." (CR 611.2a temp buff + CR 702.9

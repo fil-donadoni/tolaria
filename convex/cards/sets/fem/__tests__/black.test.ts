@@ -874,7 +874,7 @@ describe("Order of the Ebon Hand — protection + pump knight (CR 702.16, 611.2c
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, order, "order-ebon-hand-first-strike");
+        resolveActivated(state, order, "order-of-the-ebon-hand-ability");
         const after = state.players[0].battlefield.find(
             (c) => c.id === "order"
         )!;

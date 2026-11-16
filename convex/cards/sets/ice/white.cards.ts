@@ -1344,56 +1344,6 @@ export const kjeldoranGuard = defineCard(() => ({
         },
     ],
 }));
-// Kjeldoran Knight — banding plus two repeatable self-pumps (CR 611.1, 702.22).
-export const kjeldoranKnight = defineCard(() => ({
-    id: "d5b9db8f-93b5-44e3-9e2b-728c80dfbb37",
-    name: "Kjeldoran Knight",
-    rarity: "rare",
-    oracleText:
-        "Banding\n{1}{W}: This creature gets +1/+0 until end of turn.\n{W}{W}: This creature gets +0/+2 until end of turn.",
-    manaCost: { W: 2 },
-    types: ["Creature"],
-    subtypes: ["Human", "Knight"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["banding"],
-    activatedAbilities: [
-        {
-            id: "kjeldoran-knight-pump-power",
-            oracleText: "{1}{W}: This creature gets +1/+0 until end of turn.",
-            cost: { mana: { X: 1, W: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
-            // on this creature (CR 611.2a) via the pump Op.
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-        {
-            id: "kjeldoran-knight-pump-toughness",
-            oracleText: "{W}{W}: This creature gets +0/+2 until end of turn.",
-            cost: { mana: { W: 2 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, issue #840): +0/+2 EOT
-            // on this creature (CR 611.2a) via the pump Op.
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 0,
-                    toughness: 2,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
 // Kjeldoran Phalanx — first strike + banding keyword creature (CR 702.7,
 // 702.22).
 export const kjeldoranPhalanx = defineCard(() => ({
@@ -1620,57 +1570,6 @@ export const orderOfTheSacredTorch = defineCard(() => ({
                 colorFilter: "B",
             },
             effects: [{ op: "counter", target: { target: 0 } }],
-        },
-    ],
-}));
-// Order of the White Shield — protection from black (CR 702.16) plus a first
-// strike grant and a power pump (CR 611.2a), the classic "Order" cycle shape.
-export const orderOfTheWhiteShield = defineCard(() => ({
-    id: "92e55b10-375f-4b4f-b676-3b9b8085fdd2",
-    name: "Order of the White Shield",
-    rarity: "uncommon",
-    oracleText:
-        "Protection from black\n{W}: This creature gains first strike until end of turn.\n{W}{W}: This creature gets +1/+0 until end of turn.",
-    manaCost: { W: 2 },
-    types: ["Creature"],
-    subtypes: ["Human", "Knight"],
-    power: 2,
-    toughness: 1,
-    staticAbilities: ["protection from black"],
-    activatedAbilities: [
-        {
-            id: "order-white-shield-first-strike",
-            oracleText:
-                "{W}: This creature gains first strike until end of turn.",
-            cost: { mana: { W: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant first
-            // strike until end of turn (CR 611.2a).
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "first strike",
-                    target: { ref: "$source" },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-        {
-            id: "order-white-shield-pump",
-            oracleText: "{W}{W}: This creature gets +1/+0 until end of turn.",
-            cost: { mana: { W: 2 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
-            // on this creature (CR 611.2a) via the pump Op.
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
         },
     ],
 }));

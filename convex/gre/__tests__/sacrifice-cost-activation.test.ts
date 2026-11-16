@@ -47,12 +47,12 @@ import {
 import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 import { legionExtruder } from "../../cards/sets/big/red.cards";
 import { orcGeneral } from "../../cards/sets/drk/red.cards";
-import { fallenAngel } from "../../cards/sets/leg/black.cards";
 import {
     makeInstance,
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
+const fallenAngel = () => getDefinition("0f4174e4-0be8-49b5-8c52-22001790f6eb");
 
 // --- pre-sacrifice mana value (mirror of game.ts sacrificedManaValue) ------
 function sacrificedManaValue(perm: CardInstanceState): number {
@@ -691,7 +691,7 @@ describe('bare "Sacrifice a creature" keeps the source a legal victim (CR 109.2 
             state,
             "p1",
             "angel-1",
-            "fallen-angel-feast"
+            "fallen-angel-ability"
         );
         // Swap this file's hand-written mirror requirement for the REAL
         // production lowering before the pick is offered. Without this the

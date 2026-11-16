@@ -22,9 +22,11 @@ import { describeMove } from "../describeMove";
 import { decidingPlayer } from "../search";
 import { lowerDecision } from "../ai/verdicts/lowering";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
-import { shivanDragon } from "../../cards/sets/lea/red.cards";
 import type { GameState } from "../state";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
+import { getDefinition } from "../../cards";
+const shivanDragon = () =>
+    getDefinition("fefbf149-f988-4f8b-9f53-56f5878116a6");
 
 /** Two creatures, one per seat, at the attack step — the board the blade
  *  `declare-attackers` step walks forward into an open block window. */

@@ -1412,64 +1412,6 @@ export const pyreZombie = defineCard(() => ({
     ],
 }));
 
-// Tsabo Tavoc — {5}{B}{R} Legendary Creature — Phyrexian Horror, 7/4.
-// "First strike, protection from legendary creatures. {B}{B}, {T}: Destroy
-// target legendary creature. It can't be regenerated."
-//
-// CR 702.7 first strike + CR 702.16a protection from a NON-COLOUR quality —
-// the catalogue's first CHARACTERISTIC protection ("legendary creatures" =
-// the Legendary supertype AND the Creature card type, CR 205.4a / 205.2).
-// `gre/protection.ts` parses it into a `ProtectionQuality` the single
-// `isProtectedFrom` predicate matches at EVERY CR 702.16 consult site, so all
-// of the DEBT clauses hold with no per-card wiring: a legendary creature
-// can't target it (702.16b), enchant it (702.16c), equip it (702.16d), damage
-// it (702.16e) or block it (702.16f).
-//
-// Two consequences worth naming, both falling out of the shared predicate
-// rather than being special-cased: protection has NO controller exception for
-// this quality family, so its controller's OWN legendary creatures are barred
-// too; and Tsabo Tavoc is itself a legendary creature, so its activated
-// ability can never target itself (the ability's source IS the protected-from
-// quality). The destroy clause is the ordinary `destroy` +
-// `cantBeRegenerated` shape (CR 701.8 / 701.19c, Annihilate in `inv/black.ts`),
-// with `supertypeFilter: "Legendary"` narrowing "target legendary creature"
-// (CR 205.4a, read LIVE so a supertype-stripping effect is honoured).
-export const tsaboTavoc = defineCard(() => ({
-    id: "ccbe2539-7a7c-468b-a270-7ca1bdcccb1e", // INV 288
-    rarity: "rare",
-    name: "Tsabo Tavoc",
-    oracleText:
-        "First strike, protection from legendary creatures\n{B}{B}, {T}: Destroy target legendary creature. It can't be regenerated.",
-    manaCost: { X: 5, B: 1, R: 1 },
-    types: ["Creature"],
-    supertypes: ["Legendary"],
-    subtypes: ["Phyrexian", "Horror"],
-    power: 7,
-    toughness: 4,
-    staticAbilities: ["first strike", "protection from legendary creatures"],
-    activatedAbilities: [
-        {
-            id: "tsabo-tavoc-destroy-legend",
-            oracleText:
-                "{B}{B}, {T}: Destroy target legendary creature. It can't be regenerated.",
-            cost: { mana: { B: 2 }, tap: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                supertypeFilter: "Legendary",
-            },
-            effects: [
-                {
-                    op: "destroy",
-                    target: { target: 0 },
-                    cantBeRegenerated: true,
-                },
-            ],
-        },
-    ],
-}));
-
 // Void — {3}{B}{R} Sorcery. "Choose a number. Destroy all artifacts and
 // creatures with mana value equal to that number. Then target player
 // reveals their hand and discards all nonland cards with mana value equal
@@ -2232,33 +2174,6 @@ export const captainSisay = defineCard(() => ({
                 },
                 { op: "libraryLook", action: "shuffle", player: "controller" },
             ],
-        },
-    ],
-}));
-
-// Charging Troll — {2}{G}{W} Creature — Troll, 3/3. "Vigilance\n{G}:
-// Regenerate this creature." (CR 702.20b vigilance; CR 701.19a
-// regeneration via the shipped `regenerate` Op self-targeted through
-// `$source` — the Clay Statue/Ghost Ship shape, `atq/colorless.cards.ts` /
-// `drk/blue.cards.ts`.)
-export const chargingTroll = defineCard(() => ({
-    id: "58956099-6b97-4c7b-ab23-9f9b4d50ef95",
-    rarity: "uncommon",
-    name: "Charging Troll",
-    oracleText: "Vigilance\n{G}: Regenerate this creature.",
-    manaCost: { X: 2, G: 1, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Troll"],
-    power: 3,
-    toughness: 3,
-    staticAbilities: ["vigilance"],
-    activatedAbilities: [
-        {
-            id: "charging-troll-regen",
-            oracleText: "{G}: Regenerate this creature.",
-            cost: { mana: { G: 1 } },
-            useStack: true,
-            effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 }));

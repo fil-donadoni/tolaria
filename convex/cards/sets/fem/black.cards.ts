@@ -344,54 +344,6 @@ export const necrite = defineCard(() => ({
     ],
 }));
 
-export const orderOfTheEbonHand = defineCard(() => ({
-    id: "9e51f5d8-a7cc-4720-8af5-e002bcfd78a0", // FEM 42a (canonical art)
-    rarity: "common",
-    name: "Order of the Ebon Hand",
-    oracleText:
-        "Protection from white\n{B}: This creature gains first strike until end of turn.\n{B}{B}: This creature gets +1/+0 until end of turn.",
-    manaCost: { B: 2 },
-    types: ["Creature"],
-    subtypes: ["Cleric", "Knight"],
-    power: 2,
-    toughness: 1,
-    staticAbilities: ["protection from white"],
-    activatedAbilities: [
-        {
-            id: "order-ebon-hand-first-strike",
-            oracleText:
-                "{B}: This creature gains first strike until end of turn.",
-            cost: { mana: { B: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant first
-            // strike until end of turn (CR 611.2a).
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "first strike",
-                    target: { ref: "$source" },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-        {
-            id: "order-ebon-hand-pump",
-            oracleText: "{B}{B}: This creature gets +1/+0 until end of turn.",
-            cost: { mana: { B: 2 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
-
 export const soulExchange = defineCard(() => ({
     id: "9f73597d-f453-4d37-b2ef-c54ef683a884", // FEM 43
     rarity: "uncommon",

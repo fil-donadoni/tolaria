@@ -359,7 +359,7 @@ describe("Wall of Lava firebreathing (CR 611.1)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, wall, "wall-of-lava-pump");
+        resolveActivated(state, wall, "wall-of-lava-ability");
         const after = state.players[0].battlefield[0];
         expect(getEffectivePower(state, after)).toBe(2);
         expect(getEffectiveToughness(state, after)).toBe(4);

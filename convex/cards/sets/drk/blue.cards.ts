@@ -194,33 +194,6 @@ export const erosion = defineCard(() => ({
     ],
 }));
 
-// Ghost Ship — "Flying\n{U}{U}{U}: Regenerate this creature." (CR 702.9 flying;
-// CR 605 activated ability; CR 701.19a regenerate via a shield consumed by the
-// next destroy.)
-export const ghostShip = defineCard(() => ({
-    id: "db591b28-37e5-4e7c-ae4d-d761262b12d0",
-    rarity: "common",
-    name: "Ghost Ship",
-    oracleText: "Flying\n{U}{U}{U}: Regenerate this creature.",
-    manaCost: { X: 2, U: 2 },
-    types: ["Creature"],
-    subtypes: ["Spirit"],
-    power: 2,
-    toughness: 4,
-    staticAbilities: ["flying"],
-    activatedAbilities: [
-        {
-            id: "ghost-ship-regenerate",
-            oracleText: "{U}{U}{U}: Regenerate this creature.",
-            cost: { mana: { U: 3 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.19a) via the implicit $source.
-            effects: [{ op: "regenerate", target: { ref: "$source" } }],
-        },
-    ],
-}));
-
 // Giant Shark — "This creature can't attack unless defending player controls an
 // Island.\nWhenever this creature blocks or becomes blocked by a creature that
 // has been dealt damage this turn, this creature gets +2/+0 and gains trample

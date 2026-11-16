@@ -144,45 +144,6 @@ export const unholyHeat = defineCard(() => ({
     ],
 }));
 
-// Blazing Rootwalla — {R} Creature — Lizard, 1/1. "{R}: This creature gets +2/+0
-// until end of turn. Activate only once each turn.\nMadness {0}." (CR 605 pump
-// activated ability with `oncePerTurn`, template Fire Drake `drk/red.cards.ts`; CR
-// 702.35 Madness — the discard→exile cast capability, `convex/gre/madness.ts`.
-// `Madness {0}` is the empty cost `{}`. The red counterpart to Basking Rootwalla
-// first printed in Modern Horizons 2.)
-export const blazingRootwalla = defineCard(() => ({
-    id: "4404fc9c-ef02-479c-9638-0cc163f0b48f",
-    rarity: "common",
-    name: "Blazing Rootwalla",
-    oracleText:
-        "{R}: This creature gets +2/+0 until end of turn. Activate only once each turn.\nMadness {0} (If you discard this card, discard it into exile. When you do, cast it for its madness cost or put it into your graveyard.)",
-    manaCost: { R: 1 },
-    types: ["Creature"],
-    subtypes: ["Lizard"],
-    power: 1,
-    toughness: 1,
-    madness: {},
-    activatedAbilities: [
-        {
-            id: "blazing-rootwalla-pump",
-            oracleText:
-                "{R}: This creature gets +2/+0 until end of turn. Activate only once each turn.",
-            cost: { mana: { R: 1 } },
-            useStack: true,
-            oncePerTurn: true,
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 2,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
-
 // Ragavan, Nimble Pilferer — {R} Legendary Creature — Monkey Pirate, 2/1
 // (MH2 138, Vintage Cube FREE wave 3: keyword-residue creatures, issue
 // #1527, closes #917 residue). "Whenever Ragavan, Nimble Pilferer deals
