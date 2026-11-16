@@ -31,6 +31,7 @@ import { storedDeckColumnLayoutValidator } from "./deckLayoutStorage";
 import { definitionManifestEntryValidator } from "./definitionManifestEntry";
 import { botFaultValidator } from "./botFaultReport";
 import { consultFailureRecordFields } from "./botConsultFailureStore";
+import { driverExitFields } from "./botDriverExitStore";
 import {
     botReachTraceValidator,
     compileSourceValidator,
@@ -231,6 +232,14 @@ export default defineSchema({
         "by_gameId",
         ["gameId"]
     ),
+    // The last state version at which the human's vs-AI driver LEFT the game
+    // with the Bot owed (issue #10006, `convex/botDriverExitStore.ts`): ONE
+    // row per game, patched in place. The server deadline reads it to tell a
+    // player who left from a dead driver. Deleted with its game by
+    // `deleteGameCascade` (`matches.ts`).
+    botDriverExits: defineTable(driverExitFields).index("by_gameId", [
+        "gameId",
+    ]),
     // The game-end Verdict Proposal judge's per-game position counter
     // (`convex/verdictJudgeGuard.ts`): ONE row per game, written by the first
     // accepted judge call with the caller and the game's two seats (so later

@@ -66,6 +66,11 @@ export type BrainResult = {
     via: "worker" | "inline";
     /** The failure text, for the error outcomes only. */
     message?: string;
+    /** Settled by `dispose` — the player left or swapped the game — rather
+     *  than by the Brain (issue #10006). Not a Brain failure: the driver
+     *  drops it, reporting nothing and submitting nothing to a game nobody
+     *  is driving any more. */
+    disposed?: true;
     /** The seat's decision history with this move recorded (issue #3590) —
      *  hand it back as the next consult's `repetition`. */
     repetition?: RepetitionHistory;
@@ -387,6 +392,7 @@ function createBrainChannel(): BrainChannel {
                 outcome: "worker-error",
                 via: "worker",
                 message: "Brain disposed — the game was left or swapped",
+                disposed: true,
             });
         }
         failures = 0;

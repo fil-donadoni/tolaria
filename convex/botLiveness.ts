@@ -9,7 +9,10 @@
 //   ran out.
 // - `checkDeadline` — the server deadline: the one scheduled
 //   check per game `saveGameState` arms while the Bot is owed
-//   (`convex/botDeadline.ts`). It holds when no client acts at all.
+//   (`convex/botDeadline.ts`). It holds when no client acts at all. When the
+//   player's driver reported LEAVING that exact position (`reportDriverExit`,
+//   `botDriverExitStore.ts`) it still advances, but files nothing: a player
+//   who left is not a Bot fault.
 //
 // Beside them, OBSERVATION only (issue #9502): `reportConsultFailure` records
 // a Brain consult that gave no answer (`search-error` / `worker-error` /
@@ -42,6 +45,7 @@ import {
     type ConsultFailureRecord,
     type ConsultFailureSample,
 } from "./botConsultFailureStore";
+import { playerLeftAtSeq, readDriverExit } from "./botDriverExitStore";
 import type { BotFault } from "./botFaultReport";
 import { recordSystemBugReport } from "./bugReports";
 import { tryGetDefinition } from "./cards";
@@ -228,26 +232,31 @@ async function enforceBotWindow(
         origin: BotFault["origin"];
         faultClass: string;
         clientDiagnostics?: unknown;
+        /** `false` when the advance is no fault at all — the player left the
+         *  position (`botDriverExitStore.ts`): advance and save, file nothing. */
+        report?: boolean;
     }
 ): Promise<ForceAdvanceResult> {
     const { gameId, gameState } = input;
     const state = gameState.state as GameState;
     const result = forceAdvanceOwedInput(state, input.botId);
-    await recordSystemBugReport(ctx, {
-        gameId,
-        fault: botFaultFromForceAdvance({
-            origin: input.origin,
-            faultClass: input.faultClass,
-            state,
-            owed: input.owed,
-            result,
-        }),
-        snapshot: {
-            seq: gameState.seq,
-            state: state as unknown as Record<string, unknown>,
-        },
-        clientDiagnostics: input.clientDiagnostics,
-    });
+    if (input.report !== false) {
+        await recordSystemBugReport(ctx, {
+            gameId,
+            fault: botFaultFromForceAdvance({
+                origin: input.origin,
+                faultClass: input.faultClass,
+                state,
+                owed: input.owed,
+                result,
+            }),
+            snapshot: {
+                seq: gameState.seq,
+                state: state as unknown as Record<string, unknown>,
+            },
+            clientDiagnostics: input.clientDiagnostics,
+        });
+    }
 
     const nextSeq = gameState.seq + 1;
     await saveGameState(ctx, gameId, nextSeq, result.state, gameState);
@@ -312,6 +321,12 @@ export const checkDeadline = internalMutation({
         }
         const owed = botOwedWindow(state, botId);
         if (!owed) return null;
+        // The player left this very position (their driver said so on the
+        // way out): the advance is the whole remedy, not a Bot fault.
+        const left = playerLeftAtSeq(
+            await readDriverExit(ctx, args.gameId),
+            gameState.seq
+        );
         await enforceBotWindow(ctx, {
             gameId: args.gameId,
             gameState,
@@ -320,6 +335,7 @@ export const checkDeadline = internalMutation({
             origin: "server-deadline",
             faultClass: DEADLINE_FAULT_CLASS,
             clientDiagnostics: DEADLINE_DIAGNOSTICS,
+            report: !left,
         });
         return null;
     },
@@ -396,6 +412,37 @@ export const reportConsultFailure = mutation({
             await ctx.db.insert("botConsultFailures", {
                 gameId: args.gameId,
                 ...next,
+            });
+        }
+        return null;
+    },
+});
+
+/**
+ * The human's vs-AI driver LEFT the game (issue #10006): its game effect's
+ * cleanup ran — the player navigated away or swapped games — while the Bot was
+ * owed at state version `seq`. Records nothing else and advances nothing; the
+ * server deadline reads it to file no fault for a player who left
+ * (`botDriverExitStore.ts`). Same authorization as `reportConsultFailure`: the
+ * caller is the human of this vs-AI game. Sent fire-and-forget.
+ */
+export const reportDriverExit = mutation({
+    args: { gameId: v.id("games"), seq: v.number() },
+    returns: v.null(),
+    handler: async (ctx, args): Promise<null> => {
+        const userId = await getCurrentUserId(ctx);
+        const game = await ctx.db.get(args.gameId);
+        if (!game) throw new ConvexError("Game not found.");
+        vsAiBotSeat(game, userId);
+
+        const exit = { seq: args.seq, at: Date.now() };
+        const row = await readDriverExit(ctx, args.gameId);
+        if (row) {
+            await ctx.db.patch(row._id, exit);
+        } else {
+            await ctx.db.insert("botDriverExits", {
+                gameId: args.gameId,
+                ...exit,
             });
         }
         return null;
