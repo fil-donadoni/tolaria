@@ -393,41 +393,6 @@ export const hornedKavu = defineCard(() => ({
     ],
 }));
 
-// Lava Zombie — {1}{B}{R} Creature — Zombie, 4/3. Bounce template plus a
-// firebreathing-shaped generic pump.
-export const lavaZombie = defineCard(() => ({
-    id: "fd87185b-1242-4fb3-abee-44bc267ee5fb", // PLS printing (scryfallId)
-    rarity: "common",
-    name: "Lava Zombie",
-    oracleText:
-        "When this creature enters, return a black or red creature you control to its owner's hand.\n{2}: This creature gets +1/+0 until end of turn.",
-    manaCost: { X: 1, B: 1, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Zombie"],
-    power: 4,
-    toughness: 3,
-    triggeredAbilities: [
-        bounceOnEntry("lava-zombie", ["B", "R"], "black or red"),
-    ],
-    activatedAbilities: [
-        {
-            id: "lava-zombie-pump",
-            oracleText: "{2}: This creature gets +1/+0 until end of turn.",
-            cost: { mana: { X: 2 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
-
 // Malicious Advice — {X}{U}{B} Instant. "Tap X target artifacts, creatures,
 // and/or lands. You lose X life."
 //
