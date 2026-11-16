@@ -626,12 +626,17 @@ describe("City of Shadows — storage land (CR 605.1a, exile-to-store + per-coun
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, city, "city-of-shadows-store", [
-            { type: "permanent", id: "fodder" },
-        ]);
+        // CR 602.2b — the exile is the activation COST, paid before the
+        // ability resolves; no target is chosen.
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "city",
+            abilityId: "city-of-shadows-store",
+        });
         expect(state.players[0].exile.some((c) => c.id === "fodder")).toBe(
             true
         );
+        resolveTopOfStack(state);
         const stored = state.players[0].battlefield.find(
             (c) => c.id === "city"
         )!;

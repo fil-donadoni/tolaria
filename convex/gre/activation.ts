@@ -731,7 +731,9 @@ export function assertPermanentGiveUpCostAffordable(
             throw new Error(
                 leg.action === "return"
                     ? "No legal permanent to pay the return-to-hand cost"
-                    : "No legal permanent to pay the sacrifice cost"
+                    : leg.action === "exile"
+                      ? "No legal permanent to pay the exile cost"
+                      : "No legal permanent to pay the sacrifice cost"
             );
         }
     }

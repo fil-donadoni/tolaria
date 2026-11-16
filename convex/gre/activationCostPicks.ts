@@ -12,6 +12,7 @@
 //   `cost.tapOtherFilter`     → `selectActivationCost`         (CR 118.8)
 //   `cost.sacrificeFilter`    → `selectSacrifice`              (CR 701.21 / 118.5)
 //   `cost.returnToHandFilter` → `selectSacrifice`              (CR 602.1a / 118.3)
+//   `cost.exileFilter`        → `selectSacrifice`              (CR 602.1a / 118.3)
 //
 // The bot has to answer them exactly like a human does, so the picks are part of
 // the `activate-ability` Move (`moves.ts`) rather than re-derived at each site:
@@ -234,8 +235,8 @@ export function buildActivationSacrificeSelection(
     if (ability.cost.returnUnblockedAttacker) {
         specs.push(ninjutsuReturnRequirement(state, player.id));
     }
-    // CR 602.1a / 118.3 — the filtered give-up legs, `sacrificeFilter` and
-    // `returnToHandFilter`, read through their one authority so a leg is never
+    // CR 602.1a / 118.3 — the filtered give-up legs, `sacrificeFilter`,
+    // `returnToHandFilter` and `exileFilter`, read through their one authority so a leg is never
     // gated in one place and missing from the payment here.
     for (const leg of permanentGiveUpCostLegs(ability.cost)) {
         specs.push({
@@ -273,7 +274,13 @@ export function buildActivationSacrificeSelection(
                       // payment with a static sacrifice tax (Drought).
                       action: "return" as const,
                   }
-                : { snapshot: leg.count === 1 }),
+                : leg.action === "exile"
+                  ? {
+                        // CR 701.13a — City of Shadows' "Exile a creature you
+                        // control": the pick goes to exile, per requirement.
+                        action: "exile" as const,
+                    }
+                  : { snapshot: leg.count === 1 }),
         });
     }
     for (const req of getStaticAdditionalSacrifices(

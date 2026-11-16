@@ -1885,6 +1885,22 @@ export interface ActivatedAbility {
          *  not expressible as a filter). Every gate reads it through
          *  `permanentGiveUpCostLegs` (`gre/constants.ts`), never directly. */
         returnToHandFilter?: PermanentFilter;
+        /** "Exile a permanent matching <filter> you control" as an activation
+         *  cost (CR 602.1a — the activation cost is everything before the
+         *  colon; CR 701.13a — exile moves the object to the exile zone):
+         *  City of Shadows' "Exile a creature you control". The exile twin of
+         *  `sacrificeFilter` and `returnToHandFilter`.
+         *
+         *  Paid while ACTIVATING (CR 602.2b applies CR 601.2h), never on
+         *  resolution: the permanent is gone before anyone can respond, the
+         *  ability cannot fizzle for it, and it is not a target. It rides the
+         *  same selection layer as the other give-up legs
+         *  (`gre/sacrificeChoice.ts`, a requirement with `action: "exile"`),
+         *  applied at commit. The activation is illegal unless the activator
+         *  controls a matching permanent (CR 118.3); `excludeSource` reads
+         *  "another". Always ONE permanent. Every gate reads it through
+         *  `permanentGiveUpCostLegs` (`gre/constants.ts`). */
+        exileFilter?: PermanentFilter;
         /** "Return an unblocked attacking creature you control to its owner's
          *  hand" as an activation cost (CR 702.49a — the Ninjutsu cost's
          *  non-mana component, alongside its mana leg and the reveal).

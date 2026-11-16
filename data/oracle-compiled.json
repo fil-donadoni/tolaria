@@ -1431,7 +1431,7 @@
         {"key":"24ecbdea79c7","text":"As an additional cost to cast this spell, exile X creature cards from your graveyard.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"spell","path":["activation cost"],"span":"Exile X creature cards from your graveyard"}},
         {"key":"22be24077f0a","text":"As an additional cost to cast this spell, exile a creature card from your graveyard.","reason":"\"exile-from-graveyard\" is not an additional cost this grammar can encode (CR 601.2f)","cards":1},
         {"key":"e85e65c2230c","text":"As an additional cost to cast this spell, exile a creature card from your graveyard.","reason":"no slot consumed the line","cards":5,"attribution":{"slot":"static","path":["static clause"],"span":"As an additional cost to cast this spell, exile a creature card from your graveyard"}},
-        {"key":"bf5af7a0739a","text":"As an additional cost to cast this spell, exile a creature you control.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"spell","path":["activation cost"],"span":"Exile a creature you control"}},
+        {"key":"df73ff669902","text":"As an additional cost to cast this spell, exile a creature you control.","reason":"\"exile-other\" is not an additional cost this grammar can encode (CR 601.2f)","cards":1},
         {"key":"e06c5fda93cb","text":"As an additional cost to cast this spell, exile a creature you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As an additional cost to cast this spell, exile a creature you control"}},
         {"key":"85b92511986d","text":"As an additional cost to cast this spell, exile an instant or sorcery card from your graveyard.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["activation cost"],"span":"Exile an instant or sorcery card from your graveyard"}},
         {"key":"40c97b2cc7c8","text":"As an additional cost to cast this spell, exile five instant and/or sorcery cards you own with the same artist and different names from outside the game.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"As an additional cost to cast this spell, exile five instant and/or sorcery cards you own with the same artist and different names from outside the game"}},
@@ -8205,7 +8205,7 @@
         {"key":"4beec998c47d","text":"Exile a creature card from your graveyard and pay its mana cost: Create a token that's a copy of that card. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Exile a creature card from your graveyard and pay its mana cost"}},
         {"key":"26c36294e3d3","text":"Exile a creature card from your graveyard. Create a token that's a copy of it. It gains haste until end of turn. Exile it at the beginning of the next end step.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","verb frame"],"span":"Create a token that's a copy of it"}},
         {"key":"b5acdb1e4ec5","text":"Exile a creature card from your graveyard: Put X +0/+1 counters on this creature, where X is the exiled card's mana value.","reason":"\"the exiled card\" names a card this ability's cost did not exile (CR 608.2h)","cards":1},
-        {"key":"0ff863912637","text":"Exile a creature you control: Add X mana of any one color, where X is 1 plus the exiled creature's mana value. Spend this mana only to cast creature spells.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Exile a creature you control"}},
+        {"key":"249e42351d52","text":"Exile a creature you control: Add X mana of any one color, where X is 1 plus the exiled creature's mana value. Spend this mana only to cast creature spells.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana production"],"span":"X mana of any one color, where X is 1 plus the exiled creature's mana value. Spend this mana only to cast creature spells"}},
         {"key":"ce8021d32fa3","text":"Exile a face-down permanent you control face up: You may play that card this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Exile a face-down permanent you control face up"}},
         {"key":"0a3cf0053fd4","text":"Exile all artifacts and creatures with mana value 3 or less. They perpetually gain \"This spell costs {2} more to cast\" and \"This permanent enters the battlefield tapped.\" For as long as each of them remain exiled, its owner may play it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"exile all artifacts and creatures with mana value 3 or less"}},
         {"key":"0582a310c909","text":"Exile all artifacts, creatures, and lands from the battlefield, all cards from all graveyards, and all cards from all hands.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"all artifacts, creatures, and lands from the battlefield, all cards from all graveyards, and all cards from all hands"}},
@@ -8248,7 +8248,7 @@
         {"key":"f568aca3cabb","text":"Exile all white creatures. For each creature exiled this way, its controller draws a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"exile all white creatures"}},
         {"key":"54e05ccb5fb3","text":"Exile an artifact or creature card from your graveyard: This Vehicle becomes an artifact creature until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Exile an artifact or creature card from your graveyard"}},
         {"key":"ef01e4afe61c","text":"Exile an instant or sorcery card with mana value 3 or less from your graveyard at random. You may cast it without paying its mana cost. If that spell would be put into a graveyard, exile it instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"an instant or sorcery card with mana value 3 or less from your graveyard at random"}},
-        {"key":"1d0aa2241696","text":"Exile an instant or sorcery spell you control: Put two +1/+1 counters on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Exile an instant or sorcery spell you control"}},
+        {"key":"b661998d3b92","text":"Exile an instant or sorcery spell you control: Put two +1/+1 counters on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost","object descriptor"],"span":"instant or sorcery spell you control"}},
         {"key":"4d20d9dd056e","text":"Exile any number of creatures you control, then return them to the battlefield under their owner's control. Then repeat this process X more times.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"any number of creatures you control"}},
         {"key":"c7bbfdedd3c0","text":"Exile any number of historic cards from your graveyard with total mana value 30 or greater: You get an emblem with \"Creatures you control have base power and toughness 9/9.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Exile any number of historic cards from your graveyard with total mana value 30 or greater: You get an emblem with \"Creatures you control have base power and toughness 9/9.\""}},
         {"key":"97856370df7e","text":"Exile any number of target creatures and all Auras attached to them.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"any number of target creatures and all Auras attached to them"}},
@@ -25462,7 +25462,7 @@
         {"key":"9a3ccc837318","text":"{1}{S}: Untap this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"{1}{S}"}},
         {"key":"e40167b4116e","text":"{1}{S}: Until end of turn, this land becomes a 2/3 Construct artifact creature. It's still a land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"{1}{S}"}},
         {"key":"f0ed649d305b","text":"{1}{U/B}, {Q}: Target creature gets -2/-0 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"{Q}"}},
-        {"key":"728d22a7c919","text":"{1}{U/P}, {T}, Exile a spell you control: Target opponent reveals cards from the top of their library until they reveal a card with mana value equal to 1 plus the exiled spell's mana value. Exile that card, then that player shuffles. You may cast that exiled card without paying its mana cost.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Exile a spell you control"}},
+        {"key":"e0931c9f55e8","text":"{1}{U/P}, {T}, Exile a spell you control: Target opponent reveals cards from the top of their library until they reveal a card with mana value equal to 1 plus the exiled spell's mana value. Exile that card, then that player shuffles. You may cast that exiled card without paying its mana cost.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost","object descriptor"],"span":"spell you control"}},
         {"key":"22d028900bac","text":"{1}{U/P}{U/P}, Remove three counters from among other artifacts, creatures, and planeswalkers you control: Put an indestructible counter on {self}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Remove three counters from among other artifacts"}},
         {"key":"df5e4cfb82fe","text":"{1}{U/R}{U/R}: Copy target instant or sorcery spell that targets you. You may choose new targets for the copy.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Copy target instant or sorcery spell that targets you"}},
         {"key":"07ae22b83205","text":"{1}{U}, Discard this card: Look at the top two cards of your library. Put one of them into your hand and the other into your graveyard.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Discard this card"}},
@@ -25940,7 +25940,6 @@
         {"key":"f292ff9258d7","text":"{2}{B}, Sacrifice this enchantment: Target opponent loses X life, where X is the amount of life you gained this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Target opponent loses X life, where X is the amount of life you gained this turn"}},
         {"key":"1a581a60f35c","text":"{2}{B}, Tap an untapped creature you control: Return this card from your graveyard to the battlefield tapped.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"{2}{B}, Tap an untapped creature you control"}},
         {"key":"13d18cdaf9e4","text":"{2}{B}, {T}, Discard a card: Each other player loses 2 life. You gain life equal to the life lost this way.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"You gain life equal to the life lost this way"}},
-        {"key":"ee15e83daa22","text":"{2}{B}, {T}, Exile a creature you control: Return target creature card from your graveyard to the battlefield. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Exile a creature you control"}},
         {"key":"f11653d397d9","text":"{2}{B}, {T}, Remove X +1/+1 counters from this creature: It deals X damage to target creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Remove X +1/+1 counters from this creature"}},
         {"key":"23a6fe6eb1f2","text":"{2}{B}, {T}, Sacrifice a blue creature, a black creature, and a red creature: Search your library for a card named Prince of Thralls, put it onto the battlefield, then shuffle.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"colors"}},
         {"key":"34b0964eb8d8","text":"{2}{B}, {T}, Sacrifice a creature: Return a Zombie creature card at random from your graveyard to the battlefield. Activate only during your turn and only if there are at least three Zombie creature cards in your graveyard.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Activate only during your turn and only if there are at least three Zombie creature cards in your graveyard"}},
@@ -26878,7 +26877,7 @@
         {"key":"9b5625eaca9e","text":"{6}: Roll a six-sided die.","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"activated","path":["effect clause"],"span":"Roll a six-sided die"}},
         {"key":"80859c48237e","text":"{6}: This land becomes a 3/3 Elemental artifact creature that's still a land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"This land becomes a 3/3 Elemental artifact creature that's still a land"}},
         {"key":"cb79074ead8f","text":"{6}: Transform {self}. Anypony may activate this ability or help pay the cost. When they do, they become your friend.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Anypony may activate this ability or help pay the cost"}},
-        {"key":"b42945cc1465","text":"{6}{B}, {T}, Exile a creature you control: Harness {self}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Exile a creature you control"}},
+        {"key":"a39654eec93f","text":"{6}{B}, {T}, Exile a creature you control: Harness {self}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Harness {self}"}},
         {"key":"899217489304","text":"{6}{B}: Adapt 4. This ability costs {1} less to activate for each other artifact you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"This ability costs {1} less to activate for each other artifact you control"}},
         {"key":"3ca5bfb61de8","text":"{6}{B}: Each opponent loses 2 life and you gain 2 life.","reason":"\"each player\" is not in grammar v0","cards":1},
         {"key":"81613dcbf494","text":"{6}{B}{B}, {T}: Each player's life total becomes the lowest life total among all players. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Each player's life total becomes the lowest life total among all players"}},
@@ -27257,7 +27256,6 @@
         {"key":"7be599327f5c","text":"{T}, Exile a Treefolk card from your graveyard: Search your library for up to two Forest cards, put them onto the battlefield tapped, then shuffle.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Exile a Treefolk card from your graveyard"}},
         {"key":"9fb3185882dd","text":"{T}, Exile a card from your graveyard: Add {R}. When you do, this creature deals 1 damage to each opponent.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"When you do, this creature deals 1 damage to each opponent"}},
         {"key":"d1b72aeacb35","text":"{T}, Exile a creature card from your graveyard: Discover X, where X is the mana value of the exiled card. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Discover X, where X is the mana value of the exiled card"}},
-        {"key":"2519ba5860d1","text":"{T}, Exile a creature you control: Put a storage counter on this land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Exile a creature you control"}},
         {"key":"db8ba90aa885","text":"{T}, Exile an Assassin card from your graveyard: Destroy target creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Exile an Assassin card from your graveyard"}},
         {"key":"37a0c0fa52c5","text":"{T}, Exile an instant or sorcery card from your graveyard: Put a +1/+1 counter on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Exile an instant or sorcery card from your graveyard"}},
         {"key":"4e1b64180331","text":"{T}, Exile any number of cards from your graveyard: Target creature gets -X/-X until end of turn, where X is the number of cards exiled this way.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Exile any number of cards from your graveyard"}},
@@ -30405,7 +30403,7 @@
 
         {"oracleId":"042fd95a-5e85-4ce5-bb68-066a295c54fb","name":"Burning Shield Askari","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["grantAbility"],"definition":{"name":"Burning Shield Askari","types":["Creature"],"subtypes":["Human","Knight"],"manaCost":{"X":2,"R":1},"power":2,"toughness":2,"oracleText":"Flanking (Whenever a creature without flanking blocks this creature, the blocking creature gets -1/-1 until end of turn.)\n{R}{R}: This creature gains first strike until end of turn.","staticAbilities":["flanking"],"activatedAbilities":[{"id":"burning-shield-askari-ability","oracleText":"{R}{R}: This creature gains first strike until end of turn.","cost":{"mana":{"R":2}},"useStack":true,"effects":[{"op":"grantAbility","target":{"ref":"$source"},"ability":"first strike","duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
-        {"oracleId":"043192d8-6077-46c3-b43f-b7caf6762869","name":"City of Shadows","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["2519ba5860d1","434060b296b7"]},
+        {"oracleId":"043192d8-6077-46c3-b43f-b7caf6762869","name":"City of Shadows","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["434060b296b7"]},
 
         {"oracleId":"0431b67e-ce09-4009-ba5b-9fd41e6f1df4","name":"Elder of Laurels","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9e3a92bee0eb"]},
 
@@ -32051,7 +32049,7 @@
 
         {"oracleId":"0a364879-31bd-4760-833d-165cde1e96c6","name":"Yellowjacket, Heartless Marauder","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["16f3bfc6dbe6"]},
 
-        {"oracleId":"0a364b66-95df-480b-a733-e90f6d5c4d2b","name":"Altar of Bhaal // Bone Offering","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["79e3316e9465","ee15e83daa22"]},
+        {"oracleId":"0a364b66-95df-480b-a733-e90f6d5c4d2b","name":"Altar of Bhaal // Bone Offering","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["79e3316e9465"]},
 
         {"oracleId":"0a3d3d5e-fb77-4940-9ece-7ed62bd6413e","name":"Rules Lawyer","state":"unparsed","gaps":["e3b6847d4c97"]},
 
@@ -44011,7 +44009,7 @@
 
         {"oracleId":"366e0a62-ff95-48d1-bc63-7995a393bc34","name":"Narrow-Minded Baloney Fireworks","state":"unparsed","poolIn":["commander"],"gaps":["7800673dd12a"]},
 
-        {"oracleId":"366ea3b4-5e7e-4693-9f4b-1e549972609e","name":"Soul Exchange","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["bf5af7a0739a","fdcb6b59710c"]},
+        {"oracleId":"366ea3b4-5e7e-4693-9f4b-1e549972609e","name":"Soul Exchange","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["fdcb6b59710c"]},
 
         {"oracleId":"367282d6-956b-470d-a131-d22beff610b0","name":"Bramblecrush","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["destroy"],"definition":{"name":"Bramblecrush","types":["Sorcery"],"manaCost":{"X":2,"G":2},"oracleText":"Destroy target noncreature permanent.","effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1,"excludeTypes":["Creature"]}},"botReach":"played"},
 
@@ -52763,7 +52761,7 @@
 
         {"oracleId":"55e3dfcb-0999-401a-ae59-9804e12f4cfe","name":"Inquisitor's Snare","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["96499a149ae7"]},
 
-        {"oracleId":"55e42539-3fe2-4c84-9978-c071d6fc6aa0","name":"Synthesis Pod","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["728d22a7c919"]},
+        {"oracleId":"55e42539-3fe2-4c84-9978-c071d6fc6aa0","name":"Synthesis Pod","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["e0931c9f55e8"]},
 
         {"oracleId":"55e4b27e-5447-4fc2-8cae-a03e344600c6","name":"Nicol Bolas, the Ravager // Nicol Bolas, the Arisen","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e0f112872bfd","ef868293ac7d"]},
 
@@ -54583,7 +54581,7 @@
 
         {"oracleId":"5c8c4d53-f364-40da-989b-cfe1e3f79b7d","name":"Aveline de Grandpré","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["398a532a19fe","860166fb3dd7"]},
 
-        {"oracleId":"5c8e5092-962e-49ef-ab82-8434e475e4e7","name":"Food Chain","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["0ff863912637"]},
+        {"oracleId":"5c8e5092-962e-49ef-ab82-8434e475e4e7","name":"Food Chain","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["249e42351d52"]},
 
         {"oracleId":"5c902588-b16e-4679-b89e-7b11c928061f","name":"Chant of the Skifsang","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Chant of the Skifsang","types":["Enchantment"],"subtypes":["Aura"],"manaCost":{"X":2,"U":1},"oracleText":"Enchant creature\nEnchanted creature gets -13/-0.","compiledStaticEffects":[{"kind":"pt-buff","appliesTo":"host","power":-13,"toughness":0}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
@@ -62271,7 +62269,7 @@
 
         {"oracleId":"783f8411-328a-4a00-9610-a058400cbd6d","name":"Embereth Skyblazer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3481486aac1d","af69ea3688e1"]},
 
-        {"oracleId":"784108b9-dc85-4344-8c71-d527c4f850c0","name":"Necrotic Fumes","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["bf5af7a0739a"]},
+        {"oracleId":"784108b9-dc85-4344-8c71-d527c4f850c0","name":"Necrotic Fumes","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["df73ff669902"]},
 
         {"oracleId":"78427103-9543-41fb-b6d4-72963fe87275","name":"The Great Henge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b800d7e38afd","be137b481239","cddb0a3ab53e"]},
 
@@ -69667,7 +69665,7 @@
 
         {"oracleId":"92cf18ab-dd7b-4bc8-8b85-a81b8cb5192c","name":"Watcher of the Roost","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["28a2394ffbd1"]},
 
-        {"oracleId":"92cfba68-12f6-4f97-9187-0f6a39656a0f","name":"The Soul Stone","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b42945cc1465","e070cce34e62"]},
+        {"oracleId":"92cfba68-12f6-4f97-9187-0f6a39656a0f","name":"The Soul Stone","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a39654eec93f","e070cce34e62"]},
 
         {"oracleId":"92d07c7c-be30-4bcc-a632-99986fc5315c","name":"Wild Swing","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["fc7c4cb0f337"]},
 
@@ -87301,7 +87299,7 @@
 
         {"oracleId":"d2f98983-f395-4166-aa5a-309b4769baab","name":"Malfunction","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["5deb43a91ece","6f3b111160e0"]},
 
-        {"oracleId":"d2f9a8a0-509b-4c24-a8cc-f27f77c9eefd","name":"Nivmagus Elemental","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1d0aa2241696"]},
+        {"oracleId":"d2f9a8a0-509b-4c24-a8cc-f27f77c9eefd","name":"Nivmagus Elemental","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b661998d3b92"]},
 
         {"oracleId":"d2fbad7d-d05a-4321-9aff-a93bd102a3f4","name":"Dematerialize","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["moveZone"],"definition":{"name":"Dematerialize","types":["Sorcery"],"manaCost":{"X":3,"U":1},"oracleText":"Return target permanent to its owner's hand.\nFlashback {5}{U}{U} (You may cast this card from your graveyard for its flashback cost. Then exile it.)","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}],"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1},"flashback":{"X":5,"U":2}},"botReach":"played"},
 

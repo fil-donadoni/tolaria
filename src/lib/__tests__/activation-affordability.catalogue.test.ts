@@ -71,6 +71,7 @@ type Shape =
     | "tapOtherFilter"
     | "sacrificeFilter"
     | "returnToHandFilter"
+    | "exileFilter"
     | "requiresAttackedThisTurn"
     | "activationCondition";
 
@@ -389,6 +390,9 @@ function shapesOf(a: ActivatedAbility): Shape[] {
     // owner's hand" (Wirewood Symbiote's "Return an Elf you control") rides
     // the same gate and the same fixture as `sacrificeFilter` (`giveUpLegOf`).
     if (a.cost.returnToHandFilter) out.push("returnToHandFilter");
+    // CR 701.13a — "exile a permanent matching <filter> you control" (City of
+    // Shadows' "Exile a creature you control"), the exile twin.
+    if (a.cost.exileFilter) out.push("exileFilter");
     // CR 702.142a (Boast, issue #2375) — "Activate only if this creature
     // attacked this turn" is an ACTIVATION-TIMING gate rather than a cost leg,
     // but it lands on the same `getStackAbilities` surface-vs-hide contract
@@ -411,7 +415,7 @@ function shapesOf(a: ActivatedAbility): Shape[] {
  *  engine's `permanentGiveUpCostLegs`, for the reason `holds` below gives. */
 function giveUpLegOf(a: ActivatedAbility):
     | {
-          shape: "sacrificeFilter" | "returnToHandFilter";
+          shape: "sacrificeFilter" | "returnToHandFilter" | "exileFilter";
           filter: PermanentFilter;
           count: number;
       }
@@ -427,6 +431,13 @@ function giveUpLegOf(a: ActivatedAbility):
         return {
             shape: "returnToHandFilter",
             filter: a.cost.returnToHandFilter,
+            count: 1,
+        };
+    }
+    if (a.cost.exileFilter) {
+        return {
+            shape: "exileFilter",
+            filter: a.cost.exileFilter,
             count: 1,
         };
     }
@@ -508,6 +519,7 @@ function isManaMenuGated(a: ActivatedAbility): boolean {
         // withholding the entry would have hidden the only way to find out.
         !a.cost.sacrificeFilter &&
         !a.cost.returnToHandFilter &&
+        !a.cost.exileFilter &&
         !a.cost.discardFilter
     ) {
         return false;
@@ -636,6 +648,7 @@ for (const def of getAllCards()) {
                       s === "tapOtherFilter" ||
                       s === "sacrificeFilter" ||
                       s === "returnToHandFilter" ||
+                      s === "exileFilter" ||
                       s === "discardFilter"
               )
             : shapesOf(a);
