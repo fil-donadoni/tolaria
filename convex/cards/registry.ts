@@ -767,7 +767,9 @@ export function setLazyDefinitionSource(
 
 /** Runs `run` with `source`/`ids` installed as the lazy definition source,
  *  then puts the installed pair back — a test seam, like
- *  `withTemporaryDefinition`, for a source no catalogue would build. */
+ *  `withTemporaryDefinition`, for a source no catalogue would build. `run`
+ *  must consume what it reads before returning: a generator iterated after
+ *  it returns reads the restored source. */
 export function withLazyDefinitionSource<T>(
     source: DefinitionSource,
     ids: () => Iterable<string>,
