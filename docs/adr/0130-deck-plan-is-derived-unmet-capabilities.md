@@ -2,6 +2,10 @@
 
 **accepted, not built as of 2026-11-07** (issue #8725).
 
+**Renamed 2026-11-16**: what this ADR calls a deck's "Plan" is **Deck Needs**
+in `GLOSSARY.md`; **Plan** now names what a player intends at the table. The
+text below keeps the name it was decided under.
+
 ## Status
 
 accepted (2026-09-14, "formato verdicts" grill session, plan-and-archetype
