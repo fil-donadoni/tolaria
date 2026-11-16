@@ -11,6 +11,8 @@ import { enumerateMoves } from "../../moves";
 import { buildStateFromScenario } from "../../scenarioBuilder";
 import { isEvokeCast } from "../../search";
 import { buildBladeBaseState } from "../blade/baseState";
+import { findBladeScenario } from "../blade/registry";
+import { runBladeScenario } from "../blade/runner";
 
 const position = (cards: ScenarioSpec["cards"]) => {
     const base = buildBladeBaseState();
@@ -105,5 +107,16 @@ describe("isEvokeCast (issue #9864, CR 702.74a)", () => {
         for (const m of sacrifice) {
             expect(isEvokeCast(state, meId, meId, m)).toBe(false);
         }
+    });
+});
+
+describe("the search keeps an evoke out of the `pass` subtree (issue #9864)", () => {
+    it("passes rather than evoke two cards into a 0/2 with no ability", () => {
+        const entry = findBladeScenario(
+            "evoke: Solitude is never evoked with no threat, spending two cards"
+        )!;
+        const result = runBladeScenario(entry);
+        expect(result.failureMessage).toBe("");
+        expect(result.ok).toBe(true);
     });
 });
