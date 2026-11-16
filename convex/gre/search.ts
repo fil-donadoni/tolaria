@@ -1444,8 +1444,8 @@ export function applyMoveInSearch(
 
         case "name-card": {
             // CR 201.4a / 614.1c (issue #6676) — a search DECISION only when
-            // the effect seeks the name in the chooser's own library (issue
-            // #8709, `librarySoughtNameCandidates`); otherwise which name is
+            // the effect seeks the name in the chooser's own library or in a
+            // hand its script discards from (`nameCardCandidates`); otherwise which name is
             // worth naming is a valuation question (issue #2467), but no dead
             // end either: the walk answers an as-enters window with
             // `forcedChoiceAnswer`'s one legal name, so a Meddling Mage–shaped

@@ -15,6 +15,7 @@ import type {
     SlimCardInstance,
 } from "@convex/gameProjections";
 import { nonZoneChoiceCandidateIds } from "@convex/gre/ai/nonZoneChoiceCandidates";
+import { nameSoughtInHandOf } from "@convex/gre/ai/handSoughtName";
 import type { Move, PendingChoice } from "@convex/gre";
 import {
     getPendingChoiceMin,
@@ -1013,7 +1014,11 @@ function buildOwedChoice(
  *  `{ kind: "name", filter }` head (Meddling Mage, #2467) rejects anything the
  *  filter excludes.
  *
- *  Preference order, all three gated by the same predicate:
+ *  Preference order, all four gated by the same predicate:
+ *   0. when the resolving script discards the named cards from a hand
+ *      (`nameSoughtInHandOf`, Cabal Therapy), the most valuable card the bot
+ *      KNOWS is in that hand (a CR 701.20a reveal, ADR 0026 known slots), so
+ *      the name strips a card instead of whiffing (issue #9551);
  *   1. the chooser's own top library card when it is visible to the bot in the
  *      projection (the bot is the chooser), so a self-targeted Petra Sphinx
  *      digs the top into hand;
@@ -1035,6 +1040,8 @@ function nameCardDefaultFor(
         name !== undefined && isLegalNamedCard(state, head, name)
             ? name
             : undefined;
+    const knownInHand = knownHandNameFor(state, head, legal);
+    if (knownInHand !== undefined) return knownInHand;
     const owner = state.players.find((p) => p.id === head.playerId);
     // The projected library is sparse (ADR 0026): `{ count, known }` carrying
     // only cards the viewer knows, each at its top-relative `index`. The top
@@ -1524,4 +1531,29 @@ export function botActionToMove(
 /** Compile-time exhaustiveness guard for the `botActionToMove` switch. */
 function assertNever(x: never): never {
     throw new Error(`Unhandled BotAction: ${JSON.stringify(x)}`);
+}
+
+/** Rung 0 of `nameCardDefaultFor` (issue #9551): the most valuable legal name
+ *  among the cards the bot knows are in the hand a hand-sought name is sought
+ *  in. The projected hand carries identity only on known slots (ADR 0026);
+ *  every other slot is `null` and names nothing. Value, then name order, so
+ *  the answer is deterministic. */
+function knownHandNameFor(
+    state: PublicGameState,
+    head: PendingChoice,
+    legal: (name: string | undefined) => string | undefined
+): string | undefined {
+    const ownerId = nameSoughtInHandOf(head, state);
+    const hand = state.players.find((p) => p.id === ownerId)?.hand ?? [];
+    const worth = new Map<string, number>();
+    for (const card of hand) {
+        const id = card?.card?.id;
+        if (!id) continue;
+        const name = legal(tryGetDefinition(id)?.name);
+        if (name === undefined) continue;
+        worth.set(name, (worth.get(name) ?? 0) + cardValueById(id));
+    }
+    return [...worth.entries()].sort(
+        (a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)
+    )[0]?.[0];
 }

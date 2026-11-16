@@ -92,6 +92,7 @@ import {
     LAND_LIGHT_LANDS_IN_PLAY,
 } from "./asEntersDiscard";
 import { isLegalNamedCard } from "../pendingChoiceSubmit";
+import { nameSoughtInHandOf, type NameSeekingBoard } from "./handSoughtName";
 import { isFaceDownExile } from "../faceDown";
 import { eligibleZonePickCards } from "../zonePickEligibility";
 import { cardValueById } from "../cardValue";
@@ -1518,9 +1519,9 @@ export function forcedChoiceAnswer(
             cardInstanceIds: [...(choice.candidateIds ?? [])],
         };
     }
-    // Only the as-enters name (CR 614.1c): a mid-resolution `nameCard` (Cabal
-    // Therapy) still stops, scored by its script valuation — a public-zone
-    // name rarely hits the hidden hand, so resolving it read as a dud.
+    // Only the as-enters name (CR 614.1c): a mid-resolution name sought in a
+    // library or a hand is an in-tree node (`nameCardCandidates`) and never
+    // reaches here; any other mid-resolution name still stops the walk.
     if (choice.kind === "name-card")
         return isStacklessEntryPark(choice)
             ? nameCardAnswer(state, choice)
@@ -1722,9 +1723,8 @@ function nameCardAnswer(state: GameState, choice: PendingChoice): Move | null {
  *  whole library (Demonic Consultation, the Thassa's Oracle win). Neither is
  *  right in general, so the search weighs both rather than a valuation guess.
  *
- *  Any other `name-card` stays what it was: the as-enters name is answered by
- *  `nameCardAnswer`, and a mid-resolution name that seeks elsewhere (Cabal
- *  Therapy's opponent's hand) still stops the walk. */
+ *  A name sought in a hand is the sibling node (`handSoughtNameCandidates`);
+ *  the as-enters name is answered by `nameCardAnswer`. */
 function librarySoughtNameIsSearchable(choice: PendingChoice): boolean {
     return choice.nameSoughtIn === "chooser-library";
 }
@@ -1789,6 +1789,69 @@ const librarySoughtNameCandidates: ChoiceCandidateGenerator = (
         );
     return absent === undefined ? present : [...present, named(absent)];
 };
+
+/** A `name-card` whose resolving script discards the named cards from a
+ *  player's hand (CR 701.9, `nameSoughtInHandOf`) is a decision node too: a
+ *  name in that hand strips every copy of it, any other name does nothing.
+ *
+ *  The candidates are the distinct legal names in that hand IN THIS WORLD.
+ *  `determinize` keeps a hand card the chooser has been shown (`knownTo`, a
+ *  CR 701.20a reveal) and fills every other slot from what the decklist still
+ *  admits — copies already in public zones are struck from that pool — so a
+ *  known card is a branch in every world, a decklist-only name only in the
+ *  worlds that deal it, and ISMCTS availability weighs the two. With no deck
+ *  knowledge the unknown slots are placeholders that name nothing. Ranked by
+ *  the value of the copies the name would strip, name order breaking ties.
+ *
+ *  A miss is a branch only when nothing in the hand is a legal name, or the
+ *  hand is the chooser's own: the one public legal name `nameCardAnswer`
+ *  gives, so the walk resolves the spell rather than stopping at the window. */
+const handSoughtNameCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    const ownerId = nameSoughtInHandOf(choice, state);
+    const owner = state.players.find((p) => p.id === ownerId);
+    if (!owner) return [];
+    const stripped = new Map<string, number>();
+    for (const card of owner.hand) {
+        const id = String(card.card.id ?? "");
+        const name = tryGetDefinition(id)?.name;
+        if (name === undefined) continue;
+        const known = stripped.get(name);
+        if (known === undefined && !isLegalNamedCard(state, choice, name))
+            continue;
+        stripped.set(name, (known ?? 0) + cardValueById(id));
+    }
+    const named = (cardName: string) => ({
+        key: `name:${cardName}`,
+        move: { kind: "name-card" as const, cardName },
+    });
+    const hits = [...stripped.entries()]
+        .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+        .slice(0, CHOICE_TOP_K - 1)
+        .map(([name]) => named(name));
+    if (hits.length > 0 && ownerId !== choice.playerId) return hits;
+    const miss = nameCardAnswer(state, choice);
+    return miss?.kind === "name-card" && !stripped.has(miss.cardName)
+        ? [...hits, named(miss.cardName)]
+        : hits;
+};
+
+/** Whether a `name-card` is an in-tree node: its name is sought in the
+ *  chooser's library, or in a hand its resolving script names. */
+function nameCardIsSearchable(
+    choice: PendingChoice,
+    state: CandidateGateBoard | undefined
+): boolean {
+    return (
+        librarySoughtNameIsSearchable(choice) ||
+        nameSoughtInHandOf(choice, state) !== undefined
+    );
+}
+
+/** The `name-card` generator: one of the two sought-name shapes, else none. */
+const nameCardCandidates: ChoiceCandidateGenerator = (state, choice) =>
+    librarySoughtNameIsSearchable(choice)
+        ? librarySoughtNameCandidates(state, choice)
+        : handSoughtNameCandidates(state, choice);
 
 /** The answers a SETTLE weighs at `choice` (issue #4896): the in-tree
  *  candidates — whatever the search would open at that node — else the one
@@ -3152,6 +3215,11 @@ const chooseDamageTargetCandidates: ChoiceCandidateGenerator = (
     return out;
 };
 
+/** The board an applicability gate may read — a `GameState` or the projected
+ *  public one: the battlefield for a graveyard-position reader, the stack for
+ *  the script a name window resolves through. */
+export type CandidateGateBoard = ReaderBoard & NameSeekingBoard;
+
 /** The applicability gate `graveyardOrderCandidates` declines on — ONE
  *  predicate for gate and generator. CR 404.3 (issue #9555): the arrangement
  *  of a graveyard batch is a decision only while its owner controls a
@@ -3324,10 +3392,11 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     // CR 601.2c (issue #9148) — see `chooseDamageTargetCandidates`: the free
     // cast's target, scored by the search instead of a worst-first default.
     "choose-damage-target": chooseDamageTargetCandidates,
-    // CR 201.4 (issue #8709) — a name the effect seeks in the chooser's own
-    // library; see `librarySoughtNameCandidates`. Every other name window
-    // declines (`CHOICE_GENERATOR_APPLIES`) and keeps `forcedChoiceAnswer`.
-    "name-card": librarySoughtNameCandidates,
+    // CR 201.4 — a name the effect seeks in the chooser's own library
+    // (`librarySoughtNameCandidates`) or in a hand its script discards from
+    // (`handSoughtNameCandidates`, CR 701.9). Every other name window declines
+    // (`CHOICE_GENERATOR_APPLIES`) and keeps `forcedChoiceAnswer`.
+    "name-card": nameCardCandidates,
 };
 
 /** Per-kind APPLICABILITY predicate, read from the `PendingChoice` alone.
@@ -3348,7 +3417,10 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
 const CHOICE_GENERATOR_APPLIES: Partial<
     Record<
         PendingChoiceKind,
-        (choice: PendingChoice, state: ReaderBoard | undefined) => boolean
+        (
+            choice: PendingChoice,
+            state: CandidateGateBoard | undefined
+        ) => boolean
     >
 > = {
     "choose-hand-card": handPickIsSearchable,
@@ -3362,7 +3434,7 @@ const CHOICE_GENERATOR_APPLIES: Partial<
     // own `brain.ts` policy; see `choosePermanentsIsSearchable`.
     "choose-permanents": choosePermanentsIsSearchable,
     "choose-graveyard-card": graveyardExileIsSearchable,
-    "name-card": librarySoughtNameIsSearchable,
+    "name-card": nameCardIsSearchable,
     // Issue #9555 — reads the BOARD (is a graveyard-position reader out?), so
     // it is the one gate that needs the state beside the choice.
     "graveyard-order": graveyardOrderIsSearchable,
@@ -3384,7 +3456,7 @@ export function hasChoiceCandidateGenerator(kind: PendingChoiceKind): boolean {
  *  fallback (PR #1914 review finding 2). */
 export function isSearchableChoiceNode(
     choice: PendingChoice,
-    state?: ReaderBoard
+    state?: CandidateGateBoard
 ): boolean {
     if (CHOICE_CANDIDATE_GENERATORS[choice.kind] === undefined) return false;
     const applies = CHOICE_GENERATOR_APPLIES[choice.kind];

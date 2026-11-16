@@ -61,6 +61,7 @@ import {
     discardToGraveyard,
     emitPermanentEntered,
     grantKnowledge,
+    grantKnowledgeToAll,
     recordPublicLibraryPlacement,
     processPendingActionTriggers,
     resolveTopOfStack,
@@ -873,6 +874,31 @@ function applyWitnessLibraryPlacement(
     recordPublicLibraryPlacement(state, card);
 }
 
+/** CR 701.20a — reveal a seat's whole hand to every player through the
+ *  engine's own `grantKnowledgeToAll`, the primitive the `reveal` Op resolves
+ *  into. Throws on an empty hand: a position that revealed nothing cannot
+ *  pass for one that revealed something. */
+function applyRevealHand(
+    state: GameState,
+    label: string,
+    step: Extract<BladeSetupStep, { kind: "reveal-hand" }>
+): void {
+    const ownerId = seatPlayerId(state, step.of ?? "opp");
+    const hand = state.players.find((p) => p.id === ownerId)!.hand;
+    if (hand.length === 0) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `hand of seat "${step.of ?? "opp"}" is empty; there is nothing to reveal`
+        );
+    }
+    grantKnowledgeToAll(
+        state,
+        ownerId,
+        hand.map((c) => c.id)
+    );
+}
+
 /** ADR 0026 (issue #1524) — grant a seat knowledge of a library's top cards
  *  through the engine's own `grantKnowledge`, the primitive every scry /
  *  surveil / Brainstorm keep resolves into. Throws when the library is shorter
@@ -1296,6 +1322,9 @@ function applyBladeSetupSteps(
                 break;
             case "know-library-top":
                 applyKnowLibraryTop(state, scenario.label, step);
+                break;
+            case "reveal-hand":
+                applyRevealHand(state, scenario.label, step);
                 break;
             case "witness-library-placement":
                 applyWitnessLibraryPlacement(state, scenario.label, step);
