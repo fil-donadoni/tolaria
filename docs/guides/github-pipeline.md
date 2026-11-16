@@ -1224,7 +1224,13 @@ waits for someone at the keyboard.
 (DROPPED / UNPROVEN) on the same facts — the hold comment names the head it
 judged: a hold that is the head's own (not open, a FULL / undecided scope)
 waits for a new push; any other (a conflict with a sibling, a fetch error,
-UNPROVEN) also names the base and is retried once the base moves. With none, the
+UNPROVEN) also names the base and is retried once the base moves. Every run
+prints each held PR with its head, what releases it and the hold's reason, so
+a held PR never reads as "no open `ui-owed` PR" (issue #10059). The batch
+scopes each PR with its own code, the base's scoper, while `land` re-derives
+with the PR's: a FULL / undecided drop of a PR that changes the scoper itself
+(the runtime closure of `scripts/lib/ui-scope.ts`) says so, and names the hand
+walk with the PR's own scoper (`bun run check:ui` in its worktree). With none, the
 run ends on the hosted runner: no worktree, no browser, no `lane` time. Else
 `collect` walks them in one batch from its [job worktree](#g-job-worktree):
 the clean ones get their receipt and `land:ready`, a red one `land-failed`

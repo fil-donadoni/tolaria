@@ -145,18 +145,83 @@ export interface OwedPr {
     comments: { body: string }[];
 }
 
-/** The PRs a scheduled batch owes a walk: every listed PR except one held
- *  at its current head — for good, or on the current base (issue #9264).
- *  Pure. */
+/** A listed PR a scheduled batch skips: held at its current head. */
+export interface HeldPr {
+    pr: number;
+    head: string;
+    /** `push`: the hold is the head's own, a new push releases it; `base`:
+     *  a new base releases it. */
+    until: "push" | "base";
+    /** The hold comment's first line, its `check:ui batch walk:` prefix
+     *  dropped — why the batch held it. */
+    reason: string;
+}
+
+/** Splits the listed `ui-owed` PRs into the ones a scheduled batch owes a
+ *  walk and the ones held at their current head — for good, or on the
+ *  current base (issue #9264). Both sorted by number. Pure. */
+export function partitionOwed(
+    prs: readonly OwedPr[],
+    base: string
+): { owed: number[]; held: HeldPr[] } {
+    const owed: number[] = [];
+    const held: HeldPr[] = [];
+    for (const p of [...prs].sort((a, b) => a.number - b.number)) {
+        const markers: [string, HeldPr["until"]][] = [
+            [heldMarker(p.headRefOid), "push"],
+            [heldMarker(p.headRefOid, base), "base"],
+        ];
+        const hit = markers
+            .map(([m, until]) => ({
+                until,
+                comment: p.comments.findLast((c) => c.body.includes(m)),
+            }))
+            .find((h) => h.comment !== undefined);
+        if (!hit) {
+            owed.push(p.number);
+            continue;
+        }
+        const first = hit.comment!.body.split("\n")[0] ?? "";
+        held.push({
+            pr: p.number,
+            head: p.headRefOid,
+            until: hit.until,
+            reason: first.replace(/^check:ui batch walk:\s*/, "").trim(),
+        });
+    }
+    return { owed, held };
+}
+
+/** The PRs a scheduled batch owes a walk (`partitionOwed`'s `owed`). Pure. */
 export function owedFrom(prs: readonly OwedPr[], base: string): number[] {
-    const held = (p: OwedPr) =>
-        [heldMarker(p.headRefOid), heldMarker(p.headRefOid, base)].some((m) =>
-            p.comments.some((c) => c.body.includes(m))
-        );
-    return prs
-        .filter((p) => !held(p))
-        .map((p) => p.number)
-        .sort((a, b) => a - b);
+    return partitionOwed(prs, base).owed;
+}
+
+/** The collector's summary of what it found: the owed PRs, then one line
+ *  per held PR. With nothing owed it never claims there is no `ui-owed` PR
+ *  while one is only held (issue #10059). Pure. */
+export function collectSummary(
+    owed: readonly number[],
+    held: readonly HeldPr[]
+): string[] {
+    const refs = (ns: readonly number[]) => ns.map((n) => `#${n}`).join(" ");
+    const heldPart =
+        held.length > 0
+            ? ` — ${held.length} ui-owed PR(s) held: ${refs(held.map((h) => h.pr))}`
+            : "";
+    const head =
+        owed.length > 0
+            ? `collect: ${owed.length} PR(s) owed: ${refs(owed)}${heldPart}`
+            : held.length > 0
+              ? `collect: no PR owed${heldPart}`
+              : "collect: no open ui-owed PR";
+    return [
+        head,
+        ...held.map(
+            (h) =>
+                `  · #${h.pr} held at ${h.head.slice(0, 12)} until ${h.until === "push" ? "a new push" : "the base moves"}: ${h.reason}`
+        ),
+    ];
 }
 
 /** Exit codes of a walk the machine cut short: deployment down, deployment
@@ -336,18 +401,21 @@ async function main(): Promise<number> {
     const named = args.filter((a) => /^\d+$/.test(a)).map(Number);
     const listed = named.length > 0 ? [] : listOwed();
     const heads = new Map(listed.map((p) => [p.number, p.headRefOid]));
-    const prs = named.length > 0 ? named : owedFrom(listed, baseTip());
+    const split =
+        named.length > 0
+            ? { owed: named, held: [] }
+            : partitionOwed(listed, baseTip());
+    const prs = split.owed;
     if (args.includes("--probe")) {
-        log(
-            `collect: ${prs.length} PR(s) owed${prs.length ? `: ${prs.map((p) => `#${p}`).join(" ")}` : ""}`
-        );
+        for (const line of collectSummary(prs, split.held)) log(line);
         writeTo("GITHUB_OUTPUT", `owed=${prs.length}\n`);
         return 0;
     }
     if (prs.length === 0) {
-        log("collect: no open ui-owed PR");
+        for (const line of collectSummary(prs, split.held)) log(line);
         return 0;
     }
+    for (const line of collectSummary(prs, split.held).slice(1)) log(line);
     log(`collect: walking ${prs.map((p) => `#${p}`).join(" ")} in one batch`);
     let outcome: BatchOutcome | null = null;
     const code = await runBatch(
