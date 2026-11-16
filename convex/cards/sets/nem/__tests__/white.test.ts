@@ -61,7 +61,7 @@ describe("Parallax Wave — destroyed in response to its own exile activation (C
             ...wave,
             zone: "stack",
             castById: "p1",
-            abilityId: "parallax-wave-exile",
+            abilityId: "parallax-wave-ability",
             targets: [{ type: "permanent", id: "victim" }],
         });
         // ...and Parallax Wave is destroyed in response, so its leave trigger
@@ -103,12 +103,12 @@ describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; 
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, wave, "parallax-wave-exile", [
+        resolveActivated(state, wave, "parallax-wave-ability", [
             { type: "permanent", id: "wave" },
         ]);
         expect(state.players[0].exile.some((c) => c.id === "wave")).toBe(true);
         const exiled = state.players[0].exile.find((c) => c.id === "wave")!;
-        resolveTrigger(state, exiled, "parallax-wave-return", LEFT("wave"));
+        resolveTrigger(state, exiled, "parallax-wave-trigger", LEFT("wave"));
         const back = state.players[0].battlefield.find((c) => c.id === "wave");
         expect(back).toBeDefined();
         expect(back!.counters).toEqual({ fade: 5 });
@@ -135,7 +135,7 @@ describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; 
 
         // Activate: exile the opponent's creature (cost payment is exercised by
         // game.ts + the affordability catalogue; resolve just does the exile).
-        resolveActivated(state, wave, "parallax-wave-exile", [
+        resolveActivated(state, wave, "parallax-wave-ability", [
             { type: "permanent", id: "victim" },
         ]);
         expect(
@@ -155,7 +155,12 @@ describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; 
         const waveInPlay = state.players[0].battlefield.find(
             (c) => c.id === "wave"
         )!;
-        resolveTrigger(state, waveInPlay, "parallax-wave-return", LEFT("wave"));
+        resolveTrigger(
+            state,
+            waveInPlay,
+            "parallax-wave-trigger",
+            LEFT("wave")
+        );
         expect(state.players[1].exile.some((c) => c.id === "victim")).toBe(
             false
         );
@@ -190,13 +195,13 @@ describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; 
             ],
         });
 
-        resolveActivated(state, wave, "parallax-wave-exile", [
+        resolveActivated(state, wave, "parallax-wave-ability", [
             { type: "permanent", id: "a" },
         ]);
         resolveActivated(
             state,
             state.players[0].battlefield.find((c) => c.id === "wave")!,
-            "parallax-wave-exile",
+            "parallax-wave-ability",
             [{ type: "permanent", id: "b" }]
         );
         expect(state.players[1].exile.map((c) => c.id).sort()).toEqual([
@@ -207,7 +212,7 @@ describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; 
         resolveTrigger(
             state,
             state.players[0].battlefield.find((c) => c.id === "wave")!,
-            "parallax-wave-return",
+            "parallax-wave-trigger",
             LEFT("wave")
         );
         expect(state.players[1].exile.length).toBe(0);
@@ -240,7 +245,7 @@ describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; 
                 makePlayer("p2", { battlefield: [victim] }),
             ],
         });
-        resolveActivated(state, wave, "parallax-wave-exile", [
+        resolveActivated(state, wave, "parallax-wave-ability", [
             { type: "permanent", id: "victim" },
         ]);
         const projected = projectPublicState(state, 1, "p1");

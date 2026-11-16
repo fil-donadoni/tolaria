@@ -956,7 +956,7 @@ describe("Elder Dragon Legends (upkeep: sacrifice unless pay {C}{C}{C}, CR 603.6
         { def: chromium, ability: "chromium-upkeep" },
         { def: nicolBolas, ability: "nicol-bolas-upkeep" },
         { def: palladiaMors, ability: "palladia-mors-trigger" },
-        { def: vaevictisAsmadi, ability: "vaevictis-asmadi-upkeep" },
+        { def: vaevictisAsmadi, ability: "vaevictis-asmadi-trigger" },
     ] as const;
 
     function setup(def: (typeof dragons)[number]["def"]) {

@@ -809,49 +809,6 @@ export const nicolBolas = defineCard(() => ({
     ],
 }));
 
-// Vaevictis Asmadi — {2}{B}{B}{R}{R}{G}{G} 7/7 Elder Dragon. C7 wires its Flying
-// keyword + the upkeep "sacrifice unless you pay {B}{R}{G}" tax (CR 603.6a +
-// CR 117.3a). Its three single-color +1/+0 pump abilities are plain activated
-// abilities below; oracleText is the full card.
-export const vaevictisAsmadi = defineCard(() => ({
-    id: "22ea73ec-1325-4437-a23f-dcda1767c713",
-    rarity: "rare",
-    name: "Vaevictis Asmadi",
-    oracleText:
-        "Flying\nAt the beginning of your upkeep, sacrifice Vaevictis Asmadi unless you pay {B}{R}{G}.\n{B}: Vaevictis Asmadi gets +1/+0 until end of turn.\n{R}: Vaevictis Asmadi gets +1/+0 until end of turn.\n{G}: Vaevictis Asmadi gets +1/+0 until end of turn.",
-    manaCost: { X: 2, B: 2, R: 2, G: 2 },
-    types: ["Creature"],
-    supertypes: ["Legendary"],
-    subtypes: ["Elder", "Dragon"],
-    power: 7,
-    toughness: 7,
-    staticAbilities: ["flying"],
-    triggeredAbilities: [
-        payOrSacrificeUpkeepTrigger({
-            id: "vaevictis-asmadi-upkeep",
-            cardName: "Vaevictis Asmadi",
-            cost: { B: 1, R: 1, G: 1 },
-            costText: "{B}{R}{G}",
-        }),
-    ],
-    // CR 611.1 — three single-colour self-pumps: +1/+0 until end of turn.
-    activatedAbilities: (["B", "R", "G"] as const).map((color) => ({
-        id: `vaevictis-asmadi-pump-${color.toLowerCase()}`,
-        oracleText: `{${color}}: Vaevictis Asmadi gets +1/+0 until end of turn.`,
-        cost: { mana: { [color]: 1 } },
-        useStack: true,
-        effects: [
-            {
-                op: "pump" as const,
-                target: { ref: "$source" },
-                power: 1,
-                toughness: 0,
-                duration: { phase: "end-of-turn" as const },
-            },
-        ],
-    })),
-}));
-
 // Rasputin Dreamweaver — {4}{W}{U} Legendary 4/1. Enters with seven dream
 // counters; each removes one for {C} or to prevent 1 damage to it; each upkeep,
 // if it started the turn untapped, it regains one (capped at seven). CR 122

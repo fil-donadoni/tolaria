@@ -37,7 +37,7 @@ function resolveReturn(state: GameState, waveId: string): void {
         ...wave,
         zone: "stack",
         castById: "p1",
-        triggeredAbilityId: "parallax-wave-return",
+        triggeredAbilityId: "parallax-wave-trigger",
         triggerSourceId: waveId,
         triggerEvent: {
             type: "PERMANENT_LEFT",
@@ -72,7 +72,7 @@ describe("linked exile pile (CR 607.2a)", () => {
                 makePlayer("p2", { battlefield: [bear] }),
             ],
         });
-        resolveActivated(state, wave, "parallax-wave-exile", [
+        resolveActivated(state, wave, "parallax-wave-ability", [
             { type: "permanent", id: "bear" },
         ]);
         expect(state.players[1].exile[0]).toMatchObject({
@@ -141,7 +141,7 @@ describe("linked exile pile (CR 607.2a)", () => {
                 makePlayer("p2", { battlefield: [bear] }),
             ],
         });
-        resolveActivated(state, wave, "parallax-wave-exile", [
+        resolveActivated(state, wave, "parallax-wave-ability", [
             { type: "permanent", id: "bear" },
         ]);
         // A flicker: exile the Wave and return it in ONE resolution, before

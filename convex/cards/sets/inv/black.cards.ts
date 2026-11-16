@@ -365,62 +365,6 @@ export const desperateResearch = defineCard(() => ({
     ],
 }));
 
-// Devouring Strossus — {5}{B}{B}{B} 9/9. "Flying, trample. At the beginning
-// of your upkeep, sacrifice a creature. Sacrifice a creature: Regenerate
-// this creature." (CR 702.9 flying, CR 702.19 trample, CR 603.6a upkeep,
-// CR 701.21 sacrifice, CR 701.19/701.19 regenerate.) The forced upkeep
-// sacrifice is the Innocent Blood `choice(sacrifice-permanents)` + `sacrifice`
-// template (ody/black.cards.ts), narrowed to `count: 1` and the resolving
-// controller only (no `forEach` needed — only one player's upkeep fires this
-// trigger). The activated ability's cost is the existing
-// `sacrificeFilter: { types: "Creature" }` shape (any creature, not
-// necessarily this one) — distinct from `sacrifice: true` (which would
-// sacrifice Strossus itself).
-export const devouringStrossus = defineCard(() => ({
-    id: "064f013f-e74f-419d-8d17-7748bd91885e", // INV 101
-    rarity: "rare",
-    name: "Devouring Strossus",
-    oracleText:
-        "Flying, trample\nAt the beginning of your upkeep, sacrifice a creature.\nSacrifice a creature: Regenerate this creature.",
-    manaCost: { X: 5, B: 3 },
-    types: ["Creature"],
-    subtypes: ["Phyrexian", "Horror"],
-    power: 9,
-    toughness: 9,
-    staticAbilities: ["flying", "trample"],
-    triggeredAbilities: [
-        phaseTrigger({
-            id: "devouring-strossus-upkeep",
-            oracleText:
-                "At the beginning of your upkeep, sacrifice a creature.",
-            phase: "UPKEEP",
-            scope: "your",
-            effects: [
-                {
-                    op: "choice",
-                    kind: "sacrifice-permanents",
-                    player: "controller",
-                    zone: "battlefield",
-                    filter: { type: "Creature" },
-                    count: 1,
-                    prompt: "Sacrifice a creature.",
-                    bind: "$sac",
-                },
-                { op: "sacrifice", permanents: { ref: "$sac" } },
-            ],
-        }),
-    ],
-    activatedAbilities: [
-        {
-            id: "devouring-strossus-regen",
-            oracleText: "Sacrifice a creature: Regenerate this creature.",
-            cost: { sacrificeFilter: { types: "Creature" } },
-            useStack: true,
-            effects: [{ op: "regenerate", target: { ref: "$source" } }],
-        },
-    ],
-}));
-
 // Dredge — {B} Instant. "Sacrifice a creature or land. Draw a card." (CR
 // 701.21 sacrifice, CR 121.1 draw.) Not the Dredge KEYWORD (CR 702.52) —
 // this INV card predates it and is a plain sacrifice-then-draw effect;
