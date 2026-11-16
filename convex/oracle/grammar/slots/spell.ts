@@ -84,6 +84,7 @@ import {
     sentenceRule,
     type SentenceIR,
 } from "../shared/effectClause";
+import { trailingGateSentenceRule } from "../shared/verbFrames";
 import { BULLET, GROUP_SEPARATOR } from "../lineGroups";
 import type { FlashbackCostIR, SlotIR, SpellModeIR } from "../ir";
 
@@ -114,10 +115,12 @@ function readSentences(
  * ("If this spell was kicked, draw two cards."). Composed HERE and not into
  * the shared sentence rule: "this spell" names an object only a spell site
  * has, and the kicker a gate reads is lowered from the card's own kicker line
- * (`lower.ts`), which no ability site sees.
+ * (`lower.ts`), which no ability site sees. The trailing cast gate ("Draw a
+ * card if an opponent has cast a blue spell this turn.") sits inside it: the
+ * corpus prints it on spells alone.
  */
 const spellSentence: Rule<SentenceIR> = kickedSentenceRule(
-    comparativeSentenceRule(sentenceRule)
+    comparativeSentenceRule(trailingGateSentenceRule(sentenceRule))
 );
 
 const plainSpell: Rule<SlotIR> = terminated(

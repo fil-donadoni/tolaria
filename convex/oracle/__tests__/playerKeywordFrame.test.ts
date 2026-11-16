@@ -6,7 +6,9 @@
 //     its Cycling line).
 //  2. FORMS — plain hexproof, and "hexproof from A and from B" read as the two
 //     abilities CR 702.11f says it is.
-//  3. REFUSALS — the neighbours the frame does not read: a longer duration, an
+//  3. COMPOUND SUBJECT — "You and permanents you control gain …" (CR 611.2c):
+//     the player's Ops plus one sweep granting the permanents each keyword.
+//  4. REFUSALS — the neighbours the frame does not read: a longer duration, an
 //     unnamed quality, another recipient.
 
 import { describe, expect, it } from "vitest";
@@ -115,6 +117,78 @@ describe("player keyword frame — refusals", () => {
         expect(
             compileCard(
                 instant("Target player gains shroud until end of turn.")
+            ).state
+        ).toBe("unparsed");
+    });
+});
+
+describe("player keyword frame — compound subject (CR 611.2c)", () => {
+    const sweep = (abilities: string[]) => ({
+        op: "forEach",
+        select: {
+            set: "permanents",
+            zone: "battlefield",
+            controller: "controller",
+        },
+        effects: abilities.map((ability) => ({
+            op: "grantAbility",
+            target: { ref: "$each" },
+            ability,
+            duration: { phase: "end-of-turn" },
+        })),
+    });
+
+    it("reads plain hexproof for the player and the permanents", () => {
+        expect(
+            compiledEffects(
+                "You and permanents you control gain hexproof until end of turn."
+            )
+        ).toEqual([
+            {
+                op: "grantPlayerKeyword",
+                player: "controller",
+                keyword: "hexproof",
+            },
+            sweep(["hexproof"]),
+        ]);
+    });
+
+    it('reads "hexproof from A and from B" as two abilities on each', () => {
+        expect(
+            compiledEffects(
+                "You and permanents you control gain hexproof from white and from red until end of turn."
+            )
+        ).toEqual([
+            {
+                op: "grantPlayerKeyword",
+                player: "controller",
+                keyword: "hexproof from white",
+            },
+            {
+                op: "grantPlayerKeyword",
+                player: "controller",
+                keyword: "hexproof from red",
+            },
+            sweep(["hexproof from white", "hexproof from red"]),
+        ]);
+    });
+
+    it("refuses shroud (no card prints it on the compound subject)", () => {
+        expect(
+            compileCard(
+                instant(
+                    "You and permanents you control gain shroud until end of turn."
+                )
+            ).state
+        ).toBe("unparsed");
+    });
+
+    it("refuses another group beside the player", () => {
+        expect(
+            compileCard(
+                instant(
+                    "You and creatures you control gain hexproof until end of turn."
+                )
             ).state
         ).toBe("unparsed");
     });

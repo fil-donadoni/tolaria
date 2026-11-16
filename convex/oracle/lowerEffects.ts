@@ -74,6 +74,7 @@ import {
 import {
     ANY_NUMBER_CEILING,
     type FrameChainIR,
+    type GateConditionIR,
     type FrameIR,
     type MoveObjectIR,
 } from "./grammar/shared/verbFrames";
@@ -5959,6 +5960,45 @@ function lowerFrameChain(
                         keyword,
                     });
                 break;
+            // CR 611.2c — the permanents are the ones the controller controls
+            // as the effect begins: one sweep at resolution, each permanent
+            // granted every keyword until end of turn.
+            case "controlledPermanentsKeyword":
+                ops.push({
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: "controller",
+                    },
+                    effects: frame.keywords.map((keyword) => ({
+                        op: "grantAbility" as const,
+                        target: { ref: "$each" },
+                        ability: keyword.ability,
+                        duration: { phase: "end-of-turn" as const },
+                    })),
+                });
+                break;
+            // CR 611.2c + CR 101.2 — the controller's spells this turn.
+            case "spellCounterImmunity":
+                ops.push({
+                    op: "grantSpellCounterImmunity",
+                    player: "controller",
+                });
+                break;
+            // CR 608.2c — the condition is read as the spell resolves; the
+            // gated sentence lowers through the same walk, so a target it
+            // announces is still announced (CR 601.2c).
+            case "gate": {
+                const inner = gatedSentence(frame.effect, walk, site);
+                if (!inner.ok) return inner;
+                ops.push({
+                    op: "if",
+                    predicate: gatePredicate(frame.condition),
+                    then: inner.value,
+                });
+                break;
+            }
             // CR 500.7 — the Op fronts the LIFO extra-turn queue.
             case "extraTurn": {
                 const player = playerRef(frame.player, walk.targets, site);
@@ -7019,6 +7059,26 @@ function lowerReflexive(
             effects: body.value,
         },
     ]);
+}
+
+/**
+ * CR 601.2i + CR 202.2 — a trailing gate's condition as an `if` predicate:
+ * "an opponent has cast a blue or black spell this turn" is at least one
+ * spell of those colours in the opponent's cast tally. `"opponent"` is the
+ * one opponent the interpreter resolves, which is every opponent in the
+ * two-player and solo games this engine runs.
+ */
+function gatePredicate(condition: GateConditionIR): EffectPredicate {
+    return {
+        left: {
+            spellsCastThisTurn: {
+                of: "opponent",
+                colors: [...condition.colors],
+            },
+        },
+        op: "ge",
+        right: 1,
+    };
 }
 
 function gatedSentence(

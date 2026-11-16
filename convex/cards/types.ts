@@ -23075,6 +23075,23 @@ export type EffectOp =
      *  from blue and from black" is two Ops (CR 702.11f — two separate
      *  abilities). Skipped when the player cannot be resolved (CR 608.2b). */
     | { op: "grantPlayerKeyword"; player: EffectPlayerRef; keyword: string }
+    /** CR 611.2c / 101.2 — "Spells you control can't be countered this
+     *  turn": every spell `player` controls, including one cast after the
+     *  effect began, ignores an instruction to counter it until end of turn.
+     *  A thin declarative skin over the single SpellContext primitive
+     *  `grantSpellCounterImmunityThisTurn`, one execution path (ADR 0045):
+     *  the player is listed on `GameState.spellCounterImmunityThisTurn`, read
+     *  at the one counter choke point (`SpellContext.counter()` through
+     *  `isSpellCounterImmuneThisTurn`) and cleared at CLEANUP (CR 514.2).
+     *  Duration intrinsic, so no `duration` field.
+     *
+     *  Source-less and turn-scoped, which is what separates it from the
+     *  `spell-counter-immunity` static (a permanent's continuous ability,
+     *  gone with its source) and from `CardDefinition.cantBeCountered` (one
+     *  spell's own text). It covers every spell the player controls — no
+     *  spell filter, and abilities are never covered (CR 113.9). Skipped when
+     *  the player cannot be resolved (CR 608.2b). */
+    | { op: "grantSpellCounterImmunity"; player: EffectPlayerRef }
     /** CR 119.4 / 121.1 (issue #1283) — Sylvan Library's single ranged 0..N
      *  "cards drawn this turn" hand pick, with a per-NOT-chosen life cost. A
      *  thin declarative composition over EXISTING SpellContext primitives —

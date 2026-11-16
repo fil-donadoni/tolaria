@@ -139,6 +139,11 @@ const PROTECTION_COMPLETENESS = {
      *  damage prevented, and only targeted spells and abilities stopped, for
      *  one turn: weaker than the ground-attack shield. */
     playerUntargetableThisTurn: { num: 1, den: 6 },
+    /** "Spells you control can't be countered this turn" — no damage
+     *  prevented and no permanent shielded: it only blanks the counterspells
+     *  aimed at this turn's spells, the same one-turn reach as player
+     *  hexproof. */
+    spellsUncounterableThisTurn: { num: 1, den: 6 },
 } as const;
 
 /** Price `units` units of `feature` under the context's fitted weights. */
@@ -3448,6 +3453,21 @@ const grantPlayerKeyword: Valuer<"grantPlayerKeyword"> = (_op, ctx) => ({
     tags: ["protection"],
 });
 
+// "Spells you control can't be countered this turn" (CR 611.2c / 101.2) —
+// the player's spells this turn ignore an instruction to counter them: blanks
+// counterspells, but prevents no damage and shields no permanent.
+const grantSpellCounterImmunity: Valuer<"grantSpellCounterImmunity"> = (
+    _op,
+    ctx
+) => ({
+    points: pricedFraction(
+        ctx,
+        "protection",
+        PROTECTION_COMPLETENESS.spellsUncounterableThisTurn
+    ),
+    tags: ["protection"],
+});
+
 // Tamiyo, Seasoned Scholar's +2 ("Until your next turn, whenever a creature
 // attacks you or a planeswalker you control, it gets -1/-0 until end of
 // turn", CR 606 / 603.7a, issue #2385) is now a real `delayedTrigger` +
@@ -3735,6 +3755,7 @@ export const OP_VALUERS: {
     restrictAttackers,
     setProtectionFromEverything,
     grantPlayerKeyword,
+    grantSpellCounterImmunity,
     reveal,
     lookRandomHand,
     lookHand,
@@ -3985,6 +4006,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     returnExiledForSource: "beneficial",
     setProtectionFromEverything: "beneficial",
     grantPlayerKeyword: "beneficial",
+    grantSpellCounterImmunity: "beneficial",
     restrictAttackers: "beneficial",
     emblem: "beneficial",
     // CR 712 / 400.7 (issue #2380) — the ORI flip-walker template: the
