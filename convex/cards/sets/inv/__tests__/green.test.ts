@@ -856,13 +856,13 @@ describe("Quirion Elves (CR 700.2c ETB colour choice + CR 605.1a two mana abilit
         expect(options).toEqual([
             {
                 mana: { G: 1 },
-                source: { kind: "activated", abilityId: "quirion-elves-green" },
+                source: { kind: "activated", abilityId: "quirion-elves-mana" },
             },
             {
                 mana: { U: 1 },
                 source: {
                     kind: "activated",
-                    abilityId: "quirion-elves-chosen-color",
+                    abilityId: "quirion-elves-mana-2",
                     choiceIndex: 0,
                 },
             },

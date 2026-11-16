@@ -29,8 +29,11 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { enumerateMoves, planManaPayment } from "../moves";
 import { applyMoveForSearch } from "../applyMove";
-import { hickoryWoodlot } from "../../cards/sets/mmq/colorless.cards";
+import { getDefinition } from "../../cards/registry";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
+
+// Compiled from Oracle text (ADR 0114): the registry is the seam.
+const hickoryWoodlot = getDefinition("af7aafb7-6870-4d09-a191-70786766c459");
 
 const BEARS = getCardByName("Grizzly Bears").id; // {1}{G}, 2/2
 
@@ -41,7 +44,7 @@ function board(counters: number): {
     player: PlayerState;
     woodlot: CardInstanceState;
 } {
-    const woodlot = makeInstance(hickoryWoodlot().id, {
+    const woodlot = makeInstance(hickoryWoodlot.id, {
         id: "woodlot",
         controllerId: "p1",
         ownerId: "p1",

@@ -27,10 +27,7 @@
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { roundTripCard } from "../gold";
 import type { CompiledDefinition, OracleCard } from "../types";
-
-import { saprazzanSkerry } from "../../cards/sets/mmq/colorless.cards";
 
 import { oracleCard } from "./oracle.fixture";
 
@@ -262,13 +259,6 @@ describe("golden — one fixture per accepted rider form", () => {
                 ],
             })
         );
-    });
-});
-
-describe("gold — the hand-written twins round-trip through their own text", () => {
-    it.each([saprazzanSkerry()])("$name", (card) => {
-        const verdict = roundTripCard(card).verdict;
-        expect(sortKeys(verdict)).toEqual({ ok: true, kind: "equal" });
     });
 });
 
