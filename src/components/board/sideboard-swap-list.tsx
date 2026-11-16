@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import type { DeckCard } from "~/types/game";
+import useRowFocusFallback from "~/hooks/useRowFocusFallback";
 import { getArtCropImageUrl, resolveCardImageId } from "~/lib/images";
 
 type SideboardSwapListProps = {
@@ -56,6 +57,15 @@ export default function SideboardSwapList({
 }: SideboardSwapListProps) {
     const rows = useMemo(() => groupRows(cards), [cards]);
     const toMain = moveLabel.includes("Main");
+    const listRef = useRef<HTMLUListElement>(null);
+    const rowIds = useMemo(() => rows.map((r) => r.cardId), [rows]);
+    // Moving the last copy removes the focused row: focus the next row, else
+    // the previous, else the dialog title — never the Popup (issue #9819).
+    useRowFocusFallback(listRef, rowIds, () =>
+        listRef.current
+            ?.closest<HTMLElement>('[role="dialog"]')
+            ?.querySelector<HTMLElement>('[data-slot="dialog-title"]')
+    );
 
     return (
         <section className="flex flex-col min-w-0 flex-1">
@@ -73,12 +83,16 @@ export default function SideboardSwapList({
                 // `min-h-0 flex-1` (not a max-height): the parent row owns the
                 // height, so the list scrolls inside a box that never changes
                 // size as the neighbouring preview grows.
-                <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
+                <ul
+                    ref={listRef}
+                    className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1"
+                >
                     {rows.map((row) => {
                         const imageId = resolveCardImageId(row.cardId);
                         return (
                             <li
                                 key={row.cardId}
+                                data-row-id={row.cardId}
                                 className="flex items-center gap-2 rounded-sm bg-surface-elevated px-2 py-1 text-xs text-text"
                                 onMouseEnter={() => onHoverCard?.(row.cardId)}
                                 onMouseLeave={() => onHoverCard?.(null)}

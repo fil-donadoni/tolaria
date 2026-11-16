@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useRef } from "react";
 import { Minus } from "lucide-react";
 import {
     Dialog,
@@ -58,13 +59,16 @@ type GameDialogProps = {
 
 // The in-game dialog centers on the PLAY AREA (viewport minus the right piles
 // strip), not the viewport — via `.play-area-center-x` (`left: calc(50% -
-// --right-piles-w/2)`). A width measured against the full `100vw` centered on
-// that offset point overflows the left edge, so the available width is the play
-// area, i.e. `100vw - --right-piles-w`. The var resolves to 0px off-board (lobby)
-// ⇒ plain full-viewport sizing.
+// --right-piles-w/2)`). The Popup is SIZED TO ITS PANEL (`w-max`, capped), never
+// to the play area: a transparent wrapper wider than the visible panel is what
+// base-ui hands focus back to when a focused control disappears, and the global
+// unlayered `:focus-visible` outline then traced that invisible box (issue
+// #9819). The cap is the play area (`100vw - --right-piles-w`, 0px off-board) so
+// a wide body never overflows the left edge.
+const PLAY_AREA_W = "100vw-var(--right-piles-w,0px)-2rem";
 const sizeClasses: Record<GameDialogSize, string> = {
-    default: "max-w-md w-[calc(100vw-var(--right-piles-w,0px)-2rem)]",
-    wide: "max-w-[90vw] w-[calc(100vw-var(--right-piles-w,0px)-2rem)]",
+    default: `w-max max-w-[min(28rem,calc(${PLAY_AREA_W}))]`,
+    wide: `w-max max-w-[min(90vw,calc(${PLAY_AREA_W}))]`,
 };
 
 /**
@@ -95,6 +99,7 @@ export default function GameDialog({
     className,
     children,
 }: GameDialogProps) {
+    const titleRef = useRef<HTMLHeadingElement>(null);
     const handleOpenChange = (next: boolean) => {
         if (!next && !dismissable) return;
         onOpenChange?.(next);
@@ -104,19 +109,15 @@ export default function GameDialog({
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent
                 showCloseButton={false}
-                onClick={(e) => {
-                    // The popup spans ~the whole play area to center the
-                    // Panel, so the dialog backdrop behind it is unreachable
-                    // and overlay clicks never dismiss (QA: pile browse
-                    // dialogs). Emulate backdrop dismissal: a click landing
-                    // on the popup CONTAINER itself (not the Panel inside)
-                    // closes the dialog, like every other dialog in the app.
-                    if (e.target === e.currentTarget && dismissable) {
-                        onOpenChange?.(false);
-                    }
-                }}
+                // Initial focus on the (non-tabbable) title: opening lights no
+                // button, Enter cannot fire the primary action by accident.
+                initialFocus={titleRef}
+                // Inline style outranks the unlayered global `:focus-visible`
+                // outline (index.css) without weakening it; the Popup is never
+                // a focus indicator target (issue #9819).
+                style={{ outline: "none" }}
                 className={cn(
-                    "flex items-center justify-center overflow-hidden border-none bg-transparent p-0 shadow-none ring-0",
+                    "rounded-[var(--panel-radius)] border-none bg-transparent p-0 shadow-none ring-0",
                     sizeClasses[size],
                     className
                 )}
@@ -193,6 +194,9 @@ export default function GameDialog({
                             {icon && <SunburstIcon>{icon}</SunburstIcon>}
 
                             <DialogTitle
+                                ref={titleRef}
+                                tabIndex={-1}
+                                style={{ outline: "none" }}
                                 className={cn(
                                     // `.panel-title-clear` keeps the title
                                     // out of the top-left corner bracket at
