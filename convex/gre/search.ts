@@ -321,14 +321,6 @@ export const DEFAULT_BUDGET: SearchBudget = { iterations: 400, timeMs: 1500 };
 // its window when the edge is barely visited, yet — because it decays as
 // 1/(1+visits) — to fall below the UCB1 exploration term within a handful of
 // visits, so it can never dominate the accumulated reward.
-/** Rollout horizon, in EXTRA full bot turns beyond the first (ADR 0015). The
- *  rollout always plays forward to the start of the bot's NEXT turn — a complete
- *  round in which BOTH players had symmetric opportunity to act — then this many
- *  additional bot-turn-starts before scoring. `0` = score at the bot's next turn
- *  start (the baseline). A turn-clock horizon, unlike a fixed ply count, judges
- *  every candidate after the same game-clock progress, removing the own-turn
- *  action bias a ply horizon gives "do something now" over "pass". */
-const ROLLOUT_EXTRA_BOT_TURNS = 0;
 /** Hard cap on turn-boundary crossings inside a single rollout — guards against
  *  a stall loop (a board that never advances the active player back to the bot,
  *  e.g. mutual passing across empty turns until someone decks) and bounds the
@@ -1616,7 +1608,7 @@ export function advanceToDecision(state: GameState): string | null {
  *  slice 2). Mutates `state` (caller owns it).
  *
  *  Horizon (ADR 0015): the rollout stops at the START of the bot's next turn
- *  (a full round; `ROLLOUT_EXTRA_BOT_TURNS` adds further bot-turn-starts),
+ *  after the SEARCH ROOT's (`pastRootHorizon`; `since` is the root's clock),
  *  NOT after a fixed ply count. Scoring every candidate at the same game-clock
  *  boundary — after both players have had a symmetric chance to act — removes
  *  the action bias of a ply horizon, where "act on my own turn" was scored
@@ -1654,17 +1646,32 @@ function rolloutEpsilonFor(
 
 const FORCED_PASS: Move = { kind: "pass" };
 
+/** True once `state` stands at or past the rollout horizon (ADR 0015): the
+ *  bot is the active player of a turn after `rootTurn`, the search root's
+ *  turn — the start of the bot's next turn, a complete round in which both
+ *  players had symmetric opportunity to act. Measured from the ROOT, never
+ *  from where a rollout starts: a line the tree expanded past that boundary
+ *  (a chain of passes PUCT deepened) is scored there, not a further round on,
+ *  so every candidate is judged after the same game-clock progress. */
+export function pastRootHorizon(
+    state: GameState,
+    rootTurn: number,
+    botId: string
+): boolean {
+    return state.turn > rootTurn && state.activePlayerId === botId;
+}
+
 export function rollout(
     state: GameState,
     botId: string,
     rng: () => number,
     weights: EvalWeights,
-    /** The search root's clock, for `scoreLeaf`'s win timing. */
+    /** The search root's clock: the horizon's reference and `scoreLeaf`'s
+     *  win timing. Omitted, the horizon is read from this rollout's start. */
     since?: GameClock
 ): Leaf {
     const startTurn = state.turn;
-    let lastTurn = state.turn;
-    let botTurnStarts = 0;
+    const rootTurn = since?.turn ?? state.turn;
     // Issue #4460 — the rollout owns `state` from here: inside the loop it is
     // mutated by `applyMoveInSearch` alone (the forced answers included), so
     // a settled mark made in the loop can be trusted. One inherited from the
@@ -1674,24 +1681,17 @@ export function rollout(
     for (let ply = 0; ply < MAX_ROLLOUT_PLIES; ply++) {
         if (state.gameOver) break;
 
-        // Turn-boundary horizon: a fresh bot-turn START is the active player
-        // being the bot right after a turn crossing (not the bot turn the
-        // rollout began in). Stop once we've reached enough of them.
-        const turnChanged = state.turn !== lastTurn;
-        lastTurn = state.turn;
-        if (turnChanged && state.activePlayerId === botId) {
-            botTurnStarts += 1;
-            if (botTurnStarts > ROLLOUT_EXTRA_BOT_TURNS) break;
-        }
+        if (pastRootHorizon(state, rootTurn, botId)) break;
         // Stall cap: the bot's turn never recurs (e.g. it lost priority forever
         // on a degenerate board) — score wherever we got to.
         if (state.turn - startTurn >= MAX_ROLLOUT_TURNS) break;
 
+        const turnBefore = state.turn;
         const pid = advanceToDecision(state);
         if (!pid) break;
         // A forced answer can cross a turn boundary (the cleanup discard, CR
         // 514.1): run the horizon checks above on the new turn first.
-        if (state.turn !== lastTurn) continue;
+        if (state.turn !== turnBefore) continue;
         // Issue #4460 — a forced pass, proved without enumerating. The draw is
         // the one the single-move branch below makes for its pool index: the
         // stream must not notice which of the two paths took the ply.
@@ -3916,8 +3916,12 @@ function opponentOptionView(node: Node, keyed: KeyedMove[]): Node {
  *  opened as a child, still collect visits, and still be selectable. Filtering
  *  the depth-0 candidate set removes it from the tree instead — the same
  *  outcome the old per-node probing bought, at 1/1682 of the probe cost
- *  (issue #1905 review finding 3). */
-function iterate(
+ *  (issue #1905 review finding 3).
+ *
+ *  Exported as a named seam: where the tree stops descending (the root
+ *  horizon, `pastRootHorizon`) is a property of the tree's shape, which a
+ *  whole search's trace does not expose. */
+export function iterate(
     root: Node,
     rootState: GameState,
     botId: string,
@@ -3942,8 +3946,13 @@ function iterate(
     let node = root;
 
     for (let depth = 0; depth < MAX_TREE_DEPTH; depth++) {
+        // The rollout horizon is the tree's too (`pastRootHorizon`): a line
+        // that reached the bot's next turn is a leaf, scored where every
+        // other candidate's rollout stops, never expanded a round further.
+        if (pastRootHorizon(world, since.turn, botId)) break;
         const pid = advanceToDecision(world);
         if (!pid) break;
+        if (pastRootHorizon(world, since.turn, botId)) break;
         let keyed = withoutDominatedTriggerTargets(
             node,
             world,

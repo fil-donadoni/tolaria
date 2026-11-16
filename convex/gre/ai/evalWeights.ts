@@ -20,8 +20,8 @@
 // search COMPUTES, not how good its answer is — a vector allowed to set
 // `MAX_TREE_DEPTH: 0` is a footgun, not a strength lever. The excluded
 // structural bounds stay module consts in `search.ts`: `MAX_TREE_DEPTH`,
-// `MAX_ROLLOUT_PLIES`, `MAX_ROLLOUT_TURNS`, `ROLLOUT_EXTRA_BOT_TURNS`, and the
-// production `DEFAULT_BUDGET` (`SearchBudget` — iterations/timeMs is already
+// `MAX_ROLLOUT_PLIES`, `MAX_ROLLOUT_TURNS`, the root-anchored horizon
+// (`pastRootHorizon`), and the production `DEFAULT_BUDGET` (`SearchBudget` — iterations/timeMs is already
 // its own type, for the same reason: a resource ceiling, not an evaluation
 // choice).
 import type { Feature } from "./featureBasis";
