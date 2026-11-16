@@ -26,6 +26,11 @@
         },
         {
             "kind": "bot",
+            "key": "harness-error › The Definition Index is stale: Vaevictis Asmadi (22ea73ec-1325-4437-a23f-dcda1767c713) is not leg.vaevictisAsmadi. Run: ",
+            "issue": 9927
+        },
+        {
+            "kind": "bot",
             "key": "harness-error › sweep worker: no answer within the batch timeout",
             "issue": 8719
         },
