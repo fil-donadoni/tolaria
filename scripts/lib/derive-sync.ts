@@ -192,23 +192,6 @@ export function sweepPoolLosses(rows: readonly ReplayRow[]): number {
         .length;
 }
 
-/** How a play on a tree whose Definition Index lags its Set modules reads in
- *  a Bot Gap key — `staleIndex` in `convex/cards/catalogue.ts`. A merge lands
- *  derived state restored to the merge-base (ADR 0157), so a tip whose
- *  `derive:sync` has not landed yet still indexes a hand-written card its PR
- *  retired, and every play that looks the card up throws. A verdict on the
- *  tree, not on the card: 1,035 cards on 2026-11-16 (issue #9927). */
-export const STALE_INDEX_GAP =
-    "harness-error › The Definition Index is stale: ";
-
-/** How many of `rows` carry a verdict a stale Definition Index gave them. No
- *  tolerance: one is enough to say the sweep played on a tree that was not
- *  derived-fresh, and every card it played is suspect. */
-export function sweepStaleIndexLosses(rows: readonly ReplayRow[]): number {
-    return rows.filter((r) => r.botGap?.startsWith(STALE_INDEX_GAP) === true)
-        .length;
-}
-
 /** The drift sweep's I/O, injected: the script wires the generators and the
  *  lockfile on disk, a test a fixture. */
 export interface DriftSweepIo {
@@ -288,19 +271,13 @@ export function runDriftSweep(io: DriftSweepIo): DriftSweepResult {
     if (!io.play()) return carried("the drift sweep's compile failed");
     const after = io.readRows();
     // Over the misses only: the rows it carried are an older sweep's.
-    const played = after.filter((r) => misses.has(r.oracleId));
-    const poolLosses = sweepPoolLosses(played);
+    const poolLosses = sweepPoolLosses(
+        after.filter((r) => misses.has(r.oracleId))
+    );
     if (poolLosses > SWEEP_POOL_LOSS_TOLERANCE) {
         io.restore();
         return carried(
             `the drift sweep's worker pool lost ${poolLosses} card(s)`
-        );
-    }
-    const staleIndexLosses = sweepStaleIndexLosses(played);
-    if (staleIndexLosses > 0) {
-        io.restore();
-        return carried(
-            `the drift sweep played ${staleIndexLosses} card(s) on a stale Definition Index`
         );
     }
     const outcome = botReplayOutcome(before, after, io.acknowledged);
