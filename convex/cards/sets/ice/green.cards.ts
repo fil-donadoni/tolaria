@@ -1750,6 +1750,60 @@ export const yavimayaGnats = defineCard(() => ({
     ],
 }));
 // ── Green capability-cluster stubs (cumulative upkeep — ADR 0042) ────────────
+// Fyndhorn Pollen — {2}{G} Enchantment with cumulative upkeep {1} (CR 702.24),
+// a continuous "All creatures get -1/-0" anthem (layer 7c) and "{1}{G}: All
+// creatures get -1/-0 until end of turn." Static mirrors Weakstone (atq.ts);
+// the mass EOT pump mirrors Bone Flute (drk.ts).
+export const fyndhornPollen = defineCard(() => ({
+    id: "3efbe59d-bebc-40b1-85ac-2e4c1ff3731e",
+    name: "Fyndhorn Pollen",
+    rarity: "rare",
+    oracleText:
+        "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nAll creatures get -1/-0.\n{1}{G}: All creatures get -1/-0 until end of turn.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            // CR 611 layer 7c — every creature gets -1/-0 (no controller clause).
+            kind: "pt-buff",
+            applies: (target, _source, ctx) => ctx.isCreature(target),
+            power: -1,
+            toughness: 0,
+        },
+    ],
+    cumulativeUpkeep: { X: 1 },
+    activatedAbilities: [
+        {
+            id: "fyndhorn-pollen-mass-shrink",
+            oracleText: "{1}{G}: All creatures get -1/-0 until end of turn.",
+            cost: { mana: { X: 1, G: 1 } },
+            useStack: true,
+            // Migrated resolve()→effects[] (ADR 0045): forEach every
+            // battlefield's creatures (CR 205), -1/-0 EOT each (CR 611.2a) —
+            // the Day of Judgment mass-sweep shape with `pump` instead of
+            // `destroy`.
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$each" },
+                            power: -1,
+                            toughness: 0,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+}));
 // Gorilla Pack — activated above (Green free tranche).
 // Maddening Wind — {2}{G} Aura "Enchant creature" with cumulative upkeep {G}
 // (CR 702.24, paid by the Aura's controller — scope "your") and a host-

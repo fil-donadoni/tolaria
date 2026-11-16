@@ -85,6 +85,42 @@ export const wallOfSpears = defineCard(() => ({
 // CR 611.1 temp P/T mods; CR 701.19 regeneration; CR 502.1 untap restriction)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Colossus of Sardia — {9} Artifact Creature — Golem, 9/9 with trample +
+// "This creature doesn't untap during your untap step. {9}: Untap this
+// creature. Activate only during your upkeep." (CR 702.19 trample; CR 502.1
+// untap restriction via the `does-not-untap` keyword read by `untapStep` in
+// phases.ts; CR 602.5b activation timing — `activationPhaseRestriction:
+// ["UPKEEP"]` + `controllerTurnOnly` enforces "during your upkeep").
+export const colossusOfSardia = defineCard(() => ({
+    id: "067c44e9-1b23-42fd-9acb-daafb62c32a2",
+    rarity: "rare",
+    name: "Colossus of Sardia",
+    oracleText:
+        "Trample (This creature can deal excess combat damage to the player or planeswalker it's attacking.)\nThis creature doesn't untap during your untap step.\n{9}: Untap this creature. Activate only during your upkeep.",
+    manaCost: { X: 9 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Golem"],
+    power: 9,
+    toughness: 9,
+    staticAbilities: ["trample", "does-not-untap"],
+    activatedAbilities: [
+        {
+            id: "colossus-of-sardia-untap",
+            oracleText:
+                "{9}: Untap this creature. Activate only during your upkeep.",
+            cost: { mana: { X: 9 } },
+            useStack: true,
+            activationPhaseRestriction: ["UPKEEP"],
+            controllerTurnOnly: true,
+            // Migrated resolve()→effects[] (ADR 0045, #842): untap the source
+            // creature (CR 701.26b). `$source` is the resolving permanent.
+            effects: [
+                { op: "tapUntap", action: "untap", target: { ref: "$source" } },
+            ],
+        },
+    ],
+}));
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Simple non-creature permanents (CR 305 lands, CR 301 artifacts)
 // ─────────────────────────────────────────────────────────────────────────────
