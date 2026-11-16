@@ -1221,10 +1221,6 @@ export type PlanPositionScorer = (plan: AutoTapPlan) => number;
  * source can pay, or the freshly-animated creature lands tapped. Class-wide:
  * applies to any activated ability whose source also has a mana ability. Pure
  * convenience UX — CR 602.1 never dictates which legal sources a player taps.
- *
- * Beneath it, a `combatBody` source (an animated creature that can still
- * attack or block this turn) is spent last, ahead of every Demand and of the
- * minimal tap count (`solveSparingCombatBodies`).
  */
 export function solveSmartAutoTap(
     pool: Record<string, number>,
