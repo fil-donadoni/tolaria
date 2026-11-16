@@ -111,7 +111,7 @@ export const ROOT_RULE_ALLOWLIST: Record<
     "self-harm-removal": {
         kind: "rule",
         issue: 365,
-        why: "a self-confined cast whose settled resolution strictly LOWERS the mover's margin, held over an outcome-equal pass",
+        why: "a self-confined cast whose settled resolution strictly LOWERS the mover's margin, held over an outcome-equal pass — or over any pass when the reward band is blind to the drop, the settled cast and the settled pass mapping to the same clipped reward (issue #9964)",
     },
     "free-development": {
         kind: "rule",
