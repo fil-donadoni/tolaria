@@ -7432,6 +7432,35 @@ export function clearExileLinksToEnteringSource(
     }
 }
 
+/** CR 400.7 / 607.2a (issue #9962) — true when the source of the ability
+ *  `item` has left the battlefield since the ability was put on the stack AND
+ *  a permanent bearing the same instance id is on the battlefield again: the
+ *  re-entered permanent is a NEW object, not the one whose linked ability is
+ *  resolving. The ordering `clearExileLinksToEnteringSource` cannot cover — a
+ *  link stamped AFTER the re-entry, by an ability the previous incarnation put
+ *  on the stack (CR 113.7a: it resolves independently of its source).
+ *
+ *  `item.sourceLki` is the departure signal (stamped write-once by
+ *  `removePermanentTo`, never by a phase-out or a control change, which are
+ *  not zone changes); a same-id permanent on the battlefield — or phased out
+ *  (CR 702.26d: still the same new object) — is the re-entry. A source that
+ *  only LEFT reads false (issue #2001: the ability keeps acting on its
+ *  source's last known information, CR 608.2h). A source that re-entered and
+ *  left AGAIN reads false too; the stale id it stamps is cleared by
+ *  `clearExileLinksToEnteringSource` at its next entry, the only time a
+ *  battlefield object can carry that id again. */
+export function abilitySourceReentered(
+    state: GameState,
+    item: StackItem
+): boolean {
+    if (!item.sourceLki) return false;
+    const sourceId = item.triggerSourceId ?? item.id;
+    if (findOnBattlefield(state, sourceId)) return true;
+    return (state.phasedOut ?? []).some((bundle) =>
+        bundle.cards.some((c) => c.id === sourceId)
+    );
+}
+
 /** CR 400.7 / 603.7c (issue #3249) — the delayed-trigger twin of
  *  `clearExileLinksToEnteringSource`, called from the same three entry
  *  funnels. A delayed triggered ability's `capture` freezes an INSTANCE ID at
@@ -21660,11 +21689,21 @@ export function buildSpellContext(
         },
         // CR 111 (issue #791) — stamp the per-source exile provenance link on an
         // already-exiled card. Scans every owner's exile (CR 400.7 — the card
-        // may sit in an opponent's exile), no-op if not found.
+        // may sit in an opponent's exile), no-op if not found. CR 607.2a / 400.7
+        // (issue #9962): no-op too when the resolving ability's own source
+        // has re-entered the battlefield since the ability was put on the
+        // stack — the card stays exiled (CR 113.7a), linked to no object. The
+        // ONE gate for every link-stamping Op site.
         linkExileToSource(
             cardInstanceId: string,
             sourceInstanceId: string
         ): void {
+            if (
+                sourceInstanceId === (item.triggerSourceId ?? item.id) &&
+                abilitySourceReentered(state, item)
+            ) {
+                return;
+            }
             for (const p of state.players) {
                 const card = p.exile.find((c) => c.id === cardInstanceId);
                 if (card) {
