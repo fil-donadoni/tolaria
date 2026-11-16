@@ -752,4 +752,3 @@ export const slay = defineCard(() => ({
         { op: "draw", player: "controller", count: 1 },
     ],
 }));
-
