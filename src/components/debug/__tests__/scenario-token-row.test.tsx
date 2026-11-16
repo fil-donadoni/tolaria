@@ -134,7 +134,7 @@ describe("DebugCardNameField — token source", () => {
         fireEvent.focus(screen.getByLabelText("Card name"));
 
         expect(
-            screen.getByRole("button", { name: "Shivan Dragon" })
+            screen.getByRole("button", { name: "Shivan Zombie" })
         ).toBeTruthy();
     });
 });
