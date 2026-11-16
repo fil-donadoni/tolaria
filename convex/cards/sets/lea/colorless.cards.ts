@@ -61,42 +61,6 @@ export const ankhOfMishra = defineCard(() => ({
     ],
 }));
 
-// Basalt Monolith — "This artifact doesn't untap during your untap step.
-// {T}: Add {C}{C}{C}. {3}: Untap this artifact." (CR 502.1 untap restriction,
-// 605.1a/605.3a mana ability useStack: false, 605 activated abilities).
-// The `does-not-untap` keyword is read by `untapStep` in `phases.ts`. The
-// {3} untap is a non-mana activated ability that uses the stack so it can be
-// responded to (the canonical {3} → reuse-for-mana combo with Power Artifact
-// is out of scope of LEA's printed catalog, kept correct anyway).
-export const basaltMonolith = defineCard(() => ({
-    id: "66a74c89-6f86-4ec8-af17-391cd5026054",
-    rarity: "uncommon",
-    name: "Basalt Monolith",
-    oracleText:
-        "This artifact doesn't untap during your untap step.\n{T}: Add {C}{C}{C}.\n{3}: Untap this artifact.",
-    manaCost: { X: 3 },
-    types: ["Artifact"],
-    staticAbilities: ["does-not-untap"],
-    activatedAbilities: [
-        makeTapForMana({
-            id: "basalt-monolith-mana",
-            oracleText: "{T}: Add {C}{C}{C}.",
-            produces: { C: 3 },
-        }),
-        {
-            id: "basalt-monolith-untap",
-            oracleText: "{3}: Untap this artifact.",
-            cost: { mana: { X: 3 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #842): untap the source
-            // artifact (CR 701.26b). `$source` is the resolving permanent.
-            effects: [
-                { op: "tapUntap", action: "untap", target: { ref: "$source" } },
-            ],
-        },
-    ],
-}));
-
 export const blackVise = defineCard(() => ({
     id: "76ac72f8-5b1e-4d67-a796-ef69cde27424",
     rarity: "uncommon",
