@@ -1996,47 +1996,6 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
-    // CR 701.9b — "Target player discards two cards": the affected player
-    // picks (`choice` kind `discard-hand`; the interpreter clamps the pick to
-    // the hand), then a `discard` Op consumes the picks binding. Exhibits the
-    // "discard consumes a choice binding" form the canned smoke scenario
-    // cannot answer, so this fixture is the evidence the pair is emitted as
-    // the hand-written Mind Rot (sets/por/black.cards.ts) writes it — the same
-    // card, whose own per-card test covers the suspension and resume.
-    {
-        rule: "effect clause",
-        card: {
-            oracleId: "ad44cf74-b717-48fb-9fa2-77512024d76a",
-            name: "Mind Rot",
-            manaCost: "{2}{B}",
-            typeLine: "Sorcery",
-            oracleText: "Target player discards two cards.",
-            layout: "normal",
-        },
-        expected: {
-            name: "Mind Rot",
-            types: ["Sorcery"],
-            manaCost: { X: 2, B: 1 },
-            oracleText: "Target player discards two cards.",
-            effects: [
-                {
-                    op: "choice",
-                    kind: "discard-hand",
-                    player: { target: 0 },
-                    zone: "hand",
-                    count: 2,
-                    prompt: "Discard two cards.",
-                    bind: "$discard1",
-                },
-                {
-                    op: "discard",
-                    player: { target: 0 },
-                    cards: { ref: "$discard1" },
-                },
-            ],
-            targetRequirement: { type: "player", count: 1 },
-        },
-    },
     // CR 701.21a — "Target player sacrifices a creature of their choice": the
     // sacrificing player picks (`choice` kind `sacrifice-permanents`, raised
     // for the announced player, never the caster), then a `sacrifice` Op
@@ -2078,10 +2037,10 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
     // CR 701.9b — "Draw three cards, then discard two cards": the CONTROLLER
     // picks (`choice` kind `choose-hand-card`), then a `discard` Op consumes
     // the picks binding. Exhibits the controller-side "discard consumes a
-    // choice binding" form the canned smoke scenario cannot answer (Mind Rot's
-    // fixture covers the announced-player side), so this fixture is the
-    // evidence the controller-side pair is emitted as `choose-hand-card` +
-    // `discard` ref, with the kicked branch reusing the Mind Rot shape.
+    // choice binding" form the canned smoke scenario cannot answer (it answers
+    // only a `discard-hand` pick), so this fixture is the evidence the
+    // controller-side pair is emitted as `choose-hand-card` + `discard` ref,
+    // with the kicked branch reusing the "target player discards" shape.
     {
         rule: "effect clause",
         card: {

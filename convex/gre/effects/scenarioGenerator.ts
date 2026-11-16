@@ -456,6 +456,11 @@ export interface Scenario {
     /** The seeded pools of the script's forced random picks, by binding;
      *  absent when it has none. Read by the `moveZone` assertor. */
     randomPools?: Readonly<Record<string, SeededRandomPool>>;
+    /** The canned answers to the script's discard picks, by binding; absent
+     *  when it has none. When the resolution suspends on one, the caller
+     *  submits its `picks` through the real submit path and resumes; the
+     *  `discard` assertor reads the hand they were picked from. */
+    choiceAnswers?: Readonly<Record<string, SeededChoiceAnswer>>;
     /** True when the script targets a player in at least one slot (drives the
      *  synthetic card's `targetRequirement`). */
     targetKind: "player" | "permanent" | "none";
@@ -747,6 +752,9 @@ interface Requirements {
     sourceSacrificeAdmitted: boolean;
     /** The forced `selectAtRandom` picks, by binding (`analyseSelectAtRandom`). */
     randomPicks: Map<string, RandomPick>;
+    /** The discard choices and the discards of their picks, by binding
+     *  (`analyseChoice`). */
+    choiceDiscards: Map<string, ChoiceDiscard>;
     /** The `$event.<field>` subject an Op acts on, and the firing event built
      *  to name the seeded permanent there (`eventSubjectFor`). */
     eventSubject?: EventSubject;
@@ -1737,30 +1745,6 @@ const SCENARIO_SKIPS = {
         code: "suspends-for-input",
         reason: `Op "bringFromOutsideGame" suspends for a pick from outside the game — covered by hand-written tests`,
     },
-    // A `choice` Op suspends resolution for a live player decision
-    // (issue #805) — a canned scenario cannot submit picks, so the
-    // script is reported as an explicit skip and execution coverage
-    // comes from the card's own tests (per the DSL testing regime,
-    // choice-carrying cards keep full per-card coverage).
-    choice: {
-        code: "suspends-for-input",
-        reason: `Op "choice" suspends for player input — covered by the Op's own suspension/resume tests`,
-    },
-    // `discard` either consumes a `choice` Op's picks binding (without
-    // the choice's submitted picks the outcome is undefined in a
-    // canned scenario — same skip rationale as `choice`) or (issue
-    // #1279, `cards` omitted) discards the WHOLE hand — the generator
-    // doesn't seed a specific hand to assert an emptied-hand /
-    // populated-graveyard delta against, so both shapes are skipped;
-    // execution coverage is the card's own per-card test (Wheel of
-    // Fortune, Anje's Ravager).
-    // Issue #2713 added a THIRD shape (a `filter` over the hand,
-    // Cabal Therapy) — skipped for the same reason as the whole-hand
-    // one: no seeded hand to assert a delta against.
-    discard: {
-        code: "choice-binding",
-        reason: `Op "discard" consumes a choice binding, a hand filter, or discards the whole hand — covered by the card's own suspension/resume or per-card test`,
-    },
     // `grantCastFromExile` (issue #1156, Dauthi Voidwalker) consumes
     // a `choice(zone: "exile")` Op's picks binding (the exiled card
     // chosen) — without the choice's submitted picks the outcome is
@@ -2680,6 +2664,175 @@ function analyseMoveZone(op: MoveZoneOp, req: Requirements): void {
     skipBecause(req, MOVE_ZONE_SKIP.code, MOVE_ZONE_SKIP.reason);
 }
 
+/** The skip every `choice` the canned run cannot answer raises. Spelled once,
+ *  and never reworded: `smokeSkipForm` hashes the reason. */
+const CHOICE_SKIP: ScenarioSkipRow = {
+    code: "suspends-for-input",
+    reason: `Op "choice" suspends for player input — covered by the Op's own suspension/resume tests`,
+};
+
+/** The skip every `discard` the canned run does not model raises: the picks
+ *  of a choice it cannot answer, a hand filter, or the whole hand. Spelled
+ *  once, and never reworded: `smokeSkipForm` hashes the reason. */
+const DISCARD_SKIP: ScenarioSkipRow = {
+    code: "choice-binding",
+    reason: `Op "discard" consumes a choice binding, a hand filter, or discards the whole hand — covered by the card's own suspension/resume or per-card test`,
+};
+
+type ChoiceOp = Extract<EffectOp, { op: "choice" }>;
+type DiscardOp = Extract<EffectOp, { op: "discard" }>;
+
+/** A `choice(kind: "discard-hand")` paired with the `discard` of its picks,
+ *  keyed in `Requirements.choiceDiscards` by its binding. */
+interface ChoiceDiscard {
+    readonly choice: ChoiceOp;
+    readonly count: number;
+    /** False when the canned run does not answer this choice: the chooser is
+     *  a runtime ref, or another pick already took the script's one answer.
+     *  The choice raised its skip at once; the discard of its picks names the
+     *  ref as its blocker, or raises its own skip. */
+    readonly modelled: boolean;
+    /** Where the choice's skip would sit in `Requirements.skips`. */
+    readonly skipAt: number;
+    /** The `discard` of the picks, and its skip position. */
+    discardedBy?: { readonly op: DiscardOp; readonly skipAt: number };
+}
+
+/** The seeded hand of an answered discard pick: `count + 1` filler cards, of
+ *  which the canned answer is the first `count`. */
+export interface SeededChoiceAnswer {
+    readonly playerId: string;
+    readonly handIds: readonly string[];
+    readonly picks: readonly string[];
+}
+
+/**
+ * "Defending player discards a card" (CR 701.9b — the affected player chooses
+ * which, CR 608.2d — while the effect applies): a `choice(kind:
+ * "discard-hand")` over the chooser's own hand for a literal count, whose
+ * picks a `discard` by the same player then moves (CR 701.9a). The canned run
+ * answers it: the chooser's hand is seeded with `count + 1` fillers, and the
+ * caller submits the first `count` through the real submit path when the
+ * resolution suspends (`scenario.choiceAnswers`). So the discard's assertion
+ * reads exactly which cards left: the answered ones in the graveyard, the one
+ * left over still in hand.
+ *
+ * Every other `choice` keeps the Op's skip: another zone or kind, a computed or
+ * ranged count, a filter, a different zone owner, a second pick in the script.
+ * A runtime-ref chooser keeps it too, but is recorded, so a discard of its
+ * picks names the ref rather than the binding as what holds it.
+ */
+function analyseChoice(op: ChoiceOp, req: Requirements): void {
+    const pairable =
+        op.kind === "discard-hand" &&
+        op.zone === "hand" &&
+        typeof op.count === "number" &&
+        Number.isInteger(op.count) &&
+        op.count >= 1 &&
+        holdsOnlyKeys(op, [
+            "kind",
+            "player",
+            "zone",
+            "count",
+            "prompt",
+            "bind",
+        ]);
+    const modelled =
+        pairable &&
+        resolveScenarioPlayer(op.player) !== "ref" &&
+        ![...req.choiceDiscards.values()].some((pick) => pick.modelled);
+    if (!modelled) skipBecause(req, CHOICE_SKIP.code, CHOICE_SKIP.reason);
+    if (!pairable) return;
+    if (modelled) analysePlayer(op.player, req, false);
+    req.choiceDiscards.set(op.bind, {
+        choice: op,
+        count: op.count as number,
+        modelled,
+        skipAt: req.skips.length,
+    });
+}
+
+/** CR 701.9a — `discard` in the one form the canned run models: the picks of
+ *  a recorded discard choice (`analyseChoice`), by the player who chose them.
+ *  Every other form keeps the Op's skip. */
+function analyseDiscard(op: DiscardOp, req: Requirements): void {
+    const pick =
+        op.cards === undefined
+            ? undefined
+            : req.choiceDiscards.get(op.cards.ref);
+    if (
+        pick === undefined ||
+        pick.discardedBy !== undefined ||
+        !holdsOnlyKeys(op, ["player", "cards"]) ||
+        JSON.stringify(op.player) !== JSON.stringify(pick.choice.player)
+    ) {
+        skipBecause(req, DISCARD_SKIP.code, DISCARD_SKIP.reason);
+        return;
+    }
+    pick.discardedBy = { op, skipAt: req.skips.length };
+    if (pick.modelled) return;
+    // The binding is the shape the run answers; what holds this pair is the
+    // chooser, a runtime ref the canned scenario does not resolve.
+    if (resolveScenarioPlayer(op.player) === "ref")
+        analysePlayer(op.player, req, false);
+    else skipBecause(req, DISCARD_SKIP.code, DISCARD_SKIP.reason);
+}
+
+/** Whether another part of the script changes the chooser's hand or reads
+ *  their graveyard, so the seeded hand is no longer what the discard sees or
+ *  the predicted delta is no longer the only one: a draw, a random discard, a
+ *  redirected graveyard, a count set over a hand or graveyard, a forced pick
+ *  over the caster's graveyard. */
+function chooserHandTouchedElsewhere(
+    req: Requirements,
+    playerId: string
+): boolean {
+    return (
+        req.drawingPlayers.has(playerId) ||
+        req.discardingPlayers.has(playerId) ||
+        req.redirectedPlayers.has(playerId) ||
+        req.countSets.some(
+            (spec) => spec.zone === "hand" || spec.zone === "graveyard"
+        ) ||
+        (playerId === CASTER_ID && req.randomPicks.size > 0)
+    );
+}
+
+/** Settles the script's discard picks once every Op is read: a modelled pick
+ *  nothing discards, or whose chooser's hand another part of the script
+ *  touches, raises the choice's skip (and its discard's) at the position it
+ *  would have had. An unmodelled pick already raised its own. */
+function settleChoiceDiscards(req: Requirements): void {
+    if (req.choiceDiscards.size === 0) return;
+    const raised: SmokeSkip[][] = [];
+    for (const [bind, pick] of req.choiceDiscards) {
+        if (
+            pick.modelled &&
+            pick.discardedBy !== undefined &&
+            !chooserHandTouchedElsewhere(
+                req,
+                assertionPlayerId(pick.choice.player)
+            )
+        )
+            continue;
+        req.choiceDiscards.delete(bind);
+        if (!pick.modelled) continue;
+        raised[pick.skipAt] = [
+            ...(raised[pick.skipAt] ?? []),
+            { ...CHOICE_SKIP, op: pick.choice },
+        ];
+        if (pick.discardedBy === undefined) continue;
+        const at = pick.discardedBy.skipAt;
+        raised[at] = [
+            ...(raised[at] ?? []),
+            { ...DISCARD_SKIP, op: pick.discardedBy.op },
+        ];
+    }
+    // Later positions first, so an earlier insertion point stays valid.
+    for (let at = raised.length - 1; at >= 0; at--)
+        if (raised[at] !== undefined) req.skips.splice(at, 0, ...raised[at]!);
+}
+
 /** Whether another part of the script feeds the caster's graveyard, so a
  *  forced pick's pool is no longer the seeded one: a count set banked there, a
  *  discard of the caster's seeded hand, a sweep over a seeded board, the
@@ -2688,6 +2841,9 @@ function graveyardFedElsewhere(req: Requirements): boolean {
     return (
         req.countSets.some((spec) => spec.zone === "graveyard") ||
         req.discardingPlayers.has(CASTER_ID) ||
+        [...req.choiceDiscards.values()].some(
+            (pick) => assertionPlayerId(pick.choice.player) === CASTER_ID
+        ) ||
         req.sweeps.length > 0 ||
         req.sourceSacrificeAdmitted
     );
@@ -2919,6 +3075,12 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 return;
             }
             skipBecause(req, "choice-binding", SACRIFICE_SKIP_REASON);
+            return;
+        case "choice":
+            analyseChoice(op, req);
+            return;
+        case "discard":
+            analyseDiscard(op, req);
             return;
         case "discardAtRandom":
             // CR 701.9b — a random discard. WHICH cards go is the seeded PRNG's
@@ -3501,6 +3663,7 @@ function randomPickDecoy(
 }
 
 function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
+    settleChoiceDiscards(req);
     settleRandomPicks(req);
     if (req.skips.length > 0) return { skip: req.skips };
 
@@ -3572,10 +3735,30 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
             ],
         };
     }
+    // A settled discard pick's chooser holds `count + 1` cards, and the canned
+    // answer is the first `count` of them (`analyseChoice`). Its hand is no
+    // random discard's: `settleChoiceDiscards` gave up the pick otherwise.
+    const choiceAnswers: Record<string, SeededChoiceAnswer> = {};
+    const answeredHands = new Map<string, CardInstanceState[]>();
+    for (const [bind, pick] of req.choiceDiscards) {
+        const pid = assertionPlayerId(pick.choice.player);
+        const hand = spawnFiller(
+            pid,
+            "hand",
+            pick.count + 1,
+            `gen-pick-${bind.replace(/^\$/, "")}`
+        );
+        answeredHands.set(pid, hand);
+        choiceAnswers[pick.choice.bind] = {
+            playerId: pid,
+            handIds: hand.map((card) => card.id),
+            picks: hand.slice(0, pick.count).map((card) => card.id),
+        };
+    }
     const seededHand = (pid: string): CardInstanceState[] =>
         req.discardingPlayers.has(pid)
             ? spawnFiller(pid, "hand", SMOKE_HAND_SIZE, "gen-hand")
-            : [];
+            : (answeredHands.get(pid) ?? []);
 
     // Libraries for drawing players.
     const p1Library = req.drawingPlayers.has(CASTER_ID)
@@ -3771,6 +3954,7 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
             : {}),
         ...(sweeps.length === 0 ? {} : { sweeps }),
         ...(randomPools === undefined ? {} : { randomPools }),
+        ...(Object.keys(choiceAnswers).length === 0 ? {} : { choiceAnswers }),
         targetKind: sawPlayerSlot
             ? "player"
             : sawPermanentSlot
@@ -4244,6 +4428,7 @@ function bodySpeaksForItself(op: ForEachOp, host: SmokeHost): boolean {
     const body = emptyRequirements(SPELL_HOST);
     for (const nested of [...op.effects, ...nestedOps(op.effects, host)])
         analyseOpFully(nested, body);
+    settleChoiceDiscards(body);
     settleRandomPicks(body);
     return body.skips.some(
         (skip) => SMOKE_SKIP_CLASS[skip.code] === "card-dependent"
@@ -4752,6 +4937,37 @@ const OP_ASSERTORS: AssertorTable = {
                 return {
                     ok: postP.hand.length === expected && moved === discarded,
                     detail: `hand ${postP.hand.length}, expected ${expected}; ${moved} seeded card(s) in the graveyard, expected ${discarded}`,
+                };
+            },
+        };
+    },
+    // CR 701.9a — the chooser's answered picks move from their hand to their
+    // graveyard, and the one seeded card left unanswered stays in hand: the
+    // discard moved what was chosen, not merely as many cards.
+    discard(rawOp, scenario) {
+        const op = rawOp as DiscardOp;
+        const answer =
+            op.cards === undefined
+                ? undefined
+                : scenario.choiceAnswers?.[op.cards.ref];
+        if (answer === undefined) return null;
+        const pid = answer.playerId;
+        const picked = new Set(answer.picks);
+        const kept = answer.handIds.filter((id) => !picked.has(id));
+        return {
+            label: `discard ${answer.picks.length} chosen card(s) from player ${pid} (hand ${answer.handIds.length}→${kept.length})`,
+            check: (post) => {
+                const postP = findPlayer(post, pid);
+                const inGraveyard = answer.picks.filter((id) =>
+                    postP.graveyard.some((c) => c.id === id)
+                ).length;
+                const handIds = postP.hand.map((c) => c.id).sort();
+                return {
+                    ok:
+                        inGraveyard === answer.picks.length &&
+                        JSON.stringify(handIds) ===
+                            JSON.stringify([...kept].sort()),
+                    detail: `${inGraveyard} chosen card(s) in the graveyard, expected ${answer.picks.length}; hand [${handIds.join(", ")}], expected [${[...kept].sort().join(", ")}]`,
                 };
             },
         };
@@ -5518,6 +5734,9 @@ const OP_ASSERTORS: AssertorTable = {
     // A forced pick moves nothing: its picks are a binding, and the `moveZone`
     // that moves them is the one with an outcome (`analyseSelectAtRandom`).
     selectAtRandom: () => null,
+    // A discard pick binds the answered cards and moves nothing; the `discard`
+    // of its picks is what the assertion reads.
+    choice: () => null,
     // CR 400.7 — the forced pick's cards leave the caster's graveyard for
     // their hand: exactly `count` of the `count + 1` seeded matching cards,
     // whichever the seeded PRNG drew, and never the card the filter passes
@@ -6198,6 +6417,7 @@ function planWith(
         const nested = emptyRequirements(SPELL_HOST);
         nested.sweepsRun = false;
         for (const op of nestedOps(effects, host)) analyseOpFully(op, nested);
+        settleChoiceDiscards(nested);
         settleRandomPicks(nested);
         return skipPlan([...built.skip, ...nested.skips]);
     }
@@ -6260,6 +6480,7 @@ function emptyRequirements(host: SmokeHost): Requirements {
         sweepsRun: true,
         sourceSacrificeAdmitted: false,
         randomPicks: new Map(),
+        choiceDiscards: new Map(),
     };
 }
 
