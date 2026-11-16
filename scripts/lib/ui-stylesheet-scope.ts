@@ -275,11 +275,7 @@ const COLOR_TOKEN_DECL = /^\s*--color-([A-Za-z0-9][\w-]*)\s*:[^;{}]*;\s*$/;
 
 /** The NAME of a NEW colour token an added line declares inside `@theme`,
  *  or `null` (see the header's `@theme` bullet). */
-function addedColorToken(
-    sheet: ParsedSheet,
-    line: number,
-    before: string
-): string | null {
+function addedColorToken(sheet: ParsedSheet, line: number): string | null {
     const code = sheet.code.split("\n");
     const m = COLOR_TOKEN_DECL.exec(code[line - 1] ?? "");
     if (!m) return null;
@@ -289,8 +285,9 @@ function addedColorToken(
         if (!WRAPPER_AT_RULE.test(b.prelude)) return null;
     }
     const name = m[1];
-    const declared = new RegExp(`--color-${escapeRegExp(name)}\\s*:`);
-    if (declared.test(before)) return null;
+    // An existing token's declaration either survives (and is read by the
+    // line below) or is removed (a removed `@theme` line is global): no need
+    // to look at the old sheet here.
     const read = new RegExp(`--color-${escapeRegExp(name)}(?![\\w-])`);
     if (code.some((text, i) => i !== line - 1 && read.test(text))) return null;
     return name;
@@ -317,9 +314,7 @@ export function stylesheetConfinement(
         const seen = new Set<string>();
         for (const line of lines) {
             if (sheet.blankLines.has(line)) continue;
-            const token = isAdded
-                ? addedColorToken(sheet, line, change.before)
-                : null;
+            const token = isAdded ? addedColorToken(sheet, line) : null;
             if (token !== null) {
                 out.colorTokens!.add(token);
                 continue;
