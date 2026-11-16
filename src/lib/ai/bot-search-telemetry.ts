@@ -7,12 +7,16 @@
 // a small laptop or another browser engine. A Bot cut short by the clock does
 // not fail — it plays worse, and nothing on screen or in a bug report says so.
 //
-// The vs-Bot driver folds every Brain consult into a per-game accumulator
-// (`openBotSearchReport`) and flushes it when the game ends or is left,
-// whichever comes first: one structured log per game, never one per consult.
-// A game with no consult reports nothing. A consult still in flight when the
-// report is flushed is not in it, and a game whose tab is closed mid-play
-// loses its report; both are accepted.
+// The vs-Bot driver folds every Brain consult into a per-game accumulator and
+// flushes it ONCE (issue #10022): at game over, when the game is left, or when
+// the page is hidden, whichever comes first — one structured log per game,
+// never one per consult and never one per driver mount. The accumulator lives
+// HERE, outside the driver (`acquireBotSearchReport`): a driver that unmounts
+// and mounts again on the same game folds into the report it left open, so a
+// remount no longer splits one game into several reports. A game with no
+// consult reports nothing. A consult still in flight when the report is
+// flushed is not in it, and neither is one that lands after a page-hide flush
+// on a page the player came back to; both are accepted.
 //
 // WHAT TRAVELS, and the boundary it must keep. This report is NOT consented:
 // it leaves the device without the bug-report consent gate
@@ -156,8 +160,25 @@ export function coresBucket(cores: number | undefined): DeviceClass["cores"] {
 type NavigatorLike = {
     userAgent?: string;
     hardwareConcurrency?: number;
+    maxTouchPoints?: number;
     userAgentData?: { mobile?: boolean };
 };
+
+/** Whether a device is mobile (issue #10022). The browser's own hint wins
+ *  where it exists (Chromium's `userAgentData.mobile`, which calls an Android
+ *  TABLET desktop — so does this flag, there); Safari and
+ *  Firefox have none, so the user agent decides — a phone or tablet token, or
+ *  a DESKTOP Mac agent on a touch screen. That last case is an Apple device
+ *  presenting itself as a Mac: iPadOS sends the Mac agent by default, and an
+ *  iPhone sends it under "Request Desktop Website". No Mac has a touch
+ *  screen, so `maxTouchPoints > 1` tells them apart. */
+export function isMobileDevice(nav: NavigatorLike | undefined): boolean {
+    const hint = nav?.userAgentData?.mobile;
+    if (typeof hint === "boolean") return hint;
+    const userAgent = nav?.userAgent ?? "";
+    if (/Mobi|Android|iPhone|iPad|iPod/.test(userAgent)) return true;
+    return /Macintosh/.test(userAgent) && (nav?.maxTouchPoints ?? 0) > 1;
+}
 
 /** This device's coarse class. Reads the navigator; returns only the class. */
 export function deviceClass(
@@ -165,13 +186,10 @@ export function deviceClass(
         ? undefined
         : (navigator as NavigatorLike)
 ): DeviceClass {
-    const userAgent = nav?.userAgent ?? "";
     return {
-        engine: engineFamily(userAgent),
+        engine: engineFamily(nav?.userAgent ?? ""),
         cores: coresBucket(nav?.hardwareConcurrency),
-        mobile:
-            nav?.userAgentData?.mobile ??
-            /Mobi|Android|iPhone|iPad|iPod/.test(userAgent),
+        mobile: isMobileDevice(nav),
     };
 }
 
@@ -281,8 +299,12 @@ export type BotSearchRecorder = {
     flush: () => void;
 };
 
-/** Open the accumulator of one game's Bot searches. */
-export function openBotSearchReport(gameId: string): BotSearchRecorder {
+/** Open the accumulator of one game's Bot searches. `onEmit` runs once, when
+ *  the report goes out. */
+export function openBotSearchReport(
+    gameId: string,
+    onEmit?: () => void
+): BotSearchRecorder {
     const samples: ConsultSample[] = [];
     let emitted = false;
     return {
@@ -292,6 +314,7 @@ export function openBotSearchReport(gameId: string): BotSearchRecorder {
         flush() {
             if (emitted || samples.length === 0) return;
             emitted = true;
+            onEmit?.();
             try {
                 botSearchSink.log(
                     summarizeBotSearch(gameId, samples, deviceClass())
@@ -301,4 +324,98 @@ export function openBotSearchReport(gameId: string): BotSearchRecorder {
             }
         },
     };
+}
+
+// ── One report per GAME, not per driver mount (issue #10022) ────────────────
+
+/** How long a report stays open after its driver unmounts before the game
+ *  counts as LEFT and the report goes out. A remount of the same game inside
+ *  this window folds into the open report; one after it finds the game
+ *  already reported and adds nothing. Page hide and a different game flush
+ *  sooner. */
+export const BOT_SEARCH_LEAVE_GRACE_MS = 30_000;
+
+type OpenReport = {
+    gameId: string;
+    recorder: BotSearchRecorder;
+    leave: ReturnType<typeof setTimeout> | null;
+};
+
+/** The one game whose report is open on this page: a page drives one vs-Bot
+ *  game at a time. */
+let current: OpenReport | null = null;
+/** Games whose report has gone out from this page: a game is reported once. */
+const reported = new Set<string>();
+let listeningForPageHide = false;
+
+/** The recorder of a game already reported: records nothing, sends nothing. */
+const REPORTED: BotSearchRecorder = { record() {}, flush() {} };
+
+function cancelLeave(open: OpenReport): void {
+    if (open.leave !== null) clearTimeout(open.leave);
+    open.leave = null;
+}
+
+function closeCurrent(): void {
+    if (!current) return;
+    cancelLeave(current);
+    current.recorder.flush();
+    current = null;
+}
+
+function flushOnPageHide(): void {
+    current?.recorder.flush();
+}
+
+/** The page is going away (`pagehide`), or into the background, where a phone
+ *  may kill it with no further event — an iOS app switch fires
+ *  `visibilitychange`, never `pagehide`. Either way the report goes out now;
+ *  the owner chose a truncated report over a lost one (issue #10022). */
+function listenForPageHide(): void {
+    if (listeningForPageHide) return;
+    if (typeof window === "undefined" || typeof document === "undefined") {
+        return;
+    }
+    listeningForPageHide = true;
+    window.addEventListener("pagehide", flushOnPageHide);
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") flushOnPageHide();
+    });
+}
+
+/** The report of `gameId`, for a driver that starts driving it. The SAME game
+ *  gets the report already open — a remount continues it; a different game
+ *  flushes the open one (its game was left) and starts from zero; a game
+ *  already reported gets a recorder that records nothing. */
+export function acquireBotSearchReport(gameId: string): BotSearchRecorder {
+    if (current?.gameId === gameId) {
+        cancelLeave(current);
+        return current.recorder;
+    }
+    closeCurrent();
+    const recorder = reported.has(gameId)
+        ? REPORTED
+        : openBotSearchReport(gameId, () => reported.add(gameId));
+    current = { gameId, recorder, leave: null };
+    listenForPageHide();
+    return recorder;
+}
+
+/** The driver holding `recorder` stopped driving its game. The report is not
+ *  flushed yet: it waits `BOT_SEARCH_LEAVE_GRACE_MS` for a remount of the same
+ *  game, then goes out. */
+export function releaseBotSearchReport(recorder: BotSearchRecorder): void {
+    const open = current;
+    if (!open || open.recorder !== recorder) return;
+    cancelLeave(open);
+    open.leave = setTimeout(() => {
+        if (current === open) closeCurrent();
+    }, BOT_SEARCH_LEAVE_GRACE_MS);
+}
+
+/** Forget every report on this page without sending any: a test's fresh page. */
+export function clearBotSearchReports(): void {
+    if (current) cancelLeave(current);
+    current = null;
+    reported.clear();
 }

@@ -314,8 +314,12 @@ const {
     getAiDecisions,
     clearAiDecisions,
 } = await import("~/lib/ai/trace-store");
-const { botSearchSink, REPORT_KEYS } =
-    await import("~/lib/ai/bot-search-telemetry");
+const {
+    botSearchSink,
+    REPORT_KEYS,
+    BOT_SEARCH_LEAVE_GRACE_MS,
+    clearBotSearchReports,
+} = await import("~/lib/ai/bot-search-telemetry");
 // The real mount point, so the rung-5 tests exercise the actual UI seam
 // (`VsAiDriver` → `reportStall` → `BotStuckNotice`) rather than a stand-in.
 const VsAiDriver = (await import("~/components/board/vs-ai-driver")).default;
@@ -1218,7 +1222,8 @@ describe("failed Brain consults reach the server (issue #9502)", () => {
 // ── The game's Bot search report (issue #9526) ──────────────────────────────
 //
 // Every consult's ending is folded into ONE report per game, emitted at game
-// over or when the game is left. Driven through the real decision path, like
+// over, when the game is left or when the page is hidden — whichever comes
+// first, and however many times the driver mounts on it (issue #10022). Driven through the real decision path, like
 // the #9502 block above: the REAL `decideBotAction` routes the window to the
 // consult, and the consult's verdict and trace reach the driver exactly as
 // `brain-client.ts` resolves them. The report is observed at its sink.
@@ -1270,10 +1275,98 @@ describe("the game's Bot search report (issue #9526)", () => {
 
     let log: ReturnType<typeof vi.spyOn>;
     beforeEach(() => {
+        // The report outlives the driver by design (issue #10022): every test
+        // starts on a fresh page.
+        clearBotSearchReports();
         log = vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
     });
     afterEach(() => {
         log.mockRestore();
+        clearBotSearchReports();
+    });
+
+    function endGame(board: GameState, seq: number) {
+        board.gameOver = { winnerId: HUMAN, loserId: BOT, reason: "life" };
+        publish(board, seq);
+    }
+
+    it("folds a remount of the SAME game into one report carrying both halves", async () => {
+        searchWindow(1);
+        answered();
+        const first = renderHook(() => useVsAiDriver(GAME, BOT));
+        await advance(500);
+        first.unmount();
+        expect(log).not.toHaveBeenCalled();
+
+        // The driver mounts again on the same game, well inside the grace.
+        const board = searchWindow(2);
+        timedOut();
+        const second = renderHook(() => useVsAiDriver(GAME, BOT));
+        await advance(500);
+        expect(log).not.toHaveBeenCalled();
+
+        endGame(board, 3);
+        second.rerender();
+        await advance(50);
+
+        expect(log).toHaveBeenCalledTimes(1);
+        expect(log.mock.calls[0]![0]).toMatchObject({
+            gameId: GAME,
+            consults: 2,
+            "consults.move": 1,
+            "consults.timeout": 1,
+        });
+
+        // Past the grace, after the game is over: still the one report.
+        second.unmount();
+        await advance(BOT_SEARCH_LEAVE_GRACE_MS + 50);
+        expect(log).toHaveBeenCalledTimes(1);
+    });
+
+    it("flushes once on page hide; the game's later end sends nothing more", async () => {
+        searchWindow(1);
+        answered();
+        const { rerender, unmount } = renderHook(() =>
+            useVsAiDriver(GAME, BOT)
+        );
+        await advance(500);
+
+        window.dispatchEvent(new Event("pagehide"));
+        expect(log).toHaveBeenCalledTimes(1);
+        expect(log.mock.calls[0]![0]).toMatchObject({
+            gameId: GAME,
+            consults: 1,
+        });
+
+        // The page comes back: the game goes on to its end, and is left.
+        const board = searchWindow(2);
+        timedOut();
+        rerender();
+        await advance(500);
+        endGame(board, 3);
+        rerender();
+        await advance(50);
+        unmount();
+        await advance(BOT_SEARCH_LEAVE_GRACE_MS + 50);
+
+        expect(log).toHaveBeenCalledTimes(1);
+    });
+
+    it("flushes when the page goes to the background — a phone's last word", async () => {
+        searchWindow(1);
+        answered();
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await advance(500);
+
+        const visibility = vi
+            .spyOn(document, "visibilityState", "get")
+            .mockReturnValue("hidden");
+        try {
+            document.dispatchEvent(new Event("visibilitychange"));
+        } finally {
+            visibility.mockRestore();
+        }
+        expect(log).toHaveBeenCalledTimes(1);
     });
 
     it("reports a game's consults once, when the game ends on the board", async () => {
@@ -1374,7 +1467,11 @@ describe("the game's Bot search report (issue #9526)", () => {
             "consults.move": 1,
         });
 
+        // Leaving waits out the grace for a remount, then reports.
         unmount();
+        await advance(BOT_SEARCH_LEAVE_GRACE_MS - 50);
+        expect(log).toHaveBeenCalledTimes(1);
+        await advance(100);
         expect(log).toHaveBeenCalledTimes(2);
         const second = log.mock.calls[1]![0] as Record<string, unknown>;
         expect(second).toMatchObject({
@@ -1413,6 +1510,7 @@ describe("the game's Bot search report (issue #9526)", () => {
         });
         await advance(50);
         unmount();
+        await advance(BOT_SEARCH_LEAVE_GRACE_MS + 50);
 
         // The old game was left with no settled consult, the new one never
         // consulted the Brain: neither has anything to report.
@@ -1424,6 +1522,7 @@ describe("the game's Bot search report (issue #9526)", () => {
         const { unmount } = renderHook(() => useVsAiDriver(GAME, BOT));
         await advance(500);
         unmount();
+        await advance(BOT_SEARCH_LEAVE_GRACE_MS + 50);
         expect(log).not.toHaveBeenCalled();
     });
 
@@ -1434,11 +1533,14 @@ describe("the game's Bot search report (issue #9526)", () => {
             calls.length = 0;
             clearAiDecisions();
             clearAiEscalations();
+            // Each play is a fresh page: the same game id, reported anew.
+            clearBotSearchReports();
             searchWindow(1);
             timedOut();
             const { unmount } = renderHook(() => useVsAiDriver(GAME, BOT));
             await runToWatchdog();
             expect(() => unmount()).not.toThrow();
+            await advance(BOT_SEARCH_LEAVE_GRACE_MS + 50);
             return calls.map((c) => c.ref);
         }
 

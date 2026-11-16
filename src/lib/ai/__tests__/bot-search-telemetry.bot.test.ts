@@ -2,8 +2,9 @@
 // class, and the two promises its header makes — it carries nothing outside
 // its allowlist, and it never costs the game anything.
 //
-// The driver-level behaviour (one report per game, at game over or on leaving)
-// is proven through the real hook in
+// The driver-level behaviour (one report per game, however often the driver
+// mounts on it: at game over, on leaving or on page hide) is proven through
+// the real hook in
 // `src/hooks/__tests__/useVsAiDriver-liveness.bot.test.ts`.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -124,6 +125,60 @@ describe("the coarse device class", () => {
             cores: "5-8",
             mobile: true,
         });
+    });
+
+    // Real agents (issue #10022). Safari and Firefox expose no
+    // `userAgentData`, so for them the agent and the touch screen decide.
+    const IPHONE_SAFARI =
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1";
+    /** What iPadOS Safari sends by default — and what an iPhone sends under
+     *  "Request Desktop Website": the Mac agent, word for word. */
+    const MAC_SAFARI =
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15";
+    const ANDROID_CHROME =
+        "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36";
+    const DESKTOP_FIREFOX =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0) Gecko/20100101 Firefox/144.0";
+
+    it("reads an iPhone in Safari as mobile", () => {
+        expect(
+            deviceClass({ userAgent: IPHONE_SAFARI, maxTouchPoints: 5 })
+        ).toMatchObject({ engine: "webkit", mobile: true });
+    });
+
+    it("reads a desktop Mac agent on a touch screen (iPadOS, desktop-site iPhone) as mobile", () => {
+        expect(
+            deviceClass({ userAgent: MAC_SAFARI, maxTouchPoints: 5 })
+        ).toMatchObject({ engine: "webkit", mobile: true });
+    });
+
+    it("reads a Mac in Safari as desktop", () => {
+        expect(
+            deviceClass({ userAgent: MAC_SAFARI, maxTouchPoints: 0 })
+        ).toMatchObject({ engine: "webkit", mobile: false });
+    });
+
+    it("reads Android Chrome as mobile, by its hint and by its agent", () => {
+        expect(
+            deviceClass({
+                userAgent: ANDROID_CHROME,
+                maxTouchPoints: 5,
+                userAgentData: { mobile: true },
+            })
+        ).toMatchObject({ engine: "chromium", mobile: true });
+        expect(
+            deviceClass({ userAgent: ANDROID_CHROME, maxTouchPoints: 5 }).mobile
+        ).toBe(true);
+    });
+
+    it("reads desktop Firefox as desktop, touch screen or not", () => {
+        expect(
+            deviceClass({ userAgent: DESKTOP_FIREFOX, maxTouchPoints: 0 })
+        ).toMatchObject({ engine: "gecko", mobile: false });
+        expect(
+            deviceClass({ userAgent: DESKTOP_FIREFOX, maxTouchPoints: 10 })
+                .mobile
+        ).toBe(false);
     });
 
     it("prefers the browser's own mobile hint over the user-agent guess", () => {
