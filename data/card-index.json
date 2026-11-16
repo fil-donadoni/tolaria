@@ -207,7 +207,9 @@
         "oracleId": "6300de53-6e71-4f0e-87e1-b0acd25c59a8",
         "firstSet": "wth",
         "firstPrintId": "125a355d-bfcf-4125-aa6c-35e7dea6f63e",
-        "firstPrintSet": "wth"
+        "firstPrintSet": "wth",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Abhorrent Oculus",
@@ -1279,7 +1281,9 @@
         "oracleId": "43f5a93b-0f8d-48d2-ab9d-275d44cf88b5",
         "firstSet": "inv",
         "firstPrintId": "37e3154d-9b1c-4f93-9bc3-a39e68d59d23",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Agility",
@@ -4983,7 +4987,9 @@
         "oracleId": "19bb51dd-2b93-45f0-927d-bbafddadd0a3",
         "firstSet": "inv",
         "firstPrintId": "38421179-615e-4aba-91a4-503bfee05403",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Aura of Silence",
@@ -11731,7 +11737,9 @@
         "oracleId": "5b5bf1fa-6502-4790-b66b-f0f8504ebc7c",
         "firstSet": "tor",
         "firstPrintId": "5403b49d-03a7-4cc3-af3c-df098c1c9c2e",
-        "firstPrintSet": "tor"
+        "firstPrintSet": "tor",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Cabal Stronghold",
@@ -11759,7 +11767,9 @@
         "oracleId": "018107d1-ebf7-4657-bc91-c8374af55cc5",
         "firstSet": "jud",
         "firstPrintId": "0a5df970-c6ba-4824-b8ba-67244aec2b82",
-        "firstPrintSet": "jud"
+        "firstPrintSet": "jud",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Cabal Torturer",
@@ -11915,7 +11925,9 @@
         "oracleId": "ee243f81-f51c-4d9a-a396-f7cef84b46c1",
         "firstSet": "ody",
         "firstPrintId": "429a88cc-53db-4c5e-a061-f0f49a38c675",
-        "firstPrintSet": "ody"
+        "firstPrintSet": "ody",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Call of the Nightwing",
@@ -14817,7 +14829,9 @@
         "oracleId": "a610c77c-fe31-4465-a1c1-392db4ce4ed1",
         "firstSet": "leg",
         "firstPrintId": "2fbd611b-ac97-4516-bad7-cc9ee4ef74f7",
-        "firstPrintSet": "leg"
+        "firstPrintSet": "leg",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Cleansing Nova",
@@ -21445,7 +21459,9 @@
         "oracleId": "038519b9-bca8-4b27-b5ac-2409595469d0",
         "firstSet": "pls",
         "firstPrintId": "76d1b5c5-cc47-465f-8549-4fd1ca4280df",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Diabolic Machine",
@@ -29301,7 +29317,9 @@
         "oracleId": "3c22e031-4804-4c31-bd3c-c3f29d456b34",
         "firstSet": "c15",
         "firstPrintId": "7b61c9bc-16e8-417f-99e7-8bd83d4666c5",
-        "firstPrintSet": "c15"
+        "firstPrintSet": "c15",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Fiery Finish",
@@ -30011,7 +30029,9 @@
         "oracleId": "c8b1e9f3-b014-4e57-b278-6d84a7e88b23",
         "firstSet": "drk",
         "firstPrintId": "aa2d778d-d74b-45ec-a86b-5d52ffad6ba5",
-        "firstPrintSet": "drk"
+        "firstPrintSet": "drk",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Fissure Wizard",
@@ -30149,7 +30169,9 @@
         "oracleId": "ecd49d85-9c8c-4cc9-9a83-072ecd433677",
         "firstSet": "ltr",
         "firstPrintId": "04779a7e-b453-48b9-b392-6d6fd0b8d283",
-        "firstPrintSet": "ltr"
+        "firstPrintSet": "ltr",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Flame Slash",
@@ -30157,7 +30179,9 @@
         "oracleId": "8d98d674-6811-4d45-b22a-63792e272a2b",
         "firstSet": "roe",
         "firstPrintId": "006d2bf1-20f7-4b09-8d98-8233d91682bd",
-        "firstPrintSet": "roe"
+        "firstPrintSet": "roe",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Flame Spirit",
@@ -32585,7 +32609,9 @@
         "oracleId": "73b26f12-78eb-4d01-9dd6-ee643c7a80a8",
         "firstSet": "pls",
         "firstPrintId": "67e5adce-7735-4fa5-aa14-8dce012e9fcc",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Gaea's Skyfolk",
@@ -34003,7 +34029,9 @@
         "oracleId": "58aec411-167d-4709-8560-793eaaed62c5",
         "firstSet": "chk",
         "firstPrintId": "32b91eb5-ea53-4a21-a2e5-9c545a42fa30",
-        "firstPrintSet": "chk"
+        "firstPrintSet": "chk",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Gigadrowse",
@@ -38517,7 +38545,9 @@
         "oracleId": "705509e9-a034-4a5a-9c65-66f58748b8a2",
         "firstSet": "tmp",
         "firstPrintId": "3c207142-4880-4935-9827-b91bc7d9d643",
-        "firstPrintSet": "tmp"
+        "firstPrintSet": "tmp",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Harsh Judgment",
@@ -39217,7 +39247,9 @@
         "oracleId": "f8df23ed-e239-435a-a4a9-cf10da6df28f",
         "firstSet": "leg",
         "firstPrintId": "64164d1b-75f4-456e-a717-90ce554dc16c",
-        "firstPrintSet": "leg"
+        "firstPrintSet": "leg",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Hell's Caretaker",
@@ -39599,7 +39631,9 @@
         "oracleId": "beab66e0-2b6c-478f-ba42-8c0c216a527e",
         "firstSet": "inv",
         "firstPrintId": "135d6043-5ec1-4ad4-8296-41fe23f11cb9",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Heroic Defiance",
@@ -41425,7 +41459,9 @@
         "oracleId": "a0b97e33-2d0c-4800-a9f5-9cd9be651ea8",
         "firstSet": "lea",
         "firstPrintId": "9914836e-2fa6-4390-94b2-431427848a54",
-        "firstPrintSet": "lea"
+        "firstPrintSet": "lea",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Ice Tunnel",
@@ -41917,7 +41953,9 @@
         "oracleId": "16cd0b90-f70c-4efa-b252-8de8784ef9a3",
         "firstSet": "ptk",
         "firstPrintId": "822e30db-40c5-4099-868b-185ad9b7c7dc",
-        "firstPrintSet": "ptk"
+        "firstPrintSet": "ptk",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Impervious Greatwurm",
@@ -41983,7 +42021,9 @@
         "oracleId": "bfde73b2-46bd-4fdb-9468-35819af609f7",
         "firstSet": "pls",
         "firstPrintId": "a76ee318-8126-4ebf-884d-8369ae8726ac",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Imposing Vantasaur",
@@ -42303,7 +42343,9 @@
         "oracleId": "94f0a572-e91c-4b56-a5d1-6cbbeabd210d",
         "firstSet": "mid",
         "firstPrintId": "17824929-f131-4b8d-addb-66c25323155e",
-        "firstPrintSet": "mid"
+        "firstPrintSet": "mid",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Infernal Idol",
@@ -43015,7 +43057,9 @@
         "oracleId": "3c9faba7-f2d3-4978-be94-020dc8003dc0",
         "firstSet": "tmp",
         "firstPrintId": "c99f6785-e5a1-4fdc-9fb5-e1a372e7e848",
-        "firstPrintSet": "tmp"
+        "firstPrintSet": "tmp",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Invasion Reinforcements",
@@ -46751,7 +46795,9 @@
         "oracleId": "e69252a6-8c27-4af9-8cbe-11eb416a6a46",
         "firstSet": "jud",
         "firstPrintId": "5b3c5144-7e15-46c6-b819-d729ecb30bb1",
-        "firstPrintSet": "jud"
+        "firstPrintSet": "jud",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Krosan Tusker",
@@ -48548,7 +48594,9 @@
         "oracleId": "0b8c3337-04dd-4798-8203-6d8b8cfb936b",
         "firstSet": "dka",
         "firstPrintId": "891a92d7-9ccf-4de1-8286-aa5254f27ba9",
-        "firstPrintSet": "dka"
+        "firstPrintSet": "dka",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Lingering Tormentor",
@@ -50750,7 +50798,9 @@
         "oracleId": "c61fe162-2202-4e56-9ba0-393547f9875f",
         "firstSet": "sth",
         "firstPrintId": "abcaf16d-aa02-43e2-aa38-bb1835d47a05",
-        "firstPrintSet": "sth"
+        "firstPrintSet": "sth",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Mana Matrix",
@@ -50796,7 +50846,9 @@
         "oracleId": "948217ac-289e-455f-8c7c-519aa75fa345",
         "firstSet": "plc",
         "firstPrintId": "7d48d622-f397-4f31-b1a5-0c23f60aa71c",
-        "firstPrintSet": "plc"
+        "firstPrintSet": "plc",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Mana Vault",
@@ -51334,7 +51386,9 @@
         "oracleId": "08ae9f91-48c8-4721-a82d-063defc1b727",
         "firstSet": "drk",
         "firstPrintId": "b80ecb15-258b-4fc9-86e4-c2bf01891606",
-        "firstPrintSet": "drk"
+        "firstPrintSet": "drk",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Marsh Goblins",
@@ -55692,7 +55746,9 @@
         "oracleId": "cd11c27b-9368-4622-bc5a-2e0b993cc42b",
         "firstSet": "c15",
         "firstPrintId": "81bbffc2-6f58-4baa-8f95-168eab106b15",
-        "firstPrintSet": "c15"
+        "firstPrintSet": "c15",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Mystic Forge",
@@ -60766,7 +60822,9 @@
         "oracleId": "dd84d291-cb7a-4f44-81cd-9f1181bb5ae5",
         "firstSet": "tmp",
         "firstPrintId": "e47ace1d-73de-44aa-a3fe-2e2a21ebec79",
-        "firstPrintSet": "tmp"
+        "firstPrintSet": "tmp",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Pernicious Deed",
@@ -64283,7 +64341,8 @@
         "firstSet": "leg",
         "firstPrintId": "2646284b-a94d-4c99-98d4-7becbb473e2b",
         "firstPrintSet": "leg",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Python",
@@ -66113,7 +66172,9 @@
         "oracleId": "4620bfa8-7198-44ae-a162-51a19ca0f555",
         "firstSet": "jud",
         "firstPrintId": "6d762c8c-6172-4dc0-8fcc-d0f6dd8ca013",
-        "firstPrintSet": "jud"
+        "firstPrintSet": "jud",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Razaketh, the Foulblooded",
@@ -67861,7 +67922,9 @@
         "oracleId": "ad470afc-d1a5-4e64-8192-fb6308ed9bfe",
         "firstSet": "inv",
         "firstPrintId": "8d44dd88-ad20-4d89-8831-d2dfa6873428",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Reviving Vapors",
@@ -72711,7 +72774,9 @@
         "oracleId": "23b11fdc-61b5-4f5e-ad80-f81b729fc91d",
         "firstSet": "ecl",
         "firstPrintId": "aeb4612c-758b-4492-ba03-eb6741b4176e",
-        "firstPrintSet": "ecl"
+        "firstPrintSet": "ecl",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Searchlight Geist",
@@ -74613,7 +74678,9 @@
         "oracleId": "8148eaa4-6fde-41f2-9b87-ccfc4d8e822f",
         "firstSet": "leg",
         "firstPrintId": "a5032bf0-f9c0-4ef0-8ec2-fe7ccea9bdf3",
-        "firstPrintSet": "leg"
+        "firstPrintSet": "leg",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Shieldmate's Blessing",
@@ -75187,7 +75254,9 @@
         "oracleId": "ee5a4902-f993-4fe6-92da-38636962c558",
         "firstSet": "pls",
         "firstPrintId": "54a7fb3b-8e81-4763-b2a1-7c2108a00afe",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Shriek Raptor",
@@ -77157,7 +77226,9 @@
         "oracleId": "ffcedb73-538a-45ea-8564-7b92624537e0",
         "firstSet": "pls",
         "firstPrintId": "c0c10b16-97b1-4a36-b2b4-f0c28ead3eb4",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Skyshroud Claim",
@@ -77495,7 +77566,9 @@
         "oracleId": "64418e1f-4fb1-4029-a31e-135b2d2c0ab9",
         "firstSet": "pls",
         "firstPrintId": "eccda747-2680-4793-8a13-35e49b4de12f",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Slayer of the Wicked",
@@ -79539,7 +79612,9 @@
         "oracleId": "d64b0848-0193-4025-ba62-63ecd8fb9f50",
         "firstSet": "zen",
         "firstPrintId": "cb3d3901-e4a6-45ab-a7b5-c65d91e1875e",
-        "firstPrintSet": "zen"
+        "firstPrintSet": "zen",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Spell Snare",
@@ -82393,7 +82468,9 @@
         "oracleId": "6ac7990b-b86e-4725-974c-d6affa2af2f9",
         "firstSet": "pls",
         "firstPrintId": "ec8b77cf-9c1e-4c8f-b452-295cc1570d0e",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Strands of Night",
@@ -85813,7 +85890,9 @@
         "oracleId": "1d7a4e9c-b3c9-421e-b5f4-82d51d7d5125",
         "firstSet": "apc",
         "firstPrintId": "b584dfd1-a56c-406e-8504-47ea136dc102",
-        "firstPrintSet": "apc"
+        "firstPrintSet": "apc",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Temporal Trespass",

@@ -235,32 +235,6 @@ export const gaeasHerald = defineCard(() => ({
     ],
 }));
 
-// Gaea's Might — {G} Instant. "Domain — Target creature gets +1/+1 until
-// end of turn for each basic land type among lands you control." (CR 702
-// preamble Domain ability word, issue #1066 — the `{ domain: { of } }`
-// EffectValue grammar member composed directly into `pump`'s power/
-// toughness, the exact Power Armor precedent the Domain registry row
-// documents. No new construct.)
-export const gaeasMight = defineCard(() => ({
-    id: "67e5adce-7735-4fa5-aa14-8dce012e9fcc", // PLS 81
-    name: "Gaea's Might",
-    rarity: "common",
-    oracleText:
-        "Domain — Target creature gets +1/+1 until end of turn for each basic land type among lands you control.",
-    manaCost: { G: 1 },
-    types: ["Instant"],
-    targetRequirement: { type: "Creature", count: 1 },
-    effects: [
-        {
-            op: "pump",
-            target: { target: 0 },
-            power: { domain: { of: "controller" } },
-            toughness: { domain: { of: "controller" } },
-            duration: { phase: "end-of-turn" },
-        },
-    ],
-}));
-
 // Does `controllerId` control a land with the basic land subtype `landType`
 // (CR 305.6)? The per-TYPE sibling of `countDomain`'s aggregate scan (same
 // module, same board-read convention — raw `PermanentView.subtypes`, no
@@ -723,54 +697,6 @@ export const rootGreevil = defineCard(() => ({
                 },
             ],
         },
-    ],
-}));
-
-// Skyshroud Blessing — {1}{G} Instant. "All lands gain shroud until end of
-// turn. Draw a card." (CR 702.18 shroud grant — `forEach { set:
-// "permanents", zone: "battlefield", filter: { type: "Land" } }` (no
-// `controller`, so EVERY player's lands, CR 305) + `grantAbility` per
-// member, then a plain `draw`. No new construct: `grantAbility`'s single-
-// slot `target` composes with `forEach`'s `$each` exactly like `pump`/
-// `counters` already do.
-//
-// The granted shroud is LIVE, not decorative: `grantAbility{ability:"shroud"}`
-// routes to `ctx.grantStaticAbility`, which appends the bare keyword string
-// to the target's `staticAbilities` — and `permanentGuard.ts::isGuardedAgainst`
-// now bridges that string directly (the `hasShroud` helper, mirroring the
-// existing `hasHexproof` bridge for CR 702.11) in its `cantBeTargeted` clause,
-// unfiltered per CR 702.18. This closes the catalogue-wide dynamic-shroud-
-// grant gap the Mechanics Registry's shroud row (`cards/mechanicsRegistry.ts`)
-// used to document as inert (issue #959) — it now covers every dynamic grant
-// site (Homarid Warrior / Svyelunite Priest `fem/blue.cards.ts`, Sylvan Safekeeper
-// `jud/green.cards.ts`, Blurred Mongoose's activated ability `inv/green.cards.ts`, the
-// `usg/green.cards.ts` grant) plus this card, with one engine-level fix rather than
-// a per-card `permanent-guard` staticEffect.)
-export const skyshroudBlessing = defineCard(() => ({
-    id: "c0c10b16-97b1-4a36-b2b4-f0c28ead3eb4", // PLS 92
-    name: "Skyshroud Blessing",
-    rarity: "uncommon",
-    oracleText: "All lands gain shroud until end of turn.\nDraw a card.",
-    manaCost: { X: 1, G: 1 },
-    types: ["Instant"],
-    effects: [
-        {
-            op: "forEach",
-            select: {
-                set: "permanents",
-                zone: "battlefield",
-                filter: { type: "Land" },
-            },
-            effects: [
-                {
-                    op: "grantAbility",
-                    target: { ref: "$each" },
-                    ability: "shroud",
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-        { op: "draw", player: "controller", count: 1 },
     ],
 }));
 
