@@ -1430,6 +1430,14 @@ _Avoid_: Note (the free-text field with no structure), explanation, reasoning lo
 The person whose **Rationales** the vocabulary of factors is built from — a role, held by one person at a time and reassignable, never a property of who holds it. Everyone else's Rationales test that vocabulary: one that cannot be expressed in it names a missing factor or a different way of playing, counted per tester.
 _Avoid_: Owner, expert, oracle, gold tester
 
+**Factor**:
+One strategic quantity a **Rationale** is decomposed into, computable from the position alone: what the opponent's best enabled play in their next window would cost me (exposure), whether an answer I hold stops it and stays castable (coverage), what I lose by making my own play a turn later (delay cost). Always a quantity, never a fact of one game — "reanimator, turn three, Exhume" is an instance of exposure, not a Factor — and never the name of a card or an **Archetype**. A person speaks in facts; the Factor is what those facts are a case of, and the test that the lift lost nothing is the condition under which the judge says it would stop holding (a **Discriminant**).
+_Avoid_: Feature (that is the **Evaluation**'s vector), reason, condition, heuristic
+
+**Verdict Grade**:
+How clear-cut a judged decision is, stated by the judge: _Clear_ — every other move is a mistake; _Preferred_ — this move, with the alternatives the judge would also accept named beside it; _Indifferent_ — no real preference. A decision of judgement has no answer that is right every time, so a grade says how much a **Verdict** may teach: an accepted alternative counts as agreement, and an Indifferent one is neither fitted nor counted.
+_Avoid_: Confidence (nobody is calibrated on a percentage), strength, certainty, margin (that is the search's)
+
 **Need**:
 One **Capability** a card in the deck requires, together with how well it is met: fully when the card providing it is already where it is needed, partly when that card is still in hand, not at all when nothing provides it. A Need is met once — two providers do not meet it twice.
 _Avoid_: Requirement (reserved for the card-level declaration), dependency, missing piece
