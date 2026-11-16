@@ -149,6 +149,22 @@ describe("stylesheetConfinement — a new colour token (issue #9874)", () => {
         ).toBeNull();
     });
 
+    it("an ADDED re-declaration of an existing token stays global", () => {
+        // No removed line: only the old sheet knows the token exists.
+        const after = THEME.replace(
+            "    --color-slot-edge: #292928;",
+            "    --color-surface: #000000;"
+        );
+        expect(
+            stylesheetConfinement({
+                before: THEME,
+                after,
+                removed: [],
+                added: [4],
+            })
+        ).toBeNull();
+    });
+
     it("a new token another sheet line already reads stays global", () => {
         const after = THEME.replace(
             "var(--color-surface)",
