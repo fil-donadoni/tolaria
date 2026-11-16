@@ -502,9 +502,14 @@ describe("the committed lockfile", () => {
         // Premodern-legal lands (mana-ability + triggered) took the pool to
         // 1272. Headroom left so the next queued retirements do not each
         // red this floor.
+        //
+        // Floor lowered from 1250 to 1200 (issue #4042, reopened by the RED
+        // PR #9882 caused): retiring six more Premodern-legal cards
+        // (activated + keyword-line + static) took the pool to 1247 — the
+        // 1250 floor was the headroom the previous wave already spent.
         const premodern = deriveFormats(lock!.cards, poolOracleIds()).premodern;
         expect(premodern.total).toBe(5375);
-        expect(premodern.pool).toBeGreaterThanOrEqual(1250);
+        expect(premodern.pool).toBeGreaterThanOrEqual(1200);
     });
 });
 

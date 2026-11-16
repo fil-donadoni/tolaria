@@ -15687,7 +15687,9 @@
         "oracleId": "9be9625e-b98b-416b-aac4-9f7b2dfbd39d",
         "firstSet": "atq",
         "firstPrintId": "067c44e9-1b23-42fd-9acb-daafb62c32a2",
-        "firstPrintSet": "atq"
+        "firstPrintSet": "atq",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Combat Courier",
@@ -32419,7 +32421,9 @@
         "oracleId": "2f18967d-c2cd-449d-a288-df6343672743",
         "firstSet": "ice",
         "firstPrintId": "3efbe59d-bebc-40b1-85ac-2e4c1ff3731e",
-        "firstPrintSet": "ice"
+        "firstPrintSet": "ice",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Gaea's Anthem",
@@ -55040,7 +55044,9 @@
         "oracleId": "20602d11-c0ae-47ce-a7fd-998b12480e18",
         "firstSet": "inv",
         "firstPrintId": "4649d881-709f-4ed0-91de-744d232a82f5",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Mourning Thrull",
@@ -74569,7 +74575,9 @@
         "oracleId": "7d892d61-5a69-4500-9fb2-7cf50728aedd",
         "firstSet": "tmp",
         "firstPrintId": "a6a8dc46-04c7-479a-90c1-b55e6c67e0e3",
-        "firstPrintSet": "tmp"
+        "firstPrintSet": "tmp",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Shimmerscale Drake",
@@ -91798,7 +91806,9 @@
         "oracleId": "712d7eb4-4044-4852-a5da-57635d3086b0",
         "firstSet": "inv",
         "firstPrintId": "6e522a62-fbca-4362-9006-d4356c525704",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Urborg Uprising",
@@ -96853,7 +96863,9 @@
         "oracleId": "ce2c420b-e569-4715-b65b-4a097700799d",
         "firstSet": "inv",
         "firstPrintId": "10566804-fd15-4ef0-ad7d-cc979f4cc8c5",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Whip-Spine Drake",
