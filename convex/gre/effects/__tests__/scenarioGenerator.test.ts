@@ -1850,6 +1850,35 @@ describe("a discard pick answered by the canned run (CR 701.9a/b, CR 608.2d)", (
         expect(failedAssertions(plan)).toHaveLength(1);
     });
 
+    it.each<[string, EffectOp]>([
+        [
+            "the whole hand discarded",
+            { op: "discard", player: "opponent" } as EffectOp,
+        ],
+        [
+            "the chosen card exiled instead",
+            {
+                op: "moveZone",
+                cards: { ref: "$discard1" },
+                player: "opponent",
+                from: "hand",
+                to: "exile",
+            } as EffectOp,
+        ],
+    ])("%s fails the assertion", (name, mover) => {
+        const effects = pickThenDiscard("opponent", 1);
+        const plan = planSmokeTest(effects);
+        if (plan.kind !== "run") throw new Error(plan.reason);
+        pushSpell(
+            plan,
+            [effects[0]!, mover],
+            `gen-discard-${name.replace(/\W/g, "")}`
+        );
+        resolveAnsweringChoices(plan.scenario.state, plan.scenario);
+        expect(plan.scenario.state.pendingChoices).toBeUndefined();
+        expect(failedAssertions(plan)).toHaveLength(1);
+    });
+
     it("a runtime-ref chooser names the ref as what holds the discard, never the binding", () => {
         // Oppression's shape: "Whenever a player casts a spell, that player
         // discards a card."
