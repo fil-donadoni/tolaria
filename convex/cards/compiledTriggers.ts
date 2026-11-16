@@ -102,11 +102,25 @@ import {
  * rule. `controls` is that rule ("if you control a Goblin"), and the next
  * member is earned by a fragment count, not by anticipation.
  */
-export type CompiledControlsCondition = {
-    readonly kind: "controls";
-    readonly filter: PermanentFilter;
-    readonly atLeast: number;
-};
+export type CompiledControlsCondition =
+    | {
+          readonly kind: "controls";
+          readonly filter: PermanentFilter;
+          readonly atLeast: number;
+      }
+    /**
+     * CR 614.1d — the same count read from the other end: "unless you control
+     * two or fewer other lands" holds while the controller's matching
+     * permanents number `atMost` or fewer. "Other" is the filter's own
+     * `excludeSource`; an entering permanent is not yet on the battlefield
+     * while its entry replacement is checked (CR 614.12), so the scan never
+     * meets it either way.
+     */
+    | {
+          readonly kind: "controls";
+          readonly filter: PermanentFilter;
+          readonly atMost: number;
+      };
 
 /**
  * CR 603.4 — whose battlefield an `atMost` count reads: the ability's
@@ -564,7 +578,11 @@ function conditionHolds(
         return countDomain(state as never, playerId) >= condition.atLeast;
     }
     if ("atMost" in condition)
-        return subjectPlayers(condition.player, self, state).some(
+        return subjectPlayers(
+            "player" in condition ? condition.player : "you",
+            self,
+            state
+        ).some(
             (p) =>
                 countControlledMatching(
                     p,

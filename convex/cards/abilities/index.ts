@@ -215,11 +215,10 @@ const COLOR_TO_LAND_SUBTYPE: Record<Color, string> = {
  *
  *  `fastLand: true` (issue #675, ADR 0041) turns it into the SOM/KLD "fast
  *  land" cycle instead of a plain ABUR-style dual: "This land enters tapped
- *  unless you control two or fewer other lands." — the `entersTappedUnless`
- *  CR 614.1c self-conditional replacement, counting the controller's OTHER
- *  lands on the board snapshot taken at entry (the entering land itself is
- *  not yet on the battlefield when the predicate runs, so a plain count of
- *  `view.players[controller].battlefield` lands already excludes it). No
+ *  unless you control two or fewer other lands." — the
+ *  `entersTappedUnlessControls` CR 614.1d replacement with an `atMost: 2`
+ *  bound over the controller's OTHER lands (the entering land is not yet on
+ *  the battlefield while the condition is read, CR 614.12). No
  *  basic land subtypes on a fast land (unlike the ABUR duals), matching the
  *  printed cycle. */
 export function makeDualLand(args: {
@@ -301,13 +300,13 @@ export function makeDualLand(args: {
                   },
               ]
             : undefined,
-        entersTappedUnless: args.fastLand
-            ? (view, controllerId) => {
-                  const own = view.players.find((p) => p.id === controllerId);
-                  const otherLands =
-                      own?.battlefield.filter((p) => p.types.includes("Land"))
-                          .length ?? 0;
-                  return otherLands <= 2;
+        // CR 614.1d — the fast land's entry condition as data, the form the
+        // Oracle compiler reads the printed line into.
+        entersTappedUnlessControls: args.fastLand
+            ? {
+                  kind: "controls",
+                  filter: { types: ["Land"], excludeSource: true },
+                  atMost: 2,
               }
             : undefined,
         entersTappedUnlessPay: args.shockLand ? { life: 2 } : undefined,
@@ -321,9 +320,6 @@ export function makeDualLand(args: {
                       id: `${slug}-mana`,
                       oracleText: `{T}: Add {${c1}} or {${c2}}.`,
                       cost: { tap: true },
-                      effect: (ctx) => {
-                          ctx.addMana({ [c1]: 1 });
-                      },
                       useStack: false,
                       manaChoices: [{ [c1]: 1 }, { [c2]: 1 }],
                   },

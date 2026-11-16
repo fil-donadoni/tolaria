@@ -1,13 +1,17 @@
 // "This land enters tapped unless you control a basic land" (CR 614.1d, issue
 // #8655) — the board-conditional entry replacement, lowered to the data field
 // `entersTappedUnlessControls` that `cards/entersTapped.ts` reads. "Basic" is
-// the supertype, never a basic land type (CR 205.4c).
+// the supertype, never a basic land type (CR 205.4c). Its fast-land sibling,
+// "… unless you control two or fewer other lands", is the same count read
+// from above (`atMost`), "other" kept as the filter's `excludeSource`.
 
 import { describe, expect, it } from "vitest";
 import {
     abandonedAirTemple,
     baSingSe,
 } from "../../cards/sets/tla/colorless.cards";
+import { concealedCourtyard } from "../../cards/sets/kld/colorless.cards";
+import { seachromeCoast } from "../../cards/sets/som/colorless.cards";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { staticSlot } from "../grammar/slots/staticSlot";
@@ -145,6 +149,91 @@ describe("enters tapped unless you control a basic land (CR 614.1d)", () => {
         [
             "another subject",
             "Creatures enter tapped unless you control a basic land.",
+        ],
+    ])("REFUSES %s", (_label, line) => {
+        expect(staticSlot.run(line, ctx).ok).toBe(false);
+    });
+});
+
+describe("enters tapped unless you control two or fewer other lands (CR 614.1d)", () => {
+    const FAST_LINE =
+        "This land enters tapped unless you control two or fewer other lands.";
+    const FAST_CONDITION = {
+        kind: "controls",
+        filter: { types: ["Land"], excludeSource: true },
+        atMost: 2,
+    };
+
+    it("reads the printed line into the upper-bound controls IR", () => {
+        const parsed = staticSlot.run(FAST_LINE, ctx);
+        expect(parsed.ok).toBe(true);
+        if (parsed.ok)
+            expect(parsed.value).toEqual({
+                kind: "static",
+                clause: {
+                    kind: "enters-tapped-unless-controls",
+                    condition: FAST_CONDITION,
+                },
+            });
+    });
+
+    it("golden — Concealed Courtyard compiles whole, the bound as data", () => {
+        const oracleText = `${FAST_LINE}\n{T}: Add {W} or {B}.`;
+        const outcome = compileCard(land("Concealed Courtyard", oracleText));
+        expect(outcome.state).toBe("ready");
+        if (outcome.state === "unparsed") return;
+        expect(sortKeys(outcome.definition)).toEqual(
+            sortKeys({
+                name: "Concealed Courtyard",
+                types: ["Land"],
+                oracleText,
+                entersTappedUnlessControls: FAST_CONDITION,
+                activatedAbilities: [
+                    {
+                        id: "concealed-courtyard-mana",
+                        oracleText: "{T}: Add {W} or {B}.",
+                        cost: { tap: true },
+                        useStack: false,
+                        manaChoices: [{ W: 1 }, { B: 1 }],
+                    },
+                ],
+            })
+        );
+    });
+
+    it("gold — the hand-written fast lands declare exactly what the rule reads", () => {
+        expect(concealedCourtyard().entersTappedUnlessControls).toEqual(
+            FAST_CONDITION
+        );
+        expect(seachromeCoast().entersTappedUnlessControls).toEqual(
+            FAST_CONDITION
+        );
+    });
+
+    it.each([
+        [
+            'the bound without "other"',
+            "This land enters tapped unless you control two or fewer lands.",
+        ],
+        [
+            "a lower bound",
+            "This land enters tapped unless you control two or more other lands.",
+        ],
+        [
+            "another controller",
+            "This land enters tapped unless an opponent controls two or fewer other lands.",
+        ],
+        [
+            "another object",
+            "This land enters tapped unless you control two or fewer other creatures.",
+        ],
+        [
+            "a numeral bound",
+            "This land enters tapped unless you control 2 or fewer other lands.",
+        ],
+        [
+            "a trailing rider",
+            "This land enters tapped unless you control two or fewer other lands and it's your turn.",
         ],
     ])("REFUSES %s", (_label, line) => {
         expect(staticSlot.run(line, ctx).ok).toBe(false);

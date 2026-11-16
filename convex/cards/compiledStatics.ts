@@ -648,16 +648,22 @@ export function controlsHolds(
     state: StaticEffectStateView,
     ctx: StaticEffectContext
 ): boolean {
+    // CR 614.1d — an `atMost` bound stops counting one past it: by then the
+    // condition is already false.
+    const cap =
+        "atMost" in condition ? condition.atMost + 1 : condition.atLeast;
     let matched = 0;
     for (const player of state.players)
         for (const permanent of player.battlefield) {
+            if (matched >= cap) break;
             if (permanent.controllerId !== source.controllerId) continue;
             if (!filterMatches(condition.filter, permanent, source, ctx))
                 continue;
             matched += 1;
-            if (matched >= condition.atLeast) return true;
         }
-    return false;
+    return "atMost" in condition
+        ? matched <= condition.atMost
+        : matched >= condition.atLeast;
 }
 
 function filterMatches(
