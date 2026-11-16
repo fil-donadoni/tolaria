@@ -106,7 +106,10 @@ describe("PlayerGraveyard", () => {
         expect(pileProps.eligibleIds).toBeInstanceOf(Set);
         expect(pileProps.eligibleIds.has("creature-1")).toBe(true);
         expect(pileProps.eligibleIds.has("land-2")).toBe(false);
-        expect(pileProps.layout).toBe("grid");
+        // Graveyard order is rules-relevant (issue #9874): even a pick
+        // renders the ordered fan, top on the right.
+        expect(pileProps.layout).toBe("fan");
+        expect(pileProps.ordered).toBe(true);
         expect(pileProps.forceOpen).toBe(true);
         // The modal title must reflect the choice's own prompt — Exhume
         // reanimates to the battlefield, so a hardcoded "return to your hand"

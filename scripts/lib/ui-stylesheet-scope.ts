@@ -20,9 +20,15 @@
  *     names NAME (each judged by the same rules), plus NAME itself, so a
  *     module writing it inline, or a Tailwind `animate-NAME` /
  *     `animate-[NAME…]` utility, is an owner too;
+ *   - an ADDED one-line `--color-NAME: …;` declaration directly inside
+ *     `@theme` (issue #9874, owner ruling), for a NAME the old sheet never
+ *     declared and no other line of the new sheet reads (`var(--color-NAME)`)
+ *     → the colour token NAME: nothing could read it before this diff, so it
+ *     restyles only the modules that now write a `*-NAME` utility or
+ *     `--color-NAME`. Removing or re-valuing an existing token stays global;
  *   - anything else — `:root`, `html`, `*`, a type selector, `&` nesting,
- *     `@theme`, `@font-face`, `@property`, a top-level statement — → `null`:
- *     the stylesheet stays global (`full`), as before.
+ *     any other `@theme` line, `@font-face`, `@property`, a top-level
+ *     statement — → `null`: the stylesheet stays global (`full`), as before.
  *
  * OWNERS. A module owns a class when its text names it as a whole token, or
  * builds it from a template prefix (`priority-half-${seat}` owns every
@@ -58,6 +64,9 @@ export interface StylesheetChange {
 export interface Confinement {
     classes: Set<string>;
     keyframes: Set<string>;
+    /** New `--color-NAME` theme tokens (NAME only), owned by the modules
+     *  writing a `*-NAME` utility or `--color-NAME` (issue #9874). */
+    colorTokens?: Set<string>;
 }
 
 interface Block {
@@ -262,23 +271,54 @@ function escapeRegExp(s: string): string {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+const COLOR_TOKEN_DECL = /^\s*--color-([A-Za-z0-9][\w-]*)\s*:[^;{}]*;\s*$/;
+
+/** The NAME of a NEW colour token an added line declares inside `@theme`,
+ *  or `null` (see the header's `@theme` bullet). */
+function addedColorToken(sheet: ParsedSheet, line: number): string | null {
+    const code = sheet.code.split("\n");
+    const m = COLOR_TOKEN_DECL.exec(code[line - 1] ?? "");
+    if (!m) return null;
+    const block = innermostAt(sheet, line);
+    if (!block || !/^@theme\b/.test(block.prelude)) return null;
+    for (let b = block.parent; b; b = b.parent) {
+        if (!WRAPPER_AT_RULE.test(b.prelude)) return null;
+    }
+    const name = m[1];
+    // An existing token's declaration either survives (and is read by the
+    // line below) or is removed (a removed `@theme` line is global): no need
+    // to look at the old sheet here.
+    const read = new RegExp(`--color-${escapeRegExp(name)}(?![\\w-])`);
+    if (code.some((text, i) => i !== line - 1 && read.test(text))) return null;
+    return name;
+}
+
 /** What a stylesheet change can restyle, or `null` when any changed line is
  *  global (see the header). */
 export function stylesheetConfinement(
     change: StylesheetChange
 ): Confinement | null {
-    const out: Confinement = { classes: new Set(), keyframes: new Set() };
-    const sides: [string, readonly number[]][] = [
-        [change.before, change.removed],
-        [change.after, change.added],
+    const out: Confinement = {
+        classes: new Set(),
+        keyframes: new Set(),
+        colorTokens: new Set(),
+    };
+    const sides: [string, readonly number[], boolean][] = [
+        [change.before, change.removed, false],
+        [change.after, change.added, true],
     ];
-    for (const [text, lines] of sides) {
+    for (const [text, lines, isAdded] of sides) {
         if (lines.length === 0) continue;
         const sheet = parseSheet(text);
         if (!sheet) return null;
         const seen = new Set<string>();
         for (const line of lines) {
             if (sheet.blankLines.has(line)) continue;
+            const token = isAdded ? addedColorToken(sheet, line) : null;
+            if (token !== null) {
+                out.colorTokens!.add(token);
+                continue;
+            }
             if (!confineChain(innermostAt(sheet, line), sheet, out, seen)) {
                 return null;
             }
@@ -314,11 +354,20 @@ export function classOwners(
                 `(?<![\\w-])animate-\\[?${escapeRegExp(k)}(?![A-Za-z0-9-])`
             )
     );
+    // A colour token NAME is written as any `<utility>-NAME` (`bg-`,
+    // `border-`, `text-`, … with an optional `/opacity`) or as the variable.
+    const colorUses = [...(confinement.colorTokens ?? [])].map(
+        (name) =>
+            new RegExp(
+                `(?:(?<![\\w-])[a-z]+(?:-[a-z]+)*-|--color-)${escapeRegExp(name)}(?![\\w-])`
+            )
+    );
     const owners: string[] = [];
     for (const [file, source] of files) {
         if (
             tokens.some((t) => namesToken(source, t)) ||
-            animateUtilities.some((re) => re.test(source))
+            animateUtilities.some((re) => re.test(source)) ||
+            colorUses.some((re) => re.test(source))
         ) {
             owners.push(file);
         }

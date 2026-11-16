@@ -101,7 +101,8 @@ export default function PlayerGraveyard({
     // CR 608.2 — mid-resolution graveyard pick (Recall): the active choice
     // returns N cards from this (the chooser's own) graveyard to hand. The
     // pile switches from `selectTarget` routing to the buffered-choice path,
-    // mirroring the library search picker (forceOpen grid + Done footer).
+    // mirroring the library search picker (forceOpen modal + Done footer;
+    // the ordered fan since issue #9874).
     const head = pendingChoices?.[0];
     const isGraveyardChoice = isGraveyardChoiceActive(head, player, playerId);
 
@@ -213,7 +214,10 @@ export default function PlayerGraveyard({
             // reachable Done button.
             forceOpen={isGraveyardChoice && !isMinimized}
             onMinimize={isGraveyardChoice ? minimize : undefined}
-            layout="grid"
+            // Graveyard order is rules-relevant (issue #9874): the dialog is the
+            // ordered fan, top on the right, filter keeps hidden slots.
+            layout="fan"
+            ordered
             selectedIds={
                 isGraveyardChoice
                     ? bufferCtx.buffer
