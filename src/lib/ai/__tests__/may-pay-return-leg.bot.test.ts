@@ -56,6 +56,7 @@ function engineMutations(state: GameState): MoveMutations {
         selectSacrifice: reject,
         selectAdditionalCost: reject,
         selectCastExileCost: reject,
+        tapArtifactForImprovise: reject,
         selectActivationCost: reject,
         selectActivationExileCost: reject,
         selectActivationDiscardCost: reject,

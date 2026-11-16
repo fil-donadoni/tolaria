@@ -682,6 +682,13 @@
             "needsSetup": false
         }
     ],
+    "Kappa Cannoneer": [
+        {
+            "label": "improvise: Kappa Cannoneer is cast with four artifacts paying the generic",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Lava Dart": [
         {
             "label": "flashback: Lava Dart is flashed back for the last point of life",
