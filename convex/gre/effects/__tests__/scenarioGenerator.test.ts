@@ -1805,7 +1805,7 @@ describe("a discard pick answered by the canned run (CR 701.9a/b, CR 608.2d)", (
             const answer = plan.scenario.choiceAnswers?.["$discard1"];
             expect(answer?.playerId).toBe(chooser);
             expect(answer?.handIds).toHaveLength(count + 1);
-            expect(answer?.picks).toEqual(answer?.handIds.slice(0, count));
+            expect(answer?.picks).toEqual(answer?.handIds.slice(1));
             expect(handOf(plan, chooser).map((c) => c.id)).toEqual(
                 answer?.handIds
             );

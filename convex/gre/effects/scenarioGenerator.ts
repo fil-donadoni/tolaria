@@ -2699,7 +2699,7 @@ interface ChoiceDiscard {
 }
 
 /** The seeded hand of an answered discard pick: `count + 1` filler cards, of
- *  which the canned answer is the first `count`. */
+ *  which the canned answer is the last `count`. */
 export interface SeededChoiceAnswer {
     readonly playerId: string;
     readonly handIds: readonly string[];
@@ -2712,7 +2712,7 @@ export interface SeededChoiceAnswer {
  * "discard-hand")` over the chooser's own hand for a literal count, whose
  * picks a `discard` by the same player then moves (CR 701.9a). The canned run
  * answers it: the chooser's hand is seeded with `count + 1` fillers, and the
- * caller submits the first `count` through the real submit path when the
+ * caller submits the last `count` through the real submit path when the
  * resolution suspends (`scenario.choiceAnswers`). So the discard's assertion
  * reads exactly which cards left: the answered ones in the graveyard, the one
  * left over still in hand.
@@ -3736,7 +3736,8 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
         };
     }
     // A settled discard pick's chooser holds `count + 1` cards, and the canned
-    // answer is the first `count` of them (`analyseChoice`). Its hand is no
+    // answer is the last `count` of them (`analyseChoice`): an engine that
+    // ignored the answer and discarded from the front of the hand mispredicts. Its hand is no
     // random discard's: `settleChoiceDiscards` gave up the pick otherwise.
     const choiceAnswers: Record<string, SeededChoiceAnswer> = {};
     const answeredHands = new Map<string, CardInstanceState[]>();
@@ -3752,7 +3753,7 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
         choiceAnswers[pick.choice.bind] = {
             playerId: pid,
             handIds: hand.map((card) => card.id),
-            picks: hand.slice(0, pick.count).map((card) => card.id),
+            picks: hand.slice(1).map((card) => card.id),
         };
     }
     const seededHand = (pid: string): CardInstanceState[] =>
