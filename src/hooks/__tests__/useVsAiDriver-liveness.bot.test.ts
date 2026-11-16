@@ -56,6 +56,10 @@ let reportStallImpl: (args: unknown) => Promise<unknown> = () =>
  *  `mutationsThrow` like `reportStall`. The default is the server's `null`. */
 let reportConsultFailureImpl: (args: unknown) => Promise<unknown> = () =>
     Promise.resolve(null);
+/** Issue #10006 — the driver's exit report, answered apart from
+ *  `mutationsThrow` like the two above. The default is the server's `null`. */
+let reportDriverExitImpl: (args: unknown) => Promise<unknown> = () =>
+    Promise.resolve(null);
 
 vi.mock("@convex/_generated/api", () => {
     // Every mutation/query the driver reaches for, tagged by a plain string so
@@ -113,6 +117,7 @@ vi.mock("@convex/_generated/api", () => {
             botLiveness: {
                 reportStall: "reportStall",
                 reportConsultFailure: "reportConsultFailure",
+                reportDriverExit: "reportDriverExit",
             },
             gameReads: Object.fromEntries(
                 [
@@ -182,6 +187,7 @@ vi.mock("convex/react", async () => {
         if (ref === "reportStall") return reportStallImpl(args);
         if (ref === "reportConsultFailure")
             return reportConsultFailureImpl(args);
+        if (ref === "reportDriverExit") return reportDriverExitImpl(args);
         if (mutationsThrow) return Promise.reject(new Error("server rejected"));
         // A hook for the fixtures that need an ACCEPTED mutation to actually
         // move the board — the real server writes a new seq, and the watchdog
@@ -207,6 +213,7 @@ let brainResult: {
     outcome?: string;
     via?: string;
     message?: string;
+    disposed?: true;
 } = {
     move: null,
     trace: null,
@@ -575,6 +582,7 @@ beforeEach(() => {
     reportStallImpl = () =>
         Promise.resolve({ advanced: true, outcome: "advanced" });
     reportConsultFailureImpl = () => Promise.resolve(null);
+    reportDriverExitImpl = () => Promise.resolve(null);
     stubDecideNone = true;
     stubDecideUnanswered = false;
     stubDecideThrows = false;
@@ -1442,5 +1450,105 @@ describe("the game's Bot search report (issue #9526)", () => {
         });
         expect(await play()).toEqual(baseline);
         expect(log).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe("a player who LEAVES the game is not a Bot fault (issue #10006)", () => {
+    const exits = () => calls.filter((c) => c.ref === "reportDriverExit");
+
+    /** CR 305.2 — the Bot's main phase with a land in hand: a window worth
+     *  searching, so the decision is routed to the Brain. */
+    function landWindow(seq: number) {
+        stubDecideNone = false;
+        const board = priorityBoard();
+        board.players[1].hand = [
+            makeInstance(FOREST, {
+                id: "land1",
+                controllerId: BOT,
+                ownerId: BOT,
+                zone: "hand",
+            }),
+        ];
+        publish(board, seq);
+    }
+
+    it("reports the owed version once when the player leaves while the Bot is owed", async () => {
+        // CR 117 — the Bot holds priority at seq 180 when the page goes away.
+        publish(priorityBoard(), 180);
+        deferConsult = true;
+        const { unmount } = renderHook(() => useVsAiDriver(GAME, BOT));
+        await advance(50);
+        expect(exits()).toHaveLength(0);
+
+        unmount();
+        expect(exits()).toEqual([
+            { ref: "reportDriverExit", args: { gameId: GAME, seq: 180 } },
+        ]);
+    });
+
+    it("reports the LEFT game's version on a swap, never the next game's", async () => {
+        publish(priorityBoard(), 12);
+        deferConsult = true;
+        let game = GAME;
+        const { rerender } = renderHook(() => useVsAiDriver(game, BOT));
+        await advance(50);
+
+        game = "game2" as Id<"games">;
+        publish(priorityBoard(), 1);
+        rerender();
+        expect(exits()).toEqual([
+            { ref: "reportDriverExit", args: { gameId: GAME, seq: 12 } },
+        ]);
+    });
+
+    it("reports no exit when the player leaves while the Bot is NOT owed", async () => {
+        // CR 117 — the human holds priority: nothing for the deadline to read.
+        const board = priorityBoard();
+        board.priorityPlayerId = HUMAN;
+        publish(board, 9);
+        const { unmount } = renderHook(() => useVsAiDriver(GAME, BOT));
+        await advance(50);
+
+        unmount();
+        expect(exits()).toHaveLength(0);
+    });
+
+    it("a rejected exit report is swallowed", async () => {
+        publish(priorityBoard(), 3);
+        deferConsult = true;
+        reportDriverExitImpl = () => Promise.reject(new Error("offline"));
+        const { unmount } = renderHook(() => useVsAiDriver(GAME, BOT));
+        await advance(50);
+        expect(() => unmount()).not.toThrow();
+        await advance(10);
+        expect(exits()).toHaveLength(1);
+    });
+
+    it("drops a consult the dispose settled: no failure report, no decision record, no move", async () => {
+        landWindow(4);
+        brainResult = {
+            move: null,
+            trace: null,
+            outcome: "worker-error",
+            via: "worker",
+            message: "Brain disposed — the game was left or swapped",
+            disposed: true,
+        };
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await advance(500);
+
+        expect(
+            calls.filter((c) => c.ref === "reportConsultFailure")
+        ).toHaveLength(0);
+        expect(getAiDecisions().map((d) => d.outcome)).not.toContain(
+            "worker-error"
+        );
+        // Nothing submitted before the watchdog's own interval.
+        expect(
+            calls.filter(
+                (c) =>
+                    c.ref !== "reportDriverExit" && c.ref !== "getPublicState"
+            )
+        ).toEqual([]);
     });
 });

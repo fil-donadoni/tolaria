@@ -371,6 +371,9 @@ describe("a failed Brain Worker is replaced, not reused (issue #3040)", () => {
         await expect(consult).resolves.toMatchObject({
             outcome: "worker-error",
             move: null,
+            // Issue #10006 — marked as the dispose's, not the Brain's: the
+            // driver must not report a player leaving as a Worker failure.
+            disposed: true,
         });
         expect((await consult).message).toContain("disposed");
     });
