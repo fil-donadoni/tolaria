@@ -58,4 +58,43 @@ describe("SideboardSwapList focus fallback (issue #9819)", () => {
         const active = document.activeElement as HTMLElement;
         expect(active.dataset.slot).toBe("dialog-title");
     });
+
+    it("does not steal focus for a sibling list's removal (stale slot)", () => {
+        function Two() {
+            const [main, setMain] = useState([card("X"), card("X")]);
+            const [side, setSide] = useState([card("Y")]);
+            return (
+                <GameDialog open title="Sideboarding">
+                    <SideboardSwapList
+                        title="Maindeck"
+                        cards={main}
+                        moveLabel="→ Side"
+                        onMove={() => setMain((c) => c.slice(1))}
+                        emptyMessage="empty"
+                    />
+                    <SideboardSwapList
+                        title="Sideboard"
+                        cards={side}
+                        moveLabel="→ Main"
+                        onMove={() => setSide([])}
+                        emptyMessage="empty side"
+                    />
+                </GameDialog>
+            );
+        }
+        render(<Two />);
+        const x = screen
+            .getAllByText(/X/)[0]
+            .closest("li")!
+            .querySelector("button")!;
+        x.focus();
+        fireEvent.click(x);
+        const y = screen.getByText("Y").closest("li")!.querySelector("button")!;
+        y.focus();
+        fireEvent.click(y);
+        // Y's row is gone: focus must not jump back into the Maindeck list.
+        expect(document.activeElement).not.toBe(
+            screen.getAllByText(/X/)[0].closest("li")!.querySelector("button")
+        );
+    });
 });

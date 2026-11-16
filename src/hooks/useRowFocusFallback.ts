@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef, type RefObject } from "react";
 /** Selector for a row's focusable controls (disabled ones cannot take focus). */
 const FOCUSABLE = "button:not(:disabled)";
 
-type FocusedSlot = { rowId: string; slot: number };
+type FocusedSlot = { el: HTMLElement; rowId: string; slot: number };
 
 /**
  * Keeps keyboard focus inside a list dialog when the focused row (or control)
@@ -40,6 +40,7 @@ export default function useRowFocusFallback(
             const row = target.closest<HTMLElement>("[data-row-id]");
             if (!row || !list.contains(row)) return;
             focused.current = {
+                el: target,
                 rowId: row.dataset.rowId ?? "",
                 slot: Math.max(
                     0,
@@ -56,6 +57,12 @@ export default function useRowFocusFallback(
         prevIds.current = rowIds;
         const last = focused.current;
         if (!last) return;
+        // The tracked control is still alive and enabled: focus left it by the
+        // user's own doing (or went to the other list), nothing to repair.
+        // Without this a stale slot in one list steals focus after a removal
+        // in its sibling list.
+        const el = last.el;
+        if (el.isConnected && !(el as HTMLButtonElement).disabled) return;
         const list = listRef.current;
         const active = document.activeElement;
         // Focus still on a live control in this list: nothing to repair.
