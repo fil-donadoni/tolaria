@@ -15,7 +15,12 @@
  *      (`REFIT_ARTIFACT_PATHS`, derived paths since the PR stopped carrying
  *      them) on THAT catalogue — the refit reads the card pool the registry
  *      imports from `data/catalogue/`, and the one HEAD commits is the
- *      previous tree's after a revert (`runRegeneration`).
+ *      previous tree's after a revert (`runRegeneration`). The same pack
+ *      makes every play read the tip's own Definition Index: a merged tip
+ *      carries the merge-base's, and a play that looks up a hand-written
+ *      card the PR retired throws. `--replay-bot` and a moved tip pack
+ *      before they play too (`packBeforePlay`); a sweep that still read a
+ *      stale index (`sweepStaleIndexLosses`) is not landed.
  *      Before the sweep, so the drift sweep below plays on the weights the
  *      tip will hold. A refit that fails is put back to HEAD and said — the
  *      header and catalogue still land; `--settled` reports the lag until a
@@ -152,6 +157,7 @@ import {
     renderBotRegressionIssue,
     SWEEP_POOL_LOSS_TOLERANCE,
     sweepPoolLosses,
+    sweepStaleIndexLosses,
     renderDerivedLateIssue,
     runDriftSweep,
     runRegeneration,
@@ -483,15 +489,33 @@ function refitLag(): string[] {
 /** The packed catalogue on disk, one digest over `CATALOGUE_PATHS` — what
  *  `runRegeneration` compares to tell whether the sweep moved the pool the
  *  refit read. An absent file digests as empty. */
-function catalogueFingerprint(): string {
+function catalogueFingerprint(
+    read: (path: string) => Buffer | null = (path) => {
+        const file = join(ROOT, path);
+        return existsSync(file) ? readFileSync(file) : null;
+    }
+): string {
     const hash = createHash("sha256");
     for (const path of CATALOGUE_PATHS) {
-        const file = join(ROOT, path);
         hash.update(path).update("\0");
-        if (existsSync(file)) hash.update(readFileSync(file));
+        const bytes = read(path);
+        if (bytes !== null) hash.update(bytes);
         hash.update("\0");
     }
     return hash.digest("hex");
+}
+
+/** {@link catalogueFingerprint} of the catalogue HEAD COMMITS, read from git
+ *  — not the disk, which `packBeforePlay` has already repacked when the
+ *  replay asks whether its pack moved the committed pool. */
+function committedCatalogueFingerprint(): string {
+    return catalogueFingerprint((path) => {
+        const r = spawnSync("git", ["show", `HEAD:${path}`], {
+            cwd: ROOT,
+            maxBuffer: 1 << 30,
+        });
+        return r.status === 0 ? r.stdout : null;
+    });
 }
 
 /** The write path's refit (issue #7653), on a catalogue packed from this
@@ -1128,6 +1152,18 @@ function fileRegression(input: {
     say(`filed ${url}`);
 }
 
+/**
+ * `catalogue:pack` BEFORE a play (issue #9927): what the Bot plays on must be
+ * this tree's own Definition Index. A merge lands derived state restored to
+ * the merge-base (ADR 0157), so on a tip whose `derive:sync` has not landed
+ * yet the index still names a hand-written card its PR retired, and every
+ * play that looks it up throws — `harness-error` on 1,035 cards, pushed as
+ * verdicts. Seconds; the pack after the play still writes what is committed.
+ */
+function packBeforePlay(): boolean {
+    return generate("catalogue:pack", ["scripts/catalogue-artifact.ts"]);
+}
+
 /** Detach this tree at `tip` and bootstrap it (`worktree:init`: the tip's
  *  `_generated`, dependencies, corpus pin). The tree must be clean — the
  *  caller restores its generated files first. */
@@ -1208,6 +1244,7 @@ function moveToTip(head: string, newTip: string, swept: Lockfile): boolean {
     say(
         `${carried} swept verdict(s) laid over ${newTip.slice(0, 10)}'s lockfile`
     );
+    if (!packBeforePlay()) return false;
     // `--play-misses`: carries every overlaid verdict on its definition,
     // plays every miss the new tip brought (drift included, issue #6688),
     // keeps the swept Bot hash.
@@ -1282,7 +1319,7 @@ function replayBot(dryRun: boolean): number {
     say(
         `${head.slice(0, 10)}: header Bot hash ${headerBotHash.slice(0, 19)} ≠ tree ${treeBotHash.slice(0, 19)} — replaying every \`ready\` card (${cadence.why})`
     );
-    if (!ensureCorpus()) return 1;
+    if (!ensureCorpus() || !packBeforePlay()) return 1;
     // `before` is this tree's own compile with the verdicts carried, not the
     // committed rows: a tip whose derive commit has not landed yet may owe
     // state changes to the compiler or the registry, and those are not the
@@ -1315,6 +1352,17 @@ function replayBot(dryRun: boolean): number {
         );
         return 1;
     }
+    // The sweep measured the tree's derived state, not the Bot (issue #9927):
+    // read over the whole sweep, and again over a moved tip's lockfile below.
+    const playedOnStaleIndex = (at: string, rows: Lockfile["cards"]) => {
+        const losses = sweepStaleIndexLosses(rows);
+        if (losses > 0)
+            complain(
+                `${at.slice(0, 10)}: the sweep played ${losses} card(s) on a stale Definition Index — not landing it, the header's Bot hash stays late`
+            );
+        return losses > 0;
+    };
+    if (playedOnStaleIndex(head, swept.cards)) return 1;
     const acknowledged = acknowledgedRegressions();
     let outcome = botReplayOutcome(before.cards, swept.cards, acknowledged);
     if (outcome.lost.length > 0) {
@@ -1343,6 +1391,7 @@ function replayBot(dryRun: boolean): number {
             if (!moveToTip(head, remoteTip, swept)) return 1;
             head = remoteTip;
             swept = readLockfile();
+            if (playedOnStaleIndex(head, swept.cards)) return 1;
             outcome = botReplayOutcome(
                 tipBefore.cards,
                 swept.cards,
@@ -1372,14 +1421,15 @@ function replayBot(dryRun: boolean): number {
             )
                 return 1;
         }
-        const unpacked = catalogueFingerprint();
         if (!generate("catalogue:pack", ["scripts/catalogue-artifact.ts"]))
             return 1;
         // A replay that moved the pool (a card in or out of `ready`) refits:
         // the committed weights stay the fit of the committed catalogue
         // (issue #9915). A failed refit is put back to HEAD; the commit
         // still lands and the exit says it, as on the write path.
-        const refitted = catalogueFingerprint() === unpacked || refit();
+        const refitted =
+            catalogueFingerprint() === committedCatalogueFingerprint() ||
+            refit();
         const refitExit = (code: number): number =>
             refitted || code !== 0 ? code : 1;
         const found = entries(BOT_REPLAY_PATHS);

@@ -765,6 +765,27 @@ export function setLazyDefinitionSource(
     sourceIds = source === null ? null : ids;
 }
 
+/** Runs `run` with `source`/`ids` installed as the lazy definition source,
+ *  then puts the installed pair back — a test seam, like
+ *  `withTemporaryDefinition`, for a source no catalogue would build. `run`
+ *  must consume what it reads before returning: a generator iterated after
+ *  it returns reads the restored source. */
+export function withLazyDefinitionSource<T>(
+    source: DefinitionSource,
+    ids: () => Iterable<string>,
+    run: () => T
+): T {
+    const saved = { definitionSource, sourceIds };
+    definitionSource = source;
+    sourceIds = ids;
+    try {
+        return run();
+    } finally {
+        definitionSource = saved.definitionSource;
+        sourceIds = saved.sourceIds;
+    }
+}
+
 function resolveFromSource(cardId: string): CardDefinition | undefined {
     if (definitionSource === null) return undefined;
     // A derived face resolves through its PARENT: the twin is minted by the
@@ -845,16 +866,67 @@ export function* catalogueDefinitions(): Generator<CardDefinition> {
             "catalogueDefinitions: no lazy definition source installed — import the catalogue first"
         );
     }
-    yield* walkSourceDefinitions(new Set<string>());
+    // STRICT: a census over a catalogue missing a card it cannot read would
+    // pass on what is left — the one walk that lets a broken entry throw.
+    yield* walkSourceDefinitions(new Set<string>(), resolveRaw);
 }
 
+// ── One broken catalogue entry is ONE card (issue #9927) ───────────────────
+//
+// A catalogue-wide reader resolves every entry in turn, so an entry that
+// throws — a Definition Index naming a card its Set module no longer
+// exports, a `defineCard` factory that fails, an unreadable packed row —
+// used to abort the WHOLE walk: on 2026-11-16 a stale entry for one retired
+// card failed the Bot's target-creature search for 1,035 targeted spells,
+// and would have failed it in every live game the same way. A runtime reader
+// now skips the entry and says so once per id; asking for that card BY ID
+// still throws (`getDefinition`), and staleness stays the freshness gate's
+// to catch (`scripts/__tests__/catalogue-artifact.test.ts`).
+const brokenEntries = new Map<string, string>();
+
+/** Records `cardId` as an entry a catalogue-wide reader skipped, warning on
+ *  the first time only. Shared with `catalogue.ts`'s eager populations. */
+export function reportBrokenCatalogueEntry(
+    cardId: string,
+    error: unknown
+): void {
+    if (brokenEntries.has(cardId)) return;
+    const message = error instanceof Error ? error.message : String(error);
+    brokenEntries.set(cardId, message);
+    console.warn(
+        `catalogue: skipped ${cardId} in a catalogue-wide read — ${message}`
+    );
+}
+
+/** The entries a catalogue-wide reader skipped, by id, with the error each
+ *  threw — empty on a healthy catalogue. */
+export const brokenCatalogueEntries = (): ReadonlyMap<string, string> =>
+    brokenEntries;
+
+/** `resolve(id)`, or `null` with the entry reported when it throws. */
+export function resolveIsolated<T>(
+    cardId: string,
+    resolve: (cardId: string) => T
+): T | null {
+    try {
+        return resolve(cardId);
+    } catch (error) {
+        reportBrokenCatalogueEntry(cardId, error);
+        return null;
+    }
+}
+
+const resolveRawIsolated = (cardId: string): CardDefinition | null =>
+    resolveIsolated(cardId, resolveRaw);
+
 function* walkSourceDefinitions(
-    listed: Set<string>
+    listed: Set<string>,
+    resolve: (cardId: string) => CardDefinition | null = resolveRawIsolated
 ): Generator<CardDefinition> {
     if (sourceIds === null) return;
     for (const id of sourceIds()) {
         listed.add(id);
-        const def = resolveRaw(id);
+        const def = resolve(id);
         if (!def || def.id !== id) continue;
         yield expandDefinition(def);
         for (const twinId of twinIdsByParent.get(id) ?? []) {

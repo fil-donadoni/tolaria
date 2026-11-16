@@ -70,8 +70,10 @@ import {
     renderBotRegressionIssue,
     renderDerivedLateIssue,
     runDriftSweep,
+    STALE_INDEX_GAP,
     SWEEP_POOL_LOSS_TOLERANCE,
     sweepPoolLosses,
+    sweepStaleIndexLosses,
     transientPushFailure,
     verdictCurrency,
     type Currency,
@@ -473,6 +475,122 @@ describe("the drift sweep — derive:sync plays the tip's Bot-verdict misses (AD
         expect(sweep.indexOf(refusal![0])).toBeLessThan(
             sweep.indexOf("commitAndPush(")
         );
+    });
+
+    // Issue #9927: a tip a merge left with the merge-base's Definition Index
+    // threw on every play that looked up a retired hand-written card — 1,035
+    // `harness-error` verdicts the replay pushed as the cards' own.
+    describe("a play on a stale Definition Index", () => {
+        // The message `staleIndex` throws in `convex/cards/catalogue.ts`.
+        const staleIndex: BotPlayer = () =>
+            harnessErrorVerdict(
+                new Error(
+                    "The Definition Index is stale: Retired Card (00000000-0000-0000-0000-000000000000) is not leg.retiredCard. Run: bun run catalogue:pack"
+                )
+            );
+        const cards = (revision?: string) =>
+            [1, 2, 3].map((n) => vanilla(n, revision));
+        const played = () =>
+            buildLockfile(cards(), {
+                botReach: playingBotReach(null, BOT, spyPlayer().play),
+            });
+
+        it("the gap key it reads is the one the catalogue's throw becomes", () => {
+            const catalogue = readFileSync(
+                join(
+                    import.meta.dirname,
+                    "..",
+                    "..",
+                    "convex",
+                    "cards",
+                    "catalogue.ts"
+                ),
+                "utf8"
+            );
+            expect(catalogue).toContain(
+                `\`${STALE_INDEX_GAP.replace("harness-error › ", "")}\${what}`
+            );
+            const lock = buildLockfile(cards(), {
+                botReach: playingBotReach(null, BOT, staleIndex),
+            });
+            expect(sweepStaleIndexLosses(lock.cards)).toBe(3);
+        });
+
+        it("keeps none of the drift sweep's verdicts, even one: the misses stay stale, and the carry still lands", () => {
+            const corpus = cards("3");
+            let first = true;
+            const oneStale: BotPlayer = (id, def) => {
+                const verdict = first
+                    ? staleIndex(id, def)
+                    : spyPlayer().play(id, def);
+                first = false;
+                return verdict;
+            };
+            const run = fixtureIo(
+                { lock: played(), corpus },
+                { play: oneStale }
+            );
+            expect(runDriftSweep(run.io)).toEqual({ ok: true, indexed: false });
+            expect(run.calls).toEqual({ carry: 1, play: 1, index: 0 });
+            expect(sweepStaleIndexLosses(run.disk().cards)).toBe(0);
+            expect(staleOf(run.disk(), corpus)).toHaveLength(corpus.length);
+            expect(run.warnings.join()).toContain(
+                "played 1 card(s) on a stale Definition Index"
+            );
+        });
+
+        it("is read over the misses: an older sweep's carried rows refuse nothing", () => {
+            const lock = buildLockfile(cards(), {
+                botReach: playingBotReach(null, BOT, staleIndex),
+            });
+            const corpus = [...cards().slice(1), vanilla(1, "3")];
+            const run = fixtureIo({ lock, corpus }, spyPlayer());
+            expect(runDriftSweep(run.io)).toEqual({ ok: true, indexed: false });
+            expect(run.calls.carry).toBe(0);
+            expect(sweepStaleIndexLosses(run.disk().cards)).toBe(2);
+        });
+
+        const script = () =>
+            readFileSync(
+                join(import.meta.dirname, "..", "derive-sync.ts"),
+                "utf8"
+            );
+
+        it("the replay refuses it over the whole sweep and over a moved tip, before anything can be pushed", () => {
+            const sweep = script().slice(script().indexOf('"--replay-bot"]'));
+            const push = sweep.indexOf("commitAndPush(");
+            const whole = sweep.indexOf(
+                "if (playedOnStaleIndex(head, swept.cards)) return 1;"
+            );
+            const moved = sweep.indexOf(
+                "if (playedOnStaleIndex(head, swept.cards)) return 1;",
+                whole + 1
+            );
+            expect(whole).toBeGreaterThan(-1);
+            expect(moved).toBeGreaterThan(whole);
+            expect(moved).toBeLessThan(push);
+            expect(sweep.slice(0, whole)).toMatch(
+                /sweepStaleIndexLosses\(rows\);[\s\S]*?return losses > 0;/
+            );
+        });
+
+        it("every play runs on the tree's own index: the replay and a moved tip pack first (the write path's pack is `runRegeneration`'s)", () => {
+            const s = script();
+            const body = (fn: string) =>
+                s.slice(
+                    s.indexOf(`function ${fn}(`),
+                    s.indexOf("\n}\n", s.indexOf(`function ${fn}(`))
+                );
+            const before = (fn: string, play: string) => {
+                const b = body(fn);
+                expect(b.indexOf("packBeforePlay()")).toBeGreaterThan(-1);
+                expect(b.indexOf("packBeforePlay()")).toBeLessThan(
+                    b.indexOf(play)
+                );
+            };
+            before("replayBot", '"--carry-bot"');
+            before("moveToTip", '"--play-misses"');
+        });
     });
 
     it("the write path plays the misses through --play-misses, never a bare compile (which would carry them)", () => {
