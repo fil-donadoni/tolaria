@@ -711,12 +711,12 @@ The outcome of a **Lowering** that stops with a NAMED cause instead of producing
 _Avoid_: Error, failure, skip, dropped
 
 **Verdict**:
-A player's answer to one decision the **Brain** faced: the position — written in the **Scenario Spec** — every candidate move the **Brain** could legally make there, and which one is right (the **Brain**'s own move being one possible answer). The unit of training data for the **Root Heuristic Share**:
+A player's answer to one decision the **Brain** faced: the position — written in the **Scenario Spec** — every candidate move the **Brain** could legally make there, and which one is right (the **Brain**'s own move being one possible answer). The unit of training data for the **Evaluation**: kept as the position and the answer, never as numbers, so it stays valid when the **Evaluation** gains a new term. Collected in play, from a quiz, or from the **Test Position** registry, whose expected moves are verdicts already.
+_Avoid_: Label, rating, feedback, thumbs up
+
+**Root Heuristic Share**:
 The fixed share (λ, `rootHeuristicShare`) that the one-ply **Evaluation** of each root candidate — the position right after the move, before any rollout — holds in the **Brain**'s root verdict: score = (1 − λ) · mean rollout reward + λ · one-ply reward. λ = 0 is a verdict read from the rollouts alone (the pre-2026-11 Brain, whose root heard the one-ply reading only at a starved root and let it fade); λ = 1 a Brain that never simulates. Bounded by the held-trick positions, where only the rollouts see the window a greedy cast gives up; chosen by measurement on the _must_ tier and **Held-out Agreement** (issue #8954).
 _Avoid_: prior share, heuristic blend, static weight
-
-**Evaluation**: kept as the position and the answer, never as numbers, so it stays valid when the **Evaluation** gains a new term. Collected in play, from a quiz, or from the **Test Position** registry, whose expected moves are verdicts already.
-_Avoid_: Label, rating, feedback, thumbs up
 
 **Verdict Store**:
 Where every **Verdict** lands and is read back from — one shared place for judgements given anywhere: in play against production, in a quiz, or written by hand. Each is named by its own CONTENT, so the same judgement recorded twice is one entry, and an altered one is a different entry that no **Verdict Lock** names. It holds everything ever submitted, validated or not: being in the store is not being trusted.
@@ -1403,7 +1403,7 @@ The bound on the SUM of every non-base term of a **Pick**'s score, which GROWS w
 _Avoid_: Weight, clamp (it caps the sum of terms, not each term); penalty (a term that only ever subtracts is dead under the non-negative clamp — express it as the bonus its complement earns)
 
 **Archetype**:
-A named strategy a **Pool** can be built toward (`reanimator`, `artifacts`, `kicker`), one row of the **Archetype Catalogue**. A **Card Profile** declares the Archetypes its card belongs to within its **Pack Source** scope; a **Seat**'s accumulated **Pool** therefore has a measurable commitment per Archetype, which biases later **Picks**. Scope-free as a name, scope-bound in use: an Archetype is "in" a scope exactly when a Card Profile of that scope carries it, and its colours in that scope are COMPUTED from the cards so tagged (`aggro` reads RG in one set and WR in another), never authored. Coarse-grained on purpose — it steers colours and plan, not card-to-card fit (that is **Capability**). On a constructed deck an Archetype is only a hint: the play Bot reasons from the deck's **Plan**, never from the label.
+A named strategy a **Pool** can be built toward (`reanimator`, `artifacts`, `kicker`), one row of the **Archetype Catalogue**. A **Card Profile** declares the Archetypes its card belongs to within its **Pack Source** scope; a **Seat**'s accumulated **Pool** therefore has a measurable commitment per Archetype, which biases later **Picks**. Scope-free as a name, scope-bound in use: an Archetype is "in" a scope exactly when a Card Profile of that scope carries it, and its colours in that scope are COMPUTED from the cards so tagged (`aggro` reads RG in one set and WR in another), never authored. Coarse-grained on purpose — it steers colours and plan, not card-to-card fit (that is **Capability**). On a constructed deck an Archetype is only a hint: the play Bot reasons from the deck's **Deck Needs**, never from the label.
 _Avoid_: Deck type, strategy, colour pair (an Archetype is not its colours), per-format archetype (the row is global; only its use is per scope)
 
 **Archetype Catalogue**:
@@ -1414,9 +1414,29 @@ _Avoid_: Archetype registry (the code-side closed vocabulary this replaces), arc
 A named property from a small closed vocabulary that a card either **provides** or **requires** (`value-on-death`, `reanimatable`, `value-on-attack`). Fit between two cards is **computed**, never enumerated: a card requiring `value-on-death` (Flash) is served by any card providing it (Worldspine Wurm) and by no other. Absence of a match is itself the veto — Animate Dead requires `reanimatable`, which Worldspine Wurm does not provide, so the pair scores nothing despite sharing an **Archetype**. Authoring cost is one declaration per card, not one per pair — and most Capabilities are not authored at all but read off what the card does, so a declaration is kept for the cases that need a judgement. A Capability is a fact about the CARD, not about an environment: declared once, keyed by card, valid in every scope and in constructed play alike; a judgement that looks format-relative (`reanimatable`) is made absolute by a structural threshold rather than re-declared per scope.
 _Avoid_: Tag (too vague — an **Archetype** is also a tag), synergy edge, keyword (that is CR 702)
 
+**Deck Needs**:
+What a deck's cards require of each other, expressed as the **Needs** they carry: every **Capability** a card requires, and how much of each is satisfied right now. Read from the deck, never declared about it — a deck nobody has seen before still has Deck Needs. They change value as the game moves: supplying a Need raises the worth of the card that needed it, on the very move that supplies it. One input of a **Plan**, never the Plan itself. Named "Plan" until 2026-11-16 (ADR 0130 and PRD issue #3602 were written under that name).
+_Avoid_: Plan (that is what a player intends at the table), deck plan, strategy, archetype (that is a label; Deck Needs are what the cards require)
+
 **Plan**:
-What a deck is trying to do, expressed as the **Needs** its cards carry: every **Capability** a card requires, and how much of each is satisfied right now. Read from the deck, never declared about it — a deck nobody has seen before still has a Plan. It changes value as the game moves: supplying a Need raises the worth of the card that needed it, on the very move that supplies it.
-_Avoid_: Game plan (too vague), strategy, archetype (that is a label; the Plan is what the cards require)
+What a **Player** intends to do over the coming turns, stated before acting: "remove a creature this turn, Jace next turn, two lands open at their end step". Declared by a person in play, never read off the moves they then made, and it stands until they state another. The multi-turn intent a single **Verdict** cannot hold. Distinct from **Deck Needs**, which the cards carry whoever is playing them.
+_Avoid_: Intent, game plan, line, strategy, Deck Needs (the former holder of this name)
+
+**Rationale**:
+Why a **Player** made one decision, in their own words kept verbatim, together with its decomposition: the factors that weighed on it and which one dominated the others in that position. The decomposition may be proposed by tooling but counts only once its author confirms it. One person's word, so it is kept with their **Attestation**, never on the **Verdict** two people share.
+_Avoid_: Note (the free-text field with no structure), explanation, reasoning log (that is the **DecisionTrace**, the Brain's own)
+
+**Reference Judge**:
+The person whose **Rationales** the vocabulary of factors is built from — a role, held by one person at a time and reassignable, never a property of who holds it. Everyone else's Rationales test that vocabulary: one that cannot be expressed in it names a missing factor or a different way of playing, counted per tester.
+_Avoid_: Owner, expert, oracle, gold tester
+
+**Factor**:
+One strategic quantity a **Rationale** is decomposed into, computable from the position alone: what the opponent's best enabled play in their next window would cost me (exposure), whether an answer I hold stops it and stays castable (coverage), what I lose by making my own play a turn later (delay cost). Always a quantity, never a fact of one game — "reanimator, turn three, Exhume" is an instance of exposure, not a Factor — and never the name of a card or an **Archetype**. A person speaks in facts; the Factor is what those facts are a case of, and the test that the lift lost nothing is the condition under which the judge says it would stop holding (a **Discriminant**).
+_Avoid_: Feature (that is the **Evaluation**'s vector), reason, condition, heuristic
+
+**Verdict Grade**:
+How clear-cut a judged decision is, stated by the judge: _Clear_ — every other move is a mistake; _Preferred_ — this move, with the alternatives the judge would also accept named beside it; _Indifferent_ — no real preference. A decision of judgement has no answer that is right every time, so a grade says how much a **Verdict** may teach: an accepted alternative counts as agreement, and an Indifferent one is neither fitted nor counted.
+_Avoid_: Confidence (nobody is calibrated on a percentage), strength, certainty, margin (that is the search's)
 
 **Need**:
 One **Capability** a card in the deck requires, together with how well it is met: fully when the card providing it is already where it is needed, partly when that card is still in hand, not at all when nothing provides it. A Need is met once — two providers do not meet it twice.
@@ -1439,7 +1459,7 @@ The measurement that reads the **Combo Corpus**: for every entry it assembles th
 _Avoid_: Combo test, combo blade (the census feeds `must` promotions; it is not itself an entry), combo ladder
 
 **Card Profile**:
-What a **Bot Drafter** reads about a card beyond its **Pick Rating**, in two layers keyed differently because they are true at different widths. **Card Capabilities** — the **Capabilities** the card provides and requires — are a property of the card and hold in every **Pack Source** scope (Worldspine Wurm dies the same way in every cube), so they are keyed by card alone and are what the play Bot's **Plan** reads too. **Card Archetypes** — the **Archetypes** the card steers toward — are a property of the card IN an environment (Lightning Bolt is `aggro` in the Vintage Cube and removal for `control` in a set), so they are keyed by scope and card. Each layer carries its own `reviewed` flag and the **Profile Census**'s rationale; both are DB-over-seed, **Admin**-edited. The drafter's resolver recomposes the two into one lookup.
+What a **Bot Drafter** reads about a card beyond its **Pick Rating**, in two layers keyed differently because they are true at different widths. **Card Capabilities** — the **Capabilities** the card provides and requires — are a property of the card and hold in every **Pack Source** scope (Worldspine Wurm dies the same way in every cube), so they are keyed by card alone and are what the play Bot's **Deck Needs** read too. **Card Archetypes** — the **Archetypes** the card steers toward — are a property of the card IN an environment (Lightning Bolt is `aggro` in the Vintage Cube and removal for `control` in a set), so they are keyed by scope and card. Each layer carries its own `reviewed` flag and the **Profile Census**'s rationale; both are DB-over-seed, **Admin**-edited. The drafter's resolver recomposes the two into one lookup.
 _Avoid_: Card metadata (too generic), card tags, per-format profile (only the Archetype layer is per format)
 
 **Profile Census**:
