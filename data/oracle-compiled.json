@@ -29273,12 +29273,12 @@
         {"key":"position-unmodelled › Instant target:spell","outcome":"ignored","cards":5},
         {"key":"never-chosen › Creature › addMana","outcome":"ignored","cards":4},
         {"key":"never-chosen › Instant › addMana","outcome":"ignored","cards":3},
+        {"key":"never-chosen › Sorcery › addMana","outcome":"ignored","cards":3},
         {"key":"never-chosen › Sorcery › destroy+forEach","outcome":"ignored","cards":3},
         {"key":"never-chosen › Creature › grantAbility","outcome":"ignored","cards":2},
         {"key":"never-chosen › Creature › regenerate","outcome":"ignored","cards":2},
         {"key":"never-chosen › Instant › forEach+tapUntap","outcome":"ignored","cards":2},
         {"key":"never-chosen › Sorcery target:player › choice+libraryLook+moveZone","outcome":"ignored","cards":2},
-        {"key":"never-chosen › Sorcery › addMana","outcome":"ignored","cards":2},
         {"key":"position-unmodelled › Enchantment target:Land","outcome":"ignored","cards":2},
         {"key":"position-unmodelled › Instant target:Artifact","outcome":"ignored","cards":2},
         {"key":"never-chosen › Artifact [flash] › if+reflexiveTrigger+restrictCombat+sacrifice","outcome":"ignored","cards":1},
@@ -40067,7 +40067,7 @@
 
         {"oracleId":"2731c237-eda1-4b74-a294-502d574f4435","name":"Ramosian Rally","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["b433dd5d5439"]},
 
-        {"oracleId":"27348fe5-21d4-40f7-9feb-bba2c2321008","name":"Inner Fire","state":"quarantine","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["addMana"],"quarantineReasons":[{"kind":"smoke-scenario","detail":"count set counts a HAND — the canned generator's hand contents are owned by the cast filler, not the count filler"}],"definition":{"name":"Inner Fire","types":["Sorcery"],"manaCost":{"X":3,"R":1},"oracleText":"Add {R} for each card in your hand.","effects":[{"op":"addMana","mana":{"R":{"count":{"zone":"hand","controller":"controller"}}}}]}},
+        {"oracleId":"27348fe5-21d4-40f7-9feb-bba2c2321008","name":"Inner Fire","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["addMana"],"definition":{"name":"Inner Fire","types":["Sorcery"],"manaCost":{"X":3,"R":1},"oracleText":"Add {R} for each card in your hand.","effects":[{"op":"addMana","mana":{"R":{"count":{"zone":"hand","controller":"controller"}}}}]},"botReach":"ignored","botGap":"never-chosen › Sorcery › addMana"},
 
         {"oracleId":"2737a78c-77ed-4bd0-ac0d-39ca2d816e83","name":"Angrath, Minotaur Pirate","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e33751ce94cf","fe555ed7c8b6"]},
 
@@ -48965,7 +48965,7 @@
 
         {"oracleId":"47a8f3a8-253b-4df9-9cfc-ff7df65d850c","name":"Forging the Tyrite Sword","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5270d9204463","d1a08251d9c8"]},
 
-        {"oracleId":"47a9df32-7588-4430-a40e-56a9041e0360","name":"Demonic Lore","state":"quarantine","poolIn":["legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["draw","loseLife"],"quarantineReasons":[{"kind":"smoke-scenario","detail":"count set counts a HAND — the canned generator's hand contents are owned by the cast filler, not the count filler"}],"definition":{"name":"Demonic Lore","types":["Enchantment"],"manaCost":{"X":2,"B":1},"oracleText":"When this enchantment enters, draw three cards.\nAt the beginning of your end step, you lose 2 life for each card in your hand.","compiledTriggeredAbilities":[{"id":"demonic-lore-trigger","oracleText":"When this enchantment enters, draw three cards.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"draw","player":"controller","count":3}]},{"id":"demonic-lore-trigger-2","oracleText":"At the beginning of your end step, you lose 2 life for each card in your hand.","head":{"kind":"phase","phase":"END_STEP","scope":"your"},"effects":[{"op":"loseLife","player":"controller","amount":{"count":{"zone":"hand","controller":"controller","times":2}}}]}]}},
+        {"oracleId":"47a9df32-7588-4430-a40e-56a9041e0360","name":"Demonic Lore","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["draw","loseLife"],"definition":{"name":"Demonic Lore","types":["Enchantment"],"manaCost":{"X":2,"B":1},"oracleText":"When this enchantment enters, draw three cards.\nAt the beginning of your end step, you lose 2 life for each card in your hand.","compiledTriggeredAbilities":[{"id":"demonic-lore-trigger","oracleText":"When this enchantment enters, draw three cards.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"draw","player":"controller","count":3}]},{"id":"demonic-lore-trigger-2","oracleText":"At the beginning of your end step, you lose 2 life for each card in your hand.","head":{"kind":"phase","phase":"END_STEP","scope":"your"},"effects":[{"op":"loseLife","player":"controller","amount":{"count":{"zone":"hand","controller":"controller","times":2}}}]}]},"botReach":"played"},
 
         {"oracleId":"47aabd9d-0f68-490a-a2ae-5cd9ef689be6","name":"Raven Familiar","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["lookDistribute"],"definition":{"name":"Raven Familiar","types":["Creature"],"subtypes":["Bird"],"manaCost":{"X":2,"U":1},"power":1,"toughness":2,"oracleText":"Flying\nEcho {2}{U} (At the beginning of your upkeep, if this came under your control since the beginning of your last upkeep, sacrifice it unless you pay its echo cost.)\nWhen this creature enters, look at the top three cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"raven-familiar-trigger","oracleText":"When this creature enters, look at the top three cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"lookDistribute","keepTo":"hand","player":"controller","look":3,"take":1}]}],"echo":{"X":2,"U":1}},"botReach":"played","retired":{"at":"2026-11-15","issue":4035}},
 

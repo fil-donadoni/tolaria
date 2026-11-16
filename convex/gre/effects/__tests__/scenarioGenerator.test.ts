@@ -1156,6 +1156,63 @@ describe("random discard (CR 701.9b, issue #5943)", () => {
     });
 });
 
+describe("hand count sets (CR 402.3, issue #4206)", () => {
+    // Inner Fire's shape: "Add {R} for each card in your hand."
+    const innerFire: EffectOp[] = [
+        {
+            op: "addMana",
+            mana: { R: { count: { zone: "hand", controller: "controller" } } },
+        },
+    ];
+    // Gerrard Capashen's shape: "you gain 1 life for each card in target
+    // opponent's hand."
+    const opponentsHand: EffectOp[] = [
+        {
+            op: "gainLife",
+            player: "controller",
+            amount: { count: { zone: "hand", controller: { target: 0 } } },
+        },
+    ];
+    const handOf = (plan: Extract<Plan, { kind: "run" }>, id: string) =>
+        plan.scenario.state.players.find((p) => p.id === id)!.hand;
+
+    it("banks the count in the counted hand and predicts its size", () => {
+        const plan = planSmokeTest(innerFire);
+        if (plan.kind !== "run") throw new Error(plan.reason);
+        expect(handOf(plan, CASTER_ID)).toHaveLength(3);
+        expect(handOf(plan, OPPONENT_ID)).toHaveLength(0);
+        expect(failedAssertions(plan)).not.toEqual([]);
+        resolveAsSpell(plan, innerFire, "smoke-hand-count", true);
+        expect(failedAssertions(plan)).toEqual([]);
+    });
+
+    it("announces a targeted player's hand as the opponent's", () => {
+        const plan = planSmokeTest(opponentsHand);
+        if (plan.kind !== "run") throw new Error(plan.reason);
+        expect(handOf(plan, OPPONENT_ID)).toHaveLength(3);
+        resolveAsSpell(plan, opponentsHand, "smoke-hand-count-target", true);
+        expect(failedAssertions(plan)).toEqual([]);
+    });
+
+    it("skips a hand another part of the script changes", () => {
+        for (const touch of [
+            { op: "draw", player: "controller", count: 1 },
+            { op: "discardAtRandom", player: "controller", count: 1 },
+            ...innerFire,
+        ] as EffectOp[]) {
+            const plan = planSmokeTest([touch, ...innerFire]);
+            expect(plan.kind).toBe("skip");
+            if (plan.kind !== "skip") continue;
+            expect(plan.skips).toContainEqual(
+                expect.objectContaining({
+                    code: "runtime-amount",
+                    reason: expect.stringContaining("counts a HAND"),
+                })
+            );
+        }
+    });
+});
+
 describe("sacrifice this permanent — if you do (CR 701.21a, issue #6423)", () => {
     // Aang's Iceberg's shape: "Sacrifice this enchantment. If you do, <body>",
     // with a body the sweep can assert.
