@@ -8,6 +8,7 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import useNestedBackdropDismiss from "@/hooks/useNestedBackdropDismiss";
 import { Panel, SunburstIcon, type PanelDensity } from "@/components/ui/panel";
 
 type GameDialogSize = "default" | "wide";
@@ -105,10 +106,16 @@ export default function GameDialog({
         onOpenChange?.(next);
     };
 
+    const popupRef = useRef<HTMLDivElement>(null);
+    useNestedBackdropDismiss(open, popupRef, () => {
+        if (dismissable) onOpenChange?.(false);
+    });
+
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent
                 showCloseButton={false}
+                ref={popupRef}
                 // Initial focus on the (non-tabbable) title: opening lights no
                 // button, Enter cannot fire the primary action by accident.
                 initialFocus={titleRef}
