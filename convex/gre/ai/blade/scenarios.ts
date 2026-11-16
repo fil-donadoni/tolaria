@@ -29513,7 +29513,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             forbidden: [{ kind: "cast-spell", card: "Fatal Push" }],
         },
-        note: "Issue #9964. Revolt is on, so Fatal Push reaches mana value 4, and every opposing creature is above it: the only creatures it can destroy are Phelia and the Emperor, the Bot's own. The opponent's board puts the Bot past `materialFull` behind, where the reward clips, so the cast and `pass` read the same 0.25 one ply out and the old `self-harm-removal` hold fired only while rollout noise kept `pass` within `outcomeEps`. The hold now admits `pass` whenever the reward band is blind to the drop. Two Emperors in the live game; one here, because a setup `activate` names its card and two copies are ambiguous.",
+        note: "Issue #9964. Revolt is on, so Fatal Push reaches mana value 4, and every opposing creature is above it: the only creatures it can destroy are Phelia and the Emperor, the Bot's own. The opponent's board puts the Bot past `materialFull` behind, where the reward clips, so the cast and `pass` read the same 0.25 one ply out and the old `self-harm-removal` hold fired only while rollout noise kept `pass` within `outcomeEps`. The hold now admits `pass`, and the variant ranking every sibling target, whenever the reward band is blind to the drop. Two Emperors in the live game; one here, because a setup `activate` names its card and two copies are ambiguous.",
     },
     {
         label: "self-harm: Fatal Push still destroys the opponent's mana value 4 creature beside the Bot's own",
@@ -29596,10 +29596,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             { kind: "resolve-top" },
         ],
         bot: "me",
-        // Starved on purpose: the live decision was time-capped, and at 100
-        // iterations seed 6 is where the old outcome-equal gate let the cast
-        // stand (it destroyed the Emperor). 400 iterations, 16 seeds, measured
-        // green too.
+        // The anchor's budget and seeds, so the pair differs by the Giant
+        // alone. 400 iterations, 16 seeds, measured green too.
         budget: { iterations: 100 },
         seeds: [0xb1ade, 1, 2, 3, 4, 5, 6],
         tier: "must",
@@ -29614,7 +29612,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 }),
             describe: "casts Fatal Push on Hill Giant",
         },
-        note: "Issue #9964, the positive twin of the entry above: the same board plus a Hill Giant, mana value 4, in revolt's reach. The widened hold keys on a cast that only hurts the Bot, so the cast at the opponent's creature is untouched by it and still taken.",
+        note: "Issue #9964, the positive twin of the entry above: the same board plus a Hill Giant, mana value 4, in revolt's reach. Under the old gate the Bot cast at its own Emperor here too (seeds 1 and 3, and seed 7 at 400 iterations): the Giant variant sat more than `outcomeEps` below, so the variant ranking never saw it. With the band blind to the self-harm, every sibling is ranked, and the Giant wins it.",
     },
     // Izzet Prowess, the modern metagame's level-2 rows
     // (`docs/agents/modern-metagame-bot-level-2.md`, issue #9691).

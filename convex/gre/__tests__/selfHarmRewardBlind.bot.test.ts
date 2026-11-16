@@ -60,7 +60,7 @@ function wurms(count: number): CardInstanceState[] {
     );
 }
 
-function pushBoard(oppWurms: number): GameState {
+function pushBoard(oppWurms: number, oppBears = false): GameState {
     return makeState({
         phase: "PRECOMBAT_MAIN",
         activePlayerId: "p1",
@@ -73,7 +73,12 @@ function pushBoard(oppWurms: number): GameState {
                     card(SWAMP, "p1", "sw1"),
                 ],
             }),
-            makePlayer("p2", { battlefield: wurms(oppWurms) }),
+            makePlayer("p2", {
+                battlefield: [
+                    ...wurms(oppWurms),
+                    ...(oppBears ? [card(BEARS, "p2", "oppBears")] : []),
+                ],
+            }),
         ],
     });
 }
@@ -151,6 +156,25 @@ describe("selectRootMove — self-harm hold under a blind reward band (issue #99
         ]);
         expect(move.kind).toBe("pass");
         expect(mechanism).toBe("self-harm-removal");
+    });
+
+    it("FIRE: redirects to the opponent's creature over its own, whatever the sibling's mean", () => {
+        // The opposing Bears is a sibling of the same announcement, but its
+        // mean sits past `outcomeEps` below the own-target cast — rollout
+        // residue like the gap itself, so it is ranked anyway, and the
+        // variant ranking takes it over both the self-harm and `pass`.
+        const state = pushBoard(6, true);
+        const ownBears = castAt(state, "push", "myBears");
+        const oppBears = castAt(state, "push", "oppBears");
+        const { move, mechanism } = pick(state, [
+            { move: ownBears, meanReward: 0.25 + NOISY_GAP, meanMargin: -1500 },
+            { move: oppBears, meanReward: 0.25, meanMargin: -1400 },
+            { move: PASS, meanReward: 0.25, meanMargin: -1450 },
+        ]);
+        expect(move.kind).toBe("cast-spell");
+        if (move.kind !== "cast-spell") throw new Error("kind");
+        expect(move.targets[0]?.id).toBe("oppBears");
+        expect(mechanism).toBe("announcement-variant");
     });
 
     it("NO-FIRE: in the open band the mean reward still decides", () => {

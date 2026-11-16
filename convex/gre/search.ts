@@ -6441,6 +6441,30 @@ export function selectRootMove(
             (best.move.kind === "submit-target" &&
                 rootState.pendingTarget?.kind === "trigger"))
     ) {
+        // Issue #9964 — the self-harm reading, taken BEFORE the variant
+        // ranking. When the picked cast only hurts the bot and the reward band
+        // is blind to it, the means of its siblings are the same rollout
+        // residue as its own, so outcome-equality is no bar for them either:
+        // every visited sibling is ranked. Measured on the issue's board plus
+        // an opposing mana value 4 creature in revolt's reach: the old gate
+        // cast at the bot's own Emperor on 3 of 23 seeds, the Giant variant
+        // `outcomeEps` below it.
+        const selfHarmReadings = new Map<
+            Edge,
+            ReturnType<typeof selfHarmRemovalReading>
+        >();
+        const selfHarmOf = (e: Edge) => {
+            if (!selfHarmReadings.has(e)) {
+                selfHarmReadings.set(
+                    e,
+                    selfHarmRemovalReading(rootState, e.move, botId, weights)
+                );
+            }
+            return selfHarmReadings.get(e) ?? null;
+        };
+        const blindSelfHarm =
+            ruleOn("self-harm-removal") &&
+            selfHarmOf(best)?.rewardBlind === true;
         if (ruleOn("announcement-variant")) {
             const scoreCache = new Map<Edge, number>();
             const scoreOf = (e: Edge) => {
@@ -6453,7 +6477,8 @@ export function selectRootMove(
             };
             const variants = pool.filter(
                 (e) =>
-                    mean(e) >= bestMean - weights.outcomeEps &&
+                    (blindSelfHarm ||
+                        mean(e) >= bestMean - weights.outcomeEps) &&
                     isCastVariantOf(e.move, best.move)
             );
             // Issue #6985 — a starved root opens only a few of an
@@ -6478,7 +6503,10 @@ export function selectRootMove(
                     best.move.kind === "activate-ability")
             ) {
                 for (const e of unopenedVariantEdges(root, moves, best)) {
-                    if (mean(e) >= bestMean - weights.outcomeEps) {
+                    if (
+                        blindSelfHarm ||
+                        mean(e) >= bestMean - weights.outcomeEps
+                    ) {
                         variants.push(e);
                     }
                 }
@@ -6518,12 +6546,7 @@ export function selectRootMove(
         // the band. The same gate distrust, and the same admission, as the
         // empty block declaration in the block-quality rule above.
         if (ruleOn("self-harm-removal")) {
-            const selfHarm = selfHarmRemovalReading(
-                rootState,
-                best.move,
-                botId,
-                weights
-            );
+            const selfHarm = selfHarmOf(best);
             const hold =
                 selfHarm &&
                 pool.find(
