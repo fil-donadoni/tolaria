@@ -40,7 +40,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "../lib/branches.ts";
 import { gh } from "../lib/gh.ts";
-import { domReachablePaths } from "../lib/ui-scope.ts";
+import { createImportGraph } from "../lib/import-graph.ts";
+import { domReachablePaths, type UiScope } from "../lib/ui-scope.ts";
 import {
     attributeBatch,
     domDigest,
@@ -66,6 +67,33 @@ import {
     LANE_VOCABULARY,
     type ReceiptVocabulary,
 } from "./verify-receipt.ts";
+
+/** The scoper's entry. The batch scopes every PR with ITS OWN code — the
+ *  base's scoper — while `land` re-derives with the PR's (issue #10059). */
+export const SCOPER_ENTRY = "scripts/lib/ui-scope.ts";
+
+/** The modules of the scoper's runtime closure (in the tree at `root`) a PR
+ *  changed. */
+export function changedScoperModules(
+    changed: readonly string[],
+    root: string
+): string[] {
+    const closure = createImportGraph({ root }).closureOf(SCOPER_ENTRY);
+    return changed.filter((p) => closure.has(p));
+}
+
+/** Why the batch drops a PR whose scope is not `scoped`. A PR that changes
+ *  the scoper itself was judged by the BASE's scoper, so the reason says so
+ *  and names the hand walk that uses its own (issue #10059). Pure. */
+export function scopeDropReason(
+    scope: Exclude<UiScope, { kind: "scoped" }>,
+    scoperChanges: readonly string[]
+): string {
+    const why = `its scope is ${scope.kind} (${scope.kind === "full" ? scope.reason : scope.reasons.join("; ")})`;
+    if (scoperChanges.length === 0)
+        return `${why}; it cannot ride a SCOPED walk`;
+    return `${why} by the base's scoper, but it changes the scoper itself (${scoperChanges.join(", ")}), which a batch never runs; walk it by hand with its own scoper: \`bun run check:ui\` in its worktree`;
+}
 
 /** Flags the batch hands through to the walk unchanged. Everything that
  *  picks the scope (`--all`, `--surface=`, `--viewport=`, `--base=`,
@@ -676,7 +704,10 @@ export async function runBatch(
                     scopes.set(m.head.pr, scope.surfaces);
                 else {
                     unscoped.push(m);
-                    const reason = `its scope is ${scope.kind} (${scope.kind === "full" ? scope.reason : scope.reasons.join("; ")}); it cannot ride a SCOPED walk`;
+                    const reason = scopeDropReason(
+                        scope,
+                        changedScoperModules(m.changed, dir)
+                    );
                     log(`batch: dropped #${m.head.pr} — ${reason}`);
                     dropped.push({ pr: m.head.pr, reason, intrinsic: true });
                 }

@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import { describe, it, expect } from "vitest";
 import type { Readings, UnwalkedSurface } from "../ui-gate/floors.ts";
 import {
@@ -21,7 +22,13 @@ import {
     withBatchReceipt,
     type BatchHead,
 } from "../ui-gate/batch-receipt.ts";
-import { batchPassthrough, batchReceiptLines } from "../ui-gate/batch-run.ts";
+import {
+    batchPassthrough,
+    batchReceiptLines,
+    changedScoperModules,
+    SCOPER_ENTRY,
+    scopeDropReason,
+} from "../ui-gate/batch-run.ts";
 import {
     extractVerdictBlock,
     verifyReceiptText,
@@ -481,5 +488,43 @@ describe("skinReceiptInvalidForDiff — the landing tree's content is computed o
             }
         );
         expect(asked).toBe(0);
+    });
+});
+
+// Issue #10059: the batch scopes a PR with the BASE's scoper; a PR changing
+// the scoper is told so, with the hand walk that uses its own.
+describe("scopeDropReason — a scoper change is judged by the base's scoper (issue #10059)", () => {
+    const full = {
+        kind: "full",
+        reason: "src/index.css is a stylesheet",
+    } as const;
+
+    it("keeps the plain reason when the PR does not touch the scoper", () => {
+        expect(scopeDropReason(full, [])).toBe(
+            "its scope is full (src/index.css is a stylesheet); it cannot ride a SCOPED walk"
+        );
+    });
+
+    it("names the scoper modules and the hand walk when it does", () => {
+        const reason = scopeDropReason(full, [
+            "scripts/lib/ui-stylesheet-scope.ts",
+        ]);
+        expect(reason).toContain("by the base's scoper");
+        expect(reason).toContain("scripts/lib/ui-stylesheet-scope.ts");
+        expect(reason).toContain("`bun run check:ui` in its worktree");
+    });
+
+    it("finds the scoper's runtime closure among the changed paths", () => {
+        expect(
+            changedScoperModules(
+                [
+                    "src/index.css",
+                    "scripts/lib/ui-stylesheet-scope.ts",
+                    "scripts/__tests__/ui-stylesheet-scope.test.ts",
+                    SCOPER_ENTRY,
+                ],
+                path.resolve(__dirname, "../..")
+            )
+        ).toEqual(["scripts/lib/ui-stylesheet-scope.ts", SCOPER_ENTRY]);
     });
 });

@@ -2,10 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
     applyAction,
     ciExit,
+    collectSummary,
     type CollectIo,
     type LandRefusal,
     heldMarker,
     owedFrom,
+    partitionOwed,
     planCollect,
     summaryRows,
 } from "../ui-gate/batch-collect.ts";
@@ -116,6 +118,76 @@ describe("owedFrom — a held head is not re-walked (issue #9264)", () => {
         };
         expect(owedFrom([pr], "base1")).toEqual([]);
         expect(owedFrom([pr], "base2")).toEqual([70]);
+    });
+});
+
+// Issue #10059: a held PR is listed with its hold, never reported as absent.
+describe("partitionOwed / collectSummary — a held PR is named (issue #10059)", () => {
+    const fullDrop = {
+        number: 9930,
+        headRefOid: "fe5b48c542b8832653436e411e0041687bee3a7a",
+        comments: [
+            {
+                body: `check:ui batch walk: #9930 was DROPPED — its scope is full (src/index.css is a stylesheet).\n\n${heldMarker("fe5b48c542b8832653436e411e0041687bee3a7a")}`,
+            },
+        ],
+    };
+    const conflict = {
+        number: 71,
+        headRefOid: "aaa",
+        comments: [
+            {
+                body: `check:ui batch walk: #71 was DROPPED — its head conflicts.\n\n${heldMarker("aaa", "base1")}`,
+            },
+        ],
+    };
+
+    it("splits owed from held, with each hold's kind and reason", () => {
+        expect(
+            partitionOwed(
+                [
+                    fullDrop,
+                    conflict,
+                    { number: 50, headRefOid: "c", comments: [] },
+                ],
+                "base1"
+            )
+        ).toEqual({
+            owed: [50],
+            held: [
+                {
+                    pr: 71,
+                    head: "aaa",
+                    until: "base",
+                    reason: "#71 was DROPPED — its head conflicts.",
+                },
+                {
+                    pr: 9930,
+                    head: fullDrop.headRefOid,
+                    until: "push",
+                    reason: "#9930 was DROPPED — its scope is full (src/index.css is a stylesheet).",
+                },
+            ],
+        });
+    });
+
+    it("with every PR held, names them instead of 'no open ui-owed PR'", () => {
+        const { owed, held } = partitionOwed([fullDrop], "base1");
+        const lines = collectSummary(owed, held);
+        expect(lines[0]).toBe(
+            "collect: no PR owed — 1 ui-owed PR(s) held: #9930"
+        );
+        expect(lines[1]).toBe(
+            "  · #9930 held at fe5b48c542b8 until a new push: #9930 was DROPPED — its scope is full (src/index.css is a stylesheet)."
+        );
+        expect(lines.join("\n")).not.toContain("no open ui-owed PR");
+    });
+
+    it("says 'no open ui-owed PR' only when none is listed", () => {
+        expect(collectSummary([], [])).toEqual(["collect: no open ui-owed PR"]);
+        expect(collectSummary([50, 52], [])).toEqual([
+            "collect: 2 PR(s) owed: #50 #52",
+        ]);
     });
 });
 
