@@ -179,7 +179,8 @@ evaluation is best, with a 25% chance of a random move instead) until the
 playing to the end.
 
 <a id="horizon"></a>**Horizon** — where a rollout stops. Here: the start of
-the Bot's next turn (ADR 0015), capped at 6 turns. A payoff that only shows up
+the Bot's next turn after the search root's turn (ADR 0015), capped at 6
+turns. The tree stops there too: every candidate is scored at that boundary. A payoff that only shows up
 beyond the horizon is invisible to the search — one of the named causes of a
 [beyond-budget](#beyond-budget) position.
 

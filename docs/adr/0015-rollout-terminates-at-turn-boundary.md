@@ -2,7 +2,8 @@
 
 _Maintenance 2026-11-08 (issue #8723): citations of the client-side ISMCTS decision now cite the record by its file number, ADR 0000._
 
-**Status:** Accepted (2026-06-16)
+**Status:** Accepted (2026-06-16); amended 2026-11-16 (Amendment I, issue
+#9934: the horizon is measured on the search root's clock)
 
 **Refines:** [ADR 0000](0000-ai-opponent-client-side-ismcts.md) (the rollout
 truncation parameter of the client-side ISMCTS opponent).
@@ -83,7 +84,7 @@ never advance the turn).
 
 - `ROLLOUT_DEPTH = 8` (a fixed ply count) is replaced in `search.ts` by a
   turn-clock horizon: `rollout` stops at the START of the bot's next turn
-  (`ROLLOUT_EXTRA_BOT_TURNS = 0` extra full turns), bounded by
+  (measured from the search root since Amendment I), bounded by
   `MAX_ROLLOUT_TURNS = 6` and a `MAX_ROLLOUT_PLIES = 300` backstop against stall
   loops. `DEFAULT_BUDGET.timeMs` is raised 300 → **1500 ms** so the 400-iteration
   budget completes despite the longer (full-round) rollouts.
@@ -92,6 +93,32 @@ never advance the turn).
   eval blind spot (drawing zero cards is scored as non-negative), NOT a horizon
   artifact. The horizon fix removes the _action bias_ at the live budget; the
   leaf-eval blindness is the deferred Forge-comparison eval enrichment.
+
+## Amendment I (issue #9934) — the horizon is measured on the search root's clock
+
+The decision above says every candidate is judged "after the same game-clock
+progress", but the implementation measured the boundary from the turn each
+**rollout started** in. A tree line made of single forced-looking moves (pass,
+opponent pass, pass, …) is deepened by PUCT past the bot's next turn; its
+rollouts then started on that turn and played on a further round, while a
+branching line stayed shallow and was scored a round earlier. The narrow line
+was credited with a payoff the branching one was never asked to reach
+(measured on the issue #9838 bounce-land entry: the `pass` edge's rollouts
+started a turn later and outscored the float edge inside `outcomeEps`).
+
+The horizon is now the **start of the bot's first turn after the root's
+turn** — the active player is the bot on a turn number greater than the
+root's (`pastRootHorizon`, `search.ts`). Two seams hold it:
+
+- `rollout` reads it from the root clock it is passed (`since`), so a rollout
+  that starts at or past the boundary scores at once;
+- the tree stops descending there: a node at the boundary is a leaf, scored
+  where every other line's rollout stops, and is never expanded.
+
+`ROLLOUT_EXTRA_BOT_TURNS` (always `0`) is retired: a count of further bot
+turns cannot be read off a state measured from the root once an extra turn
+can intervene, and nothing ever set it. `MAX_ROLLOUT_TURNS` stays a stall cap
+counted from the rollout's own start.
 
 ## Alternatives rejected
 
