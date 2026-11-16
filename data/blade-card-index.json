@@ -348,6 +348,13 @@
             "needsSetup": false
         }
     ],
+    "Ephemerate": [
+        {
+            "label": "blink: Ephemerate saves the Goryo's Vengeance legend from its end-step exile",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Erhnam Djinn": [
         {
             "label": "look and keep: Malevolent Rumble keeps the threat when short of threats",
@@ -406,6 +413,13 @@
         {
             "label": "cheat into play: the reported Worldspine Wurm position",
             "tier": "stretch",
+            "needsSetup": false
+        }
+    ],
+    "Force of Negation": [
+        {
+            "label": "pitch counter: Force of Negation exiles a blue card to counter a lethal spell",
+            "tier": "must",
             "needsSetup": false
         }
     ],
@@ -476,6 +490,13 @@
             "needsSetup": true
         }
     ],
+    "Goryo's Vengeance": [
+        {
+            "label": "reanimation: Goryo's Vengeance returns the strongest legend before combat",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Grapeshot": [
         {
             "label": "storm: Grapeshot is lethal because the search counts the spell cast before it",
@@ -498,6 +519,11 @@
         }
     ],
     "Griselbrand": [
+        {
+            "label": "pay life: Griselbrand pays 7 and draws seven with life to spare",
+            "tier": "must",
+            "needsSetup": true
+        },
         {
             "label": "tutor: Entomb bins the fatty, not the Bears",
             "tier": "must",
@@ -955,6 +981,13 @@
     "Prodigal Sorcerer": [
         {
             "label": "activation payoff: Prodigal Sorcerer zaps in response to removal aimed at it",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Psychic Frog": [
+        {
+            "label": "discard pump: Psychic Frog discards the spare land to win its blocked combat",
             "tier": "must",
             "needsSetup": true
         }
