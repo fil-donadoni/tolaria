@@ -154,7 +154,7 @@ describe("a standing each-step dig reads the board (issue #5627)", () => {
     });
 
     it("the side whose upkeep it is reads its own library: the better dig is worth more", () => {
-        // A sweep of Bear densities in one forty-card library, not a fixed
+        // A sweep of Bear densities in one sixty-card library, not a fixed
         // pair: where a given density lands between the CR 603.5 clamp (0)
         // and the `MAX_LATENT_SCRIPT_VALUE` bound moves with every refit of
         // the fitted weights (issue #9963: the `recursion` unit fell from
@@ -164,14 +164,14 @@ describe("a standing each-step dig reads the board (issue #5627)", () => {
         // bound — and it RISES somewhere among libraries that all hold a
         // creature, i.e. the dig reads how deep the first one sits, not only
         // whether there is one.
-        const densities = [1, 2, 4, 6, 10, 20, 40];
+        const densities = [1, 2, 4, 6, 10, 20, 40, 60];
         const worths = densities.map((libraryCreatures) =>
             oathWorth(
                 board(
                     {
                         creatures: 0,
                         libraryCreatures,
-                        librarySize: 40,
+                        librarySize: 60,
                         oath: "board",
                     },
                     { creatures: 2, libraryCreatures: 4 }
@@ -179,7 +179,7 @@ describe("a standing each-step dig reads the board (issue #5627)", () => {
             )
         );
         worths.forEach((worth, i) => {
-            const at = `${densities[i]} Bears in forty`;
+            const at = `${densities[i]} Bears in sixty`;
             expect(worth, at).toBeGreaterThanOrEqual(0);
             expect(worth, at).toBeLessThanOrEqual(MAX_LATENT_SCRIPT_VALUE);
             if (i > 0)
