@@ -1159,6 +1159,11 @@ function revertPlan(
  *     ~2, 4.5–9.2 s wall at load 33 (2026-10-18). Without it a registry entry
  *     landed with a stale index and the base went RED (PR #5868); with it
  *     `pr-fixup`'s `blade-index` row regenerates the index on the PR.
+ *   - `bundle-budget` (issue #10048) is the `card-set-` bundle budget's model
+ *     test, a `node-engine` file: it counts the hand-written cards under
+ *     `convex/cards/sets/**` and reds when the count leaves the range the
+ *     budget is sound in. `check:bundle`, which measures the bytes, is
+ *     health's; this is the part of it a lane can afford.
  *   - `check:baseline-shrink` (issue #5942) refuses a row ADDED to Guard C's
  *     baseline — a graduated card coming back — which only the diff can see.
  *     Admitted by the baseline file alone; ~0.3 s (two `git show`s). A
@@ -1190,6 +1195,10 @@ export const BOT_PINS_TESTS: readonly string[] = [
     "convex/gre/__tests__/searchLeafScore.bot.test.ts",
     "convex/gre/__tests__/evaluateManaCensus.bot.test.ts",
 ];
+
+/** The `card-set-` bundle budget's model test, a `node-engine` file the lane
+ *  admits as the `bundle-budget` cheap guard (issue #10048). */
+export const BUNDLE_BUDGET_TEST = "scripts/__tests__/bundle-budget.test.ts";
 
 const BLADE_NOISE_NOTES_TEST =
     "convex/gre/ai/blade/__tests__/noiseNotes.bot.test.ts";
@@ -1232,6 +1241,21 @@ export const CHEAP_GUARDS: readonly {
         id: "check:cube-ratings",
         admits: /^(convex\/cards\/sets\/|convex\/cubes\/vintageCubeNames\.ts$|data\/pick-ratings\/vintage-cube\.json$|scripts\/check-cube-ratings\.ts$|scripts\/lib\/(compiler-gap-markers|divergence-markers)\.ts$)/,
         lacks: "no changed path under convex/cards/sets/**, the Vintage Cube list, its Pick Rating file or the guard's readers — no cube card and no rating moved",
+    },
+    // Issue #10048: the `card-set-` bundle budget scales with the hand-written
+    // card count, and `check:bundle` is health's (12–24 s). Its model test
+    // reads the corpus through `fs`, so no `cards` diff ran it: 259
+    // retirements carried the corpus out of the range the budget was sound in
+    // and the base went RED. Admitted by the corpus it counts and the card
+    // index it checks the count against. The budget module itself reaches the
+    // test through the import graph. 1.9 s (4.1 s wall) warm, 6.4 s (10.2 s
+    // wall) on a fresh worktree's cold transform cache, load ~5 (2026-11-16).
+    // Health runs the file through `test:app`.
+    {
+        id: "bundle-budget",
+        admits: /^(convex\/cards\/sets\/|data\/card-index\.json$)/,
+        lacks: "no changed path under convex/cards/sets/** nor data/card-index.json — the hand-written corpus the card-set bundle budget scales by did not move",
+        command: `bunx vitest run --project node-engine ${BUNDLE_BUDGET_TEST}`,
     },
     // Issue #8348: a Bot test pinning float noise reds only after a refit, on the
     // base. Admitted by a changed bot test, run with the weights nudged.

@@ -14,26 +14,42 @@
  * The other half of the guard is the `Budget` type in
  * `scripts/check-bundle-size.ts`: a `sum` row cannot carry a fixed byte
  * literal (`tsc` refuses it).
+ *
+ * Issue #10048: the corpus also SHRINKS. The Oracle migrations retired 259
+ * hand-written cards, the budget gave back the growth allowance for each
+ * (340 B against ~136 B shed), and base tip `7700f6300f9d` went RED with
+ * nothing back in the graph. The second `describe` pins the shrink leg the
+ * same way, and the horizon assertion is two-sided. `check:lane` runs this
+ * file on every diff that moves the corpus (the `bundle-budget` cheap guard):
+ * the landing that leaves the horizons is refused, not the base tip.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
     OBSERVED_SET_BYTES_PER_CARD,
+    OBSERVED_SET_BYTES_PER_RETIRED_CARD,
     POOL_REENTRY_GZIP_BYTES,
     SET_CHUNK_BUDGET,
     countHandWrittenCards,
+    meanUnitBytes,
     scaledBudgetBytes,
+    withinReanchorHorizons,
 } from "../lib/bundle-budget";
 
 const ROOT = join(__dirname, "..", "..");
 
-const { anchorUnits, anchorBytes, reanchorHorizon } = SET_CHUNK_BUDGET;
+const { anchorUnits, anchorBytes, reanchorHorizon, reanchorHorizonBelow } =
+    SET_CHUNK_BUDGET;
 /** Corpus sizes from the anchor to the re-anchor horizon. */
 const ADDED = [0, 1, 100, 500, 1_000, reanchorHorizon];
 /** The Set chunks' sum after `added` cards at the observed marginal. */
 const grown = (added: number) =>
     anchorBytes + OBSERVED_SET_BYTES_PER_CARD * added;
+/** Corpus sizes from the anchor down to the lower re-anchor horizon. */
+const REMOVED = [1, 40, 100, 259, reanchorHorizonBelow];
+/** The Set chunks' sum after `removed` cards, each shedding `shed` bytes. */
+const shrunk = (removed: number, shed: number) => anchorBytes - shed * removed;
 
 describe("card-set bundle budget scales with the hand-written corpus (issue #9489)", () => {
     it("ordinary card growth stays under budget up to the re-anchor horizon", () => {
@@ -54,10 +70,13 @@ describe("card-set bundle budget scales with the hand-written corpus (issue #948
             );
     });
 
-    it("the live corpus is within the re-anchor horizon (else: re-measure, move the anchor)", () => {
-        expect(countHandWrittenCards(ROOT) - anchorUnits).toBeLessThanOrEqual(
-            reanchorHorizon
-        );
+    it("the live corpus is within both re-anchor horizons (else: re-measure with `bun run check:bundle`, move the anchor in scripts/lib/bundle-budget.ts)", () => {
+        expect(
+            withinReanchorHorizons(
+                SET_CHUNK_BUDGET,
+                countHandWrittenCards(ROOT)
+            )
+        ).toBe(true);
     });
 
     it("scales by the hand-written corpus the card-index lockfile indexes", () => {
@@ -70,5 +89,54 @@ describe("card-set bundle budget scales with the hand-written corpus (issue #948
         ) as { source?: string }[];
         const handWritten = index.filter((r) => r.source !== "compiled").length;
         expect(countHandWrittenCards(ROOT)).toBe(handWritten);
+    });
+});
+
+describe("card-set bundle budget follows a shrinking corpus at the shed rate (issue #10048)", () => {
+    it("ordinary retirement stays under budget down to the lower re-anchor horizon", () => {
+        // A shrink rate above the shed spends the headroom card by card: the
+        // budget falls faster than the chunks do.
+        expect(SET_CHUNK_BUDGET.perUnitShrinkBytes).toBeLessThanOrEqual(
+            OBSERVED_SET_BYTES_PER_RETIRED_CARD
+        );
+        for (const removed of REMOVED)
+            expect(
+                shrunk(removed, OBSERVED_SET_BYTES_PER_RETIRED_CARD)
+            ).toBeLessThanOrEqual(
+                scaledBudgetBytes(SET_CHUNK_BUDGET, anchorUnits - removed)
+            );
+    });
+
+    it("the measured RED stretch stays under a budget anchored where it began", () => {
+        // Issue #9489's anchor to tip 7700f6300f9d: 2,266 cards / 490,902 B
+        // down to 2,024 cards / 458,040 B, both measured by check:bundle.
+        const before = {
+            ...SET_CHUNK_BUDGET,
+            anchorUnits: 2_266,
+            anchorBytes: 490_902,
+        };
+        expect(458_040).toBeLessThanOrEqual(scaledBudgetBytes(before, 2_024));
+    });
+
+    it("literal-pool re-entry reds at every corpus size down to the lower re-anchor horizon", () => {
+        // The loosest case: each retired card sheds as much as the mean card.
+        const shed = meanUnitBytes(SET_CHUNK_BUDGET);
+        expect(shed).toBeGreaterThan(OBSERVED_SET_BYTES_PER_RETIRED_CARD);
+        for (const removed of REMOVED)
+            expect(
+                shrunk(removed, shed) + POOL_REENTRY_GZIP_BYTES
+            ).toBeGreaterThan(
+                scaledBudgetBytes(SET_CHUNK_BUDGET, anchorUnits - removed)
+            );
+    });
+
+    it("a corpus outside either horizon asks for a re-anchor", () => {
+        const within = (units: number) =>
+            withinReanchorHorizons(SET_CHUNK_BUDGET, units);
+        expect(within(anchorUnits)).toBe(true);
+        expect(within(anchorUnits + reanchorHorizon)).toBe(true);
+        expect(within(anchorUnits + reanchorHorizon + 1)).toBe(false);
+        expect(within(anchorUnits - reanchorHorizonBelow)).toBe(true);
+        expect(within(anchorUnits - reanchorHorizonBelow - 1)).toBe(false);
     });
 });

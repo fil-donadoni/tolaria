@@ -842,6 +842,18 @@ the issue fixing it. It reads the registry and runs no search: 6.7 s to 9.9 s wa
 `convex/gre/ai/blade/**`. It is no substitute for the robustness audit, which
 finds the entries no note admits.
 
+`bundle-budget` (issue #10048) is a vitest file in `node-engine`: the
+`card-set-` bundle budget's model test (`scripts/__tests__/bundle-budget.test.ts`).
+`check:bundle` measures the Set chunks and is health-only by cost; the budget
+it applies scales with the hand-written card count and is sound only within a
+re-anchor horizon on each side of its anchor (`scripts/lib/bundle-budget.ts`).
+The test counts the cards through `fs`, so no `cards` diff ran it, and 259
+retirements turned base tip `7700f6300f9d` RED. It is admitted by
+`convex/cards/sets/**` and `data/card-index.json`; a landing that carries the
+corpus outside a horizon is refused, and the fix is a re-anchor in the same
+PR: `bun run check:bundle` prints the sum. Health covers it through
+`test:app`.
+
 A fifth, `search-cost` (issue #6545), is the same shape: the ISMCTS
 cost-counter pin (`searchCost.bot.test.ts`), exact clone / SBA-sweep /
 layer-7-walk counts that any change to what a search iteration runs moves.
