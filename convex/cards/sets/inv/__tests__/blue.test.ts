@@ -1270,7 +1270,7 @@ describe("Rainbow Crow (CR 613.1e self setColor via optionChoice, issue #1083)",
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, crow, "rainbow-crow-color");
+        resolveActivated(state, crow, "rainbow-crow-ability");
         submitChoice(state, ["G"]);
         expect(
             state.players[0].battlefield.find((c) => c.id === "crow1")
@@ -1416,7 +1416,7 @@ describe("Dream Thrush (CR 305.7 setSubtype via optionChoice, issue #1083)", () 
                 makePlayer("p2", { battlefield: [targetLand] }),
             ],
         });
-        resolveActivated(state, thrush, "dream-thrush-land-type", [
+        resolveActivated(state, thrush, "dream-thrush-ability", [
             { type: "permanent", id: "thrushSwamp" },
         ]);
         submitChoice(state, ["Island"]);

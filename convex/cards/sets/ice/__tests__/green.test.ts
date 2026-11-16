@@ -317,7 +317,7 @@ describe("Wall of Pine Needles / Yavimaya Gnats regenerate (CR 701.19)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, wall, "wall-of-pine-needles-regen");
+        resolveActivated(state, wall, "wall-of-pine-needles-ability");
         const after = state.players[0].battlefield[0];
         expect((after.regenerationShields ?? 0) > 0).toBe(true);
     });

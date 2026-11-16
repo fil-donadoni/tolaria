@@ -210,7 +210,7 @@ describe("Emerald Dragonfly ({G}{G}: gains first strike EOT, CR 611.2a)", () => 
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, dragonfly, "emerald-dragonfly-first-strike");
+        resolveActivated(state, dragonfly, "emerald-dragonfly-ability");
         const live = state.players[0].battlefield.find((c) => c.id === "df")!;
         expect(
             continuousEffectsInLayer(state, 6).some(
@@ -240,7 +240,7 @@ describe("Pixie Queen ({G}{G}{G}, {T}: target gains flying EOT, CR 611.2a)", () 
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, queen, "pixie-queen-grant-flying", [
+        resolveActivated(state, queen, "pixie-queen-ability", [
             { type: "permanent", id: "apes" },
         ]);
         const live = state.players[0].battlefield.find((c) => c.id === "apes")!;

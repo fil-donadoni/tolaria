@@ -691,7 +691,7 @@ describe('bare "Sacrifice a creature" keeps the source a legal victim (CR 109.2 
             state,
             "p1",
             "angel-1",
-            "fallen-angel-feast"
+            "fallen-angel-ability"
         );
         // Swap this file's hand-written mirror requirement for the REAL
         // production lowering before the pick is offered. Without this the
