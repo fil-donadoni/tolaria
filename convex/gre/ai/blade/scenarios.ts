@@ -29428,6 +29428,194 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9695. The same board with revolt on: the threshold rises to mana value 4, and revolt ends with the turn, so the Giant dies now or never.",
     },
+    {
+        label: "self-harm: Fatal Push never destroys the Bot's own creature when the opponent's are out of reach",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 21,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 25, opp: 10 },
+            revolt: { me: true },
+            // The {1}{B} for the Adapt below: a setup `activate` cannot tap.
+            manaPool: { me: { B: 2 } },
+            cards: [
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Fatal Push", owner: "me", zone: "hand", count: 2 },
+                {
+                    name: "Phelia, Exuberant Shepherd",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Emperor of Bones",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                {
+                    name: "Solitude",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                    summoningSick: false,
+                },
+                {
+                    name: "Griselbrand",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                {
+                    name: "Plains",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 5,
+                    tapped: true,
+                },
+                { name: "Plains", owner: "opp", zone: "graveyard" },
+                {
+                    name: "Lightning Bolt",
+                    owner: "opp",
+                    zone: "hand",
+                    count: 2,
+                },
+            ],
+        },
+        // The issue's stack, bottom to top: the beginning-of-combat exile
+        // trigger at the land in the opponent's graveyard, then the reanimate
+        // trigger an Adapt fires with no creature card exiled to return.
+        setup: [
+            { kind: "phase-trigger" },
+            { kind: "submit-target", target: "Plains" },
+            {
+                kind: "activate",
+                card: "Emperor of Bones",
+                ability: "emperor-of-bones-adapt",
+            },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        // Starved on purpose: the live decision was time-capped, and at 100
+        // iterations seed 6 is where the old outcome-equal gate let the cast
+        // stand (it destroyed the Emperor). 400 iterations, 16 seeds, measured
+        // green too.
+        budget: { iterations: 100 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Fatal Push" }],
+        },
+        note: "Issue #9964. Revolt is on, so Fatal Push reaches mana value 4, and every opposing creature is above it: the only creatures it can destroy are Phelia and the Emperor, the Bot's own. The opponent's board puts the Bot past `materialFull` behind, where the reward clips, so the cast and `pass` read the same 0.25 one ply out and the old `self-harm-removal` hold fired only while rollout noise kept `pass` within `outcomeEps`. The hold now admits `pass` whenever the reward band is blind to the drop. Two Emperors in the live game; one here, because a setup `activate` names its card and two copies are ambiguous.",
+    },
+    {
+        label: "self-harm: Fatal Push still destroys the opponent's mana value 4 creature beside the Bot's own",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 21,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 25, opp: 10 },
+            revolt: { me: true },
+            // The {1}{B} for the Adapt below: a setup `activate` cannot tap.
+            manaPool: { me: { B: 2 } },
+            cards: [
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Fatal Push", owner: "me", zone: "hand", count: 2 },
+                {
+                    name: "Phelia, Exuberant Shepherd",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Emperor of Bones",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                {
+                    name: "Solitude",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                    summoningSick: false,
+                },
+                {
+                    name: "Griselbrand",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Plains",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 5,
+                    tapped: true,
+                },
+                { name: "Plains", owner: "opp", zone: "graveyard" },
+                {
+                    name: "Lightning Bolt",
+                    owner: "opp",
+                    zone: "hand",
+                    count: 2,
+                },
+            ],
+        },
+        // The issue's stack, bottom to top: the beginning-of-combat exile
+        // trigger at the land in the opponent's graveyard, then the reanimate
+        // trigger an Adapt fires with no creature card exiled to return.
+        setup: [
+            { kind: "phase-trigger" },
+            { kind: "submit-target", target: "Plains" },
+            {
+                kind: "activate",
+                card: "Emperor of Bones",
+                ability: "emperor-of-bones-adapt",
+            },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        // Starved on purpose: the live decision was time-capped, and at 100
+        // iterations seed 6 is where the old outcome-equal gate let the cast
+        // stand (it destroyed the Emperor). 400 iterations, 16 seeds, measured
+        // green too.
+        budget: { iterations: 100 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6],
+        tier: "must",
+        // A PREDICATE, kept out of the weight fit on purpose: see the first
+        // Esper Blink entry above.
+        expect: {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Fatal Push",
+                    target: "Hill Giant",
+                }),
+            describe: "casts Fatal Push on Hill Giant",
+        },
+        note: "Issue #9964, the positive twin of the entry above: the same board plus a Hill Giant, mana value 4, in revolt's reach. The widened hold keys on a cast that only hurts the Bot, so the cast at the opponent's creature is untouched by it and still taken.",
+    },
     // Izzet Prowess, the modern metagame's level-2 rows
     // (`docs/agents/modern-metagame-bot-level-2.md`, issue #9691).
     {
