@@ -336,6 +336,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Instant target:Creature › delayedTrigger+exile+moveZone",
+            "issue": 10007
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Instant target:Creature › destroy+gainLife",
             "issue": 5298
         },
