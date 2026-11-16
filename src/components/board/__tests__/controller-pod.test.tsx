@@ -14,6 +14,7 @@ import {
     type GameContextValue,
 } from "~/lib/testing/board-context";
 import type { PendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import { CONTROLLER_POD_WIDTH, RIGHT_GUTTER } from "~/lib/board-layout";
 
 const calls: { ref: unknown; args: unknown }[] = [];
 
@@ -452,5 +453,68 @@ describe("ControllerPod bug-report trigger (issue #3419)", () => {
         expect(trigger.querySelector("svg")?.getAttribute("class")).toContain(
             "h-4 w-4"
         );
+    });
+});
+
+// Pass Turn and Pass Until Action are always-mounted icon buttons; without
+// priority they queue the pass intent the server already accepts and fires
+// when priority returns — the same intent the P and Enter hotkeys reach.
+describe("ControllerPod queued passes (issue #9835)", () => {
+    const NO_PRIORITY = { activePlayerId: "opp", priorityPlayerId: "opp" };
+
+    it("Pass Turn without priority dispatches endTurn (the queued intent)", () => {
+        renderPod(NO_PRIORITY);
+        const button = screen.getByRole("button", { name: "Pass Turn" });
+        expect((button as HTMLButtonElement).disabled).toBe(false);
+        fireEvent.click(button);
+        expect(calls.find((c) => c.ref === "endTurn")?.args).toMatchObject({
+            gameId: "game-id",
+            playerId: "me",
+        });
+    });
+
+    it("Pass Until Action without priority dispatches passUntilAction", () => {
+        renderPod(NO_PRIORITY);
+        fireEvent.click(
+            screen.getByRole("button", { name: "Pass Until Action" })
+        );
+        expect(
+            calls.find((c) => c.ref === "passUntilAction")?.args
+        ).toMatchObject({ gameId: "game-id", playerId: "me" });
+    });
+
+    it.each<[string, Partial<GameContextValue>]>([
+        ["auto-passing", { autoPassPlayers: ["me"] }],
+        ["a queued Pass Turn", { queuedEndTurn: ["me"] }],
+    ])("both are disabled while %s runs", (_, intent) => {
+        renderPod({ ...NO_PRIORITY, ...intent });
+        for (const name of ["Pass Turn", "Pass Until Action"]) {
+            const button = screen.getByRole("button", { name });
+            expect((button as HTMLButtonElement).disabled).toBe(true);
+        }
+    });
+
+    it("without priority the pill is the bare cue, never a call to action", () => {
+        const { container } = renderPod(NO_PRIORITY);
+        const pill = container.querySelector<HTMLButtonElement>(
+            "[data-controller-primary]"
+        );
+        expect(pill?.dataset.controllerPrimary).toBe("status");
+        expect(pill?.textContent).toBe("Opponent to act");
+        expect(pill?.disabled).toBe(true);
+    });
+});
+
+// Issue #9835 widened the pod; the board's right gutter (#334) must reserve
+// its whole footprint or the viewer's back row slides under it.
+describe("ControllerPod footprint vs the board's right gutter", () => {
+    it("the pod's width is the constant the gutter reserves, plus its right-4 offset", () => {
+        const { container } = renderPod();
+        const pod = container.querySelector<HTMLElement>(
+            "[data-controller-pod]"
+        );
+        expect(pod?.style.width).toBe(`${CONTROLLER_POD_WIDTH}px`);
+        expect(pod?.className.split(/\s+/)).toContain("right-4");
+        expect(RIGHT_GUTTER).toBe(CONTROLLER_POD_WIDTH + 16);
     });
 });

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { DraftPackCard } from "@convex/limited/eventTypes";
+import { HOTKEYS, matchesHotkey } from "~/lib/hotkeys";
 import { acceptsShortcut } from "~/lib/keyboard-shortcuts";
 
 /**
@@ -57,6 +58,21 @@ export function useDraftKeyboardPicks({
                 onSelect(pack[next].pickId);
             };
 
+            // Enter / S are the declarations the Selected Card's CTA keycaps
+            // read (`~/lib/hotkeys`, issue #9833); the arrows move the
+            // selection and back no control, so they stay a plain switch.
+            if (matchesHotkey(event, HOTKEYS.draftPick)) {
+                if (at === -1) return;
+                event.preventDefault();
+                onPick(pack[at].pickId);
+                return;
+            }
+            if (matchesHotkey(event, HOTKEYS.draftPickToSideboard)) {
+                if (at === -1) return;
+                event.preventDefault();
+                onPickToSideboard(pack[at].pickId);
+                return;
+            }
             switch (event.key) {
                 case "ArrowRight":
                 case "ArrowDown":
@@ -65,17 +81,6 @@ export function useDraftKeyboardPicks({
                 case "ArrowLeft":
                 case "ArrowUp":
                     step(-1);
-                    return;
-                case "Enter":
-                    if (at === -1) return;
-                    event.preventDefault();
-                    onPick(pack[at].pickId);
-                    return;
-                case "s":
-                case "S":
-                    if (at === -1) return;
-                    event.preventDefault();
-                    onPickToSideboard(pack[at].pickId);
                     return;
                 default:
                     return;

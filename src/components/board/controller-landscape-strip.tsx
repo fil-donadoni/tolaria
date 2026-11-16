@@ -32,9 +32,9 @@ import BugReportButton from "../bug-report/bug-report-button";
  *  scarce axis. It also keeps continuity with the desktop pod, which already
  *  docks right — landscape is the reduced desktop, not a rotated portrait.
  *
- *  **What it replaces.** {@link ControllerPod} is ~13rem wide and stacks a turn
- *  banner, an oversized two-line phase box, a cue badge, one full-size button
- *  per action, and a hotkeys legend — roughly 200px of vertical content pinned
+ *  **What it replaces.** {@link ControllerPod} is 20rem wide and stacks a turn
+ *  banner, an oversized two-line phase box, a cue shelf, a command row and a
+ *  hotkeys legend — roughly 200px of vertical content pinned
  *  128px off the bottom, which simply does not fit a 320px-tall viewport, and
  *  eats the board while it overflows. The strip keeps only what a touch player
  *  needs and borrows the variant-D idioms from the portrait bar (#1759):

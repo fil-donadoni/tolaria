@@ -6,12 +6,17 @@ import {
     SheetHeader,
     SheetTitle,
 } from "~/components/ui/sheet";
+import { Keycap } from "~/components/ui/keycap";
+import { HOTKEYS } from "~/lib/hotkeys";
+
 import { ABOVE_CONTROLLER_BAR } from "~/lib/controller-bar-metrics";
 import { useDebugSheet } from "~/hooks/debugSheetContext";
 import AiDecisionTraceBox from "./ai-decision-trace-box";
 import DebugPanel from "./debug-panel";
 import { DEBUG_SHEET_DESKTOP_WIDTH_CLASS } from "./debug-sheet-metrics";
-import { DEBUG_SHEET_SHORTCUT_KEY } from "./debug-sheet-provider";
+
+/** The toggle key, from its one declaration (issue #9833). */
+const DEBUG_SHEET_SHORTCUT_KEY = HOTKEYS.toggleDebugSheet.keys[0];
 
 /**
  * The debug area as a LEFT SHEET (issue #3403, PRD #3397).
@@ -101,11 +106,16 @@ export default function DebugSheet({
                     <SheetHeader className="border-b border-border-accent/20 pb-3">
                         <SheetTitle>Debug</SheetTitle>
                         <SheetDescription>
-                            Tester tools for this game. Toggle with{" "}
-                            <kbd className="font-mono">
-                                {DEBUG_SHEET_SHORTCUT_KEY}
-                            </kbd>
-                            .
+                            Tester tools for this game.
+                            <span className="pointer-coarse:hidden">
+                                {" "}
+                                Toggle with{" "}
+                                <Keycap hotkey={HOTKEYS.toggleDebugSheet} />
+                                <span className="sr-only">
+                                    {DEBUG_SHEET_SHORTCUT_KEY}
+                                </span>
+                                .
+                            </span>
                         </SheetDescription>
                     </SheetHeader>
                     {/* `min-h-0` so this scrolls instead of pushing the header

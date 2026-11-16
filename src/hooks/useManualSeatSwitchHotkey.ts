@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { isEditableTarget } from "~/lib/editable-target";
+import { HOTKEYS, matchesHotkey } from "~/lib/hotkeys";
 
 /** The "Switch seat" hotkey (issue #2173, `S`) for a solo Manual Game.
  *
@@ -8,7 +9,7 @@ import { isEditableTarget } from "~/lib/editable-target";
  *  GRE-only context (`useGameContext`'s priority/attack-sequence reads) the
  *  manual board's inert context does not support (`manual-game-context.ts`).
  *  So `ControllerAction.shortcut` on the manual path is display-only (the
- *  `[S]` badge `ActionButton` renders) unless something ELSE binds the key —
+ *  `S` keycap `ActionButton` renders) unless something ELSE binds the key —
  *  this hook is that binding, scoped to nothing but the seat switch.
  *
  *  Present only in solo: `onSwitchSeat` is `undefined` in a two-player
@@ -29,7 +30,7 @@ export function useManualSeatSwitchHotkey(
             if (isEditableTarget(e.target)) return;
             if (e.repeat) return;
             if (e.metaKey || e.ctrlKey || e.altKey) return;
-            if (e.key !== "s" && e.key !== "S") return;
+            if (!matchesHotkey(e, HOTKEYS.manualSwitchSeat)) return;
             e.preventDefault();
             switchSeat();
         }

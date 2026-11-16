@@ -1,3 +1,5 @@
+import type { Hotkey } from "~/lib/hotkeys";
+
 /** One call-to-action a card-editing surface offers for the selected card —
  *  "→ Side", "→ Pool", "Pick", "Move to…", "Inspect" (PRD #2405, issue #2583).
  *
@@ -14,4 +16,10 @@ export interface EditingSurfaceAction {
      *  Inspect Overlay. */
     primary?: boolean;
     disabled?: boolean;
+    /** The hotkey that does what this CTA does (Draft Room: Enter picks, `S`
+     *  sideboards the Selected Card) — its declaration in `~/lib/hotkeys`, so
+     *  the button's keycap and `aria-keyshortcuts` are the binding's own
+     *  (issue #9833). Only for an action on the SELECTED card: the key acts
+     *  on the selection, never on whichever card a menu was opened from. */
+    hotkey?: Hotkey;
 }

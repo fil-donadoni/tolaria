@@ -74,3 +74,60 @@ export function selectCommandSlots(
     const secondary = split.contextual.filter((a) => a !== centre);
     return { ...split, primary, statusPill, secondary };
 }
+
+/** The desktop pod's command row (issue #9835, prototype verdict C): the
+ *  command slots plus what the pod draws in each — ONE pill whose content
+ *  morphs, two always-mounted icon passes, and the leftovers as shelf chips.
+ *  Every field is present in every state, so the pod's height never moves. */
+export type PodCommandSlots = {
+    /** The primary pill. `action` is what a click dispatches (absent on the
+     *  disabled placeholder); `mark` is its `data-controller-primary` value
+     *  (issue #3651) — `"action"` only when the step offers a real call to
+     *  action, so a status or a bare cue is never mistaken for one. */
+    pill: {
+        action: ControllerAction | undefined;
+        mark: "action" | "status";
+        label: string;
+        description: string | undefined;
+    };
+    /** Pass Turn / Pass Until Action: the step's own descriptor, else the
+     *  queued-intent one (`ControllerState.queuedPasses`), else nothing — the
+     *  button stays mounted, disabled. */
+    passTurn: ControllerAction | undefined;
+    passUntilAction: ControllerAction | undefined;
+    /** Leftover actions, as small chips on the fixed-height shelf. */
+    chips: ControllerAction[];
+};
+
+/** Assigns the desktop pod's command row (issue #9835). Pure, like
+ *  {@link selectCommandSlots} which it builds on, so the per-state
+ *  assignment is pinned away from React. */
+export function selectPodCommandSlots(
+    actions: ControllerAction[],
+    idle: { label: string; description: string },
+    queuedPasses?: {
+        passTurn: ControllerAction;
+        passUntilAction: ControllerAction;
+    }
+): PodCommandSlots {
+    const slots = selectCommandSlots(actions);
+    const centre = slots.primary ?? slots.statusPill;
+    return {
+        pill: centre
+            ? {
+                  action: centre,
+                  mark: centre === slots.primary ? "action" : "status",
+                  label: centre.label,
+                  description: centre.description,
+              }
+            : {
+                  action: undefined,
+                  mark: "status",
+                  label: idle.label,
+                  description: idle.description,
+              },
+        passTurn: slots.passTurn ?? queuedPasses?.passTurn,
+        passUntilAction: slots.passUntilAction ?? queuedPasses?.passUntilAction,
+        chips: slots.secondary,
+    };
+}
