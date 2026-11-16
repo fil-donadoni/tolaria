@@ -327,11 +327,25 @@
             "needsSetup": false
         }
     ],
+    "Emry, Lurker of the Loch": [
+        {
+            "label": "graveyard cast: Emry is tapped for the Juggernaut four lands can pay",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Enduring Ideal": [
         {
             "label": "epic: casts the tutor whose hit stops the attackers it cannot survive",
             "tier": "must",
             "needsSetup": false
+        }
+    ],
+    "Engineered Explosives": [
+        {
+            "label": "sweep: Engineered Explosives on two takes three attacking two-drops",
+            "tier": "must",
+            "needsSetup": true
         }
     ],
     "Enraged Revolutionary": [
@@ -656,6 +670,13 @@
             "needsSetup": false
         }
     ],
+    "Kappa Cannoneer": [
+        {
+            "label": "improvise: Kappa Cannoneer is cast with four artifacts paying the generic",
+            "tier": "stretch",
+            "needsSetup": false
+        }
+    ],
     "Lava Dart": [
         {
             "label": "flashback: Lava Dart is flashed back for the last point of life",
@@ -842,6 +863,13 @@
     "Mox Diamond": [
         {
             "label": "fast mana: casts Mox Diamond with a spare land past its drop",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Mox Opal": [
+        {
+            "label": "metalcraft: Mox Opal goes down as the third artifact to pay for the Wind Drake",
             "tier": "must",
             "needsSetup": false
         }
