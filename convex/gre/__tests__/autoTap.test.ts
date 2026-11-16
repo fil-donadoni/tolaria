@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+    autoTapCombatWindow,
     buildAutoTapSources,
+    isCombatBodySource,
     solveAutoTap,
     solveAutoTapPartial,
     solveSmartAutoTap,
@@ -1555,5 +1557,155 @@ describe("solveSmartAutoTap — untap-price gate (CR 502.3, issue #8381)", () =>
                 ).toBe(solveAutoTap(EMPTY_POOL, cost, [], sources) !== null);
             }
         }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Combat bodies (CR 508.1a / 509.1a, issue #9821): an animated creature that
+// can still attack or block this turn is spent last — above Demand
+// preservation and the minimal tap count.
+// ---------------------------------------------------------------------------
+
+describe("Auto-Tap spends a combat-ready animated source last (CR 508.1a / 509.1a, issue #9821)", () => {
+    const FACTORY = "a696c5b6-f216-454d-8029-74e84bbd1428"; // {T}: C, {1}: animate
+    const SWAMP = "6176936d-72e2-4205-8871-4c5a4f1cb2d8"; // {T}: B
+
+    /** A Mishra's Factory its animate made a 2/2 artifact creature. */
+    const worker = (
+        id: string,
+        extra: Parameters<typeof makeInstance>[1] = {}
+    ) =>
+        makeInstance(FACTORY, {
+            id,
+            types: ["Land", "Artifact", "Creature"],
+            subtypes: ["Assembly-Worker"],
+            power: 2,
+            toughness: 2,
+            isSummoningSick: false,
+            ...extra,
+        });
+
+    /** Smart Auto-Tap over `battlefield` in `window`, `held` as Demands. */
+    function tapIn(
+        window: ReturnType<typeof autoTapCombatWindow>,
+        battlefield: ReturnType<typeof makeInstance>[],
+        cost: Record<string, number>,
+        held: Record<string, number>[] = [],
+        selfSourceId?: string
+    ): string[] | null {
+        const sources = buildAutoTapSources(
+            battlefield,
+            undefined,
+            undefined,
+            undefined,
+            { combatWindow: window }
+        );
+        return tappedIds(
+            solveSmartAutoTap(
+                EMPTY_POOL,
+                cost,
+                [],
+                sources,
+                held.map((c, i) => ({ id: `held${i}`, cost: c })),
+                selfSourceId
+            )
+        );
+    }
+
+    it("opens the attack window to the active player before declare attackers only", () => {
+        const at = (phase: GameState["phase"], playerId: string) =>
+            autoTapCombatWindow({ phase, activePlayerId: "p1" }, playerId);
+        expect(at("PRECOMBAT_MAIN", "p1")).toBe("attack");
+        expect(at("BEGINNING_OF_COMBAT", "p1")).toBe("attack");
+        expect(at("DECLARE_ATTACKERS", "p1")).toBeUndefined();
+        expect(at("POSTCOMBAT_MAIN", "p1")).toBeUndefined();
+        expect(at("PRECOMBAT_MAIN", "p2")).toBe("block");
+        expect(at("DECLARE_ATTACKERS", "p2")).toBe("block");
+        expect(at("DECLARE_BLOCKERS", "p2")).toBeUndefined();
+        expect(at("END_STEP", "p2")).toBeUndefined();
+    });
+
+    it("a summoning-sick animated source cannot attack, but can still block (CR 302.6)", () => {
+        const sick = worker("w", { isSummoningSick: true });
+        expect(isCombatBodySource(sick, "attack")).toBe(false);
+        expect(isCombatBodySource(sick, "block")).toBe(true);
+        expect(
+            isCombatBodySource(
+                worker("w", {
+                    isSummoningSick: true,
+                    staticAbilities: ["haste"],
+                }),
+                "attack"
+            )
+        ).toBe(true);
+        expect(isCombatBodySource(worker("w"), "attack")).toBe(true);
+        expect(isCombatBodySource(worker("w"), undefined)).toBe(false);
+        expect(
+            isCombatBodySource(makeInstance(FACTORY, { id: "f" }), "attack")
+        ).toBe(false);
+    });
+
+    it("precombat, animating a second Factory: taps the Swamp, stranding a held {B}", () => {
+        const board = [
+            worker("worker"),
+            makeInstance(FACTORY, { id: "factory2" }),
+            makeInstance(SWAMP, { id: "swamp" }),
+        ];
+        expect(
+            tapIn("attack", board, { X: 1 }, [{ B: 1 }], "factory2")
+        ).toEqual(["swamp"]);
+        // Outside the window the existing ranking keeps the {B} castable.
+        expect(
+            tapIn(undefined, board, { X: 1 }, [{ B: 1 }], "factory2")
+        ).toEqual(["worker"]);
+    });
+
+    it("non-active player before blockers: spares the animated land for a generic cost", () => {
+        const board = [worker("worker"), makeInstance(SWAMP, { id: "swamp" })];
+        expect(tapIn("block", board, { X: 1 }, [{ B: 1 }])).toEqual(["swamp"]);
+    });
+
+    it("a printed-Creature mana dork gets no protection", () => {
+        const board = [
+            makeInstance(LLANOWAR, { id: "elf", isSummoningSick: false }),
+            makeInstance(SWAMP, { id: "swamp" }),
+        ];
+        expect(tapIn("attack", board, { X: 1 }, [{ B: 1 }])).toEqual(["elf"]);
+    });
+
+    it("spares the body even when sparing it taps one more source", () => {
+        const sources: AutoTapSource[] = [
+            { cardId: "body", combatBody: true, options: [{ mana: { C: 2 } }] },
+            fixed("f1", "G"),
+            fixed("f2", "G"),
+        ];
+        expect(
+            tappedIds(solveSmartAutoTap(EMPTY_POOL, { X: 2 }, [], sources))
+        ).toEqual(["f1", "f2"]);
+    });
+
+    it("taps as few bodies as cover the cost", () => {
+        const sources: AutoTapSource[] = [
+            {
+                cardId: "body1",
+                combatBody: true,
+                options: [{ mana: { C: 1 } }],
+            },
+            {
+                cardId: "body2",
+                combatBody: true,
+                options: [{ mana: { C: 1 } }],
+            },
+            fixed("forest", "G"),
+        ];
+        expect(
+            tappedIds(solveSmartAutoTap(EMPTY_POOL, { X: 2 }, [], sources))
+        ).toEqual(["body1", "forest"]);
+    });
+
+    it("taps the animated source when only it can cover the cost", () => {
+        expect(tapIn("attack", [worker("worker")], { X: 1 })).toEqual([
+            "worker",
+        ]);
     });
 });

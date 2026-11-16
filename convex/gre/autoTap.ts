@@ -2,6 +2,7 @@ import type { Color } from "../cards/types";
 import {
     getActivatedManaAbility,
     hasBasicLandMana,
+    isAnimatedCreature,
     getManaChoiceCounterCost,
     getManaTapOptionManaCost,
     getManaTapOptionRestriction,
@@ -14,7 +15,8 @@ import {
     normalizedHybridPips,
 } from "./constants";
 import type { ManaReplacementView, ManaTapPlanContext } from "./constants";
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState, GameState } from "./state";
+import type { Phase } from "./types";
 import {
     isManaCostCovered,
     normalizeManaCost,
@@ -97,7 +99,53 @@ export type AutoTapSource = {
      *  `solveSmartAutoTap` taps a priced source only when the Demand it
      *  saves is worth more than this, or when nothing else can pay. */
     untapPrice?: number;
+    /** CR 508.1a / 509.1a — the source is an animated creature
+     *  (`isAnimatedCreature`) that can still attack or block this turn
+     *  (`AutoTapSourceOptions.combatWindow`). `solveSmartAutoTap` taps it only
+     *  when no covering plan spares it. */
+    combatBody?: true;
 };
+
+/** Which combat the paying player's creatures can still take part in this
+ *  turn: `attack` (CR 508.1a — the active player, before declare attackers)
+ *  or `block` (CR 509.1a — the non-active player, before declare blockers). */
+export type AutoTapCombatWindow = "attack" | "block";
+
+const BEFORE_DECLARE_ATTACKERS: ReadonlySet<Phase> = new Set<Phase>([
+    "UNTAP",
+    "UPKEEP",
+    "DRAW",
+    "PRECOMBAT_MAIN",
+    "BEGINNING_OF_COMBAT",
+]);
+
+/** The {@link AutoTapCombatWindow} open to `playerId` at `state`'s step, or
+ *  `undefined` once that combat has been declared (postcombat main, the
+ *  end step, after blockers) — the source is then an ordinary one. */
+export function autoTapCombatWindow(
+    state: Pick<GameState, "phase" | "activePlayerId">,
+    playerId: string
+): AutoTapCombatWindow | undefined {
+    if (state.activePlayerId === playerId) {
+        return BEFORE_DECLARE_ATTACKERS.has(state.phase) ? "attack" : undefined;
+    }
+    return BEFORE_DECLARE_ATTACKERS.has(state.phase) ||
+        state.phase === "DECLARE_ATTACKERS"
+        ? "block"
+        : undefined;
+}
+
+/** Whether `card` is a combat body Auto-Tap spends last: an untapped animated
+ *  creature (a creature mana dork's job is mana, so it is not one) that can
+ *  still attack — not summoning-sick (CR 302.6) — or block in `window`. */
+export function isCombatBodySource(
+    card: CardInstanceState,
+    window: AutoTapCombatWindow | undefined
+): boolean {
+    if (window === undefined || card.isTapped) return false;
+    if (!isAnimatedCreature(card)) return false;
+    return window === "block" || !isTapLockedBySummoningSickness(card);
+}
 
 /** What a caller opts the planner INTO beyond pure mana abilities. Omitted =
  *  the conservative default every caller but the human Auto-Tap keeps. */
@@ -106,6 +154,10 @@ export type AutoTapSourceOptions = {
      *  `except` names Treasures already spoken for (a cost pick, a pending
      *  candidate) that must never be planned as mana. */
     spendTreasures?: { except?: ReadonlySet<string> };
+    /** CR 508.1a / 509.1a — the combat the paying player's creatures can still
+     *  take part in (`autoTapCombatWindow`): marks each animated creature
+     *  source that could join it as a `combatBody`. */
+    combatWindow?: AutoTapCombatWindow;
 };
 
 /** Ordered list of taps to perform (card + chosen mana option). */
@@ -358,6 +410,9 @@ export function buildAutoTapSources(
         sources.push({
             cardId: card.id,
             ...(untapPrice !== undefined ? { untapPrice } : {}),
+            ...(isCombatBodySource(card, sourceOptions?.combatWindow)
+                ? { combatBody: true as const }
+                : {}),
             ...(spendsTreasure
                 ? {
                       treasureHasExtra: treasureHasPositiveExtra(
@@ -1166,6 +1221,10 @@ export type PlanPositionScorer = (plan: AutoTapPlan) => number;
  * source can pay, or the freshly-animated creature lands tapped. Class-wide:
  * applies to any activated ability whose source also has a mana ability. Pure
  * convenience UX — CR 602.1 never dictates which legal sources a player taps.
+ *
+ * Beneath it, a `combatBody` source (an animated creature that can still
+ * attack or block this turn) is spent last, ahead of every Demand and of the
+ * minimal tap count (`solveSparingCombatBodies`).
  */
 export function solveSmartAutoTap(
     pool: Record<string, number>,
@@ -1256,7 +1315,7 @@ function solveSmartAutoTapPure(
     if (selfSourceId !== undefined) {
         const withoutSelf = sources.filter((s) => s.cardId !== selfSourceId);
         if (withoutSelf.length !== sources.length) {
-            const plan = solveWithUntapPrices(
+            const plan = solveSparingCombatBodies(
                 pool,
                 cost,
                 substitutions,
@@ -1267,6 +1326,51 @@ function solveSmartAutoTapPure(
             if (plan !== null) return plan;
             // Self-source is strictly necessary: fall through, taps included.
         }
+    }
+    return solveSparingCombatBodies(
+        pool,
+        cost,
+        substitutions,
+        sources,
+        demands,
+        scorePlan
+    );
+}
+
+/**
+ * The **combat-body stage** (CR 508.1a / 509.1a, CR-neutral per CR 601.2g):
+ * an animated creature that can still attack or block this turn
+ * (`AutoTapSource.combatBody`) is what the player paid to animate, so a plan
+ * tapping fewer of them wins — even one tapping more sources, even one
+ * stranding a Demand. Staged as a cap on the combat bodies a plan may tap,
+ * raised one at a time from zero; within a cap the untap-price gate and the
+ * unified ranking apply unchanged. Every plan is scored against the full
+ * source list, so a spared body still counts toward the Demands it can pay.
+ */
+function solveSparingCombatBodies(
+    pool: Record<string, number>,
+    cost: Record<string, number>,
+    substitutions: ManaSubstitution[],
+    sources: AutoTapSource[],
+    demands: Demand[],
+    scorePlan: PlanPositionScorer | undefined
+): AutoTapPlan | null {
+    const bodies = new Set(
+        sources.filter((src) => src.combatBody).map((src) => src.cardId)
+    );
+    for (let cap = 0; cap < bodies.size; cap++) {
+        const plan = solveWithUntapPrices(
+            pool,
+            cost,
+            substitutions,
+            sources,
+            demands,
+            scorePlan,
+            (candidate) =>
+                candidate.filter((step) => bodies.has(step.cardId)).length <=
+                cap
+        );
+        if (plan !== null) return plan;
     }
     return solveWithUntapPrices(
         pool,
@@ -1367,8 +1471,16 @@ function solveWithUntapPrices(
     substitutions: ManaSubstitution[],
     sources: AutoTapSource[],
     demands: Demand[],
-    scorePlan: PlanPositionScorer | undefined
+    scorePlan: PlanPositionScorer | undefined,
+    within?: (plan: AutoTapPlan) => boolean
 ): AutoTapPlan | null {
+    // `within` (the combat-body cap) bounds every plan this gate considers.
+    const bounded =
+        (gate?: (plan: AutoTapPlan) => boolean) =>
+        (plan: AutoTapPlan): boolean =>
+            (!within || within(plan)) && (!gate || gate(plan));
+    const boundedOrNone = (gate?: (plan: AutoTapPlan) => boolean) =>
+        within || gate ? bounded(gate) : undefined;
     const priced = sources.filter((src) => src.untapPrice !== undefined);
     if (priced.length === 0) {
         return solveSmartAutoTapCore(
@@ -1377,7 +1489,8 @@ function solveWithUntapPrices(
             substitutions,
             sources,
             demands,
-            scorePlan
+            scorePlan,
+            boundedOrNone()
         );
     }
     const pricedIds = new Set(priced.map((src) => src.cardId));
@@ -1395,7 +1508,7 @@ function solveWithUntapPrices(
         sources,
         demands,
         scorePlan,
-        tapsOnly(new Set())
+        bounded(tapsOnly(new Set()))
     );
     if (sparing === null) {
         // Rule 2 — nothing else pays: the cheapest priced set that covers it.
@@ -1407,7 +1520,7 @@ function solveWithUntapPrices(
                 sources,
                 demands,
                 scorePlan,
-                tapsOnly(new Set(subset.map((src) => src.cardId)))
+                bounded(tapsOnly(new Set(subset.map((src) => src.cardId))))
             );
             if (plan !== null) return plan;
         }
@@ -1419,7 +1532,8 @@ function solveWithUntapPrices(
             substitutions,
             sources,
             demands,
-            scorePlan
+            scorePlan,
+            boundedOrNone()
         );
     }
     if (sparing.length === 0) return sparing;
@@ -1465,7 +1579,7 @@ function solveWithUntapPrices(
             sources,
             demands,
             scorePlan,
-            admissible
+            bounded(admissible)
         ) ?? sparing
     );
 }

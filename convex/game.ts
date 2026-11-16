@@ -113,6 +113,7 @@ import {
 } from "./gre/sacrificeChoice";
 
 import {
+    autoTapCombatWindow,
     buildAutoTapSources,
     solveAutoTap,
     solveSmartAutoTap,
@@ -9476,6 +9477,9 @@ export const autoTapForPayment = mutation({
                             : []
                     ),
                 },
+                // CR 508.1a / 509.1a — an animated creature that can still
+                // attack or block this turn is tapped for mana last.
+                combatWindow: autoTapCombatWindow(state, player.id),
             }
         );
         // Smart auto-tap (PRD #472, ADR 0034): among all minimal-tap plans that

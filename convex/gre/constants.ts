@@ -414,6 +414,17 @@ export function isExpiringAnimatedBody(card: CardInstanceState): boolean {
     );
 }
 
+/** Whether `card` is a creature now only because an effect made it one
+ *  (CR 613.1d, layer 4): its live `types` include Creature and its printed
+ *  type line (CR 205.2a) does not — an animated manland, a land under a
+ *  type-adding aura. A card whose definition cannot be read is not counted. */
+export function isAnimatedCreature(card: CardInstanceState): boolean {
+    if (!isCreature(card)) return false;
+    const cardId = (card.card as { id?: string }).id;
+    const printed = cardId ? tryGetDefinition(cardId)?.types : undefined;
+    return printed !== undefined && !printed.includes("Creature");
+}
+
 /** CR 302.1 — a creature's activated ability with the tap or untap symbol in
  *  its activation cost can't be activated unless the creature has been under
  *  its controller's control continuously since the start of that controller's
