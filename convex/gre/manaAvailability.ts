@@ -362,6 +362,28 @@ export function getProducibleManaUnits(
     return producibleManaUnitsWithDebt(card, controllerId, battlefields).units;
 }
 
+/** CR 605.1a — how much mana ONE activation of `card`'s best mana ability
+ *  nets its controller: the units it adds less the `{N}` a costed tap spends
+ *  from another source (a filter land's "{1}, {T}: Add {W}{U}" nets one). Tap
+ *  state and summoning sickness are ignored: this is what the source IS, the
+ *  quantity the Bot's `mana` term prices a renewable source by, not what it
+ *  can pay with this instant (that is {@link boardManaCensus}'s `now`). */
+export function netManaYield(
+    card: CardInstanceState,
+    controllerId?: string,
+    battlefields?: BattlefieldsView,
+    replacements?: ManaReplacementView
+): number {
+    const { units, debt } = producibleManaUnitsWithDebt(
+        card,
+        controllerId,
+        battlefields,
+        undefined,
+        replacements
+    );
+    return Math.max(0, units.length - debt);
+}
+
 /** One permanent's contribution to a census: its unit rows and the `{N}` it
  *  consumes from other sources (a costed tap's generic leg, issue #5444). */
 type ManaSegment = { rows: Set<Color>[]; debt: number };

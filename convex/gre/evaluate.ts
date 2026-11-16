@@ -54,6 +54,7 @@ import {
     isExpiringAnimatedBody,
     POISON_LOSS_COUNTERS,
     liveStaticDefinition,
+    manaGateBattlefields,
 } from "./constants";
 import { currentLoyalty, LOYALTY_COUNTER_KEY } from "./loyalty";
 import type { ActivatedAbility } from "../cards/types";
@@ -106,6 +107,7 @@ import {
     canPayCost,
     castProbeFor,
     coversCostColors,
+    netManaYield,
     type ManaUnits,
 } from "./manaAvailability";
 import {
@@ -656,7 +658,12 @@ function availableManaUnitsFor(
  *  The floating POOL is deliberately not counted here: it empties at the end
  *  of every step and phase (CR 500.5), so it is the least durable thing on the
  *  board. It stays in `availableManaUnitsFor`, where "can I pay for this right
- *  now" is the question being asked. */
+ *  now" is the question being asked.
+ *
+ *  Each source is priced per mana it makes, `renewableManaYield` times the
+ *  weight: a karoo land or a Sol Ring is two Forests' worth, so returning a
+ *  Forest to keep a Simic Growth Chamber reads as the next turn's extra mana
+ *  it is, where a count read the two boards as equal. */
 function manaSourceTermFor(
     state: GameState,
     player: PlayerState,
@@ -664,6 +671,7 @@ function manaSourceTermFor(
     pass: Layer7Pass
 ): number {
     let total = 0;
+    const battlefields = manaGateBattlefields(state);
     for (const perm of player.battlefield) {
         if (!hasManaAbility(perm, undefined, player.battlefield)) continue;
         // CR 118.3 (issue #3530) — a FINITE source is priced by its remaining
@@ -674,13 +682,29 @@ function manaSourceTermFor(
         // spend its land drop on the depletion land every time (PR #3566 review
         // finding 1). The flat `permanentWeight` stays: the permanent IS there.
         if (finiteManaUsesRemaining(perm) > 0) continue;
-        total += perm.isTapped ? weights.tappedManaWeight : weights.manaWeight;
+        total +=
+            renewableManaYield(state, perm, player.id, battlefields) *
+            (perm.isTapped ? weights.tappedManaWeight : weights.manaWeight);
         // Issue #5163 — CR 502.3: a source an untap lock keeps from
         // untapping (Winter Orb beyond its cap, Stasis) has lost what this
         // weight prices — that it comes back. Zero with no untap restriction.
         total -= manaSourceLockDiscount(state, perm, weights, pass);
     }
     return total;
+}
+
+/** CR 605.1a — the mana one activation of a renewable source nets
+ *  (`netManaYield`), the multiplier of its `mana` term price. Never below one:
+ *  a source whose ability reads nothing right now (Mox Opal off Metalcraft, a
+ *  tap-another-permanent converter) is still priced as the one source the
+ *  count used to see. */
+function renewableManaYield(
+    state: GameState,
+    perm: CardInstanceState,
+    controllerId: string,
+    battlefields: ReturnType<typeof manaGateBattlefields>
+): number {
+    return Math.max(1, netManaYield(perm, controllerId, battlefields, state));
 }
 
 /** The CHARGES left on this player's finite mana sources (CR 118.3 / 122.1,
@@ -940,16 +964,20 @@ function restoredSeat(
  *  Read off the restored board so a land in temporary exile is not a source
  *  lost for good while its `permanents` presence is credited back. */
 function returningManaSourcesTerm(
+    restoredState: GameState,
     restored: PlayerState,
     returningIds: ReadonlySet<string>,
     weights: EvalWeights
 ): number {
     let total = 0;
+    const battlefields = manaGateBattlefields(restoredState);
     for (const perm of restored.battlefield) {
         if (!returningIds.has(perm.id)) continue;
         if (!hasManaAbility(perm, undefined, restored.battlefield)) continue;
         if (finiteManaUsesRemaining(perm) > 0) continue;
-        total += weights.manaWeight;
+        total +=
+            renewableManaYield(restoredState, perm, restored.id, battlefields) *
+            weights.manaWeight;
     }
     return total;
 }
@@ -2118,7 +2146,13 @@ export function permanentRealisedValue(
         controller &&
         hasManaAbility(perm, undefined, controller.battlefield)
     ) {
-        total += perm.isTapped ? weights.tappedManaWeight : weights.manaWeight;
+        total +=
+            renewableManaYield(
+                state,
+                perm,
+                controller.id,
+                manaGateBattlefields(state)
+            ) * (perm.isTapped ? weights.tappedManaWeight : weights.manaWeight);
         // Issue #5163 — the same lock discount `manaSourceTermFor` takes, so
         // the lens prices a locked land at what it was still worth.
         total -= manaSourceLockDiscount(state, perm, weights, pass);
@@ -2407,6 +2441,7 @@ function playerTerms(
     const restored = restoredSeat(state, player);
     if (restored) {
         terms.mana += returningManaSourcesTerm(
+            restored.state,
             restored.player,
             new Set(
                 restored.player.battlefield
