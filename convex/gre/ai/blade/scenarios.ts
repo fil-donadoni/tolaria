@@ -57,6 +57,8 @@ import {
     kickedCastOffered,
     altCostCastOffered,
     namesCardAbsentFromLibrary,
+    namesCardInHand,
+    namesOneOf,
     keepsEveryEligibleCard,
     FORCED_SACRIFICE_BOARD,
     sacrificeKeepsOrder,
@@ -15934,6 +15936,111 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 "names a card absent from its own library, so Consultation exiles it all",
         },
         note: "Issue #8709 — the name window of Consultation, resolving above Thassa's Oracle's trigger, is the root. Proof of failure: without the `name-card` generator the window is no search node and the runner refuses the entry (the Bot owes no searched decision); the live Brain then fell back to `nameCardDefaultFor`'s \"Plains\", which keeps a library holding a Plains.",
+    },
+    // Issue #9551 — Cabal Therapy's name is sought in the target's HAND (its
+    // script discards the named cards from it, CR 701.9), so the name is a
+    // search decision over the names that hand can hold: the cards a reveal
+    // has shown (CR 701.20a) in every world, a decklist's unseen remainder in
+    // the worlds that deal it.
+    {
+        label: "Hand-sought name: Cabal Therapy names a card from the hand a reveal showed",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Cabal Therapy", owner: "me", zone: "hand" },
+                { name: "Counterspell", owner: "opp", zone: "hand" },
+                { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+                { name: "Island", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "reveal-hand", of: "opp" },
+            { kind: "cast", card: "Cabal Therapy", target: "opp" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        // The decklist offers a name the revealed hand does not hold: a known
+        // card must dominate it.
+        deckKnowledge: [
+            {
+                seat: "opp",
+                cards: [
+                    "Counterspell",
+                    "Lightning Bolt",
+                    "Ancestral Recall",
+                    "Ancestral Recall",
+                    "Island",
+                    "Island",
+                ],
+            },
+        ],
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) => namesCardInHand(move, state, "opp"),
+            describe:
+                "names a nonland card the revealed hand holds, never a decklist-only name",
+        },
+        note: "Issue #9551 — a second Therapy after a first one revealed the hand named a card in neither deck: the mid-resolution name had no candidate generator (only a library-sought name did), so the window was no search node and the live Brain fell back to `nameCardDefaultFor`'s registry-order name. Proof of failure: `nameSoughtInHandOf` returning `undefined` makes the window no search node and the runner refuses the entry.",
+    },
+    {
+        label: "Hand-sought name: Cabal Therapy names a nonland card of the known decklist",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Cabal Therapy", owner: "me", zone: "hand" },
+                // Physically present, but `determinize` re-derives this hand
+                // from the decklist: the entry asserts what the Bot deduces.
+                { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+                { name: "Island", owner: "opp", zone: "hand" },
+                { name: "Island", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "cast", card: "Cabal Therapy", target: "opp" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        deckKnowledge: [
+            {
+                seat: "opp",
+                cards: [
+                    "Lightning Bolt",
+                    "Lightning Bolt",
+                    "Lightning Bolt",
+                    "Lightning Bolt",
+                    "Counterspell",
+                    "Counterspell",
+                    "Counterspell",
+                    "Counterspell",
+                    "Island",
+                    "Island",
+                    "Island",
+                    "Island",
+                ],
+            },
+        ],
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                namesOneOf(move, ["Lightning Bolt", "Counterspell"]),
+            describe:
+                "names a nonland card of the opponent's decklist, never a registry-order name absent from it",
+        },
+        note: "Issue #9551 — at `expert` the Bot knows the decklist, yet named a card absent from it: the name window was no search node, so the decklist the search samples hands from never reached the name. Proof of failure: `nameSoughtInHandOf` returning `undefined` makes the window no search node and the runner refuses the entry; the live fallback named the registry's first legal nonland name.",
     },
     {
         label: "Oracle combo: casts Thassa's Oracle before Demonic Consultation into a possible counterspell",

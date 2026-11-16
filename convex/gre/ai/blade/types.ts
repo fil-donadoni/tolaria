@@ -442,6 +442,16 @@ export type BladeSetupStep =
           of?: BladeSeat;
           knower?: BladeSeat;
       }
+    /** CR 701.20a — `of`'s whole hand was revealed (default `opp`): every
+     *  player knows every card in it, through `grantKnowledgeToAll`, the
+     *  primitive the `reveal` Op resolves into. The position an earlier
+     *  hand-revealing spell (a first Cabal Therapy) leaves behind, without
+     *  making that spell's own choices decisions of the fixture. Throws on an
+     *  empty hand, which a reveal leaves unknown. */
+    | {
+          kind: "reveal-hand";
+          of?: BladeSeat;
+      }
     /** ADR 0026 — the card at `position` of a library (1 = the top, the same
      *  counting as a spec card's `position`) was put there in full view:
      *  everyone knows it and where it is, whatever sits above it. Goes through

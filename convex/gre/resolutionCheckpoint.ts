@@ -24,11 +24,11 @@
 // a numeral copied across a rebuild that reassigns every id would read as a
 // different object with nothing reporting it.
 
-import type { CardDefinition, EffectOp } from "../cards/types";
-import { tryGetDefinition } from "../cards";
+import type { EffectOp } from "../cards/types";
 import type { StackItem } from "./state";
 import { bindingDeclarationsOf } from "./effects/validate";
 import { childOpArrays } from "./ai/effectOpChildren";
+import { effectScriptOfStackItem } from "./stackItemScript";
 import { SNAP_CONTROLLER, SNAP_ID, SNAP_OWNER } from "./effects/interpreter";
 import type {
     ScenarioEventValue,
@@ -75,32 +75,9 @@ export type ResolutionCheckpointLowering =
           fields: string[];
       };
 
-/** The Effect Script an object on the stack resolves through, read off its
- *  definition: the card's own for a spell, the named ability's for an
- *  activated or triggered ability. `undefined` for an imperative body, a
- *  granted or engine-synthesised ability, or a definition the catalogue does
- *  not hold — whose collected answers then have no declared family and refuse
- *  (only the implicit snapshots still lower). A chosen MODE's script is not
- *  looked up: `chosenModeId` is stack residue and refuses the item upstream. */
-export function effectScriptOfStackItem(
-    item: StackItem
-): EffectOp[] | undefined {
-    const cardId = (item.card as { id?: string }).id;
-    const def: CardDefinition | undefined = cardId
-        ? (tryGetDefinition(cardId) ?? undefined)
-        : undefined;
-    if (!def) return undefined;
-    if (item.abilityId !== undefined) {
-        return def.activatedAbilities?.find((a) => a.id === item.abilityId)
-            ?.effects;
-    }
-    if (item.triggeredAbilityId !== undefined) {
-        return def.triggeredAbilities?.find(
-            (a) => a.id === item.triggeredAbilityId
-        )?.effects;
-    }
-    return def.effects;
-}
+// Moved to a leaf module so the client Bot view reads it without the validator;
+// re-exported for this module's callers.
+export { effectScriptOfStackItem };
 
 /** Every binding name a script declares, anywhere in its nested tree, with
  *  the family its declaring Op gives it. A name declared twice under two
