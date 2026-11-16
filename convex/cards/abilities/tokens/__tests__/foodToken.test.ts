@@ -1,11 +1,11 @@
 // Food token (CR 111.10b, issue #778) — "Artifact — Food" with "{2}, {T},
-// Sacrifice this token: Gain 3 life." No catalogue producer ships yet (engine
+// Sacrifice this token: You gain 3 life." No catalogue producer ships yet (engine
 // infra) — proven directly via the `createToken` Op path, mirroring
 // `bloodToken.test.ts` / the Treasure e2e activation test.
 
 import { describe, it, expect } from "vitest";
 import type { EffectOp } from "../../../types";
-import { FOOD_TOKEN_SPEC } from "../foodToken";
+import { FOOD_TOKEN } from "../../../sharedTokens";
 import {
     getPlayer,
     resolveTopOfStack,
@@ -24,7 +24,7 @@ import {
     pushSpell,
 } from "../../../__tests__/setup.helper";
 
-const ABILITY_ID = "sacrifice-gain-life";
+const ABILITY_ID = "food-token-sacrifice-gain-life";
 
 function registerFoodSpell(id: string): string {
     registerTokenDefinition({
@@ -36,7 +36,7 @@ function registerFoodSpell(id: string): string {
         effects: [
             {
                 op: "createToken",
-                token: FOOD_TOKEN_SPEC,
+                token: FOOD_TOKEN,
                 controller: "controller",
             } as EffectOp,
         ],
@@ -86,7 +86,7 @@ describe("Food token (CR 111.10b, issue #778)", () => {
         const ability = def.activatedAbilities![0];
         expect(ability.id).toBe(ABILITY_ID);
         expect(ability.oracleText).toBe(
-            "{2}, {T}, Sacrifice this token: Gain 3 life."
+            "{2}, {T}, Sacrifice this token: You gain 3 life."
         );
         expect(ability.cost).toEqual({
             mana: { generic: 2 },

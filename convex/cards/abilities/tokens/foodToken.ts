@@ -1,51 +1,25 @@
-// The Food token (CR 111.10b) — shared spec for the "create a Food token"
-// clause (issue #778, engine infra; no catalogue producer required yet). A
-// colorless artifact token with subtype Food and the activated ability "{2},
-// {T}, Sacrifice this token: Gain 3 life." Mirrors `CLUE_TOKEN_SPEC` /
-// `BLOOD_TOKEN_SPEC`'s "one canonical spec, every producer shares it" shape.
+// The Food token (CR 111.10b) — sugar for the "create a Food token" clause
+// (issue #778). The token itself is the ONE shared spec, `FOOD_TOKEN`
+// (`sharedTokens.ts`): a colorless Food artifact token with "{2}, {T},
+// Sacrifice this token: You gain 3 life." This module once carried a second
+// Food spec of its own with a different ability id and text, so two producers
+// created two different Food tokens; issue #9948 folded it onto the shared one,
+// the row `PREDEFINED_TOKEN_SPECS` names for "Food".
 
-import type {
-    EffectOp,
-    EffectPlayerRef,
-    EffectTokenSpec,
-    EffectValue,
-} from "../../types";
-
-/** The Food token's `EffectTokenSpec` (CR 111.10b). Colorless artifact,
- *  subtype Food, one activated ability: "{2}, {T}, Sacrifice this token:
- *  Gain 3 life." — `cost.mana: { generic: 2 }` is the {2} generic cost,
- *  `cost.tap: true` taps the token, `cost.sacrifice: true` sacrifices the
- *  ability's own source (the token itself, CR 602.1). The DSL-only
- *  `effects: [{ op: "gainLife", ... }]` body gains 3 life for the
- *  activating controller. No `imagePrintId` — the client picks the
- *  Food Token Print of the creating printing's edition
- *  (`src/lib/tokenArt.ts`), else the in-app placeholder (name/abilities). */
-export const FOOD_TOKEN_SPEC: EffectTokenSpec = {
-    name: "Food",
-    types: ["Artifact"],
-    subtypes: ["Food"],
-    activatedAbilities: [
-        {
-            id: "sacrifice-gain-life",
-            oracleText: "{2}, {T}, Sacrifice this token: Gain 3 life.",
-            cost: { mana: { generic: 2 }, tap: true, sacrifice: true },
-            useStack: true,
-            effects: [{ op: "gainLife", player: "controller", amount: 3 }],
-        },
-    ],
-};
+import type { EffectOp, EffectPlayerRef, EffectValue } from "../../types";
+import { FOOD_TOKEN } from "../../sharedTokens";
 
 /** Sugar for "create a Food token" as an Effect Script Op: create one Food
- *  token (`FOOD_TOKEN_SPEC`) for `controller` (default the resolving
- *  controller, CR 111.2). `count` allows "create N Food tokens" the same
- *  way `investigateOp` allows Investigate N. */
+ *  token (`FOOD_TOKEN`) for `controller` (default the resolving controller,
+ *  CR 111.2). `count` allows "create N Food tokens" the same way
+ *  `investigateOp` allows Investigate N. */
 export function createFoodTokenOp(
     controller: EffectPlayerRef = "controller",
     count?: EffectValue
 ): EffectOp {
     return {
         op: "createToken",
-        token: FOOD_TOKEN_SPEC,
+        token: FOOD_TOKEN,
         controller,
         ...(count !== undefined ? { count } : {}),
     };

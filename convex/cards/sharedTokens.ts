@@ -9,6 +9,9 @@ import type {
     EffectValue,
     TokenSpec,
 } from "./types";
+import { BLOOD_TOKEN_SPEC } from "./abilities/tokens/bloodToken";
+import { CLUE_TOKEN_SPEC } from "./abilities/tokens/clueToken";
+import { MAP_TOKEN_SPEC } from "./abilities/tokens/mapToken";
 
 /** Treasure token (issue #778 / #1265). "Artifact — Treasure" with "{T},
  *  Sacrifice this artifact: Add one mana of any color." (CR 707.2.)
@@ -840,3 +843,37 @@ export const POWERSTONE_TOKEN: EffectTokenSpec = {
     // Real printed Powerstone token art (tbro).
     imagePrintId: "d45fe4b6-aeaf-4f84-b660-c7b482ed8512",
 };
+
+/** CR 111.10 — the predefined tokens the engine defines, by the name an effect
+ *  prints ("Create a Treasure token"): ONE name→spec table, the only place a
+ *  predefined token's characteristics are looked up by name (issue #9948). The
+ *  oracle compiler's token sub-grammar reads exactly these names and refuses
+ *  every other (`convex/oracle/grammar/shared/tokenSpec.ts`) — a name the
+ *  engine has no spec for (Gold, Junk, Lander, Shard, Incubator, a Role) is a
+ *  token it cannot create, never a guess (issue #9950).
+ *
+ *  Each row is the producers' shared spec, so a compiled "create a Clue
+ *  token" and a hand-written `investigateOp` create the identical token (one
+ *  synthesized definition, one art lookup): CR 111.10a Treasure, 111.10b
+ *  Food, 111.10f Clue, 111.10g Blood, 111.10h Powerstone, 111.10s Map,
+ *  111.10v Mutagen. */
+export const PREDEFINED_TOKEN_SPECS = {
+    Treasure: EFFECT_TREASURE_TOKEN,
+    Food: FOOD_TOKEN,
+    Clue: CLUE_TOKEN_SPEC,
+    Blood: BLOOD_TOKEN_SPEC,
+    Powerstone: POWERSTONE_TOKEN,
+    Map: MAP_TOKEN_SPEC,
+    Mutagen: MUTAGEN_TOKEN,
+} as const satisfies Readonly<Record<string, EffectTokenSpec>>;
+
+/** A name {@link PREDEFINED_TOKEN_SPECS} defines. */
+export type PredefinedTokenName = keyof typeof PREDEFINED_TOKEN_SPECS;
+
+/** `name` as a {@link PredefinedTokenName}, or null for a name the engine
+ *  defines no spec for. */
+export function predefinedTokenName(name: string): PredefinedTokenName | null {
+    return Object.prototype.hasOwnProperty.call(PREDEFINED_TOKEN_SPECS, name)
+        ? (name as PredefinedTokenName)
+        : null;
+}

@@ -957,7 +957,7 @@
         {
             "kind": "grammar",
             "key": "activated › effect clause › Create a Food token",
-            "issue": 8498
+            "issue": 9948
         },
         {
             "kind": "grammar",
@@ -2652,17 +2652,17 @@
         {
             "kind": "grammar",
             "key": "triggered › effect clause › Create a Blood token",
-            "issue": 8498
+            "issue": 9948
         },
         {
             "kind": "grammar",
             "key": "triggered › effect clause › Create a Food token",
-            "issue": 8498
+            "issue": 9948
         },
         {
             "kind": "grammar",
             "key": "triggered › effect clause › Create a Map token",
-            "issue": 8498
+            "issue": 9948
         },
         {
             "kind": "grammar",
@@ -2672,7 +2672,7 @@
         {
             "kind": "grammar",
             "key": "triggered › effect clause › Create a Treasure token",
-            "issue": 8498
+            "issue": 9948
         },
         {
             "kind": "grammar",

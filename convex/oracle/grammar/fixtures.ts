@@ -19,6 +19,7 @@
  * exactly as every smoke skip did before this registry existed.
  */
 
+import { EFFECT_TREASURE_TOKEN } from "../../cards/sharedTokens";
 import type { CompiledDefinition, OracleCard } from "../types";
 
 export interface GoldenFixture {
@@ -2564,6 +2565,56 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                                     of: "controller",
                                 },
                             },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 111.10a + CR 107.3 — "Create X Treasure tokens" on an ability whose
+    // cost announces {X}{X}: the predefined token (issue #9948) counted by
+    // the announced X, a count the canned smoke scenario cannot size (it
+    // announces no X). The token is the engine's shared Treasure spec.
+    {
+        rule: "create token",
+        card: {
+            oracleId: "3c43efd6-b1a8-452c-ae20-9a936c3340ab",
+            name: "Treasure Vault",
+            manaCost: "",
+            typeLine: "Artifact Land",
+            oracleText:
+                "{T}: Add {C}.\n{X}{X}, {T}, Sacrifice this land: Create X Treasure tokens.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Treasure Vault",
+            types: ["Artifact", "Land"],
+            oracleText:
+                "{T}: Add {C}.\n{X}{X}, {T}, Sacrifice this land: Create X Treasure tokens.",
+            activatedAbilities: [
+                {
+                    id: "treasure-vault-mana",
+                    oracleText: "{T}: Add {C}.",
+                    cost: { tap: true },
+                    useStack: false,
+                    manaProduced: { C: 1 },
+                },
+                {
+                    id: "treasure-vault-ability-2",
+                    oracleText:
+                        "{X}{X}, {T}, Sacrifice this land: Create X Treasure tokens.",
+                    cost: {
+                        mana: { X: "X", xFactor: 2 },
+                        tap: true,
+                        sacrifice: true,
+                    },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "createToken",
+                            token: EFFECT_TREASURE_TOKEN,
+                            controller: "controller",
+                            count: { X: true },
                         },
                     ],
                 },
