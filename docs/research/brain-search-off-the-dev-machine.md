@@ -300,3 +300,34 @@ node docs/research/scripts/brain-bench/summarize.mjs profile /tmp/profile.json
 
 `entry.mjs` is the payload: it exposes `globalThis.__brainBench.run(index,
 { iterations, timeMs, clock, scale, seed })`.
+
+### An engine change against its base
+
+The reading an engine-speed PR quotes (issue #10023). One command bundles the
+base and the head (a ref, or the working tree when omitted) with the same
+`entry.mjs`, searches every position at a fixed iteration count on the CPU
+clock in interleaved rounds (§ Method), and prints the head/base ratio of CPU
+time per iteration (p10 / median / p90 over the searched positions) and the
+share of searches whose chosen move differs. A research script, never a gate:
+
+```bash
+# <base> = `branches.base` in tolaria.config.json
+node docs/research/scripts/brain-bench/compare.mjs origin/<base>          # head = working tree
+node docs/research/scripts/brain-bench/compare.mjs origin/<base> HEAD --rounds 3 --iterations 400 --out /tmp/cmp.json
+```
+
+Base against itself is the noise floor to quote beside it. Its first
+reading, 2026-11-16 on base `7700f6300` against itself (Node v24.21.0, 400
+iterations, 3 rounds + 1 warm-up, load average 6.57 → 2.29, 336 s):
+
+| 56 searched positions           | p10   | median | p90   |
+| ------------------------------- | ----- | ------ | ----- |
+| head/base, CPU ms per iteration | 0.971 | 1.002  | 1.032 |
+
+and 0 of 56 chosen moves differ (a fixed seed and iteration count make a
+search deterministic; the script flags a side whose choice changes between
+rounds as `UNSTABLE`). One null run: the per-position spread (0.97–1.03 at
+p10–p90) is measured, the median's own run-to-run spread is not — quote a
+head reading beside a null run taken at a similar load. `--iterations`
+defaults to the `medium` preset's count; the extracted base trees are cached
+under `node_modules/.cache/brain-bench/`.
