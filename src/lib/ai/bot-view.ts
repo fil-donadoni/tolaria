@@ -1544,6 +1544,8 @@ function knownHandNameFor(
     legal: (name: string | undefined) => string | undefined
 ): string | undefined {
     const ownerId = nameSoughtInHandOf(head, state);
+    // The bot's own hand: naming its best card would discard it.
+    if (ownerId === undefined || ownerId === head.playerId) return undefined;
     const hand = state.players.find((p) => p.id === ownerId)?.hand ?? [];
     const worth = new Map<string, number>();
     for (const card of hand) {

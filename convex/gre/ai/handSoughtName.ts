@@ -19,7 +19,7 @@
 import type { EffectOp } from "../../cards/types";
 import type { StackItem } from "../state";
 import type { PendingChoice } from "../state";
-import { effectScriptOfStackItem } from "../resolutionCheckpoint";
+import { effectScriptOfStackItem } from "../stackItemScript";
 import { childOpArrays } from "./effectOpChildren";
 
 /** The slice of a stack object this read needs — a `StackItem` or its
@@ -99,7 +99,7 @@ export function nameSoughtInHandOf(
         return undefined;
     const item = board?.stack?.find((s) => s.id === choice.stackItemId);
     if (!item || !board) return undefined;
-    const script = effectScriptOfStackItem(item as unknown as StackItem);
+    const script = effectScriptOfStackItem(item);
     if (!script) return undefined;
     const ref = handSeekerOf(script, choice.choiceId);
     return ref === undefined
