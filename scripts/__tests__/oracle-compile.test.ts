@@ -486,30 +486,12 @@ describe("the committed lockfile", () => {
         // definition. The corpus size is Scryfall's and must match exactly;
         // the pool grows as cards ship, so it is asserted as a floor.
         //
-        // Floor lowered from 1303 (issue #4027) to the hand-written count
-        // each retirement leaves behind: `pool` is
-        // `poolOracleIdsFromIndex` — oracle ids WITHOUT
-        // `source: "compiled"` on their `data/card-index.json` row, i.e. the
-        // hand-written count specifically. Retirement (ADR 0114 §2) moves a
-        // card's row to `source: "compiled"` without losing coverage — it is
-        // still `ready` and still playable through its compiled twin, just no
-        // longer HAND-written — so retiring a wave of Premodern-legal cards
-        // is the first thing that can shrink this floor by design. Several
-        // more ranked "migration" tickets of this same kind are queued and
-        // will keep eroding it.
-        //
-        // Floor lowered from 1278 to 1250: retiring six
-        // Premodern-legal lands (mana-ability + triggered) took the pool to
-        // 1272. Headroom left so the next queued retirements do not each
-        // red this floor.
-        //
-        // Floor lowered from 1250 to 1200 (issue #4042, reopened by the RED
-        // PR #9882 caused): retiring six more Premodern-legal cards
-        // (activated + keyword-line + static) took the pool to 1247 — the
-        // 1250 floor was the headroom the previous wave already spent.
-        //
-        // Floor lowered from 1200 to 1100 (issue #4031): retiring 39 more
-        // (activated + keyword-line) took the pool to 1163.
+        // The floor follows the hand-written count: `pool` is
+        // `poolOracleIdsFromIndex` — oracle ids WITHOUT `source: "compiled"`
+        // on their `data/card-index.json` row. Retirement (ADR 0114 §2) moves
+        // a card's row to `source: "compiled"` without losing coverage, so
+        // each migration wave shrinks the pool by design and lowers this
+        // floor (now 1100, issue #4031).
         const premodern = deriveFormats(lock!.cards, poolOracleIds()).premodern;
         expect(premodern.total).toBe(5375);
         expect(premodern.pool).toBeGreaterThanOrEqual(1100);
