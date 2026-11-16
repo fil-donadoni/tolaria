@@ -315,6 +315,7 @@
         }
     },
     "blind defender: blocks anyway — the trick is in hand, but nothing lawfully says so": null,
+    "blink: Ephemerate saves the Goryo's Vengeance legend from its end-step exile": null,
     "board-aware removal: casts Stone Rain on a land when there is nothing better to do": {
         "cards": [
             {
@@ -1257,6 +1258,7 @@
             "opp": 3
         }
     },
+    "discard pump: Psychic Frog discards the spare land to win its blocked combat": null,
     "discriminating pair: activates Triangle of War with a 6/6 beside the 1/1 against a 4/4": {
         "cards": [
             {
@@ -4407,6 +4409,7 @@
     "Oracle combo: responds to the Thassa's Oracle trigger with Demonic Consultation": null,
     "pact: Summoner's Pact finds the creature the board needs": null,
     "pact: Summoner's Pact is cast for a flash blocker with the upkeep payable": null,
+    "pay life: Griselbrand pays 7 and draws seven with life to spare": null,
     "phasing: casts a phasing creature rather than holding it": {
         "cards": [
             {
@@ -4432,6 +4435,61 @@
         "libraryCount": 20
     },
     "phyrexian mana: Dismember pays life to kill the attacker that beats the Bot": null,
+    "pitch counter: Force of Negation exiles a blue card to counter a lethal spell": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "activePlayer": "opp",
+        "priority": "me",
+        "passCount": 1,
+        "life": {
+            "me": 3,
+            "opp": 20
+        },
+        "cards": [
+            {
+                "name": "Force of Negation",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Brainstorm",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "opp",
+                "zone": "hand"
+            }
+        ],
+        "stack": [
+            {
+                "kind": "spell",
+                "name": "Lightning Bolt",
+                "controller": "opp",
+                "targets": [
+                    {
+                        "kind": "player",
+                        "seat": "me"
+                    }
+                ]
+            }
+        ]
+    },
     "plot: banks a plot card with mana that would otherwise empty": {
         "cards": [
             {
@@ -4677,6 +4735,47 @@
                 "name": "Griselbrand",
                 "owner": "opp",
                 "zone": "graveyard"
+            }
+        ]
+    },
+    "reanimation: Goryo's Vengeance returns the strongest legend before combat": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 0,
+        "cards": [
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Goryo's Vengeance",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Griselbrand",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Ragavan, Nimble Pilferer",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "me",
+                "zone": "library",
+                "count": 30
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library",
+                "count": 20
             }
         ]
     },
