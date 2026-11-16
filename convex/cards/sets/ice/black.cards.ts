@@ -1336,58 +1336,6 @@ export const infernalDenizen = defineCard(() => ({
         },
     ],
 }));
-// Kjeldoran Dead — "When this creature enters, sacrifice a creature." (CR 603.6
-// ETB trigger + CR 701.21 sacrifice; the controller chooses which Creature they
-// control, and may choose Kjeldoran Dead itself.) Plus "{B}: Regenerate this
-// creature." (CR 701.19 regeneration shield.)
-export const kjeldoranDead = defineCard(() => ({
-    id: "d3f7b614-6075-4b7c-acc7-ab63185b570b",
-    name: "Kjeldoran Dead",
-    rarity: "common",
-    oracleText:
-        "When this creature enters, sacrifice a creature.\n{B}: Regenerate this creature.",
-    manaCost: { B: 1 },
-    types: ["Creature"],
-    subtypes: ["Skeleton"],
-    power: 3,
-    toughness: 1,
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "kjeldoran-dead-sac",
-            oracleText: "When this creature enters, sacrifice a creature.",
-            scope: "self",
-            // Migrated resolve()→effects[] (ADR 0045, migration PRD #795):
-            // choice(sacrifice-permanents) + sacrifice(picks) — the Innocent
-            // Blood shape (ody/black.cards.ts) — over the controller's own
-            // battlefield (CR 701.21). No exclusion, so Kjeldoran Dead itself
-            // is a legal pick, matching the original closure.
-            effects: [
-                {
-                    op: "choice",
-                    kind: "sacrifice-permanents",
-                    player: "controller",
-                    zone: "battlefield",
-                    filter: { type: "Creature" },
-                    count: 1,
-                    prompt: "Kjeldoran Dead: sacrifice a creature.",
-                    bind: "$sac",
-                },
-                { op: "sacrifice", permanents: { ref: "$sac" } },
-            ],
-        }),
-    ],
-    activatedAbilities: [
-        {
-            id: "kjeldoran-dead-regenerate",
-            oracleText: "{B}: Regenerate this creature.",
-            cost: { mana: { B: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.19a) via the implicit $source.
-            effects: [{ op: "regenerate", target: { ref: "$source" } }],
-        },
-    ],
-}));
 // Knight of Stromgald — the black "Order" cycle shape: protection from white
 // (CR 702.16) plus a first-strike grant and a power pump (CR 611.2a).
 export const knightOfStromgald = defineCard(() => ({

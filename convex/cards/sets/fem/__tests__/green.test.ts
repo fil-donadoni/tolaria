@@ -69,12 +69,7 @@ describe("Thallid — spore engine (CR 122.1, 122.6, 707.1)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveTrigger(
-            state,
-            thallidInst,
-            "thallid-spore-upkeep",
-            UPKEEP("p1")
-        );
+        resolveTrigger(state, thallidInst, "thallid-trigger", UPKEEP("p1"));
         const inPlay = state.players[0].battlefield[0];
         expect(inPlay.counters?.spore).toBe(1);
     });
@@ -90,7 +85,7 @@ describe("Thallid — spore engine (CR 122.1, 122.6, 707.1)", () => {
         // The removeCounter cost is paid by the activation mutation; the test
         // exercises the resolve effect. Pay the cost manually then resolve.
         thallidInst.counters = { spore: 0 };
-        resolveActivated(state, thallidInst, "thallid-make-saproling");
+        resolveActivated(state, thallidInst, "thallid-ability");
         const tokens = state.players[0].battlefield.filter((c) =>
             c.subtypes?.includes("Saproling")
         );
@@ -107,7 +102,7 @@ describe("Thallid — spore engine (CR 122.1, 122.6, 707.1)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, thallidInst, "thallid-make-saproling");
+        resolveActivated(state, thallidInst, "thallid-ability");
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find((c) =>
             c.subtypes?.includes("Saproling")
@@ -129,7 +124,7 @@ describe("Thallid Devourer — sacrifice-a-Saproling pump (CR 602.1, 611.2)", ()
         });
         // The Saproling sacrifice is paid by the activation mutation; resolve
         // exercises the pump effect on the source.
-        resolveActivated(state, devourer, "thallid-devourer-devour");
+        resolveActivated(state, devourer, "thallid-devourer-ability-2");
         const inPlay = state.players[0].battlefield.find(
             (c) => c.id === devourer.id
         )!;
@@ -147,7 +142,7 @@ describe("Thorn Thallid — spore payoff ping (CR 115.4)", () => {
                 makePlayer("p2", { life: 20 }),
             ],
         });
-        resolveActivated(state, thorn, "thorn-thallid-ping", [
+        resolveActivated(state, thorn, "thorn-thallid-ability", [
             { type: "player", id: "p2" },
         ]);
         expect(state.players[1].life).toBe(19);
@@ -163,7 +158,7 @@ describe("Feral Thallid — spore payoff regenerate (CR 701.19a)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, feral, "feral-thallid-regenerate");
+        resolveActivated(state, feral, "feral-thallid-ability");
         const inPlay = state.players[0].battlefield.find(
             (c) => c.id === feral.id
         )!;
@@ -217,7 +212,7 @@ describe("Elvish Farmer — sacrifice-a-Saproling lifegain (CR 602.1)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, farmer, "elvish-farmer-gain-life");
+        resolveActivated(state, farmer, "elvish-farmer-ability-2");
         expect(state.players[0].life).toBe(22);
     });
 });
