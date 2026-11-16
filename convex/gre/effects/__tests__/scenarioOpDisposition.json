@@ -35,10 +35,7 @@
         "code": "suspends-for-input",
         "reason": "Op \"castDuringResolution\" suspends for a live Cast/Decline + the played card's own picks (CR 608.2g) — covered by the Op's interpreter tests"
     },
-    "choice": {
-        "code": "suspends-for-input",
-        "reason": "Op \"choice\" suspends for player input — covered by the Op's own suspension/resume tests"
-    },
+    "choice": "runs",
     "chooseCategorized": {
         "code": "suspends-for-input",
         "reason": "Op \"chooseCategorized\" suspends for a choose-categorized pick — covered by the Op's interpreter tests"
@@ -96,10 +93,7 @@
         "code": "op-own-tests",
         "reason": "Op \"digMatchingToHand\" depends on a filter match against library contents — covered by the Op's interpreter tests"
     },
-    "discard": {
-        "code": "choice-binding",
-        "reason": "Op \"discard\" consumes a choice binding, a hand filter, or discards the whole hand — covered by the card's own suspension/resume or per-card test"
-    },
+    "discard": "runs",
     "discardAtRandom": "runs",
     "distributeCountersAsChosen": {
         "code": "target-slot-shape",

@@ -328,6 +328,16 @@
         "source": "compiled"
     },
     {
+        "name": "Abyssal Nightstalker",
+        "scryfallId": "0b688039-7441-490b-ad06-8a72086c4023",
+        "oracleId": "10733767-1c97-4e2e-b02b-54bf346f6583",
+        "firstSet": "p02",
+        "firstPrintId": "0b688039-7441-490b-ad06-8a72086c4023",
+        "firstPrintSet": "p02",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Abyssal Specter",
         "scryfallId": "fc26f19c-bcf7-4bd8-af42-4757dbe47fb1",
         "oracleId": "51833cff-6519-4806-8d91-0040e9a02189",
@@ -75065,6 +75075,16 @@
         "firstPrintId": "0ce46919-d312-490c-8942-39fbb2d375bf",
         "firstPrintSet": "nem",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Shrieking Specter",
+        "scryfallId": "81d3b0fd-a81e-4665-bba6-b6d085693abf",
+        "oracleId": "f6adfb5f-a21c-4e86-bd16-a9c1e355af34",
+        "firstSet": "s99",
+        "firstPrintId": "81d3b0fd-a81e-4665-bba6-b6d085693abf",
+        "firstPrintSet": "s99",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

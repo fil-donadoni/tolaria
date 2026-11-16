@@ -27,7 +27,7 @@ import {
 } from "../../gre/effects/scenarioGenerator";
 import { collectDslSites } from "./smokeSites.helper";
 import { makeInstance } from "./setup.helper";
-import { resolveTopOfStack } from "../../gre/state";
+import { resolveAnsweringChoices } from "./smokeChoices.helper";
 
 // The filler card the generated scenarios use for targets / library / zones.
 // Register the ONE canonical definition (`scenarioGenerator.ts`) — do not
@@ -77,7 +77,7 @@ function runSpellSite(
         ...chosenXOf(plan),
         ...kickerPaymentsOf(plan),
     });
-    resolveTopOfStack(state);
+    resolveAnsweringChoices(state, plan.scenario);
 }
 
 /** The announced {X} the plan's assertions were derived from, snapshotted onto
@@ -194,7 +194,7 @@ function runAbilitySite(
         ...chosenXOf(plan),
         ...kickerPaymentsOf(plan),
     });
-    resolveTopOfStack(state);
+    resolveAnsweringChoices(state, plan.scenario);
 }
 
 describe("DSL Effect Script smoke sweep (ADR 0045, issue #804)", () => {
