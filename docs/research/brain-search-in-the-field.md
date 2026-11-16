@@ -27,8 +27,10 @@ a search on the server be deeper, how much slower to answer, and at what cost?
 3. **Cost decides nothing; speed does.** Even a full-depth server Bot at a
    hundred times today's volume prices below $250 a month. What it cannot buy
    is a playable move: 20–103 s each.
-4. **No mobile report exists.** Every report says `mobile: false`; no
-   conclusion below covers a phone.
+4. **The device class cannot see a phone.** The owner played one of the two
+   WebKit games on an iPhone and the other on a Mac, both in Safari; both
+   reports say `mobile: false`. No conclusion below separates a phone from a
+   desktop.
 
 ## Sources
 
@@ -44,8 +46,8 @@ Two structured logs in Sentry (org `filippo-donadoni`), both read on
 **Minimum before a conclusion.** The owner relaxed the first pass's minimum
 (five games per engine family) on 2026-11-16. Applied here: a conclusion about
 an engine family needs **at least two games** from it. Chromium (13) and Gecko
-(5) clear it; WebKit (2) clears it at the floor and is read as indicative;
-mobile (0) does not, and nothing is said about it.
+(5) clear it; WebKit (2) clears it at the floor and is read as indicative.
+Mobile cannot be counted at all (§ 4).
 
 **Games, not reports.** A driver remount re-opens the per-game recorder, so
 one game can send several reports (6 of 20 games did, one of them three).
@@ -227,11 +229,15 @@ Read against the plans:
 
 ## 4. Not measured
 
-- **Phones.** No report has `mobile: true`. Two explanations fit and neither
-  was checked: iPadOS Safari sends a desktop user agent by default (no
-  `iPhone`/`iPad` token, no `userAgentData`), so an iPad game reads as desktop
-  WebKit; and a mobile game closed or backgrounded before its end loses its
-  report (the flush runs at game over or leave).
+- **Phones.** No report has `mobile: true`, yet by the owner's account
+  (2026-11-16) one of the two WebKit games, jh7bkzta or jh74q517, was played
+  in Safari on an iPhone and the other in Safari on a Mac. The flag is derived
+  from `userAgentData.mobile`, which Safari does not implement, else from an
+  `iPhone`/`iPad`/`Mobi` token in the user agent; why an iPhone's report
+  carried neither was not checked (a "Request Desktop Website" setting is one
+  explanation; iPadOS sends a desktop agent by default, a second blind spot).
+  The `5-8` core bucket does not separate them either. The WebKit row of § 1
+  is therefore one phone and one desktop, and nothing here is a phone figure.
 - **Device diversity.** Every report is in the `5-8` core bucket; one owner's
   machines. A slow laptop is the lab's scaled clock, not a field reading.
 - **Machine load.** The owner's machines are also the pipeline's runners

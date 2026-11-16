@@ -2,8 +2,8 @@
 
 ## Status
 
-proposed (2026-11-16, issue #9529, PRD issue #9525): awaiting the owner's
-ruling. Amends ADR 0000: the decision it took (the Brain runs on the player's
+accepted (2026-11-16, owner ruling on issue #9529, PRD issue #9525). Amends
+ADR 0000: the decision it took (the Brain runs on the player's
 device) stands; the reason it gave for rejecting a server Brain (cost, never
 measured) is replaced by a measured one (speed).
 
@@ -38,7 +38,8 @@ note; the sections cited below are that field note's. In short:
   a third to a half of a search, state-based actions alone a fifth to a
   quarter, cloning plus garbage collection 15–29%; no function outside those
   passes a few percent.
-- **No phone has reported** (§ 4).
+- **A phone cannot be told from a desktop** (§ 4): one of the two WebKit
+  games was an iPhone, and its report says `mobile: false`.
 
 ## Decision
 
@@ -122,8 +123,9 @@ the client cannot serve at all.
     3. Presets re-derived from the field: whether `expert` should think longer
        (its cap is 3300 ms against a 5000 ms consult timeout), and what
        separates the presets when the clock binds.
-    4. Telemetry: one report per game across driver remounts; iPad detection; a
-       report that survives a mobile tab going to the background.
+    4. Telemetry: one report per game across driver remounts; a mobile flag
+       that is true on an iPhone and an iPad; a report that survives a mobile
+       tab going to the background.
     5. The judge: a Node-runtime measurement of the same searches (also the
        reopening test above), or a judge budget the default runtime finishes.
 - **ADR 0000's cost argument is retired.** Its "zero extra cost" consequence

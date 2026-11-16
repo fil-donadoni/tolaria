@@ -4,7 +4,9 @@ Date: 2026-06-13
 
 ## Status
 
-Accepted (2026-06-13)
+Accepted (2026-06-13). Amended by ADR 0183 (2026-11-16): the Brain stays on
+the client, but on measured speed — a server search is no faster than a
+desktop browser — not on the unmeasured cost argument below.
 
 ## Context
 
