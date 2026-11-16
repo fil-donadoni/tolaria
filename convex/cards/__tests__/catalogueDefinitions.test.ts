@@ -55,7 +55,6 @@ const REPO_ROOT = resolve(__dirname, "../../..");
  *  (sentinel, runtime tokens, twins). Every other test enumerating the
  *  catalogue reads `catalogueDefinitions()`. */
 const REGISTRY_SEAM_TESTS = new Set([
-    "convex/cards/__tests__/brokenCatalogueEntry.test.ts",
     "convex/cards/__tests__/catalogueDefinitions.test.ts",
     "convex/cards/__tests__/definitionIndexEquivalence.test.ts",
     "convex/cards/__tests__/packedCorpusLookup.test.ts",

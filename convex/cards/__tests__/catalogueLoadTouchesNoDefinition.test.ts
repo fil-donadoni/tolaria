@@ -139,7 +139,7 @@ try {
     console.log("LOAD-FAILED " + String(error?.stack ?? error).split("\\n").slice(0, 6).join(" | "));
     process.exit(0);
 }
-// Three controls: the hand-written population (below), one \`defineCard\` factory
+// Three controls: the hand-written population, one \`defineCard\` factory
 // card by name (issue #4857) — a factory the stub failed to recognise would
 // build its real definition here instead of throwing — and one compiled card
 // by name, whose packed row must be unreadable.
@@ -152,20 +152,8 @@ const control = (what, ask) => {
         return message.includes(${JSON.stringify(TOUCHED)}) ? null : "CONTROL-FAILED " + what + ": " + message;
     }
 };
-// The population ISOLATES a throwing entry (issue #9927): it reports each one
-// and comes back without it — so live stubs read as an EMPTY population whose
-// every skipped entry names the stub's error.
-const warned = [];
-console.warn = (line) => warned.push(String(line));
-const population = () => {
-    if (catalogue.getAllCards().length > 0) return "STUBS-NOT-LIVE population";
-    const other = warned.find((line) => !line.includes(${JSON.stringify(TOUCHED)}));
-    return warned.length > 0 && other === undefined
-        ? null
-        : "CONTROL-FAILED population: " + (other ?? "no entry reported");
-};
 console.log(
-    population() ??
+    control("population", () => catalogue.getAllCards()) ??
         control("factory", () => catalogue.getCardByName(${JSON.stringify(FACTORY_CARD)})) ??
         control("compiled", () => catalogue.getCardByName(${JSON.stringify(COMPILED_CARD)})) ??
         "LOADED"
