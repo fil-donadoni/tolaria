@@ -233,6 +233,11 @@
        `@layer base :root`. */
     --color-border-subtle: #2d2f32;
     --color-border-accent: #545453;
+    /* The edge of an EMPTY card slot — a card-shaped outline standing in for a
+       card that is there but not shown (the ordered graveyard fan's filtered-out
+       positions, issue #9874). Quieter than `border-subtle`: a run of them
+       stacks a few pixels apart and must read as one soft sliver stack. */
+    --color-placeholder-edge: #292928;
     /* Ivory. `accent` IS the chrome: the primary plate fill, the focus ring,
        every trim highlight. `-strong` and `-soft` are RETIRED as roles in v4
        (the palette is monochrome, so a "brighter accent" carries no meaning of
