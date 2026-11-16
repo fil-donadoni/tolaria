@@ -507,9 +507,12 @@ describe("the committed lockfile", () => {
         // PR #9882 caused): retiring six more Premodern-legal cards
         // (activated + keyword-line + static) took the pool to 1247 — the
         // 1250 floor was the headroom the previous wave already spent.
+        //
+        // Floor lowered from 1200 to 1100 (issue #4031): retiring 39 more
+        // (activated + keyword-line) took the pool to 1163.
         const premodern = deriveFormats(lock!.cards, poolOracleIds()).premodern;
         expect(premodern.total).toBe(5375);
-        expect(premodern.pool).toBeGreaterThanOrEqual(1200);
+        expect(premodern.pool).toBeGreaterThanOrEqual(1100);
     });
 });
 

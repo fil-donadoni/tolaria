@@ -25,11 +25,7 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { giantGrowth, grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { gaeasTouch } from "../../cards/sets/drk/green.cards";
-import {
-    hillGiant,
-    lightningBolt,
-    shivanDragon,
-} from "../../cards/sets/lea/red.cards";
+import { hillGiant, lightningBolt } from "../../cards/sets/lea/red.cards";
 const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
 import { arboria } from "../../cards/sets/leg/green.cards";
 import { rasputinDreamweaver } from "../../cards/sets/leg/multicolor.cards";
@@ -91,6 +87,8 @@ import {
 } from "../../debugScenarioSpec";
 import { removedKeywordRows } from "../../cards/__tests__/setup.helper";
 import { checkStateBasedActions } from "../sba";
+const shivanDragon = () =>
+    getDefinition("fefbf149-f988-4f8b-9f53-56f5878116a6");
 const grapeshot = () => getDefinition("4ee33cb6-768e-44a0-b6f4-b8638aa84330");
 
 /** A live position at DECLARE_BLOCKERS with the attack declared and confirmed

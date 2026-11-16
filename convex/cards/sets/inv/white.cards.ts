@@ -1025,43 +1025,6 @@ export const globalRuin = defineCard(() => ({
     ],
 }));
 
-// Glimmering Angel — {3}{W} Creature — Angel, 2/2. "Flying. {U}: This
-// creature gains shroud until end of turn." Unblocked by PR #2040 (issue
-// #959): `shroud` is `status: "implemented"` in the Mechanics Registry and
-// `gre/permanentGuard.ts`'s `isGuardedAgainst` bridges a dynamically-granted
-// "shroud" string the same way it bridges `hexproof` — `grantAbility`
-// appending the literal string to `staticAbilities` is enforced live.
-// Straight `grantAbility` DSL body over `$source`, precedent Homarid Warrior
-// (fem/blue.cards.ts) minus its tap/skipNextUntap legs.
-export const glimmeringAngel = defineCard(() => ({
-    id: "f14f55e4-eded-4a86-87f4-b8fa6f30bc0f",
-    name: "Glimmering Angel",
-    rarity: "common",
-    oracleText: "Flying\n{U}: This creature gains shroud until end of turn.",
-    manaCost: { X: 3, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Angel"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["flying"],
-    activatedAbilities: [
-        {
-            id: "glimmering-angel-shroud",
-            oracleText: "{U}: This creature gains shroud until end of turn.",
-            cost: { mana: { U: 1 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "shroud",
-                    target: { ref: "$source" },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
-
 // Pledge of Loyalty — {1}{W} Enchantment — Aura. "Enchant creature.
 // Enchanted creature has protection from the colors of permanents you
 // control. This effect doesn't remove this Aura." tracked-by: #2067

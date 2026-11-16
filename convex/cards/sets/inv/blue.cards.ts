@@ -69,7 +69,6 @@ import {
     chooseColorEffects,
     colorChoiceModes,
 } from "../../abilities/chooseColor";
-import { landTypeChangeEffects } from "../../abilities/chooseLandType";
 import { colorDefiningCostForCardId } from "../../manaCostLookup";
 
 /** Colors (CR 202.2, layer 5 colorOverride, issue #1083) of a battlefield
@@ -813,48 +812,6 @@ export const distortingWake = defineCard(() => ({
     ],
 }));
 
-// Dream Thrush — {1}{U} Creature — Bird, 1/1. "Flying. {T}: Target land
-// becomes the basic land type of your choice until end of turn." (CR 702.9b
-// flying; CR 305.7 layer-4 land-type change via the new `setSubtype` Op,
-// shipped this slice #1083, a declarative skin over
-// `SpellContext.setSubtypesUntil` — the Orcish Farmer / Slimy Kavu precedent
-// closures composed as a DSL Op. The "choose the basic land type" half reuses
-// the pre-existing `optionChoice` Op, one mode per `BASIC_LAND_SUBTYPES`
-// entry, exactly like `chooseColorEffects`'s "choose a color" shape.)
-//
-// The modes are built by the shared `landTypeChangeEffects` (issue #4138) —
-// the Oracle compiler's land-type rule is the second caller, and the two have
-// to agree byte for byte or this card stops round-tripping under Guard C.
-export const dreamThrush = defineCard(() => ({
-    id: "258217df-ae88-4d93-895a-3fd242baacd1",
-    name: "Dream Thrush",
-    rarity: "common",
-    oracleText:
-        "Flying\n{T}: Target land becomes the basic land type of your choice until end of turn.",
-    manaCost: { X: 1, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Bird"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["flying"],
-    activatedAbilities: [
-        {
-            id: "dream-thrush-land-type",
-            oracleText:
-                "{T}: Target land becomes the basic land type of your choice until end of turn.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: { type: "Land", count: 1 },
-            effects: landTypeChangeEffects(
-                { target: 0 },
-                BASIC_LAND_SUBTYPES,
-                { phase: "end-of-turn" },
-                "Choose a basic land type (Dream Thrush)."
-            ),
-        },
-    ],
-}));
-
 // Essence Leak — "Enchant permanent. As long as enchanted permanent is red or
 // green, it has 'At the beginning of your upkeep, sacrifice this permanent
 // unless you pay its mana cost.'"
@@ -1075,38 +1032,6 @@ export const metathranTransport = defineCard(() => ({
 //     manaCost: { X: 3, U: 2 },
 //     types: ["Enchantment"],
 // };
-
-// Rainbow Crow — {3}{U} Creature — Bird, 2/2. "Flying. {1}: This creature
-// becomes the color of your choice until end of turn." (CR 702.9b flying;
-// CR 613.1e via `chooseColorEffects` — same `setColor` Op as Blind Seer,
-// shipped this slice #1083 — targeting `$source` for a self-color-change.)
-export const rainbowCrow = defineCard(() => ({
-    id: "7e622ad2-473f-489e-b4cf-bbdcc44d0cde",
-    name: "Rainbow Crow",
-    rarity: "uncommon",
-    oracleText:
-        "Flying\n{1}: This creature becomes the color of your choice until end of turn.",
-    manaCost: { X: 3, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Bird"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["flying"],
-    activatedAbilities: [
-        {
-            id: "rainbow-crow-color",
-            oracleText:
-                "{1}: This creature becomes the color of your choice until end of turn.",
-            cost: { mana: { X: 1 } },
-            useStack: true,
-            effects: chooseColorEffects(
-                { ref: "$source" },
-                { phase: "end-of-turn" },
-                "Choose a color (Rainbow Crow)."
-            ),
-        },
-    ],
-}));
 
 // Shoreline Raider — {2}{U} Creature — Merfolk, 2/2. "Protection from Kavu."
 //

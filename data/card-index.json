@@ -4317,7 +4317,9 @@
         "oracleId": "f2cedb38-12b0-4489-a62b-9b6a3776d695",
         "firstSet": "ice",
         "firstPrintId": "2307fb16-8b77-45b5-8a02-51a13214791d",
-        "firstPrintSet": "ice"
+        "firstPrintSet": "ice",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Arrogant Vampire",
@@ -6613,7 +6615,9 @@
         "oracleId": "b2ec080f-ad5d-4274-91e3-bc6ac89fc3e4",
         "firstSet": "tor",
         "firstPrintId": "1a67768a-6cd9-4163-b941-752f29c87a8d",
-        "firstPrintSet": "tor"
+        "firstPrintSet": "tor",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Bassara Tower Archer",
@@ -8277,7 +8281,9 @@
         "oracleId": "d43f5977-0532-4653-bc57-ce29f9a531c9",
         "firstSet": "mh2",
         "firstPrintId": "4404fc9c-ef02-479c-9638-0cc163f0b48f",
-        "firstPrintSet": "mh2"
+        "firstPrintSet": "mh2",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Blazing Specter",
@@ -13117,7 +13123,9 @@
         "oracleId": "774dce79-67e0-4820-8013-c7a7347993ce",
         "firstSet": "mid",
         "firstPrintId": "98cbc1c2-b76e-4da3-aa43-00e10b2ce532",
-        "firstPrintSet": "mid"
+        "firstPrintSet": "mid",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Cathar's Companion",
@@ -14081,7 +14089,9 @@
         "oracleId": "bbc1b96d-5a63-4091-a2c7-08bd289e0bf2",
         "firstSet": "inv",
         "firstPrintId": "58956099-6b97-4c7b-ab23-9f9b4d50ef95",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Chariot of Victory",
@@ -23577,7 +23587,9 @@
         "oracleId": "111f3f1c-4387-4e61-8bff-6ebe3b7b9d9f",
         "firstSet": "inv",
         "firstPrintId": "258217df-ae88-4d93-895a-3fd242baacd1",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Dream Twist",
@@ -26047,7 +26059,9 @@
         "oracleId": "b067aa04-5977-4371-85d1-78d2884df03f",
         "firstSet": "leg",
         "firstPrintId": "a3e81250-52c3-49f6-be43-17c34339e177",
-        "firstPrintSet": "leg"
+        "firstPrintSet": "leg",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Emerald Medallion",
@@ -28419,7 +28433,9 @@
         "oracleId": "1869a326-8b48-4331-b969-5ce83cf4ff8a",
         "firstSet": "leg",
         "firstPrintId": "0f4174e4-0be8-49b5-8c52-22001790f6eb",
-        "firstPrintSet": "leg"
+        "firstPrintSet": "leg",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Fallen Askari",
@@ -29997,7 +30013,9 @@
         "oracleId": "fd3bcc9b-7d84-478e-aef5-2e44610107c7",
         "firstSet": "drk",
         "firstPrintId": "d3419db6-1c38-4aa4-b953-1dde7d22b927",
-        "firstPrintSet": "drk"
+        "firstPrintSet": "drk",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Fire Elemental",
@@ -34041,7 +34059,9 @@
         "oracleId": "09de1136-8a8f-4539-92a2-611dcdd0790b",
         "firstSet": "drk",
         "firstPrintId": "db591b28-37e5-4e7c-ae4d-d761262b12d0",
-        "firstPrintSet": "drk"
+        "firstPrintSet": "drk",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Ghost Tactician",
@@ -34943,7 +34963,9 @@
         "oracleId": "9629ab26-f231-481d-8392-e2450ca02b67",
         "firstSet": "inv",
         "firstPrintId": "f14f55e4-eded-4a86-87f4-b8fa6f30bc0f",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Glimmerpoint Stag",
@@ -36973,7 +36995,9 @@
         "oracleId": "ef5248d4-4cd1-447c-bdcc-78a09a67d923",
         "firstSet": "lea",
         "firstPrintId": "f15bf2b2-6848-4fbd-b89a-8d8da8ae1cdc",
-        "firstPrintSet": "lea"
+        "firstPrintSet": "lea",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Granitic Titan",
@@ -37825,7 +37849,9 @@
         "oracleId": "f759d112-76db-4091-a22b-b9f19ab6fa5f",
         "firstSet": "avr",
         "firstPrintId": "b51666ae-2aef-4cb1-9cd4-44aec81530f8",
-        "firstPrintSet": "avr"
+        "firstPrintSet": "avr",
+        "source": "compiled",
+        "rarity": "mythic"
     },
     {
         "name": "Grisly Ritual",
@@ -46153,7 +46179,9 @@
         "oracleId": "5da1f1af-d2e5-4e14-914b-d93f15626636",
         "firstSet": "leg",
         "firstPrintId": "2e30b5ff-1239-4c4d-ac7c-554ecf8e1e27",
-        "firstPrintSet": "leg"
+        "firstPrintSet": "leg",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Killer Whale",
@@ -46593,7 +46621,9 @@
         "oracleId": "5d7747b4-061d-4459-ba80-51361526cbfa",
         "firstSet": "ice",
         "firstPrintId": "d5b9db8f-93b5-44e3-9e2b-728c80dfbb37",
-        "firstPrintSet": "ice"
+        "firstPrintSet": "ice",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Kjeldoran Outpost",
@@ -46771,7 +46801,9 @@
         "oracleId": "8cf57287-21b0-4194-8da3-62d00160234f",
         "firstSet": "ice",
         "firstPrintId": "2b87069b-ebaf-4705-b5da-446932af9b73",
-        "firstPrintSet": "ice"
+        "firstPrintSet": "ice",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Knight of the Keep",
@@ -49468,7 +49500,9 @@
         "oracleId": "4844312c-3c9d-4ca1-986d-4ad35e68454e",
         "firstSet": "lea",
         "firstPrintId": "4a98ada6-923a-44a5-bdef-ea6a160b481e",
-        "firstPrintSet": "lea"
+        "firstPrintSet": "lea",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Livonya Silone",
@@ -59936,7 +59970,9 @@
         "oracleId": "d8f5279f-c58e-4560-9c68-77d226a3c86c",
         "firstSet": "fem",
         "firstPrintId": "ebd6e51e-f042-4673-a898-291607105829",
-        "firstPrintSet": "fem"
+        "firstPrintSet": "fem",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Order of Midnight // Alter Fate",
@@ -59964,7 +60000,9 @@
         "oracleId": "2f65f16f-c6c2-48f0-b556-63cf7d162000",
         "firstSet": "fem",
         "firstPrintId": "9e51f5d8-a7cc-4720-8af5-e002bcfd78a0",
-        "firstPrintSet": "fem"
+        "firstPrintSet": "fem",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Order of the Sacred Bell",
@@ -59990,7 +60028,9 @@
         "oracleId": "e0b3cfc1-68d4-46a8-9ae4-71bdb9c87889",
         "firstSet": "ice",
         "firstPrintId": "92e55b10-375f-4b4f-b676-3b9b8085fdd2",
-        "firstPrintSet": "ice"
+        "firstPrintSet": "ice",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Order of Yawgmoth",
@@ -62852,7 +62892,9 @@
         "oracleId": "38a7d4ef-d296-4896-9b6b-2fd3ad518243",
         "firstSet": "leg",
         "firstPrintId": "b9527c2a-23bb-4d33-9e72-6e0ab3de0e6b",
-        "firstPrintSet": "leg"
+        "firstPrintSet": "leg",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Placid Rottentail",
@@ -66025,7 +66067,9 @@
         "oracleId": "79bf98c8-1169-477d-838e-2ebc0fa396dc",
         "firstSet": "inv",
         "firstPrintId": "7e622ad2-473f-489e-b4cf-bbdcc44d0cde",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Rainbow Vale",
@@ -75887,7 +75931,9 @@
         "oracleId": "711eea87-0fa3-46e0-a42b-fa5a86455f04",
         "firstSet": "lea",
         "firstPrintId": "fefbf149-f988-4f8b-9f53-56f5878116a6",
-        "firstPrintSet": "lea"
+        "firstPrintSet": "lea",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Shivan Emissary",
@@ -79479,7 +79525,9 @@
         "oracleId": "227ed0b7-7a9a-41f1-a190-1d1b85a44720",
         "firstSet": "ice",
         "firstPrintId": "9fabc7b6-e766-4e3c-816e-04cfeceaff09",
-        "firstPrintSet": "ice"
+        "firstPrintSet": "ice",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Soldevi Steam Beast",
@@ -83273,7 +83321,9 @@
         "oracleId": "6a413d09-dd67-4c3e-b81b-7bfe8b864dc9",
         "firstSet": "ice",
         "firstPrintId": "7a383a5f-4814-4b92-aa80-2a6440a719bc",
-        "firstPrintSet": "ice"
+        "firstPrintSet": "ice",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Storm Strike",
@@ -88877,7 +88927,9 @@
         "oracleId": "904b9056-ad76-4805-b14f-c426e4a57bae",
         "firstSet": "ice",
         "firstPrintId": "4fc5d510-c4f7-4a09-bf86-83c3fa3f8928",
-        "firstPrintSet": "ice"
+        "firstPrintSet": "ice",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Thunderclap",
@@ -91473,7 +91525,9 @@
         "oracleId": "f98f1f71-99ec-4ffb-9d8e-acbab173f972",
         "firstSet": "inv",
         "firstPrintId": "ccbe2539-7a7c-468b-a270-7ca1bdcccb1e",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Tsabo's Assassin",
@@ -91533,7 +91587,9 @@
         "oracleId": "0b6fa658-a344-4202-866b-e19997e32ff2",
         "firstSet": "leg",
         "firstPrintId": "9dfbcb4d-a9ae-4d76-8dde-7312fbad56b0",
-        "firstPrintSet": "leg"
+        "firstPrintSet": "leg",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Tuktuk Rubblefort",
@@ -95959,7 +96015,9 @@
         "oracleId": "d2b1b4dd-e860-40d8-8e07-1dee5be65bc4",
         "firstSet": "pls",
         "firstPrintId": "a8281cc6-2132-4f76-841e-d1ade9cafb84",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "source": "compiled",
+        "rarity": "common"
     },
     {
         "name": "Voldaren Duelist",
@@ -96503,7 +96561,9 @@
         "oracleId": "8ffe4986-9e09-4421-ad26-296a4c0df9e4",
         "firstSet": "lea",
         "firstPrintId": "ae20d442-a544-4a03-9ebf-5ecb137c67dd",
-        "firstPrintSet": "lea"
+        "firstPrintSet": "lea",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Wall of Brambles",
@@ -96511,7 +96571,9 @@
         "oracleId": "f8d82a00-c10e-4b9e-9642-d05706900a97",
         "firstSet": "lea",
         "firstPrintId": "af2a4558-db6e-41b2-aff6-b164d93282a0",
-        "firstPrintSet": "lea"
+        "firstPrintSet": "lea",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Wall of Caltrops",
@@ -96565,7 +96627,9 @@
         "oracleId": "f38c8b47-e8e0-4d2f-b1da-d8d986805a48",
         "firstSet": "lea",
         "firstPrintId": "efcf12cd-fb70-444e-9641-73ffa0e8f16e",
-        "firstPrintSet": "lea"
+        "firstPrintSet": "lea",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Wall of Granite",
@@ -96609,7 +96673,9 @@
         "oracleId": "bf7734fb-011d-4f12-a174-1ae879dab95b",
         "firstSet": "ice",
         "firstPrintId": "b99d6d11-b3f7-4d73-967c-3049af82a9d8",
-        "firstPrintSet": "ice"
+        "firstPrintSet": "ice",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Wall of Light",
@@ -96665,7 +96731,9 @@
         "oracleId": "30254aa2-2307-4f42-926a-54a416f55f87",
         "firstSet": "leg",
         "firstPrintId": "2b3d1430-9978-4983-a4fd-d1fa8dea2169",
-        "firstPrintSet": "leg"
+        "firstPrintSet": "leg",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Wall of Pine Needles",
@@ -96673,7 +96741,9 @@
         "oracleId": "1d5bc31c-f4a1-4a59-b466-0347ddbbc7fb",
         "firstSet": "ice",
         "firstPrintId": "5d879923-55fc-46ab-9306-5e1f10441c89",
-        "firstPrintSet": "ice"
+        "firstPrintSet": "ice",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Wall of Razors",
@@ -96789,7 +96859,9 @@
         "oracleId": "608cc65c-f99a-4ca3-be24-190d2556b411",
         "firstSet": "lea",
         "firstPrintId": "41faed1a-ded8-49ee-8e2a-c60d377775d7",
-        "firstPrintSet": "lea"
+        "firstPrintSet": "lea",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Wall of Wonder",
@@ -98935,7 +99007,9 @@
         "oracleId": "8b60fcfe-fb90-4a00-a708-25b59bfc9b5a",
         "firstSet": "lea",
         "firstPrintId": "a1a6f8e9-7bc1-4151-b55f-acf877b1a7a6",
-        "firstPrintSet": "lea"
+        "firstPrintSet": "lea",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Willow Dryad",
@@ -100483,7 +100557,9 @@
         "oracleId": "4a6e367c-7bc9-44a3-8ede-f2d0651abad3",
         "firstSet": "leg",
         "firstPrintId": "cc6c7d89-32e7-4c3f-ac90-7db3a46eed4b",
-        "firstPrintSet": "leg"
+        "firstPrintSet": "leg",
+        "source": "compiled",
+        "rarity": "rare"
     },
     {
         "name": "Yahenni, Undying Partisan",
@@ -100579,7 +100655,9 @@
         "oracleId": "828c1a94-36e1-484b-afc8-87f85956d60d",
         "firstSet": "ice",
         "firstPrintId": "9d8b7020-ca8f-4867-bc51-13d824daf154",
-        "firstPrintSet": "ice"
+        "firstPrintSet": "ice",
+        "source": "compiled",
+        "rarity": "uncommon"
     },
     {
         "name": "Yavimaya Granger",

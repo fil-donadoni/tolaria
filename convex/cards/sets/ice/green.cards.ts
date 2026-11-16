@@ -1474,33 +1474,6 @@ export const venomousBreath = defineCard(() => ({
         },
     ],
 }));
-// Wall of Pine Needles — 3/3 Wall with Defender and "{G}: Regenerate this
-// creature." (CR 702.3 defender; CR 605 activated ability; CR 701.19
-// regeneration shield.)
-export const wallOfPineNeedles = defineCard(() => ({
-    id: "5d879923-55fc-46ab-9306-5e1f10441c89",
-    name: "Wall of Pine Needles",
-    rarity: "uncommon",
-    oracleText:
-        "Defender (This creature can't attack.)\n{G}: Regenerate this creature.",
-    manaCost: { X: 3, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Plant", "Wall"],
-    power: 3,
-    toughness: 3,
-    staticAbilities: ["defender"],
-    activatedAbilities: [
-        {
-            id: "wall-of-pine-needles-regen",
-            oracleText: "{G}: Regenerate this creature.",
-            cost: { mana: { G: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.19a) via the implicit $source.
-            effects: [{ op: "regenerate", target: { ref: "$source" } }],
-        },
-    ],
-}));
 // Whiteout — Instant: "All creatures lose flying until end of turn." (CR 611.2a
 // layer-6 keyword removal via `removeStaticAbilities`, applied to every creature
 // on every battlefield.) Plus a graveyard-activated ability (CR 113.6b — an
@@ -1721,31 +1694,6 @@ export const woollySpider = defineCard(() => ({
                     { phase: "end-of-turn" }
                 );
             },
-        },
-    ],
-}));
-// Yavimaya Gnats — 0/1 flier with "{G}: Regenerate this creature." (CR 702.9 flying
-// CR 605 activated ability; CR 701.19 regeneration shield.)
-export const yavimayaGnats = defineCard(() => ({
-    id: "9d8b7020-ca8f-4867-bc51-13d824daf154",
-    name: "Yavimaya Gnats",
-    rarity: "uncommon",
-    oracleText: "Flying\n{G}: Regenerate this creature.",
-    manaCost: { X: 2, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Insect"],
-    power: 0,
-    toughness: 1,
-    staticAbilities: ["flying"],
-    activatedAbilities: [
-        {
-            id: "yavimaya-gnats-regen",
-            oracleText: "{G}: Regenerate this creature.",
-            cost: { mana: { G: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.19a) via the implicit $source.
-            effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 }));

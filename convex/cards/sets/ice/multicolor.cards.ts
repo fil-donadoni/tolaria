@@ -1132,30 +1132,6 @@ export const spectralShield = defineCard(() => ({
         },
     ],
 }));
-// Storm Spirit — 3/3 flier with "{T}: deal 2 damage to target creature"
-// (CR 605 activated ability, CR 120.1 damage).
-export const stormSpirit = defineCard(() => ({
-    id: "7a383a5f-4814-4b92-aa80-2a6440a719bc",
-    name: "Storm Spirit",
-    rarity: "rare",
-    oracleText: "Flying\n{T}: This creature deals 2 damage to target creature.",
-    manaCost: { X: 3, W: 1, U: 1, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Elemental", "Spirit"],
-    power: 3,
-    toughness: 3,
-    staticAbilities: ["flying"],
-    activatedAbilities: [
-        {
-            id: "storm-spirit-zap",
-            oracleText: "{T}: This creature deals 2 damage to target creature.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
-        },
-    ],
-}));
 // Wings of Aesthir — Aura: static +1/+0 (layer 7c) plus flying and first
 // strike grants on the host (CR 611 keyword-grant).
 export const wingsOfAesthir = defineCard(() => ({

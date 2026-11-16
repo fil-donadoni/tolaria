@@ -1492,39 +1492,6 @@ export const wallOfAir = defineCard(() => ({
     staticAbilities: ["defender", "flying"],
 }));
 
-// Wall of Water — defender + "{U}: This creature gets +1/+0 until end of turn."
-// (CR 702.3 defender, 611.1 temp P/T mod).
-export const wallOfWater = defineCard(() => ({
-    id: "41faed1a-ded8-49ee-8e2a-c60d377775d7",
-    rarity: "uncommon",
-    name: "Wall of Water",
-    oracleText:
-        "Defender (This creature can't attack.)\n{U}: This creature gets +1/+0 until end of turn.",
-    manaCost: { X: 1, U: 2 },
-    types: ["Creature"],
-    subtypes: ["Wall"],
-    power: 0,
-    toughness: 5,
-    staticAbilities: ["defender"],
-    activatedAbilities: [
-        {
-            id: "wall-of-water-pump",
-            oracleText: "{U}: This creature gets +1/+0 until end of turn.",
-            cost: { mana: { U: 1 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
-
 export const waterElemental = defineCard(() => ({
     id: "8de940d6-98c0-46a9-b5fd-e2b0899ea19e",
     rarity: "uncommon",

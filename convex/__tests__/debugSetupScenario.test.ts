@@ -10,9 +10,12 @@ import {
 } from "../gre/scenarioBuilder";
 import { makePlayer, makeState } from "../cards/__tests__/setup.helper";
 import { grizzlyBears } from "../cards/sets/lea/green.cards";
-import { lightningBolt, shivanDragon } from "../cards/sets/lea/red.cards";
+import { lightningBolt } from "../cards/sets/lea/red.cards";
 import { forest } from "../cards/sets/lea/colorless.cards";
 import type { ScenarioSpec } from "../debugScenarioSpec";
+import { getDefinition } from "../cards";
+const shivanDragon = () =>
+    getDefinition("fefbf149-f988-4f8b-9f53-56f5878116a6");
 
 /** The live game's two seats in every fixture below — deliberately NOT
  *  `p1`/`p2`, and deliberately not ending in the ADR 0000 bot suffix on the

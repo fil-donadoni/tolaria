@@ -1106,31 +1106,6 @@ export const verduranEnchantress = defineCard(() => ({
     ],
 }));
 
-// Wall of Brambles — vanilla 2/3 Plant Wall with defender (CR 702.3).
-export const wallOfBrambles = defineCard(() => ({
-    id: "af2a4558-db6e-41b2-aff6-b164d93282a0",
-    rarity: "uncommon",
-    name: "Wall of Brambles",
-    oracleText:
-        "Defender (This creature can't attack.)\n{G}: Regenerate this creature.",
-    manaCost: { X: 2, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Plant", "Wall"],
-    power: 2,
-    toughness: 3,
-    staticAbilities: ["defender"],
-    activatedAbilities: [
-        {
-            id: "wall-of-brambles-regenerate",
-            oracleText: "{G}: Regenerate this creature.",
-            cost: { mana: { G: 1 } },
-            useStack: true,
-            // CR 701.19a — a regeneration shield on this creature.
-            effects: [{ op: "regenerate", target: { ref: "$source" } }],
-        },
-    ],
-}));
-
 export const wallOfIce = defineCard(() => ({
     id: "cc743a03-867c-4bb0-8fb0-2bcaa0a8a756",
     rarity: "uncommon",

@@ -753,38 +753,3 @@ export const slay = defineCard(() => ({
     ],
 }));
 
-// Volcano Imp — {3}{B} Creature — Imp, 2/2. "Flying. {1}{R}: This creature
-// gains first strike until end of turn." (CR 702.9b flying keyword; CR
-// 611.2a temporary keyword grant via `grantAbility`, self-targeted through
-// `$source` — the same shape as every other activated "gains X until end of
-// turn" pump ability in the catalogue.)
-export const volcanoImp = defineCard(() => ({
-    id: "a8281cc6-2132-4f76-841e-d1ade9cafb84", // PLS 56
-    name: "Volcano Imp",
-    rarity: "common",
-    oracleText:
-        "Flying\n{1}{R}: This creature gains first strike until end of turn.",
-    manaCost: { X: 3, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Imp"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["flying"],
-    activatedAbilities: [
-        {
-            id: "volcano-imp-first-strike",
-            oracleText:
-                "{1}{R}: This creature gains first strike until end of turn.",
-            cost: { mana: { X: 1, R: 1 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "first strike",
-                    target: { ref: "$source" },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));

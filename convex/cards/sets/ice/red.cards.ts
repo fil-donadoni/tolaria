@@ -2314,40 +2314,6 @@ export const vertigo = defineCard(() => ({
         },
     ],
 }));
-// Wall of Lava — 1/3 Wall with defender and firebreathing "{R}: +1/+1 until end
-// of turn" (CR 702.3 defender, CR 605 / CR 611.1 pump).
-export const wallOfLava = defineCard(() => ({
-    id: "b99d6d11-b3f7-4d73-967c-3049af82a9d8",
-    name: "Wall of Lava",
-    rarity: "uncommon",
-    oracleText:
-        "Defender (This creature can't attack.)\n{R}: This creature gets +1/+1 until end of turn.",
-    manaCost: { X: 1, R: 2 },
-    types: ["Creature"],
-    subtypes: ["Wall"],
-    power: 1,
-    toughness: 3,
-    staticAbilities: ["defender"],
-    activatedAbilities: [
-        {
-            id: "wall-of-lava-pump",
-            oracleText: "{R}: This creature gets +1/+1 until end of turn.",
-            cost: { mana: { R: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+1 EOT
-            // on this creature (CR 611.2a) via the pump Op.
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 1,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
 // Word of Blasting — "Destroy target Wall. It can't be regenerated. Deals damage
 // equal to that Wall's mana value to the Wall's controller." (CR 701.8 destroy +
 // CR 701.19c regen-lock + CR 120.1 damage.) The Wall's mana value and controller
