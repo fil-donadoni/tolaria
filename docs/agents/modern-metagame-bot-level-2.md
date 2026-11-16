@@ -99,13 +99,13 @@ is listed in [Not playable yet](#not-playable-yet) with the issue making it so.
 
 ## W-U-B-G Goryo's
 
-| Card              | Right                                                               | Wrong: must not                                    | Has |
-| ----------------- | ------------------------------------------------------------------- | -------------------------------------------------- | --- |
-| Goryo's Vengeance | a legend in the graveyard: the strongest one, before combat         | take the weaker legend, or cast it at the end step |     |
-| Griselbrand       | in play, life above 7: pay 7, draw seven                            | pay down to lethal                                 |     |
-| Ephemerate        | a legend Goryo's Vengeance returned: blink it before the end step   | let it be exiled with Ephemerate castable          |     |
-| Psychic Frog      | blocked: discard a spare card so the counter wins the combat        | discard a live hand with no combat to win          |     |
-| Force of Negation | the opponent's lethal noncreature spell: exile a blue card, counter | pitch a card to counter an irrelevant spell        |     |
+| Card              | Right                                                               | Wrong: must not                                    | Has                                                                                                                                                                    |
+| ----------------- | ------------------------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Goryo's Vengeance | a legend in the graveyard: the strongest one, before combat         | take the weaker legend, or cast it at the end step | `reanimation: Goryo's Vengeance returns the strongest legend before combat`; wrong: `reanimation: Goryo's Vengeance never takes the weaker legend`                     |
+| Griselbrand       | in play, life above 7: pay 7, draw seven                            | pay down to lethal                                 | `pay life: Griselbrand pays 7 and draws seven with life to spare`; wrong: `pay life: Griselbrand never pays 7 life down to lethal`                                     |
+| Ephemerate        | a legend Goryo's Vengeance returned: blink it before the end step   | let it be exiled with Ephemerate castable          | `blink: Ephemerate saves the Goryo's Vengeance legend from its end-step exile`; wrong: `blink: Ephemerate never lets the Goryo's Vengeance legend be exiled`           |
+| Psychic Frog      | blocked: discard a spare card so the counter wins the combat        | discard a live hand with no combat to win          | `discard pump: Psychic Frog discards the spare land to win its blocked combat`; wrong: `discard pump: Psychic Frog never discards a live hand with no combat to win`   |
+| Force of Negation | the opponent's lethal noncreature spell: exile a blue card, counter | pitch a card to counter an irrelevant spell        | `pitch counter: Force of Negation exiles a blue card to counter a lethal spell`; wrong: `pitch counter: Force of Negation never pitches a card at an irrelevant spell` |
 
 ## Mono-Red Combo
 
@@ -125,11 +125,10 @@ issue; a card held only by a cluster claim holder (issue #8497) got a
 `Grammar Gap:` issue of its own. Issue #8452 writes a row's positions once its
 card lands.
 
-| Card                      | Issue making it playable                                       |
-| ------------------------- | -------------------------------------------------------------- |
-| Emrakul, the Promised End | #8446                                                          |
-| Goryo's Vengeance         | #8651 (Splice onto Arcane; cluster #8497 only holds the claim) |
-| Past in Flames            | #8629                                                          |
+| Card                      | Issue making it playable |
+| ------------------------- | ------------------------ |
+| Emrakul, the Promised End | #8446                    |
+| Past in Flames            | #8629                    |
 
 Manamorphose is playable but the Bot ignores it today: issue #8450, with
 issue #8177, makes it reachable before its pair can be written.
