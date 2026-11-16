@@ -28461,6 +28461,251 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #8452, CR 603.3c. The same board with a castable Serra Angel as the only card in hand: looting it away for a Grizzly Bears is the blunder.",
     },
+    // Izzet Affinity, the modern metagame's level-2 rows
+    // (`docs/agents/modern-metagame-bot-level-2.md`, issue #9692).
+    {
+        label: "metalcraft: Mox Opal goes down as the third artifact to pay for the Wind Drake",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                {
+                    name: "Ornithopter",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Mox Opal", owner: "me", zone: "hand" },
+                { name: "Wind Drake", owner: "me", zone: "hand" },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Mox Opal" }],
+        },
+        note: "Issue #9692. Two Ornithopters and two Islands: the Opal is the third artifact, so metalcraft turns it on and its mana makes the Drake castable this turn. The wrong half is `free mana: a second Mox Opal does not go ahead of the Grizzly Bears`.",
+    },
+    {
+        label: "improvise: Kappa Cannoneer is cast with four artifacts paying the generic",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                {
+                    name: "Ornithopter",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Memnite", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Kappa Cannoneer", owner: "me", zone: "hand" },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Kappa Cannoneer" }],
+        },
+        note: "Issue #9692, CR 702.126a. Two Islands pay {1}{U} and the four artifacts tap for the other {4}: the 4/4 ward comes down this turn. Stretch until issue #9909: improvise is a human payment flow only (`tapArtifactForImprovise`), `enumerateMoves` builds no tap plan that taps artifacts for it, so the cast is never offered and the Bot passes on every seed. No `beyondBudget`: no search budget reaches a Move that is never enumerated.",
+    },
+    {
+        label: "improvise: Mind Stone is not cracked when its tap pays for Kappa Cannoneer",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Mind Stone", owner: "me", zone: "battlefield" },
+                {
+                    name: "Ornithopter",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Kappa Cannoneer", owner: "me", zone: "hand" },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Mind Stone" }],
+        },
+        note: "Issue #9692, CR 702.126a. Two Islands, Mind Stone and three Ornithopters make exactly six: cracking the Stone spends {1} and the Stone itself, which leaves four, two short of the Cannoneer. The right half is `improvise: Kappa Cannoneer is cast with four artifacts paying the generic`. Until issue #9909 the Bot cannot cast the Cannoneer at all, so today this half holds on the Stone's own worth; it becomes the trade-off its label names once the improvise cast is enumerated.",
+    },
+    {
+        label: "sweep: Engineered Explosives on two takes three attacking two-drops",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                {
+                    name: "Engineered Explosives",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { charge: 2 },
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 3,
+                    summoningSick: false,
+                },
+            ],
+        },
+        setup: [{ kind: "declare-attackers", haltForDefenderResponse: true }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "activate-ability", card: "Engineered Explosives" },
+            ],
+        },
+        note: "Issue #9692. Two charge counters against three attacking mana value 2 creatures: the sweep takes all three before they deal damage. On the opponent's turn because on the Bot's own turn `hold-trick` defers a sacrifice-cost activation as outcome-equal to its later window (`spendsStandingPermanent`), even where clearing blockers would buy an attack (issue #9910).",
+    },
+    {
+        label: "sweep: Engineered Explosives stays put when its own board loses more",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                {
+                    name: "Engineered Explosives",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { charge: 2 },
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        setup: [{ kind: "declare-attackers", haltForDefenderResponse: true }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "activate-ability", card: "Engineered Explosives" },
+            ],
+        },
+        note: "Issue #9692. One attacking Grizzly Bears against three of the Bot's: the sweep would be a three-for-one against itself, where a block answers the attacker. The right half is `sweep: Engineered Explosives on two takes three attacking two-drops`.",
+    },
+    {
+        label: "graveyard cast: Emry is tapped for the Juggernaut four lands can pay",
+        pairOf: {
+            anchor: "graveyard cast: Emry stays untapped for an artifact the mana cannot pay",
+            discriminant: {
+                kind: "card",
+                detail: "the artifact in the graveyard",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Island", owner: "me", zone: "battlefield", count: 4 },
+                {
+                    name: "Emry, Lurker of the Loch",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Juggernaut", owner: "me", zone: "graveyard" },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "activate-ability", card: "Emry, Lurker of the Loch" },
+            ],
+        },
+        note: "Issue #9692. Four Islands pay the Juggernaut's {4} once Emry lets it be cast from the graveyard this turn.",
+    },
+    {
+        label: "graveyard cast: Emry stays untapped for an artifact the mana cannot pay",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the artifact in the graveyard",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Island", owner: "me", zone: "battlefield", count: 4 },
+                {
+                    name: "Emry, Lurker of the Loch",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Myr Battlesphere", owner: "me", zone: "graveyard" },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "activate-ability", card: "Emry, Lurker of the Loch" },
+            ],
+        },
+        note: "Issue #9692. The same four Islands against the Battlesphere's {7}: the permission ends with the turn, so the tap buys nothing.",
+    },
     // Eldrazi Ramp, the modern metagame's level-2 rows
     // (`docs/agents/modern-metagame-bot-level-2.md`, issue #9690).
     {

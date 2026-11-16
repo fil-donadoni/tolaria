@@ -2952,6 +2952,31 @@
         "landCount": 0,
         "libraryCount": 0
     },
+    "graveyard cast: Emry is tapped for the Juggernaut four lands can pay": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 4
+            },
+            {
+                "name": "Emry, Lurker of the Loch",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Juggernaut",
+                "owner": "me",
+                "zone": "graveyard"
+            }
+        ]
+    },
     "graveyard discount: Emrakul, the Promised End is cast when the graveyard covers its cost": {
         "phase": "PRECOMBAT_MAIN",
         "turn": 7,
@@ -3240,6 +3265,37 @@
         "turn": 5,
         "landCount": 0,
         "libraryCount": 20
+    },
+    "improvise: Kappa Cannoneer is cast with four artifacts paying the generic": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Ornithopter",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Memnite",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Kappa Cannoneer",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ]
     },
     "informed colour denial: the decklist, not the board, picks which land dies": {
         "cards": [
@@ -4051,6 +4107,36 @@
             "me": 3,
             "opp": 3
         }
+    },
+    "metalcraft: Mox Opal goes down as the third artifact to pay for the Wind Drake": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Ornithopter",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Mox Opal",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Wind Drake",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ]
     },
     "miracle-hide-bounce-own-board": null,
     "miracle-reveal-bounce-their-board": null,
@@ -5462,6 +5548,7 @@
             "opp": 3
         }
     },
+    "sweep: Engineered Explosives on two takes three attacking two-drops": null,
     "symmetric engine: Disenchant takes the Howling Mine that feeds the opponent's empty hand, not the 2-MV artifact (issue #5164)": {
         "cards": [
             {
