@@ -115,8 +115,10 @@ import {
     controlsRule,
     graveyardCountRule,
     opponentControlsRule,
+    atMostControlledFilter,
     singularControlledFilter,
     type ConditionIR,
+    type YouControlAtMostIR,
     type StaticConditionIR,
 } from "./condition";
 import {
@@ -295,7 +297,7 @@ export type StaticClauseIR =
      *  the board-conditional entry replacement, read as the permanent enters. */
     | {
           readonly kind: "enters-tapped-unless-controls";
-          readonly condition: ConditionIR;
+          readonly condition: ConditionIR | YouControlAtMostIR;
       }
     /** CR 722.3a — "<self> enters prepared": the designation, given as the
      *  permanent enters (the `enters-tapped` shape). */
@@ -1575,15 +1577,19 @@ const entersTappedUnlessPayLife: Rule<StaticClauseIR> = pattern(
 );
 
 const ENTERS_TAPPED_UNLESS_CONTROLS =
-    /^(.+) enters tapped unless you control (a basic land)$/;
+    /^(.+) enters tapped unless you control (a basic land|\S+ or fewer other lands)$/;
 
 /**
- * CR 614.1d — "<self> enters tapped unless you control a basic land". The
- * object is read through the shared controls-clause reader, with live
+ * CR 614.1d — "<self> enters tapped unless you control a basic land" and
+ * "… unless you control two or fewer other lands" (the fast lands). The
+ * object is read through the shared controls-clause readers, with live
  * supertypes (CR 205.4c: "basic" is the supertype, never a basic land type),
- * but the pattern names the one object this rule has a fixture for: "a Forest",
- * "two or more basic lands" and every other tail is a different form and
- * refuses.
+ * but the pattern names the two objects this rule has fixtures for: "a
+ * Forest", "two or more basic lands", "two or fewer lands" and every other
+ * tail is a different form and refuses. The entering land is not on the
+ * battlefield while the replacement is checked (CR 614.12); "other" is kept
+ * as the filter's `excludeSource` all the same, so the data says what the
+ * card prints.
  */
 const entersTappedUnlessControls: Rule<StaticClauseIR> = rule(
     "enters tapped unless controls",
@@ -1596,6 +1602,16 @@ const entersTappedUnlessControls: Rule<StaticClauseIR> = rule(
                 `"${match[1]}" is not this permanent (CR 109.2)`,
                 match[1]!
             );
+        if (match[2]!.endsWith(" or fewer other lands")) {
+            const counted = atMostControlledFilter(match[2]!, span, ctx, {
+                supertypes: true,
+            });
+            if (!counted.ok) return counted;
+            return ok({
+                kind: "enters-tapped-unless-controls" as const,
+                condition: counted.value,
+            });
+        }
         const filter = singularControlledFilter(match[2]!, span, ctx, {
             supertypes: true,
         });

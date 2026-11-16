@@ -2462,7 +2462,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › This land enters tapped unless you control two or fewer other lands",
-            "issue": 8493
+            "issue": 9936
         },
         {
             "kind": "grammar",
