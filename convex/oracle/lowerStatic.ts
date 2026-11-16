@@ -435,11 +435,18 @@ export function lowerStaticClause(
                             appliesTo: "self",
                             power: clause.power,
                             toughness: clause.toughness,
-                            condition: {
-                                kind: condition.kind,
-                                filter: condition.filter,
-                                atLeast: condition.atLeast,
-                            },
+                            condition:
+                                condition.kind === "controls"
+                                    ? {
+                                          kind: "controls",
+                                          filter: condition.filter,
+                                          atLeast: condition.atLeast,
+                                      }
+                                    : {
+                                          kind: "opponent-controls",
+                                          filter: condition.filter,
+                                          atLeast: condition.atLeast,
+                                      },
                         },
                     ],
                 },
