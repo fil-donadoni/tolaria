@@ -154,29 +154,41 @@ describe("a standing each-step dig reads the board (issue #5627)", () => {
     });
 
     it("the side whose upkeep it is reads its own library: the better dig is worth more", () => {
-        // Forty-card libraries: a dig past many Forests stays under the
-        // `MAX_LATENT_SCRIPT_VALUE` bound a richer one reaches.
-        const rich = board(
-            {
-                creatures: 0,
-                libraryCreatures: 2,
-                librarySize: 40,
-                oath: "board",
-            },
-            { creatures: 2, libraryCreatures: 4 }
+        // A sweep of Bear densities in one sixty-card library, not a fixed
+        // pair: where a given density lands between the CR 603.5 clamp (0)
+        // and the `MAX_LATENT_SCRIPT_VALUE` bound moves with every refit of
+        // the fitted weights (issue #9963: the `recursion` unit fell from
+        // 136 to 101 and the one-Bear dig crossed into the clamp). What no
+        // refit may move: more Bears, fewer Forests milled before the first,
+        // so the worth never falls, never goes negative, never passes the
+        // bound — and it RISES somewhere among libraries that all hold a
+        // creature, i.e. the dig reads how deep the first one sits, not only
+        // whether there is one.
+        const densities = [1, 2, 4, 6, 10, 20, 40, 60];
+        const worths = densities.map((libraryCreatures) =>
+            oathWorth(
+                board(
+                    {
+                        creatures: 0,
+                        libraryCreatures,
+                        librarySize: 60,
+                        oath: "board",
+                    },
+                    { creatures: 2, libraryCreatures: 4 }
+                )
+            )
         );
-        const thin = board(
-            {
-                creatures: 0,
-                libraryCreatures: 1,
-                librarySize: 40,
-                oath: "board",
-            },
-            { creatures: 2, libraryCreatures: 4 }
-        );
-        // Two Bears in forty: fewer Forests milled before the first.
-        expect(oathWorth(rich)).toBeGreaterThan(oathWorth(thin));
-        expect(oathWorth(thin)).toBeGreaterThan(0);
+        worths.forEach((worth, i) => {
+            const at = `${densities[i]} Bears in sixty`;
+            expect(worth, at).toBeGreaterThanOrEqual(0);
+            expect(worth, at).toBeLessThanOrEqual(MAX_LATENT_SCRIPT_VALUE);
+            if (i > 0)
+                expect(worth, at).toBeGreaterThanOrEqual(worths[i - 1] - 1e-9);
+        });
+        expect(
+            worths.some((worth, i) => i > 0 && worth > worths[i - 1] + 1e-6),
+            `the worth reads the library: ${worths.join(", ")}`
+        ).toBe(true);
     });
 
     it("a player with no creature in its library declines the 'may' (CR 603.5): the dig would mill it, and reads 0", () => {
