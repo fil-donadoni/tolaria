@@ -25,12 +25,14 @@ import {
     computeActionPriors,
     rootDecisionSettled,
     makeRootScorer,
+    rollout,
     STARVED_ROOT_PRIOR_VISITS,
     type DecisionTrace,
     type Edge,
     type Node,
 } from "../search";
 import { makeRng } from "../rng";
+import { PHASE_ORDER } from "../phases";
 import {
     LADDER_VARIANTS,
     resolveActionPriors,
@@ -3495,5 +3497,84 @@ describe("selectRootMove — Root Heuristic Share λ (issue #9045, PRD #9043)", 
             W0
         );
         expect(unstarved).toEqual(CAST_OPP);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #9900 — a win this turn outranks a win on the bot's next turn.
+//
+// `scoreLeaf` shrinks a won leaf's height above the band floor by the game
+// time it took. With a single global floor reached in five steps, a win in
+// this turn's combat and a win a full turn cycle later both sat at the floor,
+// outcome-equal, and the material tie-break picked the later win. A rollout
+// on a game-over state returns `scoreLeaf` of it at once, so these leaves are
+// scored exactly as the search scores them.
+// ---------------------------------------------------------------------------
+
+describe("search — win timing across turns (issue #9900)", () => {
+    const W = DEFAULT_EVAL_WEIGHTS;
+
+    /** A game the bot (p1) has won, with enough surviving material to sit at
+     *  the top of the won band, at `turn` / `phase`. */
+    function wonLeaf(turn: number, phase: GameState["phase"]): GameState {
+        const state = botMainPhase(
+            [],
+            Array.from({ length: 8 }, (_, i) => creature(GIANT, "p1", `g${i}`)),
+            { life: 0 }
+        );
+        state.turn = turn;
+        state.phase = phase;
+        state.gameOver = { winnerId: "p1", loserId: "p2", reason: "life" };
+        return state;
+    }
+
+    function leafReward(
+        root: { turn: number; phase: GameState["phase"] },
+        leaf: GameState
+    ): number {
+        const since = {
+            turn: root.turn,
+            step: PHASE_ORDER.indexOf(root.phase),
+        };
+        return rollout(leaf, "p1", makeRng(1), W, since).reward;
+    }
+
+    it("the fixture is a full-height win (no decay with no game time elapsed)", () => {
+        const leaf = wonLeaf(3, "PRECOMBAT_MAIN");
+        expect(leafReward({ turn: 3, phase: "PRECOMBAT_MAIN" }, leaf)).toBe(1);
+    });
+
+    for (const rootPhase of [
+        "PRECOMBAT_MAIN",
+        "BEGINNING_OF_COMBAT",
+    ] as const) {
+        it(`from ${rootPhase}: a win at this turn's COMBAT_DAMAGE scores more than outcomeEps above the same win on the bot's next turn`, () => {
+            const root = { turn: 3, phase: rootPhase };
+            const now = leafReward(root, wonLeaf(3, "COMBAT_DAMAGE"));
+            const nextTurn = leafReward(root, wonLeaf(5, "COMBAT_DAMAGE"));
+            expect(now - nextTurn).toBeGreaterThan(W.outcomeEps);
+            // Still a win: above the floor of the won band.
+            expect(nextTurn).toBeGreaterThan(1 - W.terminalBand);
+        });
+    }
+
+    it("a win now scores more than outcomeEps above a win five steps later (issue #3376 bound)", () => {
+        const root = { turn: 3, phase: "PRECOMBAT_MAIN" as const };
+        const now = leafReward(root, wonLeaf(3, "PRECOMBAT_MAIN"));
+        const later = leafReward(root, wonLeaf(3, "COMBAT_DAMAGE"));
+        expect(now - later).toBeGreaterThan(W.outcomeEps);
+    });
+
+    it("never scores a later win above a sooner one", () => {
+        const root = { turn: 3, phase: "PRECOMBAT_MAIN" as const };
+        let previous = Infinity;
+        for (const turn of [3, 4, 5, 6]) {
+            for (const phase of PHASE_ORDER) {
+                if (turn === 3 && PHASE_ORDER.indexOf(phase) < 3) continue;
+                const r = leafReward(root, wonLeaf(turn, phase));
+                expect(r).toBeLessThanOrEqual(previous);
+                previous = r;
+            }
+        }
     });
 });
