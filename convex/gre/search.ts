@@ -1518,8 +1518,8 @@ function stepsSince(since: GameClock, state: GameState): number {
  *  `outcomeEps`, so `hold-trick` even held the lethal shot it exists never to
  *  see.
  *
- *  The win's height ABOVE the band floor shrinks by `WIN_STEP_DECAY` per step
- *  of game time, down to `WIN_DECAY_FLOOR`. A factor, never a subtracted cost: a cost large enough to
+ *  The win's height ABOVE the band floor shrinks by `winTimingDecay`: per
+ *  step of game time, down to a floor that itself shrinks per turn. A factor, never a subtracted cost: a cost large enough to
  *  separate a win now from a win a combat later pinned every win a turn or
  *  more away to the band floor, and wins that all score the floor are wins
  *  the material can no longer order (the saturation ADR 0102 measured) — a
@@ -1542,24 +1542,52 @@ function scoreLeaf(
     const reward = rewardFromValue(value, weights);
     if (since && value >= terminalMagnitude(weights)) {
         const floor = 1 - weights.terminalBand;
-        const decay = Math.max(
-            WIN_DECAY_FLOOR,
-            WIN_STEP_DECAY ** stepsSince(since, state)
-        );
-        return { reward: floor + (reward - floor) * decay, margin };
+        return {
+            reward: floor + (reward - floor) * winTimingDecay(since, state),
+            margin,
+        };
     }
     return { reward, margin };
 }
 
 /** Per step of game time, the share of a win's height above the band floor
- *  that survives (`scoreLeaf`, issue #3376), never below `WIN_DECAY_FLOOR`.
+ *  that survives (`scoreLeaf`, issue #3376), never below the turn's floor.
  *  Measured against the two cases that bound it: a win now against a win
  *  five steps later (main phase → combat damage) must land more than
  *  `outcomeEps` apart — 0.85⁵ ≈ 0.44, floored at half — and a win a turn
  *  away must keep enough height to beat a line that never wins (the
  *  Brain Freeze decking entry), which half does and a tenth did not. */
 const WIN_STEP_DECAY = 0.85;
+/** The floor of the root's own turn: half the height survives any number of
+ *  steps inside it. */
 const WIN_DECAY_FLOOR = 0.5;
+/** Per turn boundary crossed, the share of the floor that survives (issue
+ *  #9900). With one global floor, reached in five steps, a win in this
+ *  turn's combat and a win on the bot's next turn both scored half the
+ *  height: a full-height win separated them by 0.25 × 0.02, far inside
+ *  `outcomeEps`, and the material tie-break took the later win, richer by a
+ *  draw and a land drop. Per turn, the floor is 0.5 / 0.35 / 0.245: the bot's
+ *  next turn sits 0.064 below this turn's floor for a full-height win (above
+ *  `outcomeEps`), and a win on the opponent's turn (the Brain Freeze decking
+ *  entry) keeps 0.35 of its height, well above the tenth that lost it.
+ *  Measured on the Sneak Attack entry with issue #9846's departure pricing:
+ *  the activation now (0.78) against the activation next turn (0.70 at 0.7,
+ *  0.71–0.74 at 1.0, where seed 4 fell to `last-window-deferral`); 0.6 moved
+ *  nothing further. */
+const WIN_TURN_DECAY = 0.7;
+
+/** The share of a won leaf's height that survives the game time from `since`
+ *  to `state`: `WIN_STEP_DECAY` per step, never below the floor of the turn
+ *  the leaf is in. The larger of the two, so a win one step past a turn
+ *  boundary pays one step, not a whole turn, and a later win never scores
+ *  above a sooner one. */
+function winTimingDecay(since: GameClock, state: GameState): number {
+    const turns = Math.max(0, state.turn - since.turn);
+    return Math.max(
+        WIN_DECAY_FLOOR * WIN_TURN_DECAY ** turns,
+        WIN_STEP_DECAY ** stepsSince(since, state)
+    );
+}
 
 /** Bound on consecutive forced answers in one `advanceToDecision` call. A
  *  resolution can raise a second mandatory discard, and a cleanup discard can
