@@ -29726,16 +29726,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
-        beyondBudget: {
-            cause: "valuation",
-            sweptTo: { iterations: 4000 },
-            note: "Issue #9733. The search scores the flashback and the pass alike: every seed is settled by the material tie-break, 0/5 at 400, 1200 and 4000 iterations, while the 1-ply greedy pick passes on every seed. So the evaluator prices the Mountain right, and the tie forms below the root.",
-        },
+        tier: "must",
         expect: {
             forbidden: [{ kind: "cast-spell", card: "Lava Dart" }],
         },
-        note: "Issue #9691, CR 702.34a (Flashback). The opponent is on 20 behind a 2/2, so 1 damage kills nothing and ends nothing. Sacrificing a Mountain for it leaves one land and delays the Gray Ogre in hand by a turn.",
+        note: "Issue #9691, CR 702.34a (Flashback). The opponent is on 20 behind a 2/2, so 1 damage kills nothing and ends nothing. Sacrificing a Mountain for it leaves one land and delays the Gray Ogre in hand by a turn. Issue #9733: the tie formed below the root, where every later window of the `pass` subtree re-offered the flashback, so `pass`'s mean margin (-69) absorbed those lands-gone lines and read below the face shot's (-57). A flashback cast is an alternative-cost cast (CR 702.34a), so `isManaBaseSacrificeCast` now keeps it out of the rollout and the tree below the root; `pass`'s mean margin reads -21 and it wins on every seed. The X/1 entry above pins that the root still weighs it.",
     },
     {
         label: "plot: Slickshot Show-Off is plotted out of a Pestilence's reach",

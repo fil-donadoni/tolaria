@@ -1,6 +1,8 @@
 // Issue #5445 — `isManaBaseSacrificeCast` names a cast whose alternative cost
 // SACRIFICES the caster's lands (CR 118.9 / 701.21a), so the search keeps it
-// out of the rollout and of the tree below the root.
+// out of the rollout and of the tree below the root (issue #9733): a
+// flashback cast pays an alternative cost too (CR 702.34a), so the land its
+// flashback cost gives up counts as well.
 
 import { describe, expect, it } from "vitest";
 import { getCardByName, withTemporaryDefinition } from "../../../cards";
@@ -115,5 +117,71 @@ describe("isManaBaseSacrificeCast (issue #5445)", () => {
         for (const m of casts) {
             expect(isManaBaseSacrificeCast(state, meId, meId, m)).toBe(false);
         }
+    });
+
+    it("names a flashback cast whose cost sacrifices a land (CR 702.34a)", () => {
+        const { state, meId, casts } = position([
+            { name: "Lava Dart", owner: "me", zone: "graveyard" },
+            ...twoTapped("Mountain"),
+        ]);
+        const flashback = casts.filter((m) => m.castFromZone === "graveyard");
+        expect(flashback.length).toBeGreaterThan(0);
+        for (const m of flashback) {
+            expect(isManaBaseSacrificeCast(state, meId, meId, m)).toBe(true);
+        }
+    });
+
+    it("leaves the same card's hand cast alone — no flashback leg owed", () => {
+        const { state, meId, casts } = position([
+            { name: "Lava Dart", owner: "me", zone: "hand" },
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+        ]);
+        expect(casts.length).toBeGreaterThan(0);
+        for (const m of casts) {
+            expect(m.castFromZone ?? "hand").toBe("hand");
+            expect(isManaBaseSacrificeCast(state, meId, meId, m)).toBe(false);
+        }
+    });
+
+    it("leaves a graveyard cast escape claims alone (CR 702.138a)", () => {
+        const { state, meId, casts } = position([
+            { name: "Underworld Breach", owner: "me", zone: "battlefield" },
+            { name: "Lava Dart", owner: "me", zone: "graveyard" },
+            { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+            { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+            { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+        ]);
+        const fromGraveyard = casts.filter(
+            (m) => m.castFromZone === "graveyard"
+        );
+        expect(fromGraveyard.length).toBeGreaterThan(0);
+        for (const m of fromGraveyard) {
+            expect(isManaBaseSacrificeCast(state, meId, meId, m)).toBe(false);
+        }
+    });
+
+    it("leaves a flashback sacrifice of a NONLAND permanent alone", () => {
+        const printed = getCardByName("Lava Dart");
+        const creatureLeg: CardDefinition = {
+            ...printed,
+            flashback: { sacrifice: { types: "Creature" } },
+        };
+        withTemporaryDefinition(creatureLeg, () => {
+            const { state, meId, casts } = position([
+                { name: "Lava Dart", owner: "me", zone: "graveyard" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                ...twoTapped("Mountain"),
+            ]);
+            const flashback = casts.filter(
+                (m) => m.castFromZone === "graveyard"
+            );
+            expect(flashback.length).toBeGreaterThan(0);
+            for (const m of flashback) {
+                expect(isManaBaseSacrificeCast(state, meId, meId, m)).toBe(
+                    false
+                );
+            }
+        });
     });
 });
