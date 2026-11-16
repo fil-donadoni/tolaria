@@ -92670,6 +92670,16 @@
         "source": "compiled"
     },
     {
+        "name": "Veil of Summer",
+        "scryfallId": "aa686c34-1c11-469f-93c2-f9891aea521f",
+        "oracleId": "002965be-a36f-4a09-9ce0-c6535bca1703",
+        "firstSet": "m20",
+        "firstPrintId": "aa686c34-1c11-469f-93c2-f9891aea521f",
+        "firstPrintSet": "m20",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Veiled Shade",
         "scryfallId": "35cb18ae-0229-40a1-8838-ffb678ab2ed9",
         "oracleId": "9e9189d9-3b25-476b-b096-bb540398c1d1",

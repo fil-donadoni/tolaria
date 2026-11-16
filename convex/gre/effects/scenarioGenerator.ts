@@ -2431,6 +2431,12 @@ const SCENARIO_SKIPS = {
         code: "op-own-tests",
         reason: `Op "grantPlayerKeyword" grants a player keyword that only bars a later spell's targeting — covered by the Op's interpreter tests`,
     },
+    // CR 611.2c — the turn-scoped counter immunity only manifests against a
+    // LATER instruction to counter a spell.
+    grantSpellCounterImmunity: {
+        code: "op-own-tests",
+        reason: `Op "grantSpellCounterImmunity" makes a player's spells uncounterable this turn, which only manifests against a later counter — covered by the Op's interpreter tests`,
+    },
     setProtectionFromEverything: {
         code: "op-own-tests",
         reason: `Op "setProtectionFromEverything" sets a global player-scoped protection designation — covered by the Op's interpreter tests`,

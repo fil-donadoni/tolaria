@@ -64,7 +64,7 @@ import { readManaCost } from "./manaCost";
 import { manaValue } from "../gre/constants";
 import { spliceCardIsSupported } from "../gre/splice";
 import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
-import type { LineParse, SlotIR } from "./grammar/ir";
+import type { KeywordIR, LineParse, SlotIR } from "./grammar/ir";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
 import { CYCLING_ABILITY_ID, cyclingAbility } from "../cards/abilities/cycling";
 import {
@@ -311,6 +311,19 @@ function censusGrantedKeywords(
             sentence.kind === "controls-more"
         )
             sentence = sentence.effect;
+        // A frame chain grants through two frames: the trailing gate wraps a
+        // sentence of its own (CR 608.2c), and the permanents half of "You and
+        // permanents you control gain …" (CR 611.2c) grants every keyword.
+        if (sentence.kind === undefined) {
+            for (const frame of sentence.frames) {
+                if (frame.frame === "gate")
+                    censusGrantedKeywords([frame.effect], acc);
+                if (frame.frame === "controlledPermanentsKeyword")
+                    for (const keyword of frame.keywords)
+                        censusGrantedKeyword(keyword, acc);
+            }
+            continue;
+        }
         // "Choose a color. … gain protection from the chosen color …" grants
         // the SAME base keyword ("protection") as the parameterised
         // `grant-ability` case below, just five times over — one per colour
@@ -334,15 +347,20 @@ function censusGrantedKeywords(
                     ? sentence.grant
                     : undefined;
         if (granted === undefined) continue;
-        const { ability, status } = granted;
-        if (status !== "implemented") acc.plannedMechanics.push(ability);
-        // CR 702.1 — a keyword whose behaviour comes from an ADR 0054
-        // definition-level expander produces NOTHING when granted to another
-        // permanent, because the expander never reads the target instance's
-        // `staticAbilities` (issue #2700).
-        else if (isDefinitionLevelKeyword(ability))
-            acc.ungrantableKeywords.push(ability);
+        censusGrantedKeyword(granted, acc);
     }
+}
+
+/** One granted keyword against its registry row (`censusGrantedKeywords`). */
+function censusGrantedKeyword(granted: KeywordIR, acc: Accumulator): void {
+    const { ability, status } = granted;
+    if (status !== "implemented") acc.plannedMechanics.push(ability);
+    // CR 702.1 — a keyword whose behaviour comes from an ADR 0054
+    // definition-level expander produces NOTHING when granted to another
+    // permanent, because the expander never reads the target instance's
+    // `staticAbilities` (issue #2700).
+    else if (isDefinitionLevelKeyword(ability))
+        acc.ungrantableKeywords.push(ability);
 }
 
 /**

@@ -8441,6 +8441,15 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.grantPlayerKeywordUntilEndOfTurn(playerId, op.keyword);
     },
+    // CR 611.2c / 101.2 — "Spells you control can't be countered this turn".
+    // A thin declarative skin over the single SpellContext primitive
+    // `grantSpellCounterImmunityThisTurn`, one execution path (ADR 0045).
+    // Skipped when the player cannot be resolved (CR 608.2b).
+    grantSpellCounterImmunity(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.grantSpellCounterImmunityThisTurn(playerId);
+    },
     // CR 119.4 / 121.1 (issue #1283) — a single ranged 0..N pick over the
     // resolved player's "drawn this turn" hand cards: each NOT selected costs
     // `costPerKept` life (CR 119.4 floor clamp), each selected goes to the

@@ -223,6 +223,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     restrictAttackers: false,
     setProtectionFromEverything: false,
     grantPlayerKeyword: false,
+    grantSpellCounterImmunity: false,
     setSubtype: false,
     shuffleSelfIntoLibrary: false,
     skipDrawStepThisTurn: false,
