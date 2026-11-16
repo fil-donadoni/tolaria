@@ -24,13 +24,12 @@ export type SelfTargetTab = {
  *  the tab wears while the player is a legal target.
  *
  *  Click-to-target and the choose-damage-target buffer route are both fully
- *  reachable through this tab now (#1766). Still narrow by design: the
- *  divide-as-you-choose stepper (Fire Covenant / Meteor Shower splitting
- *  damage onto the viewer's own life) has no bar-tab affordance — the
- *  desktop nameplate stepper (`isDivideTarget`/`incDivide`/`decDivide` on
- *  {@link usePlayerInteraction}) isn't surfaced here yet. Verifying that gap
- *  (and the rest of the target surface) end to end through the real game
- *  loop is folded into #1770's mobile QA sweep. */
+ *  reachable through this tab (#1766). The divide-as-you-choose stepper
+ *  (Fire Covenant / Meteor Shower splitting damage onto the viewer's own
+ *  life) deliberately does NOT live here: it lives in the divide dialog
+ *  `TargetSelectionBanner` renders on every viewport, whose "You" group
+ *  (`DivideTargetList` → `DivideTargetChip`) carries the viewer's own
+ *  stepper (issue #1803). */
 export function useSelfTargetTab(me: Player): SelfTargetTab {
     const interaction = usePlayerInteraction(me);
     const targetable =
