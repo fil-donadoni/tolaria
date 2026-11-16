@@ -977,7 +977,7 @@ describe("enumerateAbilityMoves affordability parity with the server (#1920 revi
             activateAbilityOnState(cloneGameState(state), {
                 playerId: BOT,
                 cardInstanceId: "gris",
-                abilityId: "griselbrand-pay-life-draw",
+                abilityId: "griselbrand-ability",
             })
         ).toThrow(/Not enough life/);
     });

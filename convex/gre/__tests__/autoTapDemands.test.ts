@@ -149,7 +149,7 @@ describe("buildBoardAbilityDemands — on-board activated abilities (issue #476,
     it("a firebreathing ability ({R}: +1/+0) becomes a {R} Demand", () => {
         const shiv = [onBoard(SHIVAN_DRAGON, "shiv")];
         const demands = buildBoardAbilityDemands(stateWith(shiv), shiv, myTurn);
-        expect(ids(demands)).toEqual(["shiv#shivan-dragon-pump"]);
+        expect(ids(demands)).toEqual(["shiv#shivan-dragon-ability"]);
         expect(demands[0].cost).toEqual({ R: 1 });
     });
 
@@ -172,8 +172,8 @@ describe("buildBoardAbilityDemands — on-board activated abilities (issue #476,
             myTurn
         );
         expect(ids(demands)).toEqual([
-            "shivA#shivan-dragon-pump",
-            "shivB#shivan-dragon-pump",
+            "shivA#shivan-dragon-ability",
+            "shivB#shivan-dragon-ability",
         ]);
     });
 
@@ -186,7 +186,7 @@ describe("buildBoardAbilityDemands — on-board activated abilities (issue #476,
             shiv,
             offTurn
         );
-        expect(ids(demands)).toEqual(["shiv#shivan-dragon-pump"]);
+        expect(ids(demands)).toEqual(["shiv#shivan-dragon-ability"]);
     });
 
     it("a phase-restricted ability counts only in its phase (Jade Statue, combat-only)", () => {

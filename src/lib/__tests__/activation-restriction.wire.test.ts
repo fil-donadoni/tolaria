@@ -82,8 +82,8 @@ describe("activation-restriction on the wire (CR 602.5 / 605.1a)", () => {
                 20
             ).map((a) => a.id);
         };
-        expect(offered(false)).toContain("shivan-dragon-pump");
-        expect(offered(true)).not.toContain("shivan-dragon-pump");
+        expect(offered(false)).toContain("shivan-dragon-ability");
+        expect(offered(true)).not.toContain("shivan-dragon-ability");
     });
 
     it("withdraws a creature's tap-for-mana affordance", () => {
