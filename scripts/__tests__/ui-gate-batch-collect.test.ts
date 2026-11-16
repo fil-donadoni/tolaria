@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+    applyAction,
     ciExit,
+    type CollectIo,
+    type LandRefusal,
     heldMarker,
     owedFrom,
     planCollect,
@@ -165,5 +168,83 @@ describe("summaryRows — the run's per-PR record (issue #9264)", () => {
             "| #62 | DROPPED — conflict |",
             "| #63 | UNPROVEN |",
         ]);
+    });
+});
+
+// Issue #10010: a CLEAN walk whose `land:ready` refuses must leave the PR a
+// repair pick (`land-failed`), never unlabelled — no consumer reads that.
+describe("applyAction — a refused hand-off is a repair pick (issue #10010)", () => {
+    const run = (
+        action: Parameters<typeof applyAction>[0],
+        refusal: LandRefusal | null
+    ) => {
+        const calls: string[][] = [];
+        const io: CollectIo = {
+            gh: (args) => {
+                calls.push(args);
+                return "";
+            },
+            land: () => refusal,
+        };
+        applyAction(action, new Map(), "b", () => {}, io);
+        const labels = calls
+            .filter((c) => c[1] === "edit")
+            .map((c) => c.slice(3).join(" "));
+        const comments = calls
+            .filter((c) => c[1] === "comment")
+            .map((c) => c[4]);
+        return { labels, comments };
+    };
+
+    it("labels a CLEAN PR whose land:ready refuses land-failed, ui-owed off, refusal commented", () => {
+        const { labels, comments } = run(
+            { kind: "land", pr: 9815 },
+            {
+                output: "✗ land tooling is stale: base changed scripts/**",
+                infra: false,
+            }
+        );
+        expect(labels).toEqual([
+            "--remove-label ui-owed",
+            "--add-label land-failed",
+        ]);
+        expect(comments).toHaveLength(1);
+        expect(comments[0]).toContain("land tooling is stale");
+        expect(comments[0]).not.toContain("INFRA");
+    });
+
+    it("labels a checkout / worktree:init failure land-failed, its comment naming INFRA", () => {
+        const { labels, comments } = run(
+            { kind: "land", pr: 90 },
+            { output: "worktree:init failed", infra: true }
+        );
+        expect(labels).toEqual([
+            "--remove-label ui-owed",
+            "--add-label land-failed",
+        ]);
+        expect(comments[0]).toContain("INFRA: worktree:init failed");
+    });
+
+    it("adds no land-failed when land:ready hands the CLEAN PR off", () => {
+        const { labels, comments } = run({ kind: "land", pr: 91 }, null);
+        expect(labels).toEqual(["--remove-label ui-owed"]);
+        expect(comments).toEqual([]);
+    });
+
+    it("keeps a RED walk's labelling: ui-owed off, land-failed on, red lines commented", () => {
+        const { labels, comments } = run(
+            {
+                kind: "fail",
+                pr: 92,
+                comment: "check:ui batch walk: RED",
+                partners: [],
+            },
+            null
+        );
+        expect(labels).toEqual([
+            "--remove-label ui-owed",
+            "--add-label land-failed",
+        ]);
+        expect(comments).toEqual(["check:ui batch walk: RED"]);
     });
 });
