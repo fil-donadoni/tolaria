@@ -85,8 +85,7 @@ export type ControllerState = {
     hotkeyScope?: HotkeyScope;
     /** Pass Turn and Pass Until Action as QUEUED intents (issue #9835): the
      *  server accepts both without priority and fires them when priority
-     *  returns (issue #157, issue #5782), which used to be reachable only by
-     *  the P and Enter hotkeys. Present when the viewer has nothing of their
+     *  returns, the same intents the P and Enter hotkeys reach. Present when the viewer has nothing of their
      *  own to do, so `actions` offers neither; disabled while a pass intent
      *  already runs. The desktop pod's always-mounted icon buttons fall back
      *  to these. */

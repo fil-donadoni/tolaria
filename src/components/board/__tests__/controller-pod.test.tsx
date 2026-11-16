@@ -456,9 +456,9 @@ describe("ControllerPod bug-report trigger (issue #3419)", () => {
     });
 });
 
-// Issue #9835: Pass Turn and Pass Until Action are always-mounted icon
-// buttons; without priority they queue the intent the server already
-// accepts (issue #157, issue #5782) — before, only P and Enter reached it.
+// Pass Turn and Pass Until Action are always-mounted icon buttons; without
+// priority they queue the pass intent the server already accepts and fires
+// when priority returns — the same intent the P and Enter hotkeys reach.
 describe("ControllerPod queued passes (issue #9835)", () => {
     const NO_PRIORITY = { activePlayerId: "opp", priorityPlayerId: "opp" };
 
