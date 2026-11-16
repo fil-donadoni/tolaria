@@ -813,6 +813,12 @@ export async function deleteGameCascade(
         .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
         .collect();
     for (const f of consultFailures) await ctx.db.delete(f._id);
+    // The Bot driver's last exit (issue #10006) — same key, same orphan risk.
+    const driverExits = await ctx.db
+        .query("botDriverExits")
+        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+        .collect();
+    for (const e of driverExits) await ctx.db.delete(e._id);
     // Game-end Verdict judge position counter — same key, same orphan risk.
     const judgeBudgets = await ctx.db
         .query("verdictJudgeBudgets")

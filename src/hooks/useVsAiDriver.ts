@@ -647,6 +647,35 @@ export function useVsAiDriver(
     useEffect(() => {
         reportConsultFailureRef.current = reportConsultFailure;
     }, [reportConsultFailure]);
+    // Issue #10006 — the player LEAVING the game while the Bot is owed. The
+    // server deadline advances that window a minute later either way; told
+    // the player left that exact version, it files no Bot fault. The owed
+    // version is the tick's (`null` when the Bot is not owed, or no tick row
+    // yet), synced every commit and read by the cleanup on the way out —
+    // navigation away, or a swap to another game on this hook instance. A
+    // closed tab runs no cleanup: that stays a reported fault.
+    const reportDriverExit = useMutation(api.botLiveness.reportDriverExit);
+    const reportDriverExitRef = useRef(reportDriverExit);
+    const botOwedSeqRef = useRef<number | null>(null);
+    useEffect(() => {
+        reportDriverExitRef.current = reportDriverExit;
+        botOwedSeqRef.current = botOwesInput && tick ? tick.seq : null;
+    });
+    useEffect(() => {
+        if (!botId) return;
+        return () => {
+            const seq = botOwedSeqRef.current;
+            botOwedSeqRef.current = null;
+            if (seq === null) return;
+            try {
+                void reportDriverExitRef
+                    .current({ gameId, seq })
+                    .catch(() => {});
+            } catch {
+                // A lost exit costs one noisy report, never a move.
+            }
+        };
+    }, [gameId, botId]);
 
     const directMutations: DirectMutations = {
         setDamageAssignment,
@@ -1406,7 +1435,12 @@ export function useVsAiDriver(
                             via,
                             message,
                             repetition: remembered,
+                            disposed,
                         }) => {
+                            // Issue #10006 — the player left or swapped the
+                            // game mid-consult: no Brain verdict to record or
+                            // report, and no move for a game nobody drives.
+                            if (disposed) return undefined;
                             // Issue #3590 — keep the seat's decision history
                             // for the next consult, so an optional loop is not
                             // walked twice through the same position.

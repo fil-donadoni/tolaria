@@ -203,6 +203,7 @@ vi.mock("@convex/_generated/api", () => ({
         botLiveness: {
             reportStall: "reportStall",
             reportConsultFailure: "reportConsultFailure",
+            reportDriverExit: "reportDriverExit",
         },
     },
 }));
@@ -990,13 +991,16 @@ describe("useVsAiDriver (issue #110)", () => {
             decision: "keep",
         });
 
-        // New game, same low seq, same reused hook instance.
+        // New game, same low seq, same reused hook instance. Leaving GAME with
+        // the Bot still owed also reports that exit (issue #10006) — not a
+        // move, so it is left out of the count.
         currentState = mulliganState(GAME2);
         rerender({ gameId: GAME2 });
         await settleDriver();
 
-        expect(calls).toHaveLength(2);
-        expect(calls[1].args).toEqual({
+        const moves = calls.filter((c) => c.ref !== "reportDriverExit");
+        expect(moves).toHaveLength(2);
+        expect(moves[1].args).toEqual({
             gameId: GAME2,
             playerId: BOT,
             decision: "keep",

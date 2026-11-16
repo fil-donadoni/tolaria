@@ -16,6 +16,7 @@ import {
     DEADLINE_DIAGNOSTICS,
     DEADLINE_FAULT_CLASS,
     checkDeadline,
+    reportDriverExit,
 } from "../botLiveness";
 import { saveGameState } from "../gameStateStore";
 import { makePlayer, makeState } from "../cards/__tests__/setup.helper";
@@ -314,5 +315,81 @@ describe("botLiveness.checkDeadline (issue #9004)", () => {
         // The marker is gone and the human-owed save armed nothing new.
         expect(tickRow(stub).botDeadlineAt).toBeUndefined();
         expect(checks(stub)).toHaveLength(1);
+    });
+});
+
+describe("a player who LEFT the position is not a Bot fault (issue #10006)", () => {
+    function exit(stub: MutationStub, seq: number): Promise<null> {
+        return runMutation(reportDriverExit, stub.ctx as MutationCtx, {
+            gameId: GAME,
+            seq,
+        });
+    }
+
+    function exitRows(stub: MutationStub): Row[] {
+        return stub.writes
+            .filter((w) => w.table === "botDriverExits")
+            .map((w) => stub.doc(w.id));
+    }
+
+    it("a check on the seq the driver LEFT still advances the game, and files nothing", async () => {
+        const stub = makeMutationCtx(USER, seeds(priorityBoard(BOT)));
+        await save(stub, 8, priorityBoard(BOT));
+        await exit(stub, 8);
+        vi.setSystemTime(T0 + BOT_SERVER_DEADLINE_MS);
+
+        await runCheck(stub, 8);
+        // CR 117.3d — the forced pass hands priority to the human.
+        expect(stub.doc("gs-1").seq).toBe(9);
+        const after = stub.state();
+        expect(botOwedWindow(after, BOT)).toBeNull();
+        expect(after.priorityPlayerId).toBe(HUMAN);
+        expect(systemRows(stub)).toHaveLength(0);
+        expect(tickRow(stub).botDeadlineAt).toBeUndefined();
+    });
+
+    it("an exit at an OLDER seq says nothing: the stuck seq still files its fault", async () => {
+        const stub = makeMutationCtx(USER, seeds(priorityBoard(BOT)));
+        await exit(stub, 7);
+        await save(stub, 8, priorityBoard(BOT));
+        vi.setSystemTime(T0 + BOT_SERVER_DEADLINE_MS);
+
+        await runCheck(stub, 8);
+        expect(stub.doc("gs-1").seq).toBe(9);
+        expect(systemRows(stub)).toHaveLength(1);
+        expect(systemRows(stub)[0]).toMatchObject({
+            fault: { origin: "server-deadline" },
+        });
+    });
+
+    it("keeps ONE row per game, patched to the latest exit", async () => {
+        const stub = makeMutationCtx(USER, seeds(priorityBoard(BOT)));
+        await exit(stub, 4);
+        vi.setSystemTime(T0 + 5);
+        await exit(stub, 6);
+
+        const ids = new Set(
+            stub.writes
+                .filter((w) => w.table === "botDriverExits")
+                .map((w) => w.id)
+        );
+        expect(ids.size).toBe(1);
+        expect(exitRows(stub)[0]).toMatchObject({
+            gameId: "game-1",
+            seq: 6,
+            at: T0 + 5,
+        });
+    });
+
+    it("rejects a caller who is not the human of the game, writing nothing", async () => {
+        const stub = makeMutationCtx("u2", seeds(priorityBoard(BOT)));
+        await expect(exit(stub, 7)).rejects.toThrow(/not the player/);
+        expect(stub.writes).toHaveLength(0);
+    });
+
+    it("rejects a game that is not vs-AI, writing nothing", async () => {
+        const stub = makeMutationCtx(USER, seeds(priorityBoard(BOT), false));
+        await expect(exit(stub, 7)).rejects.toThrow(/no Bot seat/);
+        expect(stub.writes).toHaveLength(0);
     });
 });
