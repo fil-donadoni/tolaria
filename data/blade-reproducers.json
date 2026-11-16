@@ -1206,6 +1206,60 @@
     },
     "defensive grant NEGATIVE CONTROL: buys indestructible against a lethal block": null,
     "defensive self-animation: animates Mishra's Factory to block a lethal attacker": null,
+    "delirium: Unholy Heat deals 6 at the biggest threat": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "life": {
+            "me": 20,
+            "opp": 1
+        },
+        "cards": [
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Mons's Goblin Raiders",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Unholy Heat",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Fireball",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ]
+    },
     "depletion land: pays the two-drop with the basics, sparing the land's charge": {
         "cards": [
             {
@@ -2283,6 +2337,55 @@
             "me": 20,
             "opp": 3
         }
+    },
+    "escape: Nethergoyf escapes with four card types and spares in the graveyard": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Nethergoyf",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Fireball",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Dark Ritual",
+                "owner": "me",
+                "zone": "graveyard"
+            }
+        ]
     },
     "escape: reaches for a Lightning Bolt Underworld Breach made escapable": {
         "cards": [
@@ -4177,6 +4280,48 @@
         "libraryCount": 20
     },
     "ninjutsu: swaps its unblocked attacker for Fallen Shinobi": null,
+    "nonbasic hate: Blood Moon is cast against the opponent's nonbasic mana": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Blood Moon",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Scrubland",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 4
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "opp",
+                "zone": "hand",
+                "count": 2
+            },
+            {
+                "name": "Serra Angel",
+                "owner": "opp",
+                "zone": "library",
+                "count": 20
+            }
+        ]
+    },
     "oath: declines the dig when its library holds no creature": null,
     "oath: takes the free body when its library is creature-dense": null,
     "opponent's choice: casts Chainer's Edict at the opponent's only creature": {

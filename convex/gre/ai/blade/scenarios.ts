@@ -30699,7 +30699,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #9696, CR 207.2c. Three card types in the graveyard: delirium is off, Unholy Heat deals 2. The Serra Angel has toughness 4, and the 2 damage plus the Goblin Raiders' 1 in a block still leaves it alive.",
+        note: "Issue #9696, CR 207.2c / 205.2a. Three card types in the graveyard: delirium is off, Unholy Heat deals 2. The Serra Angel has toughness 4, and the 2 damage plus the Goblin Raiders' 1 in a block still leaves it alive.",
     },
     {
         label: "delirium: Unholy Heat deals 6 at the biggest threat",
@@ -30744,7 +30744,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #9696, CR 207.2c. Land, instant, creature and sorcery in the graveyard: delirium is on, 6 damage kills the Serra Angel before combat, and Mons's Goblin Raiders swings into an empty board for the last point of life.",
+        note: "Issue #9696, CR 207.2c / 205.2a. Land, instant, creature and sorcery in the graveyard: delirium is on, 6 damage kills the Serra Angel before combat, and Mons's Goblin Raiders swings into an empty board for the last point of life.",
     },
     {
         label: "nonbasic hate: Blood Moon is cast against the opponent's nonbasic mana",
