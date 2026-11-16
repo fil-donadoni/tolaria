@@ -29,7 +29,7 @@ describe("Basking Rootwalla — Madness {0} + once-per-turn pump (CR 702.35 / 60
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, walla, "basking-rootwalla-pump");
+        resolveActivated(state, walla, "basking-rootwalla-ability");
         // Fat state: 1/1 → 3/3.
         expect(getEffectivePower(state, walla)).toBe(3);
         expect(getEffectiveToughness(state, walla)).toBe(3);

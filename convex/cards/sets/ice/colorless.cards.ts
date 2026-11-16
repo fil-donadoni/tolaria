@@ -1430,44 +1430,6 @@ export const soldeviGolem = defineCard(() => ({
         }),
     ],
 }));
-// Soldevi Simulacrum — {4} Artifact Creature 2/4 with cumulative upkeep {1}
-// (CR 702.24, ADR 0042) and firebreathing "{1}: This creature gets +1/+0 until
-// end of turn." (CR 611.1 temporary P/T mod, Dragon Engine pattern).
-export const soldeviSimulacrum = defineCard(() => ({
-    id: "9fabc7b6-e766-4e3c-816e-04cfeceaff09",
-    name: "Soldevi Simulacrum",
-    rarity: "uncommon",
-    oracleText:
-        "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\n{1}: This creature gets +1/+0 until end of turn.",
-    manaCost: { X: 4 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Soldier"],
-    power: 2,
-    toughness: 4,
-    cumulativeUpkeep: { X: 1 },
-    activatedAbilities: [
-        {
-            id: "soldevi-simulacrum-firebreathing",
-            oracleText: "{1}: This creature gets +1/+0 until end of turn.",
-            cost: { mana: { X: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, PRD #795): +1/+0 EOT on
-            // this creature (CR 611.2a) via the pump Op. No per-card test
-            // (✗no-test) — the `pump` Op is already exercised catalogue-wide
-            // (Adarkar Sentinel, Snow Fortress), so the per-Op smoke sweep
-            // covers this card for free (no hand-written test required).
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
 // Staff of the Ages — Creatures with landwalk abilities can be blocked as
 // though they didn't have those abilities (CR 509.1b / 702.14 landwalk-negation
 // static, battlefield-scanned). Expressed with the parametric landwalk-negation

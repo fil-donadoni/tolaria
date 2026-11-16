@@ -1966,7 +1966,7 @@ describe("Wall of Water ({U}: +1/+0 until end of turn)", () => {
         });
         const wall = state.players[0].battlefield.find((c) => c.id === "w")!;
         expect(wall.staticAbilities).toContain("defender");
-        activatePump(state, wall, "wall-of-water-pump");
+        activatePump(state, wall, "wall-of-water-ability");
         const after = state.players[0].battlefield.find((c) => c.id === "w")!;
         expect(getEffectivePower(state, after)).toBe(1);
         expect(getEffectiveToughness(state, after)).toBe(5);

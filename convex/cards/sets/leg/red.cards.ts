@@ -359,41 +359,6 @@ export const hyperionBlacksmith = defineCard(() => ({
     ],
 }));
 
-// Wall of Opposition — Defender (CR 702.3) + "{1}: This creature gets +1/+0
-// until end of turn." (CR 611.1 repeatable temporary pump.)
-export const wallOfOpposition = defineCard(() => ({
-    id: "2b3d1430-9978-4983-a4fd-d1fa8dea2169",
-    rarity: "rare",
-    name: "Wall of Opposition",
-    oracleText:
-        "Defender (This creature can't attack.)\n{1}: This creature gets +1/+0 until end of turn.",
-    manaCost: { X: 3, R: 2 },
-    types: ["Creature"],
-    subtypes: ["Wall"],
-    power: 0,
-    toughness: 6,
-    staticAbilities: ["defender"],
-    activatedAbilities: [
-        {
-            id: "wall-of-opposition-pump",
-            oracleText: "{1}: This creature gets +1/+0 until end of turn.",
-            cost: { mana: { X: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #840): self-pump +1/+0
-            // until end of turn (CR 611.1) via the `pump` Op.
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
-
 // --- Auras (CR 303 — Enchant creature) ------------------------------------
 
 // Giant Strength — Enchanted creature gets +2/+2 (CR 303.4, 611).

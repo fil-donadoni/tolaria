@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from "vitest";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
-import { lightningBolt, shivanDragon } from "../../cards/sets/lea/red.cards";
+import { lightningBolt } from "../../cards/sets/lea/red.cards";
 import { forest } from "../../cards/sets/lea/colorless.cards";
 import {
     makeInstance,
@@ -37,6 +37,8 @@ import {
 import { getPlayer } from "../state";
 import type { CardInstanceState, GameState } from "../state";
 import { getDefinition } from "../../cards/index";
+const shivanDragon = () =>
+    getDefinition("fefbf149-f988-4f8b-9f53-56f5878116a6");
 
 const aluren = () => getDefinition("268403bc-733d-446e-a7c1-abc957c42bc2");
 

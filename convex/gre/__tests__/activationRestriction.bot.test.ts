@@ -39,7 +39,7 @@ describe("activation-restriction: the Bot never enumerates a locked activation (
             enumerateMoves(s, "p1").filter(
                 (m) =>
                     m.kind === "activate-ability" &&
-                    m.abilityId === "shivan-dragon-pump"
+                    m.abilityId === "shivan-dragon-ability"
             );
         expect(pumps(board(false)).length).toBeGreaterThan(0);
         expect(pumps(board(true))).toHaveLength(0);

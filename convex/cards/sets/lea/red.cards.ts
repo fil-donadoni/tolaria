@@ -493,38 +493,6 @@ export const goblinKing = defineCard(() => ({
     ],
 }));
 
-// Granite Gargoyle — flying + "{R}: This creature gets +0/+1 until end of turn."
-// (CR 702.9 flying, 611.1 temp P/T mod).
-export const graniteGargoyle = defineCard(() => ({
-    id: "f15bf2b2-6848-4fbd-b89a-8d8da8ae1cdc",
-    rarity: "rare",
-    name: "Granite Gargoyle",
-    oracleText: "Flying\n{R}: This creature gets +0/+1 until end of turn.",
-    manaCost: { X: 2, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Gargoyle"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["flying"],
-    activatedAbilities: [
-        {
-            id: "granite-gargoyle-pump",
-            oracleText: "{R}: This creature gets +0/+1 until end of turn.",
-            cost: { mana: { R: 1 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 0,
-                    toughness: 1,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
-
 export const grayOgre = defineCard(() => ({
     id: "73ae5276-b607-4f23-a9d2-e8cc7b8e3693",
     rarity: "common",
@@ -1073,38 +1041,6 @@ export const shatter = defineCard(() => ({
     effects: [{ op: "destroy", target: { target: 0 } }],
 }));
 
-// Shivan Dragon — flying + "{R}: This creature gets +1/+0 until end of turn."
-// (CR 702.9 flying, 611.1 temp P/T mod).
-export const shivanDragon = defineCard(() => ({
-    id: "fefbf149-f988-4f8b-9f53-56f5878116a6",
-    rarity: "rare",
-    name: "Shivan Dragon",
-    oracleText: "Flying\n{R}: This creature gets +1/+0 until end of turn.",
-    manaCost: { X: 4, R: 2 },
-    types: ["Creature"],
-    subtypes: ["Dragon"],
-    power: 5,
-    toughness: 5,
-    staticAbilities: ["flying"],
-    activatedAbilities: [
-        {
-            id: "shivan-dragon-pump",
-            oracleText: "{R}: This creature gets +1/+0 until end of turn.",
-            cost: { mana: { R: 1 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
-
 // Smoke — modern Oracle (Scryfall, ADR 0004): "Players can't untap more
 // than one creature during their untap steps." (CR 502.1). Encoded as a
 // data-driven `untapRestriction` (ADR 0002 / 0005) on the Creature filter
@@ -1267,39 +1203,6 @@ export const twoHeadedGiantOfForiys = defineCard(() => ({
     toughness: 4,
     staticAbilities: ["trample"],
     canBlockAdditional: 1,
-}));
-
-// Wall of Fire — defender + "{R}: This creature gets +1/+0 until end of turn."
-// (CR 702.3 defender, 611.1 temp P/T mod).
-export const wallOfFire = defineCard(() => ({
-    id: "efcf12cd-fb70-444e-9641-73ffa0e8f16e",
-    rarity: "uncommon",
-    name: "Wall of Fire",
-    oracleText:
-        "Defender (This creature can't attack.)\n{R}: This creature gets +1/+0 until end of turn.",
-    manaCost: { X: 1, R: 2 },
-    types: ["Creature"],
-    subtypes: ["Wall"],
-    power: 0,
-    toughness: 5,
-    staticAbilities: ["defender"],
-    activatedAbilities: [
-        {
-            id: "wall-of-fire-pump",
-            oracleText: "{R}: This creature gets +1/+0 until end of turn.",
-            cost: { mana: { R: 1 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
 }));
 
 export const wallOfStone = defineCard(() => ({

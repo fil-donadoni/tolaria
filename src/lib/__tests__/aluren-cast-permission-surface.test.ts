@@ -23,10 +23,11 @@ import {
 } from "@convex/cards/__tests__/setup.helper";
 import { getDefinition } from "@convex/cards";
 import { grizzlyBears } from "@convex/cards/sets/lea/green.cards";
-import { shivanDragon } from "@convex/cards/sets/lea/red.cards";
 import { projectPublicState } from "@convex/gameProjections";
 import { affordableAltCostsForCard } from "../card-utils";
 import type { CardInstance, Player } from "~/types/game";
+const shivanDragon = () =>
+    getDefinition("fefbf149-f988-4f8b-9f53-56f5878116a6");
 
 const aluren = () => getDefinition("268403bc-733d-446e-a7c1-abc957c42bc2");
 

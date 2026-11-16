@@ -1890,13 +1890,13 @@ describe("getStackAbilities", () => {
                 7
             );
             expect(abilities).toHaveLength(1);
-            expect(abilities[0].id).toBe("griselbrand-pay-life-draw");
+            expect(abilities[0].id).toBe("griselbrand-ability");
         });
 
         it("surfaces the ability when payer life is unknown (gate skipped)", () => {
             const abilities = getStackAbilities(makeGriselbrand());
             expect(abilities).toHaveLength(1);
-            expect(abilities[0].id).toBe("griselbrand-pay-life-draw");
+            expect(abilities[0].id).toBe("griselbrand-ability");
         });
     });
 });

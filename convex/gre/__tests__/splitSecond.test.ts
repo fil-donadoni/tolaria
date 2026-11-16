@@ -226,7 +226,7 @@ describe("the lock is read off the stack (CR 702.61a)", () => {
             ...own(SHIVAN, "ability", "stack"),
             staticAbilities: ["split second"],
             castById: "p1",
-            abilityId: "shivan-dragon-pump",
+            abilityId: "shivan-dragon-ability",
         };
         state.stack.push(ability);
         expect(splitSecondSpellOnStack(state)).toBe(false);
@@ -360,7 +360,7 @@ describe("no ability that isn't a mana ability can be activated (CR 702.61a)", (
         const args = {
             playerId: "p1",
             cardInstanceId: "dragon",
-            abilityId: "shivan-dragon-pump",
+            abilityId: "shivan-dragon-ability",
         };
         const locked = dragonBoard(SPLIT_SECOND_SPELL);
         expect(() => activateAbilityOnState(locked, args)).toThrow(

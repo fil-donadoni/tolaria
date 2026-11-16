@@ -58,6 +58,7 @@ import { checkAttachmentSBA, checkAuraAttachmentSBA } from "../sba";
 import { applyAllCombatDamage } from "../phases";
 import { projectPublicState } from "../../gameProjections";
 import { getAllCards } from "../../cards";
+import { getDefinition } from "../../cards/registry";
 import {
     renderKeyword,
     type ContinuousEffectKeywordParameter,
@@ -399,9 +400,7 @@ describe("catalogue guard — every shipped protection quality parses (CR 702.16
     it("finds Tsabo Tavoc's characteristic quality in the live catalogue", () => {
         // Proves the sweep above actually reaches a card's `staticAbilities`
         // (a guard that silently scans nothing passes vacuously forever).
-        const def = (getAllCards() as CardDefinition[]).find(
-            (c) => c.id === TSABO_TAVOC
-        );
+        const def = getDefinition(TSABO_TAVOC);
         expect(def?.staticAbilities).toContain(
             "protection from legendary creatures"
         );

@@ -4610,7 +4610,7 @@ describe("Living Wall (CR 701.19a regenerate)", () => {
             ...wall,
             zone: "stack",
             castById: "p1",
-            abilityId: "living-wall-regenerate",
+            abilityId: "living-wall-ability",
             targets: [],
         });
         resolveTopOfStack(state);
@@ -4643,7 +4643,7 @@ describe("Living Wall (CR 701.19a regenerate)", () => {
             ...wall,
             zone: "stack",
             castById: "p1",
-            abilityId: "living-wall-regenerate",
+            abilityId: "living-wall-ability",
             targets: [],
         });
         resolveTopOfStack(state);

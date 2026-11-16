@@ -229,7 +229,7 @@ describe("Ghost Ship — flying + regenerate (CR 702.9 / 701.19a)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, gs, "ghost-ship-regenerate", []);
+        resolveActivated(state, gs, "ghost-ship-ability", []);
         const inPlay = state.players[0].battlefield.find((c) => c.id === "gs")!;
         expect(inPlay.regenerationShields ?? 0).toBeGreaterThan(0);
     });

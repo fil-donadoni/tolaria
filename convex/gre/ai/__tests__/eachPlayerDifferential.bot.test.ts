@@ -32,10 +32,11 @@ import { timetwister } from "../../../cards/sets/lea/blue.cards";
 import { grizzlyBears, regrowth } from "../../../cards/sets/lea/green.cards";
 import { forest } from "../../../cards/sets/lea/colorless.cards";
 import { innocentBlood } from "../../../cards/sets/ody/black.cards";
-import { shivanDragon } from "../../../cards/sets/lea/red.cards";
 import { balance } from "../../../cards/sets/lea/white.cards";
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
 import { windsOfChange } from "../../../cards/sets/leg/red.cards";
+const shivanDragon = () =>
+    getDefinition("fefbf149-f988-4f8b-9f53-56f5878116a6");
 
 interface Side {
     hand?: readonly string[];

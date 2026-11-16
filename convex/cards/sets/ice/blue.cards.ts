@@ -149,38 +149,6 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 //     `setColorOverride`; the choice offers every colour subset (`colorSetChoiceModes`).
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Arnjlot's Ascent — {U}{U} Enchantment with cumulative upkeep {U} (CR 702.24)
-// and "{1}: Target creature gains flying until end of turn." The CU keyword is
-// the ADR 0042 template; the activated grant mirrors Flying Carpet (arn.ts).
-export const arnjlotsAscent = defineCard(() => ({
-    id: "2307fb16-8b77-45b5-8a02-51a13214791d",
-    name: "Arnjlot's Ascent",
-    rarity: "common",
-    oracleText:
-        "Cumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\n{1}: Target creature gains flying until end of turn.",
-    manaCost: { X: 1, U: 2 },
-    types: ["Enchantment"],
-    cumulativeUpkeep: { U: 1 },
-    activatedAbilities: [
-        {
-            id: "arnjlots-ascent-grant-flying",
-            oracleText: "{1}: Target creature gains flying until end of turn.",
-            cost: { mana: { X: 1 } },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #843): grant flying to the
-            // announced target creature until end of turn (CR 611.2a).
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "flying",
-                    target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
 // Balduvian Conjurer — {T}: animate a target SNOW land into a 2/2 creature
 // until end of turn (CR 208.2 / 611.1 — `animateAsCreature`; "it's still a
 // land" since animate ADDS the Creature type without removing Land). The target
@@ -2159,40 +2127,6 @@ export const soulBarrier = defineCard(() => ({
                 },
             ],
         }),
-    ],
-}));
-// Thunder Wall — 0/2 flying Wall with Defender and a {U} self-pump
-// (CR 702.3, 702.9, 611.2a).
-export const thunderWall = defineCard(() => ({
-    id: "4fc5d510-c4f7-4a09-bf86-83c3fa3f8928",
-    name: "Thunder Wall",
-    rarity: "uncommon",
-    oracleText:
-        "Defender\nFlying\n{U}: This creature gets +1/+1 until end of turn.",
-    manaCost: { X: 1, U: 2 },
-    types: ["Creature"],
-    subtypes: ["Wall"],
-    power: 0,
-    toughness: 2,
-    staticAbilities: ["defender", "flying"],
-    activatedAbilities: [
-        {
-            id: "thunder-wall-pump",
-            oracleText: "{U}: This creature gets +1/+1 until end of turn.",
-            cost: { mana: { U: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+1 EOT
-            // on this creature (CR 611.2a) via the pump Op.
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 1,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
     ],
 }));
 // Updraft — {1}{U} Instant. "Target creature gains flying until end of turn"

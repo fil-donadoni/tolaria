@@ -47,12 +47,13 @@ import { forgottenLore } from "@convex/cards/sets/ice/green.cards";
 import {
     counterspell,
     disenchant,
-    shivanDragon,
     grizzlyBears,
 } from "@convex/cards/sets/lea/index.cards";
 import { thermokarst } from "@convex/cards/sets/ice/green.cards";
 import { oathOfDruids } from "@convex/cards/sets/exo/green.cards";
 import { getDefinition } from "@convex/cards";
+const shivanDragon = () =>
+    getDefinition("fefbf149-f988-4f8b-9f53-56f5878116a6");
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 const prohibit = () => getDefinition("0daa5458-2a97-40d0-b18d-2381a7a68ee1");
 

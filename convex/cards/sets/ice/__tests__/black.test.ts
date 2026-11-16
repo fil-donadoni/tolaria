@@ -335,7 +335,7 @@ describe("Knight of Stromgald (grants + pump, CR 611.2a)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, knight, "knight-of-stromgald-first-strike");
+        resolveActivated(state, knight, "knight-of-stromgald-ability");
         const live = state.players[0].battlefield.find((c) => c.id === "ks")!;
         expect(live.staticAbilities).toContain("first strike");
     });

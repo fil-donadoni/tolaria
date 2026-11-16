@@ -111,7 +111,7 @@ describe("Storm Spirit ({T}: 2 damage to a creature, CR 120.1)", () => {
                 makePlayer("p2", { battlefield: [victim] }),
             ],
         });
-        resolveActivated(state, spirit, "storm-spirit-zap", [
+        resolveActivated(state, spirit, "storm-spirit-ability", [
             { type: "permanent", id: "v" },
         ]);
         const live = state.players[1].battlefield.find((c) => c.id === "v")!;

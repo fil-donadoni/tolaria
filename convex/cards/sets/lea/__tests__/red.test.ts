@@ -831,7 +831,7 @@ describe("Shivan Dragon (flying + {R}: +1/+0 until end of turn)", () => {
         const state = setup();
         const sd = state.players[0].battlefield.find((c) => c.id === "sd")!;
         expect(sd.staticAbilities).toContain("flying");
-        activatePump(state, sd, "shivan-dragon-pump");
+        activatePump(state, sd, "shivan-dragon-ability");
         const after = state.players[0].battlefield.find((c) => c.id === "sd")!;
         expect(getEffectivePower(state, after)).toBe(6);
         expect(getEffectiveToughness(state, after)).toBe(5);
@@ -840,7 +840,7 @@ describe("Shivan Dragon (flying + {R}: +1/+0 until end of turn)", () => {
     it("wire format: pumped P/T survives the projection", () => {
         const state = setup();
         const sd = state.players[0].battlefield.find((c) => c.id === "sd")!;
-        activatePump(state, sd, "shivan-dragon-pump");
+        activatePump(state, sd, "shivan-dragon-ability");
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(
             (c) => c.id === "sd"
@@ -862,7 +862,7 @@ describe("Wall of Fire ({R}: +1/+0 until end of turn)", () => {
         });
         const wall = state.players[0].battlefield.find((c) => c.id === "wf")!;
         expect(wall.staticAbilities).toContain("defender");
-        activatePump(state, wall, "wall-of-fire-pump");
+        activatePump(state, wall, "wall-of-fire-ability");
         const after = state.players[0].battlefield.find((c) => c.id === "wf")!;
         expect(getEffectivePower(state, after)).toBe(1);
         expect(getEffectiveToughness(state, after)).toBe(5);

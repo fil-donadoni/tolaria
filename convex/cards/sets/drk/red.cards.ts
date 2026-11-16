@@ -235,44 +235,6 @@ export const eternalFlame = defineCard(() => ({
     },
 }));
 
-// Fire Drake — "Flying\n{R}: This creature gets +1/+0 until end of turn.
-// Activate only once each turn." (CR 702.9 flying keyword; CR 605 pump activated
-// ability with `oncePerTurn`.)
-export const fireDrake = defineCard(() => ({
-    id: "d3419db6-1c38-4aa4-b953-1dde7d22b927",
-    rarity: "uncommon",
-    name: "Fire Drake",
-    oracleText:
-        "Flying\n{R}: This creature gets +1/+0 until end of turn. Activate only once each turn.",
-    manaCost: { X: 1, R: 2 },
-    types: ["Creature"],
-    subtypes: ["Drake"],
-    power: 1,
-    toughness: 2,
-    staticAbilities: ["flying"],
-    activatedAbilities: [
-        {
-            id: "fire-drake-pump",
-            oracleText:
-                "{R}: This creature gets +1/+0 until end of turn. Activate only once each turn.",
-            cost: { mana: { R: 1 } },
-            useStack: true,
-            oncePerTurn: true,
-            // Migrated resolve()→effects[] (ADR 0045, #840): self-pump +1/0
-            // until end of turn (CR 611.2).
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
-
 // Fissure — "Destroy target creature or land. It can't be regenerated."
 // (CR 701.8 destroy with the regen-shield suppression; CR 114 multi-type
 // target.)

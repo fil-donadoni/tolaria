@@ -37,8 +37,9 @@ import { forest, howlingMine } from "../../../cards/sets/lea/colorless.cards";
 import { animateArtifact } from "../../../cards/sets/lea/blue.cards";
 import { keldonTwilight } from "../../../cards/sets/pls/multicolor.cards";
 import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
-import { shivanDragon } from "../../../cards/sets/lea/red.cards";
 import { getDefinition } from "../../../cards/index";
+const shivanDragon = () =>
+    getDefinition("fefbf149-f988-4f8b-9f53-56f5878116a6");
 
 const opalescence = () => getDefinition("3c0071fb-afa5-47b5-b266-2b10a4f5a98a");
 

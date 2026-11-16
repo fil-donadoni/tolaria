@@ -43,9 +43,11 @@ import {
     consumeMadnessCastChoice,
     openMadnessWindowCard,
 } from "../madness";
-import { baskingRootwalla } from "../../cards/sets/tor/green.cards";
 import { anjesRavager } from "../../cards/sets/c19/red.cards";
 import { grizzlyBears } from "../../cards/sets/lea/index.cards";
+import { getDefinition } from "../../cards";
+const baskingRootwalla = () =>
+    getDefinition("1a67768a-6cd9-4163-b941-752f29c87a8d");
 
 /** Discards `cardId` from `p1` and pushes the reflexive madness trigger onto the
  *  stack through the real post-action trigger scan (CR 702.35a). Returns the

@@ -92,7 +92,7 @@ describe("activation-restriction: non-mana activated abilities (CR 602.5)", () =
             activateAbilityOnState(state, {
                 playerId: "p1",
                 cardInstanceId: "dragon",
-                abilityId: "shivan-dragon-pump",
+                abilityId: "shivan-dragon-ability",
             })
         ).toThrow(TOTEM_TEXT);
         expect(state.stack).toHaveLength(0);
@@ -107,7 +107,7 @@ describe("activation-restriction: non-mana activated abilities (CR 602.5)", () =
         activateAbilityOnState(state, {
             playerId: "p1",
             cardInstanceId: "dragon",
-            abilityId: "shivan-dragon-pump",
+            abilityId: "shivan-dragon-ability",
         });
         expect(state.stack).toHaveLength(1);
     });
@@ -122,7 +122,7 @@ describe("activation-restriction: non-mana activated abilities (CR 602.5)", () =
             activateAbilityOnState(state, {
                 playerId: "p1",
                 cardInstanceId: "dragon",
-                abilityId: "shivan-dragon-pump",
+                abilityId: "shivan-dragon-ability",
             })
         ).toThrow(TOTEM_TEXT);
     });
