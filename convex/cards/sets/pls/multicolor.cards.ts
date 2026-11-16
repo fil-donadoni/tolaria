@@ -248,40 +248,6 @@ export const ancientSpider = defineCard(() => ({
     staticAbilities: ["first strike", "reach"],
 }));
 
-// Cavern Harpy — {U}{B} Creature — Harpy Beast, 2/1. The set's engine piece:
-// the mandatory ETB bounce plus a free self-bounce for 1 life, which together
-// let it re-trigger any other ETB indefinitely. The self-bounce is a plain
-// activated ability with a CR 119.4 life cost (`cost: { life: 1 }`) — no mana,
-// no tap, so it is usable the turn it enters (summoning sickness only gates
-// {T} costs, CR 302.6).
-export const cavernHarpy = defineCard(() => ({
-    id: "adfb0804-50d6-4bca-8733-72e01030a543", // PLS printing (scryfallId)
-    rarity: "common",
-    name: "Cavern Harpy",
-    oracleText:
-        "Flying\nWhen this creature enters, return a blue or black creature you control to its owner's hand.\nPay 1 life: Return this creature to its owner's hand.",
-    manaCost: { U: 1, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Harpy", "Beast"],
-    power: 2,
-    toughness: 1,
-    staticAbilities: ["flying"],
-    triggeredAbilities: [
-        bounceOnEntry("cavern-harpy", ["U", "B"], "blue or black"),
-    ],
-    activatedAbilities: [
-        {
-            id: "cavern-harpy-self-bounce",
-            oracleText: "Pay 1 life: Return this creature to its owner's hand.",
-            cost: { life: 1 },
-            useStack: true,
-            effects: [
-                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
-            ],
-        },
-    ],
-}));
-
 // Daring Leap — {1}{W}{U} Instant. One target creature, three until-end-of-turn
 // riders: a CR 613 layer-7c P/T modification (`pump`) and two CR 702 keyword
 // grants (`grantAbility`). Three already-exercised Ops, no new vocabulary.

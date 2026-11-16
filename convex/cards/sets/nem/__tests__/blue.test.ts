@@ -352,7 +352,7 @@ describe("Parallax Tide (Fading 5 + remove-fade-counter: exile target land; retu
 
         // Activate: exile the opponent's land (cost payment is exercised by
         // game.ts + the affordability catalogue; resolve just does the exile).
-        resolveActivated(state, tide, "parallax-tide-exile", [
+        resolveActivated(state, tide, "parallax-tide-ability", [
             { type: "permanent", id: "victim" },
         ]);
         expect(
@@ -372,7 +372,12 @@ describe("Parallax Tide (Fading 5 + remove-fade-counter: exile target land; retu
         const tideInPlay = state.players[0].battlefield.find(
             (c) => c.id === "tide"
         )!;
-        resolveTrigger(state, tideInPlay, "parallax-tide-return", LEFT("tide"));
+        resolveTrigger(
+            state,
+            tideInPlay,
+            "parallax-tide-trigger",
+            LEFT("tide")
+        );
         expect(state.players[1].exile.some((c) => c.id === "victim")).toBe(
             false
         );
@@ -401,7 +406,7 @@ describe("Parallax Tide (Fading 5 + remove-fade-counter: exile target land; retu
                 makePlayer("p2", { battlefield: [victim] }),
             ],
         });
-        resolveActivated(state, tide, "parallax-tide-exile", [
+        resolveActivated(state, tide, "parallax-tide-ability", [
             { type: "permanent", id: "victim" },
         ]);
         const projected = projectPublicState(state, 1, "p1");

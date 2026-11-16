@@ -4,66 +4,6 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import { defineCard } from "../../types";
-import { leftTrigger } from "../../abilities/triggers/leftTrigger";
-
-// Parallax Tide — "Fading 5 (…) Remove a fade counter from this enchantment:
-// Exile target land. When this enchantment leaves the battlefield, each player
-// returns to the battlefield all cards they own exiled with it."
-// (CR 702.32 Fading; CR 701.13 exile; CR 607.2a linked abilities.)
-//
-// The blue land-exiling half of the Parallax Wave cycle — identical structure
-// (see nem/white.cards.ts for the full rationale), over lands instead of
-// creatures. Fading 5 rides the getDefinition seam (ADR 0054); the exile and
-// the return are the linked pair (`exile` + `linkToSource`, a `forEach` over
-// `exiledWithSource`), not an "until" bundle.
-const PARALLAX_TIDE_ID = "7fe593eb-df3c-43e5-97a6-418f91e87cb3"; // NEM 37
-export const parallaxTide = defineCard(() => ({
-    id: PARALLAX_TIDE_ID,
-    name: "Parallax Tide",
-    rarity: "rare",
-    oracleText:
-        "Fading 5 (This enchantment enters with five fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)\nRemove a fade counter from this enchantment: Exile target land.\nWhen this enchantment leaves the battlefield, each player returns to the battlefield all cards they own exiled with it.",
-    manaCost: { X: 2, U: 2 },
-    types: ["Enchantment"],
-    staticAbilities: ["fading 5"],
-    activatedAbilities: [
-        {
-            id: "parallax-tide-exile",
-            oracleText:
-                "Remove a fade counter from this enchantment: Exile target land.",
-            cost: { removeCounter: { type: "fade", count: 1 } },
-            useStack: true,
-            targetRequirement: { type: "Land", count: 1 },
-            // CR 607.2a — the linked exile instruction.
-            effects: [
-                { op: "exile", target: { target: 0 }, linkToSource: true },
-            ],
-        },
-    ],
-    triggeredAbilities: [
-        leftTrigger({
-            id: "parallax-tide-return",
-            oracleText:
-                "When this enchantment leaves the battlefield, each player returns to the battlefield all cards they own exiled with it.",
-            scope: "self",
-            effects: [
-                {
-                    op: "forEach",
-                    select: { set: "exiledWithSource" },
-                    simultaneous: true,
-                    effects: [
-                        {
-                            op: "moveZone",
-                            target: { ref: "$each" },
-                            from: "exile",
-                            to: "battlefield",
-                        },
-                    ],
-                },
-            ],
-        }),
-    ],
-}));
 
 // Accumulated Knowledge — {1}{U} Instant. "Draw a card, then draw cards equal
 // to the number of cards named Accumulated Knowledge in all graveyards."

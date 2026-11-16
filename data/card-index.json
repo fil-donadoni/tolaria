@@ -13181,7 +13181,9 @@
         "oracleId": "81c40bd8-b989-41e8-9527-eae8fb87311d",
         "firstSet": "pls",
         "firstPrintId": "adfb0804-50d6-4bca-8733-72e01030a543",
-        "firstPrintSet": "pls"
+        "firstPrintSet": "pls",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Cavern of Souls",
@@ -21373,7 +21375,9 @@
         "oracleId": "8f2ab0a8-9d60-493b-a284-9ed7fa07e5ea",
         "firstSet": "inv",
         "firstPrintId": "064f013f-e74f-419d-8d17-7748bd91885e",
-        "firstPrintSet": "inv"
+        "firstPrintSet": "inv",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Devouring Swarm",
@@ -60080,7 +60084,9 @@
         "oracleId": "e36a92be-537d-4a63-858a-afaab064fbf7",
         "firstSet": "nem",
         "firstPrintId": "7fe593eb-df3c-43e5-97a6-418f91e87cb3",
-        "firstPrintSet": "nem"
+        "firstPrintSet": "nem",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Parallax Wave",
@@ -60088,7 +60094,9 @@
         "oracleId": "0accfb04-bc8b-4cab-997a-2337ac42db8f",
         "firstSet": "nem",
         "firstPrintId": "cef789e8-e4cc-4f61-bc15-debc2487777f",
-        "firstPrintSet": "nem"
+        "firstPrintSet": "nem",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Paralyze",
@@ -92249,7 +92257,9 @@
         "oracleId": "4d2cc2a8-e08a-420a-8922-c63e39129e23",
         "firstSet": "leg",
         "firstPrintId": "22ea73ec-1325-4437-a23f-dcda1767c713",
-        "firstPrintSet": "leg"
+        "firstPrintSet": "leg",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Vagrant Plowbeasts",
