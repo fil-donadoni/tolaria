@@ -1,25 +1,11 @@
 import type { ControllerCue } from "~/hooks/useControllerActions";
+import { CONTROLLER_CUE_COPY } from "~/lib/controller-cue-copy";
 
-const CUE_STYLE: Record<
-    ControllerCue,
-    { dot: string; label: string; pulse: boolean }
-> = {
-    mine: { dot: "bg-signal-self", label: "Your Go", pulse: true },
-    opponent: {
-        dot: "bg-signal-pending/70",
-        label: "Opponent to act",
-        pulse: false,
-    },
-    waiting: {
-        dot: "bg-signal-pending/70",
-        label: "Waiting on opponent",
-        pulse: false,
-    },
-    "auto-passing": {
-        dot: "bg-text-disabled",
-        label: "Auto-passing",
-        pulse: false,
-    },
+const CUE_STYLE: Record<ControllerCue, { dot: string; pulse: boolean }> = {
+    mine: { dot: "bg-signal-self", pulse: true },
+    opponent: { dot: "bg-signal-pending/70", pulse: false },
+    waiting: { dot: "bg-signal-pending/70", pulse: false },
+    "auto-passing": { dot: "bg-text-disabled", pulse: false },
 };
 
 /** The pod's at-a-glance priority cue (#331): a coloured dot + plain-language
@@ -39,7 +25,7 @@ export default function ControllerCueBadge({ cue }: { cue: ControllerCue }) {
                 className={`h-2 w-2 shrink-0 rounded-full ${style.dot}`}
                 aria-hidden
             />
-            {style.label}
+            {CONTROLLER_CUE_COPY[cue].label}
         </div>
     );
 }

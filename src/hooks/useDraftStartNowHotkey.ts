@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { HOTKEYS, matchesHotkey } from "~/lib/hotkeys";
 import { acceptsShortcut } from "~/lib/keyboard-shortcuts";
 
 /** Space = "Start now" during the Draft's table intro (issue #9167) — the
@@ -12,7 +13,8 @@ export function useDraftStartNowHotkey(
     useEffect(() => {
         if (!enabled) return;
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.code !== "Space" || event.repeat) return;
+            if (!matchesHotkey(event, HOTKEYS.draftStartNow) || event.repeat)
+                return;
             if (!acceptsShortcut(event)) return;
             if (event.target instanceof HTMLButtonElement) return;
             event.preventDefault();

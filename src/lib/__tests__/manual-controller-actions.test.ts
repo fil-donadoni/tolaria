@@ -7,6 +7,7 @@
 // nothing else in this suite would notice. So the set is pinned as DATA, both
 // ways round — no render, no DOM.
 import { describe, expect, it, vi } from "vitest";
+import { HOTKEYS } from "~/lib/hotkeys";
 import {
     MANUAL_CONTROLLER_KEYS,
     MANUAL_SWITCH_SEAT_KEY,
@@ -62,7 +63,7 @@ describe("manual controller actions (#2169, #2172)", () => {
         const nextPhase = controller.actions.find(
             (a) => a.key === "manual-next-phase"
         )!;
-        expect(nextPhase.shortcut).toBe("space");
+        expect(nextPhase.shortcut).toBe(HOTKEYS.manualNextPhase);
         nextPhase.onClick();
         expect(dispatch.setPhase).toHaveBeenCalledWith({
             phase: "BEGINNING_OF_COMBAT",
@@ -74,7 +75,7 @@ describe("manual controller actions (#2169, #2172)", () => {
         expect(
             controller.actions.find((a) => a.key === "manual-end-turn")!
                 .shortcut
-        ).toBe("enter");
+        ).toBe(HOTKEYS.manualEndTurn);
     });
 
     it("dispatches the injected onOpenLog callback for the Log action, not a manual verb (#2172)", () => {
@@ -175,7 +176,7 @@ describe("manual controller actions (#2169, #2172)", () => {
             (a) => a.key === MANUAL_SWITCH_SEAT_KEY
         )!;
         expect(switchSeatAction.label).toBe("Switch seat");
-        expect(switchSeatAction.shortcut).toBe("S");
+        expect(switchSeatAction.shortcut).toBe(HOTKEYS.manualSwitchSeat);
 
         switchSeatAction.onClick();
         expect(onSwitchSeat).toHaveBeenCalledTimes(1);

@@ -7,6 +7,12 @@ import { usePendingChoicePrimaryAction } from "~/hooks/usePendingChoicePrimaryAc
 import { usePendingGameIntent } from "~/hooks/usePendingGameIntent";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { isEditableTarget } from "~/lib/editable-target";
+import {
+    HOTKEYS,
+    matchesHotkey,
+    type Hotkey,
+    type HotkeyScope,
+} from "~/lib/hotkeys";
 import { eligibleAttackerIds } from "~/lib/attacker-eligibility";
 import { isPlaneswalker } from "~/lib/card-utils";
 import { anyAttackerOffersEnlist } from "~/lib/enlist-offer";
@@ -35,7 +41,14 @@ export type ControllerAction = {
     tone: ControllerActionTone;
     onClick: () => void;
     disabled: boolean;
-    shortcut?: "space" | "enter" | "U" | "S" | "P" | "A";
+    /** The binding this action shares with a hotkey — its declaration in
+     *  `~/lib/hotkeys`, which the keycap, `aria-keyshortcuts` and the hotkeys
+     *  legend all read (issue #9833). Declared only where the keystroke does
+     *  what the button does. */
+    shortcut?: Hotkey;
+    /** What the action does, in 5–8 words — the second line of the desktop
+     *  pod's hover tooltip under the label (issue #9835). Presentation only. */
+    description?: string;
     /** A "status pill" action (e.g. waiting on opponent / auto-passing) renders
      *  as informative chrome rather than a primary call-to-action button. */
     pill?: boolean;
@@ -67,6 +80,19 @@ export type ControllerState = {
     /** Drives the Space-triggered Attack-with-all confirmation dialog, which
      *  the mounted controller surface (pod or bottom bar) renders. */
     attackAllConfirm: AttackAllConfirm;
+    /** Which bindings are live behind this controller — the scope the pod's
+     *  hotkeys legend lists. Absent = the GRE board's. */
+    hotkeyScope?: HotkeyScope;
+    /** Pass Turn and Pass Until Action as QUEUED intents (issue #9835): the
+     *  server accepts both without priority and fires them when priority
+     *  returns, the same intents the P and Enter hotkeys reach. Present when the viewer has nothing of their
+     *  own to do, so `actions` offers neither; disabled while a pass intent
+     *  already runs. The desktop pod's always-mounted icon buttons fall back
+     *  to these. */
+    queuedPasses?: {
+        passTurn: ControllerAction;
+        passUntilAction: ControllerAction;
+    };
 };
 
 /** Hook holding ALL of the controller's mutations, derived priority state,
@@ -385,7 +411,12 @@ export function useControllerActions(): ControllerState {
             // textarea or contenteditable (e.g. renaming a card, chat, forms).
             if (isEditableTarget(e.target)) return;
             if (isBusy) return;
-            if (e.key === "u" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            if (
+                matchesHotkey(e, HOTKEYS.undo) &&
+                !e.metaKey &&
+                !e.ctrlKey &&
+                !e.altKey
+            ) {
                 if (isPayingCast) {
                     e.preventDefault();
                     cancelCast({ gameId, playerId }).catch(reportError);
@@ -399,7 +430,7 @@ export function useControllerActions(): ControllerState {
                 return;
             }
             if (
-                (e.key === "p" || e.key === "P") &&
+                matchesHotkey(e, HOTKEYS.passTurn) &&
                 !e.repeat &&
                 !e.metaKey &&
                 !e.ctrlKey &&
@@ -421,7 +452,7 @@ export function useControllerActions(): ControllerState {
                 return;
             }
             if (
-                (e.key === "a" || e.key === "A") &&
+                matchesHotkey(e, HOTKEYS.autoTap) &&
                 !e.repeat &&
                 !e.metaKey &&
                 !e.ctrlKey &&
@@ -443,7 +474,7 @@ export function useControllerActions(): ControllerState {
                 }
                 return;
             }
-            if (e.code === "Space" && !e.repeat) {
+            if (matchesHotkey(e, HOTKEYS.passPriority) && !e.repeat) {
                 e.preventDefault();
                 if (isSubstitutionOffered) {
                     // CR 701.67a — the banner's button is "Pay with mana" here,
@@ -530,7 +561,7 @@ export function useControllerActions(): ControllerState {
                     handlePass();
                 }
             }
-            if (e.code === "Enter" && !e.repeat) {
+            if (matchesHotkey(e, HOTKEYS.passUntilAction) && !e.repeat) {
                 e.preventDefault();
                 if (isPayingCast) {
                     // PaymentBanner is up: Enter cancels the payment rather than
@@ -610,7 +641,7 @@ export function useControllerActions(): ControllerState {
     useEffect(() => {
         if (!isPayingCast && !isPayingActivation && !isPayingAttackTax) return;
         function onKeyDown(e: KeyboardEvent) {
-            if (e.key !== "Escape") return;
+            if (!matchesHotkey(e, HOTKEYS.cancel)) return;
             if (isEditableTarget(e.target)) return;
             if (isBusy) return;
             e.preventDefault();
@@ -656,18 +687,21 @@ export function useControllerActions(): ControllerState {
     // command row gives it its own slot next to Pass Turn.
     const passUntilActionDescriptor: ControllerAction = {
         key: "pass-until-action",
+        description: "Keep passing until something needs you",
         label: "Pass Until Action",
         tone: "destructive",
         // A standing intent already owns the passing (e.g. armed and halted
         // at declare-blockers): a second press would be a silent no-op.
         disabled: isBusy || hasPassIntent,
-        shortcut: "enter",
+        shortcut: HOTKEYS.passUntilAction,
         onClick: handlePassUntilAction,
     };
 
     if (isPayingCast) {
         actions.push({
             key: "cancel-cast",
+            description: "Back out of casting this spell",
+            shortcut: HOTKEYS.undo,
             label: "Cancel Cast",
             tone: "destructive",
             disabled: isBusy,
@@ -676,6 +710,8 @@ export function useControllerActions(): ControllerState {
     } else if (isPayingActivation) {
         actions.push({
             key: "cancel-activation",
+            description: "Back out of activating this ability",
+            shortcut: HOTKEYS.undo,
             label: "Cancel Ability",
             tone: "destructive",
             disabled: isBusy,
@@ -688,6 +724,8 @@ export function useControllerActions(): ControllerState {
         // "Confirm Attackers" while the engine waits on tax input.
         actions.push({
             key: "cancel-attack-tax",
+            description: "Drop the attack that owes this cost",
+            shortcut: HOTKEYS.undo,
             label: "Cancel Attack",
             tone: "destructive",
             disabled: isBusy,
@@ -701,6 +739,7 @@ export function useControllerActions(): ControllerState {
         // Confirm is withheld until the sequence completes.
         actions.push({
             key: "assign-attack-target-next",
+            description: "Click a planeswalker or the defending player",
             label: `Choose a target (${attackSequence.index + 1}/${attackSequence.order.length})`,
             tone: "primary",
             disabled: true,
@@ -708,6 +747,7 @@ export function useControllerActions(): ControllerState {
         });
         actions.push({
             key: "cancel-attack-sequence",
+            description: "Stop choosing targets for the attack",
             label: "Cancel",
             tone: "destructive",
             disabled: isBusy,
@@ -717,16 +757,28 @@ export function useControllerActions(): ControllerState {
         // server auto-confirms the current declaration on the way out.
         actions.push({
             key: "pass-turn-attackers",
+            description: "Auto-pass priority until the turn ends",
             label: "Pass Turn",
             tone: "destructive",
             disabled: isBusy,
-            shortcut: "P",
+            shortcut: HOTKEYS.passTurn,
             onClick: handleEndTurn,
         });
         actions.push(passUntilActionDescriptor);
     } else if (isSelectingAttackers) {
         actions.push({
             key: "confirm-attackers",
+            description:
+                selectedAttackerIds.length > 0
+                    ? "Send the selected creatures into combat"
+                    : "Move on without declaring any attackers",
+            // Space confirms a hand-picked declaration, or skips when nothing
+            // can attack; with attackers available and none picked it offers
+            // "Attack with all" instead (the keydown effect above).
+            shortcut:
+                selectedAttackerIds.length > 0 || eligibleIds.length === 0
+                    ? HOTKEYS.passPriority
+                    : undefined,
             label:
                 selectedAttackerIds.length > 0
                     ? `Confirm Attackers (${selectedAttackerIds.length})`
@@ -740,6 +792,11 @@ export function useControllerActions(): ControllerState {
         if (eligibleIds.length > 0) {
             actions.push({
                 key: "attack-with-all",
+                description: "Declare every creature that can attack",
+                shortcut:
+                    selectedAttackerIds.length === 0
+                        ? HOTKEYS.passPriority
+                        : undefined,
                 label: `Attack with all (${eligibleIds.length})`,
                 tone: "primary",
                 disabled: isBusy,
@@ -748,16 +805,22 @@ export function useControllerActions(): ControllerState {
         }
         actions.push({
             key: "pass-turn-attackers",
+            description: "Auto-pass priority until the turn ends",
             label: "Pass Turn",
             tone: "destructive",
             disabled: isBusy,
-            shortcut: "P",
+            shortcut: HOTKEYS.passTurn,
             onClick: handleEndTurn,
         });
         actions.push(passUntilActionDescriptor);
     } else if (isSelectingBlockers) {
         actions.push({
             key: "confirm-blockers",
+            description:
+                blockerCount > 0
+                    ? "Lock in the blocks you declared"
+                    : "Let every attacker through unblocked",
+            shortcut: HOTKEYS.passPriority,
             label:
                 blockerCount > 0
                     ? `Confirm Blockers (${blockerCount})`
@@ -768,16 +831,19 @@ export function useControllerActions(): ControllerState {
         });
         actions.push({
             key: "pass-turn-blockers",
+            description: "Auto-pass priority until the turn ends",
             label: "Pass Turn",
             tone: "destructive",
             disabled: isBusy,
-            shortcut: "P",
+            shortcut: HOTKEYS.passTurn,
             onClick: handleEndTurn,
         });
         actions.push(passUntilActionDescriptor);
     } else if (isAssigningDamage) {
         actions.push({
             key: "confirm-damage",
+            description: "Lock in how combat damage is dealt",
+            shortcut: HOTKEYS.passPriority,
             label: "Confirm Damage",
             tone: "primary",
             disabled: isBusy || !allDamageAssigned,
@@ -786,6 +852,12 @@ export function useControllerActions(): ControllerState {
     } else if (hasPriority) {
         actions.push({
             key: "pass",
+            description: "Pass priority without taking an action",
+            // Space passes — unless a choice of this viewer's is open: the
+            // server hands the chooser priority, but Space then confirms the
+            // prompt (the keydown effect above), and the prompt's own button
+            // carries that keycap.
+            shortcut: pendingChoiceAction ? undefined : HOTKEYS.passPriority,
             label: "Pass",
             tone: "primary",
             disabled: isBusy,
@@ -793,16 +865,18 @@ export function useControllerActions(): ControllerState {
         });
         actions.push({
             key: "pass-turn",
+            description: "Auto-pass priority until the turn ends",
             label: "Pass Turn",
             tone: "destructive",
             disabled: isBusy,
-            shortcut: "P",
+            shortcut: HOTKEYS.passTurn,
             onClick: handleEndTurn,
         });
         actions.push(passUntilActionDescriptor);
     } else if (waitingOnOpponent) {
         actions.push({
             key: "waiting-opponent",
+            description: "Nothing to do until they decide",
             label: opponentSelectingAttackers
                 ? "Opponent declaring attackers..."
                 : "Opponent declaring blockers...",
@@ -814,6 +888,7 @@ export function useControllerActions(): ControllerState {
     } else if (isAutoPass) {
         actions.push({
             key: "auto-pass",
+            description: "Passing until the turn ends; click to stop",
             label: "Auto-passing... (cancel)",
             tone: "destructive",
             disabled: isBusy,
@@ -823,6 +898,7 @@ export function useControllerActions(): ControllerState {
     } else if (isPassUntilAction) {
         actions.push({
             key: "passing-until-action",
+            description: "Passing until something needs you; click to stop",
             label: "Passing until action... (cancel)",
             tone: "destructive",
             disabled: isBusy,
@@ -838,6 +914,7 @@ export function useControllerActions(): ControllerState {
     if (isQueuedEndTurn) {
         actions.push({
             key: "queued-end-turn",
+            description: "Fires when priority returns; click to cancel",
             label: "Pass Turn queued (cancel)",
             tone: "destructive",
             disabled: isBusy,
@@ -848,6 +925,7 @@ export function useControllerActions(): ControllerState {
     if (isQueuedPassUntilAction) {
         actions.push({
             key: "queued-pass-until-action",
+            description: "Fires when priority returns; click to cancel",
             label: "Pass Until Action queued (cancel)",
             tone: "destructive",
             disabled: isBusy,
@@ -876,6 +954,35 @@ export function useControllerActions(): ControllerState {
         cue = "opponent";
     }
 
+    // Queued passes (issue #9835): with nothing of the viewer's own to do,
+    // `actions` offers neither Pass Turn nor Pass Until Action, yet the server
+    // takes both as an intent that fires when priority returns — the P and
+    // Enter hotkeys already reach it. The pod's icon buttons dispatch the same
+    // handlers; one running intent disables both, as their keys would cancel.
+    const queuedPasses: ControllerState["queuedPasses"] =
+        cue === "mine"
+            ? undefined
+            : {
+                  passTurn: {
+                      key: "queue-pass-turn",
+                      label: "Pass Turn",
+                      description: "Queued — fires when priority returns",
+                      tone: "destructive",
+                      disabled: isBusy || hasPassIntent,
+                      shortcut: HOTKEYS.passTurn,
+                      onClick: handleEndTurn,
+                  },
+                  passUntilAction: {
+                      key: "queue-pass-until-action",
+                      label: "Pass Until Action",
+                      description: "Queued — fires when priority returns",
+                      tone: "destructive",
+                      disabled: isBusy || hasPassIntent,
+                      shortcut: HOTKEYS.passUntilAction,
+                      onClick: handlePassUntilAction,
+                  },
+              };
+
     // The dialog is only meaningful while attackers are being declared with
     // something able to attack — a phase change or the last eligible creature
     // leaving the board must not strand it open.
@@ -901,5 +1008,6 @@ export function useControllerActions(): ControllerState {
         isPassUntilAction,
         isQueuedPassUntilAction,
         attackAllConfirm,
+        queuedPasses,
     };
 }

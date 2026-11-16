@@ -5,6 +5,8 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { usePendingChoicePrimaryAction } from "~/hooks/usePendingChoicePrimaryAction";
 import { Button } from "~/components/ui/button";
+import { Keycap } from "~/components/ui/keycap";
+import { HOTKEYS, ariaKeyShortcuts } from "~/lib/hotkeys";
 
 /** Footer of the graveyard picker while a `may-pay` GRAVEYARD leg is being
  *  paid (CR 118.3 / 118.12a — "sacrifice it unless you return a basic land
@@ -49,8 +51,13 @@ export default function MayPayGraveyardConfirm({
                 size="sm"
                 disabled={busy || !(primary?.canConfirm ?? false)}
                 onClick={() => primary?.confirm()}
+                aria-keyshortcuts={ariaKeyShortcuts(HOTKEYS.passPriority)}
             >
                 {`Return (${buffer.length}/${required})`}
+                <Keycap
+                    hotkey={HOTKEYS.passPriority}
+                    className="hidden md:inline-flex"
+                />
             </Button>
         </div>
     );

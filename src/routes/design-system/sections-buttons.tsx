@@ -1,5 +1,8 @@
 // Buttons: the three coexisting systems, then the proposed unified matrix.
 import { Button } from "@/components/ui/button";
+import { Keycap } from "@/components/ui/keycap";
+import ActionButton from "~/components/board/action-button";
+import { HOTKEYS } from "~/lib/hotkeys";
 import { Section, Specimen, Sub, Where } from "./lib";
 import { V4_ZONE_CTA_PLATE } from "~/lib/board-chrome-v4";
 
@@ -183,6 +186,47 @@ export function ButtonsSection() {
                         (fixed: bg-surface-muted → surface-elevated), debug
                         buttons stay debug.
                     </p>
+                </Specimen>
+            </Sub>
+
+            <Sub
+                title="Keycap — a control's hotkey"
+                note="ui/keycap.tsx · from the declarations in lib/hotkeys.ts (issue #9833)"
+            >
+                <Specimen
+                    label="Keycap"
+                    tone="plain"
+                    note="letter · Space · Enter · modifier + click; aria-hidden, hidden under a coarse pointer"
+                >
+                    <div className="flex flex-col gap-3">
+                        <Row>
+                            <Keycap hotkey={HOTKEYS.passTurn} />
+                            <Keycap hotkey={HOTKEYS.passPriority} />
+                            <Keycap hotkey={HOTKEYS.passUntilAction} />
+                            <Keycap hotkey={HOTKEYS.keepPriority} />
+                        </Row>
+                        <Row>
+                            <ActionButton
+                                onClick={() => {}}
+                                label="Pass Turn"
+                                tone="destructive"
+                                shortcut={HOTKEYS.passTurn}
+                            />
+                            <ActionButton
+                                onClick={() => {}}
+                                label="Pass"
+                                shortcut={HOTKEYS.passPriority}
+                            />
+                        </Row>
+                        {/* The icon-only control's tooltip, drawn static: the
+                            live one opens on hover (HotkeyTooltip). */}
+                        <Row>
+                            <span className="inline-flex w-fit items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 pr-1.5 text-xs text-background">
+                                Pass Turn
+                                <Keycap hotkey={HOTKEYS.passTurn} />
+                            </span>
+                        </Row>
+                    </div>
                 </Specimen>
             </Sub>
         </Section>

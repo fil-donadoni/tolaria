@@ -457,6 +457,12 @@ export type LayoutBand = {
  *  shrinking cards rather than separating them. */
 export const BAND_V_PAD = 14;
 
+/** The desktop controller pod's width, px (issue #9835: 320, was `w-52`'s
+ *  208). The widest real call to action, "Confirm Attackers (12)" — 137px of
+ *  Geist 14px, measured in Chrome — plus its Space keycap fits the primary
+ *  pill beside both icon passes untruncated. */
+export const CONTROLLER_POD_WIDTH = 320;
+
 /** Width of the right control column (#334) — the collapsed controller pod plus
  *  its edge offset. The board reserves a matching right gutter on BOTH seats so
  *  the back row's flush-right noncreature block always ends before this column
@@ -464,9 +470,11 @@ export const BAND_V_PAD = 14;
  *  gutter for symmetry even though it hosts no pod, so the right edge reads as
  *  one symmetric column (opponent piles · stack · pod · viewer piles).
  *
- *  Sized to the pod's footprint: `w-52` (208px) + `right-4` (16px) offset. Kept
- *  here next to the layout math so the gutter and the pod can't drift apart. */
-export const RIGHT_GUTTER = 224;
+ *  Sized to the pod's footprint: {@link CONTROLLER_POD_WIDTH} + `right-4` (16px)
+ *  offset. The pod reads its width from that constant, so the gutter and the
+ *  pod cannot drift apart (they did once: issue #9835 widened the pod while
+ *  this still said 224). */
+export const RIGHT_GUTTER = CONTROLLER_POD_WIDTH + 16;
 
 /** Portrait hand (#336): at or below this many cards the flat-overlap hand lays
  *  out within the viewport; beyond it the hand scrolls horizontally so cards

@@ -3,6 +3,7 @@
 // `queuedPassUntilAction` exactly as `projectPublicState` ships them
 // (`convex/__tests__/passUntilActionFullPath.test.ts` proves the wire half).
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { HOTKEYS } from "~/lib/hotkeys";
 import { renderHook, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { PassUntilActionIntent, Player } from "~/types/game";
@@ -69,6 +70,13 @@ vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
         reportError: vi.fn(),
         dismissError: vi.fn(),
     }),
+}));
+
+/** The prompt's primary action — null = no choice of the viewer's is open. */
+let mockPrimaryAction: { canConfirm: boolean; confirm: () => void } | null =
+    null;
+vi.mock("~/hooks/usePendingChoicePrimaryAction", () => ({
+    usePendingChoicePrimaryAction: () => mockPrimaryAction,
 }));
 
 import { useControllerActions } from "../useControllerActions";
@@ -142,15 +150,31 @@ describe("useControllerActions — Pass Until Action (issue #5782)", () => {
             (a) => a.key === "pass-until-action"
         );
         expect(action?.label).toBe("Pass Until Action");
-        expect(action?.shortcut).toBe("enter");
-        // Issue #7423: the [P] badge moved to Pass Turn.
+        expect(action?.shortcut).toBe(HOTKEYS.passUntilAction);
+        // Issue #7423: the P keycap moved to Pass Turn.
         expect(
             result.current.actions.find((a) => a.key === "pass-turn")?.shortcut
-        ).toBe("P");
+        ).toBe(HOTKEYS.passTurn);
+        // Issue #9833: Pass shows the Space keycap — the key that passes.
+        expect(
+            result.current.actions.find((a) => a.key === "pass")?.shortcut
+        ).toBe(HOTKEYS.passPriority);
         const slots = selectCommandSlots(result.current.actions);
         expect(slots.passUntilAction).toBe(action);
         expect(slots.primary?.key).toBe("pass");
         expect(slots.secondary).not.toContain(action);
+    });
+
+    it("Pass drops the Space keycap while a choice of the viewer's is open — Space confirms the prompt then (issue #9833)", () => {
+        mockPrimaryAction = { canConfirm: true, confirm: () => {} };
+        try {
+            const { result } = renderCtrl({});
+            const pass = result.current.actions.find((a) => a.key === "pass");
+            expect(pass).toBeDefined();
+            expect(pass?.shortcut).toBeUndefined();
+        } finally {
+            mockPrimaryAction = null;
+        }
     });
 
     it("Enter arms it through the passUntilAction mutation", async () => {
