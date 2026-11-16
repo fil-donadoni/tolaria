@@ -63,7 +63,7 @@ export default function SideboardSwapList({
     // the previous, else the dialog title — never the Popup (issue #9819).
     useRowFocusFallback(listRef, rowIds, () =>
         listRef.current
-            ?.closest<HTMLElement>('[role="dialog"]')
+            ?.closest<HTMLElement>('[data-slot="game-dialog-column"]')
             ?.querySelector<HTMLElement>('[data-slot="dialog-title"]')
     );
 
