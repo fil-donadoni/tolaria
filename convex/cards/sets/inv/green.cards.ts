@@ -124,6 +124,33 @@ export const wanderingStream = defineCard(() => ({
     ],
 }));
 
+// ─────────────────────────────────────────────────────────────────────────
+// Free tranche (parent PRD #1063, issue #1073) — reuse-only cards, every
+// clause enforced with already-shipped Ops/keywords.
+// ─────────────────────────────────────────────────────────────────────────
+
+// Aggressive Urge — {1}{G} Instant. "Target creature gets +1/+1 until end of
+// turn. Draw a card." (CR 613.4c pump; CR 121.1 draw.)
+export const aggressiveUrge = defineCard(() => ({
+    id: "37e3154d-9b1c-4f93-9bc3-a39e68d59d23",
+    rarity: "common",
+    name: "Aggressive Urge",
+    oracleText: "Target creature gets +1/+1 until end of turn.\nDraw a card.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    effects: [
+        {
+            op: "pump",
+            target: { target: 0 },
+            power: 1,
+            toughness: 1,
+            duration: { phase: "end-of-turn" },
+        },
+        { op: "draw", player: "controller", count: 1 },
+    ],
+}));
+
 // Bind — {1}{G} Instant. "Counter target activated ability. (Mana abilities
 // can't be targeted.) Draw a card." (CR 701.6a counter; CR 605.3a mana
 // abilities never use the stack, so the reminder text holds for free; CR
