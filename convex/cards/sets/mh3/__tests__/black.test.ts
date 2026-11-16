@@ -14,6 +14,7 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 import {
     resolveTopOfStack,
+    removePermanentTo,
     buildSpellContext,
     type CardInstanceState,
     type GameState,
@@ -319,6 +320,103 @@ describe("Emperor of Bones (CR 603.6a combat trigger, CR 701.46 adapt, CR 607 li
             false
         );
         expect(state.players[1].exile.some((c) => c.id === "gy3")).toBe(true);
+    });
+
+    // CR 400.7 / 607.2a (issue #9962) — the exile trigger resolving AFTER its
+    // source was blinked. The trigger still exiles (CR 113.7a), but the
+    // returned Emperor is a NEW object: the card is exiled with nothing.
+    describe("linked exile resolving after the source left (issue #9962)", () => {
+        const ephemerate = getDefinition(
+            "2da5f3f8-5eef-498f-ba2c-2f3fbc3745aa"
+        );
+
+        /** Emperor on p1's battlefield, a creature card in p2's graveyard,
+         *  and the exile trigger on the stack targeting it. */
+        function exileTriggerOnStack(empId: string, gyId: string): GameState {
+            const boss = emperor(empId, "p1");
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [boss],
+                        manaPool: { W: 0, U: 0, B: 1, R: 0, G: 0, C: 0 },
+                    }),
+                    makePlayer("p2", { graveyard: [gyCreature(gyId, "p2")] }),
+                ],
+            });
+            pushTrigger(state, boss, "emperor-of-bones-exile", {
+                type: "PHASE_BEGIN",
+                phase: "BEGINNING_OF_COMBAT",
+                activePlayerId: "p1",
+            } as StackItem["triggerEvent"]);
+            raiseTriggerTargetSelection(state);
+            state.pendingTarget!.selected = [
+                { type: "graveyard-card", id: gyId, playerId: "p2" },
+            ];
+            finalizeTargetSelection(
+                state,
+                state.pendingTarget!,
+                state.pendingTarget!.playerId
+            );
+            return state;
+        }
+
+        function exiledWith(state: GameState, sourceId: string): string[] {
+            const probe = pushSpell(state, emperorOfBones.id, "p1");
+            const ids = buildSpellContext(state, probe)
+                .getCardsExiledWith(sourceId)
+                .map((c) => c.id);
+            state.stack.pop();
+            return ids;
+        }
+
+        it("blinked by Ephemerate in response: the card is exiled but linked to no object, and Adapt reanimates nothing", () => {
+            const state = exileTriggerOnStack("emp5", "gy5");
+            pushSpell(state, ephemerate.id, "p1", [
+                { type: "permanent", id: "emp5" },
+            ]);
+            resolveTopOfStack(state);
+            const returned = state.players[0].battlefield.find(
+                (c) => c.id === "emp5"
+            )!;
+            expect(returned).toBeDefined();
+
+            resolveTopOfStack(state);
+            expect(state.players[1].exile.map((c) => c.id)).toContain("gy5");
+            expect(exiledWith(state, "emp5")).toEqual([]);
+
+            // CR 701.46 — the returned Emperor's Adapt fires the reanimation
+            // trigger, which finds nothing exiled with THIS object.
+            state.stack.push({
+                ...returned,
+                zone: "stack",
+                castById: "p1",
+                abilityId: "emperor-of-bones-adapt",
+            } as StackItem);
+            resolveTopOfStack(state);
+            const onStack = state.stack[state.stack.length - 1];
+            expect(onStack?.triggeredAbilityId).toBe(
+                "emperor-of-bones-reanimate"
+            );
+            resolveTopOfStack(state);
+            expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+                "emp5",
+            ]);
+            expect(state.players[1].exile.map((c) => c.id)).toContain("gy5");
+        });
+
+        it("source destroyed with no re-entry: the trigger still links the card to its source (CR 608.2h, issue #2001)", () => {
+            const state = exileTriggerOnStack("emp6", "gy6");
+            removePermanentTo(state, "emp6", "graveyard", "destroy");
+            resolveTopOfStack(state);
+            expect(state.players[1].exile.map((c) => c.id)).toContain("gy6");
+            expect(exiledWith(state, "emp6")).toEqual(["gy6"]);
+        });
+
+        it("source never left: the card is linked to it (control)", () => {
+            const state = exileTriggerOnStack("emp7", "gy7");
+            resolveTopOfStack(state);
+            expect(exiledWith(state, "emp7")).toEqual(["gy7"]);
+        });
     });
 
     it("the reanimation trigger is a clean CR 608.2b no-op when nothing is exiled with Emperor", () => {
