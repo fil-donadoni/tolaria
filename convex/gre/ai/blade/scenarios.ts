@@ -31236,6 +31236,6 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             moves: [{ kind: "resolution-choice", option: "decline" }],
         },
-        note: "Issue #10084. A win in this turn's combat sits at 0.85⁴ ≈ 0.52 of the won band's height; a win on the opponent's turn sat at the turn floor 0.5 × 0.7 = 0.35, so the two were at most 0.25 × 0.17 ≈ 0.043 apart — inside `outcomeEps` for every win — and `material-tiebreak` took the counter. `WIN_TURN_DECAY` 0.5 puts the opponent's turn at 0.25 of the height.",
+        note: "Issue #10084. From the main phase, combat damage is five steps away, so a win in this turn's combat sits on this turn's floor, 0.5 of the won band's height; a win on the opponent's turn sat at 0.5 × 0.7 = 0.35, so the two were at most 0.25 × 0.15 ≈ 0.038 apart — inside `outcomeEps` for every win — and `material-tiebreak` took the counter on 5/5 seeds. `WIN_TURN_DECAY` 0.5 puts the opponent's turn at 0.25 of the height: decline on 5/5.",
     },
 ];
