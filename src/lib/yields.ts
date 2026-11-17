@@ -461,7 +461,7 @@ export function countSeatYieldPrefs(
 
 // ---- Auto-answer (issue #9863) --------------------------------------------
 //
-// The optional-action prompt (`may-pay`, CR 608.2 — "you may …" during
+// The optional-action prompt (`may-pay`, CR 608.2d — "you may …" during
 // resolution) can remember the seat's answer for one exact prompt of one
 // ability and give it the next time that prompt comes back. The ability half
 // of the identity is the **Yield** key — {@link yieldKeyForStackItem}, never a

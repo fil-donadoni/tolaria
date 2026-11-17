@@ -36,8 +36,8 @@ import {
 } from "~/lib/yields";
 
 /** The board-wide **Yield** store: every seat's keys, every seat's
- *  **Auto-order** memory (issue #3617) and **Auto-answers** (issue #9863) —
- *  same lifecycle, same resets — and the writes. In MEMORY only — a **Yield** belongs to the seat within one **Game**
+ *  **Auto-order** memory and **Auto-answers** (issue #9863) — same lifecycle,
+ *  same resets — and the writes. In MEMORY only — a **Yield** belongs to the seat within one **Game**
  *  (issue #3556 §6), so it is deliberately NOT in the `localStorage`-backed
  *  **Phase Stop** store (`useSkipPhasePreferences`) nor anywhere else that
  *  survives a reload. */
