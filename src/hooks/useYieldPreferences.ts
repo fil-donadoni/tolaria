@@ -12,14 +12,21 @@ import {
     confirmTriggerOrder,
     countRememberedTriggerOrders,
     countSeatYieldPrefs,
+    countOptionalAnswers,
     countYields,
+    forgetSeatOptionalAnswer,
     forgetSeatTriggerOrder,
     hasYield,
+    rememberOptionalAnswer,
     removeSeatYield,
+    seatOptionalAnswers,
     seatTriggerOrderMemory,
     seatYields,
     toggleYield,
     yieldKeyCardIdentity,
+    type OptionalAnswerState,
+    type OptionalPromptIdentity,
+    type RememberedOptionalAnswer,
     type RememberedTriggerOrder,
     type SeatTriggerOrderMemory,
     type TriggerOrderMemoryState,
@@ -29,14 +36,15 @@ import {
 } from "~/lib/yields";
 
 /** The board-wide **Yield** store: every seat's keys, every seat's
- *  **Auto-order** memory (issue #3617 — same lifecycle, same resets) and the
- *  writes. In MEMORY only — a **Yield** belongs to the seat within one **Game**
+ *  **Auto-order** memory (issue #3617) and **Auto-answers** (issue #9863) —
+ *  same lifecycle, same resets — and the writes. In MEMORY only — a **Yield** belongs to the seat within one **Game**
  *  (issue #3556 §6), so it is deliberately NOT in the `localStorage`-backed
  *  **Phase Stop** store (`useSkipPhasePreferences`) nor anywhere else that
  *  survives a reload. */
 export type YieldPrefsStore = {
     yields: YieldState;
     triggerOrders: TriggerOrderMemoryState;
+    optionalAnswers: OptionalAnswerState;
     toggle: (seatId: string, key: YieldKey) => void;
     clearSeat: (seatId: string) => void;
     clearSeatCard: (seatId: string, cardIdentity: string) => void;
@@ -49,6 +57,16 @@ export type YieldPrefsStore = {
     removeYield: (seatId: string, key: YieldKey) => void;
     /** Forget ONE remembered order — `forgetSeatTriggerOrder` (issue #3629). */
     forgetTriggerOrder: (seatId: string, order: readonly YieldKey[]) => void;
+    /** Record (or replace) one **Auto-answer** (issue #9863). */
+    rememberOptionalAnswer: (
+        seatId: string,
+        entry: RememberedOptionalAnswer
+    ) => void;
+    /** Forget ONE **Auto-answer** — a "Manage yields" row. */
+    forgetOptionalAnswer: (
+        seatId: string,
+        identity: OptionalPromptIdentity
+    ) => void;
 };
 
 export const YieldPrefsContext = createContext<YieldPrefsStore | null>(null);
@@ -114,6 +132,34 @@ export function useYieldPrefsState(gameId: string): YieldPrefsStore {
             return yields === prev.yields ? prev : { ...prev, yields };
         });
     }, []);
+    const rememberAnswer = useCallback(
+        (seatId: string, entry: RememberedOptionalAnswer) => {
+            setPrefs((prev) => ({
+                ...prev,
+                optionalAnswers: rememberOptionalAnswer(
+                    prev.optionalAnswers,
+                    seatId,
+                    entry
+                ),
+            }));
+        },
+        []
+    );
+    const forgetAnswer = useCallback(
+        (seatId: string, identity: OptionalPromptIdentity) => {
+            setPrefs((prev) => {
+                const optionalAnswers = forgetSeatOptionalAnswer(
+                    prev.optionalAnswers,
+                    seatId,
+                    identity
+                );
+                return optionalAnswers === prev.optionalAnswers
+                    ? prev
+                    : { ...prev, optionalAnswers };
+            });
+        },
+        []
+    );
     const forgetTriggerOrder = useCallback(
         (seatId: string, order: readonly YieldKey[]) => {
             setPrefs((prev) => {
@@ -134,15 +180,20 @@ export function useYieldPrefsState(gameId: string): YieldPrefsStore {
         () => ({
             yields: prefs.yields,
             triggerOrders: prefs.triggerOrders,
+            optionalAnswers: prefs.optionalAnswers,
             toggle,
             clearSeat,
             clearSeatCard,
             confirmTriggerOrder: confirmOrder,
             removeYield,
             forgetTriggerOrder,
+            rememberOptionalAnswer: rememberAnswer,
+            forgetOptionalAnswer: forgetAnswer,
         }),
         [
             prefs,
+            rememberAnswer,
+            forgetAnswer,
             toggle,
             clearSeat,
             clearSeatCard,
@@ -201,6 +252,12 @@ export type SeatYields = {
         enabled: boolean,
         order: RememberedTriggerOrder | null
     ) => void;
+    /** The viewing seat's **Auto-answers** (issue #9863), in record order. */
+    optionalAnswers: readonly RememberedOptionalAnswer[];
+    /** How many **Auto-answers** the viewing seat holds. */
+    optionalAnswerCount: number;
+    rememberOptionalAnswer: (entry: RememberedOptionalAnswer) => void;
+    forgetOptionalAnswer: (identity: OptionalPromptIdentity) => void;
 };
 
 /** Display-side read. Falls back to an INERT store outside a provider so a
@@ -219,11 +276,12 @@ export function useSeatYields(): SeatYields {
     const playerId = useContext(GameContext)?.playerId ?? "";
     const state = store?.yields ?? EMPTY_YIELDS;
     const triggerOrders = store?.triggerOrders ?? EMPTY_TRIGGER_ORDERS;
+    const optionalAnswers = store?.optionalAnswers ?? EMPTY_OPTIONAL_ANSWERS;
     return useMemo(
         () => ({
             count: countYields(state, playerId),
             resetCount: countSeatYieldPrefs(
-                { yields: state, triggerOrders },
+                { yields: state, triggerOrders, optionalAnswers },
                 playerId
             ),
             keys: seatYields(state, playerId),
@@ -248,11 +306,25 @@ export function useSeatYields(): SeatYields {
                 enabled: boolean,
                 order: RememberedTriggerOrder | null
             ) => store?.confirmTriggerOrder(playerId, enabled, order),
+            optionalAnswers: seatOptionalAnswers(optionalAnswers, playerId),
+            optionalAnswerCount: countOptionalAnswers(
+                optionalAnswers,
+                playerId
+            ),
+            rememberOptionalAnswer: (entry: RememberedOptionalAnswer) =>
+                store?.rememberOptionalAnswer(playerId, entry),
+            forgetOptionalAnswer: (identity: OptionalPromptIdentity) =>
+                store?.forgetOptionalAnswer(playerId, identity),
         }),
-        [state, triggerOrders, playerId, store]
+        [state, triggerOrders, optionalAnswers, playerId, store]
     );
 }
 
 const EMPTY_YIELDS: YieldState = {};
 const EMPTY_TRIGGER_ORDERS: TriggerOrderMemoryState = {};
-const EMPTY_PREFS: YieldPrefsState = { yields: {}, triggerOrders: {} };
+const EMPTY_OPTIONAL_ANSWERS: OptionalAnswerState = {};
+const EMPTY_PREFS: YieldPrefsState = {
+    yields: {},
+    triggerOrders: {},
+    optionalAnswers: {},
+};

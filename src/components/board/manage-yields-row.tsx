@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { XIcon } from "lucide-react";
 
-/** One removable entry in the "Manage yields" box (issue #3629) — a **Yield**
- *  or a remembered **Auto-order**. The remove control is a real `<button>`
+/** One removable entry in the "Manage yields" box (issue #3629) — a **Yield**,
+ *  a remembered **Auto-order** or an **Auto-answer** (issue #9863). The remove control is a real `<button>`
  *  sized to `--control-h`, so it clears the touch-target floor on a coarse
  *  pointer the same way the stack row's yield toggle does. */
 export default function ManageYieldsRow({
