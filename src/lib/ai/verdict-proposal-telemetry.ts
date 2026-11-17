@@ -16,6 +16,7 @@
 // best-effort: a throw from the SDK never reaches the game-end path.
 
 import * as Sentry from "@sentry/react";
+import type { VerdictJudgeRuntime } from "@convex/verdictJudge";
 import type { BrainOutcome } from "./brain-request";
 import type { VerdictProposalList } from "./verdict-proposals";
 
@@ -29,12 +30,19 @@ export type JudgeOutcome = BrainOutcome | "server-rejected" | "server-error";
 export type JudgeOutcomeTally = Partial<Record<JudgeOutcome, number>>;
 
 /** The server judge's measurements, one entry per ANSWERED consult: the
- *  server's own search time and the client's round trip of the same call
- *  (their difference is cold start + module load + network). */
+ *  server's own search time, the client's round trip of the same call
+ *  (their difference is cold start + module load + network), and the Convex
+ *  runtime the search ran in (issue #10024) — the server's choice, per game. */
 export type JudgeTimings = {
     serverMs: number[];
     roundTripMs: number[];
+    runtimes: VerdictJudgeRuntime[];
 };
+
+/** `judge.runtime` when a game's answers mixed runtimes — never expected (the
+ *  server routes a whole game to one), but its numbers then belong to
+ *  neither runtime and must not be read as either. */
+export const MIXED_JUDGE_RUNTIME = "mixed";
 
 /** The structured attributes of one report — flat primitives, the shape
  *  Sentry log attributes accept. */
@@ -92,8 +100,10 @@ function summarise(
 }
 
 /** The attributes of a finished sample: its counts, the consult outcomes
- *  (`judge.<outcome>` per outcome seen) and the server judge's measurements
- *  (p50 / max over the game's answered consults). */
+ *  (`judge.<outcome>` per outcome seen), the server judge's measurements
+ *  (p50 / max over the game's answered consults) and the runtime they were
+ *  measured in (`judge.runtime`, issue #10024), so default-runtime and Node
+ *  numbers are never read together. */
 export function proposalCountsReport(
     gameId: string,
     list: Pick<
@@ -116,6 +126,10 @@ export function proposalCountsReport(
     if (timings) {
         summarise(report, "judge.serverMs", timings.serverMs, 0);
         summarise(report, "judge.roundTripMs", timings.roundTripMs, 0);
+        const runtimes = new Set(timings.runtimes);
+        if (runtimes.size === 1) report["judge.runtime"] = [...runtimes][0];
+        else if (runtimes.size > 1)
+            report["judge.runtime"] = MIXED_JUDGE_RUNTIME;
     }
     return report;
 }

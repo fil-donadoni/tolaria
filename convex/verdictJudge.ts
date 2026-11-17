@@ -8,9 +8,18 @@
 // budget and seed, so the answer is the same on every machine and never
 // depends on the player's device.
 //
-// THE DEFAULT RUNTIME, not Node. The engine and the card catalogue are already
-// in the default runtime's bundle (every game mutation runs them); a Node entry
-// would ship them a second time. Its per-call memory ceiling is 64 MiB.
+// TWO RUNTIMES, chosen per game by the server (issue #10024). The public
+// action always runs in the default runtime, where the guard is called; the
+// search then runs either here or in the Node-runtime twin
+// (`convex/verdictJudgeNode.ts`), by `verdictJudgeRuntime(gameId)` — a pure
+// function of the game id the client has no argument to move. Node is a
+// MEASUREMENT (ADR 0183 § Reopening this record: is a server search faster
+// than a desktop browser?), and the answer names the runtime it ran in, so
+// the counts line never mixes the two runtimes' numbers. The Node entry ships
+// the engine and the card catalogue a second time — the one exception ADR
+// 0113's Node seam admits (`scripts/__tests__/convex-node-bundle-seam.test.ts`).
+//
+// The default runtime's per-call memory ceiling is 64 MiB.
 // Measured locally on 2026-11-13 (Node, the 56 searched blade `must`
 // positions, at 400 and at 1320 iterations): every search completes with V8's
 // old space capped at 64 MB, and the process dies at 40 MB — the need sits
@@ -22,9 +31,12 @@
 // Order is load-bearing. The payload and `knowledge` bounds are checked first
 // (a rejected payload costs no counter), then the guard
 // (`verdictJudgeGuard.claimJudgeConsult`) authorizes and counts the call — a
-// rejection throws before any search runs. A search FAILURE is not thrown: it
-// comes back as `search-error`, so a bad position costs that one decision and
-// the client's review goes on.
+// rejection throws before any search runs, in either runtime. A search FAILURE
+// is not thrown: it comes back as `search-error`, so a bad position costs that
+// one decision and the client's review goes on. In Node that includes the
+// Node action itself failing (out of memory, a cold start that dies): the
+// default-runtime caller catches it — which the default runtime cannot do for
+// its own isolate — and answers `search-error` naming the runtime.
 //
 // It times itself with `Date.now()` (the search is handed the same clock), for
 // the pilot's numbers: the server's own search time, returned beside the move.
@@ -46,7 +58,8 @@ export type VerdictJudgeOutcome = Extract<
     "move" | "no-move" | "search-error"
 >;
 
-export const verdictJudgeResultValidator = v.object({
+/** One search's answer, in whichever runtime it ran. */
+const verdictJudgeSearchFields = {
     // The engine's `Move` union — returned to the caller as-is, never stored
     // or trusted: the client compares it with the player's own move.
     move: v.union(v.any(), v.null()),
@@ -56,10 +69,58 @@ export const verdictJudgeResultValidator = v.object({
         v.literal("search-error")
     ),
     message: v.optional(v.string()),
-    /** The server's own wall time of the search, ms. */
+    /** The server's own wall time of the search, ms — measured in the
+     *  runtime that searched, so a Node answer's excludes the hop to it. */
     searchMs: v.number(),
+};
+export const verdictJudgeSearchValidator = v.object(verdictJudgeSearchFields);
+export type VerdictJudgeSearchResult = Infer<
+    typeof verdictJudgeSearchValidator
+>;
+
+export const verdictJudgeRuntimeValidator = v.union(
+    v.literal("default"),
+    v.literal("node")
+);
+/** The Convex runtime a judge search ran in (issue #10024). */
+export type VerdictJudgeRuntime = Infer<typeof verdictJudgeRuntimeValidator>;
+
+export const verdictJudgeResultValidator = v.object({
+    ...verdictJudgeSearchFields,
+    runtime: verdictJudgeRuntimeValidator,
 });
 export type VerdictJudgeResult = Infer<typeof verdictJudgeResultValidator>;
+
+/** The share of games whose judge searches in the Node runtime (issue
+ *  #10024): half, so both runtimes are measured over the same days and the
+ *  same kind of positions. 0 retires the Node twin's traffic without a
+ *  client change. */
+export const VERDICT_JUDGE_NODE_SHARE = 0.5;
+
+/**
+ * The runtime a game's judge searches in: a pure function of the game id
+ * (FNV-1a, 32 bit, finalized, as a fraction of 2^32) against `nodeShare`. Server-side by
+ * construction — no argument of the action can move it — and stable, so every
+ * consult of one game end runs in the same runtime.
+ */
+export function verdictJudgeRuntime(
+    gameId: string,
+    nodeShare: number = VERDICT_JUDGE_NODE_SHARE
+): VerdictJudgeRuntime {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < gameId.length; i++) {
+        h ^= gameId.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+    }
+    // Murmur3's finalizer: FNV alone leaves ids that differ in their last
+    // character close together in the high bits this fraction reads.
+    h ^= h >>> 16;
+    h = Math.imul(h, 0x85ebca6b);
+    h ^= h >>> 13;
+    h = Math.imul(h, 0xc2b2ae35);
+    h ^= h >>> 16;
+    return (h >>> 0) / 2 ** 32 < nodeShare ? "node" : "default";
+}
 
 export type VerdictJudgeInput = {
     state: PublicGameState;
@@ -118,7 +179,7 @@ export function assertJudgePayload(args: JudgePositionArgs): void {
 export function runVerdictJudge(
     input: VerdictJudgeInput,
     search?: typeof searchWithTrace
-): VerdictJudgeResult {
+): VerdictJudgeSearchResult {
     // `Date.now()`, never `performance.now()`: the default runtime is not
     // guaranteed to provide `performance`, and the search's own clock (its
     // default is `performance.now()`) is handed the same function.
@@ -164,8 +225,9 @@ export function runVerdictJudge(
     };
 }
 
-export const judgePositionArgs = {
-    gameId: v.id("games"),
+/** What one search needs — the public action's arguments without the game,
+ *  and the Node twin's arguments as they are. */
+export const judgeSearchArgs = {
     // The seat's own `PublicGameState` as `getPublicState` served it and
     // the client kept it: a large, deeply nested projection whose exact
     // shape is the engine's (`gameProjections.ts`), not a schema. It was
@@ -184,17 +246,24 @@ export const judgePositionArgs = {
     iterations: v.number(),
     seed: v.number(),
 };
+
+export const judgePositionArgs = {
+    gameId: v.id("games"),
+    ...judgeSearchArgs,
+};
 export const judgePositionArgsValidator = v.object(judgePositionArgs);
 export type JudgePositionArgs = Infer<typeof judgePositionArgsValidator>;
 
 /**
  * The action's body: the payload bounds, then the guard, which authorizes
  * and counts the call (it throws, and nothing is searched, on a rejection),
- * then the search at the budget the guard clamped. `search` is the handler's injection seam, so a
- * test can observe whether — and at what budget — a search ran.
+ * then the search at the budget the guard clamped, in the game's runtime
+ * (`verdictJudgeRuntime`). `search` is the handler's injection seam for the
+ * in-process search, so a test can observe whether — and at what budget — a
+ * search ran; the Node search is observed at `ctx.runAction`'s arguments.
  */
 export async function judgeOnePosition(
-    ctx: Pick<ActionCtx, "runMutation">,
+    ctx: Pick<ActionCtx, "runMutation" | "runAction">,
     args: JudgePositionArgs,
     search?: typeof searchWithTrace
 ): Promise<VerdictJudgeResult> {
@@ -211,16 +280,40 @@ export async function judgeOnePosition(
             seed: args.seed,
         }
     );
-    return runVerdictJudge(
-        {
-            state: args.state as PublicGameState,
-            botId: args.botId,
-            knowledge: args.knowledge,
-            iterations,
-            seed: args.seed,
-        },
-        search
-    );
+    const input = {
+        state: args.state as PublicGameState,
+        botId: args.botId,
+        knowledge: args.knowledge,
+        iterations,
+        seed: args.seed,
+    };
+    if (verdictJudgeRuntime(args.gameId) === "default") {
+        return { ...runVerdictJudge(input, search), runtime: "default" };
+    }
+    return { ...(await searchInNode(ctx, input)), runtime: "node" };
+}
+
+/** The search in the Node twin. Its failure is this one decision's
+ *  `search-error`, never a throw: the default runtime cannot catch its own
+ *  isolate dying, but it can catch the Node action's. */
+async function searchInNode(
+    ctx: Pick<ActionCtx, "runAction">,
+    input: Omit<VerdictJudgeInput, "state"> & { state: PublicGameState }
+): Promise<VerdictJudgeSearchResult> {
+    const start = Date.now();
+    try {
+        return await ctx.runAction(
+            internal.verdictJudgeNode.searchPosition,
+            input
+        );
+    } catch (cause: unknown) {
+        return {
+            move: null,
+            outcome: "search-error",
+            message: `The Node judge failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+            searchMs: Date.now() - start,
+        };
+    }
 }
 
 /**

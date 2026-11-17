@@ -4,6 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+    MIXED_JUDGE_RUNTIME,
     proposalCountsReport,
     reportNoDecisionCaptured,
     reportProposalCounts,
@@ -79,6 +80,7 @@ describe("verdict proposal telemetry (issue #8732)", () => {
             {
                 serverMs: [900, 300.4, 1200],
                 roundTripMs: [1500.6, 450, 2600],
+                runtimes: ["default", "default", "default"],
             }
         );
         expect(report).toEqual({
@@ -94,7 +96,46 @@ describe("verdict proposal telemetry (issue #8732)", () => {
             "judge.serverMs.max": 1200,
             "judge.roundTripMs.p50": 1501,
             "judge.roundTripMs.max": 2600,
+            "judge.runtime": "default",
         });
+    });
+
+    it("names the runtime the answers were measured in, so default and Node numbers never mix (issue #10024)", () => {
+        const counts = {
+            proposals: [],
+            captured: 2,
+            unidentified: 0,
+            unjudged: 0,
+        };
+        const timings = (runtimes: ("default" | "node")[]) => ({
+            serverMs: runtimes.map(() => 100),
+            roundTripMs: runtimes.map(() => 200),
+            runtimes,
+        });
+        expect(
+            proposalCountsReport(
+                "g1",
+                counts,
+                { move: 2 },
+                timings(["node", "node"])
+            )["judge.runtime"]
+        ).toBe("node");
+        expect(
+            proposalCountsReport(
+                "g1",
+                counts,
+                { move: 2 },
+                timings(["node", "default"])
+            )["judge.runtime"]
+        ).toBe(MIXED_JUDGE_RUNTIME);
+        expect(
+            proposalCountsReport(
+                "g1",
+                counts,
+                { "server-error": 2 },
+                timings([])
+            )
+        ).not.toHaveProperty("judge.runtime");
     });
 
     it("an even sample's p50 is its lower middle value (nearest rank)", () => {
@@ -105,6 +146,7 @@ describe("verdict proposal telemetry (issue #8732)", () => {
             {
                 serverMs: [400, 100],
                 roundTripMs: [700, 900],
+                runtimes: ["node", "node"],
             }
         );
         expect(report["judge.serverMs.p50"]).toBe(100);
@@ -116,7 +158,7 @@ describe("verdict proposal telemetry (issue #8732)", () => {
             "g1",
             { proposals: [], captured: 3, unidentified: 0, unjudged: 3 },
             { "server-error": 3 },
-            { serverMs: [], roundTripMs: [] }
+            { serverMs: [], roundTripMs: [], runtimes: [] }
         );
         expect(Object.keys(report).filter((k) => /Ms/.test(k))).toEqual([]);
     });
