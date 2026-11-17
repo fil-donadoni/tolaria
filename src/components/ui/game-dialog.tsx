@@ -66,10 +66,13 @@ type GameDialogProps = {
 // unlayered `:focus-visible` outline then traced that invisible box (issue
 // #9819). The cap is the play area (`100vw - --right-piles-w`, 0px off-board) so
 // a wide body never overflows the left edge.
-const PLAY_AREA_W = "100vw-var(--right-piles-w,0px)-2rem";
+// Class strings are written out LITERALLY: Tailwind scans source text, so a
+// class assembled from a template literal is never generated (the cap silently
+// vanished and panels overflowed the viewport).
 const sizeClasses: Record<GameDialogSize, string> = {
-    default: `w-max max-w-[min(28rem,calc(${PLAY_AREA_W}))]`,
-    wide: `w-max max-w-[min(90vw,calc(${PLAY_AREA_W}))]`,
+    default:
+        "w-max max-w-[min(28rem,calc(100vw-var(--right-piles-w,0px)-2rem))]",
+    wide: "w-max max-w-[min(90vw,calc(100vw-var(--right-piles-w,0px)-2rem))]",
 };
 
 /**

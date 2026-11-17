@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import GameDialog from "../game-dialog";
@@ -420,6 +422,23 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
             expect(tokens).toContain("w-max");
             expect(tokens.some((t) => t.startsWith("w-[calc("))).toBe(false);
             expect(popup.querySelector('[data-slot="panel"]')).toBeTruthy();
+        });
+
+        // Tailwind scans SOURCE TEXT: a cap assembled from a template literal
+        // is never generated, the Popup grows to its content and the panel
+        // overflows the viewport (check:ui, 390px). Pin the literal in source.
+        it("writes the Popup width cap as a literal class Tailwind can scan", () => {
+            const src = readFileSync(
+                resolve(__dirname, "../game-dialog.tsx"),
+                "utf8"
+            );
+            expect(src).toContain(
+                '"w-max max-w-[min(28rem,calc(100vw-var(--right-piles-w,0px)-2rem))]"'
+            );
+            expect(src).toContain(
+                '"w-max max-w-[min(90vw,calc(100vw-var(--right-piles-w,0px)-2rem))]"'
+            );
+            expect(src).not.toMatch(/max-w-\[[^"]*\$\{/);
         });
 
         it("suppresses the Popup's own outline inline, beating the global rule", () => {
