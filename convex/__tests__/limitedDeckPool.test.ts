@@ -11,10 +11,12 @@ import type { MutationCtx } from "../_generated/server";
 import { resolveDeckCardMeta } from "../cards";
 import {
     create,
+    deleteUnrecoverableLimitedDecks,
     getDeckPool,
     listMine,
     migrateDeckPools,
     remove,
+    reportUnrecoverableLimitedDecks,
     update,
 } from "../userDecks";
 import {
@@ -237,5 +239,67 @@ describe("migrateDeckPools — one-shot backfill (ADR 0106 §8)", () => {
             unrecoverable: ["deck-gone"],
         });
         expect(tables.limitedDeckPools).toHaveLength(1);
+    });
+});
+
+describe("deleteUnrecoverableLimitedDecks — HITL cleanup (issue #2819)", () => {
+    const legacy = (id: string, eventId: string) => ({
+        _id: id,
+        _creationTime: Date.UTC(2026, 9, 1),
+        userId: ALICE,
+        ...limitedDeck(eventId),
+    });
+    const fixture = () =>
+        makeInMemoryDb({
+            limitedEvents: [sealedEvent("event-live")],
+            limitedSeats: [seatRow("event-live", [POOL_BOLT, POOL_BOLT])],
+            limitedDeckPools: [],
+            userDecks: [
+                legacy("deck-live", "event-live"),
+                legacy("deck-gone", "event-gone"),
+                { _id: "deck-constructed", userId: ALICE, format: "freeform" },
+            ],
+        });
+
+    it("reports only the unrecoverable deck, with what a human confirms", async () => {
+        const { ctx } = fixture();
+        const rows = await run(reportUnrecoverableLimitedDecks, ctx, {});
+        expect(rows).toEqual([
+            expect.objectContaining({
+                deckId: "deck-gone",
+                name: "Sealed LEA",
+                limitedEventId: "event-gone",
+                cardCount: 41,
+            }),
+        ]);
+    });
+
+    it("deletes only a confirmed unrecoverable deck; recoverable and non-limited ids are skipped", async () => {
+        const { ctx, tables } = fixture();
+        const result = await run(deleteUnrecoverableLimitedDecks, ctx, {
+            deckIds: ["deck-gone", "deck-live", "deck-constructed"],
+        });
+        expect(result).toEqual({
+            deleted: ["deck-gone"],
+            skipped: ["deck-live", "deck-constructed"],
+        });
+        expect(tables.userDecks.map((r) => r._id).sort()).toEqual([
+            "deck-constructed",
+            "deck-live",
+        ]);
+    });
+
+    it("re-classifies at call time: a deck that gained a Deck Pool is no longer deleted", async () => {
+        const { ctx, tables } = fixture();
+        tables.limitedDeckPools.push({
+            _id: "pool-gone",
+            deckId: "deck-gone",
+            pool: [POOL_BOLT],
+        });
+        const result = await run(deleteUnrecoverableLimitedDecks, ctx, {
+            deckIds: ["deck-gone"],
+        });
+        expect(result).toEqual({ deleted: [], skipped: ["deck-gone"] });
+        expect(tables.userDecks.map((r) => r._id)).toContain("deck-gone");
     });
 });
