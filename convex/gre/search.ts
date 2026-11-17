@@ -208,6 +208,7 @@ import {
     beamTriggerTargetsByValue,
     pruneDominatedTriggerTargets,
 } from "./ai/targetDominance";
+import { isDominatedTaxDecline } from "./ai/taxDominance";
 import {
     beginDominanceDecision,
     endDominanceDecision,
@@ -560,6 +561,11 @@ export type Node = {
      *  Decided ONCE, on the node's first visit, like `dominatedTargetKeys`.
      *  `undefined` until then. */
     opposingGateArmKeys?: ReadonlySet<string>;
+    /** Tree key of the dominated tax decline this `may-pay` node never
+     *  explores (issue #9832, `withoutDominatedTaxDeclines`), or `null` when
+     *  none is. Decided ONCE, on the node's first visit, like
+     *  `dominatedTargetKeys`. `undefined` until then. */
+    dominatedTaxDeclineKey?: string | null;
 };
 
 function newNode(): Node {
@@ -2236,11 +2242,18 @@ export function policyProbeState(
     // The depth the move's own announcement sits on — everything below it
     // belongs to somebody else. -1 when the move put nothing on the stack.
     let announcedDepth = -1;
+    // The stack id of the move's own announcement when it is the item the
+    // probe resolves (the top), else `undefined` — a cast trigger above it
+    // (CR 603.3) is resolved instead, and that suspension is not the cast's.
+    let resolvedAnnouncementId: string | undefined;
     if (
         (move.kind === "cast-spell" || move.kind === "activate-ability") &&
         probe.stack.length > 0
     ) {
         announcedDepth = announcementDepth(probe, move);
+        if (announcedDepth === probe.stack.length - 1) {
+            resolvedAnnouncementId = probe.stack[announcedDepth].id;
+        }
         resolveTopOfStack(probe);
         // CR 704.3 (issue #5784) — a completed resolution is followed by the
         // SBA check before anyone gets priority; lethal damage (CR 704.5g)
@@ -2299,6 +2312,62 @@ export function policyProbeState(
             // announcement, and settling it would price this move against a
             // board the move did not cause.
             suspendedDepth,
+            undefined,
+            true
+        );
+    } else if (
+        moverId &&
+        announcedDepth > 0 &&
+        resolvedAnnouncementId !== undefined &&
+        suspendedItemId === resolvedAnnouncementId &&
+        probe.pendingChoices?.[0]?.playerId !== moverId
+    ) {
+        // Issue #9832 — a response suspended on the OPPONENT's answer: the
+        // move's own announcement, cast or activated on top of somebody
+        // else's (CR 117.7), raised a choice its opponent owns — the
+        // "unless its controller pays" of a tax counter (CR 118.12a, the
+        // `mayPay` Op). Stopping there scored the suspended state, where the
+        // spell underneath had neither resolved nor been countered, so a
+        // payable tax read exactly as a hard counter. The opponent answers
+        // adversarially (`answerOpponent`, issue #4896: paying when it can,
+        // since a resolved spell is worse for the mover than a countered
+        // one), and the settle drains the stack to the bottom, as the `pass`
+        // it is compared against does: the paid-for spell resolves, the
+        // countered one is gone. A mover-owned suspension keeps the
+        // isolation rule above — its answer is the mover's own and may
+        // depend on the spell below resolving.
+        settled = settleStackForBreakdown(
+            probe,
+            moverId,
+            weights,
+            0,
+            { left: MAX_CHOICE_BRANCH_WORK },
+            0,
+            undefined,
+            true
+        );
+    } else if (
+        moverId &&
+        move.kind === "may-pay" &&
+        probe.stack.length > 0 &&
+        !probe.pendingTarget
+    ) {
+        // Issue #9832 — the PAYER's half of the same tax: answering a
+        // `may-pay` resumes the resolution that asked (CR 608.2), and with a
+        // spell still underneath, accept and decline differ in exactly one
+        // thing — whether that spell survives to resolve. Scored as it
+        // stands, the spell sits on the stack in both branches (on the
+        // battlefield in neither), so the paying branch read as the cost
+        // alone and the rollout's payer always declined, which is what
+        // kept a payable tax counter's mean above `pass`. Both branches
+        // drain the same stack, so the comparison stays like for like.
+        settled = settleStackForBreakdown(
+            probe,
+            moverId,
+            weights,
+            0,
+            { left: MAX_CHOICE_BRANCH_WORK },
+            0,
             undefined,
             true
         );
@@ -2993,6 +3062,39 @@ function withoutDominatedTriggerTargets(
  *  (lethal, a trigger the mover's side wins) stays explored, and the root
  *  weighs every move. Memoized on `node`, decided on its first world; never
  *  emptying. */
+/** `keyed` without a `may-pay` node's dominated decline (issue #9832,
+ *  `ai/taxDominance.ts`): declining loses the payer's own spell and an
+ *  affordable mana-only accept keeps it, so the node stops exploring the
+ *  decline whose visits the mean backup credited to the tax counter that
+ *  raised it. Memoized on `node`, decided on its first world; never
+ *  emptying. Tree only, below the root. */
+function withoutDominatedTaxDeclines(
+    node: Node,
+    world: GameState,
+    pid: string,
+    keyed: KeyedMove[]
+): KeyedMove[] {
+    if (world.pendingChoices?.[0]?.kind !== "may-pay") return keyed;
+    if (node.dominatedTaxDeclineKey === undefined) {
+        const decline = keyed.find(
+            (k) => k.move.kind === "may-pay" && !k.move.accept
+        );
+        node.dominatedTaxDeclineKey =
+            decline &&
+            isDominatedTaxDecline(
+                world,
+                keyed.map((k) => k.move),
+                (probe, move) => applyMoveInSearch(probe, pid, move)
+            )
+                ? decline.key
+                : null;
+    }
+    const denied = node.dominatedTaxDeclineKey;
+    if (denied === null) return keyed;
+    const kept = keyed.filter((k) => k.key !== denied);
+    return kept.length > 0 ? kept : keyed;
+}
+
 function withoutOpposingGateArms(
     node: Node,
     world: GameState,
@@ -3997,6 +4099,7 @@ function iterate(
         );
         if (depth > 0) {
             keyed = withoutOpposingGateArms(node, world, pid, keyed, weights);
+            keyed = withoutDominatedTaxDeclines(node, world, pid, keyed);
         }
         // Deny-set, never an allow-set, and never emptying: a world-specific
         // move the root enumeration never saw stays available, and `pass` is

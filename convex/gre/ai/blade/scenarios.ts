@@ -31238,4 +31238,233 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #10084. From the main phase, combat damage is five steps away, so a win in this turn's combat sits on this turn's floor, 0.5 of the won band's height; a win on the opponent's turn sat at 0.5 × 0.7 = 0.35, so the two were at most 0.25 × 0.15 ≈ 0.038 apart — inside `outcomeEps` for every win — and `material-tiebreak` took the counter on 5/5 seeds. `WIN_TURN_DECAY` 0.5 puts the opponent's turn at 0.25 of the height: decline on 5/5.",
     },
+    // --- Tax counters into a payable tax (issue #9832) -----------------------
+    // "Counter target spell unless its controller pays {N}" (CR 118.12a) is a
+    // counter only when the payer cannot pay. The payer's `may-pay` node used
+    // to explore the decline, and its mean backup credited the cast with every
+    // visit the payer spent letting its own spell be countered.
+    {
+        label: "tax counter: holds Daze when the opponent can pay {1}",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "mana",
+                detail: "the opponent's last Plains tapped",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Island", owner: "opp", zone: "battlefield" },
+                { name: "Daze", owner: "opp", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "me",
+            turn: 6,
+            priority: "opp",
+            passCount: 1,
+            landsPlayed: { me: 1 },
+            libraryCount: 20,
+            // The opponent cast Serra Angel with one Plains left open and passed.
+            stack: [{ kind: "spell", name: "Serra Angel", controller: "me" }],
+        },
+        bot: "opp",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Daze" }],
+        },
+        note: "Issue #9832. The opponent pays Daze's {1} with its open Plains, and the Bot loses a card and returns its Island for nothing. Proof of failure: before the fix every seed cast Daze (`mean-reward`, cast 0.31 against pass 0.27): the 1-ply probe stopped on the opponent's `may-pay` with Serra Angel still on the stack and read the tax as a hard counter, and the payer's tree node spent a third of its visits on the decline. `withoutDominatedTaxDeclines` (`ai/taxDominance.ts`) drops the dominated decline; `policyProbeState` settles the response through the opponent's answer. Mirror: the entry below.",
+    },
+    {
+        label: "tax counter: casts Daze into a tapped-out opponent",
+        pairOf: {
+            anchor: "tax counter: holds Daze when the opponent can pay {1}",
+            discriminant: {
+                kind: "mana",
+                detail: "the opponent's last Plains tapped",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Island", owner: "opp", zone: "battlefield" },
+                { name: "Daze", owner: "opp", zone: "hand" },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "me",
+            turn: 6,
+            priority: "opp",
+            passCount: 1,
+            landsPlayed: { me: 1 },
+            libraryCount: 20,
+            // The opponent tapped out for Serra Angel and passed.
+            stack: [{ kind: "spell", name: "Serra Angel", controller: "me" }],
+        },
+        bot: "opp",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Daze" }],
+        },
+        note: "Issue #9832, the discriminating twin: with every Plains tapped the opponent cannot pay {1} (no accept is offered), so Daze is a hard counter and the hold above must never become a mute button.",
+    },
+    {
+        label: "tax counter: holds Mana Leak when the opponent can pay {3}",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "mana",
+                detail: "the opponent holds two open Plains instead of three",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Island", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield" },
+                { name: "Mana Leak", owner: "opp", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "me",
+            turn: 6,
+            priority: "opp",
+            passCount: 1,
+            landsPlayed: { me: 1 },
+            libraryCount: 20,
+            // The opponent cast Serra Angel with three Plains left open and passed.
+            stack: [{ kind: "spell", name: "Serra Angel", controller: "me" }],
+        },
+        bot: "opp",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Mana Leak" }],
+        },
+        note: "Issue #9832, the second tax counter: the shape, not the card. Three open Plains pay Mana Leak's {3}. Proof of failure: before the fix every seed cast Mana Leak (`mean-reward`, cast 0.34 against pass 0.28). Mirror: the entry below.",
+    },
+    {
+        label: "tax counter: casts Mana Leak when the opponent cannot pay {3}",
+        pairOf: {
+            anchor: "tax counter: holds Mana Leak when the opponent can pay {3}",
+            discriminant: {
+                kind: "mana",
+                detail: "the opponent holds two open Plains instead of three",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Island", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield" },
+                { name: "Mana Leak", owner: "opp", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "me",
+            turn: 6,
+            priority: "opp",
+            passCount: 1,
+            landsPlayed: { me: 1 },
+            libraryCount: 20,
+            // The opponent cast Serra Angel with two Plains left open and passed.
+            stack: [{ kind: "spell", name: "Serra Angel", controller: "me" }],
+        },
+        bot: "opp",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Mana Leak" }],
+        },
+        note: "Issue #9832, the discriminating twin: two open Plains cannot pay {3}, so Mana Leak is a hard counter.",
+    },
 ];
