@@ -20,6 +20,14 @@
 //   - new own keys on `globalThis` → none
 //   - `process.env`          → what it was when the file started
 //
+// Web Storage is RESET, not asserted: a preference a component persists
+// (`localStorage`) outlives its file in a shared worker, and the next file's
+// component reads it back — a leftover "Split creatures" turned
+// `deck-zone-surface.test.tsx`'s whole ladder into another layout, red only
+// when the scheduler put the two in one worker. Writing storage is how an app
+// remembers, not a mistake, so every file starts from empty storage instead
+// of every writer owing a cleanup.
+//
 // This setup runs before every file (after `vitest.setup.ts`), so the
 // snapshots are per file. RTL's `cleanup` runs in `vitest.setup.ts`'s
 // `afterEach`, before this `afterAll`, so a clean file has an empty body here.
@@ -27,6 +35,11 @@ import { afterAll, beforeAll } from "vitest";
 import { scrubGitRepoEnv } from "./scripts/lib/git-repo-env";
 
 scrubGitRepoEnv();
+
+// Runs per file, before the file's imports: a module-level storage read sees
+// the same empty storage an isolated `dom` file starts with.
+window.localStorage.clear();
+window.sessionStorage.clear();
 
 type Listener = EventListenerOrEventListenerObject;
 interface Registration {
