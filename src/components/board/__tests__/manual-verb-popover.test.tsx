@@ -11,7 +11,7 @@
 // is exactly where base-ui portals the popup — so `rendered.getByText` etc.
 // reach it with no extra `within()` wiring, mirroring
 // `basic-land-tile-art.test.tsx`.
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, fireEvent, renderHook, act } from "@testing-library/react";
 import ManualVerbPopover from "../manual-verb-popover";
 import { useManualVerbPopoverState } from "~/hooks/useManualVerbPopover";
@@ -20,8 +20,16 @@ import type { ManualVerbRequest } from "~/lib/manual-runtime";
 function anchorEl(): Element {
     const el = document.createElement("div");
     document.body.appendChild(el);
+    anchors.push(el);
     return el;
 }
+
+// `anchorEl` parks bare divs on the shared body (dom-shared, issue #10106):
+// remove exactly those, never RTL's own containers (it unmounts them).
+const anchors: Element[] = [];
+afterEach(() => {
+    anchors.splice(0).forEach((el) => el.remove());
+});
 
 describe("ManualVerbPopover (#2170)", () => {
     it("renders nothing while no verb is pending", () => {

@@ -149,6 +149,16 @@ import {
 /** The whole node project, as its two fixed partitions (ADR 0136 §5). */
 export const NODE_PARTITIONS = "--project node-engine --project node-tooling";
 
+/** The `--project` flags selecting one planned project. `dom` is two vitest
+ *  projects (`dom` + `dom-shared`, issue #10106): the reach index labels a
+ *  file `dom`, the classifier alone decides which of the two holds it, and a
+ *  file named under the wrong one matches nothing. */
+export function projectFlag(project: string): string {
+    return project === "dom"
+        ? "--project dom --project dom-shared"
+        : `--project ${project}`;
+}
+
 /**
  * The tests a diff reaches through the import graph (ADR 0154 §2, issue
  * #5464) — see `lib/test-reach.ts` for what the walk sees and what it cannot,
@@ -1435,7 +1445,7 @@ function appendScanGuards(
     if (guards.length === 0) return;
     run.push({
         id: SCAN_GUARDS_STEP,
-        command: `bunx vitest run ${NODE_PARTITIONS} --project dom ${guards.map((g) => shellQuote(g.file)).join(" ")}`,
+        command: `bunx vitest run ${NODE_PARTITIONS} ${projectFlag("dom")} ${guards.map((g) => shellQuote(g.file)).join(" ")}`,
     });
 }
 
@@ -1567,7 +1577,7 @@ function plannedSentinels(
                 : [
                       {
                           id: SENTINEL_STEP,
-                          command: `bunx vitest run ${projects.map((p) => `--project ${p}`).join(" ")} ${runs.map((x) => shellQuote(x.file)).join(" ")}`,
+                          command: `bunx vitest run ${projects.map(projectFlag).join(" ")} ${runs.map((x) => shellQuote(x.file)).join(" ")}`,
                       },
                   ],
         skip,
@@ -1690,7 +1700,7 @@ function pushRelated(
         const named = projects.filter((p) =>
             chunk.some((f) => f.project === p)
         );
-        const projectFlags = named.map((p) => `--project ${p}`).join(" ");
+        const projectFlags = named.map(projectFlag).join(" ");
         run.push({
             id:
                 chunks.length === 1
