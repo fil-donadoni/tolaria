@@ -15,7 +15,7 @@ import {
 } from "@convex/formats";
 import {
     DEFAULT_DIFFICULTY,
-    DIFFICULTIES,
+    isOfferedDifficulty,
     type Difficulty,
 } from "@convex/gre/difficulty";
 import {
@@ -323,7 +323,7 @@ export function stepInfo(
             const bot = s.opponent === "bot";
             return {
                 key,
-                title: bot ? "Bot deck & difficulty" : "Second seat deck",
+                title: bot ? "Bot deck" : "Second seat deck",
                 answer:
                     deckName &&
                     (bot
@@ -558,7 +558,10 @@ export function parseSetup(raw: string | null): MatchSetup {
             typeof o.opponentDeckChosen === "boolean"
                 ? o.opponentDeckChosen
                 : EMPTY_SETUP.opponentDeckChosen,
-        difficulty: oneOf(o.difficulty, DIFFICULTIES) ?? DEFAULT_DIFFICULTY,
+        // A level switched off (issue #10113) reads as the default.
+        difficulty: isOfferedDifficulty(o.difficulty)
+            ? o.difficulty
+            : DEFAULT_DIFFICULTY,
         joinTableId: stringOrNull(o.joinTableId),
         joinTableFormat: formatOrNull(o.joinTableFormat),
         joinCode: null,

@@ -1,7 +1,7 @@
 import type { Id } from "@convex/_generated/dataModel";
 import {
     DEFAULT_DIFFICULTY,
-    DIFFICULTIES,
+    isOfferedDifficulty,
     type Difficulty,
 } from "@convex/gre/difficulty";
 import { isFormatId, type FormatId } from "@convex/formatAdmission";
@@ -51,17 +51,15 @@ export function clearDeckPresetId() {
 }
 
 /** vs-AI difficulty (issue #114). Persisted so the next game defaults to the
- *  last choice; falls back to the default preset when unset or stale. */
+ *  last choice; falls back to the default preset when unset, stale, or a level
+ *  switched off (issue #10113). */
 export function getStoredDifficulty(): Difficulty {
     const stored = localStorage.getItem(DIFFICULTY_KEY);
-    // Checked against the live list, not a hand-maintained union member by
-    // member — a hard-coded `"medium" | "hard"` here is exactly how
+    // Checked against the live offered set, not a hand-maintained union member
+    // by member — a hard-coded `"medium" | "hard"` here is exactly how
     // issue #2790's `expert` almost fell back to the default silently despite
     // being a perfectly valid stored value.
-    if (stored && (DIFFICULTIES as readonly string[]).includes(stored)) {
-        return stored as Difficulty;
-    }
-    return DEFAULT_DIFFICULTY;
+    return isOfferedDifficulty(stored) ? stored : DEFAULT_DIFFICULTY;
 }
 
 export function storeDifficulty(difficulty: Difficulty) {

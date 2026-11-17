@@ -811,7 +811,7 @@ What a seat's decklist could still be hiding: the whole list minus every copy al
 _Avoid_: Remaining deck, unknown cards, the rest of the library
 
 **Difficulty**:
-How much thinking the **Bot** is allowed before moving, and how much **Deck Knowledge** of the opponent it may hold (today every preset knows the opponent's list). A stronger **Bot** is the same **Brain** given a larger search budget, not different logic.
+How much thinking the **Bot** is allowed before moving, and how much **Deck Knowledge** of the opponent it may hold (today every preset knows the opponent's list). A stronger **Bot** is the same **Brain** given a larger search budget, not different logic. For now only `expert` is played: the lower presets are switched off and no surface offers a choice (issue #10113).
 _Avoid_: Level, skill setting
 
 **DecisionTrace**:
@@ -1182,7 +1182,7 @@ An owner's statement about one issue's band that no rule computed: a `## Band` l
 _Avoid_: Override (it does not override an umbrella), fiat (the retired name of the source), manual priority
 
 **Bot**:
-The engine-driven opponent a player can face in a Match. "Bot" in every user-facing label (Play vs Bot, Bot deck, Bot difficulty), never "AI": the word sets the expectation of a search-and-evaluation player, not a conversational one (grilled 2026-10-09).
+The engine-driven opponent a player can face in a Match. "Bot" in every user-facing label (Play vs Bot, Bot deck, Bots: Expert), never "AI": the word sets the expectation of a search-and-evaluation player, not a conversational one (grilled 2026-10-09).
 _Avoid_: AI, vs AI, CPU (in UI copy)
 
 **Bot Finding**:

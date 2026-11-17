@@ -1,9 +1,10 @@
-// Step 5 — the Bot's deck and difficulty, or the second seat's deck in Solo
-// (PRD #5334 stories 36–39, issue #5341). Same grid as step 4, with Mirror
-// always offered — and preselected when nothing is stored (`EMPTY_SETUP`).
+// Step 5 — the Bot's deck, or the second seat's deck in Solo (PRD #5334
+// stories 36–39, issue #5341). Same grid as step 4, with Mirror always offered
+// — and preselected when nothing is stored (`EMPTY_SETUP`). No difficulty: the
+// Bot plays `expert` (issue #10113).
 import type { LobbyDeck } from "~/lib/deckTypes";
+import { BOT_KNOWS_DECKLIST_LINE } from "~/lib/difficultyLabels";
 import { effectiveMatchFormat, type MatchSetup } from "~/lib/matchSetup";
-import DifficultySelector from "../difficulty-selector";
 import DeckGrid from "./deck-grid";
 
 export default function OpponentDeckStep({
@@ -23,10 +24,9 @@ export default function OpponentDeckStep({
     return (
         <div className="flex flex-col gap-4">
             {setup.opponent === "bot" && (
-                <DifficultySelector
-                    value={setup.difficulty}
-                    onChange={(difficulty) => onChange({ difficulty })}
-                />
+                <span className="text-[11px] text-text-muted">
+                    {BOT_KNOWS_DECKLIST_LINE}
+                </span>
             )}
             <DeckGrid
                 decks={decks}

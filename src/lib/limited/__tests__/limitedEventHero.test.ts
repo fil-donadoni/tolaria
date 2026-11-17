@@ -212,12 +212,14 @@ describe("limitedEventChips", () => {
         "type" | "seatCount" | "gamesFormat" | "botDifficulty" | "timerEnabled"
     >;
 
+    // `base` is stored at `medium`, a level switched off (issue #10113): the
+    // chip names the level the Bots PLAY at.
     it("lists type · Pack Source, Games Format, seats, Bot difficulty and the timer", () => {
         expect(limitedEventChips(base, "Vintage Cube")).toEqual([
             "Draft · Vintage Cube",
             "Best of 3",
             "8 seats",
-            "Bots: Medium",
+            "Bots: Expert",
             "Pick timer on",
         ]);
     });
@@ -228,7 +230,7 @@ describe("limitedEventChips", () => {
                 { ...base, type: "sealed", gamesFormat: "bo1" },
                 undefined
             )
-        ).toEqual(["Sealed", "Best of 1", "8 seats", "Bots: Medium"]);
+        ).toEqual(["Sealed", "Best of 1", "8 seats", "Bots: Expert"]);
     });
 });
 
