@@ -7,6 +7,7 @@ import {
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import {
     internalMutation,
+    internalQuery,
     type MutationCtx,
     mutation,
     type QueryCtx,
@@ -724,5 +725,77 @@ export const migrateDeckPools = internalMutation({
             present: plan.present.length,
             unrecoverable: plan.unrecoverable,
         };
+    },
+});
+
+/** Every `limited` deck that owns no Deck Pool and whose Seat Pool no longer
+ *  resolves — read fresh from the deployment, the single source both the
+ *  report and the deletion below classify from (issue #2819). */
+async function loadUnrecoverableLimitedDecks(ctx: QueryCtx) {
+    const rows = (await ctx.db.query("userDecks").collect()).filter(
+        (row) => row.format === "limited"
+    );
+    const plan = planDeckPoolBackfill(
+        await Promise.all(
+            rows.map(async (row) => {
+                const hasDeckPool = (await loadDeckPool(ctx, row._id)) !== null;
+                const seatPool = hasDeckPool
+                    ? null
+                    : await loadSeatPoolForDeck(ctx, row);
+                return { deckId: row._id, hasDeckPool, seatPool };
+            })
+        )
+    );
+    const unrecoverable = new Set(plan.unrecoverable);
+    return rows.filter((row) => unrecoverable.has(row._id));
+}
+
+/**
+ * Read-only (issue #2819): the Limited decks whose Pool is unrecoverable, with
+ * what a human needs to confirm each one — name, creation date, dangling event
+ * id, card count. Re-read on every call; never a hardcoded list.
+ */
+export const reportUnrecoverableLimitedDecks = internalQuery({
+    args: {},
+    handler: async (ctx) =>
+        (await loadUnrecoverableLimitedDecks(ctx)).map((row) => ({
+            deckId: row._id,
+            name: row.name,
+            createdAt: new Date(row._creationTime).toISOString(),
+            limitedEventId: row.limitedEventId ?? null,
+            cardCount: row.cards.length + (row.sideboard?.length ?? 0),
+        })),
+});
+
+/**
+ * Irreversible (issue #2819): deletes the human-confirmed `deckIds`, each with
+ * its companion rows (Deck Pool). Every id is RE-CLASSIFIED at call time — one
+ * that is no longer unrecoverable (a Pool appeared, the row is gone) is
+ * skipped and reported, never deleted. Run only after `reportUnrecoverableLimitedDecks`
+ * rows were shown to and confirmed by a human.
+ */
+export const deleteUnrecoverableLimitedDecks = internalMutation({
+    args: { deckIds: v.array(v.string()) },
+    returns: v.object({
+        deleted: v.array(v.string()),
+        skipped: v.array(v.string()),
+    }),
+    handler: async (ctx, args) => {
+        const unrecoverable = new Set<string>(
+            (await loadUnrecoverableLimitedDecks(ctx)).map((row) => row._id)
+        );
+        const deleted: string[] = [];
+        const skipped: string[] = [];
+        for (const deckId of new Set(args.deckIds)) {
+            const id = ctx.db.normalizeId("userDecks", deckId);
+            if (!id || !unrecoverable.has(id)) {
+                skipped.push(deckId);
+                continue;
+            }
+            await ctx.db.delete(id);
+            await deleteDeckPool(ctx, id);
+            deleted.push(deckId);
+        }
+        return { deleted, skipped };
     },
 });
