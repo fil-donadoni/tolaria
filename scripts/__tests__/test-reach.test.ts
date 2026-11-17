@@ -322,10 +322,23 @@ describe("test-reach — the mirror equals vitest.config.ts (issue #5464 review)
             const p = config.test!.projects!.find(
                 (x) => x.test?.name === name
             )!;
-            const files = globSync(p.test!.include!, {
-                cwd: ROOT,
-                ignore: p.test!.exclude ?? [],
-            }).sort();
+            const projectFiles = (x: Project) =>
+                globSync(x.test!.include!, {
+                    cwd: ROOT,
+                    ignore: x.test!.exclude ?? [],
+                });
+            // The index labels both halves of the DOM side `dom`
+            // (`projectFlag` names the two projects, issue #10106).
+            const files = [
+                ...projectFiles(p),
+                ...(name === "dom"
+                    ? projectFiles(
+                          config.test!.projects!.find(
+                              (x) => x.test?.name === "dom-shared"
+                          )!
+                      )
+                    : []),
+            ].sort();
             const mirrored = [...mirror]
                 .filter(([, proj]) => proj === (name as RelatedProject))
                 .map(([f]) => f)

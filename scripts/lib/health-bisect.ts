@@ -331,6 +331,7 @@ export const SHARED_WORKER_PROJECTS: readonly string[] = [
     "node-engine",
     "node-tooling",
     "bot-node",
+    "dom-shared",
 ];
 
 /** The `- **projects:**` line of a published body (`buildEvidence`). */
