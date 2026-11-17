@@ -31204,4 +31204,38 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9696, CR 702.138a. Ornithopter, a land and an instant already cover four card types: the escape exiles three cards and leaves the rest of the graveyard to grow the Nethergoyf.",
     },
+    {
+        // MUST. An as-enters choice whose one branch is an attack-now lethal
+        // (issue #10084). Riot (CR 702.136a) offers a +1/+1 counter or haste;
+        // the opponent is at 2 with no blockers, so the hasty 2/2 attacks for
+        // lethal this turn. Both libraries are empty, so the counter ALSO
+        // wins — the opponent decks at their draw (CR 704.5b) — which makes
+        // this a win now against a win on the opponent's turn.
+        label: "as-enters choice: takes the haste when attacking now is lethal",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 0,
+            life: { me: 20, opp: 2 },
+            cards: [
+                { name: "Zhur-Taa Goblin", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+            ],
+        },
+        bot: "me",
+        setup: [
+            { kind: "cast", card: "Zhur-Taa Goblin" },
+            { kind: "resolve-top" },
+        ],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", option: "decline" }],
+        },
+        note: "Issue #10084. From the main phase, combat damage is five steps away, so a win in this turn's combat sits on this turn's floor, 0.5 of the won band's height; a win on the opponent's turn sat at 0.5 × 0.7 = 0.35, so the two were at most 0.25 × 0.15 ≈ 0.038 apart — inside `outcomeEps` for every win — and `material-tiebreak` took the counter on 5/5 seeds. `WIN_TURN_DECAY` 0.5 puts the opponent's turn at 0.25 of the height: decline on 5/5.",
+    },
 ];

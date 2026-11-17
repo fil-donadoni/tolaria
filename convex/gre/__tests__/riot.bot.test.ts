@@ -68,12 +68,10 @@ describe("Riot (CR 702.136a), Bot choice surface", () => {
         });
     });
 
-    // Skipped, tracked-by: #10084. This was green only through the clone
-    // aliasing bug issue #10026 fixed (worlds wrote counters AND haste into
-    // the caller's shared staged card). The corrected search reads decline
-    // and accept within `outcomeEps` at 400 iterations, and the material
-    // tie-break takes the counter.
-    it.skip("takes the haste when attacking now is lethal", () => {
+    // Both libraries are empty, so accepting the counter still wins when the
+    // opponent decks at their draw: this pins a win in this turn's combat
+    // against a win on the opponent's turn (issue #10084, `WIN_TURN_DECAY`).
+    it("takes the haste when attacking now is lethal", () => {
         withTemporaryDefinition(RIOTER, () => {
             const state = atThePrompt({ phase: "PRECOMBAT_MAIN" }, 1);
             const move = search(state, "p1", { iterations: 400 }, 1);
