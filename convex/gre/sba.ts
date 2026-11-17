@@ -5,7 +5,7 @@ import {
     withGraveyardArrivalBatch,
 } from "./graveyardOrder";
 import { copyExceptName } from "../cards/cardNames";
-import { copiableSupertypesOf } from "../cards/snowReads";
+import { hasCopiableSupertype } from "../cards/snowReads";
 import { findPermanent } from "./lookup";
 import type { CardInstanceState, GameState } from "./state";
 import {
@@ -383,12 +383,17 @@ function findOnBattlefield(
 
 /** CR 704.5d — a token in any zone other than the battlefield ceases to
  *  exist. The token briefly enters the destination zone (so death triggers
- *  see it leave the battlefield), then this SBA wipes it away. */
+ *  see it leave the battlefield), then this SBA wipes it away.
+ *
+ *  A zone holding no token is left as it is, not rebuilt (issue #10025): the
+ *  sweep runs this at every check over both libraries, and a zone with a
+ *  token in it is the rare case. */
 export function checkTokenExistenceSBA(state: GameState): boolean {
     let removed = false;
     for (const player of state.players) {
         for (const zone of ["graveyard", "exile", "hand", "library"] as const) {
             const list = player[zone];
+            if (!list.some((c) => c.isToken)) continue;
             const kept = list.filter((c) => !c.isToken);
             if (kept.length !== list.length) {
                 player[zone] = kept;
@@ -756,9 +761,7 @@ function permanentDefinition(card: CardInstanceState) {
  *  instance; a Clone copying a Legendary creature reads Legendary here, and so
  *  does a copy whose "except" clause made it legendary (CR 707.9b). */
 function isLegendaryPermanent(card: CardInstanceState): boolean {
-    return copiableSupertypesOf(permanentDefinition(card), card).includes(
-        "Legendary"
-    );
+    return hasCopiableSupertype(permanentDefinition(card), card, "Legendary");
 }
 
 /** The name the legend rule groups on (CR 704.5j keys off name). Read from the
@@ -786,10 +789,19 @@ export function checkLegendRuleSBA(state: GameState): boolean {
     // A pending choice already freezes the game; don't stack another.
     if ((state.pendingChoices?.length ?? 0) > 0) return false;
     for (const player of state.players) {
-        // Group this controller's legendary permanents by name.
-        const byName = new Map<string, string[]>();
+        // CR 704.5j needs TWO legendary permanents under one controller: a
+        // player with fewer has no group to form, so the grouping below is
+        // never built for them (issue #10025 — the sweep runs this at every
+        // check, and most boards hold at most one legend per side).
+        let legends: CardInstanceState[] | null = null;
         for (const card of player.battlefield) {
             if (!isLegendaryPermanent(card)) continue;
+            (legends ??= []).push(card);
+        }
+        if (legends === null || legends.length < 2) continue;
+        // Group this controller's legendary permanents by name.
+        const byName = new Map<string, string[]>();
+        for (const card of legends) {
             const name = legendName(card);
             if (name === undefined) continue;
             const ids = byName.get(name) ?? [];
@@ -920,9 +932,7 @@ export function finalizeGraveyardArrangement(
  *  Read from the (possibly copied) card definition, mirroring the Legendary
  *  check, so a Clone copying a World permanent reads World here. */
 function isWorldPermanent(card: CardInstanceState): boolean {
-    return copiableSupertypesOf(permanentDefinition(card), card).includes(
-        "World"
-    );
+    return hasCopiableSupertype(permanentDefinition(card), card, "World");
 }
 
 /** Every World permanent across both players' battlefields (CR 704.5k — the
@@ -956,6 +966,8 @@ function allWorldPermanents(state: GameState): CardInstanceState[] {
  *  per CR 704.3 until no SBA applies). */
 export function checkWorldRuleSBA(state: GameState): boolean {
     const worlds = allWorldPermanents(state);
+    // No World permanent: nothing to stamp, nothing to compare.
+    if (worlds.length === 0) return false;
     // Stamp any newly-arrived world permanent. Every world permanent that is
     // currently unstamped is part of the same arrival event from this sweep's
     // point of view, so they all share one freshly-allocated seq (the tie).

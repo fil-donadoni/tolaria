@@ -52,6 +52,22 @@ export function copiableSupertypesOf(
     ];
 }
 
+/** {@link copiableSupertypesOf}`(def, card).includes(supertype)` without
+ *  building the list: the printed supertypes or the copy effect's clause
+ *  (CR 205.4a, 707.9b). The state-based action sweep asks it of every
+ *  permanent at every check (CR 704.5j, 704.5k, issue #10025), so it
+ *  allocates nothing. */
+export function hasCopiableSupertype(
+    def: { supertypes?: readonly string[] } | null | undefined,
+    card: Pick<SupertypeView, "faceDown" | "copyExcept">,
+    supertype: string
+): boolean {
+    return (
+        (def?.supertypes?.includes(supertype) ?? false) ||
+        copyExceptSupertypes(card).includes(supertype)
+    );
+}
+
 /** Layer-1 supertypes of a permanent (CR 205.4a): an embedded `supertypes` on
  *  the (copied / tokenized) card reference wins over the injected registry
  *  lookup; a copy effect's clause joins either (CR 707.9b). */
