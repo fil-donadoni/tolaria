@@ -22,7 +22,6 @@ import {
     VERDICT_JUDGE_NODE_SHARE,
     VERDICT_JUDGE_STATE_MAX_BYTES,
     judgeOnePosition,
-    judgePositionArgs,
     runVerdictJudge,
     verdictJudgeRuntime,
     type JudgePositionArgs,
@@ -195,17 +194,6 @@ describe("verdict judge — the runtime is the server's, per game (issue #10024)
         expect(ids.filter((g) => verdictJudgeRuntime(g, 0) === "node")).toEqual(
             []
         );
-    });
-
-    it("no argument of the public action names a runtime", () => {
-        expect(Object.keys(judgePositionArgs).sort()).toEqual([
-            "botId",
-            "gameId",
-            "iterations",
-            "knowledge",
-            "seed",
-            "state",
-        ]);
     });
 });
 

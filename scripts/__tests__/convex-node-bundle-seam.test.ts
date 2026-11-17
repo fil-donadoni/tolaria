@@ -41,8 +41,8 @@ import {
  * (25,187,201 -> 36,643,172 B; zipped 7,294,813 -> 10,941,718 B), measured
  * 2026-11-17, approved by the owner in the issue's PR. The cut is pinned for
  * every OTHER `"use node"` module; the exception list is pinned exactly, and
- * reds when its module is gone (PRD issue #10017: the Node judge is removed if
- * it does not pass the reopening test) so the exception cannot outlive it.
+ * reds when its module is gone (the Node judge is removed if it does not pass
+ * the reopening test) so the exception cannot outlive it.
  */
 
 const CONVEX_DIR = resolve(__dirname, "../../convex");

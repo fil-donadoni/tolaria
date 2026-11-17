@@ -237,13 +237,11 @@ export const CONVEX_USER_MODULE_BUDGET = 3072;
  * inlined TWICE — once into the shared isolate chunk, once into the
  * `"use node"` graph esbuild bundles separately. Issue #3444 cut the second
  * copy (the LLM scenario generator reached the card registry by import; it
- * now reaches it by `ctx.runQuery`). A `"use node"` module that imports the
- * registry makes this number wrong by 2x AGAIN, in the dangerous direction —
- * which is why `scripts/__tests__/convex-node-bundle-seam.test.ts` guards the
- * cut by cause and by effect rather than trusting the budget alone. ONE such
- * module is admitted today: `convex/verdictJudgeNode.ts` (issue #10024, the
- * judge's search measured in Node), so while it lives a packed row costs the
- * push about TWICE this number.
+ * now reaches it by `ctx.runQuery`). If a future `"use node"` module imports
+ * the registry again this number is wrong by 2x AGAIN, in the dangerous
+ * direction — which is why `scripts/__tests__/convex-node-bundle-seam.test.ts`
+ * guards the cut by cause and by effect rather than trusting the budget
+ * alone.
  *
  * Re-measuring it: substitute the packed corpus FILE (not an esbuild plugin
  * alone — the whole push is measured), measure, restore. The packed file is

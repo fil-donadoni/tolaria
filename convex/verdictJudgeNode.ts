@@ -19,14 +19,14 @@
 // `verdictJudgeRuntime` routes to Node. No client can reach this action, and
 // none can choose it.
 //
-// THE NODE SEAM'S ONE EXCEPTION (ADR 0113 § Amendment, issue #3444). Convex
+// THE NODE SEAM'S ONE EXCEPTION (ADR 0113 Amendment VIII). Convex
 // bundles `"use node"` modules in a separate esbuild graph, so this file ships
 // the engine and the compiled card catalogue a SECOND time in the pushed
 // bundle. That is the price of the measurement, approved by the owner with
 // the bundle-size delta in the PR (issue #10024), and
 // `scripts/__tests__/convex-node-bundle-seam.test.ts` admits exactly this
 // module. If Node does not pass the reopening test, this file is deleted
-// (PRD issue #10017 § Node judge) and the exception with it.
+// (the parent PRD's § Node judge) and the exception with it.
 //
 // Node's per-call memory is 512 MiB, against the default runtime's 64 MiB.
 
