@@ -110,7 +110,8 @@ that needs a DOM but carries no isolation marker (`vi.mock`, `vi.doMock`,
 detector (`vitest.setup.dom-leaks.ts`) that asserts after every file that
 `document.body`/`head`, the window/document listeners, `setInterval` timers,
 `globalThis` and `process.env` are back at their defaults — a leak reds AT the
-leaking file. A file that grows a marker returns to `dom` by itself. Measured at
+leaking file; `localStorage`/`sessionStorage` are cleared at every file's start
+instead (a persisted preference is how an app remembers, not a leak). A file that grows a marker returns to `dom` by itself. Measured at
 sha 713841e9d on 166 files, 2 workers: 216 CPU-s isolated, 35 CPU-s shared
 (without the frozen catalogue one file went red). The `isolate: false` mock
 guard (`isolation-off-mock-boundary.test.ts`, #5020) covers the project;
