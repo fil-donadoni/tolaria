@@ -61,33 +61,53 @@ export const SHARED_KEYS: ReadonlySet<string> = new Set([
     "baseStaticAbilities",
 ]);
 
-/** Whether the value under `key` is shared by reference: a definition ref
- *  under `card` (never an instance — see above), a list under the others. */
-function isShared(key: string, value: unknown): boolean {
-    if (!SHARED_KEYS.has(key)) return false;
-    if (value === null || typeof value !== "object") return true;
-    return key === "card" ? !("card" in value) : Array.isArray(value);
+/** Whether the OBJECT value under `key` is shared by reference: a definition
+ *  ref under `card` (never an instance — see above), a list under the others.
+ *  A `switch` on the literal keys, not `SHARED_KEYS.has`: this runs once per
+ *  object-valued key of every clone, and V8 compiles the switch to a string
+ *  compare chain with no hash lookup. `clone.test.ts` pins that the two agree. */
+function isShared(key: string, value: object): boolean {
+    switch (key) {
+        case "card":
+            return !("card" in value);
+        case "types":
+        case "subtypes":
+        case "staticAbilities":
+        case "baseTypes":
+        case "baseSubtypes":
+        case "baseStaticAbilities":
+            return Array.isArray(value);
+        default:
+            return false;
+    }
 }
 
-function cloneValue<T>(value: T): T {
-    if (value === null || typeof value !== "object") return value;
-
+// Measured on V8 against the blade `must` positions (issue #10026): `for…in`
+// over these objects is twice as slow as `Object.keys` (JavaScriptCore is the
+// other way round; the Brain runs mostly on V8), and testing for a primitive
+// BEFORE recursing saves a call per primitive field — most of an instance's.
+function cloneValue(value: object): object {
     if (Array.isArray(value)) {
         const out = new Array(value.length);
-        for (let i = 0; i < value.length; i++) out[i] = cloneValue(value[i]);
-        return out as unknown as T;
+        for (let i = 0; i < value.length; i++) {
+            const v: unknown = value[i];
+            out[i] = v === null || typeof v !== "object" ? v : cloneValue(v);
+        }
+        return out;
     }
 
-    // A GameState is plain data (JSON-shaped, no prototypes beyond Object), so
-    // `for…in` walks exactly its own keys — without the per-object key array
-    // `Object.keys` would allocate.
     const source = value as Record<string, unknown>;
     const out: Record<string, unknown> = {};
-    for (const key in source) {
+    const keys = Object.keys(source);
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
         const v = source[key];
-        out[key] = isShared(key, v) ? v : cloneValue(v);
+        out[key] =
+            v === null || typeof v !== "object" || isShared(key, v)
+                ? v
+                : cloneValue(v);
     }
-    return out as unknown as T;
+    return out;
 }
 
 /** Structural-sharing deep clone of a GameState for AI search. Deep-copies all
@@ -95,5 +115,5 @@ function cloneValue<T>(value: T): T {
  *  reference.
  *  Applying a move to the result never mutates the original. */
 export function cloneGameState(state: GameState): GameState {
-    return cloneValue(state);
+    return cloneValue(state) as GameState;
 }

@@ -82,6 +82,19 @@ describe("cloneGameState (structural sharing, issue #108)", () => {
         expect(staged.zone).toBe("stack");
     });
 
+    it("shares exactly the lists named in SHARED_KEYS, and copies a list under any other key", () => {
+        const lists = [...SHARED_KEYS].filter((k) => k !== "card");
+        const holder = Object.fromEntries(
+            [...lists, "colors", "counters"].map((k) => [k, ["x"]])
+        );
+        const clone = cloneGameState(
+            holder as unknown as GameState
+        ) as unknown as Record<string, unknown>;
+        for (const key of lists) expect(clone[key], key).toBe(holder[key]);
+        expect(clone.colors).not.toBe(holder.colors);
+        expect(clone.counters).not.toBe(holder.counters);
+    });
+
     it("mutating the clone in place never reaches the original", () => {
         const state = representativeState();
         const clone = cloneGameState(state);
