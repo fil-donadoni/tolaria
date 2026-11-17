@@ -27,6 +27,7 @@ import {
     YieldPrefsContext,
     useYieldPrefsState,
 } from "~/hooks/useYieldPreferences";
+import { usePendingChoicePrimaryAction } from "~/hooks/usePendingChoicePrimaryAction";
 
 const submitCalls: { playerId: string; accept: boolean }[] = [];
 let rejectSubmits = false;
@@ -105,6 +106,16 @@ const noopMinimized = {
     restore: () => {},
 };
 
+/** What the Space hotkey reads (`useControllerActions` → this hook). */
+function SpaceProbe() {
+    const primary = usePendingChoicePrimaryAction();
+    return (
+        <div
+            data-space-confirm={primary ? String(primary.canConfirm) : "none"}
+        />
+    );
+}
+
 function Board({
     current,
     viewer = "p1",
@@ -141,6 +152,7 @@ function Board({
                                 gameId={"g1" as never}
                             />
                         )}
+                        <SpaceProbe />
                         <div data-home="panel">
                             <ClearYieldsButton />
                             <ManageYieldsButton />
@@ -319,5 +331,25 @@ describe("Auto-answer — Manage yields and Clear all yields (issue #9863 §5)",
         rerender(<Board current={firing({ instance: "n2" })} />);
         await flush();
         expect(promptShown()).toBe(true);
+    });
+});
+
+describe("Auto-answer — the Space hotkey never answers twice (issue #9863 review)", () => {
+    it("Space confirms an unremembered prompt, and is inert once the answer is remembered or auto-submitting", async () => {
+        const { rerender } = render(
+            <Board current={firing({ instance: "n1" })} />
+        );
+        const space = () =>
+            $("[data-space-confirm]")?.getAttribute("data-space-confirm");
+        expect(space()).toBe("true");
+        rejectSubmits = true;
+        await turnOn("skip");
+        // The toggle's submit was refused: the prompt is back, but the
+        // choice is still covered by the rule just recorded.
+        expect(space()).toBe("false");
+        rejectSubmits = false;
+        await next(rerender, { instance: "n2" });
+        expect(promptShown()).toBe(false);
+        expect(space()).toBe("false");
     });
 });

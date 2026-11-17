@@ -221,13 +221,13 @@ export default function PendingChoicePrompt({
     // the buffer is empty.
     const submitLabel = min === 0 && selected === 0 ? "Skip" : "Done";
 
+    // The remembered answer is on its way to the server: nothing to ask.
+    if (optionalAnswer.autoAnswering) return null;
+
     // Random-reveal (CR 705 / ADR 0023): an engine-drawn outcome with NO
     // decision — route to the center-screen reveal overlay (coin animation,
     // auto-acknowledge on landing) instead of the buttons. Both clients render
     // it; only the chooser's client acks.
-    // The remembered answer is on its way to the server: nothing to ask.
-    if (optionalAnswer.autoAnswering) return null;
-
     if (choice.kind === "random-reveal") {
         return (
             <RandomRevealOverlay

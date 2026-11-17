@@ -1,4 +1,4 @@
-import type { StackItem } from "~/types/game";
+import type { PendingChoice, StackItem } from "~/types/game";
 import { stackAbilityKindOf, type StackAbilityKind } from "~/lib/card-utils";
 import { isFaceDownCard } from "~/lib/face-down";
 import {
@@ -560,6 +560,47 @@ export function clearSeatOptionalAnswers(
 ): OptionalAnswerState {
     if (seatOptionalAnswers(state, seatId).length === 0) return state;
     return { ...state, [seatId]: [] };
+}
+
+/** Where one `may-pay` prompt stands for a seat: its identity (or `null`),
+ *  whether "Always yes" is offered, and the remembered answer that applies to
+ *  it right now (or `null`). THE single read the prompt's toggles, its
+ *  auto-submit and the Space hotkey's primary action share, so a choice the
+ *  client is auto-answering is never also confirmed by hand. */
+export type OptionalPromptStatus = {
+    identity: OptionalPromptIdentity | null;
+    offerYes: boolean;
+    applicable: OptionalAnswer | null;
+};
+
+const NO_OPTIONAL_PROMPT: OptionalPromptStatus = {
+    identity: null,
+    offerYes: false,
+    applicable: null,
+};
+
+export function optionalPromptStatus(
+    choice: PendingChoice,
+    seatId: string,
+    stackItems: readonly StackItem[],
+    entries: readonly RememberedOptionalAnswer[]
+): OptionalPromptStatus {
+    if (choice.kind !== "may-pay" || choice.playerId !== seatId)
+        return NO_OPTIONAL_PROMPT;
+    const item = stackItems.find((s) => s.id === choice.stackItemId);
+    const identity = item ? optionalPromptIdentity(item, choice) : null;
+    if (!identity) return NO_OPTIONAL_PROMPT;
+    // "Always yes" only when accepting needs no further input: no cost (mana,
+    // life, sacrifice, discard, return) and no pick — nothing paid unattended.
+    const offerYes = !choice.cost && !choice.zone;
+    const remembered = rememberedOptionalAnswerFor(entries, identity);
+    // A remembered "yes" applies only while accepting still needs no input: a
+    // prompt of the same identity that now carries a cost is shown.
+    const applicable =
+        remembered === "skip" || (remembered === "yes" && offerYes)
+            ? remembered
+            : null;
+    return { identity, offerYes, applicable };
 }
 
 export function countOptionalAnswers(

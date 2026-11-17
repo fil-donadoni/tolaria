@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -6,8 +6,7 @@ import type { PendingChoice } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useSeatYields } from "~/hooks/useYieldPreferences";
 import {
-    optionalPromptIdentity,
-    rememberedOptionalAnswerFor,
+    optionalPromptStatus,
     type OptionalAnswer,
     type OptionalPromptIdentity,
 } from "~/lib/yields";
@@ -31,12 +30,6 @@ export type OptionalAnswerControl = {
     answerAlways: (answer: OptionalAnswer) => void;
 };
 
-/** True when a `may-pay` accept needs nothing beyond the click: no cost (mana,
- *  life, sacrifice, discard, return) and no permanent/card pick. */
-function acceptNeedsNoInput(choice: PendingChoice): boolean {
-    return !choice.cost && !choice.zone;
-}
-
 /** **Auto-answer** (issue #9863) for the optional-action (`may-pay`) prompt:
  *  the identity, the two toggles' availability, and the auto-submit.
  *
@@ -52,34 +45,13 @@ export function useOptionalAnswer(
     const { stackItems } = useGameContext();
     const seat = useSeatYields();
     const submitMayPay = useMutation(api.game.submitMayPay);
-    const isOwnMayPay =
-        choice.kind === "may-pay" && choice.playerId === playerId;
-    const item = isOwnMayPay
-        ? stackItems.find((s) => s.id === choice.stackItemId)
-        : undefined;
-    const identity = useMemo(
-        () =>
-            item
-                ? optionalPromptIdentity(item, {
-                      step: choice.step,
-                      choiceId: choice.choiceId,
-                  })
-                : null,
-        [item, choice.step, choice.choiceId]
+    const { identity, offerYes, applicable } = optionalPromptStatus(
+        choice,
+        playerId,
+        stackItems ?? [],
+        seat.optionalAnswers
     );
-    const offerYes = identity !== null && acceptNeedsNoInput(choice);
     const choiceKey = `${choice.stackItemId}:${choice.step}:${choice.choiceId}`;
-
-    const remembered = rememberedOptionalAnswerFor(
-        seat.optionalAnswers,
-        identity
-    );
-    // A remembered "yes" applies only while accepting still needs no input: a
-    // prompt of the same identity that now carries a cost is shown.
-    const applicable =
-        remembered === "skip" || (remembered === "yes" && offerYes)
-            ? remembered
-            : null;
 
     // The choice a toggle already answered. Recording the rule happens while
     // the choice is still in the state, so the still-mounted prompt would
