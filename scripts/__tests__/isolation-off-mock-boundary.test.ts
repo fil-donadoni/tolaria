@@ -145,7 +145,12 @@ function isolationOffFiles(): string[] {
 describe("isolation-off projects mock no module (issue #5020)", () => {
     it("reads the isolation-off projects from the configs (an empty list would pass vacuously)", () => {
         expect(isolationOff.map((p) => p.name)).toEqual(
-            expect.arrayContaining(["node-engine", "bot-node", "blade"])
+            expect.arrayContaining([
+                "node-engine",
+                "bot-node",
+                "dom-shared",
+                "blade",
+            ])
         );
     });
 

@@ -89,6 +89,7 @@ export const ROOT_CHAIN_PROJECTS: readonly string[] = [
     "node-engine",
     "node-tooling",
     "dom",
+    "dom-shared",
     "bot-node",
     "bot-dom",
 ];

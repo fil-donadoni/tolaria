@@ -754,7 +754,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
         expect(plan.run).toContainEqual({
             id: "vitest(related)",
             command:
-                "bunx vitest run --project node-engine --project dom 'convex/gre/__tests__/engine.test.ts' 'src/components/board/Card.test.tsx'",
+                "bunx vitest run --project node-engine --project dom --project dom-shared 'convex/gre/__tests__/engine.test.ts' 'src/components/board/Card.test.tsx'",
         });
         expect(ids(plan.run)).toEqual(
             expect.arrayContaining(["tsc[all]", "check:index", "cr:lint"])
@@ -783,7 +783,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
         expect(plan.run).toContainEqual({
             id: "vitest(related)",
             command:
-                "bunx vitest run --project node-engine --project dom 'convex/__tests__/game.test.ts' 'src/__tests__/app.test.tsx'",
+                "bunx vitest run --project node-engine --project dom --project dom-shared 'convex/__tests__/game.test.ts' 'src/__tests__/app.test.tsx'",
         });
     });
 
@@ -1064,7 +1064,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             );
             const cmd = plan.run.find((c) => c.id === "vitest(related)")!;
             expect(cmd.command).toBe(
-                "bunx vitest run --project dom 'src/components/board/Card.test.tsx'"
+                "bunx vitest run --project dom --project dom-shared 'src/components/board/Card.test.tsx'"
             );
         });
 
@@ -3522,7 +3522,7 @@ describe("scoped lanes admit the repo-wide scan guards by diff (issue #7012)", (
         expect(p.lane).toBe("skin");
         expect(p.run).toContainEqual({
             id: "guards(diff)",
-            command: `bunx vitest run --project node-engine --project node-tooling --project dom '${VH}'`,
+            command: `bunx vitest run --project node-engine --project node-tooling --project dom --project dom-shared '${VH}'`,
         });
         expect(p.guards).toEqual([{ file: VH, costS: 7 }]);
         expect(renderPlan(p, "abc")).toContain(`guards: ${VH} (7 s)`);
@@ -3698,7 +3698,7 @@ describe("every code lane runs the derived sentinel set (issue #7651)", () => {
         // One run, every project a sentinel is in, no env prefix: a bare
         // `bunx vitest run` is what `--retry-flaky` re-runs.
         expect(step(p, SENTINEL_STEP)).toBe(
-            `bunx vitest run --project bot-node --project dom '${RATINGS}' '${SCAN}' '${PAIRS}'`
+            `bunx vitest run --project bot-node --project dom --project dom-shared '${RATINGS}' '${SCAN}' '${PAIRS}'`
         );
         expect(p.sentinels).toEqual([
             { file: RATINGS, ms: 16 },
