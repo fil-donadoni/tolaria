@@ -263,7 +263,8 @@ message:"bot search"
 
 message:"verdict proposals"
   fields: gameId, judge.move, judge.search-error, judge.serverMs.p50,
-          judge.serverMs.max, judge.roundTripMs.p50, judge.roundTripMs.max
+          judge.serverMs.max, judge.roundTripMs.p50, judge.roundTripMs.max,
+          judge.runtime   # default | node | mixed, since issue #10024
 ```
 
 Numeric attributes are typed in the API (`tags[consults,number]`). An
