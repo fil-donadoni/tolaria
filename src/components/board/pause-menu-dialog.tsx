@@ -49,8 +49,15 @@ export default function PauseMenuDialog({
     // `PreviewGameCtx` — `GameContext`'s declared type has no such field.
     const gameCtx = useContext(GameContext) as {
         isManualGame?: boolean;
+        gameOver?: unknown;
     } | null;
     const isManualGame = gameCtx?.isManualGame === true;
+    // The outcome is settled: the Game Over dialog is the only terminal
+    // surface, so neither Concede is offered and a half-confirmed one falls
+    // back to the menu root.
+    const isGameOver = gameCtx?.gameOver != null;
+    const shownStep: Step =
+        isGameOver && step.startsWith("confirm-") ? "menu" : step;
 
     // A Bo3 keeps Concede (loses one Game) distinct from Forfeit (ends the
     // Match). A Bo1 — or a match-less legacy game — collapses to Concede only,
@@ -83,6 +90,10 @@ export default function PauseMenuDialog({
             if (isManualGame) await manualConcede({ gameId, playerId });
             else await concede({ gameId, playerId });
             handleOpenChange(false);
+        } catch {
+            // The server refused (e.g. a race with a finishing Game). Nothing
+            // to retry: recover the dialog instead of an unhandled rejection.
+            setStep("menu");
         } finally {
             setIsBusy(false);
         }
@@ -99,12 +110,14 @@ export default function PauseMenuDialog({
             clearSession();
             handleOpenChange(false);
             window.location.href = lobbyHrefForMatch(match);
+        } catch {
+            setStep("menu");
         } finally {
             setIsBusy(false);
         }
     };
 
-    if (step === "decklist" && ownDeck) {
+    if (shownStep === "decklist" && ownDeck) {
         return (
             <GameDialog
                 open={open}
@@ -130,7 +143,7 @@ export default function PauseMenuDialog({
         );
     }
 
-    if (step === "confirm-concede") {
+    if (shownStep === "confirm-concede") {
         return (
             <GameDialog
                 open={open}
@@ -164,7 +177,7 @@ export default function PauseMenuDialog({
         );
     }
 
-    if (step === "confirm-forfeit") {
+    if (shownStep === "confirm-forfeit") {
         return (
             <GameDialog
                 open={open}
@@ -234,14 +247,16 @@ export default function PauseMenuDialog({
                 >
                     Report a bug
                 </Button>
-                <Button
-                    variant="destructive"
-                    className="w-full"
-                    onClick={() => setStep("confirm-concede")}
-                >
-                    {isBo3 ? "Concede Game" : "Concede"}
-                </Button>
-                {isBo3 && match && (
+                {!isGameOver && (
+                    <Button
+                        variant="destructive"
+                        className="w-full"
+                        onClick={() => setStep("confirm-concede")}
+                    >
+                        {isBo3 ? "Concede Game" : "Concede"}
+                    </Button>
+                )}
+                {!isGameOver && isBo3 && match && (
                     <Button
                         variant="destructive"
                         className="w-full"
