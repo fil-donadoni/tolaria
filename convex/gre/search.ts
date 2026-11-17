@@ -1566,15 +1566,22 @@ const WIN_DECAY_FLOOR = 0.5;
  *  turn's combat and a win on the bot's next turn both scored half the
  *  height: a full-height win separated them by 0.25 × 0.02, far inside
  *  `outcomeEps`, and the material tie-break took the later win, richer by a
- *  draw and a land drop. Per turn, the floor is 0.5 / 0.35 / 0.245: the bot's
- *  next turn sits 0.064 below this turn's floor for a full-height win (above
- *  `outcomeEps`), and a win on the opponent's turn (the Brain Freeze decking
- *  entry) keeps 0.35 of its height, well above the tenth that lost it.
- *  Measured on the Sneak Attack entry with issue #9846's departure pricing:
- *  the activation now (0.78) against the activation next turn (0.70 at 0.7,
- *  0.71–0.74 at 1.0, where seed 4 fell to `last-window-deferral`); 0.6 moved
- *  nothing further. */
-const WIN_TURN_DECAY = 0.7;
+ *  draw and a land drop. Per turn, the floor is 0.5 / 0.25 / 0.125.
+ *
+ *  The binding pair is a win in this turn's combat (0.85⁴ ≈ 0.52 of the
+ *  height at combat damage) against a win on the OPPONENT's turn — the
+ *  opponent decking at their draw (issue #10084). At 0.7 that floor was
+ *  0.35: a full-height win separated the two by 0.25 × 0.17 ≈ 0.043, inside
+ *  `outcomeEps` for EVERY win, so a riot creature that could attack for
+ *  lethal now tied the counter that let the opponent deck, and the material
+ *  tie-break took the bigger body. At 0.5 the gap is 0.25 × 0.27 ≈ 0.068,
+ *  and the bot's next turn sits 0.094 below this turn's floor. A win on the
+ *  opponent's turn (the Brain Freeze decking entry) still keeps a quarter of
+ *  its height, above the tenth that lost it. Measured on the Sneak Attack
+ *  entry with issue #9846's departure pricing: the activation now (0.78)
+ *  against the activation next turn (0.70 at 0.7, 0.71–0.74 at 1.0, where
+ *  seed 4 fell to `last-window-deferral`). */
+const WIN_TURN_DECAY = 0.5;
 
 /** The share of a won leaf's height that survives the game time from `since`
  *  to `state`: `WIN_STEP_DECAY` per step, never below the floor of the turn

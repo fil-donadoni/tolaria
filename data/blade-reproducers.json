@@ -111,6 +111,7 @@
         "landCount": 4,
         "libraryCount": 1
     },
+    "as-enters choice: takes the haste when attacking now is lethal": null,
     "as-enters copy: casts a clone of an artifact-or-creature at four mana": {
         "cards": [
             {
