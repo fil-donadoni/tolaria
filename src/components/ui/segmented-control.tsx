@@ -30,8 +30,7 @@ type SegmentedControlProps<Value extends string> = {
  * issue #2723) are already the v4 "dark field, hairline, accent focus ring"
  * recipe every segmented control in the app paints with — but there was no
  * shared COMPONENT wrapping them: the lobby controls
- * (`games-format-selector.tsx`, `play-mode-selector.tsx`; the
- * `difficulty-selector.tsx` it also named is gone, issue #10113) hand-roll `role="radiogroup"`/`role="radio"`
+ * (`games-format-selector.tsx`, `play-mode-selector.tsx`) hand-roll `role="radiogroup"`/`role="radio"`
  * markup on `bg-accent`/`bg-surface-elevated` directly, each with click-only
  * selection and no roving tabindex. This component is the WAI-ARIA APG radio
  * group pattern (`https://www.w3.org/WAI/ARIA/apg/patterns/radio/`) on top of

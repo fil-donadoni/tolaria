@@ -95,10 +95,8 @@ describe("levels switched off play expert (issue #10113)", () => {
     });
 
     it("offers expert alone", () => {
-        expect(DIFFICULTIES.filter((d) => DIFFICULTY_OFFERED[d])).toEqual([
-            "expert",
-        ]);
-        expect(DIFFICULTY_OFFERED[DEFAULT_DIFFICULTY]).toBe(true);
+        expect(DIFFICULTIES.filter(isOfferedDifficulty)).toEqual(["expert"]);
+        expect(playedDifficulty(DEFAULT_DIFFICULTY)).toBe(DEFAULT_DIFFICULTY);
     });
 
     it.each(["medium", "hard"] as const)(
