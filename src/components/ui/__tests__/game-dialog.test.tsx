@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import GameDialog from "../game-dialog";
 
 /** Token-exact className assertion helper (issue #2666, round-2 review).
@@ -279,20 +281,22 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         expect(onOpenChange).not.toHaveBeenCalled();
     });
 
-    // QA: the popup spans ~the whole play area so the backdrop is unreachable
-    // — the popup itself emulates overlay dismissal (pile browse dialogs:
-    // graveyard / library / hand / exile).
-    it("dismisses when the click lands on the popup container itself", () => {
+    // Issue #9819: the popup is now sized to its panel, so the backdrop is
+    // reachable and base-ui's own outside-press dismissal applies (the old
+    // popup-container click emulation, issue QA pile browse, is gone).
+    it("dismisses on a backdrop press", () => {
         const onOpenChange = vi.fn();
         const { baseElement } = render(
             <GameDialog open title="Browse" onOpenChange={onOpenChange}>
                 <p>body</p>
             </GameDialog>
         );
-        const popup = baseElement.querySelector(
-            '[data-slot="dialog-content"]'
+        const overlay = baseElement.querySelector(
+            '[data-slot="dialog-overlay"]'
         )!;
-        fireEvent.click(popup);
+        fireEvent.pointerDown(overlay);
+        fireEvent.pointerUp(overlay);
+        fireEvent.click(overlay);
         expect(onOpenChange).toHaveBeenCalledWith(false);
     });
 
@@ -400,5 +404,67 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         )!;
         fireEvent.click(popup);
         expect(onOpenChange).not.toHaveBeenCalled();
+    });
+
+    // Issue #9819: the Popup used to be a transparent box as wide as the play
+    // area, and the unlayered global `:focus-visible` outline traced it.
+    describe("focus shell (issue #9819)", () => {
+        it("sizes the Popup to its panel, not to the play area", () => {
+            render(
+                <GameDialog open title="Sized">
+                    <p>body</p>
+                </GameDialog>
+            );
+            const popup = document.querySelector<HTMLElement>(
+                '[data-slot="dialog-content"]'
+            )!;
+            const tokens = classTokens(popup);
+            expect(tokens).toContain("w-max");
+            expect(tokens.some((t) => t.startsWith("w-[calc("))).toBe(false);
+            expect(popup.querySelector('[data-slot="panel"]')).toBeTruthy();
+        });
+
+        // Tailwind scans SOURCE TEXT: a cap assembled from a template literal
+        // is never generated, the Popup grows to its content and the panel
+        // overflows the viewport (check:ui, 390px). Pin the literal in source.
+        it("writes the Popup width cap as a literal class Tailwind can scan", () => {
+            const src = readFileSync(
+                resolve(__dirname, "../game-dialog.tsx"),
+                "utf8"
+            );
+            expect(src).toContain(
+                '"w-max max-w-[min(28rem,calc(100vw-var(--right-piles-w,0px)-2rem))]"'
+            );
+            expect(src).toContain(
+                '"w-max max-w-[min(90vw,calc(100vw-var(--right-piles-w,0px)-2rem))]"'
+            );
+            expect(src).not.toMatch(/max-w-\[[^"]*\$\{/);
+        });
+
+        it("suppresses the Popup's own outline inline, beating the global rule", () => {
+            render(
+                <GameDialog open title="Ring">
+                    <p>body</p>
+                </GameDialog>
+            );
+            const popup = document.querySelector<HTMLElement>(
+                '[data-slot="dialog-content"]'
+            )!;
+            expect(popup.style.outlineStyle).toBe("none");
+        });
+
+        it("opens with focus on the title, not on a button", async () => {
+            render(
+                <GameDialog open title="Open" footer={<button>Go</button>}>
+                    <button>Inner</button>
+                </GameDialog>
+            );
+            await waitFor(() =>
+                expect(
+                    (document.activeElement as HTMLElement).dataset.slot
+                ).toBe("dialog-title")
+            );
+            expect(document.activeElement!.getAttribute("tabindex")).toBe("-1");
+        });
     });
 });

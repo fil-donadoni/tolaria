@@ -157,11 +157,14 @@ describe("Manage yields box opened from the Game Menu (issue #3629)", () => {
         expect(menuTitle()).toBe(true);
 
         openFromMenu();
-        const popups = document.querySelectorAll(
-            '[data-slot="dialog-content"]'
+        // The popup is sized to its panel (issue #9819), so the backdrop is
+        // reachable: press the topmost one.
+        const overlays = document.querySelectorAll(
+            '[data-slot="dialog-overlay"]'
         );
+        const top = overlays[overlays.length - 1];
         act(() => {
-            fireEvent.click(popups[popups.length - 1]);
+            fireEvent.click(top);
         });
         expect($("[data-manage-yields-box]")).toBeNull();
         expect(menuOpenChanges).not.toContain(false);
