@@ -42,8 +42,8 @@ V8's goes, and what makes 2.0x into 4.4x?
    browser cannot be read — the remaining distance is unattributed.
 5. **Field-sized boards are the real cost, in every engine.** Two production
    late-game boards (14 and 16 permanents) cost **98 ms per iteration** in
-   Chromium on this machine and 139–160 ms in Firefox, about 22 times a median
-   blade board. Evaluation's share more than doubles (12% → 27–34%). The 12.5 ms
+   Chromium on this machine, about 22 times a median blade board, and 139–160
+   ms in Firefox. Evaluation's share more than doubles (12% → 27–34%). The 12.5 ms
    target is an engine-wide target, not a Gecko one.
 
 ## Method
@@ -174,8 +174,8 @@ round (median, then the range).
 **Verdict: on this machine the engine is worth 1.0–1.4x, not 2.0x and not
 4.4x.** A Worker costs Firefox nothing it does not cost Chromium. The release
 browser is no slower than Playwright's build. A field board costs about
-**22 times** a median blade board in both browsers (98 against 4.5 ms in
-Chromium), and it widens Firefox's ratio by 0.15–0.3.
+**22 times** a median blade board in Chromium (98 against 4.5 ms) and 26–36
+times in Firefox: it widens Firefox's ratio by 0.15–0.3.
 
 The Gecko search thread's CPU time covers 72–82% of the search's wall time in
 the profiles (§ 1's search ms against the run's wall time). The remainder is
