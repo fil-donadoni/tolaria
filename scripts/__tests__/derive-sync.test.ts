@@ -475,6 +475,33 @@ describe("the drift sweep — derive:sync plays the tip's Bot-verdict misses (AD
         );
     });
 
+    it("the replay plays on a packed catalogue — its own tip's before the sweep, the moved tip's before its misses (issue #10080)", () => {
+        // A tip whose derive commit has not landed commits a stale
+        // Definition Index; played on it, every card throws and lands a
+        // `harness-error` verdict the next tip carries as current.
+        const script = readFileSync(
+            join(import.meta.dirname, "..", "derive-sync.ts"),
+            "utf8"
+        );
+        const body = (name: string): string => {
+            const start = script.indexOf(`\nfunction ${name}(`);
+            expect(start).toBeGreaterThan(-1);
+            return script.slice(start, script.indexOf("\n}\n", start));
+        };
+        const replay = body("replayBot");
+        const firstPack = replay.indexOf("packCatalogue()");
+        expect(firstPack).toBeGreaterThan(-1);
+        expect(firstPack).toBeLessThan(replay.indexOf('"--carry-bot",'));
+        expect(firstPack).toBeLessThan(replay.indexOf('"--replay-bot"]'));
+        const move = body("moveToTip");
+        const movedPack = move.indexOf("packCatalogue()");
+        expect(movedPack).toBeGreaterThan(move.indexOf("detachAt(newTip)"));
+        expect(movedPack).toBeLessThan(move.indexOf('"--play-misses"]'));
+        expect(body("packCatalogue")).toMatch(
+            /generate\("catalogue:pack", \["scripts\/catalogue-artifact\.ts"\]\)/
+        );
+    });
+
     it("the write path plays the misses through --play-misses, never a bare compile (which would carry them)", () => {
         const script = readFileSync(
             join(import.meta.dirname, "..", "derive-sync.ts"),

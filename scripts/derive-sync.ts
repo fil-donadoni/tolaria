@@ -85,7 +85,9 @@
  * carries the committed verdicts whatever the Bot hash says, so the header's
  * Bot hash moves only here. Seconds when the header's hash is the tree's
  * (nothing pushed); else ONE whole sweep (`oracle:compile --replay-bot`,
- * 20–40 min under the heavy mutex) on this tip, then:
+ * 20–40 min under the heavy mutex) on this tip, its catalogue packed first
+ * (a tip whose derive commit has not landed would otherwise be played on a
+ * stale Definition Index), then:
  *
  *   - no card left `ready` → the derived paths plus the card index
  *     regenerated (`oracle:index` for a card the Bot unfroze, `catalogue:pack`)
@@ -601,6 +603,17 @@ function ensureCorpus(): boolean {
     return true;
 }
 
+/** `catalogue:pack` on this tree. A sweep plays every card through the
+ *  registry, which reads the hand-written Definition Index from
+ *  `data/catalogue/`; a tip whose derive commit has not landed yet (a
+ *  migration that retired a hand-written card) commits an index naming an
+ *  export the Set no longer has, and every play throws on it — recorded as
+ *  that card's `harness-error` verdict and carried as current (issue #10080).
+ *  So a sweep packs the tree it plays on first. */
+function packCatalogue(): boolean {
+    return generate("catalogue:pack", ["scripts/catalogue-artifact.ts"]);
+}
+
 /** One generator, inheriting stdio: its own lines are the log. `signal` is
  *  what the wall sends. SIGKILL takes the whole tree, seen gone before this
  *  returns (`runBounded`): killing the direct child alone left `bot:refit`'s
@@ -778,8 +791,7 @@ function write(dryRun: boolean, check = false): number {
     // housekeeping files the writer's failure (review of PR for issue #7653)
     // rather than health finding it past the grace.
     const regenerated = runRegeneration({
-        pack: () =>
-            generate("catalogue:pack", ["scripts/catalogue-artifact.ts"]),
+        pack: packCatalogue,
         catalogue: catalogueFingerprint,
         refit,
         sweep: () => driftSweep(head),
@@ -1191,7 +1203,8 @@ function moveToTip(head: string, newTip: string, swept: Lockfile): boolean {
         complain("could not restore the generated files before moving");
         return false;
     }
-    if (!detachAt(newTip)) return false;
+    // The misses below are played on the new tip's catalogue, packed.
+    if (!detachAt(newTip) || !packCatalogue()) return false;
     const ours = readLockfile();
     const { lock, carried } = overlayBranchVerdicts(base, ours, swept);
     // The header: the swept Bot hash — every carried verdict was played
@@ -1282,7 +1295,7 @@ function replayBot(dryRun: boolean): number {
     say(
         `${head.slice(0, 10)}: header Bot hash ${headerBotHash.slice(0, 19)} ≠ tree ${treeBotHash.slice(0, 19)} — replaying every \`ready\` card (${cadence.why})`
     );
-    if (!ensureCorpus()) return 1;
+    if (!ensureCorpus() || !packCatalogue()) return 1;
     // `before` is this tree's own compile with the verdicts carried, not the
     // committed rows: a tip whose derive commit has not landed yet may owe
     // state changes to the compiler or the registry, and those are not the
@@ -1373,8 +1386,7 @@ function replayBot(dryRun: boolean): number {
                 return 1;
         }
         const unpacked = catalogueFingerprint();
-        if (!generate("catalogue:pack", ["scripts/catalogue-artifact.ts"]))
-            return 1;
+        if (!packCatalogue()) return 1;
         // A replay that moved the pool (a card in or out of `ready`) refits:
         // the committed weights stay the fit of the committed catalogue
         // (issue #9915). A failed refit is put back to HEAD; the commit
