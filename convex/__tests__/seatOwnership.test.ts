@@ -308,6 +308,47 @@ describe("concede — the caller must own the seat they name (issue #1645 review
     });
 });
 
+// A Concede that lands after the Game already ended (the pause menu opened as
+// a lethal spell resolved) is a server no-op, never a thrown "Game is over".
+describe("concede on an already-finished Game (issue #9310)", () => {
+    const finishedSeeds = () => {
+        const seeds = twoPlayerSeeds("alice", "bob");
+        const row = seeds.find((s) => s._id === "gs-1")!;
+        (row.state as GameState).gameOver = {
+            winnerId: "alice",
+            loserId: "bob",
+            reason: "life",
+        };
+        return seeds;
+    };
+
+    it("resolves without throwing and leaves the stored state untouched", async () => {
+        const stub = makeCtx("bob", finishedSeeds());
+        const before = structuredClone(stub.doc("gs-1"));
+        const gameBefore = structuredClone(stub.doc("game-1"));
+
+        await runConcede(stub.ctx, {
+            gameId: "game-1" as Id<"games">,
+            playerId: "bob",
+        });
+
+        expect(stub.doc("gs-1")).toEqual(before);
+        expect(stub.doc("gs-1").seq).toBe(1);
+        expect(stub.doc("game-1")).toEqual(gameBefore);
+    });
+
+    it("still refuses a caller who does not own the seat", async () => {
+        const stub = makeCtx("bob", finishedSeeds());
+
+        await expect(
+            runConcede(stub.ctx, {
+                gameId: "game-1" as Id<"games">,
+                playerId: "alice",
+            })
+        ).rejects.toThrow(/cannot act as another player/i);
+    });
+});
+
 // ── The event-bound bot seat: a SECOND, higher gate ─────────────────────────
 //
 // `assertSeatOwnership` is the wrong tool against the solo-bot pairing, and

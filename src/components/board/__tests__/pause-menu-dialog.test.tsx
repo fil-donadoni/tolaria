@@ -384,3 +384,58 @@ describe("PauseMenuDialog battlefield grouping (issue #7429)", () => {
         expect(loadBattlefieldGrouping()).toBe("separate");
     });
 });
+
+describe("PauseMenuDialog after the Game ended (issue #9310)", () => {
+    beforeEach(() => {
+        concede.mockClear();
+        forfeitMatch.mockClear();
+    });
+
+    it("offers neither Concede nor Concede Match once the board reports game over", () => {
+        const { queryByRole } = render(
+            <GameContext
+                value={
+                    {
+                        gameOver: {
+                            winnerId: "opp",
+                            loserId: "me",
+                            reason: "life",
+                        },
+                    } as never
+                }
+            >
+                <PauseMenuDialog
+                    open
+                    onOpenChange={() => {}}
+                    gameId={gameId}
+                    playerId="me"
+                    match={bo(3)}
+                />
+            </GameContext>
+        );
+        expect(queryByRole("button", { name: "Concede Game" })).toBeNull();
+        expect(queryByRole("button", { name: "Concede Match" })).toBeNull();
+        expect(queryByRole("button", { name: "Concede" })).toBeNull();
+    });
+
+    it("catches a rejected concede, clears busy, and returns to the menu", async () => {
+        concede.mockImplementationOnce(() =>
+            Promise.reject(new Error("Game is over"))
+        );
+        const { getByRole } = render(
+            <PauseMenuDialog
+                open
+                onOpenChange={() => {}}
+                gameId={gameId}
+                playerId="me"
+                match={bo(1)}
+            />
+        );
+        fireEvent.click(getByRole("button", { name: "Concede" }));
+        fireEvent.click(getByRole("button", { name: "Yes" }));
+        await vi.waitFor(() =>
+            expect(getByRole("button", { name: "Concede" })).toBeTruthy()
+        );
+        expect(concede).toHaveBeenCalledTimes(1);
+    });
+});
