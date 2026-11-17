@@ -9,6 +9,11 @@
 // by `time` where that device would. With the `cpu` clock (process CPU time,
 // Node and Bun only) the result does not depend on how loaded the machine is;
 // the `wall` clock is the only one a browser has.
+//
+// `runField` searches a FIELD position instead (issue #10122): a production
+// game's stored row, as `field-position.mjs` pulls it, expanded here by the
+// engine's own `expandState` — the board a real late game reached, not a
+// hand-built blade one.
 
 import { bladeScenariosForTier } from "../../../../convex/gre/ai/blade/registry";
 import {
@@ -17,7 +22,12 @@ import {
     DEFAULT_BLADE_SEED,
 } from "../../../../convex/gre/ai/blade/runner";
 import { seatPlayerId } from "../../../../convex/gre/ai/blade/matcher";
-import { moveKey, searchWithTrace } from "../../../../convex/gre/search";
+import {
+    decidingPlayer,
+    moveKey,
+    searchWithTrace,
+} from "../../../../convex/gre/search";
+import { expandState } from "../../../../convex/gre/serialize";
 import { DIFFICULTY_BUDGETS } from "../../../../convex/gre/difficulty";
 
 const POSITIONS = bladeScenariosForTier("must").slice(0, 60);
@@ -35,17 +45,9 @@ function wallMs() {
     return performance.now();
 }
 
-/**
- * Search position `index` once.
- *
- * @param {number} index
- * @param {{ iterations?: number, timeMs?: number, clock?: "wall" | "cpu",
- *           scale?: number, seed?: number }} options
- */
-function run(index, options = {}) {
-    const scenario = POSITIONS[index];
-    const state = buildBladeState(scenario);
-    const botId = seatPlayerId(state, scenario.bot);
+/** Search `state` for `botId` once — the measurement both kinds of position
+ *  share. */
+function searchOnce(state, botId, deckKnowledge, seed, options) {
     const clock = options.clock === "cpu" && hasCpuClock ? cpuMs : wallMs;
     const scale = options.scale ?? 1;
     const budget = {
@@ -61,14 +63,12 @@ function run(index, options = {}) {
         state,
         botId,
         budget,
-        options.seed ?? DEFAULT_BLADE_SEED,
-        bladeDeckKnowledge(state, scenario)
+        options.seed ?? seed,
+        deckKnowledge
     );
     const wall = wallMs() - wall0;
     const cpu = cpu0 === null ? null : cpuMs() - cpu0;
     return {
-        index,
-        label: scenario.label,
         candidates: trace ? trace.candidateCount : null,
         requested: trace ? trace.iterationsRequested : null,
         completed: trace ? trace.iterationsCompleted : null,
@@ -83,10 +83,101 @@ function run(index, options = {}) {
     };
 }
 
+/**
+ * Search position `index` once.
+ *
+ * @param {number} index
+ * @param {{ iterations?: number, timeMs?: number, clock?: "wall" | "cpu",
+ *           scale?: number, seed?: number }} options
+ */
+function run(index, options = {}) {
+    const scenario = POSITIONS[index];
+    const state = buildBladeState(scenario);
+    const botId = seatPlayerId(state, scenario.bot);
+    return {
+        index,
+        label: scenario.label,
+        ...searchOnce(
+            state,
+            botId,
+            bladeDeckKnowledge(state, scenario),
+            DEFAULT_BLADE_SEED,
+            options
+        ),
+    };
+}
+
+/** The life a finished game's loser is revived at, so the search has a game
+ *  to play: a rollout that ends on the first damage is cheaper than the late
+ *  game it stands for. */
+const REVIVED_LIFE = 10;
+
+/**
+ * A field fixture's position: the stored row expanded the way the server
+ * loads it. A FINISHED game's last row is made searchable again — no outcome,
+ * the loser back at `REVIVED_LIFE`, priority to the active player with
+ * nothing passed — and every other field is the game's own.
+ */
+function fieldState(fixture) {
+    const state = expandState(
+        structuredClone(fixture.state),
+        fixture.libraries ?? undefined
+    );
+    if (state.gameOver) {
+        delete state.gameOver;
+        for (const player of state.players) {
+            if (player.life <= 0) player.life = REVIVED_LIFE;
+        }
+    }
+    state.priorityPlayerId = state.activePlayerId;
+    state.passCount = 0;
+    return state;
+}
+
+/** Expert's knowledge (`useVsAiDriver`'s `informed`): both seats' decks, read
+ *  here off every card each seat holds, since a fixture carries no decklist. */
+function fieldDeckKnowledge(state) {
+    const ZONES = ["library", "hand", "battlefield", "graveyard", "exile"];
+    return state.players.map((player) => ({
+        playerId: player.id,
+        cardIds: ZONES.flatMap((zone) =>
+            (player[zone] ?? []).map((card) => card.card.id)
+        ),
+    }));
+}
+
+/**
+ * Search a field fixture (`field-position.mjs`) once, for the seat the
+ * position owes a decision.
+ *
+ * @param {{ label: string, state: object, libraries?: object }} fixture
+ * @param {Parameters<typeof run>[1]} options
+ */
+function runField(fixture, options = {}) {
+    const state = fieldState(fixture);
+    const botId = decidingPlayer(state);
+    return {
+        index: fixture.label,
+        label: fixture.label,
+        permanents: state.players.reduce(
+            (n, player) => n + player.battlefield.length,
+            0
+        ),
+        ...searchOnce(
+            state,
+            botId,
+            fieldDeckKnowledge(state),
+            DEFAULT_BLADE_SEED,
+            options
+        ),
+    };
+}
+
 globalThis.__brainBench = {
     count: POSITIONS.length,
     labels: POSITIONS.map((s) => s.label),
     budgets: DIFFICULTY_BUDGETS,
     hasCpuClock,
     run,
+    runField,
 };

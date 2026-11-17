@@ -1,22 +1,18 @@
 // Where one search's time goes (issue #9527): a V8 CPU profile of the bundle
 // searching one position, folded into five buckets.
 //
-//   node docs/research/scripts/brain-bench/profile.mjs <bundle.js> <out.json> <index>...
+//   node docs/research/scripts/brain-bench/profile.mjs <bundle.js> <out.json> [--iterations N] <position>...
+//
+// A position is a blade index, or the path of a field fixture
+// (`field-position.mjs`, issue #10122). `profile-gecko.mjs` folds a Firefox
+// profile into the same buckets (`buckets.mjs`).
 //
 // Only the samples UNDER `searchWithTrace` count: loading the bundle and
 // building the position are not the search. Each sample goes to the INNERMOST
 // enclosing bucket function on its stack, so the buckets partition the search:
 // a clone made while enumerating moves is cloning, not enumeration.
 //
-//   clone        cloneGameState / cloneValue — copying the state
-//   determinize  determinize — sampling the hidden cards
-//   enumerate    enumerateMoves — the legal moves
-//   apply        applyMoveInSearch / applyMoveForSearch — a move through the
-//                real engine (resolution, state-based actions, triggers, layers)
-//   evaluate     evaluate — the leaf heuristic
-//   gc           the garbage collector. V8 reports it outside any stack, so
-//                this is the whole run's collection, charged to the search
-//   other        the search loop itself and everything not named above
+// The buckets and their meaning: `buckets.mjs`.
 //
 // The shares are sampled, so they hold under machine load: a preempted thread
 // is sampled where it stood.
@@ -26,49 +22,34 @@ import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-
-const ITERATIONS = 1320;
+import {
+    BUCKETS,
+    INCLUSIVE,
+    SEARCH,
+    isBladeIndex,
+    parseProfileArgs,
+} from "./buckets.mjs";
 
 if (process.argv[2] === "--child") {
-    const [, , , bundle, index] = process.argv;
+    const [, , , bundle, position, iterations] = process.argv;
     await import(pathToFileURL(path.resolve(bundle)).href);
-    const row = globalThis.__brainBench.run(Number(index), {
-        iterations: ITERATIONS,
-        clock: "cpu",
-    });
+    const options = { iterations: Number(iterations), clock: "cpu" };
+    const row = isBladeIndex(position)
+        ? globalThis.__brainBench.run(Number(position), options)
+        : globalThis.__brainBench.runField(
+              JSON.parse(readFileSync(position, "utf8")),
+              options
+          );
     console.log(JSON.stringify(row));
     process.exit(0);
 }
 
-const [bundle, out, ...indexes] = process.argv.slice(2);
-if (!bundle || !out || indexes.length === 0) {
-    console.error("usage: profile.mjs <bundle.js> <out.json> <index>...");
-    process.exit(2);
-}
-
-const BUCKETS = [
-    ["clone", /^(cloneGameState|cloneValue)\d*$/],
-    ["determinize", /^determinize\d*$/],
-    ["enumerate", /^enumerateMoves\d*$/],
-    ["apply", /^(applyMoveInSearch|applyMoveForSearch)\d*$/],
-    ["evaluate", /^evaluate\d*$/],
-];
-const SEARCH = /^searchWithTrace\d*$/;
-
-/** Engine functions worth an INCLUSIVE share of their own: everything that
- *  ran while one of them was on the stack. These overlap each other and the
- *  buckets; they say what a rewrite of one piece could at most win back. */
-const INCLUSIVE = [
-    "cloneValue",
-    "enumerateMoves",
-    "getLegalActions",
-    "applyMoveInSearch",
-    "checkStateBasedActions",
-    "collectTriggers",
-    "deriveBoardWithSources",
-    "evaluate",
-    "determinize",
-];
+const {
+    bundle,
+    out,
+    iterations: ITERATIONS,
+    positions: indexes,
+} = parseProfileArgs(process.argv.slice(2), "profile.mjs");
 
 function fold(profile) {
     const byId = new Map(profile.nodes.map((n) => [n.id, n]));
@@ -151,6 +132,7 @@ for (const index of indexes) {
             "--child",
             bundle,
             index,
+            String(ITERATIONS),
         ],
         { encoding: "utf8", maxBuffer: 1 << 26 }
     );
