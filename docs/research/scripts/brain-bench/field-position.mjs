@@ -15,7 +15,9 @@ import { writeFileSync } from "node:fs";
 const args = process.argv.slice(2);
 const cwdAt = args.indexOf("--cwd");
 const cwd = cwdAt === -1 ? process.cwd() : args[cwdAt + 1];
-const [prefix, out] = args.filter((_, i) => i !== cwdAt && i !== cwdAt + 1);
+const [prefix, out] = args.filter(
+    (_, i) => cwdAt === -1 || (i !== cwdAt && i !== cwdAt + 1)
+);
 if (!prefix || !out) {
     console.error(
         "usage: field-position.mjs <gameIdPrefix> <out.json> [--cwd <checkout>]"
