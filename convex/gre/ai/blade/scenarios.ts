@@ -31506,6 +31506,6 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             moves: [{ kind: "resolution-choice", option: "decline" }],
         },
-        note: "Issue #10118. `winTimingDecay` scaled a won leaf's height above the band floor, and that height is the material signal: behind on material the win in this combat and the win on the opponent's turn tied inside `outcomeEps` and `material-tiebreak` took the counter. ADR 0184 timing slices order wins by game time whatever their material: decline on 5/5.",
+        note: "Issue #10118. `winTimingDecay` scaled a won leaf's height above the band floor, and that height is the material signal: behind on material the win in this combat and the win on the opponent's turn tied inside `outcomeEps` and `material-tiebreak` took the counter. ADR 0184 floors a win in the root's own turn more than `outcomeEps` above the same material won a turn later: decline on 5/5.",
     },
 ];

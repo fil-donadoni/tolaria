@@ -222,9 +222,9 @@ describe("rollout(…, since) — a sooner win outranks a later one (issue #3376
     const clockOf = (turn: number) =>
         ({ turn, phase: "PRECOMBAT_MAIN" }) as GameState;
 
-    // ADR 0184 (issue #10118): game time picks the won band's timing slice,
-    // so a win a turn later sits more than `outcomeEps` below a win now —
-    // a gap no longer scaled by the material the win holds.
+    // ADR 0184 (issue #10118): a win in the root's own turn is floored more
+    // than `outcomeEps` above the same win a turn later — a gap no longer
+    // scaled by the material the win holds.
     it("a win a turn later scores more than outcomeEps below a win now", () => {
         const now = leafAt("opp", clockOf(5));
         const later = leafAt("opp", clockOf(4));
