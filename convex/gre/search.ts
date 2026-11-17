@@ -3049,19 +3049,6 @@ function withoutDominatedTriggerTargets(
     return kept.length > 0 ? kept : keyed;
 }
 
-/** Below the root, the mover's moves that ARM a standing each-step trigger
- *  on an opponent's step (`armedStepTargetGates`, CR 603.3d: a pair absent
- *  before the move, present after it settles) and that the 1-ply policy
- *  reads as worse for the mover than `pass` — an animation or a removal that
- *  out-creatures the opponent under its Oath for a marginal body. The
- *  mover's node stops exploring them: like a dominated trigger answer
- *  (`withoutDominatedTriggerTargets`), its mean backup otherwise debits the
- *  line that led there with the mover's own blunder, so a line that has
- *  spent the move that could blunder (its removal, on its own creature)
- *  out-scores the line that kept it. A crossing the policy reads as a gain
- *  (lethal, a trigger the mover's side wins) stays explored, and the root
- *  weighs every move. Memoized on `node`, decided on its first world; never
- *  emptying. */
 /** `keyed` without a `may-pay` node's dominated decline (issue #9832,
  *  `ai/taxDominance.ts`): declining loses the payer's own spell and an
  *  affordable mana-only accept keeps it, so the node stops exploring the
@@ -3095,6 +3082,19 @@ function withoutDominatedTaxDeclines(
     return kept.length > 0 ? kept : keyed;
 }
 
+/** Below the root, the mover's moves that ARM a standing each-step trigger
+ *  on an opponent's step (`armedStepTargetGates`, CR 603.3d: a pair absent
+ *  before the move, present after it settles) and that the 1-ply policy
+ *  reads as worse for the mover than `pass` — an animation or a removal that
+ *  out-creatures the opponent under its Oath for a marginal body. The
+ *  mover's node stops exploring them: like a dominated trigger answer
+ *  (`withoutDominatedTriggerTargets`), its mean backup otherwise debits the
+ *  line that led there with the mover's own blunder, so a line that has
+ *  spent the move that could blunder (its removal, on its own creature)
+ *  out-scores the line that kept it. A crossing the policy reads as a gain
+ *  (lethal, a trigger the mover's side wins) stays explored, and the root
+ *  weighs every move. Memoized on `node`, decided on its first world; never
+ *  emptying. */
 function withoutOpposingGateArms(
     node: Node,
     world: GameState,
