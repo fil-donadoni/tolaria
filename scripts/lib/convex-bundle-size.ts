@@ -237,11 +237,13 @@ export const CONVEX_USER_MODULE_BUDGET = 3072;
  * inlined TWICE — once into the shared isolate chunk, once into the
  * `"use node"` graph esbuild bundles separately. Issue #3444 cut the second
  * copy (the LLM scenario generator reached the card registry by import; it
- * now reaches it by `ctx.runQuery`). If a future `"use node"` module imports
- * the registry again this number is wrong by 2x AGAIN, in the dangerous
- * direction — which is why `scripts/__tests__/convex-node-bundle-seam.test.ts`
- * guards the cut by cause and by effect rather than trusting the budget
- * alone.
+ * now reaches it by `ctx.runQuery`). A `"use node"` module that imports the
+ * registry makes this number wrong by 2x AGAIN, in the dangerous direction —
+ * which is why `scripts/__tests__/convex-node-bundle-seam.test.ts` guards the
+ * cut by cause and by effect rather than trusting the budget alone. ONE such
+ * module is admitted today: `convex/verdictJudgeNode.ts` (issue #10024, the
+ * judge's search measured in Node), so while it lives a packed row costs the
+ * push about TWICE this number.
  *
  * Re-measuring it: substitute the packed corpus FILE (not an esbuild plugin
  * alone — the whole push is measured), measure, restore. The packed file is
@@ -522,7 +524,10 @@ export function assessConvexBundle(
  *
  * Deliberately NOT part of `check:convex-bundle`'s total, which is a sum and
  * so cannot say WHICH half grew. Enforced by
- * `scripts/__tests__/convex-node-bundle-seam.test.ts`, in the light lane.
+ * `scripts/__tests__/convex-node-bundle-seam.test.ts`, in the light lane, over
+ * the Node entry points MINUS the seam's admitted exceptions (issue #10024:
+ * `convex/verdictJudgeNode.ts`, 11,537,140 B on its own, ships the catalogue
+ * by design and is pinned by name instead).
  */
 export const CONVEX_NODE_BUNDLE_BUDGET_BYTES = 1.5 * 1024 * 1024;
 
@@ -542,24 +547,44 @@ export const CONVEX_NODE_BUNDLE_BUDGET_BYTES = 1.5 * 1024 * 1024;
  * the graph) and by EFFECT (how many bytes), that the cut stays cut —
  * `scripts/__tests__/convex-node-bundle-seam.test.ts`.
  */
-export async function measureConvexNodeBundle(convexDir: string): Promise<{
-    /** `"use node"` entry points, repo-relative. Empty means the guard reading
-     *  this is vacuous, and it must say so rather than pass. */
+export async function measureConvexNodeBundle(
+    convexDir: string,
+    options: {
+        /** Repo-relative `"use node"` entry points to leave out of the build
+         *  (still listed in `allEntryPoints`) — the seam's admitted
+         *  exceptions, measured on their own (issue #10024). */
+        exclude?: readonly string[];
+        /** Build ONLY these repo-relative entry points. */
+        only?: readonly string[];
+    } = {}
+): Promise<{
+    /** The `"use node"` entry points BUILT, repo-relative. Empty means the
+     *  guard reading this is vacuous, and it must say so rather than pass. */
     entryPoints: string[];
+    /** Every `"use node"` entry point found, built or not. */
+    allEntryPoints: string[];
     /** Every module esbuild pulled into the node graph, as metafile keys
      *  (repo-relative paths, `node_modules/...` included). */
     inputs: string[];
-    /** Source + source-map bytes of the node half alone. */
+    /** Source + source-map bytes of the built entry points alone. */
     totalBytes: number;
 }> {
+    const repoRelative = (f: string) =>
+        relative(join(convexDir, ".."), f).split(sep).join("/");
     const node = discoverEntryPoints(convexDir).filter((fpath) =>
         USE_NODE_DIRECTIVE.test(readFileSync(fpath, "utf8"))
     );
-    const built = await build(convexDir, node, "node", join("_deps", "node"));
+    const built = node.filter((f) => {
+        const rel = repoRelative(f);
+        if (options.only && !options.only.includes(rel)) return false;
+        return !options.exclude?.includes(rel);
+    });
+    const bundle = await build(convexDir, built, "node", join("_deps", "node"));
     return {
-        entryPoints: node.map((f) => relative(join(convexDir, ".."), f)),
-        inputs: built.inputs,
-        totalBytes: built.source + built.map,
+        entryPoints: built.map(repoRelative),
+        allEntryPoints: node.map(repoRelative),
+        inputs: bundle.inputs,
+        totalBytes: bundle.source + bundle.map,
     };
 }
 

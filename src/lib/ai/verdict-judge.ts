@@ -13,7 +13,9 @@
 // action that threw) settles the consult as "no answer", counted in the tally
 // the proposal-count report carries. Each answered call also records the
 // server's own search time and the client's round trip — their difference is
-// cold start, module load and network — for the same report.
+// cold start, module load and network — and the runtime the server searched
+// in, for the same report. The client never picks that runtime (issue #10024):
+// the server routes each game, and the answer only names where it ran.
 
 import { ConvexError } from "convex/values";
 import type { ConvexReactClient } from "convex/react";
@@ -33,7 +35,7 @@ export type VerdictJudge = {
     judge: BrainJudge;
     /** How each consult ended, for the proposal-count report (issue #8732). */
     tally: JudgeOutcomeTally;
-    /** Per answered consult: server search time and round trip. */
+    /** Per answered consult: server search time, round trip, runtime. */
     timings: JudgeTimings;
     /** End this game's judging: a consult started afterwards is not sent.
      *  Idempotent. */
@@ -46,7 +48,11 @@ export function openVerdictJudge(
     gameId: Id<"games">
 ): VerdictJudge {
     const tally: JudgeOutcomeTally = {};
-    const timings: JudgeTimings = { serverMs: [], roundTripMs: [] };
+    const timings: JudgeTimings = {
+        serverMs: [],
+        roundTripMs: [],
+        runtimes: [],
+    };
     let closed = false;
     const count = (outcome: keyof JudgeOutcomeTally) => {
         tally[outcome] = (tally[outcome] ?? 0) + 1;
@@ -74,6 +80,7 @@ export function openVerdictJudge(
             });
             timings.roundTripMs.push(performance.now() - start);
             timings.serverMs.push(r.searchMs);
+            timings.runtimes.push(r.runtime);
             count(r.outcome);
             return r.outcome === "move" ? r.move : null;
         } catch (cause: unknown) {

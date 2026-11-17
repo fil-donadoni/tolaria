@@ -1033,6 +1033,39 @@ and inside the worker (`transferSize` 0 = served from the HTTP cache):
   `getSeatDeckKnowledge`; the driver falls back to the stored deck entries
   (print ids included, as before), and the worker installs per consult.
 
+## Amendment VIII (issue #10024, 2026-11-17) — one `"use node"` module admitted to ship the catalogue
+
+Amendment II's rule — a `"use node"` module pays for its whole import graph a
+second time, so none reaches the card registry — gets exactly one exception,
+named in `scripts/__tests__/convex-node-bundle-seam.test.ts`'s
+`ADMITTED_CATALOGUE_ENTRIES`: `convex/verdictJudgeNode.ts`, the game-end
+judge's search run in the Node runtime. It is a MEASUREMENT: ADR 0183's
+reopening test asks whether a server search reaches a third or less of desktop
+Chromium's time per iteration, and Node is the untried candidate. A search
+needs the engine and the catalogue, so `ctx.runQuery` is no way around the
+import here.
+
+### Cost, measured on the issue's tree
+
+|                           | base         | with the Node judge | delta         |
+| ------------------------- | ------------ | ------------------- | ------------- |
+| whole push, unzipped      | 25,187,201 B | 36,643,172 B        | +11,455,971 B |
+| whole push, zipped (est.) | 7,294,813 B  | 10,941,718 B        | +3,646,905 B  |
+| `"use node"` half         | 898,625 B    | 12,353,869 B        | +11,455,244 B |
+
+The push crosses the 30 MiB WARN distance (Amendment III point 4) and stays far
+under the hard bounds (172.5 MB unzipped, 67.5 MB zipped). While the module
+lives, a packed corpus row costs the push about twice
+`MEASURED_BYTES_PER_PACKED_ROW`.
+
+### The guard keeps its shape
+
+Every OTHER `"use node"` module is still held by cause and by effect (no
+registry module in its graph, the 1.5 MiB budget). The exception list is pinned
+exactly, and reds when its module stops being a `"use node"` entry, so the
+exception cannot outlive the measurement: PRD issue #10017 removes the Node
+judge if it fails the reopening test.
+
 ## Open, deliberately not decided here
 
 - Whether retiring a hand-written card in favour of its proven-equal compiled

@@ -30,10 +30,30 @@ import {
  *     catalogue cannot fit beneath (the packed corpus alone is ~1 MB, and
  *     the hand-written sets and the engine come with it).
  *
- * It runs in the light lane: one esbuild pass over one entry point, ~1 s.
+ * It runs in the light lane: one esbuild pass over the Node entry points
+ * minus the admitted exceptions, ~1 s.
+ *
+ * ONE ADMITTED EXCEPTION (issue #10024). `convex/verdictJudgeNode.ts` runs the
+ * game-end judge's search in Node to measure it (ADR 0183 § Reopening this
+ * record), so it ships the engine and the catalogue a second time —
+ * 11,537,140 B of Node bundle on its own, +11,455,971 B on the whole push
+ * (25,187,201 -> 36,643,172 B; zipped 7,294,813 -> 10,941,718 B), measured
+ * 2026-11-17, approved by the owner in the issue's PR. The cut is pinned for
+ * every OTHER `"use node"` module; the exception list is pinned exactly, and
+ * reds when its module is gone (PRD issue #10017: the Node judge is removed if
+ * it does not pass the reopening test) so the exception cannot outlive it.
  */
 
 const CONVEX_DIR = resolve(__dirname, "../../convex");
+
+/** `"use node"` modules admitted to reach the catalogue, each with the owner's
+ *  approval on record. Adding a row is an ADR 0113 exception: it needs the
+ *  owner's approval and the bundle-size delta in its PR. */
+const ADMITTED_CATALOGUE_ENTRIES: Record<string, string> = {
+    "convex/verdictJudgeNode.ts":
+        "issue #10024 — the judge's search measured in Node (ADR 0183)",
+};
+const ADMITTED = Object.keys(ADMITTED_CATALOGUE_ENTRIES);
 
 /** Modules a `"use node"` graph must never reach. The pool is the payload; the
  *  registry and the catalogue are the two doors it comes through, and naming
@@ -48,8 +68,22 @@ const FORBIDDEN = [
 ];
 
 describe("the Convex `use node` bundle's card seam (issue #3444)", () => {
+    it("admits exactly the Node judge, and only while it exists as a `use node` module (issue #10024)", async () => {
+        expect(ADMITTED).toEqual(["convex/verdictJudgeNode.ts"]);
+        const m = await measureConvexNodeBundle(CONVEX_DIR, { only: [] });
+        const stale = ADMITTED.filter((f) => !m.allEntryPoints.includes(f));
+        expect(
+            stale,
+            `admitted exception(s) ${stale.join(", ")} are no longer \`use node\` entry ` +
+                `points — remove them from ADMITTED_CATALOGUE_ENTRIES, or the seam stays ` +
+                `open for whatever takes the name next.`
+        ).toEqual([]);
+    });
+
     it("reaches neither the compiled pool nor the registry that imports it", async () => {
-        const m = await measureConvexNodeBundle(CONVEX_DIR);
+        const m = await measureConvexNodeBundle(CONVEX_DIR, {
+            exclude: ADMITTED,
+        });
 
         // A vacuous pass is the one way this guard fails silently: delete the
         // last `"use node"` file and every assertion below holds trivially.
@@ -72,7 +106,9 @@ describe("the Convex `use node` bundle's card seam (issue #3444)", () => {
     });
 
     it("stays under a budget one re-entry of the pool could not fit beneath", async () => {
-        const m = await measureConvexNodeBundle(CONVEX_DIR);
+        const m = await measureConvexNodeBundle(CONVEX_DIR, {
+            exclude: ADMITTED,
+        });
         expect(
             m.totalBytes,
             `the \`use node\` half is ${m.totalBytes.toLocaleString("en-US")} B against a budget of ` +
