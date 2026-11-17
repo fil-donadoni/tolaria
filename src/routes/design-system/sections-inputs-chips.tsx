@@ -120,7 +120,7 @@ export function InputsChipsSections() {
                         </div>
                         <Where>
                             color-filter · match-mode-pills ·
-                            difficulty-selector · games-format-selector
+                            games-format-selector
                         </Where>
                     </Specimen>
                     <Specimen

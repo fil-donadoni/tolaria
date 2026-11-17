@@ -2894,8 +2894,8 @@ async function reachBotDeckStep(page: Page, ctx: WalkContext): Promise<void> {
             );
         }
     }
-    const difficulty = "[role=radiogroup][aria-label='Bot difficulty']";
-    if (!(await visible(page, difficulty, STEP_TIMEOUT))) {
+    const mirror = '[data-setup-choice="mirror"]';
+    if (!(await visible(page, mirror, STEP_TIMEOUT))) {
         throw new Unreachable(
             "Arena → Bot → Freeform → a deck did not open the Bot deck step"
         );
@@ -4180,7 +4180,7 @@ export const SURFACES: readonly Surface[] = [
         // The Constructed setup flow (PRD #5334, issues #5340/#5341): the
         // recap rail beside the active step. Walked to the LAST step of the
         // Bot branch — Arena, Bot, Freeform, a deck — because step 5 is the
-        // widest one (difficulty, Mirror, the search row and the deck grid
+        // widest one (Mirror, the search row and the deck grid
         // under the Match Format admitting every deck); every earlier step
         // stays reachable from the rail it sits beside.
         asserts: [
@@ -4193,11 +4193,6 @@ export const SURFACES: readonly Surface[] = [
                 label: "recap rail",
                 locator: { role: "navigation", name: "Setup steps" },
                 check: "visible",
-            },
-            {
-                label: "Bot difficulty",
-                locator: { role: "radiogroup", name: "Bot difficulty" },
-                check: "reachable",
             },
             {
                 // A selector, not role+name: the choice's accessible name

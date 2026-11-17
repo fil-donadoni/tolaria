@@ -25,7 +25,7 @@ import {
 } from "@convex/limited/gamesFormat";
 import {
     DEFAULT_DIFFICULTY,
-    DIFFICULTIES,
+    isOfferedDifficulty,
     type Difficulty,
 } from "@convex/gre/difficulty";
 import type { PackSourceInfo } from "~/hooks/useLimitedEvent";
@@ -344,11 +344,9 @@ export function parseSetup(raw: string | null): LimitedSetup {
             value.gamesFormat === 1 || value.gamesFormat === 3
                 ? value.gamesFormat
                 : d.gamesFormat,
-        botDifficulty:
-            typeof value.botDifficulty === "string" &&
-            (DIFFICULTIES as readonly string[]).includes(value.botDifficulty)
-                ? (value.botDifficulty as Difficulty)
-                : d.botDifficulty,
+        botDifficulty: isOfferedDifficulty(value.botDifficulty)
+            ? value.botDifficulty
+            : d.botDifficulty,
         pickTimer:
             typeof value.pickTimer === "boolean"
                 ? value.pickTimer

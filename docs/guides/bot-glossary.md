@@ -55,11 +55,15 @@ iterations, never time, so results are reproducible on any machine. Code:
 (`convex/gre/difficulty.ts`): a [search budget](#search-budget) and the
 [deck knowledge](#deck-knowledge) the search may hold about the opponent.
 Three presets — `medium` (400 iterations / 1500 ms), `hard` (1200 / 3000 ms),
-`expert` (the default, 1320 / 3300 ms). For now all three know the opponent's
-decklist (`DIFFICULTY_KNOWS_OPPONENT`, issue #8692), so they differ by budget
-alone; the record stays so a level can be switched off later. A stronger Bot is
-the same Brain given more budget, not different logic; there is no "weak bot"
-code path.
+`expert` (the default, 1320 / 3300 ms) — but only `expert` is played: the
+levels are switched off (`DIFFICULTY_OFFERED`, issue #10113, owner ruling in
+issue #10027), no surface offers a choice, and a game stored at `medium` or
+`hard` plays at `expert`. The presets keep their shape so a level can come back
+once it differs in the field. For now all three know the opponent's decklist
+(`DIFFICULTY_KNOWS_OPPONENT`, issue #8692), so they differ by budget alone; the
+record stays so a level can be switched off later. A stronger Bot is the same
+Brain given more budget, not different logic; there is no "weak bot" code
+path.
 
 <a id="time-management"></a>**Time management / early stopping** — spending
 less of the [budget](#search-budget) when the decision is already settled and

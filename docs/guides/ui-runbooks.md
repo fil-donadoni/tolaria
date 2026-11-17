@@ -96,7 +96,7 @@ and each prints its own line on every receipt at every viewport:
 
 Last Match and a Your Tables tile are NOT promised: both depend on what the
 context remembers or is seated at, which earlier walks decide. The flow's own
-promises (`recap rail`, `Bot difficulty`, `Mirror`, `deck search`,
+promises (`recap rail`, `Mirror`, `deck search`,
 `Start match`) belong to the `match-setup` surface; `Join by code` to
 `match-setup-join-by-code` (Arena → Join a table → Join by code).
 
@@ -821,7 +821,7 @@ numbers mean, are in [Browser verification](browser-verification.md#the-probe).
 | `tolaria:playerId`         | session player handle                                           |
 | `tolaria:matchSetup`       | the Constructed setup flow's last setup (Last Match replays it) |
 | `tolaria:selectedDeckId`   | deck-detail's `Play` selection (a DB id)                        |
-| `tolaria:aiDifficulty`     | medium / hard / expert                                          |
+| `tolaria:aiDifficulty`     | expert (a stored medium / hard reads as expert, issue #10113)   |
 | `tolaria:deckFormatFilter` | deck-list Format filter, `all` or a FormatId                    |
 
 There is no player-name key: the nickname comes from the authenticated user.

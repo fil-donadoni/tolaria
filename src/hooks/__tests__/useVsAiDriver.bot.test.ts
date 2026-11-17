@@ -28,7 +28,9 @@ import {
 import { storeDifficulty } from "~/lib/session";
 import {
     DIFFICULTIES,
+    DIFFICULTY_BUDGETS,
     DIFFICULTY_KNOWS_OPPONENT,
+    DIFFICULTY_OFFERED,
 } from "@convex/gre/difficulty";
 import type { Difficulty } from "@convex/gre";
 
@@ -65,12 +67,17 @@ function clearPublicStateOverride() {
 let forceNullTick = false;
 // The committed row, which the gate tests overwrite for their own duration.
 const HARD_KNOWS_OPPONENT = DIFFICULTY_KNOWS_OPPONENT.hard;
+// `hard` is switched off (issue #10113); the gate tests switch it back on for
+// their own duration, since a level switched off plays `expert`.
+const HARD_OFFERED = DIFFICULTY_OFFERED.hard;
 
 // What `getMatchBotDifficulty` answers (issue #6916): `null` = a lobby Match
 // (no difficulty bound), `undefined` = still loading.
 let matchDifficulty: Difficulty | null | undefined = null;
-// Every difficulty the driver resolved a search budget for.
+// Every difficulty the driver resolved a search budget for, and the budget it
+// got back.
 const budgetCalls: unknown[] = [];
+const budgetResults: unknown[] = [];
 // issue #3266 review — the tick query gives up. A driver that swallows this
 // stops moving with nothing on screen saying why, which reads as a hung game.
 let tickError: Error | null = null;
@@ -361,7 +368,9 @@ vi.mock("@convex/gre", async (importOriginal) => {
         ...actual,
         budgetFor: (...args: Parameters<typeof actual.budgetFor>) => {
             budgetCalls.push(args[0]);
-            return actual.budgetFor(...args);
+            const budget = actual.budgetFor(...args);
+            budgetResults.push(budget);
+            return budget;
         },
     };
 });
@@ -454,6 +463,7 @@ describe("useVsAiDriver (issue #110)", () => {
         forceNullTick = false;
         matchDifficulty = null;
         budgetCalls.length = 0;
+        budgetResults.length = 0;
         tickError = null;
         seatDecks = {};
         seatKnowledge = {};
@@ -463,6 +473,7 @@ describe("useVsAiDriver (issue #110)", () => {
         // must not leak it to the next one, which assumes the default.
         localStorage.removeItem("tolaria:aiDifficulty");
         DIFFICULTY_KNOWS_OPPONENT.hard = HARD_KNOWS_OPPONENT;
+        DIFFICULTY_OFFERED.hard = HARD_OFFERED;
         adapterCalls.length = 0;
         heldMutation = { active: false, release: undefined, fail: undefined };
         rejectMutation = { active: false, message: "" };
@@ -670,6 +681,7 @@ describe("useVsAiDriver (issue #110)", () => {
         // Proves the gate is the DIFFICULTY, not merely the read answering
         // null for an unowned seat (the other test above already covers that
         // path).
+        DIFFICULTY_OFFERED.hard = true;
         DIFFICULTY_KNOWS_OPPONENT.hard = false;
         storeDifficulty("hard");
         seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
@@ -695,6 +707,7 @@ describe("useVsAiDriver (issue #110)", () => {
         // driver mounts on a blind preset, searches blind, then the stored
         // value flips to `expert` with the component instance untouched, and
         // the NEXT search must carry the human seat.
+        DIFFICULTY_OFFERED.hard = true;
         DIFFICULTY_KNOWS_OPPONENT.hard = false;
         storeDifficulty("hard");
         seatKnowledge[BOT] = knows(BOT, [MOUNTAIN]);
@@ -749,6 +762,7 @@ describe("useVsAiDriver (issue #110)", () => {
     });
 
     it("an event Match at a blind level stays blind even when the lobby's stored difficulty knows", async () => {
+        DIFFICULTY_OFFERED.hard = true;
         DIFFICULTY_KNOWS_OPPONENT.hard = false;
         storeDifficulty("expert");
         matchDifficulty = "hard";
@@ -776,6 +790,37 @@ describe("useVsAiDriver (issue #110)", () => {
 
         expect(budgetCalls.length).toBeGreaterThan(0);
         expect(budgetCalls.every((d) => d === "expert")).toBe(true);
+    });
+
+    // ── Levels switched off play `expert` (issue #10113) ────────────────────
+    //
+    // No surface offers a difficulty any more, but a browser that picked one
+    // before keeps it in localStorage, and an event row keeps its stored level:
+    // both must search at `expert`'s budget.
+    it("a lobby Match whose stored difficulty is switched off searches at expert's budget", async () => {
+        storeDifficulty("medium");
+        matchDifficulty = null;
+        currentState = botStateWithLibrary(2);
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        expect(budgetResults.length).toBeGreaterThan(0);
+        expect(
+            budgetResults.every((b) => b === DIFFICULTY_BUDGETS.expert)
+        ).toBe(true);
+    });
+
+    it("an event Match stored at a level switched off searches at expert's budget", async () => {
+        matchDifficulty = "hard";
+        currentState = botStateWithLibrary(2);
+        renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        expect(budgetCalls.every((d) => d === "hard")).toBe(true);
+        expect(budgetResults.length).toBeGreaterThan(0);
+        expect(
+            budgetResults.every((b) => b === DIFFICULTY_BUDGETS.expert)
+        ).toBe(true);
     });
 
     it("holds the search while the Match's difficulty is still loading", async () => {

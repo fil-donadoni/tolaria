@@ -15,11 +15,11 @@
 
 import type { SearchBudget } from "./search";
 
-/** The difficulty levels exposed in the lobby. */
+/** The difficulty presets. Only the levels {@link DIFFICULTY_OFFERED} switches
+ *  on are played (issue #10113). */
 export type Difficulty = "medium" | "hard" | "expert";
 
-/** Ordered weakest → strongest, for rendering a selector and for tests that
- *  assert monotonic strength. */
+/** Ordered weakest → strongest, for tests that assert monotonic strength. */
 export const DIFFICULTIES: readonly Difficulty[] = [
     "medium",
     "hard",
@@ -85,8 +85,8 @@ export const DIFFICULTY_BUDGETS: Record<Difficulty, SearchBudget> = {
  *  (`convex/gre/deckKnowledge.ts`), so a `false` here keeps a level on the blind
  *  path: this record is consulted ONLY by the client driver that assembles the
  *  knowledge map, never by the search itself. For now every level knows, and
- *  the selector's subtitle (`difficulty-selector.tsx`) says so unconditionally:
- *  flipping a row owes that line a condition. */
+ *  the setup surfaces say so unconditionally (`BOT_KNOWS_DECKLIST_LINE`,
+ *  `src/lib/difficultyLabels.ts`): flipping a row owes that line a condition. */
 export const DIFFICULTY_KNOWS_OPPONENT: Record<Difficulty, boolean> = {
     medium: true,
     hard: true,
@@ -96,21 +96,46 @@ export const DIFFICULTY_KNOWS_OPPONENT: Record<Difficulty, boolean> = {
 /** Sensible default when the player has not chosen yet. */
 export const DEFAULT_DIFFICULTY: Difficulty = "expert";
 
-/** Map a difficulty to its search budget, falling back to the default preset
- *  for any unrecognised value (e.g. a stale persisted string). */
+/** Which presets a game may play at (issue #10113). Levels are switched off,
+ *  not deleted: below `expert` the Bot is not worth playing, and in the field
+ *  `hard` (3000 ms) is `expert` (3300 ms) minus 9%, indistinguishable (owner
+ *  ruling, issue #10027). No surface offers a choice, and a game stored at a
+ *  level switched off plays at {@link DEFAULT_DIFFICULTY}. The levels may come
+ *  back once they differ in the field: flipping a row back on owes the lobby a
+ *  selector again. */
+export const DIFFICULTY_OFFERED: Record<Difficulty, boolean> = {
+    medium: false,
+    hard: false,
+    expert: true,
+};
+
+/** Is this value a level a game may play at? The parsers of a stored or
+ *  persisted choice accept only these. */
+export function isOfferedDifficulty(value: unknown): value is Difficulty {
+    return (
+        typeof value === "string" &&
+        Object.prototype.hasOwnProperty.call(DIFFICULTY_OFFERED, value) &&
+        DIFFICULTY_OFFERED[value as Difficulty]
+    );
+}
+
+/** The level a game stored at `difficulty` actually plays at: itself when it
+ *  is offered, else the default preset — a level switched off, the retired
+ *  `easy`, or any unrecognised value (e.g. a stale persisted string). */
+export function playedDifficulty(
+    difficulty: string | null | undefined
+): Difficulty {
+    return isOfferedDifficulty(difficulty) ? difficulty : DEFAULT_DIFFICULTY;
+}
+
+/** Map a difficulty to the search budget of the level it plays at
+ *  ({@link playedDifficulty}). */
 export function budgetFor(difficulty: string | null | undefined): SearchBudget {
-    if (difficulty && difficulty in DIFFICULTY_BUDGETS) {
-        return DIFFICULTY_BUDGETS[difficulty as Difficulty];
-    }
-    return DIFFICULTY_BUDGETS[DEFAULT_DIFFICULTY];
+    return DIFFICULTY_BUDGETS[playedDifficulty(difficulty)];
 }
 
 /** Does this difficulty feed the search the human seat's real decklist?
- *  Falls back to the default preset for any unrecognised value, exactly like
- *  {@link budgetFor}. */
+ *  Resolved through {@link playedDifficulty}, exactly like {@link budgetFor}. */
 export function knowsOpponent(difficulty: string | null | undefined): boolean {
-    if (difficulty && difficulty in DIFFICULTY_KNOWS_OPPONENT) {
-        return DIFFICULTY_KNOWS_OPPONENT[difficulty as Difficulty];
-    }
-    return DIFFICULTY_KNOWS_OPPONENT[DEFAULT_DIFFICULTY];
+    return DIFFICULTY_KNOWS_OPPONENT[playedDifficulty(difficulty)];
 }

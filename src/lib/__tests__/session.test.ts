@@ -23,11 +23,13 @@ describe("difficulty persistence (issue #114)", () => {
         expect(getStoredDifficulty()).toBe(DEFAULT_DIFFICULTY);
     });
 
-    it("round-trips a stored difficulty", () => {
+    // issue #10113 — a browser that picked a level now switched off reads it
+    // as the default: the levels are off, the stored choice is stale.
+    it("reads a stored level switched off as the default", () => {
         storeDifficulty("hard");
-        expect(getStoredDifficulty()).toBe("hard");
+        expect(getStoredDifficulty()).toBe(DEFAULT_DIFFICULTY);
         storeDifficulty("medium");
-        expect(getStoredDifficulty()).toBe("medium");
+        expect(getStoredDifficulty()).toBe(DEFAULT_DIFFICULTY);
     });
 
     // issue #2790 — `expert` is a valid value; a hand-maintained

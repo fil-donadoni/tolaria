@@ -185,14 +185,18 @@ export { shouldThink } from "./shouldThink";
 export { PLACEHOLDER_CARD_ID } from "./constants";
 
 // Difficulty presets (issue #114). One knob: each difficulty is just a
-// `SearchBudget` for the same `search` — no separate bot logic. The lobby picks
-// one and the client driver threads it through to the search.
+// `SearchBudget` for the same `search` — no separate bot logic. Only the
+// offered levels play (issue #10113); the client driver threads the played one
+// through to the search.
 export {
     DIFFICULTIES,
     DIFFICULTY_BUDGETS,
     DIFFICULTY_KNOWS_OPPONENT,
+    DIFFICULTY_OFFERED,
     DEFAULT_DIFFICULTY,
     budgetFor,
+    isOfferedDifficulty,
     knowsOpponent,
+    playedDifficulty,
 } from "./difficulty";
 export type { Difficulty } from "./difficulty";

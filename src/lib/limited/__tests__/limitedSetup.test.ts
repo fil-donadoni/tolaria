@@ -208,6 +208,14 @@ describe("tolerant load", () => {
         });
     });
 
+    // issue #10113 — a Bot difficulty switched off loads at the default.
+    it("loads a stored Bot difficulty switched off as expert", () => {
+        expect(
+            parseSetup(JSON.stringify({ botDifficulty: "medium" }))
+                .botDifficulty
+        ).toBe("expert");
+    });
+
     it("round-trips a saved setup", () => {
         const setup = applyChange(
             DEFAULT_LIMITED_SETUP,

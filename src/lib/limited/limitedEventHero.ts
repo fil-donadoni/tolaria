@@ -4,6 +4,7 @@
 // Deckbuilding ▸ Games ▸ Done stepper an event is in, and the ONE primary
 // action the viewer's role calls for in that phase. The components render what
 // this module says; they never branch on `status` themselves.
+import { playedDifficulty } from "@convex/gre/difficulty";
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import { DIFFICULTY_LABEL } from "~/lib/difficultyLabels";
 import {
@@ -195,7 +196,9 @@ export function limitedEventChips(
         sourceName === undefined ? type : `${type} · ${sourceName}`,
         event.gamesFormat === "bo1" ? "Best of 1" : "Best of 3",
         `${event.seatCount} seats`,
-        `Bots: ${DIFFICULTY_LABEL[event.botDifficulty]}`,
+        // The level the Bots PLAY at: an event stored at a level switched off
+        // plays the default (issue #10113).
+        `Bots: ${DIFFICULTY_LABEL[playedDifficulty(event.botDifficulty)]}`,
     ];
     if (event.type === "draft") {
         chips.push(event.timerEnabled ? "Pick timer on" : "No pick timer");
