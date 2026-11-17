@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
 import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 import { APP_NAME } from "~/lib/documentTitle";
@@ -7,6 +7,11 @@ function Page({ title }: { title?: string }) {
     useDocumentTitle(title);
     return null;
 }
+
+// The title is the shared document's state (dom-shared, issue #10106): put it back.
+afterEach(() => {
+    document.head.querySelector("title")?.remove();
+});
 
 describe("useDocumentTitle", () => {
     it("sets the document title on mount", () => {

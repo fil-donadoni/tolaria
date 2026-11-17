@@ -137,6 +137,49 @@ export function splitSrcTests(root: string): SrcTestSplit {
 }
 
 /**
+ * Process-wide state a DOM file can leave behind beyond the spy/mock family:
+ * module-registry resets and a pinned clock. Only `dom-shared` cares (the node
+ * split's verdicts are unchanged), so they sit apart from `ISOLATION_MARKERS`.
+ */
+const DOM_SHARED_EXTRA_MARKERS = [
+    "vi.resetModules",
+    "vi.unmock",
+    "vi.setSystemTime",
+    "vi.useRealTimers",
+    "@vitest-environment",
+];
+
+/** Everything that keeps a DOM file in the isolated `dom` project. */
+export const DOM_SHARED_DISQUALIFIERS = [
+    ...ISOLATION_MARKERS,
+    ...DOM_SHARED_EXTRA_MARKERS,
+];
+
+/**
+ * The `src` DOM tests that carry no isolation marker (issue #10106): they run
+ * in `dom-shared` (happy-dom, `isolate: false`, frozen catalogue, leak
+ * detector) instead of paying a per-file module-graph import in `dom`. The
+ * SAME classifier as the node/dom split — a file that grows a `vi.mock`, a spy
+ * or fake timers returns to `dom` by itself; a file with no DOM marker is
+ * `node`'s, never here. Unlike `splitSrcTests`, `.tsx` is collected: a
+ * rendering test is exactly this project's population. Bot files (own
+ * projects) and `dashboard/**` (selected whole by `dom`) are out.
+ */
+export function splitDomSharedTests(root: string): string[] {
+    const nodeSet = new Set(splitSrcTests(root).node);
+    const shared: string[] = [];
+    const isTestFile = (basename: string) => /\.test\.tsx?$/.test(basename);
+    for (const file of collect(path.join(root, "src"), isTestFile).sort()) {
+        const rel = path.relative(root, file).split(path.sep).join("/");
+        if (/\.bot\.test\.tsx?$/.test(rel) || nodeSet.has(rel)) continue;
+        const source = fs.readFileSync(file, "utf8");
+        if (DOM_SHARED_DISQUALIFIERS.some((m) => source.includes(m))) continue;
+        shared.push(rel);
+    }
+    return shared;
+}
+
+/**
  * The same verdict for the `src` BOT tests (issue #6151): `node` runs in
  * `bot-node` (shared node workers), `dom` stays in the isolated happy-dom
  * `bot-dom`. One classifier, so a bot file that grows a `vi.mock` or a DOM

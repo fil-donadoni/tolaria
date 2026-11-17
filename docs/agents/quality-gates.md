@@ -59,7 +59,7 @@ Three lanes:
    episodes out of the gate: the lane and `test:bot` now run the same files,
    and the mechanism survives only for the next file that earns an exception.
 2. **The whole application suite — node AND dom, both WHOLE** —
-   `vitest run --project node-engine --project node-tooling --project dom`.
+   `vitest run --project node-engine --project node-tooling --project dom --project dom-shared`.
    The node half — two fixed partitions since ADR 0136 §5 — is `convex/**` +
    `scripts/**` + every DOM-free `src` test (~30s at the light tier's 2
    workers: no dom env init and `isolate: false`, so the card registry is
@@ -99,6 +99,23 @@ no DOM global, no testing-library import, no jest-dom matcher and no
 `vi.mock`/spy/fake-timer runs in the **node** project instead — 110 files
 today, and a file that grows a DOM dependency moves back by itself (#2433).
 `bun run test:app` went 190s → 108s at the heavy tier.
+
+### `dom-shared`: the marker-free DOM files share one module registry (#10106)
+
+The same classifier (`splitDomSharedTests`) sends every `src/**/*.test.{ts,tsx}`
+that needs a DOM but carries no isolation marker (`vi.mock`, `vi.doMock`,
+`vi.hoisted`, `vi.spyOn`, fake timers, `vi.stubGlobal`/`stubEnv`,
+`vi.resetModules`, `vi.setSystemTime`) to **`dom-shared`**: happy-dom,
+`isolate: false`, the frozen catalogue (`vitest.setup.node.ts`) and a leak
+detector (`vitest.setup.dom-leaks.ts`) that asserts after every file that
+`document.body`/`head`, the window/document listeners, `setInterval` timers,
+`globalThis` and `process.env` are back at their defaults — a leak reds AT the
+leaking file. A file that grows a marker returns to `dom` by itself. Measured at
+sha 713841e9d on 166 files, 2 workers: 216 CPU-s isolated, 35 CPU-s shared
+(without the frozen catalogue one file went red). The `isolate: false` mock
+guard (`isolation-off-mock-boundary.test.ts`, #5020) covers the project;
+the lane's `dom` step names both projects (`projectFlag` in `check-lane.ts`).
+Green on two `--sequence.shuffle` seeds before landing.
 
 The partition is pinned by `scripts/__tests__/src-test-env-split.test.ts`. The
 failure it exists to prevent is subtle: a file selected by **no** project runs

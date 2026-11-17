@@ -1,6 +1,6 @@
 // Focus fallback when the focused row disappears (issue #9819): the next row,
 // else the previous, else the dialog title — never the Popup / <body>.
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { useState } from "react";
 import GameDialog from "~/components/ui/game-dialog";
@@ -29,6 +29,11 @@ function Harness({ initial }: { initial: DeckCard[] }) {
 
 const moveButton = (name: string) =>
     screen.getByText(name).closest("li")!.querySelector("button")!;
+
+// Scroll-lock leaves an inline style on the shared body (dom-shared, issue #10106).
+afterEach(() => {
+    document.body.removeAttribute("style");
+});
 
 describe("SideboardSwapList focus fallback (issue #9819)", () => {
     it("moves focus to the next row when the focused row is removed", () => {

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import GameDialog from "../game-dialog";
 
@@ -14,6 +14,11 @@ import GameDialog from "../game-dialog";
 function classTokens(el: Element): string[] {
     return el.className.split(/\s+/).filter(Boolean);
 }
+
+// Scroll-lock leaves an inline style on the shared body (dom-shared, issue #10106).
+afterEach(() => {
+    document.body.removeAttribute("style");
+});
 
 describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
     it("renders the title with a full-width hairline underline rule", () => {
