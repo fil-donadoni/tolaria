@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { resolve } from "node:path";
 import {
+    CATALOGUE_COPIES_IN_PUSH,
     CONVEX_NODE_BUNDLE_BUDGET_BYTES,
     measureConvexNodeBundle,
 } from "../lib/convex-bundle-size";
@@ -70,6 +71,8 @@ const FORBIDDEN = [
 describe("the Convex `use node` bundle's card seam (issue #3444)", () => {
     it("admits exactly the Node judge, and only while it exists as a `use node` module (issue #10024)", async () => {
         expect(ADMITTED).toEqual(["convex/verdictJudgeNode.ts"]);
+        // The headroom forecast prices a row once per catalogue copy.
+        expect(CATALOGUE_COPIES_IN_PUSH).toBe(1 + ADMITTED.length);
         const m = await measureConvexNodeBundle(CONVEX_DIR, { only: [] });
         const stale = ADMITTED.filter((f) => !m.allEntryPoints.includes(f));
         expect(

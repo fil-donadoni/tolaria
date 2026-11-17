@@ -80,7 +80,9 @@ export function openVerdictJudge(
             });
             timings.roundTripMs.push(performance.now() - start);
             timings.serverMs.push(r.searchMs);
-            timings.runtimes.push(r.runtime);
+            // Absent only from a backend older than issue #10024: no runtime
+            // is recorded rather than an `undefined` one.
+            if (r.runtime) timings.runtimes.push(r.runtime);
             count(r.outcome);
             return r.outcome === "move" ? r.move : null;
         } catch (cause: unknown) {

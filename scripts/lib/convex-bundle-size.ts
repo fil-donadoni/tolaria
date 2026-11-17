@@ -254,6 +254,16 @@ export const CONVEX_USER_MODULE_BUDGET = 3072;
 export const MEASURED_BYTES_PER_PACKED_ROW = 240;
 
 /**
+ * How many times the push carries the compiled catalogue: once in the isolate
+ * graph, plus once per `"use node"` module the Node seam admits to reach it
+ * (issue #10024: `convex/verdictJudgeNode.ts`). A packed row costs the push
+ * this many times {@link MEASURED_BYTES_PER_PACKED_ROW};
+ * `scripts/__tests__/convex-node-bundle-seam.test.ts` pins it to its admitted
+ * list, so the headroom forecast cannot drift from the seam.
+ */
+export const CATALOGUE_COPIES_IN_PUSH = 2;
+
+/**
  * Entry points in directories that hold no Convex function by construction:
  * card-set data (`cards/sets/**`, ADR 0043) and test support
  * (any `__tests__/` directory). Every such file the CLI discovers is a user module
