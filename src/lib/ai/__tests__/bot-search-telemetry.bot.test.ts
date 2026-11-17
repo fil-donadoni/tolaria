@@ -15,13 +15,19 @@ import {
     deviceClass,
     engineFamily,
     openBotSearchReport,
+    osFamily,
     percentile,
     summarizeBotSearch,
     type ConsultSample,
     type DeviceClass,
 } from "../bot-search-telemetry";
 
-const DEVICE: DeviceClass = { engine: "gecko", cores: "3-4", mobile: false };
+const DEVICE: DeviceClass = {
+    engine: "gecko",
+    os: "linux",
+    cores: "3-4",
+    mobile: false,
+};
 
 function searched(
     overrides: Partial<ConsultSample> & {
@@ -122,6 +128,7 @@ describe("the coarse device class", () => {
         });
         expect(device).toEqual({
             engine: "chromium",
+            os: "android",
             cores: "5-8",
             mobile: true,
         });
@@ -179,6 +186,82 @@ describe("the coarse device class", () => {
             deviceClass({ userAgent: DESKTOP_FIREFOX, maxTouchPoints: 10 })
                 .mobile
         ).toBe(false);
+    });
+
+    // Issue #10128: which machine ran which engine.
+    const LINUX_FIREFOX =
+        "Mozilla/5.0 (X11; Linux x86_64; rv:160.0) Gecko/20100101 Firefox/160.0";
+    const MAC_CHROME =
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+    const ANDROID_FIREFOX =
+        "Mozilla/5.0 (Android 16; Mobile; rv:160.0) Gecko/160.0 Firefox/160.0";
+    const CHROMEOS =
+        "Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+
+    it("reads the OS family off the user agent", () => {
+        expect(osFamily({ userAgent: LINUX_FIREFOX })).toBe("linux");
+        expect(osFamily({ userAgent: DESKTOP_FIREFOX })).toBe("windows");
+        expect(osFamily({ userAgent: MAC_CHROME })).toBe("macos");
+        expect(osFamily({ userAgent: MAC_SAFARI, maxTouchPoints: 0 })).toBe(
+            "macos"
+        );
+        expect(osFamily({ userAgent: IPHONE_SAFARI })).toBe("ios");
+        expect(osFamily({ userAgent: ANDROID_CHROME })).toBe("android");
+        expect(osFamily({ userAgent: ANDROID_FIREFOX })).toBe("android");
+        expect(osFamily({ userAgent: CHROMEOS })).toBe("other");
+        expect(osFamily({ userAgent: "" })).toBe("other");
+        expect(osFamily(undefined)).toBe("other");
+    });
+
+    it("reads a desktop Mac agent on a touch screen as iOS", () => {
+        expect(osFamily({ userAgent: MAC_SAFARI, maxTouchPoints: 5 })).toBe(
+            "ios"
+        );
+    });
+
+    it("prefers the browser's own platform hint over the user agent", () => {
+        expect(
+            osFamily({
+                userAgent: MAC_CHROME,
+                userAgentData: { platform: "Linux" },
+            })
+        ).toBe("linux");
+        expect(
+            osFamily({
+                userAgent: LINUX_FIREFOX,
+                userAgentData: { platform: "macOS" },
+            })
+        ).toBe("macos");
+        expect(
+            osFamily({
+                userAgent: LINUX_FIREFOX,
+                userAgentData: { platform: "Windows" },
+            })
+        ).toBe("windows");
+        expect(
+            osFamily({
+                userAgent: LINUX_FIREFOX,
+                userAgentData: { platform: "Android" },
+            })
+        ).toBe("android");
+        expect(
+            osFamily({
+                userAgent: LINUX_FIREFOX,
+                userAgentData: { platform: "Chrome OS" },
+            })
+        ).toBe("other");
+    });
+
+    it("falls back to the user agent on an empty or unknown platform hint", () => {
+        expect(
+            osFamily({ userAgent: MAC_CHROME, userAgentData: { platform: "" } })
+        ).toBe("macos");
+        expect(
+            osFamily({
+                userAgent: MAC_CHROME,
+                userAgentData: { platform: "Unknown" },
+            })
+        ).toBe("macos");
     });
 
     it("prefers the browser's own mobile hint over the user-agent guess", () => {
@@ -247,7 +330,10 @@ describe("summarizeBotSearch", () => {
             // 1000/1320 = 0.76, 3300/330 = 10, 100/200 = 0.5
             "msPerIteration.p50": 0.76,
             "msPerIteration.p90": 10,
+            // The first search: 1000/1320.
+            "msPerIteration.first": 0.76,
             "device.engine": "gecko",
+            "device.os": "linux",
             "device.cores": "3-4",
             "device.mobile": false,
         });
@@ -281,6 +367,42 @@ describe("summarizeBotSearch", () => {
         );
         expect(report["iterations.ratio"]).toBe(0);
         expect(report).not.toHaveProperty("msPerIteration.p50");
+    });
+
+    it("reads the early-board speed off the game's FIRST search, however the later ones went", () => {
+        const report = summarizeBotSearch(
+            "game1",
+            [
+                // A consult with no search, then one that completed nothing:
+                // neither is a reading.
+                {
+                    outcome: "worker-error",
+                    via: "worker",
+                    consultMs: 12,
+                    difficulty: "expert",
+                },
+                searched({ completed: 0, elapsedMs: 3300, stoppedBy: "time" }),
+                searched({
+                    completed: 300,
+                    elapsedMs: 3300,
+                    stoppedBy: "time",
+                }),
+                searched({ completed: 30, elapsedMs: 3300, stoppedBy: "time" }),
+                searched({ completed: 20, elapsedMs: 3300, stoppedBy: "time" }),
+            ],
+            DEVICE
+        );
+        expect(report["msPerIteration.first"]).toBe(11);
+        expect(report["msPerIteration.p50"]).toBe(110);
+    });
+
+    it("leaves the early-board speed out when no search completed an iteration", () => {
+        const report = summarizeBotSearch(
+            "game1",
+            [searched({ completed: 0, elapsedMs: 1500, stoppedBy: "time" })],
+            DEVICE
+        );
+        expect(report).not.toHaveProperty("msPerIteration.first");
     });
 
     it("says `mixed` when the game's consults ran at more than one preset", () => {

@@ -72,10 +72,14 @@ message:"bot search" gameId:<gameId>
 | ------------------------------------------------------------------ | --------------------------------------------------------------- |
 | `iterations.ratio`                                                 | completed / requested over the game's searches: 1 = as tested   |
 | `stopped.time` / `.iterations` / `.settled`                        | how many searches the clock ended, against the other two stops  |
-| `msPerIteration.p50` / `.p90`                                      | the device's speed, comparable across games                     |
+| `msPerIteration.p50` / `.p90`                                      | the device's speed over every board the game reached            |
+| `msPerIteration.first`                                             | the device's speed at the game's first search: an early board   |
 | `searchMs.*` against `consultMs.*`                                 | the gap is what stood before the search (Worker start, a queue) |
 | `consults.timeout` / `.worker-error` / `.search-error` / `.inline` | consults that gave no answer, or ran in-thread                  |
-| `device.engine` / `.cores` / `.mobile`                             | engine family, core bucket, phone or iPad (Chromium's own hint) |
+| `device.engine` / `.os` / `.cores` / `.mobile`                     | engine family, OS family, core bucket, phone or iPad            |
 
-Across games, group the same query by `device.engine` or `device.cores` and
-average `iterations.ratio`.
+Across games, group the same query by `device.engine`, `device.os` or
+`device.cores` and average `iterations.ratio`. A ratio between two engines is
+read on `msPerIteration.first` within one `device.os` (issue #10128): later
+boards cost more, so `.p50` makes a long game read slower on the same machine,
+and the OS family tells the machines behind the engines apart.
