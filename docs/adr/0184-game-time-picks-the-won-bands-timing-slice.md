@@ -45,8 +45,10 @@ root's turn, a win now against a win at combat damage (five steps) sits
 less if the later win holds more material.
 
 The gap is derived from `outcomeEps` and `terminalBand`, not hard-coded, so a
-re-tuned vector keeps it; a band too narrow to hold it degrades to a zero-span
-own-turn slice and never leaves the band.
+re-tuned vector keeps it. The guarantee holds only while the band can hold
+the gaps (`gap < 1 − 2m`): past that, the one-boundary and own-turn slices
+collapse onto `1 − m` — sooner still above later, never leaving the band, but
+no longer `outcomeEps` apart.
 
 The tie-break margin stays pure material. Since slices sit more than
 `outcomeEps` apart, `material-tiebreak` only ever compares wins of the same

@@ -1590,9 +1590,11 @@ const WIN_SLICE_GAP_HEADROOM = 1.15;
  *  At the base vector (band 0.25, `outcomeEps` 0.05) the slice bottoms are
  *  0 / 0.28 / 0.56 and each boundary clears `outcomeEps` by 0.0075 whatever
  *  the material. The band has room for two boundaries, not more: wins two
- *  or more turns away share one slice, and material orders them. A vector
- *  whose band cannot hold the gaps degrades to the plain material height
- *  over a zero-span own-turn slice rather than leaving the band. */
+ *  or more turns away share one slice, and material orders them. The
+ *  `outcomeEps` guarantee holds only while the band can hold the gaps
+ *  (`gap < 1 − 2m`): past that, the one-boundary and own-turn slices
+ *  collapse onto `1 − m` — still sooner above later, never leaving the
+ *  band, but no longer `outcomeEps` apart. */
 function wonBandHeight(
     since: GameClock,
     state: GameState,
