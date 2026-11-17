@@ -31248,7 +31248,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         classification: {
             kind: "conditional",
             discriminant: {
-                kind: "mana",
+                kind: "other",
                 detail: "the opponent's last Plains tapped",
             },
         },
@@ -31306,7 +31306,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         pairOf: {
             anchor: "tax counter: holds Daze when the opponent can pay {1}",
             discriminant: {
-                kind: "mana",
+                kind: "other",
                 detail: "the opponent's last Plains tapped",
             },
         },
@@ -31369,8 +31369,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         classification: {
             kind: "conditional",
             discriminant: {
-                kind: "mana",
-                detail: "the opponent holds two open Plains instead of three",
+                kind: "other",
+                detail: "the opponent's third open Plains tapped",
             },
         },
         spec: {
@@ -31418,8 +31418,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         pairOf: {
             anchor: "tax counter: holds Mana Leak when the opponent can pay {3}",
             discriminant: {
-                kind: "mana",
-                detail: "the opponent holds two open Plains instead of three",
+                kind: "other",
+                detail: "the opponent's third open Plains tapped",
             },
         },
         spec: {
