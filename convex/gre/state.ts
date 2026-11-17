@@ -12986,7 +12986,9 @@ function applyAsEntersAnswer(
             const option = choice.options.find((o) => o.id === selected[0]);
             for (const ability of option?.staticAbilities ?? []) {
                 if (!card.staticAbilities.includes(ability)) {
-                    card.staticAbilities.push(ability);
+                    // Replaced, never pushed: the search's clone shares this
+                    // list across worlds (`clone.ts` § SHARED_KEYS).
+                    card.staticAbilities = [...card.staticAbilities, ability];
                     // CR 614.12c (PRD #2064 S3/S6b-part-2) — see `setSelfBody`
                     // above: the base is re-seated from the new list, never
                     // deleted.
