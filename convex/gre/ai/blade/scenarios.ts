@@ -31467,4 +31467,45 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9832, the discriminating twin: two open Plains cannot pay {3}, so Mana Leak is a hard counter.",
     },
+    {
+        // MUST. The same win-now against win-on-the-opponent's-turn choice,
+        // won from BEHIND on material (issue #10118). Riot (CR 702.136a):
+        // haste attacks for lethal this turn, the counter wins when the
+        // opponent decks at their draw (CR 704.5b). Two TAPPED Craw Wurms
+        // on the opponent's side cannot block; they only sink the material
+        // signal, which scaled the timing gap down to nothing.
+        label: "as-enters choice: takes the haste for lethal now while behind on material",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 0,
+            life: { me: 20, opp: 2 },
+            cards: [
+                { name: "Zhur-Taa Goblin", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                    tapped: true,
+                },
+            ],
+        },
+        bot: "me",
+        setup: [
+            { kind: "cast", card: "Zhur-Taa Goblin" },
+            { kind: "resolve-top" },
+        ],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", option: "decline" }],
+        },
+        note: "Issue #10118. `winTimingDecay` scaled a won leaf's height above the band floor, and that height is the material signal: behind on material the win in this combat and the win on the opponent's turn tied inside `outcomeEps` and `material-tiebreak` took the counter. ADR 0184 timing slices order wins by game time whatever their material: decline on 5/5.",
+    },
 ];

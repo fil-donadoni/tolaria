@@ -70,7 +70,7 @@ describe("Riot (CR 702.136a), Bot choice surface", () => {
 
     // Both libraries are empty, so accepting the counter still wins when the
     // opponent decks at their draw: this pins a win in this turn's combat
-    // against a win on the opponent's turn (issue #10084, `WIN_TURN_DECAY`).
+    // against a win on the opponent's turn (issue #10084, ADR 0184 `wonBandHeight`).
     it("takes the haste when attacking now is lethal", () => {
         withTemporaryDefinition(RIOTER, () => {
             const state = atThePrompt({ phase: "PRECOMBAT_MAIN" }, 1);

@@ -1524,20 +1524,17 @@ function stepsSince(since: GameClock, state: GameState): number {
  *  `outcomeEps`, so `hold-trick` even held the lethal shot it exists never to
  *  see.
  *
- *  The win's height ABOVE the band floor shrinks by `winTimingDecay`: per
- *  step of game time, down to a floor that itself shrinks per turn. A factor, never a subtracted cost: a cost large enough to
- *  separate a win now from a win a combat later pinned every win a turn or
- *  more away to the band floor, and wins that all score the floor are wins
- *  the material can no longer order (the saturation ADR 0102 measured) — a
- *  sacrifice that threw a land away tied `pass` on a board both lines win by
- *  decking. Floored, because a win a turn away is still a win: decayed to a
- *  sliver of its height, a storm kill that decks the opponent at their next
- *  draw read barely above a burn spell that did not. Scaled, two wins at the
- *  same step keep their material order
- *  exactly, and a win never leaves the band. It touches the REWARD only: the
- *  tie-break margin stays pure material, like `evaluate`'s race
- *  and combat terms. Losses and open leaves are untouched; with no `since`
- *  the leaf is the plain evaluation. */
+ *  The won band is cut into TIMING SLICES (ADR 0184, issue #10118): game
+ *  time picks the slice, material only orders wins inside it
+ *  (`wonBandHeight`). It used to scale the win's height above the band floor
+ *  by a decay factor — but that height IS the material signal, so the
+ *  timing gap shrank with the material: a win from behind tied a later win
+ *  and `material-tiebreak` took the later one. A win never leaves the band.
+ *  It touches the REWARD only: the tie-break margin stays pure material,
+ *  like `evaluate`'s race and combat terms, and since slices sit more than
+ *  `outcomeEps` apart it only ever compares wins of the same timing. Losses
+ *  and open leaves are untouched; with no `since` the leaf is the plain
+ *  evaluation. */
 function scoreLeaf(
     state: GameState,
     botId: string,
@@ -1548,62 +1545,75 @@ function scoreLeaf(
     const reward = rewardFromValue(value, weights);
     if (since && value >= terminalMagnitude(weights)) {
         const floor = 1 - weights.terminalBand;
+        const material = (reward - floor) / weights.terminalBand;
         return {
-            reward: floor + (reward - floor) * winTimingDecay(since, state),
+            reward:
+                floor +
+                weights.terminalBand *
+                    wonBandHeight(since, state, material, weights),
             margin,
         };
     }
     return { reward, margin };
 }
 
-/** Per step of game time, the share of a win's height above the band floor
- *  that survives (`scoreLeaf`, issue #3376), never below the turn's floor.
- *  Measured against the two cases that bound it: a win now against a win
- *  five steps later (main phase → combat damage) must land more than
- *  `outcomeEps` apart — 0.85⁵ ≈ 0.44, floored at half — and a win a turn
- *  away must keep enough height to beat a line that never wins (the
- *  Brain Freeze decking entry), which half does and a tenth did not. */
+/** Per step of game time inside the root's own turn, the share of that
+ *  turn's timing span that survives (issue #3376): a win now against a win
+ *  five steps later (main phase → combat damage) separates by
+ *  `span × (1 − 0.85⁵)` — 0.39 × 0.56 ≈ 0.22 of the band at the base
+ *  vector, ≈ 0.055 of reward, whatever the material. */
 const WIN_STEP_DECAY = 0.85;
-/** The floor of the root's own turn: half the height survives any number of
- *  steps inside it. */
-const WIN_DECAY_FLOOR = 0.5;
-/** Per turn boundary crossed, the share of the floor that survives (issue
- *  #9900). With one global floor, reached in five steps, a win in this
- *  turn's combat and a win on the bot's next turn both scored half the
- *  height: a full-height win separated them by 0.25 × 0.02, far inside
- *  `outcomeEps`, and the material tie-break took the later win, richer by a
- *  draw and a land drop. Per turn, the floor is 0.5 / 0.25 / 0.125.
- *
- *  The binding pair is a win in this turn's combat against a win on the
- *  OPPONENT's turn — the opponent decking at their draw (issue #10084). From
- *  a main-phase root, combat damage is five steps away (0.85⁵ ≈ 0.44), so
- *  the combat win sits on this turn's floor, 0.5, and the pair is floor
- *  against floor. At 0.7 the opponent's turn kept 0.35: even a full-height
- *  win separated the two by 0.25 × 0.15 ≈ 0.038, inside `outcomeEps` for
- *  EVERY win, so a riot creature that could attack for lethal now tied the
- *  counter that let the opponent deck, and the material tie-break took the
- *  bigger body. At 0.5 the gap is 0.25 × 0.25 ≈ 0.063: it clears
- *  `outcomeEps` once the win holds more than 0.8 of the band's height, and
- *  below that the two still tie and material still decides. The bot's next
- *  turn sits 0.094 below this turn's floor. A win on the opponent's turn
- *  (the Brain Freeze decking entry) still keeps a quarter of its height,
- *  above the tenth that lost it. The Sneak Attack entry was measured before
- *  this change, with issue #9846's departure pricing: the activation now
- *  (0.78) against the activation next turn (0.70 at 0.7, 0.71–0.74 at 1.0,
- *  where seed 4 fell to `last-window-deferral`). */
-const WIN_TURN_DECAY = 0.5;
+/** Share of the won band material may fill INSIDE a timing slice (ADR 0184).
+ *  Small on purpose: two wins of the same timing that tie on reward are
+ *  ordered by the pure-material tie-break margin anyway; this share only
+ *  keeps a mean over mixed rollouts able to read a richer win (the
+ *  saturation ADR 0102 measured, where every win scored the band floor). */
+const WIN_MATERIAL_SHARE = 0.05;
+/** Headroom over `outcomeEps` between the top of one slice and the bottom of
+ *  the next sooner one, so two wins a turn boundary apart never land inside
+ *  `outcomeEps` by rounding. */
+const WIN_SLICE_GAP_HEADROOM = 1.15;
 
-/** The share of a won leaf's height that survives the game time from `since`
- *  to `state`: `WIN_STEP_DECAY` per step, never below the floor of the turn
- *  the leaf is in. The larger of the two, so a win one step past a turn
- *  boundary pays one step, not a whole turn, and a later win never scores
- *  above a sooner one. */
-function winTimingDecay(since: GameClock, state: GameState): number {
+/** The height, as a share of `terminalBand`, of a won leaf above the band
+ *  floor (ADR 0184, issues #3376, #9900, #10084, #10118). Three timing
+ *  slices, sooner above later, each `WIN_MATERIAL_SHARE` wide for the
+ *  leaf's `material` (its won-band position, 0..1) and separated from the
+ *  next by `gap` — `outcomeEps` in band units, with headroom:
+ *
+ *  - turns ≥ 2 (the bot's next turn and beyond): `[0, m]`;
+ *  - one turn boundary (the opponent's turn — decking at their draw, the
+ *    Brain Freeze entry): `[m + gap, 2m + gap]`, ≈ 0.07 of reward above a
+ *    line that never wins;
+ *  - the root's own turn: `2m + 2gap` up to `1 − m`, by `WIN_STEP_DECAY`
+ *    per step, so a sooner step still outranks a later one.
+ *
+ *  At the base vector (band 0.25, `outcomeEps` 0.05) the slice bottoms are
+ *  0 / 0.28 / 0.56 and each boundary clears `outcomeEps` by 0.0075 whatever
+ *  the material. The band has room for two boundaries, not more: wins two
+ *  or more turns away share one slice, and material orders them. A vector
+ *  whose band cannot hold the gaps degrades to the plain material height
+ *  over a zero-span own-turn slice rather than leaving the band. */
+function wonBandHeight(
+    since: GameClock,
+    state: GameState,
+    material: number,
+    weights: EvalWeights
+): number {
+    const m = WIN_MATERIAL_SHARE;
+    const gap =
+        (weights.outcomeEps / weights.terminalBand) * WIN_SLICE_GAP_HEADROOM;
     const turns = Math.max(0, state.turn - since.turn);
-    return Math.max(
-        WIN_DECAY_FLOOR * WIN_TURN_DECAY ** turns,
-        WIN_STEP_DECAY ** stepsSince(since, state)
-    );
+    const nextTurnBottom = m + gap;
+    const thisTurnBottom = Math.min(nextTurnBottom + m + gap, 1 - m);
+    let bottom: number;
+    if (turns >= 2) bottom = 0;
+    else if (turns === 1) bottom = Math.min(nextTurnBottom, thisTurnBottom);
+    else {
+        const span = 1 - m - thisTurnBottom;
+        bottom =
+            thisTurnBottom + span * WIN_STEP_DECAY ** stepsSince(since, state);
+    }
+    return bottom + m * Math.min(1, Math.max(0, material));
 }
 
 /** Bound on consecutive forced answers in one `advanceToDecision` call. A
