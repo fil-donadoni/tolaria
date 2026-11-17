@@ -7664,6 +7664,15 @@ function stampDepartedEntrySubject(
  *  lookup. */
 const DEPARTED_COMBATANT_MARK = "~left";
 
+/** Whether `id` is the tombstone of a combatant that left the battlefield
+ *  (CR 506.4) rather than an instance id. A last-known snapshot of the combat
+ *  record taken AFTER a partner departed carries it — the `combatPartnerIds` of
+ *  the second of two creatures that died together — and no zone answers to it
+ *  by design (CR 400.7). */
+export function isDepartedCombatantId(id: string): boolean {
+    return id.includes(DEPARTED_COMBATANT_MARK);
+}
+
 function retireDepartingCombatant(
     state: GameState,
     card: CardInstanceState

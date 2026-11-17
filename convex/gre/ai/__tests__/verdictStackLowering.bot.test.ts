@@ -18,11 +18,18 @@ import {
 } from "../verdicts/stackFingerprint";
 import { applyMoveInSearch } from "../../search";
 import { getCardByName } from "../../../cards";
-import { resolveTopOfStack } from "../../state";
+import { withTemporaryDefinition } from "../../../cards/registry";
+import { isDepartedCombatantId, resolveTopOfStack } from "../../state";
+import { specFromState } from "../../scenarioBuilder";
 import { getEffectivePower, getEffectiveToughness } from "../../layers";
 import { describeMove } from "../../describeMove";
 import type { BladeSetupStep } from "../blade/types";
 import type { GameState, StackItem } from "../../state";
+import type {
+    CardDefinition,
+    EffectOp,
+    TriggeredAbility,
+} from "../../../cards/types";
 import type {
     ScenarioSpec,
     ScenarioTriggerEvent,
@@ -579,42 +586,238 @@ describe("an event that names an object in another zone (issue #3516)", () => {
     });
 });
 
+/** Soul Net on the battlefield, its trigger on the stack off an opponent's
+ *  Goblin TOKEN dying to Earthquake — the dead creature is in no zone
+ *  (CR 111.7). */
+function soulNetTokenDeathPosition(): GameState {
+    return engineBuilt(
+        {
+            cards: [
+                { name: "Soul Net", owner: "me" },
+                // Two for the Earthquake; the third leaves the Bot a Bolt to
+                // weigh against passing, and the {1} Soul Net asks for.
+                { name: "Mountain", owner: "me", count: 3 },
+                { name: "Earthquake", owner: "me", zone: "hand" },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                { name: "Goblin", owner: "opp", token: true },
+                { name: "Mountain", owner: "opp" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            activePlayer: "me",
+            landCount: 1,
+            libraryCount: 20,
+        },
+        [
+            // Earthquake for 1, never a targeted Bolt: the blade matcher
+            // names cards, and a TOKEN has no card name to name it by.
+            { kind: "cast", card: "Earthquake", by: "me", x: 1 },
+            { kind: "resolve-top" },
+        ]
+    );
+}
+
+/** `name`'s definition with ONE triggered ability rewritten — the variant a
+ *  test registers (`withTemporaryDefinition`) to ask the same position of an
+ *  ability that reads its event. */
+function withTrigger(
+    name: string,
+    abilityId: string,
+    rewrite: (ability: TriggeredAbility) => TriggeredAbility
+): CardDefinition {
+    const def = getCardByName(name);
+    return {
+        ...def,
+        triggeredAbilities: (def.triggeredAbilities ?? []).map((ability) =>
+            ability.id === abilityId ? rewrite(ability) : ability
+        ),
+    };
+}
+
+const AJANI = "Ajani, Nacatl Pariah";
+const AJANI_CATS_DIE = "ajani-nacatl-pariah-cats-die-transform";
+
+/** The report of issue #9868, decision #25: Ajani's 2/1 Cat Warrior token
+ *  attacks, Phelia (2/2) blocks, both die to combat damage, and the Bot holds
+ *  priority with Ajani's "one or more other Cats you control die" trigger on
+ *  the stack. Ajani is tapped so the token attacks alone; the block is applied
+ *  as a move, because a token has no card name for the blade matcher. */
+function ajaniTokenBlockedByPheliaPosition(): GameState {
+    const state = engineBuilt(
+        {
+            cards: [
+                { name: AJANI, owner: "me", tapped: true },
+                { name: "Cat Warrior", owner: "me", token: true },
+                { name: "Mountain", owner: "me" },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                { name: "Phelia, Exuberant Shepherd", owner: "opp" },
+                { name: "Plains", owner: "opp" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            activePlayer: "me",
+            landCount: 1,
+            libraryCount: 20,
+        },
+        [{ kind: "declare-attackers" }]
+    );
+    const [me, opp] = state.players;
+    const phelia = opp.battlefield.find((c) => c.types.includes("Creature"));
+    const [attackerId] = state.combat?.attackerIds ?? [];
+    if (!phelia || attackerId === undefined) {
+        throw new Error("fixture: no blocker or no declared attacker");
+    }
+    applyMoveInSearch(state, opp.id, {
+        kind: "declare-blockers",
+        assignments: [{ blockerId: phelia.id, attackerId }],
+    });
+    applyMoveInSearch(state, me.id, { kind: "pass" });
+    applyMoveInSearch(state, opp.id, { kind: "pass" });
+    return state;
+}
+
+describe("a trigger that cannot read its event is declared without the fields the spec cannot name (issue #9868)", () => {
+    /** CR 603.2 / CR 111.7 — an opponent's Goblin TOKEN dies to an Earthquake
+     *  and ceases to exist; Soul Net's script (`mayPay` + `if` + `gainLife`)
+     *  holds no `$event` read, no intervening-if and no imperative body, so
+     *  nothing can read the dead creature's id. The stack is declared without
+     *  it, the decision is judgeable, and both boards resolve the trigger to
+     *  the same prompt. */
+    it("judges a decision over a died trigger fired by a TOKEN death, and resolves it to the same board", () => {
+        const state = soulNetTokenDeathPosition();
+        const botId = state.players[0].id;
+        expect(state.stack.map((item) => item.triggeredAbilityId)).toEqual([
+            "soul-net-life",
+        ]);
+        expectJudgeable(state, botId);
+
+        const outcome = lower(state, botId);
+        if (!outcome.ok) throw new Error(`refused ${outcome.kind}`);
+        const [entry] = outcome.lowered.spec.stack ?? [];
+        // The unnameable id is absent; what the spec CAN say still travels.
+        expect(entry.event?.type).toBe("CREATURE_DIED");
+        expect(entry.event?.fields).not.toHaveProperty("creatureInstanceId");
+        expect(entry.event?.fields?.creatureControllerId).toEqual({
+            kind: "player",
+            seat: "opp",
+        });
+
+        const rebuilt = buildVerdictPosition(outcome.lowered.spec);
+        resolveTopOfStack(state);
+        resolveTopOfStack(rebuilt);
+        expect(boardShape(rebuilt)).toEqual(boardShape(state));
+        // Both suspended on the same "you may pay" (CR 603.5).
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(rebuilt.pendingChoices?.map((c) => c.prompt)).toEqual(
+            state.pendingChoices?.map((c) => c.prompt)
+        );
+    });
+
+    /** The report itself. Phelia died FIRST in the simultaneous destruction
+     *  (CR 704.3), so her slot in the combat record was already retired to a
+     *  tombstone (CR 506.4) when the token's last-known partners were read:
+     *  `combatPartnerIds` names an id no zone answers to, which is why a card
+     *  sitting in a graveyard was "unnameable". Neither field is readable by
+     *  Ajani's script, so the stack is declared without both.
+     *
+     *  Asserted on `specFromState`, the stack's own verdict: this decision is
+     *  still refused further down as `combat-not-captured` (the combat record
+     *  holds the two tombstones) — a different wall, issue #10120. */
+    it("declares Ajani's trigger off a Cat Warrior token blocked by Phelia — no stack blocker", () => {
+        const state = ajaniTokenBlockedByPheliaPosition();
+        const botId = state.players[0].id;
+        const [trigger] = state.stack;
+        expect(trigger.triggeredAbilityId).toBe(AJANI_CATS_DIE);
+        const firing = trigger.triggerEvent;
+        if (firing?.type !== "CREATURE_DIED") throw new Error("no death");
+        expect(firing.combatPartnerIds?.map(isDepartedCombatantId)).toEqual([
+            true,
+        ]);
+
+        const { spec, stackBlockers } = specFromState(state, {
+            mySeatId: botId,
+        });
+        expect(stackBlockers).toEqual([]);
+        const [entry] = spec.stack ?? [];
+        expect(entry.abilityId).toBe(AJANI_CATS_DIE);
+        expect(entry.event?.fields).not.toHaveProperty("creatureInstanceId");
+        expect(entry.event?.fields).not.toHaveProperty("combatPartnerIds");
+        // CR 603.10a — Phelia dealt the damage and is a CARD in a graveyard,
+        // named like any other graveyard object.
+        expect(entry.event?.fields?.damagedBySources).toEqual({
+            kind: "objects",
+            refs: [
+                {
+                    zone: "graveyard",
+                    name: "Phelia, Exuberant Shepherd",
+                    seat: "opp",
+                },
+            ],
+        });
+        const outcome = lower(state, botId);
+        expect(outcome.ok ? "ok" : outcome.kind).not.toBe(
+            "stack-not-lowerable"
+        );
+    });
+
+    /** The guard the omission must not weaken: the SAME position, asked of an
+     *  ability whose script reads `$event.card` (CR 400.7e — "that card"),
+     *  still refuses, per field — and says of the partner list what it is. */
+    it("still refuses, per field, when the script reads `$event`", () => {
+        const state = ajaniTokenBlockedByPheliaPosition();
+        const botId = state.players[0].id;
+        const exileThatCard = {
+            op: "moveZone",
+            target: { ref: "$event.card" },
+            to: "exile",
+        } as EffectOp;
+        withTemporaryDefinition(
+            withTrigger(AJANI, AJANI_CATS_DIE, (ability) => ({
+                ...ability,
+                effects: [...(ability.effects ?? []), exileThatCard],
+            })),
+            () => {
+                const { spec, stackBlockers, dropped } = specFromState(state, {
+                    mySeatId: botId,
+                });
+                expect(spec.stack).toBeUndefined();
+                expect(stackBlockers.map((b) => b.field)).toEqual([
+                    "triggerEvent:combatPartnerIds",
+                    "triggerEvent:creatureInstanceId",
+                ]);
+                expect(
+                    dropped.find((note) => note.includes('"combatPartnerIds"'))
+                ).toContain("retired combat-record id (CR 506.4)");
+            }
+        );
+    });
+});
+
 describe("a trigger the spec cannot declare is refused by field (issue #3516)", () => {
     /** Soul Net watches every death ("whenever a creature dies"); the creature
      *  that died is an opponent's GOBLIN TOKEN, which ceased to exist the
      *  moment it left the battlefield (CR 111.7). The event names an object
-     *  that is in no zone at all. */
+     *  that is in no zone at all — and Soul Net's own script never reads it,
+     *  so the refusal is asked of a variant that DOES (issue #9868): the
+     *  shipped ability with an intervening-if in front of it (CR 603.4). */
     it("names the event field — `me Soul Net trigger:soul-net-life: triggerEvent:creatureInstanceId`", () => {
-        const state = engineBuilt(
-            {
-                cards: [
-                    { name: "Soul Net", owner: "me" },
-                    { name: "Mountain", owner: "me", count: 2 },
-                    { name: "Earthquake", owner: "me", zone: "hand" },
-                    { name: "Goblin", owner: "opp", token: true },
-                    { name: "Mountain", owner: "opp" },
-                ],
-                phase: "PRECOMBAT_MAIN",
-                turn: 5,
-                activePlayer: "me",
-                landCount: 1,
-                libraryCount: 20,
-            },
-            [
-                // Earthquake for 1, never a targeted Bolt: the blade matcher
-                // names cards, and a TOKEN has no card name to name it by.
-                { kind: "cast", card: "Earthquake", by: "me", x: 1 },
-                { kind: "resolve-top" },
-            ]
-        );
+        const state = soulNetTokenDeathPosition();
         const botId = state.players[0].id;
         expect(state.stack).toHaveLength(1);
-        const outcome = lower(state, botId);
-        expect(outcome.ok).toBe(false);
-        if (outcome.ok) return;
-        expect(outcome.kind).toBe("stack-not-lowerable");
-        expect(outcome.error).toContain(
-            "trigger:soul-net-life: triggerEvent:creatureInstanceId"
+        withTemporaryDefinition(
+            withTrigger("Soul Net", "soul-net-life", (ability) => ({
+                ...ability,
+                interveningIf: () => true,
+            })),
+            () => {
+                const outcome = lower(state, botId);
+                expect(outcome.ok).toBe(false);
+                if (outcome.ok) return;
+                expect(outcome.kind).toBe("stack-not-lowerable");
+                expect(outcome.error).toContain(
+                    "trigger:soul-net-life: triggerEvent:creatureInstanceId"
+                );
+            }
         );
     });
 

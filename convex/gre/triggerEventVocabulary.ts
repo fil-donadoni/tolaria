@@ -24,8 +24,26 @@
 // library) is reported by NAME, and the call site withholds the whole stack:
 // the same rule `lowerStack` already applies to an announcement it cannot
 // carry.
+//
+// …WHERE IT GUARDS SOMETHING (issue #9868). The refusal exists for the readers
+// named above. An ability with none of them — a pure Effect Script holding no
+// `$event` read, no intervening-if, no imperative body — resolves to the same
+// board whatever its event carries, so withholding the stack over a field it
+// cannot read only loses a position the rebuild would have reproduced: every
+// "whenever a creature you control dies" payoff watching a TOKEN die
+// (CR 111.7). `abilityReadsTriggerEvent` is that question, asked of the
+// ability; for an ability that answers no, an unnameable field is left out of
+// the declared event instead of refusing it, and the rebuild check
+// (`triggerEventFingerprint`) stops comparing fields nothing can read.
 
-import type { GameEvent, TargetSelection } from "../cards/types";
+import type {
+    EffectOp,
+    GameEvent,
+    TargetSelection,
+    TriggeredAbility,
+} from "../cards/types";
+import { findTriggeredAbility } from "./copy";
+import type { StackItem } from "./state";
 import type {
     ScenarioObjectRef,
     ScenarioStackTarget,
@@ -398,15 +416,110 @@ export type TriggerEventLoweringPorts = {
 
 /** `{ ok: true }` with the lowered event, or the FIELD NAMES that blocked it —
  *  one per field, because "which field costs the most verdicts" is the number
- *  a sweep is counting. */
+ *  a sweep is counting. `omitted` names the fields left out of an event whose
+ *  ability cannot read it (`readByAbility: false`); always empty otherwise. */
 export type TriggerEventLowering =
-    | { ok: true; event: ScenarioTriggerEvent }
+    | { ok: true; event: ScenarioTriggerEvent; omitted: string[] }
     | { ok: false; fields: string[] };
 
-/** CR 603.2 — one firing event, lowered. */
+/** The Effect Script selector sets the interpreter fills from the firing
+ *  event rather than from the board (`selectForEachMembers`,
+ *  `effects/interpreter.ts`): CR 508.3b "those creatures" and the CR 607.2a
+ *  pile a departed source held. Matched as a string wherever it sits in the
+ *  script, key or value, so the object-selector spelling
+ *  `{ exiledWithSource: true }` is caught by the same test. */
+const EVENT_READING_SCRIPT_WORDS: ReadonlySet<string> = new Set([
+    "eventAttackers",
+    "exiledWithSource",
+]);
+
+/** The reserved ref prefix the interpreter resolves from the firing event
+ *  (`resolveEventRef`, ADR 0049). */
+const EVENT_REF_PREFIX = "$event.";
+
+/** Whether an Effect Script holds ANY read of the firing event. Deliberately a
+ *  walk over every string in the data, not over the Op grammar: a read nested
+ *  in a position this function never heard of (a `capture`, a granted
+ *  ability's body, a filter) is still found, and the one error it can make is
+ *  the safe one — calling a script a reader that is not. */
+export function effectScriptReadsTriggerEvent(
+    effects: readonly EffectOp[] | undefined
+): boolean {
+    const walk = (node: unknown): boolean => {
+        if (typeof node === "string") {
+            return (
+                node.startsWith(EVENT_REF_PREFIX) ||
+                EVENT_READING_SCRIPT_WORDS.has(node)
+            );
+        }
+        if (Array.isArray(node)) return node.some(walk);
+        if (node !== null && typeof node === "object") {
+            return Object.entries(node).some(
+                ([key, value]) =>
+                    EVENT_READING_SCRIPT_WORDS.has(key) || walk(value)
+            );
+        }
+        return false;
+    };
+    return walk(effects ?? []);
+}
+
+/**
+ * CR 603.2 / 603.4 (issue #9868) — whether resolving this ability can read the
+ * event it fired on. The readers are the ones `resolveTopOfStack` hands the
+ * event to: the intervening-if re-check, an imperative `resolve(ctx, event)`,
+ * stepped and modal bodies (imperative, or not walked here — a reader until
+ * shown otherwise), and an Effect Script's `$event` reads. `aiEffects` is the
+ * Bot's reading of the same ability and is held to the same question.
+ *
+ * `false` is the strong answer and the only one that relaxes anything, so
+ * every doubt resolves to `true`.
+ */
+export function abilityReadsTriggerEvent(
+    ability: Pick<
+        TriggeredAbility,
+        | "interveningIf"
+        | "resolve"
+        | "resolveSteps"
+        | "modes"
+        | "effects"
+        | "aiEffects"
+    >
+): boolean {
+    if (ability.interveningIf || ability.resolve) return true;
+    if (ability.resolveSteps && ability.resolveSteps.length > 0) return true;
+    if (ability.modes && ability.modes.length > 0) return true;
+    return (
+        effectScriptReadsTriggerEvent(ability.effects) ||
+        effectScriptReadsTriggerEvent(ability.aiEffects)
+    );
+}
+
+/** The same question asked of a trigger ON THE STACK, through the lookup its
+ *  resolution uses (`findTriggeredAbility`). An emblem's ability is
+ *  not a card definition's and one that cannot be found resolves as nothing
+ *  this function can vouch for: both are readers. */
+export function stackTriggerReadsItsEvent(item: StackItem): boolean {
+    if (item.triggeredAbilityId === undefined) return true;
+    if (item.emblemSourceId !== undefined) return true;
+    const ability = findTriggeredAbility(item, item.triggeredAbilityId);
+    return ability === undefined || abilityReadsTriggerEvent(ability);
+}
+
+/**
+ * CR 603.2 — one firing event, lowered.
+ *
+ * `readByAbility` defaults to `true`, the fail-closed reading: every field the
+ * spec cannot name blocks. Passed `false` (`stackTriggerReadsItsEvent`), such a
+ * field is left out and reported in `omitted` instead — the ability resolves
+ * identically without it. An event TYPE the vocabulary does not know blocks
+ * either way: the resolution branch is gated on the item carrying an event,
+ * and there is no member to declare.
+ */
 export function lowerTriggerEvent(
     event: GameEvent,
-    ports: TriggerEventLoweringPorts
+    ports: TriggerEventLoweringPorts,
+    readByAbility: boolean = true
 ): TriggerEventLowering {
     const kinds = EVENT_FIELD_KINDS[event.type] as
         | Record<string, EventFieldKind>
@@ -468,13 +581,16 @@ export function lowerTriggerEvent(
         if (!lowered) blocked.push(key);
         else fields[key] = { kind: "target", target: lowered };
     }
-    if (blocked.length > 0) return { ok: false, fields: blocked };
+    if (blocked.length > 0 && readByAbility) {
+        return { ok: false, fields: blocked };
+    }
     return {
         ok: true,
         event: {
             type: event.type,
             ...(Object.keys(fields).length > 0 ? { fields } : {}),
         },
+        omitted: blocked,
     };
 }
 
@@ -553,11 +669,19 @@ export type TriggerEventFingerprintPorts = {
     target: (target: TargetSelection) => string;
 };
 
-/** The label `stackFingerprint` embeds for a trigger's firing event. */
+/** The label `stackFingerprint` embeds for a trigger's firing event.
+ *
+ *  `readByAbility: false` (issue #9868) renders the TYPE alone. The check
+ *  exists to catch a rebuild that lost a fact the resolution reads; an ability
+ *  that reads none has no such fact, and its declared event may legitimately
+ *  be missing the fields the spec could not name — comparing them would
+ *  refuse exactly the positions the omission exists to keep. */
 export function triggerEventFingerprint(
     event: GameEvent,
-    ports: TriggerEventFingerprintPorts
+    ports: TriggerEventFingerprintPorts,
+    readByAbility: boolean = true
 ): string {
+    if (!readByAbility) return `${event.type}(unread)`;
     const kinds = EVENT_FIELD_KINDS[event.type] as
         | Record<string, EventFieldKind>
         | undefined;

@@ -28,6 +28,7 @@ import {
 } from "./loweringSweep";
 import { VERDICT_REFUSAL_KINDS } from "@convex/gre/ai/verdicts/lowering";
 import { makeInstance } from "@convex/cards/__tests__/setup.helper";
+import { buildBladeState } from "@convex/gre/ai/blade/runner";
 import type { StackItem } from "@convex/gre";
 
 describe("lowering sweep: dropped-message classes (issue #3461)", () => {
@@ -267,6 +268,48 @@ describe("lowering sweep: stack composition (issue #3456)", () => {
             decisions: 1,
         });
         expect(formatLoweringReport(report)).toContain("STACK BLOCKERS");
+    });
+
+    /** Issue #9868 — a died trigger whose script reads no `$event` field,
+     *  fired by a TOKEN's death (CR 111.7): the dead creature is in no zone,
+     *  and that no longer withholds the stack, so the sweep counts no trigger
+     *  blocker on the decision. Engine-built, never a hand-written item: the
+     *  ability is looked up from the card the trigger was sourced from. */
+    it("counts no blocker for an unread event field the spec cannot name (issue #9868)", () => {
+        const state = buildBladeState({
+            label: "lowering sweep: unread token-death event",
+            spec: {
+                cards: [
+                    { name: "Soul Net", owner: "me" },
+                    { name: "Mountain", owner: "me", count: 3 },
+                    { name: "Earthquake", owner: "me", zone: "hand" },
+                    { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                    { name: "Goblin", owner: "opp", token: true },
+                    { name: "Mountain", owner: "opp" },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 5,
+                activePlayer: "me",
+                landCount: 1,
+                libraryCount: 20,
+            },
+            setup: [
+                { kind: "cast", card: "Earthquake", by: "me", x: 1 },
+                { kind: "resolve-top" },
+            ],
+            bot: "me",
+            budget: { iterations: 1 },
+            tier: "must",
+            expect: { moves: [] },
+        });
+        expect(state.stack).toHaveLength(1);
+        const observation = observeDecision(
+            state,
+            state.players[0].id,
+            "Pass priority"
+        );
+        expect(observation.stackBlockers).toEqual([]);
+        expect(observation.refusal).not.toBe("stack-not-lowerable");
     });
 
     it("says nothing at all on a quiet board", () => {

@@ -30,7 +30,10 @@
 // Instance ids never appear: each build allocates its own.
 
 import { tryGetDefinition } from "../../../cards";
-import { triggerEventFingerprint } from "../../triggerEventVocabulary";
+import {
+    stackTriggerReadsItsEvent,
+    triggerEventFingerprint,
+} from "../../triggerEventVocabulary";
 import type { BladeSeat } from "../blade/types";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
 import type { TargetSelection } from "../../../cards/types";
@@ -61,13 +64,20 @@ export function stackFingerprint(state: GameState, seatOf: SeatOf): string[] {
                             : objectLabel(state, item.triggerSourceId, seatOf)
                     } event=${
                         item.triggerEvent
-                            ? triggerEventFingerprint(item.triggerEvent, {
-                                  object: (id) =>
-                                      objectLabel(state, id, seatOf),
-                                  player: (id) => seatOf(id) ?? "?",
-                                  target: (target) =>
-                                      targetLabel(state, target, seatOf),
-                              })
+                            ? triggerEventFingerprint(
+                                  item.triggerEvent,
+                                  {
+                                      object: (id) =>
+                                          objectLabel(state, id, seatOf),
+                                      player: (id) => seatOf(id) ?? "?",
+                                      target: (target) =>
+                                          targetLabel(state, target, seatOf),
+                                  },
+                                  // Issue #9868 — an event nothing reads is
+                                  // compared by type alone: its declaration
+                                  // may lack the fields the spec cannot name.
+                                  stackTriggerReadsItsEvent(item)
+                              )
                             : "(none)"
                     }`
                   : item.triggerSourceId !== undefined
