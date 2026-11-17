@@ -786,7 +786,7 @@ export const deleteUnrecoverableLimitedDecks = internalMutation({
         );
         const deleted: string[] = [];
         const skipped: string[] = [];
-        for (const deckId of args.deckIds) {
+        for (const deckId of new Set(args.deckIds)) {
             const id = ctx.db.normalizeId("userDecks", deckId);
             if (!id || !unrecoverable.has(id)) {
                 skipped.push(deckId);
