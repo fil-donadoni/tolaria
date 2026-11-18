@@ -19,24 +19,33 @@ const { SHARED_KEYS } = v8Clone;
 /** `clone.ts` as JavaScriptCore loads it (issue #10153): the module picks how
  *  it copies an object when it loads, from `new Error().line`, which only
  *  JavaScriptCore sets. A fresh copy of the module, loaded while
- *  `Error.prototype` carries a `line`, takes JavaScriptCore's path under V8. */
+ *  `Error.prototype` carries a `line`, takes JavaScriptCore's path under V8.
+ *  The file refuses to run unless the two copies took different paths, so
+ *  neither suite below can quietly test the other's. */
 async function loadJavaScriptCoreClone(): Promise<typeof v8Clone> {
     vi.resetModules();
     Object.defineProperty(Error.prototype, "line", {
         value: 0,
         configurable: true,
     });
+    let jsc: typeof v8Clone;
     try {
-        return await import("../clone");
+        jsc = await import("../clone");
     } finally {
         delete (Error.prototype as { line?: unknown }).line;
     }
+    if (v8Clone.COPY_BY_SPREAD || !jsc.COPY_BY_SPREAD) {
+        throw new Error(
+            `clone.ts took the wrong copy path: V8 by spread ${v8Clone.COPY_BY_SPREAD}, JavaScriptCore by spread ${jsc.COPY_BY_SPREAD}`
+        );
+    }
+    return jsc;
 }
 
 const jscClone = await loadJavaScriptCoreClone();
 const ENGINES = [
-    { engine: "V8", module: v8Clone, bySpread: false },
-    { engine: "JavaScriptCore", module: jscClone, bySpread: true },
+    { engine: "V8", module: v8Clone },
+    { engine: "JavaScriptCore", module: jscClone },
 ];
 
 function representativeState(): GameState {
@@ -55,12 +64,8 @@ function representativeState(): GameState {
 
 describe.each(ENGINES)(
     "cloneGameState on $engine (structural sharing, issue #108)",
-    ({ module, bySpread }) => {
+    ({ module }) => {
         const { cloneGameState } = module;
-
-        it("copies objects the way its engine is fastest at (issue #10153)", () => {
-            expect(module.COPY_BY_SPREAD).toBe(bySpread);
-        });
 
         it("produces an independent copy of mutable paths", () => {
             const state = representativeState();
