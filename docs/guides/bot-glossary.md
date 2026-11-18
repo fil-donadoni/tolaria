@@ -457,7 +457,12 @@ jobs, so its wall is the total work over the workers. `--variant <name>`,
 `--match <regex>` / `--entries <file>`, `--iterations <n>` (a budget sweep),
 `--fail-fast` (screening: an entry stops at its first red seed),
 `--jobs <n>`, `--out <file>`; `--diff base.json variant.json` prints the
-flips. Off the owner's machines: the
+flips. Each arm (and `--merge`) also prints three readings, carried in its
+JSON: correctness (red entries and rows), performance (the distributions of
+search ms and ms per iteration, rows over `--threshold-ms`, default
+`BRAIN_CONSULT_TIMEOUT_MS`) and saturation (rows green but over the threshold,
+red under it). Timing only reports — budgets stay iterations-only — and its ms
+are a lab proxy for the trend, never a field figure. Off the owner's machines: the
 [`blade-census`](github-pipeline.md#blade-census) workflow runs the same arm
 on sixteen GitHub-hosted slices. Code: `scripts/blade-census.ts`,
 `convex/gre/ai/blade/census.ts`.

@@ -14,7 +14,9 @@
  * line), `--iterations <n>` (overrides every declared budget), `--fail-fast`
  * (an entry stops after its first red seed: screening), `--slice i/n` (a
  * static slice, for the hosted matrix), `--jobs <n>` (default ncpu - 1),
- * `--out <file>` (default `blade-census.json`).
+ * `--out <file>` (default `blade-census.json`), `--threshold-ms <n>` (the
+ * field's clock for the performance and saturation readings, default
+ * `BRAIN_CONSULT_TIMEOUT_MS`; accepted anywhere, `--merge` included).
  *
  * Thin by design, like `blade-audit-census.ts`: the registry cannot be loaded
  * from a `scripts/` entry (it drags `lib.dom` into the scripts project), so
@@ -42,10 +44,12 @@ import {
     formatCensusSummary,
     mergeCensusResults,
     parseSlice,
+    withCensusReadings,
     type CensusConfig,
     type CensusResult,
     type CensusRow,
 } from "../convex/gre/ai/blade/census";
+import { BRAIN_CONSULT_TIMEOUT_MS } from "../src/lib/ai/consult-timeout";
 
 const SPEC = "convex/gre/ai/blade/__tests__/census.spec.ts";
 
@@ -62,11 +66,31 @@ type Args = {
     config: CensusConfig;
     jobs: number;
     out: string;
+    thresholdMs: number;
     diff?: [string, string];
     merge?: { out: string; inputs: string[] };
 };
 
-function parseArgs(argv: string[]): Args {
+/** Lift `--threshold-ms <n>` out of argv wherever it sits: `--merge` and
+ *  `--diff` read everything after them as files. */
+function takeThreshold(argv: string[]): {
+    rest: string[];
+    thresholdMs: number;
+} {
+    const at = argv.indexOf("--threshold-ms");
+    if (at < 0) return { rest: argv, thresholdMs: BRAIN_CONSULT_TIMEOUT_MS };
+    const raw = argv[at + 1];
+    const n = Number(raw);
+    if (raw === undefined || !Number.isFinite(n) || n <= 0)
+        fail(`bad --threshold-ms ${raw ?? "(missing)"}`);
+    return {
+        rest: [...argv.slice(0, at), ...argv.slice(at + 2)],
+        thresholdMs: n,
+    };
+}
+
+function parseArgs(raw: string[]): Args {
+    const { rest: argv, thresholdMs } = takeThreshold(raw);
     const config: CensusConfig = { tier: "must" };
     let jobs = Math.max(1, availableParallelism() - 1);
     let out = "blade-census.json";
@@ -83,6 +107,7 @@ function parseArgs(argv: string[]): Args {
                     config,
                     jobs,
                     out,
+                    thresholdMs,
                     diff: [next(i, a), next(i + 1, a)],
                 };
             case "--merge": {
@@ -92,6 +117,7 @@ function parseArgs(argv: string[]): Args {
                     config,
                     jobs,
                     out,
+                    thresholdMs,
                     merge: { out: rest[0], inputs: rest.slice(1) },
                 };
             }
@@ -141,7 +167,7 @@ function parseArgs(argv: string[]): Args {
                 fail(`unknown argument ${a}`);
         }
     }
-    return { config, jobs, out };
+    return { config, jobs, out, thresholdMs };
 }
 
 function headSha(): string | null {
@@ -235,22 +261,25 @@ async function runArm(args: Args): Promise<void> {
         );
     }
     const c = args.config;
-    const result: CensusResult = {
-        meta: {
-            tier: c.tier,
-            variant: c.variant ?? null,
-            match: c.match ?? null,
-            iterations: c.iterations ?? null,
-            failFast: c.failFast ?? false,
-            slices: [c.slice ? `${c.slice.index}/${c.slice.count}` : "1/1"],
-            jobs: plan.length,
-            wallMs,
-            cpuMs: rows.reduce((n, r) => n + r.ms, 0),
-            workers: args.jobs,
-            sha: headSha(),
+    const result: CensusResult = withCensusReadings(
+        {
+            meta: {
+                tier: c.tier,
+                variant: c.variant ?? null,
+                match: c.match ?? null,
+                iterations: c.iterations ?? null,
+                failFast: c.failFast ?? false,
+                slices: [c.slice ? `${c.slice.index}/${c.slice.count}` : "1/1"],
+                jobs: plan.length,
+                wallMs,
+                cpuMs: rows.reduce((n, r) => n + r.ms, 0),
+                workers: args.jobs,
+                sha: headSha(),
+            },
+            rows,
         },
-        rows,
-    };
+        args.thresholdMs
+    );
     const out = resolve(args.out);
     mkdirSync(resolve(out, ".."), { recursive: true });
     writeFileSync(out, JSON.stringify(result, null, 1));
@@ -266,7 +295,10 @@ async function main(): Promise<void> {
         return;
     }
     if (args.merge) {
-        const merged = mergeCensusResults(args.merge.inputs.map(readResult));
+        const merged = withCensusReadings(
+            mergeCensusResults(args.merge.inputs.map(readResult)),
+            args.thresholdMs
+        );
         writeFileSync(args.merge.out, JSON.stringify(merged, null, 1));
         console.log(formatCensusSummary(merged));
         return;
