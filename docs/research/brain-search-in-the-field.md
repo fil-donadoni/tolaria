@@ -111,7 +111,8 @@ Against the lab: § 2 of `brain-search-off-the-dev-machine.md` gives 85% of
 `expert`'s iterations at 3.2 ms per iteration and 27% at 18.9 ms. The field's
 Chromium median report sits at 13.2 ms and completes 24%: real boards are the
 lab's "slow device". Gecko's distance from Chromium is 4.4x in the field
-(5.4% against 23.7%) against 2.0x in the lab; that gap was not explained here.
+(5.4% against 23.7%) against 2.0x in the lab; that gap was not explained here
+(`gecko-search-gap.md`, issue #10122, attributes it).
 
 ## 2. The server judge
 
