@@ -86,7 +86,7 @@ function isShared(key: string, value: object): boolean {
  *  `Error` with the `line` it was created on, V8 and SpiderMonkey never do.
  *  It picks how `cloneValue` copies an object (below); the clone is the same
  *  either way, so a wrong answer costs speed, never behaviour. */
-const COPY_BY_SPREAD =
+export const COPY_BY_SPREAD =
     typeof (new Error() as Error & { line?: unknown }).line === "number";
 
 // How an object is copied is chosen per engine, because no single loop wins on
