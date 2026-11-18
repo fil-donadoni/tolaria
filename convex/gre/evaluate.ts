@@ -166,6 +166,7 @@ import {
     type LatentWeights,
 } from "./ai/evalWeights";
 import { libraryTerm } from "./ai/decking";
+import { retrievableLinkedExile } from "./ai/linkedExileReach";
 import { drawFromEmptyLibraryWins } from "./replacements";
 import { sourceQuality } from "./ai/sourceQuality";
 import type { LatentLens } from "./ai/grounding";
@@ -2292,7 +2293,20 @@ function playerTerms(
         // may play it"; the impulse and madness windows ride the same grant).
         // Priced at zero, every Adventure cast read as throwing its creature
         // half away, and a held Adventure poisoned the whole line it was cast in.
-        hand: [...player.hand, ...playableExileCards(state, player)].reduce(
+        //
+        // So is a card exiled with a permanent this player
+        // controls whose own live ability puts it onto the battlefield under
+        // this player's control (CR 607.2a, `ai/linkedExileReach.ts`): the
+        // permanent is the permission. Priced at zero, the exile that fills
+        // the pile was a coin flip among a graveyard's cards, and spending
+        // the retrieval on an empty pile cost nothing.
+        hand: [
+            ...player.hand,
+            ...new Set([
+                ...playableExileCards(state, player),
+                ...retrievableLinkedExile(state, player),
+            ]),
+        ].reduce(
             (sum, c) =>
                 sum +
                 cardValue(

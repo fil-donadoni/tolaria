@@ -208,6 +208,7 @@ import {
     beamTriggerTargetsByValue,
     pruneDominatedTriggerTargets,
 } from "./ai/targetDominance";
+import { retrievalPrecedesOwnLink } from "./ai/linkedExileReach";
 import {
     beginDominanceDecision,
     endDominanceDecision,
@@ -1960,6 +1961,12 @@ export function isDiscouragedRolloutMove(
         // still fight (issue #1890 item 4, issue #7705), shared with the root
         // tie-break.
         if (isPointlessSelfActivation(state, pid, move)) return true;
+
+        // (d) A linked-exile retrieval cashed before the same permanent's own
+        // exile on the stack fills its pile (issue #9961,
+        // `retrievalPrecedesOwnLink`): the activation resolves first, on the
+        // pile as it stands.
+        if (retrievalPrecedesOwnLink(state, pid, source, ability)) return true;
 
         // (b) Sorcery-speed window: the mover is in ITS OWN sorcery window — a
         // main phase of its own turn, empty stack, holding priority (CR 307.5,

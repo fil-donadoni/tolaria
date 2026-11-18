@@ -327,6 +327,13 @@
             "needsSetup": false
         }
     ],
+    "Emperor of Bones": [
+        {
+            "label": "linked exile: Emperor of Bones adapts in the beginning-of-combat step once Atraxa is exiled with it",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Emrakul, the Promised End": [
         {
             "label": "graveyard discount: Emrakul, the Promised End is cast when the graveyard covers its cost",

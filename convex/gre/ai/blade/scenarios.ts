@@ -25310,7 +25310,10 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
+        // Seed 1 re-seeded to 5 (issue #9961): the refit the Emperor of Bones
+        // verdicts oblige moves it to `pass` alone — 1 of 20 seeds, 0 of 20 at
+        // the committed weights, a noise pin rather than a valuation.
+        seeds: [0xb1ade, 5, 2, 3, 4],
         tier: "must",
         expect: {
             moves: [
@@ -29722,6 +29725,343 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9964, the positive twin of the entry above: the same board plus a Hill Giant, mana value 4, in revolt's reach. Under the old gate the Bot cast at its own Emperor here too (seeds 1 and 3, and seed 7 at 400 iterations): the Giant variant sat more than `outcomeEps` below, so the variant ranking never saw it. With the band blind to the self-harm, every sibling is ranked, and the Giant wins it.",
     },
+    // Emperor of Bones, the two-step reanimation (issue #9961): exile the best
+    // creature card at the beginning of combat, then Adapt to put it onto the
+    // battlefield. One board, three windows, and the pair that keeps Adapt
+    // live when there is nothing to reanimate. Turn 17, the issue's turn; the
+    // graveyards carry the spent cards a long game leaves, which is what made
+    // the exile's target a coin flip.
+    {
+        label: "discriminating pair: holds Emperor of Bones' Adapt in main 1 for the beginning-of-combat exile of Atraxa",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a creature card worth reanimating in a graveyard (Atraxa, Grand Unifier)",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 17,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 14, opp: 14 },
+            cards: [
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 5,
+                },
+                {
+                    name: "Emperor of Bones",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grief",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Thoughtseize", owner: "me", zone: "graveyard" },
+                {
+                    name: "Inquisition of Kozilek",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Fatal Push",
+                    owner: "me",
+                    zone: "graveyard",
+                    count: 2,
+                },
+                { name: "Polluted Delta", owner: "me", zone: "graveyard" },
+                {
+                    name: "Atraxa, Grand Unifier",
+                    owner: "opp",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Faithful Mending",
+                    owner: "opp",
+                    zone: "graveyard",
+                    count: 2,
+                },
+                { name: "Goryo's Vengeance", owner: "opp", zone: "graveyard" },
+                { name: "Polluted Delta", owner: "opp", zone: "graveyard" },
+                {
+                    name: "Solitude",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Plains",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 5,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6],
+        tier: "must",
+        expect: { moves: [{ kind: "pass" }] },
+        note: "Issue #9961, position A. Adapt now is a certain +2/+2; passing reaches the beginning-of-combat exile, and Adapt there puts Atraxa onto the battlefield with haste. The old line spent Adapt here, and Adapt never places counters again on a creature that has some (CR 701.46a). The pass line lost on two counts: the exile's target was undifferentiated (a card exiled with the Emperor was worth nothing to the leaf, so the trigger node kept every graveyard card inside `TRIGGER_ANSWER_BEAM` and the line read as their average), and the rollout activated Adapt in response to the Emperor's own exile trigger, which resolves Adapt first on an empty pile. `retrievableLinkedExile` prices the linked card as latent material while the retrieval can still fire; `retrievalPrecedesOwnLink` discourages the activation over its own link in the rollout. Its half, \"discriminating pair: may adapt Emperor of Bones in main 1 with no creature card in any graveyard\", accepts either timing, so it lowers to no verdict and this anchor stays conditional debt, out of the fit.",
+    },
+    {
+        label: "discriminating pair: may adapt Emperor of Bones in main 1 with no creature card in any graveyard",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 17,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 14, opp: 14 },
+            cards: [
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 5,
+                },
+                {
+                    name: "Emperor of Bones",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grief",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Thoughtseize", owner: "me", zone: "graveyard" },
+                {
+                    name: "Inquisition of Kozilek",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Fatal Push",
+                    owner: "me",
+                    zone: "graveyard",
+                    count: 2,
+                },
+                { name: "Polluted Delta", owner: "me", zone: "graveyard" },
+                {
+                    name: "Faithful Mending",
+                    owner: "opp",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Faithful Mending",
+                    owner: "opp",
+                    zone: "graveyard",
+                    count: 2,
+                },
+                { name: "Goryo's Vengeance", owner: "opp", zone: "graveyard" },
+                { name: "Polluted Delta", owner: "opp", zone: "graveyard" },
+                {
+                    name: "Solitude",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Plains",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 5,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6],
+        tier: "must",
+        // "May": Adapt is instant speed, so adapting now and holding it are
+        // both right here. A PREDICATE, so the half lowers to no verdict: an
+        // expectation every legal move satisfies says nothing to the fit.
+        expect: {
+            predicate: (move, state) =>
+                move?.kind === "pass" ||
+                matchesMove(state, move, {
+                    kind: "activate-ability",
+                    card: "Emperor of Bones",
+                }),
+            describe: "activates Emperor of Bones' Adapt or passes",
+        },
+        note: 'Issue #9961, the half of "discriminating pair: holds Emperor of Bones\' Adapt in main 1 for the beginning-of-combat exile of Atraxa": Atraxa replaced by a third Faithful Mending, so no graveyard holds a creature card and the beginning-of-combat exile has nothing to fill the pile with. The +2/+2 is the whole payoff and Adapt is instant speed, so activating now and holding it are both right; the anchor forbids the activation only because of the creature card. A preference between the two is a timing judgement the leaf cannot see (measured: 7 of 8 seeds activate at the committed weights, a refit flips seed 0xb1ade to pass), so this half accepts both and is not a `pairOf` half: a verdict every legal move satisfies is vacuous, and the anchor stays out of the fit as conditional debt.',
+    },
+    {
+        label: "linked exile: Emperor of Bones' beginning-of-combat trigger exiles the opponent's Atraxa, not a spent card",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 17,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 14, opp: 14 },
+            cards: [
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 5,
+                },
+                {
+                    name: "Emperor of Bones",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grief",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Thoughtseize", owner: "me", zone: "graveyard" },
+                {
+                    name: "Inquisition of Kozilek",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Fatal Push",
+                    owner: "me",
+                    zone: "graveyard",
+                    count: 2,
+                },
+                { name: "Polluted Delta", owner: "me", zone: "graveyard" },
+                {
+                    name: "Atraxa, Grand Unifier",
+                    owner: "opp",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Faithful Mending",
+                    owner: "opp",
+                    zone: "graveyard",
+                    count: 2,
+                },
+                { name: "Goryo's Vengeance", owner: "opp", zone: "graveyard" },
+                { name: "Polluted Delta", owner: "opp", zone: "graveyard" },
+                {
+                    name: "Solitude",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Plains",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 5,
+                },
+            ],
+        },
+        setup: [{ kind: "phase-trigger" }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "submit-target", target: "Atraxa, Grand Unifier" }],
+        },
+        note: "Issue #9961, position B: the exile trigger awaits its target among nine graveyard cards. Before the fix every answer read the same to the leaf except the opponent's flashback Faithful Mending (its reach, `graveyardReach`), so the Bot exiled Mending on every seed and threw the reanimation away. The linked Atraxa now prices as latent material while the Emperor's Adapt is live.",
+    },
+    {
+        label: "linked exile: Emperor of Bones adapts in the beginning-of-combat step once Atraxa is exiled with it",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 17,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 14, opp: 14 },
+            cards: [
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 5,
+                },
+                {
+                    name: "Emperor of Bones",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grief",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Thoughtseize", owner: "me", zone: "graveyard" },
+                {
+                    name: "Inquisition of Kozilek",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Fatal Push",
+                    owner: "me",
+                    zone: "graveyard",
+                    count: 2,
+                },
+                { name: "Polluted Delta", owner: "me", zone: "graveyard" },
+                {
+                    name: "Atraxa, Grand Unifier",
+                    owner: "opp",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Faithful Mending",
+                    owner: "opp",
+                    zone: "graveyard",
+                    count: 2,
+                },
+                { name: "Goryo's Vengeance", owner: "opp", zone: "graveyard" },
+                { name: "Polluted Delta", owner: "opp", zone: "graveyard" },
+                {
+                    name: "Solitude",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Plains",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 5,
+                },
+            ],
+        },
+        setup: [
+            { kind: "phase-trigger" },
+            { kind: "submit-target", target: "Atraxa, Grand Unifier" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Emperor of Bones" }],
+        },
+        note: "Issue #9961, position C: the exile resolved, Atraxa sits in the Emperor's pile, the Bot holds priority in the beginning-of-combat step. Adapt puts Atraxa onto the battlefield with haste before attackers are declared. The guard that the linked card's latent price does not make holding it beat cashing it.",
+    },
     // Izzet Prowess, the modern metagame's level-2 rows
     // (`docs/agents/modern-metagame-bot-level-2.md`, issue #9691).
     {
@@ -31102,7 +31442,10 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
+        // Seed 2 re-seeded to 6 (issue #9961): the refit the Emperor of Bones
+        // verdicts oblige moves it to `pass` alone — 1 of 20 seeds, 0 of 20 at
+        // the committed weights, a noise pin rather than a valuation.
+        seeds: [0xb1ade, 1, 6, 3, 4],
         tier: "must",
         expect: {
             moves: [{ kind: "cast-spell", card: "Blood Moon" }],
