@@ -1864,17 +1864,18 @@ function nonCreatureBodyValue(
         )
     );
     const ratio = loyaltyRealizationRatio(perm);
-    if (ratio <= 1) return worth * ratio;
-    // Issue #9973 — ABOVE its starting loyalty a walker's loyalty arm
-    // (`loyaltyArmValueById`, the best survivable loyalty ability) stays at
-    // its own worth: it is what the walker does with ONE turn (CR 606.3), and
-    // a counter past the starting count does not make that turn better — it
-    // only buys the body more turns, which is what the ratio prices. Scaled
-    // with the body, each counter carried a share of the arm, and Jace, the
-    // Mind Sculptor's +2 (two counters at 64 points each) outbid the
-    // Brainstorm it exists beside. Below the starting count the arm scales
-    // with the body: the walker is that much nearer to dying (CR 704.5i). An
-    // `aiValue` override reads no arm (`latentValue` returns before it).
+    if (ratio === 1 || ratio <= 0) return worth * ratio;
+    // Issue #9973 — a walker's loyalty arm (`loyaltyArmValueById`, the best
+    // survivable loyalty ability) stays at its own worth at ANY loyalty above
+    // 0: it is what the walker does with ONE turn (CR 606.3), and the counters
+    // it holds do not change that turn — they buy or cost the body turns,
+    // which is what the ratio prices. Scaled with the body ABOVE the start,
+    // each banked counter carried a share of the arm and Jace, the Mind
+    // Sculptor's +2 outbid the Brainstorm it exists beside; scaled BELOW it,
+    // every minus ability paid a share of the arm on top of the body's, and
+    // the one-ply reading of Teferi's or Jace's bounce fell under `pass`. At
+    // 0 the walker is gone (CR 704.5i) and so is the arm. An `aiValue`
+    // override reads no arm (`latentValue` returns before it).
     const arm =
         getInstanceAiValue(perm) === undefined
             ? loyaltyArmValueById(String(perm.card.id ?? ""), weights.latent)

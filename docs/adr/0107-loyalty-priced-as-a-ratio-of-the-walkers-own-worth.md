@@ -126,10 +126,14 @@ surveiled him away for a random draw.
   loyalty, which this ADR's ratio already prices.
 - **It is ADDED** to the rest of the non-creature worth, never compared with
   the Latent Floor: the floor stands for the permanent the ratio scales.
-- **Above the starting loyalty the arm stays at its own worth**: a counter
-  past the starting count buys the body more turns, not a better turn. Scaled
-  with the body, Jace, the Mind Sculptor's +2 outbid his Brainstorm. Below the
-  starting count the whole worth scales, as before.
+- **At any loyalty above 0 the arm stays at its own worth**: the counters buy
+  or cost the body turns, never a better or worse turn. Scaled with the body
+  above the start, Jace, the Mind Sculptor's +2 outbid his Brainstorm. Scaled
+  below it, every minus ability paid a share of the arm on top of the body's:
+  Teferi's and Jace's bounce verdicts fell under `pass` at one ply, and the
+  weight fit chased them through `latentCreatureDiscount` (0.625 → 0.569),
+  which flipped the Snapcaster Mage hold-or-cast Eval Pair. At 0 the walker
+  is gone and so is the arm.
 
 ## References
 

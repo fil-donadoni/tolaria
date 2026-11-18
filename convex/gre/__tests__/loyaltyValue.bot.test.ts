@@ -356,18 +356,21 @@ describe("the loyalty arm: a walker's best survivable ability (issue #9973, CR 6
         );
     });
 
-    it("counters above the starting loyalty buy body, never a second arm", () => {
+    it("loyalty counters scale the body, never the arm", () => {
         // Jace starts at 3 and his 0 (Brainstorm) is his arm. Scaled with the
-        // body, two banked counters carried two thirds of that arm and his +2
-        // outbid the Brainstorm (blade: "loyalty: Jace brainstorms with no
-        // attacker"). Below the start the whole worth scales, as before.
+        // body ABOVE the start, two banked counters carried two thirds of that
+        // arm and his +2 outbid the Brainstorm (blade: "loyalty: Jace
+        // brainstorms with no attacker"); scaled BELOW it, his -1 bounce paid
+        // a third of the arm on top of the body's and the one-ply reading of
+        // the bounce fell under `pass`, which the weight fit chased through
+        // `latentCreatureDiscount`.
         const at = (loyalty: number) =>
             permanentsTerm(build(boardSpec(JACE, loyalty)));
         const whole = handValue(JACE);
         const arm = dslLoyaltyAbilityValue(getCardByName(JACE))!;
         expect(arm).toBeGreaterThan(0);
         expect(at(5) - at(3)).toBeCloseTo(((whole - arm) * 2) / 3, 6);
-        expect(at(3) - at(1)).toBeCloseTo((whole * 2) / 3, 6);
+        expect(at(3) - at(1)).toBeCloseTo(((whole - arm) * 2) / 3, 6);
     });
 });
 
