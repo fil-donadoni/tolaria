@@ -2294,7 +2294,7 @@ function playerTerms(
         // Priced at zero, every Adventure cast read as throwing its creature
         // half away, and a held Adventure poisoned the whole line it was cast in.
         //
-        // Issue #9961 — so is a card exiled with a permanent this player
+        // So is a card exiled with a permanent this player
         // controls whose own live ability puts it onto the battlefield under
         // this player's control (CR 607.2a, `ai/linkedExileReach.ts`): the
         // permanent is the permission. Priced at zero, the exile that fills
