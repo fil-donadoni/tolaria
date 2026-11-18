@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
     DEFAULT_CENSUS_SEED,
     buildCensusJobs,
+    censusReadings,
     censusVerdicts,
     diffCensus,
+    formatCensusSummary,
     mergeCensusResults,
     parseSlice,
     selectCensusEntries,
     sliceCensusJobs,
+    withCensusReadings,
     type CensusEntry,
     type CensusMeta,
     type CensusResult,
@@ -249,5 +252,88 @@ describe("blade census — verdicts, merge, diff", () => {
         const diff = diffCensus(arm, arm);
         expect(diff.newReds).toEqual([]);
         expect(diff.fixed).toEqual([]);
+    });
+});
+
+describe("blade census — correctness, performance, saturation", () => {
+    // One row per quadrant at least, a row exactly AT the threshold (under:
+    // only strictly above is over), and a fail-fast skip no reading counts.
+    const ROWS: CensusRow[] = [
+        row(0, "green fast", 1, true, { ms: 1000, iterations: 1000 }),
+        row(1, "green fast", 2, true, { ms: 5000, iterations: 1000 }),
+        row(2, "green slow", 1, true, { ms: 9000, iterations: 1000 }),
+        row(3, "red fast", 1, false, { ms: 2000, iterations: 500 }),
+        row(4, "red fast", 2, true, { ms: 0, iterations: 500, skipped: true }),
+        row(5, "red slow", 1, false, { ms: 6000, iterations: 2000 }),
+        row(6, "red slow", 2, false, { ms: 8000, iterations: 2000 }),
+    ];
+
+    it("counts each quadrant of (green, red) x (under, over) the threshold", () => {
+        const r = censusReadings(ROWS, 5000);
+        expect(r.saturation).toEqual({
+            greenUnder: 2,
+            greenOver: 1,
+            redUnder: 1,
+            redOver: 2,
+        });
+        expect(r.performance.overThreshold).toBe(3);
+        expect(r.correctness).toEqual({
+            entries: 4,
+            redEntries: 2,
+            rows: 6,
+            redRows: 3,
+        });
+    });
+
+    it("moves rows between quadrants with the threshold, never their verdict", () => {
+        const r = censusReadings(ROWS, 1500);
+        expect(r.saturation).toEqual({
+            greenUnder: 1,
+            greenOver: 2,
+            redUnder: 0,
+            redOver: 3,
+        });
+        expect(r.correctness.redRows).toBe(3);
+    });
+
+    it("reads the time and ms-per-iteration distributions of the searches run", () => {
+        const r = censusReadings(ROWS, 5000);
+        // ms of the six searches run: 1000 2000 5000 6000 8000 9000.
+        expect(r.performance.ms).toEqual({
+            p50: 5000,
+            p90: 9000,
+            p99: 9000,
+            max: 9000,
+            mean: 31000 / 6,
+        });
+        // ms per iteration: 1 3 4 4 5 9.
+        expect(r.performance.msPerIteration).toMatchObject({
+            p50: 4,
+            max: 9,
+        });
+    });
+
+    it("prints the three readings and the lab-proxy note in the summary", () => {
+        const arm = withCensusReadings({ meta: meta(), rows: ROWS }, 5000);
+        const text = formatCensusSummary(arm);
+        expect(text).toContain("red entries 2/4, red rows 3/6");
+        expect(text).toContain("rows over 5000ms: 3/6");
+        expect(text).toContain(
+            "green over 1, red under 1, green under 2, red over 2"
+        );
+        expect(text).toMatch(/lab proxy/);
+    });
+
+    it("recomputes the readings of merged slices from the joined rows", () => {
+        const a = withCensusReadings(
+            { meta: meta({ slices: ["1/2"] }), rows: ROWS.slice(0, 3) },
+            5000
+        );
+        const b = withCensusReadings(
+            { meta: meta({ slices: ["2/2"] }), rows: ROWS.slice(3) },
+            5000
+        );
+        const merged = withCensusReadings(mergeCensusResults([a, b]), 5000);
+        expect(merged.readings).toEqual(censusReadings(ROWS, 5000));
     });
 });

@@ -15,7 +15,8 @@
  * structural `CensusEntry`.
  *
  * Verdicts depend on `iterations` and seeds only. `ms` is reported for
- * planning, never asserted.
+ * planning and for the performance and saturation readings
+ * (`censusReadings`), never asserted and never a ceiling.
  */
 
 /** What the job list reads of a blade entry. */
@@ -76,7 +77,13 @@ export type CensusMeta = {
     sha: string | null;
 };
 
-export type CensusResult = { meta: CensusMeta; rows: CensusRow[] };
+export type CensusResult = {
+    meta: CensusMeta;
+    rows: CensusRow[];
+    /** The three readings of the arm, attached by `blade:census` (and
+     *  recomputed on `--merge`); absent on a slice written before them. */
+    readings?: CensusReadings;
+};
 
 /** The blade runner's default seed list, for an entry that declares none. */
 export const DEFAULT_CENSUS_SEED = 0xb1ade;
@@ -239,6 +246,108 @@ export function mergeCensusResults(
     };
 }
 
+/** Nearest-rank quantiles of one sample; all zero on an empty sample. */
+export type CensusDistribution = {
+    p50: number;
+    p90: number;
+    p99: number;
+    max: number;
+    mean: number;
+};
+
+/** One arm read three ways, so engine speed and decision quality are
+ *  monitored apart. Only `ms` is timed, and only for this report: verdicts
+ *  stay iterations-only, no search is ever cut by the clock. */
+export type CensusReadings = {
+    /** A search above it would not fit the field's clock. */
+    thresholdMs: number;
+    /** The rows' `ms` come from whatever machine ran the arm (the hosted
+     *  matrix in practice): a lab proxy for the trend, never a field figure. */
+    note: string;
+    correctness: {
+        entries: number;
+        redEntries: number;
+        /** Searches run: fail-fast skips are not rows of any reading. */
+        rows: number;
+        redRows: number;
+    };
+    performance: {
+        /** Search wall time per row. */
+        ms: CensusDistribution;
+        /** Wall time over the row's iteration budget. */
+        msPerIteration: CensusDistribution;
+        overThreshold: number;
+    };
+    /** The crossing of the two: `greenOver` is a right decision the field
+     *  clock would cut before it is reached, `redUnder` a wrong one more time
+     *  would not have bought. */
+    saturation: {
+        greenUnder: number;
+        greenOver: number;
+        redUnder: number;
+        redOver: number;
+    };
+};
+
+export const CENSUS_MS_NOTE =
+    "ms are a lab proxy for the trend (the machine that ran the arm), never a field figure";
+
+function distribution(values: readonly number[]): CensusDistribution {
+    if (values.length === 0) return { p50: 0, p90: 0, p99: 0, max: 0, mean: 0 };
+    const sorted = [...values].sort((a, b) => a - b);
+    const rank = (q: number) =>
+        sorted[Math.max(0, Math.ceil(q * sorted.length) - 1)];
+    return {
+        p50: rank(0.5),
+        p90: rank(0.9),
+        p99: rank(0.99),
+        max: sorted[sorted.length - 1],
+        mean: sorted.reduce((n, v) => n + v, 0) / sorted.length,
+    };
+}
+
+/** Correctness, performance and saturation of one arm's rows. A row is over
+ *  the threshold when its `ms` is strictly above it. */
+export function censusReadings(
+    rows: readonly CensusRow[],
+    thresholdMs: number
+): CensusReadings {
+    const verdicts = censusVerdicts(rows);
+    const ran = rows.filter((r) => !r.skipped);
+    const over = (r: CensusRow) => r.ms > thresholdMs;
+    const count = (p: (r: CensusRow) => boolean) => ran.filter(p).length;
+    return {
+        thresholdMs,
+        note: CENSUS_MS_NOTE,
+        correctness: {
+            entries: verdicts.length,
+            redEntries: verdicts.filter((v) => !v.ok).length,
+            rows: ran.length,
+            redRows: count((r) => !r.ok),
+        },
+        performance: {
+            ms: distribution(ran.map((r) => r.ms)),
+            msPerIteration: distribution(ran.map((r) => r.ms / r.iterations)),
+            overThreshold: count(over),
+        },
+        saturation: {
+            greenUnder: count((r) => r.ok && !over(r)),
+            greenOver: count((r) => r.ok && over(r)),
+            redUnder: count((r) => !r.ok && !over(r)),
+            redOver: count((r) => !r.ok && over(r)),
+        },
+    };
+}
+
+/** The arm with its readings attached (replacing any a slice carried: a
+ *  merge reads the joined rows afresh). */
+export function withCensusReadings(
+    result: CensusResult,
+    thresholdMs: number
+): CensusResult {
+    return { ...result, readings: censusReadings(result.rows, thresholdMs) };
+}
+
 export type CensusFlip = {
     label: string;
     iterations: number;
@@ -300,7 +409,29 @@ function formatMs(ms: number): string {
         : `${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s`;
 }
 
-/** The human summary of one arm: totals, timing, every red entry. */
+function formatDistribution(d: CensusDistribution, digits: number): string {
+    const f = (v: number) => v.toFixed(digits);
+    return `p50 ${f(d.p50)}, p90 ${f(d.p90)}, p99 ${f(d.p99)}, max ${f(d.max)}, mean ${f(d.mean)}`;
+}
+
+/** The three readings, one block each. */
+export function formatCensusReadings(r: CensusReadings): string[] {
+    const c = r.correctness;
+    const p = r.performance;
+    const s = r.saturation;
+    const t = `${r.thresholdMs}ms`;
+    return [
+        `correctness: red entries ${c.redEntries}/${c.entries}, red rows ${c.redRows}/${c.rows}`,
+        `performance: ms ${formatDistribution(p.ms, 0)}`,
+        `             ms/iteration ${formatDistribution(p.msPerIteration, 2)}`,
+        `             rows over ${t}: ${p.overThreshold}/${c.rows}`,
+        `saturation (threshold ${t}): green over ${s.greenOver}, red under ${s.redUnder}, green under ${s.greenUnder}, red over ${s.redOver}`,
+        `note: ${r.note}`,
+    ];
+}
+
+/** The human summary of one arm: totals, timing, the readings when
+ *  attached, every red entry. */
 export function formatCensusSummary(result: CensusResult): string {
     const verdicts = censusVerdicts(result.rows);
     const red = verdicts.filter((v) => !v.ok);
@@ -314,6 +445,7 @@ export function formatCensusSummary(result: CensusResult): string {
             (m.sha ? ` sha=${m.sha.slice(0, 10)}` : ""),
         `entries ${verdicts.length}, jobs ${result.rows.length}, red entries ${red.length} (${redSeeds} seeds)`,
         `wall ${formatMs(m.wallMs)}, cpu ${formatMs(m.cpuMs)}, workers ${m.workers}`,
+        ...(result.readings ? formatCensusReadings(result.readings) : []),
     ];
     for (const v of red) {
         lines.push(`  RED ${v.label} @${v.iterations} — ${v.moves.join("; ")}`);
