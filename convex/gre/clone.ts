@@ -89,17 +89,16 @@ function isShared(key: string, value: object): boolean {
 export const COPY_BY_SPREAD =
     typeof (new Error() as Error & { line?: unknown }).line === "number";
 
-// How an object is copied is chosen per engine, because no single loop wins on
-// both (issue #10153, blade 45, 18, 35 and a field position at 400
-// iterations):
-//   - V8 (issue #10026): `Object.keys` over the source, one store per key into
-//     a fresh object. `for…in` is no faster, and a spread raises blade 35's
-//     whole search by about 15%: the spread's clone cache misses on the
-//     state's many object shapes.
-//   - JavaScriptCore (issue #10153): the spread copies every field in one
-//     step, then only the object-valued fields are replaced by their clones;
-//     the key-by-key stores cost it twice the time. A `for…in` over the copy
-//     beats `Object.keys` there.
+// How an object is copied depends on the engine: no one loop is fastest on
+// both (blade 45, 18, 35 and a field position at 400 iterations, issue #10153).
+//   - V8: `Object.keys` over the source, one store per key into a fresh object
+//     (issue #10026). A spread raises blade 35's whole search by about 15%;
+//     `for…in` is no faster.
+//   - JavaScriptCore: a spread copies the object in one step, then only its
+//     object-valued fields are replaced by their clones. It cuts `cloneValue`'s
+//     share of a search by a sixth (the field) to a half (blade 18); `for…in`
+//     over the source raises it. Over the copy, `for…in` ties `Object.keys` or
+//     beats it.
 // Both test for a primitive BEFORE recursing, which saves a call per primitive
 // field — most of an instance's.
 function cloneValue(value: object): object {
