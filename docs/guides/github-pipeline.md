@@ -1785,7 +1785,8 @@ passes for the owner's CPUs. Dispatch it by hand:
 `gh workflow run blade-census.yml -f ref=<branch> -f variant=<name>`. Sixteen
 slices of the (entry, seed) job list run `bun run blade:census --slice i/16
 --jobs 4`; `merge` joins them into the `blade-census` artifact and prints the
-reds in the run summary. Compare two arms locally:
+reds and the arm's performance and saturation readings in the run summary
+(hosted-runner ms: a lab proxy for the trend, never a field figure). Compare two arms locally:
 `gh run download <id> -n blade-census`, then
 `bun run blade:census --diff base.json variant.json`. A report, never a gate:
 no status, no label, no merge waits on it.
