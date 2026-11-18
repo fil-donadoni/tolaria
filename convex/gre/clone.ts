@@ -82,16 +82,43 @@ function isShared(key: string, value: object): boolean {
     }
 }
 
-// Measured on V8 against the blade `must` positions (issue #10026): `for…in`
-// over these objects is twice as slow as `Object.keys` (JavaScriptCore is the
-// other way round; the Brain runs mostly on V8), and testing for a primitive
-// BEFORE recursing saves a call per primitive field — most of an instance's.
+/** Whether this engine is JavaScriptCore (WebKit, Bun): it stamps every
+ *  `Error` with the `line` it was created on, V8 and SpiderMonkey never do.
+ *  It picks how `cloneValue` copies an object (below); the clone is the same
+ *  either way, so a wrong answer costs speed, never behaviour. */
+const COPY_BY_SPREAD =
+    typeof (new Error() as Error & { line?: unknown }).line === "number";
+
+// How an object is copied is chosen per engine, because no single loop wins on
+// both (issue #10153, blade 45, 18, 35 and a field position at 400
+// iterations):
+//   - V8 (issue #10026): `Object.keys` over the source, one store per key into
+//     a fresh object. `for…in` is no faster, and a spread raises blade 35's
+//     whole search by about 15%: the spread's clone cache misses on the
+//     state's many object shapes.
+//   - JavaScriptCore (issue #10153): the spread copies every field in one
+//     step, then only the object-valued fields are replaced by their clones;
+//     the key-by-key stores cost it twice the time. A `for…in` over the copy
+//     beats `Object.keys` there.
+// Both test for a primitive BEFORE recursing, which saves a call per primitive
+// field — most of an instance's.
 function cloneValue(value: object): object {
     if (Array.isArray(value)) {
         const out = new Array(value.length);
         for (let i = 0; i < value.length; i++) {
             const v: unknown = value[i];
             out[i] = v === null || typeof v !== "object" ? v : cloneValue(v);
+        }
+        return out;
+    }
+
+    if (COPY_BY_SPREAD) {
+        const out: Record<string, unknown> = { ...value };
+        for (const key in out) {
+            const v = out[key];
+            if (v !== null && typeof v === "object" && !isShared(key, v)) {
+                out[key] = cloneValue(v);
+            }
         }
         return out;
     }
