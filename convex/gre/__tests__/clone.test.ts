@@ -2,8 +2,8 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
-import { cloneGameState, SHARED_KEYS } from "../clone";
+import { describe, expect, it, vi } from "vitest";
+import * as v8Clone from "../clone";
 import { advancePhase } from "../phases";
 import {
     makeInstance,
@@ -14,6 +14,39 @@ import { getCardByName } from "../../cards";
 import type { GameState } from "../state";
 
 const BEARS = getCardByName("Grizzly Bears").id;
+const { SHARED_KEYS } = v8Clone;
+
+/** `clone.ts` as JavaScriptCore loads it (issue #10153): the module picks how
+ *  it copies an object when it loads, from `new Error().line`, which only
+ *  JavaScriptCore sets. A fresh copy of the module, loaded while
+ *  `Error.prototype` carries a `line`, takes JavaScriptCore's path under V8.
+ *  The file refuses to run unless the two copies took different paths, so
+ *  neither suite below can quietly test the other's. */
+async function loadJavaScriptCoreClone(): Promise<typeof v8Clone> {
+    vi.resetModules();
+    Object.defineProperty(Error.prototype, "line", {
+        value: 0,
+        configurable: true,
+    });
+    let jsc: typeof v8Clone;
+    try {
+        jsc = await import("../clone");
+    } finally {
+        delete (Error.prototype as { line?: unknown }).line;
+    }
+    if (v8Clone.COPY_BY_SPREAD || !jsc.COPY_BY_SPREAD) {
+        throw new Error(
+            `clone.ts took the wrong copy path: V8 by spread ${v8Clone.COPY_BY_SPREAD}, JavaScriptCore by spread ${jsc.COPY_BY_SPREAD}`
+        );
+    }
+    return jsc;
+}
+
+const jscClone = await loadJavaScriptCoreClone();
+const ENGINES = [
+    { engine: "V8", module: v8Clone },
+    { engine: "JavaScriptCore", module: jscClone },
+];
 
 function representativeState(): GameState {
     const p1 = makePlayer("p1", {
@@ -29,105 +62,112 @@ function representativeState(): GameState {
     return makeState({ players: [p1, p2] });
 }
 
-describe("cloneGameState (structural sharing, issue #108)", () => {
-    it("produces an independent copy of mutable paths", () => {
-        const state = representativeState();
-        const clone = cloneGameState(state);
+describe.each(ENGINES)(
+    "cloneGameState on $engine (structural sharing, issue #108)",
+    ({ module }) => {
+        const { cloneGameState } = module;
 
-        expect(clone).not.toBe(state);
-        expect(clone.players).not.toBe(state.players);
-        expect(clone.players[0].battlefield).not.toBe(
-            state.players[0].battlefield
-        );
-        expect(clone.players[0].battlefield[0]).not.toBe(
-            state.players[0].battlefield[0]
-        );
-        // value-equal despite different identity
-        expect(clone).toEqual(state);
-    });
+        it("produces an independent copy of mutable paths", () => {
+            const state = representativeState();
+            const clone = cloneGameState(state);
 
-    it("shares the immutable card-definition reference by identity", () => {
-        const state = representativeState();
-        const clone = cloneGameState(state);
-        expect(clone.players[0].battlefield[0].card).toBe(
-            state.players[0].battlefield[0].card
-        );
-    });
+            expect(clone).not.toBe(state);
+            expect(clone.players).not.toBe(state.players);
+            expect(clone.players[0].battlefield).not.toBe(
+                state.players[0].battlefield
+            );
+            expect(clone.players[0].battlefield[0]).not.toBe(
+                state.players[0].battlefield[0]
+            );
+            // value-equal despite different identity
+            expect(clone).toEqual(state);
+        });
 
-    it("shares the characteristic lists the engine only ever replaces (issue #10026)", () => {
-        const state = representativeState();
-        const clone = cloneGameState(state);
-        const orig = state.players[0].library[0];
-        const copy = clone.players[0].library[0];
-        expect(copy).not.toBe(orig);
-        expect(copy.types).toBe(orig.types);
-        expect(copy.subtypes).toBe(orig.subtypes);
-        expect(copy.staticAbilities).toBe(orig.staticAbilities);
-    });
+        it("shares the immutable card-definition reference by identity", () => {
+            const state = representativeState();
+            const clone = cloneGameState(state);
+            expect(clone.players[0].battlefield[0].card).toBe(
+                state.players[0].battlefield[0].card
+            );
+        });
 
-    it("copies a whole instance held under `card` (StagedEntry), sharing only its definition ref (issue #10026)", () => {
-        const state = representativeState();
-        const staged = makeInstance(BEARS, { id: "staged", zone: "stack" });
-        const withStaged = {
-            ...state,
-            stagedEntries: [{ card: staged, controllerId: "p1" }],
-        } as unknown as GameState;
-        const clone = cloneGameState(withStaged);
-        const copy = (clone as unknown as typeof withStaged).stagedEntries![0]
-            .card;
+        it("shares the characteristic lists the engine only ever replaces (issue #10026)", () => {
+            const state = representativeState();
+            const clone = cloneGameState(state);
+            const orig = state.players[0].library[0];
+            const copy = clone.players[0].library[0];
+            expect(copy).not.toBe(orig);
+            expect(copy.types).toBe(orig.types);
+            expect(copy.subtypes).toBe(orig.subtypes);
+            expect(copy.staticAbilities).toBe(orig.staticAbilities);
+        });
 
-        expect(copy).not.toBe(staged);
-        expect(copy.card).toBe(staged.card);
-        copy.zone = "battlefield";
-        expect(staged.zone).toBe("stack");
-    });
+        it("copies a whole instance held under `card` (StagedEntry), sharing only its definition ref (issue #10026)", () => {
+            const state = representativeState();
+            const staged = makeInstance(BEARS, { id: "staged", zone: "stack" });
+            const withStaged = {
+                ...state,
+                stagedEntries: [{ card: staged, controllerId: "p1" }],
+            } as unknown as GameState;
+            const clone = cloneGameState(withStaged);
+            const copy = (clone as unknown as typeof withStaged)
+                .stagedEntries![0].card;
 
-    it("shares exactly the lists named in SHARED_KEYS, and copies a list under any other key", () => {
-        const lists = [...SHARED_KEYS].filter((k) => k !== "card");
-        const holder = Object.fromEntries(
-            [...lists, "colors", "counters"].map((k) => [k, ["x"]])
-        );
-        const clone = cloneGameState(
-            holder as unknown as GameState
-        ) as unknown as Record<string, unknown>;
-        for (const key of lists) expect(clone[key], key).toBe(holder[key]);
-        expect(clone.colors).not.toBe(holder.colors);
-        expect(clone.counters).not.toBe(holder.counters);
-    });
+            expect(copy).not.toBe(staged);
+            expect(copy.card).toBe(staged.card);
+            copy.zone = "battlefield";
+            expect(staged.zone).toBe("stack");
+        });
 
-    it("mutating the clone in place never reaches the original", () => {
-        const state = representativeState();
-        const clone = cloneGameState(state);
+        it("shares exactly the lists named in SHARED_KEYS, and copies a list under any other key", () => {
+            const lists = [...SHARED_KEYS].filter((k) => k !== "card");
+            const holder = Object.fromEntries(
+                [...lists, "colors", "counters"].map((k) => [k, ["x"]])
+            );
+            const clone = cloneGameState(
+                holder as unknown as GameState
+            ) as unknown as Record<string, unknown>;
+            for (const key of lists) expect(clone[key], key).toBe(holder[key]);
+            expect(clone.colors).not.toBe(holder.colors);
+            expect(clone.counters).not.toBe(holder.counters);
+        });
 
-        const copy = clone.players[0].battlefield[0];
-        copy.isTapped = true;
-        copy.power = 99;
-        copy.types = [...copy.types, "Artifact"];
-        copy.counters = { "+1/+1": 3 };
-        clone.players[0].life = 1;
-        clone.players[0].battlefield.push(makeInstance(BEARS, { id: "added" }));
+        it("mutating the clone in place never reaches the original", () => {
+            const state = representativeState();
+            const clone = cloneGameState(state);
 
-        const origCard = state.players[0].battlefield[0];
-        expect(origCard.isTapped).toBe(false);
-        expect(origCard.power).toBe(2);
-        expect(origCard.types).not.toContain("Artifact");
-        expect(origCard.counters).toBeUndefined();
-        expect(state.players[0].life).toBe(20);
-        expect(state.players[0].battlefield).toHaveLength(1);
-    });
+            const copy = clone.players[0].battlefield[0];
+            copy.isTapped = true;
+            copy.power = 99;
+            copy.types = [...copy.types, "Artifact"];
+            copy.counters = { "+1/+1": 3 };
+            clone.players[0].life = 1;
+            clone.players[0].battlefield.push(
+                makeInstance(BEARS, { id: "added" })
+            );
 
-    it("survives a real in-place engine move (advancePhase) without aliasing", () => {
-        const state = representativeState();
-        const clone = cloneGameState(state);
-        const phaseBefore = state.phase;
+            const origCard = state.players[0].battlefield[0];
+            expect(origCard.isTapped).toBe(false);
+            expect(origCard.power).toBe(2);
+            expect(origCard.types).not.toContain("Artifact");
+            expect(origCard.counters).toBeUndefined();
+            expect(state.players[0].life).toBe(20);
+            expect(state.players[0].battlefield).toHaveLength(1);
+        });
 
-        advancePhase(clone);
+        it("survives a real in-place engine move (advancePhase) without aliasing", () => {
+            const state = representativeState();
+            const clone = cloneGameState(state);
+            const phaseBefore = state.phase;
 
-        // engine mutated the clone, not the original
-        expect(state.phase).toBe(phaseBefore);
-        expect(clone.phase).not.toBe(phaseBefore);
-    });
-});
+            advancePhase(clone);
+
+            // engine mutated the clone, not the original
+            expect(state.phase).toBe(phaseBefore);
+            expect(clone.phase).not.toBe(phaseBefore);
+        });
+    }
+);
 
 /** The repository root, from this file's own location. */
 const root = fileURLToPath(new URL("../../../", import.meta.url));
