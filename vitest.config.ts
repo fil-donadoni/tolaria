@@ -2,6 +2,7 @@ import { defineConfig } from "vitest/config";
 import path from "path";
 import {
     splitScriptsTests,
+    splitDomSharedTests,
     splitSrcBotTests,
     splitSrcTests,
 } from "./scripts/test-env-split";
@@ -92,6 +93,9 @@ const exclude = [...baseExclude, ...PERF_GLOB, ...LADDER_GLOB];
 //               phase). Only the DOM
 //               projects load the DOM setup file (jest-dom matchers +
 //               ResizeObserver stub).
+//   - `dom-shared` → the `dom` files with no isolation marker (issue #10106):
+//               the same happy-dom, but `isolate: false` — see
+//               SRC_DOM_SHARED_TESTS below.
 // The line between them is runtime NEED, not directory: `src` tests that touch
 // no DOM global and mock no module run in the node project (see SRC_NODE_TESTS
 // below). It survives future card-registry migrations because it keys off what
@@ -165,6 +169,23 @@ const BOT_GLOB_DOM = ["src/**/*.bot.test.{ts,tsx}"];
 // stops running while the gate stays green.
 // ─────────────────────────────────────────────────────────────────────────────
 const SRC_NODE_TESTS = splitSrcTests(__dirname).node;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AXIS 1, REFINED AGAIN — marker-free DOM tests run in `dom-shared`
+// (issue #10106).
+//
+// The `dom` project keeps per-file isolation, so every file re-imports its
+// module graph. 166 of its 552 files carry no isolation marker (`vi.mock`,
+// spies, fake timers, global stubs) — measured at sha 713841e9d, 2 workers:
+// 216 CPU-s isolated, 38 with `isolate: false` (one file red: the shared
+// catalogue mutated by a neighbour), 35 with the frozen catalogue, green. The
+// SAME classifier as the node/dom split picks them (`splitDomSharedTests`), so
+// a file that grows a marker returns to `dom` by itself. What the classifier
+// cannot see — a node left in `document.body`, a listener, an interval, a new
+// global — `vitest.setup.dom-leaks.ts` asserts back at its default after every
+// file, so a leak reds AT the leaking file.
+// ─────────────────────────────────────────────────────────────────────────────
+const SRC_DOM_SHARED_TESTS = splitDomSharedTests(__dirname);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AXIS 1, REFINED FOR THE BOT SUITE — DOM-free `src` bot tests run in
@@ -371,8 +392,32 @@ export default defineConfig({
                         "src/**/*.test.{ts,tsx}",
                         "dashboard/**/*.test.{ts,tsx}",
                     ],
-                    exclude: [...exclude, ...BOT_GLOB_DOM, ...SRC_NODE_TESTS],
+                    exclude: [
+                        ...exclude,
+                        ...BOT_GLOB_DOM,
+                        ...SRC_NODE_TESTS,
+                        ...SRC_DOM_SHARED_TESTS,
+                    ],
                     // Same hang guard as the node projects above (#3123).
+                    testTimeout: 30_000,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: "dom-shared",
+                    environment: "happy-dom",
+                    // The DOM setup, the frozen catalogue (`isolate: false`
+                    // shares card definitions across files, as in the node
+                    // projects) and the shared-state leak detector.
+                    setupFiles: [
+                        "./vitest.setup.ts",
+                        "./vitest.setup.node.ts",
+                        "./vitest.setup.dom-leaks.ts",
+                    ],
+                    include: SRC_DOM_SHARED_TESTS,
+                    exclude: [...exclude, ...BOT_GLOB_DOM],
+                    isolate: false,
                     testTimeout: 30_000,
                 },
             },
