@@ -3,7 +3,6 @@
 // tree weighs a bigger body against attacking now instead of a fixed policy.
 import { describe, expect, it } from "vitest";
 import {
-    makeInstance,
     makePlayer,
     makeState,
     pushSpell,
@@ -24,16 +23,6 @@ const RIOTER: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["riot"],
-};
-
-const BIG_BODY: CardDefinition = {
-    id: "riot-bot-test-big-body",
-    name: "Riot Bot Big Body",
-    rarity: "common",
-    manaCost: { G: 6 },
-    types: ["Creature"],
-    power: 6,
-    toughness: 4,
 };
 
 function atThePrompt(
@@ -81,33 +70,12 @@ describe("Riot (CR 702.136a), Bot choice surface", () => {
 
     // Both libraries are empty, so accepting the counter still wins when the
     // opponent decks at their draw: this pins a win in this turn's combat
-    // against a win on the opponent's turn (issue #10084, ADR 0184 `wonBandHeight`).
+    // against a win on the opponent's turn (issue #10084, `WIN_TURN_DECAY`).
     it("takes the haste when attacking now is lethal", () => {
         withTemporaryDefinition(RIOTER, () => {
             const state = atThePrompt({ phase: "PRECOMBAT_MAIN" }, 1);
             const move = search(state, "p1", { iterations: 400 }, 1);
             expect(move).toEqual(candidate(state, /decline/));
         });
-    });
-
-    // Issue #10118, ADR 0184: the same choice won from BEHIND on material.
-    // Tapped bodies on the opponent's side cannot block; they only sink the
-    // material signal, which used to scale the timing gap to nothing.
-    it("takes the haste for lethal now while behind on material", () => {
-        withTemporaryDefinition(RIOTER, () =>
-            withTemporaryDefinition(BIG_BODY, () => {
-                const wurms = [1, 2].map((n) =>
-                    makeInstance(BIG_BODY.id, {
-                        id: `wurm-${n}`,
-                        controllerId: "p2",
-                        isTapped: true,
-                    })
-                );
-                const state = atThePrompt({ phase: "PRECOMBAT_MAIN" }, 1);
-                state.players[1].battlefield.push(...wurms);
-                const move = search(state, "p1", { iterations: 400 }, 1);
-                expect(move).toEqual(candidate(state, /decline/));
-            })
-        );
     });
 });

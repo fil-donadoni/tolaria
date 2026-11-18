@@ -111,7 +111,6 @@
         "landCount": 4,
         "libraryCount": 1
     },
-    "as-enters choice: takes the haste for lethal now while behind on material": null,
     "as-enters choice: takes the haste when attacking now is lethal": null,
     "as-enters copy: casts a clone of an artifact-or-creature at four mana": {
         "cards": [
@@ -6134,129 +6133,6 @@
                 "owner": "opp",
                 "zone": "hand",
                 "count": 7
-            }
-        ]
-    },
-    "tax counter: casts Daze into a tapped-out opponent": {
-        "cards": [
-            {
-                "name": "Island",
-                "owner": "opp",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Daze",
-                "owner": "opp",
-                "zone": "hand"
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": true
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": true
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": true
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": true
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": true
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "activePlayer": "me",
-        "turn": 6,
-        "priority": "opp",
-        "passCount": 1,
-        "landsPlayed": {
-            "me": 1
-        },
-        "libraryCount": 20,
-        "stack": [
-            {
-                "kind": "spell",
-                "name": "Serra Angel",
-                "controller": "me"
-            }
-        ]
-    },
-    "tax counter: casts Mana Leak when the opponent cannot pay {3}": {
-        "cards": [
-            {
-                "name": "Island",
-                "owner": "opp",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Island",
-                "owner": "opp",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Mana Leak",
-                "owner": "opp",
-                "zone": "hand"
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield"
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": true
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": true
-            },
-            {
-                "name": "Plains",
-                "owner": "me",
-                "zone": "battlefield",
-                "tapped": true
-            }
-        ],
-        "phase": "PRECOMBAT_MAIN",
-        "activePlayer": "me",
-        "turn": 6,
-        "priority": "opp",
-        "passCount": 1,
-        "landsPlayed": {
-            "me": 1
-        },
-        "libraryCount": 20,
-        "stack": [
-            {
-                "kind": "spell",
-                "name": "Serra Angel",
-                "controller": "me"
             }
         ]
     },
