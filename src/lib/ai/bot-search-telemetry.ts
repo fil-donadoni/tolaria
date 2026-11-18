@@ -23,9 +23,9 @@
 // (`components/bug-report/`), which is what protects the user agent, the hand,
 // the decklist and the client diagnostics blob. So it carries counters and
 // durations only, the game id, the difficulty preset, and a COARSE device
-// class: the browser ENGINE family (three values), a core-count BUCKET and a
-// mobile flag. The user-agent string is read here to derive the family and is
-// never sent. No player, no card, no board state. `REPORT_KEYS` is the
+// class: the browser ENGINE family (three values), the OS FAMILY (five), a
+// core-count BUCKET and a mobile flag. The user-agent string is read here to
+// derive the families and is never sent. No player, no card, no board state. `REPORT_KEYS` is the
 // allowlist; a test reds on a key outside it.
 //
 // Monitoring is best-effort: a throwing sink never reaches the driver.
@@ -59,6 +59,7 @@ export type ConsultSample = {
 /** The coarse device class — see the module header for why it is this coarse. */
 export type DeviceClass = {
     engine: "chromium" | "gecko" | "webkit" | "other";
+    os: "macos" | "windows" | "linux" | "ios" | "android" | "other";
     cores: "1-2" | "3-4" | "5-8" | "9+" | "unknown";
     mobile: boolean;
 };
@@ -90,7 +91,9 @@ export const REPORT_KEYS = [
     "consultMs.max",
     "msPerIteration.p50",
     "msPerIteration.p90",
+    "msPerIteration.first",
     "device.engine",
+    "device.os",
     "device.cores",
     "device.mobile",
 ] as const;
@@ -161,8 +164,47 @@ type NavigatorLike = {
     userAgent?: string;
     hardwareConcurrency?: number;
     maxTouchPoints?: number;
-    userAgentData?: { mobile?: boolean };
+    userAgentData?: { mobile?: boolean; platform?: string };
 };
+
+/** A desktop Mac agent on a touch screen: an Apple device presenting itself
+ *  as a Mac (see `isMobileDevice`). No Mac has a touch screen. */
+const touchMacAgent = (nav: NavigatorLike | undefined): boolean =>
+    /Macintosh/.test(nav?.userAgent ?? "") && (nav?.maxTouchPoints ?? 0) > 1;
+
+/** `userAgentData.platform` values, by OS family. ChromeOS is `other`. */
+const PLATFORM_HINT_OS: Readonly<Record<string, DeviceClass["os"]>> = {
+    macos: "macos",
+    windows: "windows",
+    linux: "linux",
+    ios: "ios",
+    android: "android",
+};
+
+/** The OS family a device runs (issue #10128): the machines behind two engines
+ *  are told apart only by it. The browser's own hint wins where it exists
+ *  (Chromium's `userAgentData.platform`); else the user agent decides. Every
+ *  iOS agent names an iPhone, iPad or iPod and every Android one names Android
+ *  — both before Linux, which Android's agent also names — and a desktop Mac
+ *  agent on a touch screen is iPadOS (or a desktop-site iPhone): `ios`. */
+export function osFamily(nav: NavigatorLike | undefined): DeviceClass["os"] {
+    const platform = nav?.userAgentData?.platform;
+    if (typeof platform === "string" && platform !== "") {
+        const hinted = PLATFORM_HINT_OS[platform.toLowerCase()];
+        if (hinted) return hinted;
+        if (platform !== "Unknown") return "other";
+    }
+    const userAgent = nav?.userAgent ?? "";
+    if (/iPhone|iPad|iPod/.test(userAgent)) return "ios";
+    if (/Android/.test(userAgent)) return "android";
+    if (/Windows/.test(userAgent)) return "windows";
+    if (/CrOS/.test(userAgent)) return "other";
+    if (/Macintosh/.test(userAgent)) {
+        return touchMacAgent(nav) ? "ios" : "macos";
+    }
+    if (/Linux|X11/.test(userAgent)) return "linux";
+    return "other";
+}
 
 /** Whether a device is mobile (issue #10022). The browser's own hint wins
  *  where it exists (Chromium's `userAgentData.mobile`, which calls an Android
@@ -177,7 +219,7 @@ export function isMobileDevice(nav: NavigatorLike | undefined): boolean {
     if (typeof hint === "boolean") return hint;
     const userAgent = nav?.userAgent ?? "";
     if (/Mobi|Android|iPhone|iPad|iPod/.test(userAgent)) return true;
-    return /Macintosh/.test(userAgent) && (nav?.maxTouchPoints ?? 0) > 1;
+    return touchMacAgent(nav);
 }
 
 /** This device's coarse class. Reads the navigator; returns only the class. */
@@ -188,6 +230,7 @@ export function deviceClass(
 ): DeviceClass {
     return {
         engine: engineFamily(nav?.userAgent ?? ""),
+        os: osFamily(nav),
         cores: coresBucket(nav?.hardwareConcurrency),
         mobile: isMobileDevice(nav),
     };
@@ -233,6 +276,7 @@ export function summarizeBotSearch(
         difficulty: difficulties.size === 1 ? [...difficulties][0]! : "mixed",
         consults: samples.length,
         "device.engine": device.engine,
+        "device.os": device.os,
         "device.cores": device.cores,
         "device.mobile": device.mobile,
     };
@@ -286,6 +330,18 @@ export function summarizeBotSearch(
     const p90 = percentile(perIteration, 90);
     if (p50 !== undefined) raw["msPerIteration.p50"] = round(p50, 2);
     if (p90 !== undefined) raw["msPerIteration.p90"] = round(p90, 2);
+
+    // The machine's speed at an EARLY board (issue #10128): the game's first
+    // search that completed an iteration. The percentiles above weigh every
+    // board the game reached, and later boards cost more, so a long game reads
+    // slower on the same machine; this one reading is comparable across games.
+    const first = searches.find((s) => s.iterationsCompleted > 0);
+    if (first) {
+        raw["msPerIteration.first"] = round(
+            first.elapsedMs / first.iterationsCompleted,
+            2
+        );
+    }
 
     return onlyAllowed(raw);
 }
