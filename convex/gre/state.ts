@@ -74,6 +74,7 @@ import {
 import {
     declaresFullTextEffect,
     declaresGraveyardStaticEffect,
+    declaresLandPlayLock,
     declaresLingeringStaticEffect,
     getPermanentManaValueCost,
 } from "../cards/registry";
@@ -4927,6 +4928,10 @@ function finalizeSpellResolution(
 export function landPlayLockActive(state: GameState): boolean {
     for (const player of state.players) {
         for (const card of player.battlefield) {
+            // Registry precheck (issue #10097): a permanent whose definition
+            // declares no lock is passed over without a definition lookup.
+            const cardId = (card.card as { id?: string } | undefined)?.id;
+            if (!cardId || !declaresLandPlayLock(cardId)) continue;
             // CR 613.1f — a source that lost its abilities locks nothing.
             if (liveStaticDefinition(card)?.preventsLandPlayAndETB) return true;
         }

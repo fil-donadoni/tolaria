@@ -160,6 +160,11 @@ const graveyardStaticIds = new Set<string>();
  *  `setRegistryEntry`; see `declaresFullTextEffect`. */
 const fullTextIds = new Set<string>();
 
+/** Ids whose definition declares `preventsLandPlayAndETB` (CR 614, the
+ *  land-play lock). Derived by `setRegistryEntry`; see
+ *  `declaresLandPlayLock`. */
+const landPlayLockIds = new Set<string>();
+
 /** The ONLY writer of `registry`. Keeps `zoneConditionalIds` in step. */
 const setRegistryEntry = (key: string, def: CardDefinition): void => {
     registry.set(key, def);
@@ -178,6 +183,7 @@ const setRegistryEntry = (key: string, def: CardDefinition): void => {
     if (declaresLingeringStatic(def)) lingeringStaticIds.add(key);
     if (declaresGraveyardStatic(def)) graveyardStaticIds.add(key);
     if (def.fullText) fullTextIds.add(key);
+    if (def.preventsLandPlayAndETB) landPlayLockIds.add(key);
 };
 
 /** CR 613.1b-e — the `StaticEffect` kinds the layers-2-to-5 derivation owns.
@@ -372,6 +378,16 @@ export const declaresLingeringStaticEffect = (cardId: string): boolean =>
 export const declaresFullTextEffect = (cardId: string): boolean =>
     declaresIndexedStatic(cardId, fullTextIds);
 
+/** CR 614 (the land-play lock, Worms of the Earth) — does `cardId`'s
+ *  definition declare `preventsLandPlayAndETB`? The precheck
+ *  `landPlayLockActive` (`gre/state.ts`) asks of every battlefield permanent
+ *  at every state-based-action check and every land entry (issue #10097), so
+ *  a board with no lock source costs one `Set.has` per permanent instead of a
+ *  definition lookup. Same derived-membership discipline and fail-slow trade
+ *  as its twins: a stale TRUE costs one lookup, a stale FALSE is impossible. */
+export const declaresLandPlayLock = (cardId: string): boolean =>
+    declaresIndexedStatic(cardId, landPlayLockIds);
+
 /** CR 113.6c (issue #2391) — does `cardId`'s definition declare
  *  zone-conditional characteristics? A cheap precheck for the readers in
  *  `gre/zoneCharacteristics.ts`; see {@link zoneConditionalIds}. `false` for
@@ -385,9 +401,11 @@ export const declaresFullTextEffect = (cardId: string): boolean =>
 export const declaresOffBattlefieldCharacteristics = (
     cardId: string
 ): boolean =>
-    zoneConditionalIds.has(cardId) ||
-    (definitionSource !== null &&
-        declaresIndexedStatic(cardId, zoneConditionalIds));
+    // The lazy-source branch asks the same set first itself, so it is not
+    // asked twice on the hidden-zone sweep (issue #10097).
+    definitionSource !== null
+        ? declaresIndexedStatic(cardId, zoneConditionalIds)
+        : zoneConditionalIds.has(cardId);
 
 /** CR 613.1b-e (PRD #2064 S4) — does `cardId`'s definition declare any
  *  layer-2-to-5 static effect? The precheck `gre/layers2to5.ts`'s board scan

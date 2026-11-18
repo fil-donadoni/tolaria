@@ -41,6 +41,7 @@ import {
     effectiveTriggeredAbilities,
     findTriggeredAbility,
     lookBackSelf,
+    mayHaveTriggeredAbilityOn,
 } from "./copy";
 import { raiseTriggerTargetSelection } from "./rules";
 import {
@@ -1232,6 +1233,11 @@ export function collectStateTriggers(state: GameState): StackItem[] {
         for (const permanent of player.battlefield) {
             const cardId = (permanent.card as { id?: string }).id;
             if (!cardId) continue;
+            // CR 603.8 — only a state-triggered ability can trigger here, so a
+            // permanent with no source of one (printed, retained through a
+            // copy, granted, or a live keyword) is passed over without composing
+            // its abilities (issue #10097).
+            if (!mayHaveTriggeredAbilityOn(permanent, "STATE_CHECK")) continue;
             const abilities = effectiveTriggeredAbilities(permanent);
             if (abilities.length === 0) continue;
             for (const ability of abilities) {

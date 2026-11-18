@@ -44,13 +44,25 @@ const LIVE_KEYWORD_TRIGGERS: ReadonlyArray<{
     { keyword: UNDYING_KEYWORD, ability: UNDYING_TRIGGER },
 ];
 
+/** The table's keywords, for the no-occurrence early exit below. */
+const LIVE_TRIGGER_KEYWORDS: ReadonlySet<string> = new Set(
+    LIVE_KEYWORD_TRIGGERS.map(({ keyword }) => keyword)
+);
+
 /** One ability per occurrence of each table keyword in the multiset, or one for a
  *  `perPermanent` row that has any. A client slim stack item may carry no list at
- *  all. */
+ *  all.
+ *
+ *  Every trigger scan asks this of every permanent (CR 603.2, and the CR 603.8
+ *  state-trigger scan at every state-based-action check, issue #10097), and
+ *  almost no permanent has any of these keywords. A multiset with none of them
+ *  has no instance to return, so it returns before the nine per-keyword passes
+ *  below. */
 export function liveKeywordTriggerInstances(
     staticAbilities: ReadonlyArray<string> | undefined
 ): TriggeredAbility[] {
     if (!staticAbilities) return [];
+    if (!staticAbilities.some((k) => LIVE_TRIGGER_KEYWORDS.has(k))) return [];
     return LIVE_KEYWORD_TRIGGERS.flatMap(
         ({ keyword, ability, perPermanent }) => {
             const occurrences = staticAbilities.filter((k) => k === keyword);
