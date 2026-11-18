@@ -18,7 +18,8 @@ iteration's time go?
 1. **The browser engine is worth a factor of two.** The same bundle, the same
    positions, the same iteration count: Firefox takes **2.0x** Chromium's time
    per iteration (1.8–2.4), WebKit **1.6x** (1.4–2.0). JavaScriptCore under Bun
-   agrees with WebKit: 1.3x V8 by CPU time.
+   agrees with WebKit: 1.3x V8 by CPU time (process CPU time, which counts
+   JSC's compiler and collector threads: `webkit-search-profile.md` § 4).
 2. **A slower device silently plays a shallower Bot.** At `expert`, a device at
    3.2 ms per iteration completes 85% of the iterations asked for and the clock
    ends 24 of 56 searches; at 6.3 ms it completes 60%; at 12.6 ms, 39%; at
