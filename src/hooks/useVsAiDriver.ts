@@ -29,7 +29,8 @@
 //     `none` — the distinction that made every past freeze silent.
 //  2. **A watchdog escalates rather than waits.** While the Expected Input names
 //     the bot and the STATE VERSION HAS NOT CHANGED, `BOT_WATCHDOG_MS`
-//     (comfortably above the hardest search budget, so a slow think is never
+//     (derived above the consult timeout, itself above the hardest search
+//     budget, so a slow think is never
 //     mistaken for a hang) later the ladder fires — and fires again, one rung
 //     per interval, until the version does change. "The state version changed"
 //     is the only honest liveness signal: a dispatch that was *started*, or even
@@ -109,6 +110,7 @@ import {
     primeBrain,
     warmBrain,
 } from "~/lib/ai/brain-client";
+import { BRAIN_CONSULT_TIMEOUT_MS } from "~/lib/ai/consult-timeout";
 import { seatKnowledge } from "~/lib/ai/seat-knowledge";
 import {
     acquireBotSearchReport,
@@ -153,23 +155,39 @@ import { revealRounds } from "~/lib/random-reveal-flip";
  *  feel like it is skipping the opponent's turn instantly. */
 const THINK_DELAY_MS = 200;
 
+/** What the watchdog waits past `BRAIN_CONSULT_TIMEOUT_MS` (issue #10115):
+ *  `THINK_DELAY_MS` before the consult starts, the settle's re-render, and the
+ *  submission the decision dispatches. */
+const BOT_WATCHDOG_SETTLE_MARGIN_MS = 1000;
+
 /** How long the game may sit unchanged while the engine's Expected Input names
  *  the bot before the driver escalates (issue #2284). Tuned in this one place.
  *
- *  The floor is the hardest search the bot can run: `DIFFICULTY_BUDGETS.expert`
- *  is `{ iterations: 1320, timeMs: 3300 }` (issue #2790 — `expert`'s +10%
- *  margin over `hard`'s `{ iterations: 1200, timeMs: 3000 }`, itself raised
- *  from 600 by issue #2682, keeping `hard`'s pre-#2682 2× ratio to
- *  `medium.timeMs` once `medium` was re-aligned to the real `DEFAULT_BUDGET`,
- *  1500ms). Plus `THINK_DELAY_MS` and the Worker round-trip, a legitimate
- *  think still sits comfortably inside the watchdog interval
- *  (`useVsAiDriver-liveness.bot.test.ts` asserts exactly that against the
- *  real constants, taking the max over every preset so a new harder level
- *  re-proves the margin rather than silently eroding it), so a legitimately
- *  slow think is never mistaken for a hang, while a real freeze is over in
- *  seconds rather than forever. A decision that is already KNOWN to be
- *  missing does not wait at all — see `escalateImmediately` below. */
-export const BOT_WATCHDOG_MS = 6000;
+ *  DERIVED, never a literal (issue #10115): `BRAIN_CONSULT_TIMEOUT_MS` — itself
+ *  the hardest preset's cap plus the search overrun and Worker transport
+ *  margins (`src/lib/ai/consult-timeout.ts`) — plus
+ *  {@link BOT_WATCHDOG_SETTLE_MARGIN_MS}. A legitimate think therefore always
+ *  settles, and even a wedged consult has timed out and released the in-flight
+ *  guard, before the first deadline: a slow think is never mistaken for a
+ *  hang, while a real freeze is over in seconds rather than forever
+ *  (`useVsAiDriver-liveness.bot.test.ts` asserts the chain against the real
+ *  constants, with the ladder's worst hand-off under `BOT_SERVER_DEADLINE_MS`).
+ *  A decision that is already KNOWN to be missing does not wait at all — see
+ *  `escalateImmediately` below. */
+export const BOT_WATCHDOG_MS =
+    BRAIN_CONSULT_TIMEOUT_MS + BOT_WATCHDOG_SETTLE_MARGIN_MS;
+
+/** Rungs in the escalation ladder: rung 1 re-decides, rungs 2–4 are
+ *  `escalationLadder`'s declines, rung 5 hands off to `reportStall`. */
+export const BOT_ESCALATION_RUNGS = 5;
+
+/** The longest a stall can take to reach the client's own hand-off (issue
+ *  #10115): one watchdog interval per rung, plus one interval re-armed behind
+ *  a consult still in flight when the first deadline fires. The server's
+ *  `BOT_SERVER_DEADLINE_MS` must sit well above it, so a live driver always
+ *  acts first. */
+export const BOT_LADDER_HANDOFF_MS =
+    (BOT_ESCALATION_RUNGS + 1) * BOT_WATCHDOG_MS;
 
 /** How many times a thrown bot submission is retried — with the state re-read —
  *  before the driver enters the escalation ladder (issue #2284). A throw used to

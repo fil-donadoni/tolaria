@@ -13,10 +13,12 @@
 
 /** How long the Bot may sit owed on one state version before the server moves
  *  it. ABOVE the whole client ladder: the driver's watchdog fires every
- *  `BOT_WATCHDOG_MS` (6 s, `src/hooks/useVsAiDriver.ts`) and its ladder has 5
- *  rungs, the last of which hands off to `reportStall` — ~36 s from the stall
- *  to the client's own hand-off. A live driver therefore always acts first; the
- *  deadline fires only when it never will. */
+ *  `BOT_WATCHDOG_MS` (derived from the hardest search cap, issue #10115,
+ *  `src/hooks/useVsAiDriver.ts`) and its ladder has 5 rungs, the last of which
+ *  hands off to `reportStall` — `BOT_LADDER_HANDOFF_MS` from the stall to the
+ *  client's own hand-off, held well under this deadline by
+ *  `useVsAiDriver-liveness.bot.test.ts`. A live driver therefore always acts
+ *  first; the deadline fires only when it never will. */
 export const BOT_SERVER_DEADLINE_MS = 60_000;
 
 /** The slice of a `gameTicks` row the planner reads. */

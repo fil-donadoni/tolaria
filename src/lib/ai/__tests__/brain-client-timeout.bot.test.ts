@@ -13,12 +13,17 @@
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import type { PublicGameState } from "@convex/gameProjections";
-import { DIFFICULTY_BUDGETS } from "@convex/gre/difficulty";
+import {
+    DIFFICULTY_BUDGETS,
+    HARDEST_SEARCH_TIME_MS,
+} from "@convex/gre/difficulty";
 import { BOT_WATCHDOG_MS } from "~/hooks/useVsAiDriver";
 import {
     consultBrain,
     disposeBrain,
     BRAIN_CONSULT_TIMEOUT_MS,
+    BRAIN_CONSULT_OVERRUN_MARGIN_MS,
+    BRAIN_CONSULT_TRANSPORT_MARGIN_MS,
 } from "../brain-client";
 
 /** A Worker that accepts the request and never answers — the wedged search. */
@@ -92,20 +97,27 @@ describe("consultBrain always settles (issue #2284)", () => {
     });
 
     it("sits between the hardest search budget and the watchdog deadline", () => {
-        // Above the budget, so a legitimately slow think is never cut short…
+        // Issue #10115 — the chain is DERIVED from the hardest preset's cap,
+        // so the next cap change carries it instead of breaking it.
         const hardest = Math.max(
             ...Object.values(DIFFICULTY_BUDGETS).map((b) => b.timeMs ?? 0)
         );
-        // A flat 5× margin (the original formula here) was calibrated against
-        // the PRE-#2682 `hard.timeMs = 600`; a literal `hardest * 5` at
-        // today's scale (`hard` = 3000, issue #2682) would demand a 15s+
-        // consult timeout — worse for the player, since a genuinely wedged
-        // Worker would then take 15s+ to surface instead of 5s, not safer.
-        // What the margin actually protects is unchanged: enough slack that a
-        // legitimately slow `hard` think is never mistaken for a wedge. 1s of
-        // headroom above the hardest real budget is that slack.
-        expect(BRAIN_CONSULT_TIMEOUT_MS).toBeGreaterThan(hardest);
-        expect(BRAIN_CONSULT_TIMEOUT_MS - hardest).toBeGreaterThanOrEqual(1000);
+        expect(HARDEST_SEARCH_TIME_MS).toBe(hardest);
+        expect(BRAIN_CONSULT_TIMEOUT_MS).toBe(
+            hardest +
+                BRAIN_CONSULT_OVERRUN_MARGIN_MS +
+                BRAIN_CONSULT_TRANSPORT_MARGIN_MS
+        );
+        // The search reads its clock BETWEEN iterations, so a consult runs the
+        // cap plus the iteration in flight. The field's worst overran a
+        // 3300 ms cap by 1358 ms (Gecko, ~1 s per iteration:
+        // `docs/research/expert-think-longer.md` § 2). The old 1000 ms
+        // headroom asserted here was already less than the field had used.
+        const FIELD_WORST_OVERRUN_MS = 1358;
+        expect(BRAIN_CONSULT_OVERRUN_MARGIN_MS).toBeGreaterThanOrEqual(
+            FIELD_WORST_OVERRUN_MS
+        );
+        expect(BRAIN_CONSULT_TRANSPORT_MARGIN_MS).toBeGreaterThan(0);
         // …and below the watchdog, so a wedged consult has released the driver's
         // in-flight guard by the time the first escalation deadline arrives.
         expect(BRAIN_CONSULT_TIMEOUT_MS).toBeLessThan(BOT_WATCHDOG_MS);

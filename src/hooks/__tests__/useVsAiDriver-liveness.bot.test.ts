@@ -306,8 +306,13 @@ vi.mock("~/lib/ai/realise", async (importOriginal) => {
     };
 });
 
-const { useVsAiDriver, BOT_WATCHDOG_MS, BOT_SUBMIT_RETRY_LIMIT } =
-    await import("../useVsAiDriver");
+const {
+    useVsAiDriver,
+    BOT_WATCHDOG_MS,
+    BOT_SUBMIT_RETRY_LIMIT,
+    BOT_ESCALATION_RUNGS,
+    BOT_LADDER_HANDOFF_MS,
+} = await import("../useVsAiDriver");
 const {
     getAiEscalations,
     clearAiEscalations,
@@ -738,6 +743,12 @@ describe("bot liveness invariant (issue #2284)", () => {
         );
         expect(BOT_WATCHDOG_MS).toBeGreaterThan(hardest);
         expect(BOT_WATCHDOG_MS - hardest).toBeGreaterThanOrEqual(2000);
+        // Issue #10115 — derived from the consult timeout (itself the hardest
+        // cap plus named margins), never a literal: a wedged consult has
+        // settled before the first deadline, at every cap.
+        const { BRAIN_CONSULT_TIMEOUT_MS } =
+            await import("~/lib/ai/consult-timeout");
+        expect(BOT_WATCHDOG_MS).toBeGreaterThan(BRAIN_CONSULT_TIMEOUT_MS);
 
         // And end-to-end: with the real gate, a plain priority window is
         // answered by the bot's OWN decision well before the watchdog, and the
@@ -765,6 +776,20 @@ describe("bot liveness invariant (issue #2284)", () => {
         expect(getAiEscalations()).toHaveLength(0);
     });
 
+    it("hands off well inside the server deadline (issue #10115)", async () => {
+        // The ladder's worst walk — one watchdog interval per rung plus one
+        // re-armed behind a consult still in flight — must leave the server's
+        // deadline a full interval of slack, so a live driver always acts
+        // first. A longer cap grows the watchdog and this sum with it; the
+        // deadline must then grow too, and this is where it is told.
+        const { BOT_SERVER_DEADLINE_MS } = await import("@convex/botDeadline");
+        expect(BOT_LADDER_HANDOFF_MS).toBe(
+            (BOT_ESCALATION_RUNGS + 1) * BOT_WATCHDOG_MS
+        );
+        expect(BOT_LADDER_HANDOFF_MS + BOT_WATCHDOG_MS).toBeLessThanOrEqual(
+            BOT_SERVER_DEADLINE_MS
+        );
+    });
     it("escalates IMMEDIATELY on a 'nothing owed' decision, not after the full interval", async () => {
         // "Nothing owed" while the Expected Input names the bot is a defect,
         // not a slow think: waiting the full interval on a decision that is
