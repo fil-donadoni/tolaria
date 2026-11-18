@@ -459,7 +459,7 @@ export function revertCopy(
  *  printed triggers flagged `retainedThroughCopy` are unioned on top. */
 export function effectiveTriggeredAbilities(
     card: CardInstanceState
-): TriggeredAbility[] {
+): readonly TriggeredAbility[] {
     // CR 613.1f / 613.7 — a permanent that "loses all abilities" (Titania's
     // Song, Blood Moon) loses its PRINTED triggers outright, and every trigger
     // GRANTED to it before the stripper applied; a grant with a later timestamp
@@ -467,20 +467,55 @@ export function effectiveTriggeredAbilities(
     // grants the engine's activated-ability reader kept — the two authorities
     // disagreed about the same rule.
     const strippedAt = abilityLossTimestamp(card);
+    const granted = grantedTriggeredAbilities(card, strippedAt);
     // These keywords come from the composed multiset, printed or granted,
     // which has already applied any loss of abilities (`liveKeywordTriggers.ts`).
-    const granted = [
-        ...grantedTriggeredAbilities(card, strippedAt),
-        ...liveKeywordTriggerInstances(card.staticAbilities),
-    ];
-    if (strippedAt !== null) return granted;
+    const keywords = liveKeywordTriggerInstances(card.staticAbilities);
+    if (strippedAt !== null) {
+        return unionTriggeredAbilities(
+            NO_TRIGGERS,
+            NO_TRIGGERS,
+            granted,
+            keywords
+        );
+    }
     const presented = tryGetDefinition(presentedDefId(card));
-    const base = presented?.triggeredAbilities ?? [];
-    if (!card.copiedFrom) return [...base, ...granted];
+    const base = presented?.triggeredAbilities ?? NO_TRIGGERS;
+    if (!card.copiedFrom) {
+        return unionTriggeredAbilities(base, NO_TRIGGERS, granted, keywords);
+    }
     const printed = tryGetDefinition(card.copiedFrom);
     const retained =
-        printed?.triggeredAbilities?.filter((a) => a.retainedThroughCopy) ?? [];
-    return [...base, ...retained, ...granted];
+        printed?.triggeredAbilities?.filter((a) => a.retainedThroughCopy) ??
+        NO_TRIGGERS;
+    return unionTriggeredAbilities(base, retained, granted, keywords);
+}
+
+const NO_TRIGGERS: readonly TriggeredAbility[] = Object.freeze([]);
+
+/** The four lists in order, allocating only when two or more are non-empty:
+ *  the trigger scan reads every permanent at every scan, and most carry
+ *  their printed triggers and nothing else. A lone list comes back as is —
+ *  the definition's own `triggeredAbilities` among them, which is why the
+ *  result is read-only. */
+function unionTriggeredAbilities(
+    base: readonly TriggeredAbility[],
+    retained: readonly TriggeredAbility[],
+    granted: readonly TriggeredAbility[],
+    keywords: readonly TriggeredAbility[]
+): readonly TriggeredAbility[] {
+    const total =
+        base.length + retained.length + granted.length + keywords.length;
+    if (total === base.length) return base;
+    if (total === retained.length) return retained;
+    if (total === granted.length) return granted;
+    if (total === keywords.length) return keywords;
+    const out: TriggeredAbility[] = [];
+    for (const a of base) out.push(a);
+    for (const a of retained) out.push(a);
+    for (const a of granted) out.push(a);
+    for (const a of keywords) out.push(a);
+    return out;
 }
 
 /** Triggered abilities granted to `card` by an anthem-style static effect
