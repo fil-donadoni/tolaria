@@ -43,6 +43,20 @@ export const INCLUSIVE = [
     "determinize",
 ];
 
+/** Every function's INCLUSIVE share at 0.5% or more, by name (trailing
+ *  digits, esbuild's renames, stripped): what `jsc-excess.mjs` reads to
+ *  compare two engines function by function. Inclusive, not self: an engine
+ *  that inlines a built-in into its caller charges it to the caller, so only
+ *  inclusive time means the same thing in both engines (issue #10123). */
+export function inclusiveAll(micros, share) {
+    return Object.fromEntries(
+        [...micros.entries()]
+            .map(([fn, n]) => [fn, share(n)])
+            .filter(([, s]) => s >= 0.5)
+            .sort((a, b) => b[1] - a[1])
+    );
+}
+
 /** A position argument: a blade index, or else a field fixture's path. */
 export function isBladeIndex(position) {
     return /^\d+$/.test(position);

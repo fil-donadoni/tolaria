@@ -112,7 +112,9 @@ Against the lab: § 2 of `brain-search-off-the-dev-machine.md` gives 85% of
 Chromium median report sits at 13.2 ms and completes 24%: real boards are the
 lab's "slow device". Gecko's distance from Chromium is 4.4x in the field
 (5.4% against 23.7%) against 2.0x in the lab; that gap was not explained here
-(`gecko-search-gap.md`, issue #10122, attributes it).
+(`gecko-search-gap.md`, issue #10122, attributes it). WebKit's distance,
+which matches the lab's, is profiled in `webkit-search-profile.md` (issue
+#10123).
 
 ## 2. The server judge
 
