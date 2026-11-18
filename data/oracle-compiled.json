@@ -4,7 +4,7 @@
         "grammarVersion": "v0",
         "compilerHash": "sha256:699acd3df84d6c2a134050de93f886f1d8c82b413e41a78c037f6674151ebbb4",
         "registryHash": "sha256:fa20dcdf1e2bc78f19b0a250ebdc2d499da951341baabba8c5bac189abc45a9e",
-        "botHash": "sha256:f42b83c80e7b99f48757a236a3e17ed9d1ec97627f04bfd5785ab36b59d52097",
+        "botHash": "sha256:b5e1a6c99643d95c091ba670de4d4ad5a6ed594ec5e6e497aa5506372d4d1e56",
         "poolHash": "sha256:7b9774a41af8bb6b36c98f03bbb95379581ccaeaa9f3f5ccb6c8d647f7e7f728",
         "corpus": {
             "source": "https://api.scryfall.com/bulk-data/oracle-cards",
@@ -29169,6 +29169,7 @@
         {"key":"never-chosen › Sorcery X › choice+forEach+sacrifice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery X › choice+libraryLook+moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery [cascade,rebound] › cascade","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Sorcery [cascade,retrace] › cascade","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery [epic] › choice+libraryLook+moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery [rebound] › moveZone+selectAtRandom","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery [storm] › choice+libraryLook+moveZone","outcome":"ignored","cards":1},
@@ -91821,7 +91822,7 @@
 
         {"oracleId":"e3431dae-969c-4896-9f9e-a80e7bec4bdf","name":"Avatar's Wrath","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["59b32969cce8","6c3f0205e77c"]},
 
-        {"oracleId":"e3444fcf-70ed-4d6e-aea9-030af15cad56","name":"Throes of Chaos","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":["cascade"],"definition":{"name":"Throes of Chaos","types":["Sorcery"],"manaCost":{"X":3,"R":1},"oracleText":"Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nRetrace (You may cast this card from your graveyard by discarding a land card in addition to paying its other costs.)","staticAbilities":["cascade","retrace"]},"botReach":"played"},
+        {"oracleId":"e3444fcf-70ed-4d6e-aea9-030af15cad56","name":"Throes of Chaos","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":["cascade"],"definition":{"name":"Throes of Chaos","types":["Sorcery"],"manaCost":{"X":3,"R":1},"oracleText":"Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nRetrace (You may cast this card from your graveyard by discarding a land card in addition to paying its other costs.)","staticAbilities":["cascade","retrace"]},"botReach":"ignored","botGap":"never-chosen › Sorcery [cascade,retrace] › cascade"},
 
         {"oracleId":"e3473ed5-f2b2-4a41-aed9-ee37caa9d7be","name":"Dramatist's Puppet","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["b88d0a19538a"]},
 
