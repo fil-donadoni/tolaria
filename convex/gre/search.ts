@@ -1527,7 +1527,7 @@ function stepsSince(since: GameClock, state: GameState): number {
  *  The win's height above the band floor (`wonBandHeight`, ADR 0184) decays
  *  with game time, and a win in the root's own turn is floored more than
  *  `outcomeEps` above the same win a turn later, so the timing gap no longer
- *  shrinks with the material the win holds (issue #10118). A win never
+ *  shrinks with the material the win holds. A win never
  *  leaves the band. It touches the REWARD only: the tie-break margin stays
  *  pure material, like `evaluate`'s race and combat terms. Losses and open
  *  leaves are untouched; with no `since` the leaf is the plain evaluation. */
@@ -1573,7 +1573,7 @@ const WIN_TURN_DECAY = 0.5;
 const WIN_TURN_GAP_HEADROOM = 1.15;
 
 /** The height, as a share of `terminalBand`, of a won leaf above the band
- *  floor (ADR 0184, issues #3376, #9900, #10084, #10118); `material` is the
+ *  floor (ADR 0184); `material` is the
  *  leaf's won-band position, 0..1.
  *
  *  The material height decays with game time: `WIN_STEP_DECAY` per step,
