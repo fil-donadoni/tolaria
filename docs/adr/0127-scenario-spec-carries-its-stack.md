@@ -262,3 +262,46 @@ games, seeds 1..6, 60 iterations) the corpus is unchanged — 300 of 2322
 decisions judgeable before and after, `stack-mid-resolution` 0 on that pair,
 which raises no in-resolution choice. The gain is structural: the class is
 reachable, and what stays out is counted under the fields above.
+
+## Amendment: an event nothing reads is not lowered whole (2026-11-17)
+
+Issue #9868 narrows decision 1 of the previous amendment ("the event is
+lowered WHOLE, or the trigger is refused") to the triggers it protects. That
+rule exists for three readers: the intervening-if re-check, an imperative
+`resolve(ctx, event)`, and the `$event` reads of an Effect Script. An ability
+with none of them resolves to the same board whatever its event carries, so
+refusing it over a field it cannot read lost positions the rebuild would have
+reproduced — every "whenever a creature you control dies" payoff watching a
+TOKEN die, whose `creatureInstanceId` names an object in no zone (CR 111.7).
+
+1. **`abilityReadsTriggerEvent` is the question, asked of the ability**
+   (`gre/triggerEventVocabulary.ts`). An intervening-if, `resolve`,
+   `resolveSteps` or `modes` makes a reader outright; otherwise the script
+   (and `aiEffects`) is walked as DATA for any `$event.` ref string and for
+   the two selector sets the interpreter fills from the event
+   (`eventAttackers`, `exiledWithSource`). The walk ignores the Op grammar on
+   purpose: the only mistake it can make is calling a non-reader a reader. An
+   emblem's ability and one the lookup cannot find are readers.
+
+2. **For a non-reader, a field the spec cannot name is left out** of the
+   declared event instead of refusing it; the nameable fields still travel.
+   The answer is all-or-nothing per ability, never per field: a script that
+   reads `$event.card` keeps EVERY field mandatory, because the registry row
+   behind a ref is a function and says nothing of which raw fields it reads.
+
+3. **The rebuild check compares an unread event by type alone**
+   (`triggerEventFingerprint`): the declared event may legitimately lack the
+   omitted fields, and there is no fact in it the resolution could lose.
+
+4. **A census pins the interpreter's event reads.** `triggerEventVocabulary.test.ts`
+   counts every `ctx.triggerEvent` read under `convex/gre/`; a new one must be
+   taught to the walk before the count moves.
+
+Diagnosed on the way: the `combatPartnerIds` of the second of two creatures
+that die together names its partner by the retired combat-record id
+(`<id>~left<n>`, CR 506.4, issue #6333), not by the id of the card now in a
+graveyard — which is why a nameable card was refused. It stays unnameable, by
+design (a card back under its old id is a new object, CR 400.7): omitted for a
+non-reader, refused for a reader with a sentence that says what it is. The
+combat record itself still refuses such a decision as `combat-not-captured`;
+that wall is issue #10120.
