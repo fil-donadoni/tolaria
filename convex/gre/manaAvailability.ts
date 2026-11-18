@@ -79,6 +79,35 @@ import { tryGetDefinition } from "../cards";
  *  asked in. */
 export type ManaUnits = ReadonlyArray<ReadonlySet<Color>>;
 
+/** A mana unit's colour set as a bitmask over `MANA_COLORS` (bit i = the i-th
+ *  colour): five colours and colorless fit in six bits. */
+type ColorMask = number;
+
+const COLOR_BIT: Readonly<Record<Color, number>> = Object.fromEntries(
+    MANA_COLORS.map((c, i) => [c, 1 << i])
+) as Record<Color, number>;
+
+/** One shared, never-mutated `Set` per colour mask. The census hands out these
+ *  instead of building a tiny `Set` per unit: a unit is read-only to every
+ *  consumer (`ManaUnits`), and JavaScriptCore constructs a `Set` in C++, which
+ *  made the per-unit `new Set` a visible share of a WebKit search on boards
+ *  with many mana sources (issue #10152). */
+const UNIT_BY_MASK: readonly ReadonlySet<Color>[] = Array.from(
+    { length: 1 << MANA_COLORS.length },
+    (_, mask) =>
+        new Set<Color>(MANA_COLORS.filter((c) => (mask & COLOR_BIT[c]) !== 0))
+);
+
+function unitOfMask(mask: ColorMask): ReadonlySet<Color> {
+    return UNIT_BY_MASK[mask];
+}
+
+function maskOfColors(colors: Iterable<Color>): ColorMask {
+    let mask = 0;
+    for (const c of colors) mask |= COLOR_BIT[c] ?? 0;
+    return mask;
+}
+
 /** The spell a castability probe is for: what CR 106.6 spend restrictions are
  *  judged against. */
 export type ManaSpellContext = {
@@ -190,7 +219,7 @@ function producibleManaUnitsWithDebt(
     replacements?: ManaReplacementView,
     /** The census's one walk over `battlefields`, see `ManaBoardScan`. */
     boardScan?: ManaBoardScan
-): { units: Set<Color>[]; debt: number } {
+): { units: ReadonlySet<Color>[]; debt: number } {
     // requireTap: only a genuine {T} ability counts as an auto-payable "unit"
     // — the SAME `requireTap: true` invariant `getProducibleManaOptions` (the
     // real auto-tap planner) uses. Board view is identical between the two
@@ -267,11 +296,11 @@ function producibleManaUnitsWithDebt(
     // `netFundingDebts` settles it against the rest of the board. The option
     // that carries the least debt wins (a free alternative has none).
     const optionDebts: number[] = [];
-    const perOptionUnits: Set<Color>[][] = detailed.map((opt) => {
-        const units: Set<Color>[] = [];
+    const perOptionUnits: ColorMask[][] = detailed.map((opt) => {
+        const units: ColorMask[] = [];
         for (const c of MANA_COLORS) {
             const amount = opt.mana[c] ?? 0;
-            for (let i = 0; i < amount; i++) units.push(new Set<Color>([c]));
+            for (let i = 0; i < amount; i++) units.push(COLOR_BIT[c]);
         }
         let optionDebt = 0;
         if (opt.source.kind === "activated") {
@@ -324,13 +353,11 @@ function producibleManaUnitsWithDebt(
         : optionDebts.reduce((m, d) => (d > 0 ? Math.min(m, d) : m), Infinity);
 
     const maxLen = perOptionUnits.reduce((m, u) => Math.max(m, u.length), 0);
-    const best: Set<Color>[] = [];
+    const best: ReadonlySet<Color>[] = [];
     for (let i = 0; i < maxLen; i++) {
-        const colors = new Set<Color>();
-        for (const units of perOptionUnits) {
-            for (const c of units[i] ?? []) colors.add(c);
-        }
-        best.push(colors);
+        let mask = 0;
+        for (const units of perOptionUnits) mask |= units[i] ?? 0;
+        best.push(unitOfMask(mask));
     }
     return { units: best, debt: Number.isFinite(debt) ? debt : 0 };
 }
@@ -358,13 +385,13 @@ export function getProducibleManaUnits(
     card: CardInstanceState,
     controllerId?: string,
     battlefields?: BattlefieldsView
-): Set<Color>[] {
+): ReadonlySet<Color>[] {
     return producibleManaUnitsWithDebt(card, controllerId, battlefields).units;
 }
 
 /** One permanent's contribution to a census: its unit rows and the `{N}` it
  *  consumes from other sources (a costed tap's generic leg, issue #5444). */
-type ManaSegment = { rows: Set<Color>[]; debt: number };
+type ManaSegment = { rows: ReadonlySet<Color>[]; debt: number };
 
 /** CR 605.1a / 601.2g (issue #5444) — settle every costed tap's `{N}` against
  *  the OTHER permanents' units and flatten the segments into the unit list.
@@ -375,11 +402,13 @@ type ManaSegment = { rows: Set<Color>[]; debt: number };
  *  payment does. Only a plain source funds (a costed permanent's units are its
  *  own output, not a spare), and a debt no plain source can cover removes that
  *  land's yield entirely: it cannot fund itself. */
-function netFundingDebts(segments: readonly ManaSegment[]): Set<Color>[] {
+function netFundingDebts(
+    segments: readonly ManaSegment[]
+): ReadonlySet<Color>[] {
     const funders = segments
         .filter((seg) => seg.debt === 0)
         .flatMap((seg) => seg.rows.map((row) => ({ row, spent: false })));
-    const out: Set<Color>[] = [];
+    const out: ReadonlySet<Color>[] = [];
     for (const seg of segments) {
         if (seg.debt === 0) continue;
         const free = funders
@@ -446,7 +475,7 @@ export function boardManaCensus(
         /** CR 106.7 / 614 — see `producibleManaUnitsWithDebt`. */
         replacements?: ManaReplacementView;
     } = {}
-): { now: Set<Color>[]; base: Set<Color>[] } {
+): { now: ReadonlySet<Color>[]; base: ReadonlySet<Color>[] } {
     const converters = opts.converters;
     const wantBase = opts.wantBase ?? true;
     const now: ManaSegment[] = [];
@@ -459,6 +488,7 @@ export function boardManaCensus(
     const tapBonuses = declaresTapManaBonus(battlefield);
     for (const perm of battlefield) {
         const widen = converters?.get(perm.id);
+        const widenMask = widen ? maskOfColors(widen) : 0;
         // CR 302.1 — a summoning-sick permanent can't pay {T}. It CAN still be
         // tapped to pay another permanent's `tapOtherFilter` cost (CR 302.6
         // gates a {T}/{Q} cost and nothing else), so it still contributes the
@@ -466,8 +496,8 @@ export function boardManaCensus(
         const spendableNow =
             !perm.isTapped && !isTapLockedBySummoningSickness(perm);
         if (!spendableNow && !wantBase) {
-            if (!perm.isTapped && widen && widen.size > 0) {
-                now.push({ rows: [new Set(widen)], debt: 0 });
+            if (!perm.isTapped && widenMask !== 0) {
+                now.push({ rows: [unitOfMask(widenMask)], debt: 0 });
             }
             continue;
         }
@@ -479,17 +509,17 @@ export function boardManaCensus(
             opts.replacements,
             boardScan
         );
-        const row: Set<Color>[] = [];
-        if (widen && widen.size > 0) {
+        const row: ReadonlySet<Color>[] = [];
+        if (widenMask !== 0) {
             // Fold the converter's colours into ONE unit — the FIRST slot of
             // this permanent's own row when it has one (a second, independent
             // unit would re-introduce the double-count), or a single new row
             // when `perm` has no mana ability of its own.
             if (units.length > 0) {
-                row.push(new Set([...units[0], ...widen]));
+                row.push(unitOfMask(maskOfColors(units[0]) | widenMask));
                 for (let i = 1; i < units.length; i++) row.push(units[i]);
             } else {
-                row.push(new Set(widen));
+                row.push(unitOfMask(widenMask));
             }
         } else {
             for (const unit of units) row.push(unit);
@@ -499,13 +529,12 @@ export function boardManaCensus(
                 row.push(unit);
             }
         }
-        if (wantBase) {
-            base.push({ rows: row.map((unit) => new Set(unit)), debt });
-        }
+        // Units are read-only (`ManaUnits`), so both lists share the rows.
+        if (wantBase) base.push({ rows: row, debt });
         if (spendableNow) {
             now.push({ rows: row, debt });
-        } else if (!perm.isTapped && widen && widen.size > 0) {
-            now.push({ rows: [new Set(widen)], debt: 0 });
+        } else if (!perm.isTapped && widenMask !== 0) {
+            now.push({ rows: [unitOfMask(widenMask)], debt: 0 });
         }
     }
     return { now: netFundingDebts(now), base: netFundingDebts(base) };
@@ -523,17 +552,17 @@ export function boardManaUnits(
         spell?: ManaSpellContext;
         replacements?: ManaReplacementView;
     } = {}
-): Set<Color>[] {
+): ReadonlySet<Color>[] {
     return boardManaCensus(battlefield, { ...opts, wantBase: false }).now;
 }
 
 /** The floating pool as units (CR 106.4) — one entry per mana, each a fixed
  *  single colour. */
-function poolUnits(player: PlayerState): Set<Color>[] {
-    const units: Set<Color>[] = [];
+function poolUnits(player: PlayerState): ReadonlySet<Color>[] {
+    const units: ReadonlySet<Color>[] = [];
     for (const c of MANA_COLORS) {
         const n = player.manaPool[c] ?? 0;
-        for (let i = 0; i < n; i++) units.push(new Set<Color>([c]));
+        for (let i = 0; i < n; i++) units.push(unitOfMask(COLOR_BIT[c]));
     }
     // CR 106.6 (issue #3235) — floating mana that is tagged but not RESTRICTED
     // (a rider, or firebending's end-of-combat lifetime) is spendable on
@@ -544,7 +573,7 @@ function poolUnits(player: PlayerState): Set<Color>[] {
     for (const unit of unrestrictedFloatingMana(player)) {
         if (!(MANA_COLORS as readonly string[]).includes(unit.color)) continue;
         for (let i = 0; i < unit.amount; i++) {
-            units.push(new Set<Color>([unit.color as Color]));
+            units.push(unitOfMask(COLOR_BIT[unit.color as Color]));
         }
     }
     return units;
@@ -561,7 +590,7 @@ function poolUnits(player: PlayerState): Set<Color>[] {
 export function boardCensusFor(
     state: GameState | undefined,
     player: PlayerState
-): { now: Set<Color>[]; base: Set<Color>[] } {
+): { now: ReadonlySet<Color>[]; base: ReadonlySet<Color>[] } {
     const battlefields = state ? manaGateBattlefields(state) : undefined;
     return boardManaCensus(player.battlefield, {
         converters: state ? manaConverterColors(state, player) : undefined,
@@ -593,11 +622,11 @@ export function boardCensusFor(
 export function manaCensusFor(
     state: GameState | undefined,
     player: PlayerState
-): { now: Set<Color>[]; base: Set<Color>[] } {
+): { now: ReadonlySet<Color>[]; base: ReadonlySet<Color>[] } {
     const census = boardCensusFor(state, player);
     for (const unit of poolUnits(player)) {
         census.now.push(unit);
-        census.base.push(new Set(unit));
+        census.base.push(unit);
     }
     return census;
 }
@@ -607,7 +636,7 @@ export function manaUnitsFor(
     state: GameState | undefined,
     player: PlayerState,
     opts: { ignoreTapState?: boolean } = {}
-): Set<Color>[] {
+): ReadonlySet<Color>[] {
     const census = manaCensusFor(state, player);
     return opts.ignoreTapState ? census.base : census.now;
 }
