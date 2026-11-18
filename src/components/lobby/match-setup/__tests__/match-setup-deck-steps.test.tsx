@@ -6,6 +6,7 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { LobbyDeck } from "~/lib/deckTypes";
+import { BOT_KNOWS_DECKLIST_LINE } from "~/lib/difficultyLabels";
 import { applyChange, loadSetup, type MatchSetup } from "~/lib/matchSetup";
 import MatchSetupPanes from "../match-setup-panes";
 
@@ -100,17 +101,19 @@ describe("step 4 — your deck", () => {
         fireEvent.click(tileButton("burn"));
         expect(
             document.querySelector('[data-slot="panel-title"]')?.textContent
-        ).toBe("Bot deck & difficulty");
+        ).toBe("Bot deck");
     });
 });
 
 describe("step 5 — the Bot's deck", () => {
-    it("offers Mirror, preselected when nothing is stored", () => {
+    // issue #10113 — no difficulty is offered; the Bot plays `expert`.
+    it("offers Mirror, preselected when nothing is stored, and no difficulty", () => {
         render(<Harness initial={firstVisit({ myDeckId: "burn" })} />);
         expect(mirror().getAttribute("aria-pressed")).toBe("true");
         expect(
-            screen.getByRole("radiogroup", { name: "Bot difficulty" })
-        ).toBeTruthy();
+            screen.queryByRole("radiogroup", { name: "Bot difficulty" })
+        ).toBeNull();
+        expect(screen.getByText(BOT_KNOWS_DECKLIST_LINE)).toBeTruthy();
     });
 
     it("choosing a deck un-presses Mirror; Mirror stays offered", () => {
@@ -134,6 +137,7 @@ describe("step 5 — the Bot's deck", () => {
         expect(
             screen.queryByRole("radiogroup", { name: "Bot difficulty" })
         ).toBeNull();
+        expect(screen.queryByText(BOT_KNOWS_DECKLIST_LINE)).toBeNull();
     });
 });
 

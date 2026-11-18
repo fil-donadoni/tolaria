@@ -135,7 +135,7 @@ describe("Import deck", () => {
         await waitFor(() =>
             expect(
                 document.querySelector('[data-slot="panel-title"]')?.textContent
-            ).toBe("Bot deck & difficulty")
+            ).toBe("Bot deck")
         );
     });
 
@@ -146,7 +146,7 @@ describe("Import deck", () => {
         await waitFor(() =>
             expect(
                 document.querySelector('[data-slot="panel-title"]')?.textContent
-            ).toBe("Bot deck & difficulty")
+            ).toBe("Bot deck")
         );
         await importList("Theirs", `3 ${NAME}`);
         await waitFor(() => expect(created).toHaveBeenCalledTimes(2));

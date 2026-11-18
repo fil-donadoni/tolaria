@@ -249,6 +249,14 @@ describe("persistence — round-trip and tolerant load", () => {
         expect(loaded).toEqual(setup({ mode: "arena" }));
     });
 
+    // issue #10113 — a setup stored at a level switched off loads at the
+    // default: no surface offers it any more.
+    it("a stored difficulty switched off loads as expert", () => {
+        expect(
+            parseSetup(JSON.stringify({ difficulty: "hard" })).difficulty
+        ).toBe("expert");
+    });
+
     it("an unknown game mode loads unanswered", () => {
         expect(parseSetup(JSON.stringify({ mode: "online" })).mode).toBe(null);
     });

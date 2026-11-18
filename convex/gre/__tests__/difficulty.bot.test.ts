@@ -7,16 +7,19 @@
 // carries a budget AND an opponent-knowledge mode. The budget gradient is
 // still asserted the same way (strictly increasing, expert now the top of
 // it); the knowledge axis gets its own describe block below.
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
 import { search } from "../search";
 import {
     DIFFICULTIES,
     DIFFICULTY_BUDGETS,
     DIFFICULTY_KNOWS_OPPONENT,
+    DIFFICULTY_OFFERED,
     DEFAULT_DIFFICULTY,
     budgetFor,
+    isOfferedDifficulty,
     knowsOpponent,
+    playedDifficulty,
 } from "../difficulty";
 import {
     makeInstance,
@@ -53,7 +56,6 @@ describe("difficulty presets — one knob (issue #114)", () => {
     });
 
     it("budgetFor maps a difficulty and falls back to the default for junk", () => {
-        expect(budgetFor("hard")).toBe(DIFFICULTY_BUDGETS.hard);
         expect(budgetFor("expert")).toBe(DIFFICULTY_BUDGETS.expert);
         expect(budgetFor(null)).toBe(DIFFICULTY_BUDGETS[DEFAULT_DIFFICULTY]);
         expect(budgetFor("nonsense")).toBe(
@@ -72,13 +74,57 @@ describe("difficulty presets — one knob (issue #114)", () => {
 describe("opponent-knowledge mode — the second axis (issue #2790, PRD #2787)", () => {
     it("knowsOpponent maps a difficulty and falls back to the default for junk", () => {
         expect(knowsOpponent("expert")).toBe(true);
-        expect(knowsOpponent("hard")).toBe(true);
         expect(knowsOpponent(null)).toBe(
             DIFFICULTY_KNOWS_OPPONENT[DEFAULT_DIFFICULTY]
         );
         expect(knowsOpponent("nonsense")).toBe(
             DIFFICULTY_KNOWS_OPPONENT[DEFAULT_DIFFICULTY]
         );
+    });
+});
+
+describe("levels switched off play expert (issue #10113)", () => {
+    // Owner ruling, issue #10027: below `expert` the Bot is not worth playing.
+    // The presets keep their shape; only `expert` is offered, and a game
+    // stored at another level plays at `expert`'s budget and knowledge mode.
+    const restore = { ...DIFFICULTY_OFFERED };
+    const restoreKnows = { ...DIFFICULTY_KNOWS_OPPONENT };
+    afterEach(() => {
+        Object.assign(DIFFICULTY_OFFERED, restore);
+        Object.assign(DIFFICULTY_KNOWS_OPPONENT, restoreKnows);
+    });
+
+    it("offers expert alone", () => {
+        expect(DIFFICULTIES.filter(isOfferedDifficulty)).toEqual(["expert"]);
+        expect(playedDifficulty(DEFAULT_DIFFICULTY)).toBe(DEFAULT_DIFFICULTY);
+    });
+
+    it.each(["medium", "hard"] as const)(
+        "a game stored at %s plays at expert's budget",
+        (stored) => {
+            expect(playedDifficulty(stored)).toBe("expert");
+            expect(budgetFor(stored)).toBe(DIFFICULTY_BUDGETS.expert);
+        }
+    );
+
+    it("a game stored at a level switched off reads expert's knowledge mode", () => {
+        DIFFICULTY_KNOWS_OPPONENT.hard = false;
+        expect(knowsOpponent("hard")).toBe(DIFFICULTY_KNOWS_OPPONENT.expert);
+        expect(knowsOpponent("hard")).toBe(true);
+    });
+
+    it("a level switched back on plays its own budget", () => {
+        DIFFICULTY_OFFERED.hard = true;
+        expect(budgetFor("hard")).toBe(DIFFICULTY_BUDGETS.hard);
+        expect(isOfferedDifficulty("hard")).toBe(true);
+    });
+
+    it("only an offered level parses as a choice; prototype keys are junk", () => {
+        expect(isOfferedDifficulty("expert")).toBe(true);
+        expect(isOfferedDifficulty("medium")).toBe(false);
+        expect(isOfferedDifficulty("toString")).toBe(false);
+        expect(isOfferedDifficulty(3)).toBe(false);
+        expect(budgetFor("toString")).toBe(DIFFICULTY_BUDGETS.expert);
     });
 });
 

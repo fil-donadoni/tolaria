@@ -1,7 +1,7 @@
 // Bo1/Bo3 games format selector (PRD #387). A small segmented control shown
 // near deck selection in the lobby; the chosen value flows into Match creation
-// as `bestOf` for every start action (Solo, vs-AI, 2-player). Mirrors the
-// DifficultySelector pattern — same engine, one knob. Persisted by the lobby.
+// as `bestOf` for every start action (Solo, vs-AI, 2-player). Persisted by the
+// lobby.
 
 import { cn } from "~/lib/utils";
 import type { GamesFormat } from "~/lib/session";
