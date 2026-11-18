@@ -22,6 +22,8 @@ import {
     maxLoyaltySpend,
 } from "../ai/loyaltyValue";
 import { cardValue, evaluateBreakdown } from "../evaluate";
+import { dslLoyaltyAbilityValue } from "../ai/cardScriptValue";
+import { nonCreatureBodyRaw } from "../creatureBody";
 import { buildStateFromScenario } from "../scenarioBuilder";
 import { createInitialGameState, type PlayerInput } from "../setup";
 import { getAllCatalogueCards, getCardByName } from "../../cards";
@@ -281,6 +283,91 @@ describe("loyalty prices the walker (CR 606.4 / 704.5i)", () => {
             (c) => c.id === fat.id
         )!;
         expect(loyaltyRealizationRatio(slim)).toBeCloseTo(1 / 3, 10);
+    });
+});
+
+describe("the loyalty arm: a walker's best survivable ability (issue #9973, CR 606.3)", () => {
+    const TEFERI = "Teferi, Hero of Dominaria";
+    const JACE = "Jace, the Mind Sculptor";
+
+    /** `name` alone in `me`'s hand, priced by the hand term's own `cardValue`. */
+    function handValue(name: string): number {
+        const state = build({
+            cards: [{ name, owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+        });
+        const def = getCardByName(name);
+        const card = state.players[0].hand.find(
+            (c) => (c.card as { id?: string }).id === def.id
+        );
+        if (!card) throw new Error(`${name} not in hand`);
+        return cardValue(state, card);
+    }
+
+    it("a walker in hand reads above the blind floor of its mana value", () => {
+        // The bug: Teferi priced at exactly `base + MV` in hand (58), below a
+        // Grizzly Bears (105), so a surveil binned him for a random draw.
+        // Mana value 5 ({3}{W}{U}).
+        expect(handValue(TEFERI)).toBeGreaterThan(nonCreatureBodyRaw(5));
+    });
+
+    it("reads ONE arm, never the sum of the walker's abilities", () => {
+        const def = getCardByName(TEFERI);
+        const arms = (def.activatedAbilities ?? []).filter(
+            (a) =>
+                a.cost.loyalty !== undefined &&
+                def.loyalty! + a.cost.loyalty > 0
+        );
+        expect(arms.length).toBeGreaterThan(1);
+        const each = arms.map(
+            (a) =>
+                dslLoyaltyAbilityValue({
+                    ...def,
+                    activatedAbilities: [a],
+                })!
+        );
+        expect(dslLoyaltyAbilityValue(def)).toBeCloseTo(Math.max(...each), 10);
+        expect(dslLoyaltyAbilityValue(def)!).toBeLessThan(
+            each.reduce((s, v) => s + v, 0)
+        );
+    });
+
+    it("never reads an arm that empties the walker (CR 704.5i)", () => {
+        // A constructed -3 on a 3-loyalty Jace that draws ten: activated on
+        // arrival it puts him in the graveyard, so it trades the permanent
+        // away and is no worth the permanent holds.
+        const def = getCardByName(JACE);
+        const suicidal: CardDefinition = {
+            ...def,
+            activatedAbilities: [
+                ...(def.activatedAbilities ?? []),
+                {
+                    id: "constructed-empties-the-walker",
+                    cost: { loyalty: -def.loyalty! },
+                    effects: [{ op: "draw", player: "controller", count: 10 }],
+                } as NonNullable<CardDefinition["activatedAbilities"]>[number],
+            ],
+        };
+        expect(dslLoyaltyAbilityValue(suicidal)).toBe(
+            dslLoyaltyAbilityValue(def)
+        );
+    });
+
+    it("counters above the starting loyalty buy body, never a second arm", () => {
+        // Jace starts at 3 and his 0 (Brainstorm) is his arm. Scaled with the
+        // body, two banked counters carried two thirds of that arm and his +2
+        // outbid the Brainstorm (blade: "loyalty: Jace brainstorms with no
+        // attacker"). Below the start the whole worth scales, as before.
+        const at = (loyalty: number) =>
+            permanentsTerm(build(boardSpec(JACE, loyalty)));
+        const whole = handValue(JACE);
+        const arm = dslLoyaltyAbilityValue(getCardByName(JACE))!;
+        expect(arm).toBeGreaterThan(0);
+        expect(at(5) - at(3)).toBeCloseTo(((whole - arm) * 2) / 3, 6);
+        expect(at(3) - at(1)).toBeCloseTo((whole * 2) / 3, 6);
     });
 });
 
