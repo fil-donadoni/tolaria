@@ -26,6 +26,7 @@ import {
     BUCKETS,
     INCLUSIVE,
     SEARCH,
+    inclusiveAll,
     isBladeIndex,
     parseProfileArgs,
 } from "./buckets.mjs";
@@ -67,6 +68,7 @@ function fold(profile) {
     );
     const functions = new Map();
     const inclusive = new Map();
+    const everyInclusive = new Map();
     let total = 0;
     for (const [id, micros] of self) {
         const name = byId.get(id).callFrame.functionName || "(anonymous)";
@@ -98,6 +100,9 @@ function fold(profile) {
                 inclusive.set(fn, (inclusive.get(fn) ?? 0) + micros);
             }
         }
+        for (const fn of onStack) {
+            everyInclusive.set(fn, (everyInclusive.get(fn) ?? 0) + micros);
+        }
     }
     const share = (micros) => Number(((100 * micros) / total).toFixed(1));
     return {
@@ -111,6 +116,7 @@ function fold(profile) {
         inclusive: Object.fromEntries(
             INCLUSIVE.map((fn) => [fn, share(inclusive.get(fn) ?? 0)])
         ),
+        inclusiveAll: inclusiveAll(everyInclusive, share),
         topSelf: [...functions.entries()]
             .sort((a, b) => b[1] - a[1])
             .slice(0, 15)

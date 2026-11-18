@@ -37,6 +37,7 @@ import {
     BUCKETS,
     INCLUSIVE,
     SEARCH,
+    inclusiveAll,
     isBladeIndex,
     parseProfileArgs,
 } from "./buckets.mjs";
@@ -63,6 +64,7 @@ function fold(traces) {
     );
     const functions = new Map();
     const inclusive = new Map();
+    const everyInclusive = new Map();
     let total = 0;
     for (const trace of traces) {
         // Cut the stack at the outermost search frame: what calls the search
@@ -87,6 +89,9 @@ function fold(traces) {
                 inclusive.set(fn, (inclusive.get(fn) ?? 0) + 1);
             }
         }
+        for (const fn of onStack) {
+            everyInclusive.set(fn, (everyInclusive.get(fn) ?? 0) + 1);
+        }
     }
     const share = (n) => Number(((100 * n) / total).toFixed(1));
     const shares = (record) =>
@@ -100,6 +105,7 @@ function fold(traces) {
         inclusive: Object.fromEntries(
             INCLUSIVE.map((fn) => [fn, share(inclusive.get(fn) ?? 0)])
         ),
+        inclusiveAll: inclusiveAll(everyInclusive, share),
         topSelf: [...functions.entries()]
             .sort((a, b) => b[1] - a[1])
             .slice(0, 15)
@@ -126,17 +132,14 @@ if (process.argv[2] === "--child") {
     await import(pathToFileURL(path.resolve(bundle)).href);
     const options = { iterations: Number(iterations), clock: "cpu" };
     let row;
-    const result = await profile(
-        () => {
-            row = isBladeIndex(position)
-                ? globalThis.__brainBench.run(Number(position), options)
-                : globalThis.__brainBench.runField(
-                      JSON.parse(readFileSync(position, "utf8")),
-                      options
-                  );
-        },
-        Number(interval)
-    );
+    const result = await profile(() => {
+        row = isBladeIndex(position)
+            ? globalThis.__brainBench.run(Number(position), options)
+            : globalThis.__brainBench.runField(
+                  JSON.parse(readFileSync(position, "utf8")),
+                  options
+              );
+    }, Number(interval));
     console.log(JSON.stringify({ ...row, ...fold(result.stackTraces.traces) }));
     process.exit(0);
 }
@@ -180,7 +183,10 @@ for (const position of positions) {
     const gc = gcPauses(`${run.stdout}\n${run.stderr}`);
     results.push({
         ...row,
-        gc: { ...gc, shareOfWall: Number(((100 * gc.pauseMs) / row.wallMs).toFixed(1)) },
+        gc: {
+            ...gc,
+            shareOfWall: Number(((100 * gc.pauseMs) / row.wallMs).toFixed(1)),
+        },
     });
     process.stderr.write(`profiled ${position}\n`);
 }

@@ -8,15 +8,19 @@
 //   build     Playwright's patched Firefox against a release Firefox
 //             (`--firefox <binary>`, driven through WebDriver BiDi)
 //
+// `--browsers` names the Playwright engines read against Chromium (default
+// `firefox`; `webkit` for WebKit's gap, issue #10123, or `firefox,webkit`).
+//
 //   node docs/research/scripts/brain-bench/run-gecko-gap.mjs <bundle.js> <out.json> \
-//       [--firefox <binary>] [--blade-iterations N] [--field-iterations N] [--rounds N] <position>...
+//       [--browsers firefox|webkit|firefox,webkit] [--firefox <binary>] \
+//       [--blade-iterations N] [--field-iterations N] [--rounds N] <position>...
 //
 // A position is a blade index or a field fixture's path. Wall clock, as every
 // browser run (`run-browsers.mjs`): each round searches every position in
 // every browser and thread back to back, the browser order rotating, after a
 // warm-up round that is discarded; the summary reads ratios per round.
 
-import { chromium, firefox } from "playwright";
+import { chromium, firefox, webkit } from "playwright";
 import { readFileSync, writeFileSync } from "node:fs";
 import { cpus, loadavg } from "node:os";
 import { isBladeIndex } from "./buckets.mjs";
@@ -29,13 +33,19 @@ const option = (name, fallback) => {
     return value;
 };
 const release = option("--firefox", null);
+const ENGINES = { firefox, webkit };
+const compared = option("--browsers", "firefox").split(",");
+if (!compared.every((name) => name in ENGINES)) {
+    console.error(`--browsers: one of ${Object.keys(ENGINES).join(", ")}`);
+    process.exit(2);
+}
 const bladeIterations = Number(option("--blade-iterations", 400));
 const fieldIterations = Number(option("--field-iterations", 40));
 const rounds = Number(option("--rounds", 2));
 const [bundlePath, out, ...positions] = argv;
 if (!bundlePath || !out || positions.length === 0) {
     console.error(
-        "usage: run-gecko-gap.mjs <bundle.js> <out.json> [--firefox <binary>] [--blade-iterations N] [--field-iterations N] [--rounds N] <position>..."
+        "usage: run-gecko-gap.mjs <bundle.js> <out.json> [--browsers firefox|webkit|firefox,webkit] [--firefox <binary>] [--blade-iterations N] [--field-iterations N] [--rounds N] <position>..."
     );
     process.exit(2);
 }
@@ -77,7 +87,9 @@ async function open(name, launch) {
 
 const browsers = [
     await open("chromium", () => chromium.launch()),
-    await open("firefox", () => firefox.launch()),
+    ...(await Promise.all(
+        compared.map((name) => open(name, () => ENGINES[name].launch()))
+    )),
 ];
 if (release) {
     browsers.push(
