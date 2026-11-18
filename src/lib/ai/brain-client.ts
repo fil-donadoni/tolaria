@@ -31,6 +31,7 @@
 import type { PublicGameState } from "@convex/gameProjections";
 import type { Move, SearchBudget, DecisionTrace } from "@convex/gre";
 import { DEFAULT_BUDGET } from "@convex/gre";
+import { BRAIN_CONSULT_TIMEOUT_MS } from "./consult-timeout";
 import type { DeckKnowledgeBySeat } from "./state-adapter";
 import { handleBrainRequest } from "./brain-request";
 import type { RepetitionHistory } from "@convex/gre/ai/repetition";
@@ -83,32 +84,14 @@ type Pending = (result: BrainResult) => void;
  *  consult is re-run on this thread, and re-running it needs the arguments. */
 type InFlight = { resolve: Pending; request: BrainRequest };
 
-/** How long a Worker consult may run before the client gives up on it and
- *  resolves the same "no move" answer `worker.onerror` already resolves
- *  (issue #2284).
- *
- *  Without it a Worker that never replies — a wedged search, a message lost
- *  across a tab suspend — left the driver's in-flight guard set forever, and an
- *  in-flight guard the driver cannot clear is a latch its watchdog cannot walk
- *  past (the watchdog will not interleave a rung into a live submission). The
- *  timeout turns "never replies" into the ordinary `move: null` outcome the
- *  escalation ladder already handles.
- *
- *  It must stay comfortably ABOVE the hardest search budget
- *  (`DIFFICULTY_BUDGETS.hard.timeMs = 3000`, raised from 600 by issue #2682)
- *  and BELOW `BOT_WATCHDOG_MS`, so a wedged consult settles in time for the
- *  watchdog's first deadline to escalate rather than to find a still-in-flight
- *  dispatch. `brain-client-timeout.bot.test.ts` asserts both relations against
- *  the real constants.
- *
- *  Those relations only bound the CONSULT. Since issue #3053 the Worker also
- *  makes card definitions resident in its own graph before it answers — since
- *  issue #5617 only its Manifest's shards, from the page's HTTP cache — and
- *  that is deliberately kept OUT of this budget by {@link warmBrain} and
- *  {@link primeBrain}, which `useVsAiDriver` calls ahead of the first consult.
- *  Without them the first consult on a cold
- *  cache would be a ~1.4 MB download plus a 3,000 ms search inside 5,000 ms. */
-export const BRAIN_CONSULT_TIMEOUT_MS = 5000;
+/** The consult timeout and its margins live in `./consult-timeout` (issue
+ *  #10115), a pure module the driver's watchdog derives from without loading
+ *  the Worker channel; re-exported here, where the timeout is enforced. */
+export {
+    BRAIN_CONSULT_OVERRUN_MARGIN_MS,
+    BRAIN_CONSULT_TIMEOUT_MS,
+    BRAIN_CONSULT_TRANSPORT_MARGIN_MS,
+} from "./consult-timeout";
 
 /** How many CONSECUTIVE Worker failures give up on the Worker and hand the rest
  *  of the game to the in-thread fallback (issue #3040).
@@ -526,7 +509,7 @@ const botBrain = createBrainChannel();
  * graph before it answers anything. `getWorker()` is lazy and was first
  * called from inside `consultBrain`, which put that fetch inside
  * {@link BRAIN_CONSULT_TIMEOUT_MS} together with the hardest search budget
- * (3,000 ms) — a cold HTTP cache would spend the first consult on the
+ * — a cold HTTP cache would spend the first consult on the
  * download and settle it as `outcome: "timeout"`, i.e. the bot passing its
  * first window, while the constant's own comment still claimed it sat
  * "comfortably ABOVE the hardest search budget".
