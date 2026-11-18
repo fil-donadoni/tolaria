@@ -198,6 +198,13 @@
             "needsSetup": false
         }
     ],
+    "Daze": [
+        {
+            "label": "tax counter: casts Daze into a tapped-out opponent",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Deceiver Exarch": [
         {
             "label": "combo: activates Splinter Twin on enchanted Deceiver Exarch",
@@ -799,6 +806,11 @@
             "label": "held answer: counters Stone Rain with Mana Leak when the opponent has no cards left",
             "tier": "must",
             "needsSetup": true
+        },
+        {
+            "label": "tax counter: casts Mana Leak when the opponent cannot pay {3}",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Mana Vault": [
