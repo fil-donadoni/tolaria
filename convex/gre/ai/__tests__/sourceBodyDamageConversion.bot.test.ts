@@ -222,16 +222,12 @@ describe("rollout(…, since) — a sooner win outranks a later one (issue #3376
     const clockOf = (turn: number) =>
         ({ turn, phase: "PRECOMBAT_MAIN" }) as GameState;
 
-    // ADR 0184 (issue #10118): a win in the root's own turn is floored more
-    // than `outcomeEps` above the same win a turn later — a gap no longer
-    // scaled by the material the win holds.
-    it("a win a turn later scores more than outcomeEps below a win now", () => {
+    it("a win now scores the plain leaf; a win a turn later scores lower", () => {
+        const plain = leafAt("opp");
         const now = leafAt("opp", clockOf(5));
         const later = leafAt("opp", clockOf(4));
-        expect(now.reward - later.reward).toBeGreaterThan(
-            DEFAULT_EVAL_WEIGHTS.outcomeEps
-        );
-        expect(now.reward).toBeLessThanOrEqual(1);
+        expect(now).toEqual(plain);
+        expect(later.reward).toBeLessThan(now.reward);
         // Still a win: above every open leaf (CR 704.5a).
         expect(later.reward).toBeGreaterThanOrEqual(
             1 - DEFAULT_EVAL_WEIGHTS.terminalBand

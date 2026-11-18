@@ -208,7 +208,6 @@ import {
     beamTriggerTargetsByValue,
     pruneDominatedTriggerTargets,
 } from "./ai/targetDominance";
-import { isDominatedTaxDecline } from "./ai/taxDominance";
 import {
     beginDominanceDecision,
     endDominanceDecision,
@@ -561,11 +560,6 @@ export type Node = {
      *  Decided ONCE, on the node's first visit, like `dominatedTargetKeys`.
      *  `undefined` until then. */
     opposingGateArmKeys?: ReadonlySet<string>;
-    /** Tree key of the dominated tax decline this `may-pay` node never
-     *  explores (issue #9832, `withoutDominatedTaxDeclines`), or `null` when
-     *  none is. Decided ONCE, on the node's first visit, like
-     *  `dominatedTargetKeys`. `undefined` until then. */
-    dominatedTaxDeclineKey?: string | null;
 };
 
 function newNode(): Node {
@@ -1524,13 +1518,20 @@ function stepsSince(since: GameClock, state: GameState): number {
  *  `outcomeEps`, so `hold-trick` even held the lethal shot it exists never to
  *  see.
  *
- *  The win's height above the band floor (`wonBandHeight`, ADR 0184) decays
- *  with game time, and a win in the root's own turn is floored more than
- *  `outcomeEps` above the same win a turn later, so the timing gap no longer
- *  shrinks with the material the win holds. A win never
- *  leaves the band. It touches the REWARD only: the tie-break margin stays
- *  pure material, like `evaluate`'s race and combat terms. Losses and open
- *  leaves are untouched; with no `since` the leaf is the plain evaluation. */
+ *  The win's height ABOVE the band floor shrinks by `winTimingDecay`: per
+ *  step of game time, down to a floor that itself shrinks per turn. A factor, never a subtracted cost: a cost large enough to
+ *  separate a win now from a win a combat later pinned every win a turn or
+ *  more away to the band floor, and wins that all score the floor are wins
+ *  the material can no longer order (the saturation ADR 0102 measured) — a
+ *  sacrifice that threw a land away tied `pass` on a board both lines win by
+ *  decking. Floored, because a win a turn away is still a win: decayed to a
+ *  sliver of its height, a storm kill that decks the opponent at their next
+ *  draw read barely above a burn spell that did not. Scaled, two wins at the
+ *  same step keep their material order
+ *  exactly, and a win never leaves the band. It touches the REWARD only: the
+ *  tie-break margin stays pure material, like `evaluate`'s race
+ *  and combat terms. Losses and open leaves are untouched; with no `since`
+ *  the leaf is the plain evaluation. */
 function scoreLeaf(
     state: GameState,
     botId: string,
@@ -1541,12 +1542,8 @@ function scoreLeaf(
     const reward = rewardFromValue(value, weights);
     if (since && value >= terminalMagnitude(weights)) {
         const floor = 1 - weights.terminalBand;
-        const material = (reward - floor) / weights.terminalBand;
         return {
-            reward:
-                floor +
-                weights.terminalBand *
-                    wonBandHeight(since, state, material, weights),
+            reward: floor + (reward - floor) * winTimingDecay(since, state),
             margin,
         };
     }
@@ -1559,60 +1556,48 @@ function scoreLeaf(
  *  five steps later (main phase → combat damage) must land more than
  *  `outcomeEps` apart — 0.85⁵ ≈ 0.44, floored at half — and a win a turn
  *  away must keep enough height to beat a line that never wins (the
- *  Brain Freeze decking entry), which a quarter does and a tenth did not. */
+ *  Brain Freeze decking entry), which half does and a tenth did not. */
 const WIN_STEP_DECAY = 0.85;
 /** The floor of the root's own turn: half the height survives any number of
  *  steps inside it. */
 const WIN_DECAY_FLOOR = 0.5;
-/** Per turn boundary crossed, the share of the floor that survives (issues
- *  #9900, #10084): 0.5 / 0.25 / 0.125 of the height. */
+/** Per turn boundary crossed, the share of the floor that survives (issue
+ *  #9900). With one global floor, reached in five steps, a win in this
+ *  turn's combat and a win on the bot's next turn both scored half the
+ *  height: a full-height win separated them by 0.25 × 0.02, far inside
+ *  `outcomeEps`, and the material tie-break took the later win, richer by a
+ *  draw and a land drop. Per turn, the floor is 0.5 / 0.25 / 0.125.
+ *
+ *  The binding pair is a win in this turn's combat against a win on the
+ *  OPPONENT's turn — the opponent decking at their draw (issue #10084). From
+ *  a main-phase root, combat damage is five steps away (0.85⁵ ≈ 0.44), so
+ *  the combat win sits on this turn's floor, 0.5, and the pair is floor
+ *  against floor. At 0.7 the opponent's turn kept 0.35: even a full-height
+ *  win separated the two by 0.25 × 0.15 ≈ 0.038, inside `outcomeEps` for
+ *  EVERY win, so a riot creature that could attack for lethal now tied the
+ *  counter that let the opponent deck, and the material tie-break took the
+ *  bigger body. At 0.5 the gap is 0.25 × 0.25 ≈ 0.063: it clears
+ *  `outcomeEps` once the win holds more than 0.8 of the band's height, and
+ *  below that the two still tie and material still decides. The bot's next
+ *  turn sits 0.094 below this turn's floor. A win on the opponent's turn
+ *  (the Brain Freeze decking entry) still keeps a quarter of its height,
+ *  above the tenth that lost it. The Sneak Attack entry was measured before
+ *  this change, with issue #9846's departure pricing: the activation now
+ *  (0.78) against the activation next turn (0.70 at 0.7, 0.71–0.74 at 1.0,
+ *  where seed 4 fell to `last-window-deferral`). */
 const WIN_TURN_DECAY = 0.5;
-/** Headroom over `outcomeEps` in the own-turn floor (`wonBandHeight`), so a
- *  win in the root's turn and the same win a turn later never land inside
- *  `outcomeEps` by rounding. */
-const WIN_TURN_GAP_HEADROOM = 1.15;
 
-/** The height, as a share of `terminalBand`, of a won leaf above the band
- *  floor (ADR 0184); `material` is the
- *  leaf's won-band position, 0..1.
- *
- *  The material height decays with game time: `WIN_STEP_DECAY` per step,
- *  never below the floor of the turn the leaf is in. A factor alone made
- *  the timing gap proportional to the material — a win from behind tied a
- *  later one (issue #10118). So a win in the ROOT's own turn is also
- *  floored at the SAME material won one turn later plus `gap`, `outcomeEps`
- *  in band units with headroom (0.23 at the base vector): it outranks a win
- *  on the opponent's turn holding as much material — or up to
- *  `(gap − outcomeEps / terminalBand) / WIN_DECAY_FLOOR / WIN_TURN_DECAY`
- *  ≈ 0.12 of the band more — by more than `outcomeEps`, whatever the
- *  material level, and a win on the bot's next turn by more still (#9900).
- *
- *  A floor, never an offset: where the decay already separated the two (a
- *  win holding most of the band) the height is the old one. A fixed offset
- *  on every own-turn win doubled the premium a rollout's misblocked attack
- *  pays at the material a typical win holds, and the Vindicate fan-out entry
- *  — whose Hero target is worth its material in wins turns away — read the
- *  premium as signal. Later turns keep the decayed height, so two later wins
- *  a turn apart are ordered by material times the turn decay, as before. */
-function wonBandHeight(
-    since: GameClock,
-    state: GameState,
-    material: number,
-    weights: EvalWeights
-): number {
-    const clipped = Math.min(1, Math.max(0, material));
+/** The share of a won leaf's height that survives the game time from `since`
+ *  to `state`: `WIN_STEP_DECAY` per step, never below the floor of the turn
+ *  the leaf is in. The larger of the two, so a win one step past a turn
+ *  boundary pays one step, not a whole turn, and a later win never scores
+ *  above a sooner one. */
+function winTimingDecay(since: GameClock, state: GameState): number {
     const turns = Math.max(0, state.turn - since.turn);
-    const decayed =
-        clipped *
-        Math.max(
-            WIN_DECAY_FLOOR * WIN_TURN_DECAY ** turns,
-            WIN_STEP_DECAY ** stepsSince(since, state)
-        );
-    if (turns > 0) return decayed;
-    const gap =
-        (weights.outcomeEps / weights.terminalBand) * WIN_TURN_GAP_HEADROOM;
-    const nextTurn = clipped * WIN_DECAY_FLOOR * WIN_TURN_DECAY;
-    return Math.min(1, Math.max(decayed, nextTurn + gap));
+    return Math.max(
+        WIN_DECAY_FLOOR * WIN_TURN_DECAY ** turns,
+        WIN_STEP_DECAY ** stepsSince(since, state)
+    );
 }
 
 /** Bound on consecutive forced answers in one `advanceToDecision` call. A
@@ -2251,18 +2236,11 @@ export function policyProbeState(
     // The depth the move's own announcement sits on — everything below it
     // belongs to somebody else. -1 when the move put nothing on the stack.
     let announcedDepth = -1;
-    // The stack id of the move's own announcement when it is the item the
-    // probe resolves (the top), else `undefined` — a cast trigger above it
-    // (CR 603.3) is resolved instead, and that suspension is not the cast's.
-    let resolvedAnnouncementId: string | undefined;
     if (
         (move.kind === "cast-spell" || move.kind === "activate-ability") &&
         probe.stack.length > 0
     ) {
         announcedDepth = announcementDepth(probe, move);
-        if (announcedDepth === probe.stack.length - 1) {
-            resolvedAnnouncementId = probe.stack[announcedDepth].id;
-        }
         resolveTopOfStack(probe);
         // CR 704.3 (issue #5784) — a completed resolution is followed by the
         // SBA check before anyone gets priority; lethal damage (CR 704.5g)
@@ -2321,62 +2299,6 @@ export function policyProbeState(
             // announcement, and settling it would price this move against a
             // board the move did not cause.
             suspendedDepth,
-            undefined,
-            true
-        );
-    } else if (
-        moverId &&
-        announcedDepth > 0 &&
-        resolvedAnnouncementId !== undefined &&
-        suspendedItemId === resolvedAnnouncementId &&
-        probe.pendingChoices?.[0]?.playerId !== moverId
-    ) {
-        // Issue #9832 — a response suspended on the OPPONENT's answer: the
-        // move's own announcement, cast or activated on top of somebody
-        // else's (CR 117.7), raised a choice its opponent owns — the
-        // "unless its controller pays" of a tax counter (CR 118.12a, the
-        // `mayPay` Op). Stopping there scored the suspended state, where the
-        // spell underneath had neither resolved nor been countered, so a
-        // payable tax read exactly as a hard counter. The opponent answers
-        // adversarially (`answerOpponent`, issue #4896: paying when it can,
-        // since a resolved spell is worse for the mover than a countered
-        // one), and the settle drains the stack to the bottom, as the `pass`
-        // it is compared against does: the paid-for spell resolves, the
-        // countered one is gone. A mover-owned suspension keeps the
-        // isolation rule above — its answer is the mover's own and may
-        // depend on the spell below resolving.
-        settled = settleStackForBreakdown(
-            probe,
-            moverId,
-            weights,
-            0,
-            { left: MAX_CHOICE_BRANCH_WORK },
-            0,
-            undefined,
-            true
-        );
-    } else if (
-        moverId &&
-        move.kind === "may-pay" &&
-        probe.stack.length > 0 &&
-        !probe.pendingTarget
-    ) {
-        // Issue #9832 — the PAYER's half of the same tax: answering a
-        // `may-pay` resumes the resolution that asked (CR 608.2), and with a
-        // spell still underneath, accept and decline differ in exactly one
-        // thing — whether that spell survives to resolve. Scored as it
-        // stands, the spell sits on the stack in both branches (on the
-        // battlefield in neither), so the paying branch read as the cost
-        // alone and the rollout's payer always declined, which is what
-        // kept a payable tax counter's mean above `pass`. Both branches
-        // drain the same stack, so the comparison stays like for like.
-        settled = settleStackForBreakdown(
-            probe,
-            moverId,
-            weights,
-            0,
-            { left: MAX_CHOICE_BRANCH_WORK },
-            0,
             undefined,
             true
         );
@@ -3055,39 +2977,6 @@ function withoutDominatedTriggerTargets(
     const denied = node.dominatedTargetKeys;
     if (denied.size === 0) return keyed;
     const kept = keyed.filter((k) => !denied.has(k.key));
-    return kept.length > 0 ? kept : keyed;
-}
-
-/** `keyed` without a `may-pay` node's dominated decline (issue #9832,
- *  `ai/taxDominance.ts`): declining loses the payer's own spell and an
- *  affordable mana-only accept keeps it, so the node stops exploring the
- *  decline whose visits the mean backup credited to the tax counter that
- *  raised it. Memoized on `node`, decided on its first world; never
- *  emptying. Tree only, below the root. */
-function withoutDominatedTaxDeclines(
-    node: Node,
-    world: GameState,
-    pid: string,
-    keyed: KeyedMove[]
-): KeyedMove[] {
-    if (world.pendingChoices?.[0]?.kind !== "may-pay") return keyed;
-    if (node.dominatedTaxDeclineKey === undefined) {
-        const decline = keyed.find(
-            (k) => k.move.kind === "may-pay" && !k.move.accept
-        );
-        node.dominatedTaxDeclineKey =
-            decline &&
-            isDominatedTaxDecline(
-                world,
-                keyed.map((k) => k.move),
-                (probe, move) => applyMoveInSearch(probe, pid, move)
-            )
-                ? decline.key
-                : null;
-    }
-    const denied = node.dominatedTaxDeclineKey;
-    if (denied === null) return keyed;
-    const kept = keyed.filter((k) => k.key !== denied);
     return kept.length > 0 ? kept : keyed;
 }
 
@@ -4108,7 +3997,6 @@ function iterate(
         );
         if (depth > 0) {
             keyed = withoutOpposingGateArms(node, world, pid, keyed, weights);
-            keyed = withoutDominatedTaxDeclines(node, world, pid, keyed);
         }
         // Deny-set, never an allow-set, and never emptying: a world-specific
         // move the root enumeration never saw stays available, and `pass` is
