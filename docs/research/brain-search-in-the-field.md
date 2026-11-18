@@ -260,7 +260,8 @@ message:"bot search"
   fields: gameId, device.engine, device.cores, device.mobile, consults, searches,
           iterations.requested, iterations.completed, stopped.time,
           stopped.iterations, searchMs.p50, searchMs.max, consultMs.p50,
-          consultMs.max, msPerIteration.p50, msPerIteration.p90
+          consultMs.max, msPerIteration.p50, msPerIteration.p90,
+          device.os, msPerIteration.first   # since issue #10128
 
 message:"verdict proposals"
   fields: gameId, judge.move, judge.search-error, judge.serverMs.p50,
