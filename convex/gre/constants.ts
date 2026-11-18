@@ -2927,11 +2927,33 @@ function substituteTapOptionMana(
     });
 }
 
+/** Whether two produced costs are the same mana — `manaCostKey` equality
+ *  without building either key. */
+function sameProducedMana(a: ManaCost, b: ManaCost): boolean {
+    for (const c of MANA_COLORS) {
+        if ((a[c] ?? 0) !== (b[c] ?? 0)) return false;
+    }
+    return true;
+}
+
+/** Above this many options the dedup keys a `Set`; below it, a pairwise scan
+ *  over the kept options allocates nothing (JavaScriptCore builds a `Set` in
+ *  C++, a visible cost on the census path, issue #10152). */
+const DEDUP_SCAN_LIMIT = 8;
+
 /** Dedup by produced `ManaCost`, keeping the first occurrence's provenance. */
 function dedupByProducedMana(
     options: readonly ManaTapOption[]
 ): ManaTapOption[] {
     const out: ManaTapOption[] = [];
+    if (options.length <= DEDUP_SCAN_LIMIT) {
+        for (const opt of options) {
+            if (!out.some((kept) => sameProducedMana(kept.mana, opt.mana))) {
+                out.push(opt);
+            }
+        }
+        return out;
+    }
     const seen = new Set<string>();
     for (const opt of options) {
         const key = manaCostKey(opt.mana);
