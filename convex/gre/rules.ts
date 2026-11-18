@@ -2830,7 +2830,7 @@ export function buildManaSourceUnits(
          *  than offering a cast the payment layer will refuse. */
         printedManaCostOnly?: boolean;
     } = {}
-): Set<Color>[] {
+): ReadonlySet<Color>[] {
     const includePayWith = opts.payWith ?? true;
     // CR 601.2f (issue #1338) — "You can't spend mana to cast this spell"
     // (Hogaak). When set, NO real mana source counts toward affordability: every
@@ -2870,7 +2870,7 @@ export function buildManaSourceUnits(
         : undefined;
     const boardControllerId = boardBattlefields ? player.id : undefined;
     // Each source is the set of colors it can supply for this cost slot.
-    const sources: Set<Color>[] = [];
+    const sources: ReadonlySet<Color>[] = [];
     // Issue #2420 — the real capacity a `tapOtherFilter` mana ability (Urza's
     // "Tap an untapped artifact you control: Add {U}.") adds is NOT an
     // independent unit (that double-counts the fodder artifact, which is
