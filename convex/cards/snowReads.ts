@@ -47,9 +47,12 @@ export function copiableSupertypesOf(
     def: { supertypes?: readonly string[] } | null | undefined,
     card: Pick<SupertypeView, "faceDown" | "copyExcept">
 ): string[] {
-    return [
-        ...new Set([...(def?.supertypes ?? []), ...copyExceptSupertypes(card)]),
-    ];
+    const out: string[] = [];
+    for (const s of def?.supertypes ?? []) if (!out.includes(s)) out.push(s);
+    for (const s of copyExceptSupertypes(card)) {
+        if (!out.includes(s)) out.push(s);
+    }
+    return out;
 }
 
 /** {@link copiableSupertypesOf}`(def, card).includes(supertype)` without
@@ -132,8 +135,17 @@ export function controlsSnowSubtype(
 /** Live supertypes of a permanent (CR 205.4a) for the `supertypes` field of a
  *  `PermanentFilter` — injected as `FilterMatchContext.supertypesOf`. */
 export function liveSupertypesOf(card: SupertypeView): readonly string[] {
-    const result = new Set<string>(copiableSupertypes(card));
-    for (const r of card.removedSupertypes ?? []) result.delete(r.supertype);
-    for (const g of card.grantedSupertypes ?? []) result.add(g.supertype);
-    return [...result];
+    const copiable = copiableSupertypes(card);
+    const removed = card.removedSupertypes ?? [];
+    const granted = card.grantedSupertypes ?? [];
+    if (removed.length === 0 && granted.length === 0) return copiable;
+    // Set semantics without a `Set` (JavaScriptCore builds one in C++, issue
+    // #10152): drop the removed, then append each granted one not yet held.
+    const result = copiable.filter(
+        (s) => !removed.some((r) => r.supertype === s)
+    );
+    for (const g of granted) {
+        if (!result.includes(g.supertype)) result.push(g.supertype);
+    }
+    return result;
 }
