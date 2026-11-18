@@ -5,6 +5,8 @@ import picomatch from "picomatch";
 import vitestConfig from "../../vitest.config";
 import {
     splitScriptsTests,
+    DOM_SHARED_DISQUALIFIERS,
+    splitDomSharedTests,
     splitSrcBotTests,
     splitSrcTests,
 } from "../test-env-split";
@@ -81,6 +83,7 @@ function selectedBy(file: string): string[] {
 
 const SRC_TESTS = collectTests(path.join(ROOT, "src")).sort();
 const NON_BOT = SRC_TESTS.filter((f) => !f.endsWith(".bot.test.ts"));
+const NON_BOT_ANY = SRC_TESTS.filter((f) => !/\.bot\.test\.tsx?$/.test(f));
 const BOTS = SRC_TESTS.filter((f) => /\.bot\.test\.tsx?$/.test(f));
 const BOT_NODE = new Set(splitSrcBotTests(ROOT).node);
 
@@ -93,6 +96,7 @@ describe("src test env split — every src test runs in exactly one project", ()
             "bot-dom",
             "bot-node",
             "dom",
+            "dom-shared",
             "ladder",
             "node-engine",
             "node-tooling",
@@ -124,6 +128,37 @@ describe("src test env split — every src test runs in exactly one project", ()
                 "never runs and never fails; a file selected by two runs twice, in two " +
                 "environments, and the dom copy hides a node-side breakage."
         ).toEqual([]);
+    });
+
+    // Issue #10106: the marker-free DOM files share one module registry in
+    // `dom-shared`; the SAME classifier decides, never a list.
+    it("routes the marker-free DOM files to dom-shared, the rest to dom or node-engine", () => {
+        const shared = new Set(splitDomSharedTests(ROOT));
+        expect(
+            shared.size,
+            "No src test is selected by dom-shared: the split is undone and every marker-free " +
+                "DOM file is back to re-importing the module graph per file."
+        ).toBeGreaterThan(100);
+        const nodeSet = new Set(splitSrcTests(ROOT).node);
+        for (const f of NON_BOT_ANY) {
+            const expected = shared.has(f)
+                ? "dom-shared"
+                : nodeSet.has(f)
+                  ? "node-engine"
+                  : "dom";
+            expect(selectedBy(f), f).toEqual([expected]);
+        }
+    });
+
+    it("keeps a file with an isolation marker out of dom-shared", () => {
+        const shared = new Set(splitDomSharedTests(ROOT));
+        for (const f of shared) {
+            const source = fs.readFileSync(path.join(ROOT, f), "utf8");
+            expect(
+                DOM_SHARED_DISQUALIFIERS.filter((m) => source.includes(m)),
+                f
+            ).toEqual([]);
+        }
     });
 
     // Issue #6151: the classifier's verdict decides bot files too — a passing

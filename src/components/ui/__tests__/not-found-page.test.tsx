@@ -2,10 +2,15 @@
 // page is missing (the `/draft-lab` admin gate renders this exact component
 // for a non-admin, so any "you need to be an admin" wording here would leak
 // the surface's existence — see `src/routes/draft-lab.route.tsx`).
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import NotFoundPage from "../not-found-page";
 import { LOST_IN_CARDS, pickLostInCard } from "@/lib/lostInCards";
+
+// The title is the shared document's state (dom-shared, issue #10106): put it back.
+afterEach(() => {
+    document.head.querySelector("title")?.remove();
+});
 
 describe("pickLostInCard", () => {
     it("maps the random draw across the whole pool", () => {
