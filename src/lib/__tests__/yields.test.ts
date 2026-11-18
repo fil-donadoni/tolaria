@@ -41,6 +41,12 @@ import {
     yieldCardIdentityForDefinition,
     yieldKeyForStackItem,
     type YieldState,
+    countOptionalAnswers,
+    forgetSeatOptionalAnswer,
+    optionalPromptIdentity,
+    rememberOptionalAnswer,
+    rememberedOptionalAnswerFor,
+    seatOptionalAnswers,
 } from "~/lib/yields";
 
 const NOBLE = getCardByName("Noble Hierarch");
@@ -565,6 +571,7 @@ describe("Auto-order memory — keyed by ability identity, reset with yields (is
             p1: { enabled: true, orders: [[nobleKey, ignobleKey]] },
             p2: { enabled: true, orders: [[nobleKey]] },
         },
+        optionalAnswers: {},
     });
 
     it("Clear all yields forgets the seat's orders and turns Auto-order off, even with zero yields", () => {
@@ -623,6 +630,7 @@ describe("Manage yields — exact removal (issue #3629)", () => {
             },
             p2: { enabled: true, orders: [[nobleKey, ignobleKey, nobleKey]] },
         },
+        optionalAnswers: {},
     };
 
     it("removing one Yield drops ONLY that key — never the orders or the toggle, even as the seat's last", () => {
@@ -634,7 +642,11 @@ describe("Manage yields — exact removal (issue #3629)", () => {
         // untouched by construction, and the count still sees it.
         expect(
             countSeatYieldPrefs(
-                { yields: last, triggerOrders: prefs.triggerOrders },
+                {
+                    yields: last,
+                    triggerOrders: prefs.triggerOrders,
+                    optionalAnswers: {},
+                },
                 "p1"
             )
         ).toBe(2);
@@ -672,5 +684,148 @@ describe("Manage yields — exact removal (issue #3629)", () => {
             yieldCardIdentityForDefinition(NOBLE.id)
         );
         expect(yieldKeyCardIdentity("garbage")).toBe("");
+    });
+});
+
+describe("Auto-answer — remembered optional-prompt answers (issue #9863)", () => {
+    const [nobleA, nobleB, nobleOther, ignoble] = projectStack([
+        nobleExalted("n1"),
+        nobleExalted("n2"),
+        {
+            kind: "trigger",
+            defId: NOBLE.id,
+            abilityId: "some-other-ability",
+            instance: "n3",
+        },
+        {
+            kind: "trigger",
+            defId: IGNOBLE.id,
+            abilityId: EXALTED,
+            instance: "i1",
+        },
+    ]);
+    const prompt = { step: 0, choiceId: "mayDraw" };
+    const nobleId = optionalPromptIdentity(nobleA, prompt)!;
+
+    it("builds on the Yield key: every copy of the ability shares the identity, nothing else does", () => {
+        expect(nobleId.yieldKey).toBe(yieldKeyForStackItem(nobleA));
+        expect(optionalPromptIdentity(nobleB, prompt)).toEqual(nobleId);
+        const state = rememberOptionalAnswer({}, "p1", {
+            ...nobleId,
+            prompt: "You may draw a card.",
+            answer: "skip",
+        });
+        const entries = seatOptionalAnswers(state, "p1");
+        expect(
+            rememberedOptionalAnswerFor(
+                entries,
+                optionalPromptIdentity(nobleB, prompt)
+            )
+        ).toBe("skip");
+        expect(
+            rememberedOptionalAnswerFor(
+                entries,
+                optionalPromptIdentity(nobleOther, prompt)
+            )
+        ).toBeNull();
+        expect(
+            rememberedOptionalAnswerFor(
+                entries,
+                optionalPromptIdentity(ignoble, prompt)
+            )
+        ).toBeNull();
+    });
+
+    it("two prompts of one ability's resolution are remembered independently", () => {
+        const second = optionalPromptIdentity(nobleA, {
+            step: 1,
+            choiceId: "mayDraw",
+        })!;
+        const third = optionalPromptIdentity(nobleA, {
+            step: 0,
+            choiceId: "mayDiscard",
+        })!;
+        let state = rememberOptionalAnswer({}, "p1", {
+            ...nobleId,
+            prompt: "a",
+            answer: "yes",
+        });
+        state = rememberOptionalAnswer(state, "p1", {
+            ...second,
+            prompt: "b",
+            answer: "skip",
+        });
+        const entries = seatOptionalAnswers(state, "p1");
+        expect(rememberedOptionalAnswerFor(entries, nobleId)).toBe("yes");
+        expect(rememberedOptionalAnswerFor(entries, second)).toBe("skip");
+        expect(rememberedOptionalAnswerFor(entries, third)).toBeNull();
+    });
+
+    it("has no identity for a face-down spell", () => {
+        const spell = makeInstance(BOLT.id, {
+            id: "fd",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "stack",
+        });
+        turnFaceDown(NO_BOARD_LAYER_VIEW, spell as never, "morph");
+        const state: GameState = makeState({
+            stack: [{ ...spell, castById: "p1" } as EngineStackItem],
+        } as Partial<GameState>);
+        const [faceDown] = projectPublicState(state, 1, "p1")
+            .stack as unknown as StackItem[];
+        expect(optionalPromptIdentity(faceDown, prompt)).toBeNull();
+        expect(rememberedOptionalAnswerFor([], null)).toBeNull();
+    });
+
+    it("is per seat, replaces on re-record, and forgets exactly one", () => {
+        let state = rememberOptionalAnswer({}, "p1", {
+            ...nobleId,
+            prompt: "a",
+            answer: "yes",
+        });
+        expect(
+            rememberedOptionalAnswerFor(
+                seatOptionalAnswers(state, "p2"),
+                nobleId
+            )
+        ).toBeNull();
+        state = rememberOptionalAnswer(state, "p1", {
+            ...nobleId,
+            prompt: "a",
+            answer: "skip",
+        });
+        expect(countOptionalAnswers(state, "p1")).toBe(1);
+        expect(
+            rememberedOptionalAnswerFor(
+                seatOptionalAnswers(state, "p1"),
+                nobleId
+            )
+        ).toBe("skip");
+        const forgot = forgetSeatOptionalAnswer(state, "p1", nobleId);
+        expect(countOptionalAnswers(forgot, "p1")).toBe(0);
+        expect(forgetSeatOptionalAnswer(forgot, "p1", nobleId)).toBe(forgot);
+    });
+
+    it("shares the Yields' resets and count, like Auto-order", () => {
+        const nobleKey = yieldKeyForStackItem(nobleA)!;
+        const prefs: YieldPrefsState = {
+            yields: { p1: [nobleKey] },
+            triggerOrders: {},
+            optionalAnswers: {
+                p1: [{ ...nobleId, prompt: "a", answer: "skip" }],
+                p2: [{ ...nobleId, prompt: "a", answer: "yes" }],
+            },
+        };
+        expect(countSeatYieldPrefs(prefs, "p1")).toBe(2);
+        const cleared = clearSeatYieldPrefs({ ...prefs, yields: {} }, "p1");
+        expect(countOptionalAnswers(cleared.optionalAnswers, "p1")).toBe(0);
+        expect(countOptionalAnswers(cleared.optionalAnswers, "p2")).toBe(1);
+        const card = clearSeatCardYieldPrefs(
+            prefs,
+            "p1",
+            yieldCardIdentityForDefinition(NOBLE.id)
+        );
+        expect(countOptionalAnswers(card.optionalAnswers, "p1")).toBe(0);
     });
 });

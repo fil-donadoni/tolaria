@@ -6,7 +6,14 @@ import {
     getDelayedTriggerOracleText,
     getTriggeredAbilityOracleText,
 } from "~/lib/card-utils";
-import { parseYieldKey, type YieldKey, type YieldKeyParts } from "~/lib/yields";
+import {
+    optionalPromptIdentityKey,
+    parseYieldKey,
+    type OptionalAnswer,
+    type RememberedOptionalAnswer,
+    type YieldKey,
+    type YieldKeyParts,
+} from "~/lib/yields";
 
 /** What a **Yield** key reads as in the "Manage yields" box (issue #3629).
  *  Never the raw key and never a definition id — the key is taken apart only by
@@ -125,4 +132,42 @@ export function yieldRows(keys: readonly YieldKey[]): YieldRow[] {
  *  resolves first (CR 405.1). Copies of one card repeat. */
 export function triggerOrderSourceNames(order: readonly YieldKey[]): string[] {
     return order.map((key) => yieldKeyLabel(key).source);
+}
+
+/** What a remembered answer reads as — the toggle's own words. */
+export const OPTIONAL_ANSWER_TEXT: Record<OptionalAnswer, string> = {
+    yes: "Always yes",
+    skip: "Always skip",
+};
+
+/** One row of the box's **Auto-answer** section (issue #9863). */
+export type OptionalAnswerRow = {
+    /** React list key — the identity, never parsed. */
+    id: string;
+    entry: RememberedOptionalAnswer;
+    /** `<card> — <answer>`. */
+    title: string;
+    /** The prompt as the player saw it. */
+    detail: string;
+    /** Names card, prompt and answer, so two rows never share a label. */
+    removeLabel: string;
+};
+
+/** The **Auto-answer** section's rows, in the seat's record order. The card
+ *  name comes through {@link yieldKeyLabel}, the same resolver the **Yields**
+ *  rows read. */
+export function optionalAnswerRows(
+    entries: readonly RememberedOptionalAnswer[]
+): OptionalAnswerRow[] {
+    return entries.map((entry) => {
+        const source = yieldKeyLabel(entry.yieldKey).source;
+        const answer = OPTIONAL_ANSWER_TEXT[entry.answer];
+        return {
+            id: optionalPromptIdentityKey(entry),
+            entry,
+            title: `${source} — ${answer}`,
+            detail: entry.prompt,
+            removeLabel: `Forget answer: ${source} — ${entry.prompt} (${answer})`,
+        };
+    });
 }

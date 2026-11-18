@@ -59804,6 +59804,7 @@
         {"id":"701.20a","line":"describe(\"Effect Script Op: revealUntilMatch (CR 701.20a)\", () => {","sites":1,"status":"baseline"},
         {"id":"509.3a","line":"// CR 509.3a — one creature declared as a blocker.","sites":1,"status":"confirmed","ruleHash":"0edcbcee321842c2"},
         {"id":"608.2h","line":"// sacrificed (CR 601.2f / 608.2h, issue #2375) — a characteristic of the","sites":1,"status":"baseline"},
+        {"id":"608.2d","line":"// The optional-action prompt (`may-pay`, CR 608.2d — \"you may …\" during","sites":1,"status":"confirmed","ruleHash":"2fd78ed58daafcc7"},
         {"id":"603.3d","line":"// target (CR 601.2c / 603.3d), issue #2801.","sites":1,"status":"baseline"},
         {"id":"502.4","line":"describe(\"untap step entry action (CR 502.4)\", () => {","sites":1,"status":"baseline"},
         {"id":"701.6a","line":"// W25b: Counter-unless-pay + draw-skip (CR 701.6a, 614)","sites":1,"status":"baseline"},

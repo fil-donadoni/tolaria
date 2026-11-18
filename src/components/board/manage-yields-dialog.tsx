@@ -2,11 +2,16 @@ import GameDialog from "~/components/ui/game-dialog";
 import { useSeatYields } from "~/hooks/useYieldPreferences";
 import { V4_EYEBROW } from "~/lib/board-chrome-v4";
 import { formatOracleText } from "~/lib/oracle-text";
-import { triggerOrderSourceNames, yieldRows } from "~/lib/yield-labels";
+import {
+    optionalAnswerRows,
+    triggerOrderSourceNames,
+    yieldRows,
+} from "~/lib/yield-labels";
 import ManageYieldsRow from "./manage-yields-row";
 
-/** The "Manage yields" box (issue #3629): the VIEWING seat's **Yields** and
- *  remembered **Auto-order** entries, each removable on its own. Reads and
+/** The "Manage yields" box (issue #3629): the VIEWING seat's **Yields**,
+ *  remembered **Auto-order** entries and **Auto-answers** (issue #9863), each
+ *  removable on its own. Reads and
  *  writes only through `useSeatYields`, so in solo mode it follows the seat
  *  that owes input exactly like every other **Yield** surface.
  *
@@ -22,7 +27,9 @@ export default function ManageYieldsDialog({
     const seat = useSeatYields();
     const rows = yieldRows(seat.keys);
     const orders = seat.autoOrder.orders;
-    const empty = rows.length === 0 && orders.length === 0;
+    const answers = optionalAnswerRows(seat.optionalAnswers);
+    const empty =
+        rows.length === 0 && orders.length === 0 && answers.length === 0;
 
     return (
         <GameDialog
@@ -38,7 +45,8 @@ export default function ManageYieldsDialog({
                         data-manage-yields-empty
                         className="text-sm text-text-muted"
                     >
-                        No yields and no remembered trigger orders.
+                        No yields, no remembered trigger orders and no
+                        remembered answers.
                     </p>
                 )}
                 {rows.length > 0 && (
@@ -93,6 +101,29 @@ export default function ManageYieldsDialog({
                                     />
                                 );
                             })}
+                        </ul>
+                    </section>
+                )}
+                {answers.length > 0 && (
+                    <section
+                        aria-labelledby="manage-yields-answers"
+                        className="flex flex-col gap-2"
+                    >
+                        <h3 id="manage-yields-answers" className={V4_EYEBROW}>
+                            Auto-answer
+                        </h3>
+                        <ul className="flex flex-col gap-1.5">
+                            {answers.map((row) => (
+                                <ManageYieldsRow
+                                    key={row.id}
+                                    title={row.title}
+                                    detail={formatOracleText(row.detail)}
+                                    removeLabel={row.removeLabel}
+                                    onRemove={() =>
+                                        seat.forgetOptionalAnswer(row.entry)
+                                    }
+                                />
+                            ))}
                         </ul>
                     </section>
                 )}
