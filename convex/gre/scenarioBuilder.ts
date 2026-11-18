@@ -113,6 +113,7 @@ import type {
     AnimateSpecWithPT,
     CardType,
     Color,
+    GameEvent,
     TargetSelection,
 } from "../cards/types";
 import {
@@ -146,6 +147,7 @@ import {
     createTokenPermanents,
     exileFaceDownCard,
     getOpponentId,
+    isDepartedCombatantId,
     pushContinuousEffect,
     resolveTopOfStack,
     stampGraveyardStaticSources,
@@ -171,6 +173,7 @@ import { buildTriggerItem } from "./triggers";
 import {
     lowerTriggerEvent,
     rebuildTriggerEvent,
+    stackTriggerReadsItsEvent,
 } from "./triggerEventVocabulary";
 import { isPlaneswalker, PLACEHOLDER_CARD_ID } from "./constants";
 import { MANA_COLORS } from "./manaColors";
@@ -4168,6 +4171,21 @@ function lowerEventObjectRef(
     return { zone: "stack", index };
 }
 
+/** Why ONE field of a firing event blocked (issue #9868) — the sentence the
+ *  refusal carries, so a reader is not left to guess between the two things an
+ *  unnameable id can be. A retired combat-record id is recognisable on sight
+ *  and gets its own wording; everything else keeps the general one. */
+function eventFieldRefusalReason(event: GameEvent, field: string): string {
+    const value = (event as unknown as Record<string, unknown>)[field];
+    const ids = (Array.isArray(value) ? value : [value]).filter(
+        (id): id is string => typeof id === "string"
+    );
+    if (ids.some(isDepartedCombatantId)) {
+        return `"${field}" names a creature that left the battlefield during this combat by its retired combat-record id (CR 506.4), which answers to no object in any zone`;
+    }
+    return `"${field}" is in no zone the spec describes, or is a shape this vocabulary does not carry`;
+}
+
 /**
  * CR 405.1 / 601.2 / 602.2a (issue #3513, PRD #3397) — lower the objects in
  * flight onto `spec.stack`, reporting what the spec cannot carry.
@@ -4384,6 +4402,13 @@ function lowerStack(
         // `resolve(ctx, event)`, every `$event.<field>` ref), so a trigger
         // whose event this vocabulary cannot name is refused per FIELD rather
         // than declared without it.
+        //
+        // …unless nothing reads it (issue #9868): an ability with none of
+        // those readers resolves to the same board whatever the event
+        // carries, so a field the spec cannot name is left out of the
+        // declaration instead — the dying TOKEN of a "whenever a creature you
+        // control dies" payoff (CR 111.7), the tombstone of a combat partner
+        // that died with it (CR 506.4).
         let event: ScenarioTriggerEvent | undefined;
         if (isTrigger) {
             if (!item.triggerEvent) {
@@ -4394,16 +4419,21 @@ function lowerStack(
                     "it is a triggered ability with no firing event — nothing the spec can declare resolves the way this item would (CR 603.2)"
                 );
             } else {
-                const lowered = lowerTriggerEvent(item.triggerEvent, {
-                    object: (id) =>
-                        lowerEventObjectRef(state, item, id, seatOf),
-                    player: (id) =>
-                        state.players.some((p) => p.id === id)
-                            ? seatOf(id)
-                            : undefined,
-                    target: (target) =>
-                        lowerStackTarget(state, item, target, seatOf),
-                });
+                const firing = item.triggerEvent;
+                const lowered = lowerTriggerEvent(
+                    firing,
+                    {
+                        object: (id) =>
+                            lowerEventObjectRef(state, item, id, seatOf),
+                        player: (id) =>
+                            state.players.some((p) => p.id === id)
+                                ? seatOf(id)
+                                : undefined,
+                        target: (target) =>
+                            lowerStackTarget(state, item, target, seatOf),
+                    },
+                    stackTriggerReadsItsEvent(item)
+                );
                 if (lowered.ok) {
                     event = lowered.event;
                 } else {
@@ -4412,7 +4442,7 @@ function lowerStack(
                             index,
                             label,
                             `triggerEvent:${field}`,
-                            `its firing ${item.triggerEvent.type} event names something the spec cannot: "${field}" is in no zone the spec describes, or is a shape this vocabulary does not carry (CR 603.2)`
+                            `its firing ${firing.type} event names something the spec cannot, and its resolution can read it: ${eventFieldRefusalReason(firing, field)} (CR 603.2)`
                         );
                     }
                 }
