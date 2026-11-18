@@ -70,13 +70,23 @@ export const DIFFICULTIES: readonly Difficulty[] = [
  *  `iterations` gets the same +10% (1200 → 1320) so the preset stays the
  *  strictly deepest of them all when time is not the binding constraint,
  *  preserving the monotonic-budget pattern the other presets already
- *  assert. Both stay well under `BRAIN_CONSULT_TIMEOUT_MS` (5000ms,
- *  `src/lib/ai/brain-client.ts`). */
+ *  assert. `BRAIN_CONSULT_TIMEOUT_MS` and `BOT_WATCHDOG_MS` are DERIVED from
+ *  {@link HARDEST_SEARCH_TIME_MS} (issue #10115), so raising a cap here
+ *  carries the client's timeout chain with it. */
 export const DIFFICULTY_BUDGETS: Record<Difficulty, SearchBudget> = {
     medium: { iterations: 400, timeMs: 1500 },
     hard: { iterations: 1200, timeMs: 3000 },
     expert: { iterations: 1320, timeMs: 3300 },
 };
+
+/** The longest wall-clock cap any preset grants one search (issue #10115):
+ *  the max over every preset, not a named one, so a harder level re-derives
+ *  it. The floor of the client's timeout chain — `BRAIN_CONSULT_TIMEOUT_MS`
+ *  (`src/lib/ai/consult-timeout.ts`) adds its named margins to it, and
+ *  `BOT_WATCHDOG_MS` (`src/hooks/useVsAiDriver.ts`) adds its own on top. */
+export const HARDEST_SEARCH_TIME_MS: number = Math.max(
+    ...Object.values(DIFFICULTY_BUDGETS).map((b) => b.timeMs ?? 0)
+);
 
 /** Which presets feed the search the human seat's real decklist as opponent
  *  knowledge (issue #2790, PRD #2787) — the second axis the module's
