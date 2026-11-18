@@ -320,8 +320,8 @@ F=/tmp/field-jh77ktxx.json
 node docs/research/scripts/brain-bench/profile.mjs     $B /tmp/v8.json  --iterations 400 45 18 35 $F
 bun  docs/research/scripts/brain-bench/profile-jsc.mjs $B /tmp/jsc.json --iterations 400 45 18 35 $F
 
-# § 3 — what JSC pays more for (--min 0.5 --top 400 for every function)
-node docs/research/scripts/brain-bench/jsc-excess.mjs /tmp/v8.json /tmp/jsc.json
+# § 3 — what JSC pays more for (the table's rows: --min 0.5 --top 400)
+node docs/research/scripts/brain-bench/jsc-excess.mjs /tmp/v8.json /tmp/jsc.json --min 0.5 --top 400
 
 # § 2 — WebKit against Chromium
 node docs/research/scripts/brain-bench/run-gecko-gap.mjs $B /tmp/gap.json --browsers webkit --rounds 3 --field-iterations 400 45 18 35 $F

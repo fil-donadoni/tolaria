@@ -34,7 +34,7 @@ const option = (name, fallback) => {
 };
 const release = option("--firefox", null);
 const ENGINES = { firefox, webkit };
-const compared = option("--browsers", "firefox").split(",");
+const compared = [...new Set(option("--browsers", "firefox").split(","))];
 if (!compared.every((name) => name in ENGINES)) {
     console.error(`--browsers: one of ${Object.keys(ENGINES).join(", ")}`);
     process.exit(2);

@@ -64,7 +64,7 @@ for (const a of v8) {
             ratio: (r.jsc / r.v8) * ratio,
             excess: r.jsc - r.v8,
         }))
-        .filter((r) => r.jsc > 0) // a frame JSC's sampler never shows (`webkit-search-profile.md` § 3)
+        .filter((r) => r.jsc > 0) // JSC never showed it, or under `inclusiveAll`'s 0.5% (`webkit-search-profile.md` § 3)
         .sort((x, y) => y.excess - x.excess)
         .slice(0, top);
     console.log(
