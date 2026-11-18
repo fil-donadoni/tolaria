@@ -1,4 +1,4 @@
-import type { StackItem } from "~/types/game";
+import type { PendingChoice, StackItem } from "~/types/game";
 import { stackAbilityKindOf, type StackAbilityKind } from "~/lib/card-utils";
 import { isFaceDownCard } from "~/lib/face-down";
 import {
@@ -392,29 +392,40 @@ export function forgetSeatTriggerOrder(
 }
 
 /** Everything the board-wide **Yield** store holds: the **Yields** and the
- *  **Auto-order** memory that shares their reset lifecycle. */
+ *  two memories that share their reset lifecycle — **Auto-order** and
+ *  **Auto-answer** (issue #9863). */
 export type YieldPrefsState = {
     yields: YieldState;
     triggerOrders: TriggerOrderMemoryState;
+    optionalAnswers: OptionalAnswerState;
 };
 
 /** "Clear all yields": drop every **Yield** the seat holds AND its
- *  **Auto-order** memory — even when it holds no **Yield** at all, which is the
- *  case the reset control must stay reachable for (issue #3617 §7). */
+ *  **Auto-order** and **Auto-answer** memory — even when it holds no **Yield**
+ *  at all, which is the case the reset control must stay reachable for (issue
+ *  #3617 §7). */
 export function clearSeatYieldPrefs(
     state: YieldPrefsState,
     seatId: string
 ): YieldPrefsState {
     const yields = clearSeatYields(state.yields, seatId);
     const triggerOrders = clearSeatTriggerOrders(state.triggerOrders, seatId);
-    if (yields === state.yields && triggerOrders === state.triggerOrders)
+    const optionalAnswers = clearSeatOptionalAnswers(
+        state.optionalAnswers,
+        seatId
+    );
+    if (
+        yields === state.yields &&
+        triggerOrders === state.triggerOrders &&
+        optionalAnswers === state.optionalAnswers
+    )
         return state;
-    return { yields, triggerOrders };
+    return { yields, triggerOrders, optionalAnswers };
 }
 
-/** The per-card reset. Forgets the **Auto-order** memory only when it removes
- *  the seat's LAST **Yield** — a reset that leaves other **Yields** standing
- *  has not reset the seat. */
+/** The per-card reset. Forgets the **Auto-order** and **Auto-answer** memory
+ *  only when it removes the seat's LAST **Yield** — a reset that leaves other
+ *  **Yields** standing has not reset the seat. */
 export function clearSeatCardYieldPrefs(
     state: YieldPrefsState,
     seatId: string,
@@ -422,23 +433,179 @@ export function clearSeatCardYieldPrefs(
 ): YieldPrefsState {
     const yields = clearSeatCardYields(state.yields, seatId, cardIdentity);
     if (yields === state.yields) return state;
-    const triggerOrders =
-        countYields(yields, seatId) === 0
-            ? clearSeatTriggerOrders(state.triggerOrders, seatId)
-            : state.triggerOrders;
-    return { yields, triggerOrders };
+    if (countYields(yields, seatId) > 0) return { ...state, yields };
+    return {
+        yields,
+        triggerOrders: clearSeatTriggerOrders(state.triggerOrders, seatId),
+        optionalAnswers: clearSeatOptionalAnswers(
+            state.optionalAnswers,
+            seatId
+        ),
+    };
 }
 
-/** The seat's **Yields** plus its remembered orders — THE count and visibility
- *  rule of both "Clear all yields (N)" and "Manage yields (N)" (issue #3629),
- *  so the two controls can never disagree about whether there is anything to
- *  undo. */
+/** The seat's **Yields** plus its remembered orders and answers — THE count
+ *  and visibility rule of both "Clear all yields (N)" and "Manage yields (N)"
+ *  (issue #3629), so the two controls can never disagree about whether there
+ *  is anything to undo. */
 export function countSeatYieldPrefs(
     state: YieldPrefsState,
     seatId: string
 ): number {
     return (
         countYields(state.yields, seatId) +
-        countRememberedTriggerOrders(state.triggerOrders, seatId)
+        countRememberedTriggerOrders(state.triggerOrders, seatId) +
+        countOptionalAnswers(state.optionalAnswers, seatId)
     );
+}
+
+// ---- Auto-answer (issue #9863) --------------------------------------------
+//
+// The optional-action prompt (`may-pay`, CR 608.2d — "you may …" during
+// resolution) can remember the seat's answer for one exact prompt of one
+// ability and give it the next time that prompt comes back. The ability half
+// of the identity is the **Yield** key — {@link yieldKeyForStackItem}, never a
+// second derivation — and the prompt half is the choice's `step:choiceId`, the
+// slot the engine stores the answer under, so two different "you may" prompts
+// of one ability never share an answer. It lives and dies with the seat's
+// **Yields**, exactly like **Auto-order**.
+
+/** A remembered answer: accept (costless prompts only) or decline. */
+export type OptionalAnswer = "yes" | "skip";
+
+/** Which optional prompt, of which ability. */
+export type OptionalPromptIdentity = {
+    yieldKey: YieldKey;
+    /** `<resolution step>:<choiceId>` — which prompt within the resolution. */
+    promptId: string;
+};
+
+/** One **Auto-answer**: the identity, the prompt's text as the player first
+ *  saw it (what "Manage yields" shows), and the answer. */
+export type RememberedOptionalAnswer = OptionalPromptIdentity & {
+    prompt: string;
+    answer: OptionalAnswer;
+};
+
+/** Every seat's **Auto-answers**, seat id → entries in the order recorded. */
+export type OptionalAnswerState = Record<string, RememberedOptionalAnswer[]>;
+
+/** The identity of an optional prompt raised while `item` resolves, or `null`
+ *  when the object has no **Yield** identity (a face-down spell, a card-less
+ *  inline trigger) — such a prompt is never remembered and never matched. */
+export function optionalPromptIdentity(
+    item: StackItem,
+    choice: { step: number; choiceId: string }
+): OptionalPromptIdentity | null {
+    const yieldKey = yieldKeyForStackItem(item);
+    if (!yieldKey) return null;
+    return { yieldKey, promptId: `${choice.step}:${choice.choiceId}` };
+}
+
+function sameOptionalPrompt(
+    a: OptionalPromptIdentity,
+    b: OptionalPromptIdentity
+): boolean {
+    return a.yieldKey === b.yieldKey && a.promptId === b.promptId;
+}
+
+/** A stable string for one identity — a React list key, never parsed. */
+export function optionalPromptIdentityKey(id: OptionalPromptIdentity): string {
+    return `${id.yieldKey}\n${id.promptId}`;
+}
+
+export function seatOptionalAnswers(
+    state: OptionalAnswerState,
+    seatId: string
+): RememberedOptionalAnswer[] {
+    return state[seatId] ?? [];
+}
+
+/** The answer the seat remembered for this prompt, or `null`. */
+export function rememberedOptionalAnswerFor(
+    entries: readonly RememberedOptionalAnswer[],
+    identity: OptionalPromptIdentity | null
+): OptionalAnswer | null {
+    if (!identity) return null;
+    return entries.find((e) => sameOptionalPrompt(e, identity))?.answer ?? null;
+}
+
+/** Record (or replace) the seat's answer for one prompt. */
+export function rememberOptionalAnswer(
+    state: OptionalAnswerState,
+    seatId: string,
+    entry: RememberedOptionalAnswer
+): OptionalAnswerState {
+    const rest = seatOptionalAnswers(state, seatId).filter(
+        (e) => !sameOptionalPrompt(e, entry)
+    );
+    return { ...state, [seatId]: [...rest, { ...entry }] };
+}
+
+/** Forget ONE remembered answer — a "Manage yields" row. */
+export function forgetSeatOptionalAnswer(
+    state: OptionalAnswerState,
+    seatId: string,
+    identity: OptionalPromptIdentity
+): OptionalAnswerState {
+    const current = seatOptionalAnswers(state, seatId);
+    const next = current.filter((e) => !sameOptionalPrompt(e, identity));
+    if (next.length === current.length) return state;
+    return { ...state, [seatId]: next };
+}
+
+export function clearSeatOptionalAnswers(
+    state: OptionalAnswerState,
+    seatId: string
+): OptionalAnswerState {
+    if (seatOptionalAnswers(state, seatId).length === 0) return state;
+    return { ...state, [seatId]: [] };
+}
+
+/** Where one `may-pay` prompt stands for a seat: its identity (or `null`),
+ *  whether "Always yes" is offered, and the remembered answer that applies to
+ *  it right now (or `null`). THE single read the prompt's toggles, its
+ *  auto-submit and the Space hotkey's primary action share, so a choice the
+ *  client is auto-answering is never also confirmed by hand. */
+export type OptionalPromptStatus = {
+    identity: OptionalPromptIdentity | null;
+    offerYes: boolean;
+    applicable: OptionalAnswer | null;
+};
+
+const NO_OPTIONAL_PROMPT: OptionalPromptStatus = {
+    identity: null,
+    offerYes: false,
+    applicable: null,
+};
+
+export function optionalPromptStatus(
+    choice: PendingChoice,
+    seatId: string,
+    stackItems: readonly StackItem[],
+    entries: readonly RememberedOptionalAnswer[]
+): OptionalPromptStatus {
+    if (choice.kind !== "may-pay" || choice.playerId !== seatId)
+        return NO_OPTIONAL_PROMPT;
+    const item = stackItems.find((s) => s.id === choice.stackItemId);
+    const identity = item ? optionalPromptIdentity(item, choice) : null;
+    if (!identity) return NO_OPTIONAL_PROMPT;
+    // "Always yes" only when accepting needs no further input: no cost (mana,
+    // life, sacrifice, discard, return) and no pick — nothing paid unattended.
+    const offerYes = !choice.cost && !choice.zone;
+    const remembered = rememberedOptionalAnswerFor(entries, identity);
+    // A remembered "yes" applies only while accepting still needs no input: a
+    // prompt of the same identity that now carries a cost is shown.
+    const applicable =
+        remembered === "skip" || (remembered === "yes" && offerYes)
+            ? remembered
+            : null;
+    return { identity, offerYes, applicable };
+}
+
+export function countOptionalAnswers(
+    state: OptionalAnswerState,
+    seatId: string
+): number {
+    return seatOptionalAnswers(state, seatId).length;
 }

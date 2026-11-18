@@ -42,6 +42,8 @@ import MinimizeChoiceButton, {
     MINIMIZE_BUTTON_INSET,
 } from "~/components/board/minimize-choice-button";
 import TriggerOrderPrompt from "~/components/board/trigger-order-prompt";
+import OptionalAnswerToggles from "~/components/board/optional-answer-toggles";
+import { useOptionalAnswer } from "~/hooks/useOptionalAnswer";
 import TriggerModeMultiPick from "~/components/board/trigger-mode-multi-pick";
 
 /** Banner shown at the top-center of the board while a mid-resolution
@@ -94,6 +96,9 @@ export default function PendingChoicePrompt({
     const submitResolutionChoice = useMutation(api.game.submitResolutionChoice);
     const [isBusy, setIsBusy] = useState(false);
     const bufferCtx = usePendingChoiceBuffer();
+    // Issue #9863 — **Auto-answer**: the "Always yes" / "Always skip" toggles
+    // and the remembered answer's auto-submit for this seat's `may-pay`.
+    const optionalAnswer = useOptionalAnswer(choice, gameId, playerId);
     // Primary (affirmative) action — shared with the Space hotkey so the button
     // and the key commit through one code path. Non-null when this viewer is
     // the chooser; the Skip/No path below stays local (it's the secondary).
@@ -215,6 +220,9 @@ export default function PendingChoicePrompt({
     // Done/Skip label (ADR 0007): switches to "Skip" only when min === 0 and
     // the buffer is empty.
     const submitLabel = min === 0 && selected === 0 ? "Skip" : "Done";
+
+    // The remembered answer is on its way to the server: nothing to ask.
+    if (optionalAnswer.autoAnswering) return null;
 
     // Random-reveal (CR 705 / ADR 0023): an engine-drawn outcome with NO
     // decision — route to the center-screen reveal overlay (coin animation,
@@ -624,7 +632,11 @@ export default function PendingChoicePrompt({
                                             type="button"
                                             variant="primary"
                                             size="sm"
-                                            disabled={!canConfirm}
+                                            disabled={
+                                                !canConfirm ||
+                                                optionalAnswer.answering !==
+                                                    null
+                                            }
                                             onClick={() => primary?.confirm()}
                                             aria-keyshortcuts={ariaKeyShortcuts(
                                                 HOTKEYS.passPriority
@@ -649,7 +661,11 @@ export default function PendingChoicePrompt({
                                             type="button"
                                             variant="ghost"
                                             size="sm"
-                                            disabled={isBusy}
+                                            disabled={
+                                                isBusy ||
+                                                optionalAnswer.answering !==
+                                                    null
+                                            }
                                             onClick={async () => {
                                                 if (isBusy) return;
                                                 setIsBusy(true);
@@ -690,6 +706,11 @@ export default function PendingChoicePrompt({
                                             {choice.cost ? "Skip" : "No"}
                                         </Button>
                                     </div>
+                                    {isMayPay && (
+                                        <OptionalAnswerToggles
+                                            control={optionalAnswer}
+                                        />
+                                    )}
                                 </>
                             ) : (
                                 <>

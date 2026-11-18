@@ -1735,6 +1735,10 @@ _Avoid_: Auto-pass chain, cascade
 A **Player**'s standing intent not to be handed **Priority** while one specific ABILITY is on top of the **Stack**. Its identity is _(card, which ability)_ — never a stack object and never a permanent instance — so it covers every future firing of that ability of that card, on any copy of it and after any **Zone** change, and covers neither a different ability of the same card nor the identically-worded ability of a different card. Client-side and per seat, cleared in bulk from the **Stack** panel or the in-game menu and per card from the permanent's own menu. Strict like a **Phase Stop**: it never fires while any input is owed. Lives only inside one **Game** — never stored beside the per-user settings.
 _Avoid_: Auto-yield (as the domain term — the user-facing per-card menu label IS "auto-yield"), auto-pass, skip, mute
 
+**Auto-answer**:
+A **Player**'s remembered answer to one optional-action prompt ("you may …" during resolution) — "Always yes" or "Always skip" — given automatically the next time that same prompt comes back. Its identity is a **Yield**'s _(card, which ability)_ plus which prompt within that ability's resolution, so two "you may" prompts of one ability never share an answer. "Always yes" exists only for a prompt that needs no further input: nothing with a cost is ever paid unattended. The client submits the answer through the same move the button makes, re-validated by the server. Per seat, lives only inside one **Game** beside the **Yields**, listed and removable in "Manage yields", cleared with them.
+_Avoid_: Auto-pay, always-yes rule, auto-accept, remembered choice
+
 ### Manual Play
 
 **Manual Game**:

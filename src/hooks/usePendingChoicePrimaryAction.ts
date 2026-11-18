@@ -12,7 +12,9 @@ import {
 import { mayPayUnitIsEligible } from "@convex/gre/state";
 import { isZonePickConfirmEnabled } from "~/lib/pending-choice-confirm";
 import { pendingChoiceRoutesToBattlefield } from "~/lib/pending-choice-labels";
+import { optionalPromptStatus } from "~/lib/yields";
 import { useGameContext } from "./useGameContext";
+import { useSeatYields } from "./useYieldPreferences";
 import { usePendingChoiceBuffer } from "./usePendingChoiceBuffer";
 
 export type PendingChoicePrimaryAction = {
@@ -34,7 +36,9 @@ export type PendingChoicePrimaryAction = {
  *  viewer is not the chooser (the Space hotkey then falls through to its
  *  default Pass behaviour). */
 export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | null {
-    const { gameId, playerId, pendingChoices, allPlayers } = useGameContext();
+    const { gameId, playerId, pendingChoices, allPlayers, stackItems } =
+        useGameContext();
+    const seat = useSeatYields();
     const bufferCtx = usePendingChoiceBuffer();
     const submitMayPay = useMutation(api.game.submitMayPay);
     const submitLandEntryChoice = useMutation(api.game.submitLandEntryChoice);
@@ -131,6 +135,20 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
     ]);
 
     if (!choice || !isChooser) return null;
+
+    // Issue #9863 — an **Auto-answer** applies (being auto-submitted, or just
+    // recorded by a toggle that is submitting it): the choice is already
+    // answered, so Space must not send a second `submitMayPay` — which names
+    // no choice and would answer the seat's NEXT prompt.
+    if (
+        optionalPromptStatus(
+            choice,
+            playerId,
+            stackItems ?? [],
+            seat.optionalAnswers
+        ).applicable !== null
+    )
+        return { canConfirm: false, confirm: NO_CONFIRM, isPending: true };
 
     let canConfirm: boolean;
     if (isYesNoPay) {
@@ -253,3 +271,5 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
 
     return { canConfirm, confirm, isPending: isBusy || bufferCtx.isPending };
 }
+
+const NO_CONFIRM = () => {};

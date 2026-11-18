@@ -1,9 +1,10 @@
 import { useSeatYields } from "~/hooks/useYieldPreferences";
 
 /** "Clear all yields (N)" — the **Yield** reset (issue #3556 §5). It also
- *  turns **Auto-order** off and forgets every remembered trigger order (issue
- *  #3617), so N counts both, and the control stays reachable while the seat
- *  holds remembered orders but zero yields. Renders NOTHING while there is
+ *  turns **Auto-order** off and forgets every remembered trigger order and
+ *  every **Auto-answer**, so N counts all three, and
+ *  the control stays reachable while the seat holds remembered orders or
+ *  answers but zero yields. Renders NOTHING while there is
  *  nothing of either to undo, and always names the count.
  *
  *  Mounted twice on purpose: in the **Stack** panel header, and in the in-game
