@@ -70,6 +70,7 @@ import {
     PASSES_TO_OWN_NEXT_MAIN,
     enterTriggersThenAttack,
     castExilesAtMost,
+    activationTargetsNamed,
 } from "./scenarioPredicates";
 
 export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
@@ -31998,5 +31999,111 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             moves: [{ kind: "resolution-choice", option: "decline" }],
         },
         note: "Issue #10084. From the main phase, combat damage is five steps away, so a win in this turn's combat sits on this turn's floor, 0.5 of the won band's height; a win on the opponent's turn sat at 0.5 × 0.7 = 0.35, so the two were at most 0.25 × 0.15 ≈ 0.038 apart — inside `outcomeEps` for every win — and `material-tiebreak` took the counter on 5/5 seeds. `WIN_TURN_DECAY` 0.5 puts the opponent's turn at 0.25 of the height: decline on 5/5.",
+    },
+    {
+        // MUST. A planeswalker's removal ability aimed at the permanent whose
+        // removal swings the position most (issue #9974, the issue #8275
+        // walk). Teferi's −3 (CR 606) may tuck the 1/1 Elemental token, the
+        // Goblin Bombardment or Chandra at 5 loyalty, an engine that makes
+        // mana or a card every turn: tuck Chandra.
+        label: "walker removal: tucks the loaded planeswalker, not the 1/1 token",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Teferi, Hero of Dominaria",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Island", owner: "me", zone: "battlefield", count: 5 },
+                {
+                    name: "Elemental (1/1 R)",
+                    owner: "opp",
+                    zone: "battlefield",
+                    token: true,
+                },
+                {
+                    name: "Chandra, Torch of Defiance",
+                    owner: "opp",
+                    zone: "battlefield",
+                    counters: { loyalty: 5 },
+                },
+                {
+                    name: "Goblin Bombardment",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 4,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: activationTargetsNamed(
+                "Teferi, Hero of Dominaria",
+                "Chandra, Torch of Defiance"
+            ),
+            describe:
+                "Teferi's −3 aimed at Chandra, never the token or the Bombardment",
+        },
+        note: "Issue #9974. Each legal target is its own root Move, so the leaf `evaluate` decides, and it priced Chandra at 65 against 139 for the token: a planeswalker's worth was the blank `base + MV` body ADR 0107 scales by loyalty, with no loyalty ability read. Issue #9973's loyalty arm (`dslLoyaltyAbilityValue`, the best survivable loyalty ability, CR 606.3) fixed the valuation. Before it: the token on 5/5 seeds; after: Chandra on 5/5. A predicate, not a `moves` verdict, on purpose: as a verdict it moved the Weight Fit enough to flip `self-harm: Fatal Push still destroys the opponent's mana value 4 creature beside the Bot's own` (seeds 3 and 4 pass), a conflict outside this issue.",
+    },
+    {
+        // MUST. The discriminating half of the pair above: the SAME −3 with a
+        // token that IS the threat — a 5/3 Elemental that attacks Teferi off
+        // the board next turn — beside an Exploration that does nothing for
+        // an opponent with no land in hand. Tuck the token: the fix ranks
+        // targets by what their removal moves, never by token-ness.
+        label: "walker removal: tucks the threatening token over an idle permanent",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Teferi, Hero of Dominaria",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Island", owner: "me", zone: "battlefield", count: 5 },
+                {
+                    name: "Elemental (5/3 G)",
+                    owner: "opp",
+                    zone: "battlefield",
+                    token: true,
+                },
+                { name: "Exploration", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 4,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: activationTargetsNamed(
+                "Teferi, Hero of Dominaria",
+                "Elemental"
+            ),
+            describe:
+                "Teferi's −3 aimed at the 5/3 Elemental token, never the Exploration",
+        },
+        note: "Issue #9974, the discriminating pair of the entry above: valuing walkers by their loyalty abilities must not teach the Bot to skip tokens. Asserted by a predicate because a token has no catalogue card the matcher could resolve. With a 1/1 token instead, `+1` is the right play and the pair would assert nothing about targeting.",
     },
 ];
