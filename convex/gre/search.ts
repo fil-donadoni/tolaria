@@ -51,6 +51,7 @@ import {
 } from "./ai/repetition";
 import { searchCombatDamageAssignments } from "./ai/damageSplit";
 import { pruneDominatedBlocks } from "./ai/blockDominance";
+import { pruneDominatedAttacks } from "./ai/attackDominance";
 import {
     enteringBodyDepartureTiming,
     fightsBeforeDeparture,
@@ -8089,15 +8090,21 @@ export function enumerateRootMoves(
 ): Move[] {
     // Issue #5951 — the Bot's own blocks drop a dominated multi-block too,
     // the same filter its tree applies (`withoutDominatedBlocks`).
-    return pruneDominatedBlocks(
+    // The Bot's own attacks drop a declaration that leaves a provably free
+    // attacker home (`ai/attackDominance.ts`), into the same deny-set.
+    return pruneDominatedAttacks(
         state,
-        enumerateMoves(state, playerId, {
-            onTruncated: hooks.onTruncated,
-            pruneDominatedNoOps: true,
-            onPruned: hooks.onPruned,
-            collapseInterchangeable: true,
-            onCollapsed: hooks.onCollapsed,
-        })
+        pruneDominatedBlocks(
+            state,
+            enumerateMoves(state, playerId, {
+                onTruncated: hooks.onTruncated,
+                pruneDominatedNoOps: true,
+                onPruned: hooks.onPruned,
+                collapseInterchangeable: true,
+                onCollapsed: hooks.onCollapsed,
+            })
+        ),
+        hooks.onPruned
     );
 }
 

@@ -22,6 +22,10 @@ import {
     castsCardNamed,
     MOUNTAINS_5,
     NINJUTSU_LANDS_4,
+    FREE_ATTACK_ATTACKERS,
+    FREE_ATTACK_OPP_TAPPED_LANDS,
+    FREE_ATTACK_OPP_DECK,
+    FREE_ATTACK_OPP_HAND,
     floodedLandEarnsNoDevelopmentBonus,
     pruningKeepsACast,
     upToXZeroTargetCastIsExecutable,
@@ -1395,6 +1399,95 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         note: 'Issue #3222 — the attack-trigger seam, pinned by the one shape that cannot be argued with: five life, four printed power, and the fifth point coming only from battle cry\'s +1/+0 on the OTHER attacker (CR 702.91a). Guards `emitAttackersDeclaredEvents` in `applyMoveInSearch` (`gre/search.ts`); deleting it flips every seed from "attack with both" to "attack with nobody", measured. Not battle-cry-specific by construction — the emission is the class fix, and exalted / annihilator / attack-token triggers ride the same line.',
+    },
+    {
+        // MUST. Free attacks into an empty board (CR 508.1, 509.1a). The
+        // defender controls no creature and three TAPPED lands, so nothing can
+        // block (only untapped creatures block) and nothing can punish a
+        // tapped attacker next turn: sending the 4/4 and the 2/3 costs
+        // nothing and deals six. The opponent's decklist is known, so the
+        // search imagines a real hand (burn, removal, a hasty one-drop), and
+        // the rollout spread over those worlds is wider than the damage a
+        // stay-home declaration gives up — the pick among "both", "one" and
+        // "none" was seed noise. MEASURED at 400 iterations: without
+        // `pruneDominatedAttacks` (`ai/attackDominance.ts`) seeds 1, 4 and 7
+        // send ONE creature; with it all eight send both.
+        label: "free attack: swings everything into an empty board",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                ...FREE_ATTACK_ATTACKERS,
+                ...FREE_ATTACK_OPP_TAPPED_LANDS,
+                FREE_ATTACK_OPP_HAND,
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 6, opp: 14 },
+        },
+        deckKnowledge: [{ seat: "opp", cards: FREE_ATTACK_OPP_DECK }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "declare-attackers",
+                    cards: ["Two-Headed Giant of Foriys", "Hurloon Minotaur"],
+                },
+            ],
+        },
+        note: "Issue #9975 — the free-attack dominance seam. `pruneDominatedAttacks` drops, at the root, every declaration that leaves home an attacker whose attack is provably free (no possible blocker, no crack-back, no tap ability or attack tax), so the noise has nothing left to pick between. Discriminating pair with the next entry: the same board plus a tapped opposing Craw Wurm.",
+    },
+    {
+        // MUST. The other half of the free-attack pair: the board above plus a
+        // TAPPED Craw Wurm (6/4) on the defender's side. It cannot block
+        // (CR 509.1a) but it untaps and swings for six next turn, and the bot
+        // is at 6: sending both creatures taps out the only defence and loses
+        // to the crack-back. The free-attack proof must therefore NOT fire —
+        // an opposing creature, tapped or not, makes a non-vigilant attacker's
+        // tap a cost — and the search keeps a blocker home on every seed.
+        // No deck knowledge here, unlike the entry above: with the imagined
+        // hand drawn from the decklist the crack-back read is itself a
+        // horizon-edge call (refitted weights flip seed 2 to the all-in swing),
+        // and what this entry pins is the proof's crack-back guard, which
+        // forces the all-in swing on every seed when broken, measured.
+        label: "free attack: holds a blocker back against a lethal crack-back",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                ...FREE_ATTACK_ATTACKERS,
+                ...FREE_ATTACK_OPP_TAPPED_LANDS,
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                    summoningSick: false,
+                },
+                FREE_ATTACK_OPP_HAND,
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 6, opp: 14 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "declare-attackers",
+                    cards: ["Two-Headed Giant of Foriys", "Hurloon Minotaur"],
+                },
+            ],
+        },
+        note: "Issue #9975 — discriminating pair with the entry above (the tapped Craw Wurm differs; the opponent's hand is the same four stand-in cards): it pins that the free-attack pruning reads crack-back, so a proof that ignored tapped opposing creatures would force the all-in swing here and lose the game.",
     },
     {
         // MUST. The attack-target seam (CR 508.1b / 510.1b, issue #2798). A
