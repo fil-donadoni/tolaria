@@ -305,10 +305,11 @@ describe("the candidate-set guard still refuses a real mismatch (issue #3483)", 
         expect(difference).toContain("the Bot did not");
     });
 
-    it("refuses when the keys match but the MULTIPLICITY does not", () => {
+    it("refuses when the keys match but the MULTIPLICITY does not, naming the uneven move (issue #9965)", () => {
         // Interchangeable candidates key identically (the describer's own
         // limit, inherited unchanged), so a list can differ only in how many
-        // of one key it holds — which set membership cannot name.
+        // of one key it holds — which set membership cannot name. The sentence
+        // names WHICH move is uneven, never a bare total.
         expect(
             candidateSetsDiffer(
                 [
@@ -318,7 +319,9 @@ describe("the candidate-set guard still refuses a real mismatch (issue #3483)", 
                 ],
                 [candidate("a", "pass"), candidate("b", "attack: Bears")]
             )
-        ).toBe("3 move(s) in play against 2 on the rebuild");
+        ).toBe(
+            '3 move(s) in play against 2 on the rebuild: "attack: Bears" 2 time(s) in play against 1 on the rebuild'
+        );
     });
 });
 

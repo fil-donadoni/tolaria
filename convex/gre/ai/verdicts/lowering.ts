@@ -633,9 +633,26 @@ export function candidateSetsDiffer(
     if (parts.length === 0) {
         // Same keys on both sides but not the same MULTIPLICITY — a
         // duplicate-bearing list, which the set difference above cannot name.
+        // Name the first move whose count differs (issue #9965): a bare total
+        // tells the reader nothing about WHICH play the two boards disagree on.
+        const liveCount = countByKey(live);
+        const rebuiltCount = countByKey(rebuilt);
+        const uneven = live.find(
+            (candidate) =>
+                liveCount.get(candidate.key) !== rebuiltCount.get(candidate.key)
+        );
+        const named = uneven
+            ? `: "${uneven.description}" ${liveCount.get(uneven.key)} time(s) in play against ${rebuiltCount.get(uneven.key) ?? 0} on the rebuild`
+            : "";
         parts.push(
-            `${live.length} move(s) in play against ${rebuilt.length} on the rebuild`
+            `${live.length} move(s) in play against ${rebuilt.length} on the rebuild${named}`
         );
     }
     return parts.join("; ");
+}
+
+function countByKey(list: ComparedCandidate[]): Map<string, number> {
+    const counts = new Map<string, number>();
+    for (const { key } of list) counts.set(key, (counts.get(key) ?? 0) + 1);
+    return counts;
 }
