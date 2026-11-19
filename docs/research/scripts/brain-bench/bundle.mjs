@@ -98,12 +98,12 @@ const ROLLOUT_HOOK_PATCHES = [
     ],
     [
         "applyMoveInSearch(state, pid, FORCED_PASS, true);",
-        "globalThis.__benchPly?.(\"forced\", 1);\n" +
+        'globalThis.__benchPly?.("forced", 1);\n' +
             "            applyMoveInSearch(state, pid, FORCED_PASS, true);",
     ],
     [
         "applyMoveInSearch(state, pid, chosen, true);",
-        "globalThis.__benchPly?.(\"played\", moves.length);\n" +
+        'globalThis.__benchPly?.("played", moves.length);\n' +
             "        applyMoveInSearch(state, pid, chosen, true);",
     ],
 ];

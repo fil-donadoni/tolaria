@@ -37,7 +37,12 @@
 // `--slice i/n` runs every n-th job from the i-th; `summarize-rollout.mjs`
 // reads the files together.
 
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+    appendFileSync,
+    mkdirSync,
+    readFileSync,
+    writeFileSync,
+} from "node:fs";
 import { loadavg } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -124,10 +129,7 @@ if (command === "counts") {
         rows.push({ ...r, counters: summarize(r.counters) });
         process.stderr.write(`counted ${fixture.label}\n`);
     }
-    writeFileSync(
-        out,
-        JSON.stringify({ iterations, policy, rows }, null, 1)
-    );
+    writeFileSync(out, JSON.stringify({ iterations, policy, rows }, null, 1));
     console.log(`wrote ${out}: ${rows.length} positions`);
     process.exit(0);
 }

@@ -62,7 +62,11 @@ for (const [name, type] of Object.entries({ chromium, firefox })) {
                         const bench = window.__brainBench.rollout;
                         const r =
                             index === "field"
-                                ? bench.runField(fixture, { iterations }, policy)
+                                ? bench.runField(
+                                      fixture,
+                                      { iterations },
+                                      policy
+                                  )
                                 : bench.run(index, { iterations }, policy);
                         return {
                             completed: r.completed,
@@ -110,9 +114,7 @@ for (const engine of Object.keys(versions)) {
                     );
                 const b = at("base");
                 const h = at(policy);
-                per.push(
-                    h.wallMs / h.completed / (b.wallMs / b.completed)
-                );
+                per.push(h.wallMs / h.completed / (b.wallMs / b.completed));
             }
             return median(per);
         });

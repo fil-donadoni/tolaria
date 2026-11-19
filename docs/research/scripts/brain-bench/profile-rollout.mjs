@@ -52,12 +52,7 @@ const CALLEE_BUCKETS = [
         /^(is[A-Z]\w*|flipsStepTargetGate|armedStepTargetGates|rolloutEpsilonFor|newManaCensusMemo)\d*$/,
     ],
 ];
-const NAMES = [
-    "descent",
-    ...CALLEE_BUCKETS.map(([n]) => n),
-    "rollout",
-    "gc",
-];
+const NAMES = ["descent", ...CALLEE_BUCKETS.map(([n]) => n), "rollout", "gc"];
 
 function fold(profile) {
     const byId = new Map(profile.nodes.map((n) => [n.id, n]));
@@ -109,7 +104,8 @@ function fold(profile) {
             continue;
         }
         const hit =
-            callee && CALLEE_BUCKETS.find(([, pattern]) => pattern.test(callee));
+            callee &&
+            CALLEE_BUCKETS.find(([, pattern]) => pattern.test(callee));
         buckets[hit ? hit[0] : "rollout"] += micros;
     }
     return {

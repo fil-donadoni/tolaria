@@ -159,7 +159,11 @@ export function installPolicy(policy) {
             next[3] = kept;
             return inner(...next);
         }
-        if (name === "memo" || name === "memo-public" || name === "memo-count") {
+        if (
+            name === "memo" ||
+            name === "memo-public" ||
+            name === "memo-count"
+        ) {
             const exact = plyKey(
                 state,
                 pid,
