@@ -6227,7 +6227,10 @@ export function selectRootMove(
             argmax !== best &&
             argmax.move.kind === "cast-spell" &&
             (best.move.kind === "pass" ||
-                isCastVariantOf(best.move, argmax.move)) &&
+                // A sibling the tie-break already took is handed back only
+                // when the variant ranking is on to take it again.
+                (ruleOn("announcement-variant") &&
+                    isCastVariantOf(best.move, argmax.move))) &&
             selfHarmRemovalReading(rootState, argmax.move, botId, weights)
                 ?.rewardBlind === true
         ) {
