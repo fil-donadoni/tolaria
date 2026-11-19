@@ -61,6 +61,13 @@ export interface Tier1Deck {
     readonly name: string;
     readonly main: readonly Tier1DeckEntry[];
     readonly sideboard: readonly Tier1DeckEntry[];
+    /**
+     * The card that represents the deck in the deck selector, by name — a
+     * maindeck entry, spelled exactly as that entry is. Seeded as the Preset
+     * Deck's `featuredCardId`; absent, the lobby falls back to the first
+     * maindeck card (`resolveFeaturedCardId`), which for most lists is a land.
+     */
+    readonly featuredCard?: string;
 }
 
 /**
@@ -159,6 +166,14 @@ export function validateDecks(decks: readonly Tier1Deck[], path: string): void {
                     fail(`${deck.slug}/${section}: an entry has no name`);
             }
         }
+        if (
+            deck.featuredCard !== undefined &&
+            !deck.main.some((e) => e.name === deck.featuredCard)
+        )
+            fail(
+                `${deck.slug}: \`featuredCard\` \`${deck.featuredCard}\` is not a maindeck entry — ` +
+                    `the lobby would silently fall back to the first card`
+            );
         const main = totalCopies(deck.main);
         const side = totalCopies(deck.sideboard);
         if (main !== TIER1_MAIN_SIZE || side !== TIER1_SIDEBOARD_SIZE)

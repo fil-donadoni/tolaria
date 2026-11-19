@@ -35,6 +35,9 @@ export interface PresetPayload {
     readonly colors: string[];
     readonly cards: DeckCard[];
     readonly sideboard: DeckCard[];
+    /** The list's `featuredCard`, resolved to its Card ID; absent when the
+     *  list names none. */
+    readonly featuredCardId?: string;
 }
 
 /** How a card name is turned into a definition. Injected so the builder is
@@ -81,6 +84,17 @@ export function deckColors(defs: readonly CardDefinition[]): string[] {
         for (const c of getCardColorIdentity(def)) seen.add(c);
     }
     return WUBRG.filter((c) => seen.has(c));
+}
+
+/** The list's Featured Card as a payload field. `validateDecks` has already
+ *  pinned the name to a maindeck entry, and every entry resolved above. */
+function featuredCardIdOf(
+    deck: Tier1Deck,
+    resolve: ResolveByName
+): { featuredCardId?: string } {
+    if (deck.featuredCard === undefined) return {};
+    const def = resolve(deck.featuredCard);
+    return def ? { featuredCardId: def.id } : {};
 }
 
 export interface BuildResult {
@@ -131,6 +145,7 @@ export function buildPresetPayload(
         colors: deckColors(defs),
         cards: main.cards,
         sideboard: side.cards,
+        ...featuredCardIdOf(deck, resolve),
     };
 
     // Offline legality against `banlist` — the caller's code seed, resolved

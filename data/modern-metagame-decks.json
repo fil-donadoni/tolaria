@@ -143,7 +143,8 @@
                     "count": 1,
                     "name": "Sire of Seven Deaths"
                 }
-            ]
+            ],
+            "featuredCard": "Emrakul, the Promised End"
         },
         {
             "slug": "izzet-prowess",
@@ -263,7 +264,8 @@
                     "count": 1,
                     "name": "Spell Pierce"
                 }
-            ]
+            ],
+            "featuredCard": "Dragon's Rage Channeler"
         },
         {
             "slug": "izzet-affinity",
@@ -391,7 +393,8 @@
                     "count": 3,
                     "name": "Metallic Rebuke"
                 }
-            ]
+            ],
+            "featuredCard": "Kappa Cannoneer"
         },
         {
             "slug": "domain-zoo",
@@ -519,7 +522,8 @@
                     "count": 2,
                     "name": "Brotherhood's End"
                 }
-            ]
+            ],
+            "featuredCard": "Territorial Kavu"
         },
         {
             "slug": "boros-energy",
@@ -639,7 +643,8 @@
                     "count": 1,
                     "name": "Meltdown"
                 }
-            ]
+            ],
+            "featuredCard": "Ajani, Nacatl Pariah // Ajani, Nacatl Avenger"
         },
         {
             "slug": "esper-blink",
@@ -771,7 +776,8 @@
                     "count": 2,
                     "name": "Clarion Conqueror"
                 }
-            ]
+            ],
+            "featuredCard": "Ephemerate"
         },
         {
             "slug": "rakdos-aggro",
@@ -903,7 +909,8 @@
                     "count": 2,
                     "name": "Glistening Deluge"
                 }
-            ]
+            ],
+            "featuredCard": "Nethergoyf"
         },
         {
             "slug": "mono-green-amulet-titan",
@@ -1055,7 +1062,8 @@
                     "count": 2,
                     "name": "Sowing Mycospawn"
                 }
-            ]
+            ],
+            "featuredCard": "Primeval Titan"
         },
         {
             "slug": "w-u-b-g-goryo-s",
@@ -1219,7 +1227,8 @@
                     "count": 2,
                     "name": "Wrath of the Skies"
                 }
-            ]
+            ],
+            "featuredCard": "Atraxa, Grand Unifier"
         },
         {
             "slug": "mono-red-combo",
@@ -1343,7 +1352,8 @@
                     "count": 2,
                     "name": "Brotherhood's End"
                 }
-            ]
+            ],
+            "featuredCard": "Ral, Monsoon Mage // Ral, Leyline Prodigy"
         }
     ]
 }
