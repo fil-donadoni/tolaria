@@ -7678,6 +7678,22 @@ export function isDepartedCombatantId(id: string): boolean {
     return id.includes(DEPARTED_COMBATANT_MARK);
 }
 
+/** CR 506.4 / 400.7 — mint the tombstone of the combatant that was `id` and
+ *  record `id → tombstone` in `combat.departedCombatants` (latest wins). The
+ *  ONE writer of a tombstone id: `retireDepartingCombatant` renames a live
+ *  record through it, and the scenario builder seeds a declared departed slot
+ *  through it (issue #10120), so a rebuilt slot is a tombstone by the same
+ *  rule a live one is. */
+export function mintDepartedCombatantId(
+    combat: NonNullable<GameState["combat"]>,
+    id: string
+): string {
+    const departed = (combat.departedCombatants ??= {});
+    const tombstone = `${id}${DEPARTED_COMBATANT_MARK}${Object.keys(departed).length}`;
+    departed[id] = tombstone;
+    return tombstone;
+}
+
 function retireDepartingCombatant(
     state: GameState,
     card: CardInstanceState
@@ -7698,9 +7714,7 @@ function retireDepartingCombatant(
         ) ||
         !!combat.bands?.some((b) => b.memberIds.includes(id));
     if (!inCombat) return;
-    const departed = (combat.departedCombatants ??= {});
-    const tombstone = `${id}${DEPARTED_COMBATANT_MARK}${Object.keys(departed).length}`;
-    departed[id] = tombstone;
+    const tombstone = mintDepartedCombatantId(combat, id);
     const rename = (x: string) => (x === id ? tombstone : x);
     combat.attackerIds = combat.attackerIds.map(rename);
     if (combat.blockedAttackerIds) {
