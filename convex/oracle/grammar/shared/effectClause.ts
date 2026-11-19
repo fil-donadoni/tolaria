@@ -114,6 +114,7 @@ import {
 } from "./coinFlipSeries";
 import {
     createTokenRule,
+    investigateRule,
     linkedExileTokenRule,
     type CreateTokenIR,
     type LinkedExileTokenIR,
@@ -10133,6 +10134,16 @@ function effectSentence(
         return ok({
             kind: "create-token" as const,
             ...created.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── investigate (CR 701.16a) — "Create a Clue token" ───────────────────
+    if (span === "Investigate" || span.startsWith("Investigate ")) {
+        const investigated = investigateRule.run(span, ctx);
+        if (!investigated.ok) return investigated;
+        return ok({
+            kind: "create-token" as const,
+            ...investigated.value,
         } satisfies EffectSentenceIR);
     }
 
