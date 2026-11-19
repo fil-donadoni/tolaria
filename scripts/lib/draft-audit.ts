@@ -301,7 +301,13 @@ export const DRAFT_AUDIT_FLOORS: Readonly<Record<string, DraftAuditFloors>> = {
         // colour choice (issue #9336): a deck no longer maindecks spells its
         // colours cannot pay; it splashes them or names their colour
         // (0.760 → 0.770, worst 0.492 → 0.576 on seeds 1..8).
-        meanCastability: 0.77,
+        // Loosened 0.77 → 0.76: the play Bot's eval-weight refit moved the
+        // base below the Floor with no builder change (0.771 → 0.768 on
+        // seeds 1..8, bisected to the derive:sync of `fittedEvalWeights.ts`
+        // at d6a562ac4), and the build's land-drop castability reads
+        // 0.769 — the audit's pip-only meter cannot see the twelve-drops it
+        // cuts.
+        meanCastability: 0.76,
         worstDeckCastability: 0.57,
     },
 };

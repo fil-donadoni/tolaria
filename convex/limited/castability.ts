@@ -19,7 +19,7 @@
 // draw.
 //
 // The generic part of the cost — the total land drop — is a second, separate
-// factor (`manaValueCastability`, issue #9978): the chance the deck has drawn
+// factor (`manaValueCastability`): the chance the deck has drawn
 // as many mana sources as the spell's mana value by the turn it is cast, or
 // by `LAND_DROP_HORIZON` when that comes later. The builder multiplies the two;
 // the audit reads the pip half alone.
