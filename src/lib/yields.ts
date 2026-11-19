@@ -65,7 +65,10 @@ export function yieldKeyForStackItem(item: StackItem): YieldKey | null {
             return `activated|${card}|${item.abilityId}`;
         case "triggered":
             return `triggered|${card}|${item.triggeredAbilityId}`;
+        // A reflexive trigger (CR 603.12) keeps the `delayed|` key space: the
+        // label split is display-only, and a stored yield must keep matching.
         case "delayed":
+        case "reflexive":
             return `delayed|${card}|${item.delayedTriggerId}`;
         default:
             // A spell has one identity and no ability slot (CR 601): the card
@@ -96,7 +99,7 @@ export function yieldCardIdentityForDefinition(cardId: string): string {
 /** A **Yield** key read back into what it names (issue #3629). */
 export type YieldKeyParts = {
     /** `spell` for a spell (CR 601), else the ability's flavour. */
-    kind: "spell" | StackAbilityKind;
+    kind: "spell" | Exclude<StackAbilityKind, "reflexive">;
     source: { type: "card" | "designation"; id: string };
     /** The ability's id on its source; `null` for a spell. */
     abilityId: string | null;

@@ -12,6 +12,7 @@ import {
     getStackModeLines,
     manaCostToString,
     stackAbilityKindOf,
+    type StackAbilityKind,
 } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
 import {
@@ -31,12 +32,11 @@ import ManualCardMenu from "./manual-card-menu";
 import StackCardImage from "../cards/stack-card-image";
 import TokenPlaceholder from "../cards/token-placeholder";
 
-type AbilityKind = "activated" | "triggered" | "delayed";
-
-const KIND_LABEL: Record<AbilityKind, string> = {
+const KIND_LABEL: Record<StackAbilityKind, string> = {
     activated: "Activated ability",
     triggered: "Triggered ability",
     delayed: "Delayed trigger",
+    reflexive: "Reflexive trigger",
 };
 
 function StackControllerChip({

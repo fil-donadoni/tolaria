@@ -800,6 +800,11 @@ export interface StackItem extends CardInstance {
      *  view reads it to render the ability tile instead of a full-card image
      *  (Sneak Attack, Forth Eorlingas). Undefined for the template path. */
     delayedOracleText?: string;
+    /** CR 603.12 — this inline-body item is a REFLEXIVE triggered ability
+     *  ("When you do, …"), not a true delayed trigger (CR 603.7). The engine
+     *  stamps it on `StackItem.reflexiveTrigger`; `SlimStackItem` keeps it, so
+     *  the stack row reads it to label the item "Reflexive trigger". */
+    reflexiveTrigger?: boolean;
     /** CR 725 (issue #1305) — a source-less inherent DESIGNATION triggered
      *  ability (the Monarch's end-step draw). Keys a state designation
      *  (`convex/cards/designations.ts`) so the stack tile shows the marker-card

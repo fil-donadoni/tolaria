@@ -3450,16 +3450,26 @@ export function getDelayedTriggerOracleText(
 
 /** Which flavour of ability a stack item is (CR 602 / 603), or `null` for a
  *  spell. */
-export type StackAbilityKind = "activated" | "triggered" | "delayed";
+export type StackAbilityKind =
+    | "activated"
+    | "triggered"
+    | "delayed"
+    | "reflexive";
 
 export function stackAbilityKindOf(item: {
     abilityId?: string;
     triggeredAbilityId?: string;
     delayedTriggerId?: string;
+    reflexiveTrigger?: boolean;
 }): StackAbilityKind | null {
     if (item.abilityId) return "activated";
     if (item.triggeredAbilityId) return "triggered";
-    if (item.delayedTriggerId) return "delayed";
+    // CR 603.12 — a reflexive trigger rides the inline delayed-trigger
+    // machinery but players know it as "When you do": the engine's
+    // `reflexiveTrigger` flag splits it from a genuine delayed trigger
+    // (CR 603.7, e.g. earthbend's return).
+    if (item.delayedTriggerId)
+        return item.reflexiveTrigger ? "reflexive" : "delayed";
     return null;
 }
 
@@ -3484,6 +3494,7 @@ export function getStackAbilityOracleText(item: {
     abilityId?: string;
     triggeredAbilityId?: string;
     delayedTriggerId?: string;
+    reflexiveTrigger?: boolean;
     delayedOracleText?: string;
     grantedSourceCardId?: string;
     grantedAbilityOrigin?: GrantedAbilityOrigin;

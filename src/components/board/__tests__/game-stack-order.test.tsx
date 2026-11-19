@@ -123,6 +123,34 @@ describe("GameStack ability-kind detection (#935)", () => {
         );
     });
 
+    it('labels a reflexive trigger "Reflexive trigger" and a true delayed trigger "Delayed trigger" (CR 603.12 vs 603.7, issue #9985)', () => {
+        // Inti's "When you do, …" rides the inline delayed-trigger machinery
+        // (`delayedTriggerId`) but the engine flags it `reflexiveTrigger`;
+        // earthbend's "When it dies or is exiled, return it" is a genuine
+        // delayed trigger and carries no flag.
+        const reflexive = {
+            ...makeStackItem("reflexive-1"),
+            card: { id: "fa7a55aa-ae61-4933-b7a4-dcc55dac6fcd" }, // Inti
+            delayedTriggerId: "$inline-effects",
+            delayedOracleText:
+                "When you do, put a +1/+1 counter on target attacking creature.",
+            reflexiveTrigger: true,
+        } as StackItem;
+        const delayed = {
+            ...makeStackItem("delayed-2"),
+            card: { id: "8a720448-017f-4f4a-9501-678245eaed17" },
+            delayedTriggerId: "$inline-effects",
+            delayedOracleText: "When it dies or is exiled, return it.",
+        } as StackItem;
+        const first = renderStack([reflexive]);
+        expect(first.container.textContent).toContain("Reflexive trigger");
+        expect(first.container.textContent).not.toContain("Delayed trigger");
+        first.unmount();
+        const second = renderStack([delayed]);
+        expect(second.container.textContent).toContain("Delayed trigger");
+        expect(second.container.textContent).not.toContain("Reflexive trigger");
+    });
+
     it("renders the Monarch end-step draw as a marker-art triggered ability (CR 725, #1305)", () => {
         // The source-less inherent designation trigger carries `designationId`
         // but no card (`card.id` is ""). It must render with the Monarch marker
