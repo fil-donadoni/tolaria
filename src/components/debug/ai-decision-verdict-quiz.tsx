@@ -21,13 +21,16 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import {
     QUIZ_SEAT,
+    describeCause,
     quizRefusal,
     type QuizSubject,
-    type VerdictQuiz,
-    type VerdictQuizRefusal,
 } from "~/lib/ai/verdict-quiz";
-import { installHandWrittenSets } from "~/lib/catalogue/definitionShards";
 import { getStoredSession } from "~/lib/session";
+import type { QuizState } from "./ai-decision-verdict-quiz-settle";
+import {
+    reportPublishFailure,
+    settleQuiz,
+} from "./ai-decision-verdict-quiz-settle";
 import DebugButton from "./debug-button";
 import AiDecisionQuizCandidate from "./ai-decision-quiz-candidate";
 import AiDecisionQuizRefusal from "./ai-decision-quiz-refusal";
@@ -42,11 +45,6 @@ import {
     quizSeatLabelsFor,
     type QuizPerspective,
 } from "./ai-decision-quiz-copy";
-
-type QuizState =
-    | { status: "loading" }
-    | { status: "unbuildable"; refusal: VerdictQuizRefusal }
-    | { status: "ready"; quiz: VerdictQuiz };
 
 export default function AiDecisionVerdictQuiz({
     subject,
@@ -102,38 +100,34 @@ export default function AiDecisionVerdictQuiz({
         // consult that had none. Already said out loud by the initial state
         // above; there is nothing to load.
         if (!feed) return;
-        // Lowering and rebuilding a position read the token catalogue, a walk of
-        // the whole hand-written catalogue, and a game holds only its own Sets.
-        void Promise.all([
-            import("~/lib/ai/verdict-quiz"),
-            installHandWrittenSets(),
-        ])
-            .then(([{ buildVerdictQuiz }]) => {
-                if (cancelled) return;
-                // A decision taken over a stack lowers like any other since
-                // issue #3514: the stack travels in `spec.stack`.
-                const result = buildVerdictQuiz(feed);
-                setState(
-                    result.ok
-                        ? { status: "ready", quiz: result.quiz }
-                        : { status: "unbuildable", refusal: result.refusal }
-                );
-            })
-            .catch((cause: unknown) => {
-                if (cancelled) return;
-                setState({
-                    status: "unbuildable",
-                    refusal: quizRefusal(
-                        "builder-threw",
-                        `the quiz could not be built: ${
-                            cause instanceof Error ? cause.message : `${cause}`
-                        }`
-                    ),
-                });
-            });
+        // Building NEVER rejects: it settles into the state to show. Publishing
+        // that state is a separate step below, because an error React raises
+        // from the panel's own `setState` is not a builder failure (issue
+        // #9822) and must not be filed as one.
+        void settleQuiz(feed).then((settled) => {
+            if (cancelled) return;
+            try {
+                setState(settled);
+            } catch (cause: unknown) {
+                reportPublishFailure(cause, subject);
+                try {
+                    setState({
+                        status: "unbuildable",
+                        refusal: quizRefusal(
+                            "panel-update-threw",
+                            `the panel could not publish its result: ${describeCause(cause)}`
+                        ),
+                    });
+                } catch {
+                    // The update loop refuses this one too; it is reported.
+                }
+            }
+        });
         return () => {
             cancelled = true;
         };
+        // `subject` is read only to name the decision in a report.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [feed]);
 
     function finish() {

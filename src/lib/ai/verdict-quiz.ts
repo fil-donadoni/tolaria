@@ -108,7 +108,7 @@ export function proposalQuizSubject(
  * The lowering's kinds are inherited, never restated: `VERDICT_REFUSAL_KINDS`
  * is the frozen union `lowerDecision` refuses with and the lowering sweep
  * ranks, and a second copy here is how the two would drift. What is added is
- * the pair of sites ABOVE the lowering — a decision whose position the trace
+ * the sites ABOVE the lowering — a decision whose position the trace
  * store no longer holds, and a builder chunk that failed to load or threw —
  * which the panel refuses with today in free prose with no kind at all.
  *
@@ -119,6 +119,7 @@ export function proposalQuizSubject(
 export const QUIZ_ONLY_REFUSAL_KINDS = [
     "position-not-held",
     "builder-threw",
+    "panel-update-threw",
 ] as const;
 
 export const QUIZ_REFUSAL_KINDS = [
@@ -146,7 +147,7 @@ type RefusalPresentation = {
  * The ONE table the refusal panel renders from — title and tracking issue per
  * kind, in the order the sites run.
  *
- * `Record<QuizRefusalKind, …>` is the exhaustiveness: a ninth kind added to
+ * `Record<QuizRefusalKind, …>` is the exhaustiveness: a further kind added to
  * the array above reds `tsc` here until it says what it is called, which is
  * the whole reason the kind is a frozen union rather than a string.
  */
@@ -210,6 +211,15 @@ export const QUIZ_REFUSALS: Record<QuizRefusalKind, RefusalPresentation> = {
         title: "The quiz could not be built",
         trackedBy: null,
     },
+    "panel-update-threw": {
+        // The quiz WAS built; React refused the panel's own `setState` that
+        // publishes it (issue #9822: "Maximum update depth exceeded" raised
+        // from that call). That is a render/update loop in the surrounding
+        // tree, not a builder fault — filing it under `builder-threw` sent
+        // the first two reports chasing the lowering.
+        title: "The quiz was built but the panel could not show it",
+        trackedBy: 9822,
+    },
 };
 
 /**
@@ -231,6 +241,21 @@ export type VerdictQuizRefusal = {
      *  refusals that fire before `specFromState` ever runs. */
     dropped: string[];
 };
+
+/** A thrown value as a refusal detail: the raw message AND the head of its
+ *  stack. A minified React error carries only a code in its message; the stack
+ *  is what names the frame that raised it (issue #9822). */
+export function describeCause(cause: unknown, stackLines = 8): string {
+    if (!(cause instanceof Error)) return `${cause}`;
+    const stack = (cause.stack ?? "")
+        .split("\n")
+        .filter((line) => line.trim() !== "")
+        .slice(0, stackLines)
+        .join("\n");
+    return stack.includes(cause.message)
+        ? stack
+        : `${cause.message}\n${stack}`.trimEnd();
+}
 
 /** Build the refusal record for one kind. */
 export function quizRefusal(
