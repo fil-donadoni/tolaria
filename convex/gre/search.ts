@@ -4073,9 +4073,14 @@ function iterate(
                     !isOneSidedPutCast(world, pid, botId, k.move)
             );
             if (kept.length > 0) keyed = kept;
-            if (unlockingRootKeys?.has(path[0]?.key ?? "")) {
-                keyed = withoutMisdirectedVariants(world, pid, keyed);
-            }
+            keyed = unlockingRootKeys?.has(path[0]?.key ?? "")
+                ? withoutMisdirectedVariants(world, pid, keyed)
+                : withoutMisdirectedVariants(
+                      world,
+                      pid,
+                      keyed,
+                      isCounterPacedActivation
+                  );
         }
         if (keyed.length === 0) break;
 
@@ -4230,6 +4235,29 @@ export function isWhollyMisdirectedMove(
     );
 }
 
+/** An activation whose WHOLE cost is removing counters from its own source
+ *  (CR 602.1a / 122.1): no mana, no tap, no loyalty. Nothing but its counters
+ *  paces it, so it is offered at every window its timing allows in a subtree
+ *  where the counters exist, every target variant with it. An Equipment's banked
+ *  charge counters made three "-1/-1 to target creature" edges at each node,
+ *  two aimed at the holder's own creatures, and their visits dragged the mean
+ *  of every line that banked the counters: the Bot attacked with the bare
+ *  twin of the creature carrying its Umezawa's Jitte (issue #9977). */
+function isCounterPacedActivation(state: GameState, move: Move): boolean {
+    if (move.kind !== "activate-ability") return false;
+    const card = findCardInAnyZone(state, move.cardInstanceId);
+    if (!card) return false;
+    const ability = getEffectiveActivatedAbilities(card).find(
+        ({ ability }) => ability.id === move.abilityId
+    )?.ability;
+    const removal = ability?.cost.removeCounter;
+    if (!ability || !removal || removal.count < 1) return false;
+    return Object.entries(ability.cost).every(
+        ([leg, value]) =>
+            leg === "removeCounter" || value === undefined || value === false
+    );
+}
+
 /** `keyed` less every wholly misdirected variant (`isWhollyMisdirectedMove`)
  *  of an announcement that keeps a sibling variant (`isCastVariantOf`) aimed
  *  otherwise; a misdirected variant with no such sibling is the
@@ -4240,14 +4268,21 @@ export function isWhollyMisdirectedMove(
  *  below `pass` with the payoff a few plies deep. Scoped to those subtrees
  *  because the sign table still misreads some self-targets — a creature
  *  transform on the mover's own artifact is a free body — and anywhere else
- *  the lifted means hand ties to the root's variant ranking. */
+ *  the lifted means hand ties to the root's variant ranking.
+ *
+ *  `droppable`, when given, narrows the prune to the misdirected variants it
+ *  admits — every other node below the root prunes only a counter-paced
+ *  activation's (`isCounterPacedActivation`). */
 function withoutMisdirectedVariants(
     state: GameState,
     pid: string,
-    keyed: KeyedMove[]
+    keyed: KeyedMove[],
+    droppable?: (state: GameState, move: Move) => boolean
 ): KeyedMove[] {
-    const misdirected = keyed.filter((k) =>
-        isWhollyMisdirectedMove(state, pid, k.move)
+    const misdirected = keyed.filter(
+        (k) =>
+            (!droppable || droppable(state, k.move)) &&
+            isWhollyMisdirectedMove(state, pid, k.move)
     );
     if (misdirected.length === 0) return keyed;
     const aimed = keyed.filter((k) => !misdirected.includes(k));
