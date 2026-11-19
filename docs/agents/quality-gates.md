@@ -1558,8 +1558,8 @@ account). The scoper (`scripts/lib/ui-scope.ts`) is fail-closed like
 `classifyPath`: the lane itself, the build config's closure, a stylesheet
 (unless every changed line sits in a class-only rule or adds a new `@theme`
 colour token: then the surfaces whose closure holds a module writing those
-classes or that token's utilities, issues #9295, #9874), a design token, `src/components/ui/**`, the shell, the router, `index.html`,
-`public/**`, or any path no closure contains forces FULL; tests, scripts and
+classes or that token's utilities, issues #9295, #9874), a design token, the catalogue gate, the shell (minus its closed-by-default overlays, `SHELL_DEFERRED_OVERLAYS`), the router, `index.html`,
+`public/**`, or any path no closure contains forces FULL; a `src/components/ui/**` primitive is placed by its importers' closures like any module (issue #10230); tests, scripts and
 markdown reach nothing. A no-flag run on a narrower scope prints `SCOPED`
 naming the base and the surfaces; `land` re-derives the scope from the PR's
 diff with the same function (`landingDiffScope`) and refuses a mismatch. A full

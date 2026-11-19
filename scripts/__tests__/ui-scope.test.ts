@@ -44,7 +44,12 @@ const FILES: Record<string, string> = {
         `import DraftLab from "./routes/draft-lab.route";`,
         `import AppShell from "./components/chrome/app-shell";`,
     ].join("\n"),
-    "src/components/chrome/app-shell.tsx": `import { NavLink } from "./nav-link";\nimport { Outlet } from "./route-outlet";\n`,
+    "src/components/chrome/app-shell.tsx": `import { NavLink } from "./nav-link";\nimport { Outlet } from "./route-outlet";\nimport { Toaster } from "~/components/ui/toaster";\n`,
+    // A primitive the SHELL renders (issue #10230): full through the shell
+    // rule, not through a blanket "shared UI primitive" one.
+    "src/components/ui/toaster.tsx": `export const Toaster = 1;\n`,
+    // A primitive nothing imports: no closure places it — fail-closed doubt.
+    "src/components/ui/unused.tsx": `export const Unused = 1;\n`,
     // The catalogue gate (issue #5379): a lazy chunk the shell mounts around
     // gated routes, loading every set module into the registry. Only the game
     // route reads that registry.
@@ -55,9 +60,10 @@ const FILES: Record<string, string> = {
     "convex/cards/sets/lea/index.cards.ts": `export const card = 1;\n`,
     "convex/cards/registry.ts": `export const register = 1;\n`,
     "src/components/chrome/nav-link.tsx": `export const NavLink = 1;\n`,
-    // The primitive, the token source and the route-local stylesheet are
-    // imported by a ROUTE only, never by the shell — so each forces full
-    // through its own rule, and removing that rule would scope it to `lobby`.
+    // The token source and the route-local stylesheet are imported by a
+    // ROUTE only, never by the shell — so each forces full through its own
+    // rule, and removing that rule would scope it to `lobby`. The primitive
+    // beside them is scoped by its importers (issue #10230): `lobby` only.
     "src/components/ui/button.tsx": `export const Button = 1;\n`,
     "src/routes/lobby.route.tsx": `import { Button } from "~/components/ui/button";\nimport { TOKENS } from "~/lib/design-tokens";\nimport { DeckShelf } from "~/components/deck-shelf";\nimport { Card } from "~/components/card";\nimport type { Shape } from "~/components/shape";\nimport { loadPanel } from "~/components/panel-loader";\n`,
     // A template dynamic import (issue #7459): `panels/*.tsx` is an edge no
@@ -279,10 +285,11 @@ describe("computeUiScope — the catalogue gate (issue #5379)", () => {
         });
     });
 
-    it("the gate module itself is a shared UI primitive — full", () => {
-        expect(scopeOf("src/components/ui/catalogue-gate.tsx").kind).toBe(
-            "full"
-        );
+    it("the gate module itself is mounted around every route — full", () => {
+        expect(scopeOf("src/components/ui/catalogue-gate.tsx")).toEqual({
+            kind: "full",
+            reason: "src/components/ui/catalogue-gate.tsx is the catalogue gate, mounted around every route",
+        });
     });
 });
 
@@ -382,9 +389,33 @@ describe("computeUiScope — specimen rows (issue #4913)", () => {
     });
 });
 
+describe("computeUiScope — shared UI primitives (issue #10230)", () => {
+    it("a primitive only routes import selects the surfaces whose closure holds it", () => {
+        expect(scopeOf("src/components/ui/button.tsx")).toEqual({
+            kind: "scoped",
+            surfaces: ["lobby"],
+        });
+    });
+
+    it("a primitive the shell imports still forces full, through the shell rule", () => {
+        expect(scopeOf("src/components/ui/toaster.tsx")).toEqual({
+            kind: "full",
+            reason: "src/components/ui/toaster.tsx is imported by the app shell (src/main.tsx) outside any route module",
+        });
+    });
+
+    it("a primitive no closure contains stays undecided (fail-closed)", () => {
+        expect(scopeOf("src/components/ui/unused.tsx")).toEqual({
+            kind: "undecided",
+            reasons: [
+                "src/components/ui/unused.tsx is in no surface's closure and no rule places it",
+            ],
+        });
+    });
+});
+
 describe("computeUiScope — full (fail-closed)", () => {
     it.each([
-        ["src/components/ui/button.tsx", "a shared UI primitive"],
         ["src/index.css", "a stylesheet"],
         ["src/components/deck-shelf.css", "a stylesheet"],
         ["src/lib/design-tokens.ts", "a design-token source"],

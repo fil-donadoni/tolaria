@@ -6,7 +6,11 @@
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createImportGraph } from "../lib/import-graph";
-import { computeUiScope, shellClosure } from "../lib/ui-scope";
+import {
+    computeUiScope,
+    SHELL_DEFERRED_OVERLAYS,
+    shellClosure,
+} from "../lib/ui-scope";
 import { SURFACES } from "../ui-gate/surfaces";
 
 const root = path.resolve(__dirname, "../..");
@@ -67,5 +71,39 @@ describe("the real design-system census page (issue #6073)", () => {
         expect(scope.kind).toBe("scoped");
         if (scope.kind !== "scoped") return;
         expect(scope.surfaces).toEqual(expect.arrayContaining(rows));
+    });
+});
+
+describe("shared UI primitives on the real tree (issue #10230)", () => {
+    const scopeOf = (changed: string) =>
+        computeUiScope({ changed: [changed], surfaces: SURFACES, graph });
+
+    it.each(SHELL_DEFERRED_OVERLAYS)(
+        "the closed-by-default shell overlay %s is opened by a specimen row",
+        (overlay) => {
+            const rows = SURFACES.filter((s) =>
+                (s.mounts ?? []).includes(overlay)
+            ).map((s) => s.id);
+            expect(rows.length, `no surface mounts ${overlay}`).toBeGreaterThan(
+                0
+            );
+            expect(shellClosure(graph).has(overlay)).toBe(false);
+        }
+    );
+
+    it("a GameDialog diff walks the surfaces that import it, not every surface", () => {
+        const scope = scopeOf("src/components/ui/game-dialog.tsx");
+        expect(scope.kind).toBe("scoped");
+        if (scope.kind !== "scoped") return;
+        expect(scope.surfaces.length).toBeLessThan(SURFACES.length);
+        // The overlay the shell defers is still walked, through its specimen.
+        expect(scope.surfaces).toContain("dlg-bug-report");
+        expect(scope.surfaces).toContain("dlg-sideboarding");
+    });
+
+    it("the overlay's opener stays in the shell and still forces full", () => {
+        expect(
+            scopeOf("src/components/bug-report/bug-report-host.tsx").kind
+        ).toBe("full");
     });
 });
