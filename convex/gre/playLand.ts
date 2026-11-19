@@ -121,21 +121,24 @@ function landEntryCostOwed(
     return shouldEnterUntapped(state, entering) ? undefined : cost;
 }
 
-/** CR 712.12 / 614.12 — the object the land-entry prompt NAMES, for the face
- *  being played.
+/** CR 712.12 / 614.12 — the NAME the land-entry prompt gives the land, for
+ *  the face being played.
  *
- *  The prompt is written about the land that is entering, and for a modal play
- *  that is the back face: "You may pay 3 life. If you don't, Soporific Springs
- *  enters the battlefield tapped." Naming the card in hand would name Sink
- *  into Stupor, an instant that is not entering anything. Falls back to the
- *  instance's own payload when the twin does not resolve, so the prompt
- *  degrades to the front-face name rather than to "This land". */
-function landPromptCardData(
+ *  Resolved from the definition registry, never from the instance payload:
+ *  production instances carry only `{ id }` (`CardInstanceState.card`), so a
+ *  `name` read off the payload is always absent. For a modal play the prompt
+ *  names the back face that is entering ("…, Soporific Springs enters
+ *  tapped."), not the instant in hand; it degrades to the front-face name
+ *  when the twin does not resolve, and to `undefined` (the generic wording)
+ *  when neither does. */
+function landPromptName(
     card: CardInstanceState,
     face: PlayLandFace
-): unknown {
-    if (face === "front") return card.card;
-    return playLandFaceDefinition(card, face) ?? card.card;
+): string | undefined {
+    return (
+        playLandFaceDefinition(card, face)?.name ??
+        playLandFaceDefinition(card, "front")?.name
+    );
 }
 
 /** CR 712.12 — put `card` into the face its controller chose, immediately
@@ -249,7 +252,7 @@ export function applyPlayLand(
             player.id,
             handCard.id,
             entryCost,
-            landPromptCardData(handCard, face),
+            landPromptName(handCard, face),
             "hand",
             face,
             asEntersAnswers
@@ -399,13 +402,13 @@ export function applyPlayLandFromExile(
             // in the prompt would therefore disclose the hidden card to the
             // opponent, the same leak `castDuringResolution`'s own Play/Decline
             // offer avoids by never naming it (`effects/interpreter.ts`).
-            // Passing `undefined` falls back to the generic "This land"
+            // Passing `undefined` falls back to the generic "this land"
             // wording. An ordinary face-up exile permission (Expressive
             // Iteration, Headliner Scarlett — no `knownTo` stamped, CR 406.3's
             // default) names the land like every other origin.
             isHiddenInExile(exileCard)
                 ? undefined
-                : landPromptCardData(exileCard, face),
+                : landPromptName(exileCard, face),
             "exile",
             face,
             asEntersAnswers
@@ -548,7 +551,7 @@ export function applyPlayLandFromGraveyard(
             player.id,
             graveyardCard.id,
             graveEntryCost,
-            landPromptCardData(graveyardCard, face),
+            landPromptName(graveyardCard, face),
             "graveyard",
             face,
             asEntersAnswers
@@ -629,7 +632,7 @@ export function applyPlayLandFromLibraryTop(
             player.id,
             top.id,
             topEntryCost,
-            landPromptCardData(top, face),
+            landPromptName(top, face),
             "library-top",
             face,
             asEntersAnswers
@@ -1062,10 +1065,10 @@ function payCostText(cost: MayPayCost): string {
 
 /** CR 614.12 / ADR 0051 — enqueue the stackless land-entry pay-choice for a
  *  shock land entering under `playerId`'s control. Freezes priority on the
- *  chooser. `landCardData` is the entering card's `.card` payload, forwarded
- *  onto the prompt so it can name the land — pass `undefined` when the card's
- *  identity must stay hidden (a still-face-down exiled card, CR 406.3), which
- *  falls back to the generic "This land" wording.
+ *  chooser. `landName` is the entering land's name, written into the prompt —
+ *  pass `undefined` when the card's identity must stay hidden (a
+ *  still-face-down exiled card, CR 406.3), which falls back to the generic
+ *  "this land" wording.
  *
  *  `sourceZone` is REQUIRED and is recorded on the choice as
  *  `PendingChoice.landSourceZone`: the explicit, fail-closed discriminator
@@ -1082,7 +1085,7 @@ export function enqueueLandEntryChoice(
     playerId: string,
     landInstanceId: string,
     cost: MayPayCost,
-    landCardData: unknown,
+    landName: string | undefined,
     sourceZone: LandEntrySourceZone,
     /** CR 712.12 — the face this play chose, carried across the choice window
      *  so `finalizeLandEntry` puts the same face onto the battlefield the
@@ -1092,8 +1095,7 @@ export function enqueueLandEntryChoice(
      *  already made; recorded as `PendingChoice.landEntryAnswers`. */
     asEntersAnswers?: StagedEntryAnswers
 ): void {
-    const name =
-        (landCardData as { name?: string } | undefined)?.name ?? "This land";
+    const name = landName ?? "this land";
     state.pendingChoices = state.pendingChoices ?? [];
     state.pendingChoices.push({
         stackItemId: "",
@@ -1108,7 +1110,7 @@ export function enqueueLandEntryChoice(
         ...(asEntersAnswers ? { landEntryAnswers: asEntersAnswers } : {}),
         cost,
         count: 1,
-        prompt: `You may pay ${payCostText(cost)}. If you don't, ${name} enters the battlefield tapped.`,
+        prompt: `You may pay ${payCostText(cost)}. If you don't, ${name} enters tapped.`,
     });
     state.priorityPlayerId = playerId;
 }
