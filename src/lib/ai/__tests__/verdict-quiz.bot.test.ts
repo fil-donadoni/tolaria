@@ -29,6 +29,7 @@ import type { GameState } from "@convex/gre/state";
 import type { Move } from "@convex/gre";
 import { PLACEHOLDER_CARD_ID } from "@convex/gre";
 import { getLegalActions } from "@convex/gre/rules";
+import { grantKnowledgeToAll } from "@convex/gre/state";
 import {
     makeMutationCtx,
     runMutation,
@@ -791,5 +792,67 @@ describe("the quiz on a decision at an open top-N look (issue #9119)", () => {
         );
         expect(library).toHaveLength(7);
         expect(library[0].name).toBe("Lightning Bolt");
+    });
+});
+
+describe("the quiz on a hand holding two copies, one the opponent has seen (issue #9965)", () => {
+    // Two Lightning Bolts, three creature targets of which two are
+    // interchangeable. One Bolt is known to the opponent — it went back to
+    // hand from the stack, or a reveal showed it (CR 701.20a) — so the
+    // projection stamps `seenByOpponent` on that copy alone. The flag is the
+    // own-hand eye icon and nothing else: no rule reads who has seen a card
+    // (CR 400.2 makes the hand a hidden zone; knowledge is not a
+    // characteristic, CR 109.3), so the two copies are the same option. The
+    // spec cannot carry the flag, so the rebuild collapses the copies; the
+    // live descriptor used to keep them apart and the quiz refused the decision
+    // as a bare "N move(s) in play against M".
+    const TWO_BOLTS: ScenarioSpec = {
+        cards: [
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+            { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            { name: "Llanowar Elves", owner: "opp", zone: "battlefield" },
+            { name: "Llanowar Elves", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        turn: 3,
+        landCount: 0,
+        libraryCount: 20,
+    };
+
+    it("offers one candidate per target, not per copy × target", () => {
+        const state = buildBladeState({
+            label: "verdict-quiz two copies, one seen",
+            spec: TWO_BOLTS,
+            bot: "me",
+            budget: { iterations: 1 },
+            tier: "must",
+            expect: { moves: [] },
+        });
+        const botId = state.players[0].id;
+        const [seen] = state.players[0].hand;
+        grantKnowledgeToAll(state, botId, [seen.id]);
+        const source: AiTraceSource = {
+            state: projectPublicState(state, SEQ, botId),
+            botId,
+        };
+        // The projection really does mark one copy and not the other: the
+        // asymmetry this test is about reaches the quiz.
+        const wireHand = source.state.players[0].hand;
+        expect(wireHand.filter((card) => card?.seenByOpponent)).toHaveLength(1);
+
+        const bolts = candidateMoves(state, botId).filter(
+            (move) => move.kind === "cast-spell"
+        );
+        const result = quizOfTrace(traceFor(state, botId, bolts[0]), source);
+
+        expect(result.ok ? null : result.refusal).toBeNull();
+        if (!result.ok) return;
+        const casts = result.quiz.candidates.filter((candidate) =>
+            candidate.description.startsWith("cast Lightning Bolt")
+        );
+        // Bears, one Elves (the two are interchangeable), and the two players.
+        expect(casts).toHaveLength(4);
     });
 });
