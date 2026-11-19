@@ -63,14 +63,18 @@ export function liveKeywordTriggerInstances(
 ): TriggeredAbility[] {
     if (!staticAbilities) return [];
     if (!staticAbilities.some((k) => LIVE_TRIGGER_KEYWORDS.has(k))) return [];
-    return LIVE_KEYWORD_TRIGGERS.flatMap(
-        ({ keyword, ability, perPermanent }) => {
-            const occurrences = staticAbilities.filter((k) => k === keyword);
-            return (perPermanent ? occurrences.slice(0, 1) : occurrences).map(
-                () => ability
-            );
+    // One push loop, not a `flatMap` over per-keyword `filter`/`map` arrays:
+    // this runs per permanent per trigger scan, and SpiderMonkey pays
+    // `flatMap` as a self-hosted `FlattenIntoArray`.
+    const instances: TriggeredAbility[] = [];
+    for (const { keyword, ability, perPermanent } of LIVE_KEYWORD_TRIGGERS) {
+        for (const k of staticAbilities) {
+            if (k !== keyword) continue;
+            instances.push(ability);
+            if (perPermanent) break;
         }
-    );
+    }
+    return instances;
 }
 
 /** The stack text of a trigger that no definition lists, by its ability id. */
