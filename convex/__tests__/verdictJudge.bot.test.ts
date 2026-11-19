@@ -76,9 +76,16 @@ function capturedPosition() {
 }
 
 /** A finished vs-AI game whose human seat is `human`, owned by `human` —
- *  `seatBelongsToUser` accepts the user's own id as a seat handle. */
+ *  `seatBelongsToUser` accepts the user's own id as a seat handle. Every
+ *  caller the tests sign in as is a tester: the judge is tester-only (issue
+ *  #10229). */
 function seeds(human: string, extra: Row[] = [], game = "game-1"): Row[] {
     return [
+        ...[human, "someone-else"].map((id) => ({
+            _id: id,
+            __table: "users",
+            isTester: true,
+        })),
         {
             _id: game,
             __table: "games",
@@ -324,6 +331,17 @@ describe.each(RUNTIMES)(
                 [
                     /You are not the player of this game/,
                     makeMutationCtx("someone-else", seeds(human, [], game)),
+                ],
+                [
+                    /The judge is open to testers only/,
+                    makeMutationCtx(
+                        human,
+                        seeds(human, [], game).map((r) =>
+                            r.__table === "users"
+                                ? { ...r, isTester: false }
+                                : r
+                        )
+                    ),
                 ],
                 [
                     /The game is not over/,
