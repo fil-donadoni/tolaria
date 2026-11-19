@@ -1890,7 +1890,7 @@ function resolveCreatePackSlots(args: {
     return resolvePackSlots(source, args.type);
 }
 
-/** Any authenticated user creates an event with `seatCount` empty Seats (PRD
+/** Any authenticated user creates an event with `seatCount` Seats, the creator in the first (PRD
  *  #1107 story 1-6; the original admin gate was lifted — hosting a table is a
  *  normal player action, and the creator already owns it via `createdBy` for
  *  `startLimitedEvent`/`cancelLimitedEvent`). Every `packSlots` entry must
@@ -2001,9 +2001,16 @@ export const createLimitedEvent = mutation({
             }
         }
 
-        const seats = buildEmptySeats(args.seatCount);
+        // The creator takes the first Seat: the usual intent, and it keeps
+        // "Start now" from launching an all-Bot event the host is not in.
+        // They can still leave (`leaveLimitedEvent` releases the Seat).
+        const seats = assignFreeSeat(
+            buildEmptySeats(args.seatCount),
+            creator._id,
+            creator.nickname
+        );
         const now = Date.now();
-        return await ctx.db.insert("limitedEvents", {
+        const eventId = await ctx.db.insert("limitedEvents", {
             createdBy: creator._id,
             type: args.type,
             status: "open",
@@ -2026,6 +2033,8 @@ export const createLimitedEvent = mutation({
             createdAt: now,
             updatedAt: now,
         });
+        await syncEventMembers(ctx, eventId, seats);
+        return eventId;
     },
 });
 
