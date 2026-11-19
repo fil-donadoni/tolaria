@@ -21,6 +21,7 @@ import { internal } from "./_generated/api";
 import { planBotDeadline, type BotDeadlineTick } from "./botDeadline";
 import { botSeatId } from "./matches";
 import { seedBotSkipPrefs } from "./gamePrefs";
+import { loadAutoOrderSeatIds } from "./autoOrderSeats";
 import {
     advanceClock,
     clockExpiresAt,
@@ -80,17 +81,33 @@ export async function getLatestGameState(
     if (!doc) return null;
     const stored = doc.state as Record<string, unknown>;
     if (!isSplitCompactState(stored)) {
-        return { ...doc, state: expandState(stored), libraryRow: null };
+        const state = expandState(stored);
+        await hydrateAutoOrderSeats(ctx, gameId, state);
+        return { ...doc, state, libraryRow: null };
     }
     const libraryRow = await readLibraryRow(ctx, gameId);
     if (!libraryRow) {
         throw new Error(`Game ${gameId} has no library companion row`);
     }
-    return {
-        ...doc,
-        state: expandState(stored, libraryRow.payload as CompactLibraries),
-        libraryRow,
-    };
+    const state = expandState(stored, libraryRow.payload as CompactLibraries);
+    await hydrateAutoOrderSeats(ctx, gameId, state);
+    return { ...doc, state, libraryRow };
+}
+
+/** Issue #9988 — hang the seats that opted into automatic trigger/graveyard
+ *  ordering on the loaded state (transient: `compactState` drops it). Absent
+ *  when no seat opted in, which is the default. */
+async function hydrateAutoOrderSeats(
+    ctx: ReadCtx,
+    gameId: GenericId<"games">,
+    state: GameState
+): Promise<void> {
+    const seats = await loadAutoOrderSeatIds(
+        ctx,
+        gameId,
+        state.players.map((p) => p.id)
+    );
+    if (seats.length > 0) state.autoOrderSeatIds = seats;
 }
 
 /** The position as the PUBLIC projection needs it (ADR 0179). When the writer
