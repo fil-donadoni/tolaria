@@ -3,8 +3,8 @@
  * "equipment: the equipped flyer attacks, not its bare twin" (issue #9977).
  *
  * An activation whose whole cost is removing counters from its own source
- * (CR 602.1a) is offered at every priority window of a subtree in which the
- * counters exist, every target variant with it. Below the root, the search
+ * (CR 602.1a) is offered at every window its timing allows in a subtree where
+ * the counters exist, every target variant with it. Below the root, the search
  * prunes the variants of such an activation aimed at the wrong side
  * (`isCounterPacedActivation` in `withoutMisdirectedVariants`, `search.ts`).
  * Without the prune, an Equipment's banked charge counters open "-1/-1 to

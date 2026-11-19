@@ -4237,8 +4237,8 @@ export function isWhollyMisdirectedMove(
 
 /** An activation whose WHOLE cost is removing counters from its own source
  *  (CR 602.1a / 122.1): no mana, no tap, no loyalty. Nothing but its counters
- *  paces it, so it is offered at every priority window of a subtree in which
- *  the counters exist, every target variant with it. An Equipment's banked
+ *  paces it, so it is offered at every window its timing allows in a subtree
+ *  where the counters exist, every target variant with it. An Equipment's banked
  *  charge counters made three "-1/-1 to target creature" edges at each node,
  *  two aimed at the holder's own creatures, and their visits dragged the mean
  *  of every line that banked the counters: the Bot attacked with the bare
