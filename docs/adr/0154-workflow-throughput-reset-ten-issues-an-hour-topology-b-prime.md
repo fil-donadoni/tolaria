@@ -439,6 +439,39 @@ The hub's reach is the suite itself, so its gain is load, not scope; the
 ordinary diff's plan did not change (noise). The re-pin is the shape the
 issue named: 505 files instead of every file of two projects.
 
+### 16. A guard above seconds may gate landing off the owner's machines — amendment of issue #9361
+
+§1's "a PR owes at landing only what costs seconds" kept the blade robustness
+audit (`blade:robustness`, issue #4875, ~16 min of search over every `must`
+entry) in the health batch. A search change that left a `must` entry
+noise-pinned landed green and reddened the base at the next batch (revert
+first); on PR #9172 the audit was run by hand after hand-off and the PR had to
+leave the queue meanwhile.
+
+**The rule.** A guard above seconds MAY gate landing when all three hold: it
+runs off the owner's machines (GitHub-hosted, no secret, read-only token,
+`persist-credentials: false`, so a fork PR never reaches them), it runs in
+parallel with hand-off (no pass waits on it, hand-off still ends at
+`ready-to-land`) and only on the diffs its predicate selects (a diff the
+predicate rejects reports the check green without running the work, so the
+queue condition is uniform).
+
+**First user.** `.github/workflows/blade-robustness.yml`: `plan` reads the
+health trigger (`scripts/lib/health-robustness-trigger.ts`, one predicate) on
+the PR's merge ref — FULL, INCREMENTAL or NONE; four `shard` jobs run the
+audit's own `robustness.shard-N.spec.ts` files (same scope as health would run
+for the diff); `verdict` is the check `blade-robustness`, a `queue_conditions`
+entry of `.mergify.yml`. A finding reds the check and the run summary names
+the entry and leg. The queue's draft reports green at once: the audit was
+proven on the PR's own head. The audit stays in health too (the engine
+residual of the trigger, tips merged without a PR). The `lane` runner is never
+loaded; the lane (§1's seconds budget) is unchanged.
+
+**Cost.** Hosted, 4 shards in parallel, billed to nobody (public repository);
+the machine-seconds the owner's runners pay are zero. A FULL audit's wall time
+is the slowest shard of the ~16 min serial total; the first runs' measured
+wall time is not recorded here yet.
+
 ## Consequences
 
 - **Overturned / amended records.** ADR 0104 carries a superseded-by note;
