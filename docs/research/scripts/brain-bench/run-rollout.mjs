@@ -25,9 +25,11 @@
 // clock: every arm is deterministic) under every policy at the SAME
 // iterations — the declared budget, or `--budget N` for all (a field
 // budget, `blade-at-field-budgets.md`) — then every non-base policy again at
-// EQUAL TIME: the iterations it completes in the CPU time `base` spent on
-// that entry (base CPU ÷ the policy's CPU per iteration, at most 20× the
-// budget). Both CPU times are read in the same process, back to back,
+// EQUAL TIME: the iterations it completes in the CPU time `base` would spend
+// on the whole budget (T × base's CPU per COMPLETED iteration ÷ the
+// policy's: a search stops early once its root is settled, so total CPU is
+// not the measure; at most 20× the budget). The CPU includes the entry's
+// build, which pulls the factor towards 1. Both CPU times are read in the same process, back to back,
 // after one untimed warm-up search of the entry (an entry's first search runs
 // 10–60% slower: its cards' code paths are cold), in an order that rotates
 // by job so no policy always runs first.
@@ -153,7 +155,9 @@ if (command === "speed") {
                 round,
                 policy,
                 completed: r.completed,
-                cpuMs: cpuMs(t0),
+                // The search's own CPU (`entry.mjs`), the fixture's
+                // expansion left out.
+                cpuMs: r.cpuMs ?? cpuMs(t0),
                 move: r.move,
                 counters: summarize(r.counters),
             });
@@ -235,6 +239,7 @@ for (const [j, entry] of jobs.entries()) {
             move: r.move,
             cpuMs: cpuMs(t0),
             iterations: T,
+            completed: r.completed,
             counters: summarize(r.counters),
         };
     }
@@ -247,7 +252,9 @@ for (const [j, entry] of jobs.entries()) {
                 timeFactors[policy] ??
                 Math.min(
                     MAX_EQUAL_TIME_FACTOR,
-                    base.cpuMs / Math.max(arm.cpuMs, 1e-3)
+                    base.cpuMs /
+                        Math.max(base.completed, 1) /
+                        (Math.max(arm.cpuMs, 1e-3) / Math.max(arm.completed, 1))
                 );
             const iterations = Math.max(1, Math.round(T * factor));
             const t0 = process.cpuUsage();
@@ -261,6 +268,7 @@ for (const [j, entry] of jobs.entries()) {
                 move: r.move,
                 cpuMs: cpuMs(t0),
                 iterations,
+                completed: r.completed,
             };
         }
     }

@@ -68,12 +68,23 @@ const ROOT_HOOK_PATCHES = [
  *   - the ply loop reads `globalThis.__benchMaxPlies` before
  *     `MAX_ROLLOUT_PLIES` — a shorter rollout, closed by the evaluation;
  *   - every rollout ply reports itself to `globalThis.__benchPly(kind, n)`:
- *     a forced pass, or a played move and the candidates it was chosen from.
+ *     a forced pass, or a played move and the candidates it was chosen from;
+ *   - `searchWithTrace` leaves its trace in `globalThis.__benchLastTrace`: the
+ *     blade runner does not hand out the iterations a search completed.
  *
  * With no global installed the patched bundle searches byte-identically to
  * an unpatched one. Each replacement must match exactly once.
  */
 const ROLLOUT_HOOK_PATCHES = [
+    [
+        "export function searchWithTrace(",
+        "export function searchWithTrace(...__args) {\n" +
+            "    const __result = __searchWithTraceInner(...__args);\n" +
+            "    globalThis.__benchLastTrace = __result.trace;\n" +
+            "    return __result;\n" +
+            "}\n" +
+            "function __searchWithTraceInner(",
+    ],
     [
         "export function rollout(",
         "export function rollout(...__args) {\n" +

@@ -15,8 +15,9 @@
 //             settle and evaluate per candidate (the policy's probes)
 //   apply     the rollout applying the move it chose (or a forced pass)
 //   enumerate the rollout enumerating a ply's legal moves
-//   filters   the rollout's move filters and its epsilon test (the sacrifice
-//             and exchange predicates, `rolloutEpsilonFor`, ...)
+//   filters   the rollout's move predicates called directly (most run inside
+//             anonymous `.filter` callbacks and so land in `rollout`; the
+//             note reads leaf, advance, filters and rollout together)
 //   leaf      `scoreLeaf`: the evaluation closing the rollout
 //   advance   `advanceToDecision` / `onlyPassIsLegal`: forced answers and
 //             the pass test

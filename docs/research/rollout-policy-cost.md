@@ -26,7 +26,7 @@ time and lose in decisions?
    is.** A blade `must` search spends 10–23% in the policy's probes and 39–59%
    in the tree's own descent (§ 1). Two late-game production boards spend
    **67–73%** in the probes and 10–12% in the descent: 9–12 probing plies per
-   rollout with 7–8 candidates each (60–96 probes per rollout), against about
+   rollout with 6.7–8.4 candidates each (59–96 probes per rollout), against about
    3 per rollout on a blade board. The issue's multiplier holds where the
    field Bot is slow, and nowhere else.
 2. **No policy that still probes buys the order of magnitude.** Free probes
@@ -58,13 +58,13 @@ in AT BUNDLE TIME only (`bundle.mjs`, `rolloutHook`; the source tree's
   whole search and active only inside a rollout (the root's own reads of the
   greedy pick are left alone):
 
-| policy     | what the greedy ply does                                                                                                                                                               |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `base`     | today: probe every candidate, play the best                                                                                                                                            |
-| `topk:K`   | rank the candidates by a static per-move-kind score (land > cast > activation / attack / block > other > empty declaration > pass) and probe only the best K, `pass` always among them |
-| `prefix:N` | probe for the rollout's first N greedy plies, then play a uniform-random candidate; `prefix:0` probes nothing, the ceiling of any probe cut                                            |
-| `cap:N`    | today's pick, the rollout cut after N plies and closed by `scoreLeaf` where that comes before the next turn of the Bot                                                                 |
-| `memo`     | today's pick, memoised by the ply's exact state and candidates; `memo-public` keys without the libraries; `memo-count` only counts the key's recurrence                                |
+| policy     | what the greedy ply does                                                                                                                                                                                                            |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `base`     | today: probe every candidate, play the best                                                                                                                                                                                         |
+| `topk:K`   | rank the candidates by a static per-move-kind score (land > cast > activation / attack / block > turn face up / foretell / plot / companion > other > empty declaration > pass) and probe only the best K, `pass` always among them |
+| `prefix:N` | probe for the rollout's first N greedy plies, then play a uniform-random candidate; `prefix:0` probes nothing, the ceiling of any probe cut                                                                                         |
+| `cap:N`    | today's pick, the rollout cut after N plies and closed by `scoreLeaf` where that comes before the next turn of the Bot                                                                                                              |
+| `memo`     | today's pick, memoised by the ply's exact state and candidates; `memo-public` keys without the libraries; `memo-count` only counts the key's recurrence                                                                             |
 
 - **The split** (`profile-rollout.mjs`): a V8 CPU profile of one search
   (500 µs sampling) folded by the iteration's own structure: `descent` (not
@@ -88,17 +88,23 @@ in AT BUNDLE TIME only (`bundle.mjs`, `rolloutHook`; the source tree's
 - **Quality** (`run-rollout.mjs blade`): the blade runner's own expectation
   check (`runBladeScenario`), one seed per entry (its first declared),
   iterations only, so every arm is deterministic. Two designs:
-    - _Declared budgets:_ every third `must` entry (204), each at its declared
+    - _Declared budgets:_ every fourth `must` entry (153), each at its declared
       budget T under every policy (**equal iterations**), then every
       non-base policy at the iterations it completes in the CPU time `base`
       spent on that entry (**equal time**, read in the same process back to
-      back, at most 20× T).
+      back, at most 20× T). "Equal time" is T × `base`'s CPU per COMPLETED
+      iteration ÷ the policy's: a blade search stops early once its root's
+      pick is settled, so total CPU would misstate it. Each entry is searched
+      once untimed first (an entry's first search runs 10–60% slower, its
+      cards' code cold) and the timed arms rotate their order by entry.
     - _Field budget (Gecko):_ every `must` entry at B = 71 iterations
       (`blade-at-field-budgets.md`'s Gecko budget) under every policy, then
-      each non-base policy at B × its **field-board** speed-up (§ 2: `topk:2`
-      1.66, `topk:3` 1.48, `prefix:3` 1.16, `cap:16` 1.13, `prefix:0` 3.28).
-      A blade board's few probes would understate what a policy buys in the
-      field, where that budget is spent.
+      each non-base policy at B × its **field-board** speed-up in V8, the
+      mean over the two boards (§ 2: `topk:2` 1.66, `topk:3` 1.48, `prefix:3`
+      1.16, `cap:16` 1.13, `prefix:0` 3.28). A blade board's few probes would
+      understate what a policy buys in the field, where that budget is spent.
+      Firefox's one-board reading (§ 2) would credit `topk:2` more (2.3) and
+      `prefix:0` about the same (3.2): the factors are, if anything, low.
 
     A **flip** is an entry green under `base` and red under the policy; a
     **fix** the reverse. Forced entries (no rollout under `base`) are left out.
@@ -144,7 +150,7 @@ inclusive shares of the whole search): the tree's moves through the engine
 22.6%, the per-node move enumeration for each sampled world (`keyedMovesFor`)
 14.7%, of which `enumerateDoomedManaFloatMoves` alone 9.9%, the expansion's
 priors (`computeActionPriors`) 6.7%. On a field board no ply is a forced pass:
-every ply enumerates, a third of them probe 7–8 candidates, and the probes
+every ply enumerates, a quarter of them probe 6.7–8.4 candidates, and the probes
 are two thirds of the search.
 
 ### 2. Speed: what each candidate buys
@@ -242,7 +248,7 @@ node $B/run-rollout-browsers.mjs /tmp/rollout.js /tmp/browsers.json \
      --iterations 200 --rounds 2 --field field-jh7bkzta.json --field-iterations 10
 # 3. quality (slices in parallel, then read together)
 P=base,topk:2,topk:3,prefix:0,prefix:3,cap:16
-node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/decl-1.jsonl --policies $P --every 3 --slice 1/4
+node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/decl-1.jsonl --policies $P --every 4 --slice 1/4
 node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/gecko-1.jsonl --policies $P --budget 71 \
      --time-factors topk:2=1.66,topk:3=1.48,prefix:0=3.28,prefix:3=1.16,cap:16=1.13 --slice 1/3
 node $B/summarize-rollout.mjs /tmp/decl-*.jsonl

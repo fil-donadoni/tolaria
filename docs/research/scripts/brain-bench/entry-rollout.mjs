@@ -32,6 +32,7 @@ function blade(index, { iterations, seed, policy }) {
     const scenario = MUST[index];
     installPolicy(policy);
     resetCounters();
+    globalThis.__benchLastTrace = null;
     const result = runBladeScenario({
         ...scenario,
         seeds: [seed],
@@ -41,6 +42,9 @@ function blade(index, { iterations, seed, policy }) {
     return {
         ok: row.ok,
         move: row.move ? moveKey(row.move) : null,
+        // The iterations the search completed: it stops early once the
+        // root's pick is settled, so fewer than `iterations` is common.
+        completed: globalThis.__benchLastTrace?.iterationsCompleted ?? null,
         counters: readCounters(),
     };
 }
