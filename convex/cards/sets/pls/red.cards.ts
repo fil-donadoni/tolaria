@@ -93,22 +93,6 @@ export const calderaKavu = defineCard(() => ({
     ],
 }));
 
-// Implode — {4}{R} Sorcery. "Destroy target land.\nDraw a card." (CR 701.8
-// destroy; CR 121 draw — two already-registered Ops, no new capability.)
-export const implode = defineCard(() => ({
-    id: "a76ee318-8126-4ebf-884d-8369ae8726ac", // PLS 62
-    rarity: "uncommon",
-    name: "Implode",
-    oracleText: "Destroy target land.\nDraw a card.",
-    manaCost: { X: 4, R: 1 },
-    types: ["Sorcery"],
-    targetRequirement: { type: "Land", count: 1 },
-    effects: [
-        { op: "destroy", target: { target: 0 } },
-        { op: "draw", player: "controller", count: 1 },
-    ],
-}));
-
 // Insolence — {2}{R} Enchantment — Aura. "Enchant creature.\nWhenever
 // enchanted creature becomes tapped, this Aura deals 2 damage to that
 // creature's controller." (CR 303.4 aura attachment; CR 701.26a becomes-tapped
@@ -458,20 +442,6 @@ export const singe = defineCard(() => ({
             duration: { phase: "end-of-turn" },
         },
     ],
-}));
-
-// Strafe — {R} Sorcery. "Strafe deals 3 damage to target nonred creature."
-// (CR 120 damage; `excludeColors: "R"` narrows the announced target, CR
-// 202.2.)
-export const strafe = defineCard(() => ({
-    id: "ec8b77cf-9c1e-4c8f-b452-295cc1570d0e", // PLS 73
-    rarity: "uncommon",
-    name: "Strafe",
-    oracleText: "Strafe deals 3 damage to target nonred creature.",
-    manaCost: { R: 1 },
-    types: ["Sorcery"],
-    targetRequirement: { type: "Creature", count: 1, excludeColors: "R" },
-    effects: [{ op: "dealDamage", amount: 3, to: { target: 0 } }],
 }));
 
 // Tahngarth, Talruum Hero — {3}{R}{R} Legendary Creature — Minotaur Warrior,
