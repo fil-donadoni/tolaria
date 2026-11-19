@@ -30,10 +30,20 @@ describe("computeDeckColors", () => {
         ).toEqual(["R"]);
     });
 
-    it("a basic land contributes the color of mana it produces (getCardColorIdentity, deck-builder color identity)", () => {
+    it("a land adds no colour — Ziatora's Proving Ground in an R deck stays R (issue #9994)", () => {
+        expect(
+            computeDeckColors([
+                { cardId: BOLT_LEA, cardName: "Lightning Bolt" },
+                { cardId: MOUNTAIN, cardName: "Mountain" },
+                {
+                    cardId: "75fdce80-e338-4a50-bdc6-786511feaeef",
+                    cardName: "Ziatora's Proving Ground",
+                },
+            ])
+        ).toEqual(["R"]);
         expect(
             computeDeckColors([{ cardId: MOUNTAIN, cardName: "Mountain" }])
-        ).toEqual(["R"]);
+        ).toEqual([]);
     });
 
     it("an empty deck has no colors", () => {

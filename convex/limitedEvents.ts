@@ -62,6 +62,7 @@ import {
     makeResolveBasicLand,
 } from "./limited/resolveBasicLand";
 import { getCardColorIdentity, getPipCountsFromCost } from "./cards/colors";
+import { humanDeckColors } from "./limited/humanDeckColors";
 import { manaValue } from "./gre/constants";
 import { freshSeed, makeRng } from "./gre/rng";
 import {
@@ -1085,7 +1086,7 @@ async function loadHumanDecksBySeat(
             // the review classifies the card by its definition.
             cards: row.cards.map(reviewDeckCard),
             sideboard: (row.sideboard ?? []).map(reviewDeckCard),
-            colors: row.colors,
+            colors: humanDeckColors(row),
         });
     }
     return bySeat;
