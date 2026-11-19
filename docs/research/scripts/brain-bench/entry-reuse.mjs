@@ -189,7 +189,10 @@ function reuse(index, { iterations }) {
     };
     const treeReply = (real, pid, node, keyed) => {
         const key = treeReplyKey(node);
-        return keyed.find((e) => e.key === key) ?? searchReply(real, pid, node, keyed);
+        return (
+            keyed.find((e) => e.key === key) ??
+            searchReply(real, pid, node, keyed)
+        );
     };
     const passReply = (real, pid, node, keyed) =>
         keyed.find((e) => e.move.kind === "pass") ??

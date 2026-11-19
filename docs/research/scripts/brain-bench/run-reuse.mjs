@@ -10,7 +10,12 @@
 // entry, its first declared seed and the budget. `--slice i/n` runs every
 // n-th sampled entry from the i-th, so n processes share the sample.
 
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+    appendFileSync,
+    mkdirSync,
+    readFileSync,
+    writeFileSync,
+} from "node:fs";
 import { loadavg } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -74,7 +79,8 @@ if (command === "build" && rest[0]) {
 
 function quantiles(xs) {
     const s = [...xs].sort((a, b) => a - b);
-    const q = (p) => (s.length ? s[Math.min(s.length - 1, Math.floor(p * s.length))] : NaN);
+    const q = (p) =>
+        s.length ? s[Math.min(s.length - 1, Math.floor(p * s.length))] : NaN;
     const mean = s.reduce((a, b) => a + b, 0) / (s.length || 1);
     return { n: s.length, mean, p25: q(0.25), p50: q(0.5), p75: q(0.75) };
 }
@@ -97,22 +103,71 @@ function summarize(rows) {
     const a = searched.filter(
         (r) => r.search.reached === "bot" && r.search.steps.length === 1
     );
-    console.log(`\ncase A — Bot decides again right after its move (${a.length})`);
-    console.log(line("kept share of root visits", a.map((r) => r.search.keptVisits / r.total)));
+    console.log(
+        `\ncase A — Bot decides again right after its move (${a.length})`
+    );
+    console.log(
+        line(
+            "kept share of root visits",
+            a.map((r) => r.search.keptVisits / r.total)
+        )
+    );
     // Case B: the opponent decides in between.
     for (const reply of ["search", "tree", "pass"]) {
         const b = searched.filter(
             (r) => r[reply].steps.length > 1 && r[reply].reached === "bot"
         );
-        console.log(`\ncase B — opponent replies (${reply}), Bot decides again (${b.length})`);
-        console.log(line("under Bot move (1st step)", b.map((r) => r[reply].steps[0].visits / r.total)));
-        console.log(line("kept at Bot's next decision", b.map((r) => r[reply].keptVisits / r.total)));
+        console.log(
+            `\ncase B — opponent replies (${reply}), Bot decides again (${b.length})`
+        );
+        console.log(
+            line(
+                "under Bot move (1st step)",
+                b.map((r) => r[reply].steps[0].visits / r.total)
+            )
+        );
+        console.log(
+            line(
+                "kept at Bot's next decision",
+                b.map((r) => r[reply].keptVisits / r.total)
+            )
+        );
         const crossed = b.filter((r) => r[reply].crossedTurn);
-        console.log(line("  of which crossed a turn", crossed.map((r) => r[reply].keptVisits / r.total)));
+        console.log(
+            line(
+                "  of which crossed a turn",
+                crossed.map((r) => r[reply].keptVisits / r.total)
+            )
+        );
+        // The replies that were a real choice: some opponent step offered
+        // more than one option. A forced reply (one option) keeps everything
+        // under the Bot's move by construction.
+        const chose = b.filter((r) =>
+            r[reply].steps.some((s) => s.mover === "opp" && s.options > 1)
+        );
+        console.log(
+            line(
+                "  opponent had a real choice",
+                chose.map((r) => r[reply].keptVisits / r.total)
+            )
+        );
+        console.log(
+            line(
+                "  ...kept / under Bot move",
+                chose.map(
+                    (r) =>
+                        r[reply].keptVisits /
+                        Math.max(1, r[reply].steps[0].visits)
+                )
+            )
+        );
         const off = b.filter((r) => r[reply].keptVisits === 0).length;
-        console.log(`  off the tree (0 kept): ${off}/${b.length}; Bot drew on the way: ${b.filter((r) => r[reply].botDrew).length}`);
+        console.log(
+            `  off the tree (0 kept): ${off}/${b.length}; Bot drew on the way: ${b.filter((r) => r[reply].botDrew).length}`
+        );
     }
     const reached = {};
-    for (const r of searched) reached[r.search.reached] = (reached[r.search.reached] ?? 0) + 1;
+    for (const r of searched)
+        reached[r.search.reached] = (reached[r.search.reached] ?? 0) + 1;
     console.log(`\nwalk ends (search reply): ${JSON.stringify(reached)}`);
 }
