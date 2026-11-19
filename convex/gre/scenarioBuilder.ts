@@ -121,6 +121,8 @@ import {
     type ScenarioCard,
     type ScenarioContinuousEffect,
     type ScenarioContinuousEffectPayload,
+    type ScenarioDepartedAttacker,
+    type ScenarioDepartedBlocker,
     type ScenarioRestrictedMana,
     type ScenarioResolutionCheckpoint,
     type ScenarioSpec,
@@ -128,6 +130,7 @@ import {
     type ScenarioStackTarget,
     type ScenarioObjectRef,
     type ScenarioTriggerEvent,
+    type ScenarioZoneObjectRef,
 } from "../debugScenarioSpec";
 import {
     lowerResolutionCheckpoint,
@@ -148,6 +151,7 @@ import {
     exileFaceDownCard,
     getOpponentId,
     isDepartedCombatantId,
+    mintDepartedCombatantId,
     pushContinuousEffect,
     resolveTopOfStack,
     stampGraveyardStaticSources,
@@ -186,6 +190,7 @@ import {
     validateDeclaredBlockers,
 } from "./combat";
 import { recordBlockedAttackers } from "./banding";
+import { findCardInAnyZone } from "./lookup";
 import type { Phase } from "./types";
 import { openPeekTopCount } from "./libraryKnownRuns";
 
@@ -1806,6 +1811,91 @@ function resolveCombatants(
     });
 }
 
+/** CR 400.1 — the cards of one zone a {@link ScenarioZoneObjectRef} names. */
+function zoneRefPool(
+    player: PlayerState,
+    zone: ScenarioZoneObjectRef["zone"]
+): CardInstanceState[] {
+    return zone === "hand" ? player.hand : zoneCards(player, zone);
+}
+
+/**
+ * CR 506.4 / 400.7 (issue #10120) — the tombstone a DEPARTED combat slot
+ * rebuilds to, minted by the engine's own writer (`mintDepartedCombatantId`)
+ * so it is an id no object answers to by the rule a live one is.
+ *
+ * `now` names the card the combatant was: the tombstone is minted off that
+ * card's rebuilt id, which is what writes the `departedCombatants` entry the
+ * last-known lookups read (CR 608.2h). With no `now` the object is one nothing
+ * can ask about by id — a token that ceased to exist (CR 111.7) — and the
+ * tombstone is minted off a FRESH instance id, exactly what the live record
+ * holds: the id of an object that is gone.
+ *
+ * A `now` the board does not hold is a THROW, for the reason
+ * `resolveCombatants` gives.
+ */
+function seedDepartedSlot(
+    state: GameState,
+    now: ScenarioZoneObjectRef | undefined,
+    mySeatId: string,
+    role: string
+): string {
+    const combat = state.combat!;
+    if (!now) return mintDepartedCombatantId(combat, allocInstanceId(state));
+    const player = state.players.find((p) =>
+        now.seat === "me" ? p.id === mySeatId : p.id !== mySeatId
+    )!;
+    const defId = combatDefId(now.name);
+    const card = zoneRefPool(player, now.zone).filter(
+        (c) => (c.card as { id?: string }).id === defId
+    )[now.nth ?? 0];
+    if (!card) {
+        throw new Error(
+            `buildStateFromScenario: combat names "${now.name}" (nth ${now.nth ?? 0}) in ${now.seat}'s ${now.zone} as the card ${role} was, but that zone holds no such object.`
+        );
+    }
+    return mintDepartedCombatantId(combat, card.id);
+}
+
+/**
+ * CR 506.4 (issue #10120) — the attacker SLOTS of a declared combat: the live
+ * attackers in their declared order with each departed slot inserted at its
+ * own index. This is the rebuilt `attackerIds`, and the list every `blocking`
+ * index points into. Slots that collide or fall outside the list THROW: a
+ * record one slot short is a different combat.
+ */
+function seedAttackerSlots(
+    state: GameState,
+    attackers: CardInstanceState[],
+    departed: NonNullable<
+        NonNullable<ScenarioSpec["combat"]>["departed"]
+    >["attackers"],
+    mySeatId: string
+): string[] {
+    const total = attackers.length + (departed?.length ?? 0);
+    const slots = new Array<string | undefined>(total).fill(undefined);
+    for (const entry of departed ?? []) {
+        if (
+            !Number.isInteger(entry.slot) ||
+            entry.slot < 0 ||
+            entry.slot >= total ||
+            slots[entry.slot] !== undefined
+        ) {
+            throw new Error(
+                `buildStateFromScenario: a departed attacker names slot ${entry.slot}, which is taken or outside the combat's ${total} attacker slot(s).`
+            );
+        }
+        slots[entry.slot] = seedDepartedSlot(
+            state,
+            entry.now,
+            mySeatId,
+            "a departed attacker"
+        );
+    }
+    const live = attackers.map((attacker) => attacker.id);
+    return slots.map((slot) => slot ?? live.shift()!);
+}
+
 /**
  * CR 508.1 / 509.1 (issue #3458, PRD #3397) — seed a combat that has already
  * been DECLARED, the position class `phase: "DECLARE_ATTACKERS"` alone could
@@ -1860,6 +1950,7 @@ function seedDeclaredCombat(
     const declared =
         combat.attackers !== undefined ||
         combat.blockers !== undefined ||
+        combat.departed !== undefined ||
         combat.confirmed !== undefined ||
         combat.blockersConfirmed !== undefined;
 
@@ -1874,6 +1965,17 @@ function seedDeclaredCombat(
             blockersConfirmed: false,
         };
         for (const attacker of attackers) markAttacking(state, attacker);
+        // CR 506.4 (issue #10120) — the record keeps the slot of an attacker
+        // that left the battlefield, under a tombstone. Written straight into
+        // `attackerIds` and deliberately NOT through `markAttacking`: no
+        // permanent is attacking in that slot, which is the whole point of it.
+        const attackerSlots = seedAttackerSlots(
+            state,
+            attackers,
+            combat.departed?.attackers,
+            mySeatId
+        );
+        state.combat.attackerIds = attackerSlots;
         state.combat.confirmed = combat.confirmed ?? false;
 
         const blockers = resolveCombatants(
@@ -1881,20 +1983,38 @@ function seedDeclaredCombat(
             blockerEntries.map((entry) => entry.blocker),
             "a blocker"
         );
-        blockerEntries.forEach((entry, index) => {
-            const blocker = blockers[index];
-            state.combat!.blockerAssignments[blocker.id] = entry.blocking.map(
-                (attackerIndex) => {
-                    const attacker = attackers[attackerIndex];
-                    if (!attacker) {
-                        throw new Error(
-                            `buildStateFromScenario: blocker "${entry.blocker}" blocks attacker #${attackerIndex}, which the combat's ${attackers.length} attacker(s) do not include.`
-                        );
-                    }
-                    return attacker.id;
+        const blockedSlots = (blocker: string, blocking: number[]): string[] =>
+            blocking.map((slot) => {
+                const attackerId = attackerSlots[slot];
+                if (attackerId === undefined) {
+                    throw new Error(
+                        `buildStateFromScenario: ${blocker} blocks attacker #${slot}, which the combat's ${attackerSlots.length} attacker slot(s) do not include.`
+                    );
                 }
+                return attackerId;
+            });
+        blockerEntries.forEach((entry, index) => {
+            state.combat!.blockerAssignments[blockers[index].id] = blockedSlots(
+                `blocker "${entry.blocker}"`,
+                entry.blocking
             );
         });
+        // CR 509.1h — a blocker that left the battlefield keeps its
+        // assignment under a tombstone, which is what keeps the attacker it
+        // blocked BLOCKED below (`recordBlockedAttackers` reads the record,
+        // not the battlefield).
+        for (const entry of combat.departed?.blockers ?? []) {
+            const tombstone = seedDepartedSlot(
+                state,
+                entry.now,
+                mySeatId,
+                "a departed blocker"
+            );
+            state.combat.blockerAssignments[tombstone] = blockedSlots(
+                "a departed blocker",
+                entry.blocking
+            );
+        }
         // CR 509.1g — `isBlocking`/`hasBlockedThisTurn` for every assignment,
         // through the one function allowed to write them.
         markDeclaredBlockers(state);
@@ -3541,6 +3661,11 @@ const COMBAT_STATE_ALLOWLIST = new Set<string>([
     "blockersConfirmed",
     "blockedAttackerIds",
     "attackedPlayerIds",
+    // CR 506.4 (issue #10120) — lowered slot by slot as `combat.departed`. An
+    // entry whose tombstone sits in no attacker slot and keys no assignment
+    // answers nothing (`getAttackTarget` checks the slot, `combatPartnerIds`
+    // the assignments), so one the slots do not account for is not a loss.
+    "departedCombatants",
 ]);
 
 /**
@@ -3661,11 +3786,61 @@ function lowerCombat(
 
     const combat = state.combat;
     const lowered: NonNullable<ScenarioSpec["combat"]> = {};
+    // The live attackers, and every lowered attacker SLOT — those plus the
+    // departed ones, in the record's own order. `blocking` indexes the slots.
     const attackerIds: string[] = [];
+    const attackerSlots: string[] = [];
+    const departedAttackers: ScenarioDepartedAttacker[] = [];
+    const departedBlockers: ScenarioDepartedBlocker[] = [];
+
+    /**
+     * CR 506.4 / 608.2h (issue #10120) — where the card that was the departed
+     * combatant `tombstone` sits now, for the rebuild to key its last-known
+     * lookup by. Three answers:
+     *
+     *  - a card in a zone the spec names → `now`;
+     *  - no object at all — a token that ceased to exist (CR 111.7), or a
+     *    tombstone a later departure of the same card superseded — → nothing:
+     *    no id is left for a lookup to be asked with;
+     *  - a card that IS somewhere and cannot be named (a library, the stack,
+     *    face down, a hidden hand) → reported. The slot is still lowered, so
+     *    the combat's history survives; what the rebuild loses is exactly the
+     *    lookup by that card's id, and the note says so.
+     */
+    const departedNow = (
+        tombstone: string,
+        role: string
+    ): { now?: ScenarioZoneObjectRef } => {
+        const original = Object.entries(combat?.departedCombatants ?? {}).find(
+            ([, retired]) => retired === tombstone
+        )?.[0];
+        if (original === undefined) return {};
+        const now = lowerZoneObjectRef(state, original, (playerId) =>
+            playerId === mySeatId ? "me" : "opp"
+        );
+        if (now !== undefined && now !== "absent") return { now };
+        const card = findCardInAnyZone(state, original);
+        const inFlight = state.stack.some((item) => item.id === original);
+        const ceased = card ? card.isToken === true : !inFlight;
+        if (!ceased) {
+            dropped.push(
+                `${COMBAT_DROPPED_PREFIX} ${role} that left the battlefield (CR 506.4) is now a card the spec cannot name — in a library, on the stack, face down or in a hidden hand — so the rebuild cannot answer what it was attacking or blocking by that card's id (CR 608.2h)`
+            );
+        }
+        return {};
+    };
 
     if (combat) {
         for (const id of combat.attackerIds) {
             const attacker = onBattlefield(id);
+            if (!attacker && isDepartedCombatantId(id)) {
+                departedAttackers.push({
+                    slot: attackerSlots.length,
+                    ...departedNow(id, "an attacker"),
+                });
+                attackerSlots.push(id);
+                continue;
+            }
             if (!attacker) {
                 dropped.push(
                     `${COMBAT_DROPPED_PREFIX} an attacker is on no battlefield — not lowered`
@@ -3684,6 +3859,7 @@ function lowerCombat(
                 continue;
             }
             attackerIds.push(id);
+            attackerSlots.push(id);
         }
         lowered.attackers = attackerIds.map((id) =>
             presentedName(onBattlefield(id)!)
@@ -3695,27 +3871,34 @@ function lowerCombat(
             combat.blockerAssignments
         )) {
             const blocker = onBattlefield(blockerId);
-            if (!blocker) {
+            // CR 506.4 (issue #10120) — a blocker that left the battlefield
+            // keeps its assignment under a tombstone, and is lowered as the
+            // departed slot it is.
+            const departed = !blocker && isDepartedCombatantId(blockerId);
+            if (!blocker && !departed) {
                 dropped.push(
                     `${COMBAT_DROPPED_PREFIX} a blocker is on no battlefield — its assignment is not lowered`
                 );
                 continue;
             }
-            if (blocker.faceDown) {
+            if (blocker?.faceDown) {
                 dropped.push(
                     `${COMBAT_DROPPED_PREFIX} a FACE-DOWN permanent is in combat — a face-down creature has no card name for the spec to reference`
                 );
                 continue;
             }
-            // The attackers it was declared against, as INDEXES into the list
-            // above — the one edge two identical attacking creatures make a
-            // name unable to state (CR 509.1a).
+            const named = blocker
+                ? `"${presentedName(blocker)}"`
+                : "a blocker that left the battlefield";
+            // The attackers it was declared against, as INDEXES into the
+            // attacker slots — the one edge two identical attacking creatures
+            // make a name unable to state (CR 509.1a).
             const blocking = blockedIds
-                .map((id) => attackerIds.indexOf(id))
+                .map((id) => attackerSlots.indexOf(id))
                 .filter((index) => index !== -1);
             if (blocking.length !== blockedIds.length) {
                 dropped.push(
-                    `${COMBAT_DROPPED_PREFIX} "${presentedName(blocker)}" blocks a creature that is no longer among the declared attackers — that assignment is not lowered`
+                    `${COMBAT_DROPPED_PREFIX} ${named} blocks a creature that is no longer among the declared attackers — that assignment is not lowered`
                 );
             }
             if (blocking.length === 0) {
@@ -3723,8 +3906,15 @@ function lowerCombat(
                 // attacker. An entry whose array is empty is `isBlocking`
                 // with nothing to carry it, so the flag would come back unset.
                 dropped.push(
-                    `${COMBAT_DROPPED_PREFIX} "${presentedName(blocker)}" is recorded as blocking nothing — the spec has no entry for a blocker with no attacker, so it comes back NOT blocking`
+                    `${COMBAT_DROPPED_PREFIX} ${named} is recorded as blocking nothing — the spec has no entry for a blocker with no attacker, so it comes back NOT blocking`
                 );
+                continue;
+            }
+            if (!blocker) {
+                departedBlockers.push({
+                    blocking,
+                    ...departedNow(blockerId, "a blocker"),
+                });
                 continue;
             }
             lowered.blockers.push({
@@ -3734,6 +3924,16 @@ function lowerCombat(
             blockerIds.push(blockerId);
         }
         lowered.blockersConfirmed = combat.blockersConfirmed;
+        if (departedAttackers.length > 0 || departedBlockers.length > 0) {
+            lowered.departed = {
+                ...(departedAttackers.length > 0
+                    ? { attackers: departedAttackers }
+                    : {}),
+                ...(departedBlockers.length > 0
+                    ? { blockers: departedBlockers }
+                    : {}),
+            };
+        }
 
         // CR 509.1h — the rebuild re-derives this from the assignments through
         // the engine's own `recordBlockedAttackers`, so it is not a spec field.
@@ -4128,6 +4328,32 @@ function lowerEventObjectRef(
     instanceId: string,
     seatOf: (playerId: string) => "me" | "opp"
 ): ScenarioObjectRef | undefined {
+    const inZone = lowerZoneObjectRef(state, instanceId, seatOf);
+    if (inZone !== "absent") return inZone;
+    // CR 405.1 — an object still in flight: the spell whose SPELL_CAST fired
+    // this trigger is on the stack under it. A reference must point LOWER than
+    // the referring item, the rule `lowerStackTarget` already applies to an
+    // announced target — an event naming something ABOVE its own trigger is
+    // not a position this lowering can have produced.
+    const index = state.stack.findIndex((s) => s.id === instanceId);
+    if (index === -1) return undefined;
+    const own = state.stack.findIndex((s) => s === item);
+    if (own !== -1 && index >= own) return undefined;
+    return { zone: "stack", index };
+}
+
+/**
+ * CR 400.1 — the CARD-in-a-zone half of {@link lowerEventObjectRef}, shared
+ * with the combat lowering's departed slots (issue #10120). `"absent"` when
+ * `instanceId` is in none of the four zones the vocabulary names; `undefined`
+ * when it is there and cannot be named (face down, a hidden-hand placeholder,
+ * a token off the battlefield).
+ */
+function lowerZoneObjectRef(
+    state: GameState,
+    instanceId: string,
+    seatOf: (playerId: string) => "me" | "opp"
+): ScenarioZoneObjectRef | undefined | "absent" {
     for (const player of state.players) {
         for (const zone of [
             "battlefield",
@@ -4159,16 +4385,7 @@ function lowerEventObjectRef(
             };
         }
     }
-    // CR 405.1 — an object still in flight: the spell whose SPELL_CAST fired
-    // this trigger is on the stack under it. A reference must point LOWER than
-    // the referring item, the rule `lowerStackTarget` already applies to an
-    // announced target — an event naming something ABOVE its own trigger is
-    // not a position this lowering can have produced.
-    const index = state.stack.findIndex((s) => s.id === instanceId);
-    if (index === -1) return undefined;
-    const own = state.stack.findIndex((s) => s === item);
-    if (own !== -1 && index >= own) return undefined;
-    return { zone: "stack", index };
+    return "absent";
 }
 
 /** Why ONE field of a firing event blocked (issue #9868) — the sentence the

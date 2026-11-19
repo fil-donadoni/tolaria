@@ -18,13 +18,18 @@ import {
 } from "../verdicts/stackFingerprint";
 import { applyMoveInSearch } from "../../search";
 import { getCardByName } from "../../../cards";
-import { withTemporaryDefinition } from "../../../cards/registry";
+import {
+    getDefinition,
+    withTemporaryDefinition,
+} from "../../../cards/registry";
 import { isDepartedCombatantId, resolveTopOfStack } from "../../state";
-import { specFromState } from "../../scenarioBuilder";
+import { COMBAT_DROPPED_PREFIX, specFromState } from "../../scenarioBuilder";
+import { combatPartnerIds, findCardInAnyZone } from "../../lookup";
+import { normalizeScenarioSpec } from "../../../debugScenarioSpec";
 import { getEffectivePower, getEffectiveToughness } from "../../layers";
 import { describeMove } from "../../describeMove";
 import type { BladeSetupStep } from "../blade/types";
-import type { GameState, StackItem } from "../../state";
+import type { CardInstanceState, GameState, StackItem } from "../../state";
 import type {
     CardDefinition,
     EffectOp,
@@ -720,9 +725,8 @@ describe("a trigger that cannot read its event is declared without the fields th
      *  sitting in a graveyard was "unnameable". Neither field is readable by
      *  Ajani's script, so the stack is declared without both.
      *
-     *  Asserted on `specFromState`, the stack's own verdict: this decision is
-     *  still refused further down as `combat-not-captured` (the combat record
-     *  holds the two tombstones) — a different wall, issue #10120. */
+     *  Asserted on `specFromState`, the stack's own verdict; the combat record
+     *  holding the two tombstones is the suite below (issue #10120). */
     it("declares Ajani's trigger off a Cat Warrior token blocked by Phelia — no stack blocker", () => {
         const state = ajaniTokenBlockedByPheliaPosition();
         const botId = state.players[0].id;
@@ -790,6 +794,232 @@ describe("a trigger that cannot read its event is declared without the fields th
                 ).toContain("retired combat-record id (CR 506.4)");
             }
         );
+    });
+});
+
+function cardName(card: CardInstanceState): string {
+    return getDefinition((card.card as { id: string }).id).name;
+}
+
+/** What the combat record says to the readers of its HISTORY, in a frame a
+ *  live board and its rebuild share: slots by position, cards by name, players
+ *  by seat — never an instance id, which a rebuild reassigns. A slot nothing on
+ *  a battlefield answers to reads `departed`. */
+function combatHistory(state: GameState, botId: string) {
+    const combat = state.combat;
+    if (!combat) throw new Error("no combat");
+    const nameOf = (id: string): string =>
+        cardName(findCardInAnyZone(state, id)!);
+    const slot = (id: string): string =>
+        isDepartedCombatantId(id) ? "departed" : nameOf(id);
+    const blockers = Object.keys(combat.blockerAssignments);
+    return {
+        attackers: combat.attackerIds.map(slot),
+        // CR 509.1h — blocked or unblocked, per attacker slot.
+        blocked: combat.attackerIds.map(
+            (id) => combat.blockedAttackerIds?.includes(id) ?? false
+        ),
+        // CR 509.1a — who blocks which slot, and who each slot's partners are.
+        blockers: blockers
+            .map((id) => ({
+                blocker: slot(id),
+                blocking: combat.blockerAssignments[id].map((attackerId) =>
+                    combat.attackerIds.indexOf(attackerId)
+                ),
+            }))
+            .sort((a, b) => a.blocker.localeCompare(b.blocker)),
+        partners: combat.attackerIds.map((id) =>
+            combatPartnerIds(state, id).map(slot).sort()
+        ),
+        // CR 508.1b — the players the declaration attacked.
+        attackedPlayers: (combat.attackedPlayerIds ?? []).map((id) =>
+            id === botId ? "me" : "opp"
+        ),
+        // CR 608.2h — the last-known lookups: a card still in a zone, and the
+        // slot it left behind.
+        lookups: Object.entries(combat.departedCombatants ?? {})
+            .filter(([original]) => findCardInAnyZone(state, original))
+            .map(([original, tombstone]) => ({
+                card: nameOf(original),
+                attackerSlot: combat.attackerIds.indexOf(tombstone),
+                blockerSlot: blockers.includes(tombstone),
+            })),
+    };
+}
+
+/** Savannah Lions attacks and Grizzly Bears blocks, then `response` is cast
+ *  on the Lions by `by` and resolves — the attacker leaves the battlefield
+ *  mid-combat with the Bot holding priority afterwards. */
+function lionsBlockedThenRemovedPosition(
+    response: string,
+    by: "me" | "opp"
+): GameState {
+    return engineBuilt(
+        {
+            cards: [
+                { name: "Savannah Lions", owner: "me" },
+                { name: "Plains", owner: "me", count: 2 },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me" },
+                { name: "Grizzly Bears", owner: "opp" },
+                { name: "Plains", owner: "opp", count: 2 },
+                { name: response, owner: by, zone: "hand" },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            activePlayer: "me",
+            landCount: 0,
+            libraryCount: 20,
+        },
+        [
+            { kind: "declare-attackers" },
+            {
+                kind: "declare-blockers",
+                blocks: [
+                    { blocker: "Grizzly Bears", attacker: "Savannah Lions" },
+                ],
+            },
+            ...(by === "opp"
+                ? [{ kind: "pass" as const, seat: "me" as const }]
+                : []),
+            {
+                kind: "cast",
+                card: response,
+                by,
+                target: "Savannah Lions",
+                x: 0,
+            },
+            { kind: "resolve-top" },
+        ]
+    );
+}
+
+describe("a combat record naming departed combatants is declared slot by slot (issue #10120)", () => {
+    /** CR 506.4 / CR 509.1h — the report of issue #9868, past the stack: the
+     *  Cat Warrior token and Phelia traded, so the record holds an attacker
+     *  slot and a blocker slot under tombstones and nothing on a battlefield
+     *  is in combat. The decision is judgeable, and the rebuilt record gives
+     *  every history reader the answer the live one gives. */
+    it("judges the decision over Ajani's died trigger, on a rebuilt record that answers as the live one does", () => {
+        const state = ajaniTokenBlockedByPheliaPosition();
+        const botId = state.players[0].id;
+        expectJudgeable(state, botId);
+
+        const outcome = lower(state, botId);
+        if (!outcome.ok) throw new Error(`refused ${outcome.kind}`);
+        const { spec, dropped } = outcome.lowered;
+        expect(
+            dropped.filter((note) => note.startsWith(COMBAT_DROPPED_PREFIX))
+        ).toEqual([]);
+        expect(spec.combat?.attackers).toEqual([]);
+        expect(spec.combat?.departed).toEqual({
+            // CR 111.7 — the token ceased to exist: a slot, and no card.
+            attackers: [{ slot: 0 }],
+            blockers: [
+                {
+                    blocking: [0],
+                    now: {
+                        zone: "graveyard",
+                        name: "Phelia, Exuberant Shepherd",
+                        seat: "opp",
+                    },
+                },
+            ],
+        });
+        // The stored row is read back through the tolerant normalizer.
+        expect(normalizeScenarioSpec(spec).combat?.departed).toEqual(
+            spec.combat?.departed
+        );
+
+        const rebuilt = buildVerdictPosition(spec);
+        const history = combatHistory(rebuilt, rebuilt.players[0].id);
+        expect(history).toEqual(combatHistory(state, botId));
+        expect(history).toEqual({
+            attackers: ["departed"],
+            blocked: [true],
+            blockers: [{ blocker: "departed", blocking: [0] }],
+            partners: [["departed"]],
+            attackedPlayers: ["opp"],
+            lookups: [
+                {
+                    card: "Phelia, Exuberant Shepherd",
+                    attackerSlot: -1,
+                    blockerSlot: true,
+                },
+            ],
+        });
+    });
+
+    /** CR 400.7 — Ephemerate exiles the blocked Lions and returns it: the card
+     *  is back on the battlefield, a new object in no combat slot, while the
+     *  slot it left stays blocked by the Bears. The rebuilt slot must be the
+     *  tombstone, never the returned card's id — that would put the new
+     *  object back into the combat it left. */
+    it("rebuilds a departed slot that answers no battlefield lookup, even with the card back on the battlefield", () => {
+        const state = lionsBlockedThenRemovedPosition("Ephemerate", "me");
+        const botId = state.players[0].id;
+        const { spec, dropped } = specFromState(state, { mySeatId: botId });
+        expect(
+            dropped.filter((note) => note.startsWith(COMBAT_DROPPED_PREFIX))
+        ).toEqual([]);
+        expect(spec.combat?.attackers).toEqual([]);
+        expect(spec.combat?.departed).toEqual({
+            attackers: [
+                {
+                    slot: 0,
+                    now: {
+                        zone: "battlefield",
+                        name: "Savannah Lions",
+                        seat: "me",
+                    },
+                },
+            ],
+        });
+
+        const rebuilt = buildVerdictPosition(spec);
+        const combat = rebuilt.combat!;
+        const battlefieldIds = rebuilt.players.flatMap((p) =>
+            p.battlefield.map((c) => c.id)
+        );
+        const [slot] = combat.attackerIds;
+        expect(combat.attackerIds).toHaveLength(1);
+        expect(isDepartedCombatantId(slot)).toBe(true);
+        expect(battlefieldIds).not.toContain(slot);
+
+        const lions = rebuilt.players[0].battlefield.find(
+            (c) => cardName(c) === "Savannah Lions"
+        )!;
+        expect(lions.isAttacking).toBeFalsy();
+        expect(combatPartnerIds(rebuilt, lions.id)).toEqual([]);
+        // CR 608.2h — the lookup by the card's id finds the slot it left.
+        expect(combat.departedCombatants).toEqual({ [lions.id]: slot });
+        expect(combatHistory(rebuilt, rebuilt.players[0].id)).toEqual(
+            combatHistory(state, botId)
+        );
+    });
+
+    /** The guard: Unexpectedly Absent puts the blocked Lions into its owner's
+     *  LIBRARY, which the spec fills by count and cannot name a card in. The
+     *  slot is still declared — the Bears' attacker stays blocked — but the
+     *  lookup by the Lions' id has nothing to be rebuilt from, so the fact is
+     *  reported and the decision refused. */
+    it("still refuses, with its own note, a departed combatant now in a zone the spec cannot name", () => {
+        const state = lionsBlockedThenRemovedPosition(
+            "Unexpectedly Absent",
+            "opp"
+        );
+        const botId = state.players[0].id;
+        const { spec, dropped } = specFromState(state, { mySeatId: botId });
+        expect(spec.combat?.departed).toEqual({ attackers: [{ slot: 0 }] });
+        expect(
+            dropped.filter((note) => note.startsWith(COMBAT_DROPPED_PREFIX))
+        ).toEqual([
+            expect.stringContaining(
+                "an attacker that left the battlefield (CR 506.4) is now a card the spec cannot name"
+            ),
+        ]);
+        const outcome = lower(state, botId);
+        expect(outcome.ok ? "ok" : outcome.kind).toBe("combat-not-captured");
     });
 });
 
