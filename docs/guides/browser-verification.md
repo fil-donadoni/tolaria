@@ -60,9 +60,11 @@ mutex (PR #7519). Don't start a second run beside one in flight.
 **Scope** (issues #3627, #3628; ADR 0131). A run with no `--surface=`/`--all`
 walks only the surfaces whose route import closure contains a file this
 checkout changed against the base branch (`scripts/lib/ui-scope.ts`). A
-stylesheet, a design token, a shared UI primitive, the shell, the router,
+stylesheet, a design token, the shell, the router, the catalogue gate,
 `index.html`, `public/**`, the build config, the lane itself, or any path the
-scoper cannot place forces the full run. Tests, scripts and markdown reach
+scoper cannot place forces the full run. A shared UI primitive
+(`src/components/ui/**`) is scoped by the surfaces that import it, like any
+module; one the shell renders is FULL through the shell (issue #10230). Tests, scripts and markdown reach
 nothing, so a diff made only of them walks zero surfaces and says so. A
 **specimen row** of `/admin/design-system` (`dlg-*`, `pick-*`) is scoped by the
 closure of the module it mounts plus its section's, never by the page's whole
