@@ -119,6 +119,7 @@ export function useControllerActions(): ControllerState {
         queuedPassUntilAction,
         combat,
         pendingExtraCleanupStep,
+        mulligan,
         allPlayers,
         emblems,
         continuousEffects,
@@ -938,6 +939,14 @@ export function useControllerActions(): ControllerState {
         });
     }
 
+    // Issue #9980 — inputs the viewer owes that hold no priority: target
+    // selection (CR 601.2c) and the Keep / Mulligan declaration (CR 103.5).
+    const isChoosingTargets = pendingTarget?.playerId === playerId;
+    const isDeclaringMulligan =
+        phase === "MULLIGAN" &&
+        !!mulligan &&
+        !mulligan.bottoming &&
+        mulligan.declaringPlayerId === playerId;
     let cue: ControllerCue;
     if (hasPassIntent) {
         cue = "auto-passing";
@@ -949,6 +958,8 @@ export function useControllerActions(): ControllerState {
         isSelectingAttackers ||
         isSelectingBlockers ||
         isAssigningDamage ||
+        isChoosingTargets ||
+        isDeclaringMulligan ||
         pendingChoiceAction
     ) {
         cue = "mine";
