@@ -10141,7 +10141,8 @@ function runCastDuringResolution(
         subjectCardId !== undefined && !op.includesLand
             ? ctx.getCardName(cardInstanceId)
             : undefined,
-        blockReason
+        // A face row still on offer is something to cast: no "can't" line then.
+        offerFaces.length === 0 ? blockReason : undefined
     );
     const offer = {
         options,
