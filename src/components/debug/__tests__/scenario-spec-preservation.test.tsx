@@ -20,6 +20,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ScenarioSpec } from "@convex/debugScenarioSpec";
+import { cardToDraft, draftToCard } from "../scenario-draft";
 
 import {
     SCENARIO_SPEC_FIELD_OWNER,
@@ -355,6 +356,47 @@ describe("scenario spec field ownership", () => {
             ],
         });
         expect(tooFew.stack).toBeUndefined();
+    });
+
+    it("carries a keyword trigger only while its SUBJECT is still placed (issue #9875)", () => {
+        // CR 702.88a — a Rebound cast-trigger names the exiled card it acts
+        // on, and `seedDeclaredStack` throws on a subject it cannot find.
+        const stack: ScenarioSpec["stack"] = [
+            {
+                kind: "keywordTrigger",
+                name: "Ephemerate",
+                controller: "me",
+                keyword: "rebound",
+                subject: { zone: "exile", name: "Ephemerate", seat: "me" },
+            },
+        ];
+        const exiled = {
+            name: "Ephemerate",
+            owner: "me" as const,
+            zone: "exile" as const,
+            reboundExiled: true,
+        };
+        const kept = assembleScenarioSpec(
+            { ...FORM_ASSEMBLED, cards: [...FORM_ASSEMBLED.cards, exiled] },
+            { ...STORED, stack }
+        );
+        expect(kept.stack).toEqual(stack);
+
+        const removed = assembleScenarioSpec(FORM_ASSEMBLED, {
+            ...STORED,
+            stack,
+        });
+        expect(removed.stack).toBeUndefined();
+
+        // …and the flag the trigger's resolution re-checks survives the
+        // card's own draft round trip, which has no input for it.
+        expect(draftToCard(cardToDraft(exiled))).toEqual(exiled);
+        const warped = { name: "Pinnacle Emissary", owner: "me" as const };
+        expect(
+            draftToCard(
+                cardToDraft({ ...warped, warped: true, madnessExiled: true })
+            )
+        ).toEqual({ ...warped, warped: true, madnessExiled: true });
     });
 
     it("drops an entry the edit made unresolvable by SEAT or by COUNT (issue #3488)", () => {

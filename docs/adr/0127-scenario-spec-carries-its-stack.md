@@ -310,3 +310,41 @@ is declared by position (an attacker's `slot`, a blocker's `blocking`), with
 rebuilt (CR 608.2h). The rebuilt slot is a tombstone minted by the engine's own
 writer, never the card's id. A departed card the spec cannot name (a library,
 the stack, face down, a hidden hand) is still a `combat:` note and a refusal.
+
+## Amendment: the fourth kind, an engine-owned keyword trigger (2026-11-19)
+
+Issue #9875. Rebound's and Madness's reflexive cast-trigger and Warp's delayed
+exile (CR 702.88a, CR 702.35a, CR 702.185a) belong to the keyword, not to a
+card definition: their stack item carries neither `abilityId` nor
+`triggeredAbilityId`, only a marker naming its subject's instance id
+(`reboundTrigger`, `madnessTrigger`, `warpTrigger`). It was therefore labelled
+`spell`, its marker was in no allowlist, and every decision taken over one was
+refused `stack-not-lowerable`.
+
+1. **A fourth kind, `keywordTrigger`: a `keyword` and a `subject`.** No ability
+   id to name and no firing event to carry — the item IS which keyword and
+   which card. The subject is a `ScenarioObjectRef` in the one zone the
+   keyword's resolution looks in (`KEYWORD_TRIGGER_SUBJECT_ZONE`: exile for
+   Rebound and Madness, the battlefield for Warp); the rebuild goes through the
+   engine's own three builders, which stamp the marker with the rebuilt
+   subject's id.
+2. **A closed list, admitted by table, never by allowlist.**
+   `KEYWORD_TRIGGER_MARKER` is exhaustive over the keyword union; a marker of
+   a keyword not in it classifies as nothing and is refused by name. The kind
+   has its own EXACT key list, so an announcement field (`targets`, `chosenX`,
+   a checkpoint) on one is refused rather than excused.
+3. **The subject's flag is card state, and rides the card.** The resolution
+   re-checks `reboundExiled` / `madnessExiled` / `warped` on the subject, so a
+   declared trigger over a card rebuilt without it would resolve to nothing,
+   silently. All three are `ScenarioCard` fields of the same name. (`warped`
+   sat in `CARD_STATE_ALLOWLIST` as "spec-keyed" with no spec field behind it.)
+4. **Fail-closed on the subject.** One the spec cannot name where the keyword
+   expects it — it left the zone, it is face down — refuses the item
+   (`subject:<keyword>`), though the live trigger would merely do nothing.
+5. **The fingerprint sees the subject and its flag**
+   (`trigger:<keyword> subject=… {awaiting}`), for the reason it sees a
+   trigger's source and event: seat, name and kind are the lowering's own
+   output.
+
+Still out: a delayed trigger not yet fired (`delayedTriggers`), and the cast
+window a resolved trigger opens (`reboundCastWindow` / `madnessCastWindow`).

@@ -143,6 +143,19 @@ export const scenarioCardValidator = v.object({
     // CR 702.185a/b — stage the card as warped out on an earlier turn, so its
     // owner's recast permission is open.
     warpExiled: v.optional(v.boolean()),
+    // CR 702.185a (issue #9875) — BATTLEFIELD: the permanent was cast for its
+    // warp cost and still awaits its end-step exile (`CardInstanceState.
+    // warped`). The Warp trigger's resolution exiles its subject only while
+    // this marker stands (CR 400.7), so a declared `keywordTrigger` naming a
+    // permanent rebuilt without it would resolve to nothing.
+    warped: v.optional(v.boolean()),
+    // CR 702.88a / 702.35a (issue #9875) — EXILE: the card was exiled by its
+    // own Rebound / Madness ability and awaits its reflexive cast-trigger
+    // (`CardInstanceState.reboundExiled` / `madnessExiled`). That trigger's
+    // resolution opens the cast window only on a card still carrying the
+    // flag, for the same reason as `warped` above.
+    reboundExiled: v.optional(v.boolean()),
+    madnessExiled: v.optional(v.boolean()),
     counters: v.optional(v.record(v.string(), v.number())),
     // CR 602.5 (issue #3448) — per-turn activation tallies ALREADY SPENT,
     // keyed by ability id exactly as the engine's
@@ -580,16 +593,35 @@ export const scenarioResolutionCheckpointValidator = v.object({
  * (CR 113.7a) is written by the rebuild, never declared: an activated
  * ability's item borrows its source permanent's id, a trigger's is fresh with
  * the source kept in `triggerSourceId`.
+ *
+ * A fourth kind, `keywordTrigger`, is the ENGINE-OWNED trigger
+ * of a keyword — Rebound's and Madness's reflexive cast-trigger (CR 702.88a,
+ * CR 702.35a), Warp's delayed exile (CR 702.185a). No card definition declares
+ * the ability, so there is no `abilityId` to name and no firing event to carry:
+ * the item is its `keyword` plus the SUBJECT card the keyword acts on, and the
+ * rebuild stamps the engine's marker with the rebuilt subject's instance id.
  */
 export const scenarioStackItemValidator = v.object({
     kind: v.union(
         v.literal("spell"),
         v.literal("ability"),
-        v.literal("trigger")
+        v.literal("trigger"),
+        v.literal("keywordTrigger")
     ),
     /** The SPELL's card name, or — for an `ability` or a `trigger` — the
-     *  presented name of the SOURCE permanent whose ability it is. */
+     *  presented name of the SOURCE permanent whose ability it is, or — for a
+     *  `keywordTrigger` — the name of the card whose keyword it is. */
     name: v.string(),
+    /** `kind: "keywordTrigger"` only, and REQUIRED there — which keyword's
+     *  engine-owned trigger this is. A closed list: a keyword not named here
+     *  has no rebuild, and its item is refused by `lowerStack` by name. */
+    keyword: v.optional(
+        v.union(v.literal("rebound"), v.literal("madness"), v.literal("warp"))
+    ),
+    /** `kind: "keywordTrigger"` only, and REQUIRED there — the card the
+     *  keyword acts on, in the zone `KEYWORD_TRIGGER_SUBJECT_ZONE` fixes for
+     *  it (never the stack). */
+    subject: v.optional(scenarioObjectRefValidator),
     /** CR 601.2 / 602.1 — the caster / activator (`StackItem.castById`). Not
      *  necessarily the source's controller: "any player may activate"
      *  (CR 113.3c). */
@@ -1123,6 +1155,13 @@ export type ScenarioCard = {
     castableFromExileIncludesLand?: boolean;
     plotted?: boolean;
     warpExiled?: boolean;
+    /** CR 702.185a (issue #9875) — battlefield: cast for its warp cost, its
+     *  end-step exile still owed. See the validator's own note. */
+    warped?: boolean;
+    /** CR 702.88a / 702.35a (issue #9875) — exile: awaiting its reflexive
+     *  Rebound / Madness cast-trigger. See the validator's own note. */
+    reboundExiled?: boolean;
+    madnessExiled?: boolean;
     counters?: Record<string, number>;
     /** CR 602.5 (issue #3448) — per-turn activation tallies already spent,
      *  keyed by ability id. Any zone; see the validator's own note. */
@@ -1291,12 +1330,35 @@ export type ScenarioResolutionCheckpoint = {
     collected?: Record<string, ScenarioEventValue[]>;
 };
 
+/** The keywords whose engine-owned trigger a `keywordTrigger` stack entry can
+ *  declare (issue #9875). */
+export type ScenarioKeywordTrigger = "rebound" | "madness" | "warp";
+
+/**
+ * Where each keyword's trigger expects its SUBJECT (issue #9875) — the zone
+ * its resolution looks the card up in, so the only zone a declaration may name
+ * it in: Rebound and Madness act on the card still in EXILE (CR 702.88a,
+ * CR 702.35a), Warp on the permanent the spell became (CR 702.185a).
+ * Exhaustive over `ScenarioKeywordTrigger`, so a new keyword cannot be added
+ * without deciding this.
+ */
+export const KEYWORD_TRIGGER_SUBJECT_ZONE: Record<
+    ScenarioKeywordTrigger,
+    "exile" | "battlefield"
+> = {
+    rebound: "exile",
+    madness: "exile",
+    warp: "battlefield",
+};
+
 /** CR 405.1 (issue #3513, #3516) — one object on the declared stack. See
  *  `scenarioStackItemValidator` for the shape's rationale. */
 export type ScenarioStackItem = {
-    kind: "spell" | "ability" | "trigger";
+    kind: "spell" | "ability" | "trigger" | "keywordTrigger";
     name: string;
     controller: "me" | "opp";
+    keyword?: ScenarioKeywordTrigger;
+    subject?: ScenarioObjectRef;
     sourceSeat?: "me" | "opp";
     abilityId?: string;
     event?: ScenarioTriggerEvent;
@@ -2027,6 +2089,9 @@ function normalizeCard(raw: unknown): ScenarioCard | null {
     set(card, "castableFromExile", pickBoolean(raw.castableFromExile));
     set(card, "plotted", pickBoolean(raw.plotted));
     set(card, "warpExiled", pickBoolean(raw.warpExiled));
+    set(card, "warped", pickBoolean(raw.warped));
+    set(card, "reboundExiled", pickBoolean(raw.reboundExiled));
+    set(card, "madnessExiled", pickBoolean(raw.madnessExiled));
     set(
         card,
         "castableFromExileIncludesLand",
@@ -2220,12 +2285,23 @@ function normalizeTriggerEvent(raw: unknown): ScenarioTriggerEvent | undefined {
 function normalizeStackItem(raw: unknown): ScenarioStackItem | undefined {
     if (!isRecord(raw)) return undefined;
     const kind =
-        raw.kind === "spell" || raw.kind === "ability" || raw.kind === "trigger"
+        raw.kind === "spell" ||
+        raw.kind === "ability" ||
+        raw.kind === "trigger" ||
+        raw.kind === "keywordTrigger"
             ? raw.kind
             : undefined;
     const name = pickString(raw.name);
     const controller = pickSeat(raw.controller);
     if (kind === undefined || name === undefined || controller === undefined) {
+        return undefined;
+    }
+    if (kind === "keywordTrigger") {
+        return normalizeKeywordTrigger(raw, name, controller);
+    }
+    // The two fields only a `keywordTrigger` carries: on any other kind the
+    // row describes an object the builder has no branch for.
+    if (raw.keyword !== undefined || raw.subject !== undefined) {
         return undefined;
     }
     const abilityId = pickString(raw.abilityId);
@@ -2267,6 +2343,56 @@ function normalizeStackItem(raw: unknown): ScenarioStackItem | undefined {
     set(item, "castOffSorceryTiming", pickBoolean(raw.castOffSorceryTiming));
     set(item, "resolution", resolution);
     return item;
+}
+
+/**
+ * An engine-owned keyword trigger (issue #9875; CR 702.88a, CR 702.35a,
+ * CR 702.185a), read off a raw stored row. The item IS its keyword and its
+ * subject, so a row missing either — or naming the subject outside the zone
+ * the keyword's resolution looks in — is dropped. So is one carrying a field
+ * of another kind (an ability id, an event, targets, X, a checkpoint): the
+ * engine's builders write none of them, and the rebuild would discard it
+ * silently.
+ */
+function normalizeKeywordTrigger(
+    raw: Record<string, unknown>,
+    name: string,
+    controller: "me" | "opp"
+): ScenarioStackItem | undefined {
+    const keyword = pickString(raw.keyword);
+    if (
+        keyword === undefined ||
+        !Object.prototype.hasOwnProperty.call(
+            KEYWORD_TRIGGER_SUBJECT_ZONE,
+            keyword
+        )
+    ) {
+        return undefined;
+    }
+    const subject = normalizeObjectRef(raw.subject);
+    if (
+        subject === undefined ||
+        subject.zone !==
+            KEYWORD_TRIGGER_SUBJECT_ZONE[keyword as ScenarioKeywordTrigger]
+    ) {
+        return undefined;
+    }
+    if (
+        raw.abilityId !== undefined ||
+        raw.event !== undefined ||
+        raw.targets !== undefined ||
+        raw.x !== undefined ||
+        raw.resolution !== undefined
+    ) {
+        return undefined;
+    }
+    return {
+        kind: "keywordTrigger",
+        name,
+        controller,
+        keyword: keyword as ScenarioKeywordTrigger,
+        subject,
+    };
 }
 
 /** CR 608.2 (issue #5525) — a declared resolution checkpoint, read
@@ -2835,6 +2961,17 @@ export function collectUnresolvedCardNames(
                 ) {
                     unresolved.add(ref.name);
                 }
+            }
+        }
+        // Issue #9875 — a keyword trigger's SUBJECT, vouched like an event
+        // reference: only a battlefield one may be a token.
+        if (item.subject && item.subject.zone !== "stack") {
+            const tokenOk = item.subject.zone === "battlefield";
+            if (
+                !resolves(item.subject.name) &&
+                !(tokenOk && resolvesToken(item.subject.name))
+            ) {
+                unresolved.add(item.subject.name);
             }
         }
         for (const target of item.targets ?? []) {

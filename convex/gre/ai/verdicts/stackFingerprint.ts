@@ -34,6 +34,11 @@ import {
     stackTriggerReadsItsEvent,
     triggerEventFingerprint,
 } from "../../triggerEventVocabulary";
+import {
+    KEYWORD_TRIGGER_MARKER,
+    keywordTriggerOf,
+} from "../../scenarioBuilder";
+import type { ScenarioKeywordTrigger } from "../../../debugScenarioSpec";
 import type { BladeSeat } from "../blade/types";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
 import type { TargetSelection } from "../../../cards/types";
@@ -42,12 +47,45 @@ import type { TargetSelection } from "../../../cards/types";
 export type SeatOf = (playerId: string) => BladeSeat | null;
 
 /**
+ * The flag on its SUBJECT each engine-owned keyword trigger re-checks as it
+ * resolves (issue #9875; CR 702.88a, CR 702.35a, CR 702.185a / 400.7) — what
+ * separates the card the trigger will act on from a same-named one beside it.
+ */
+const KEYWORD_TRIGGER_SUBJECT_FLAG: Record<
+    ScenarioKeywordTrigger,
+    "reboundExiled" | "madnessExiled" | "warped"
+> = {
+    rebound: "reboundExiled",
+    madness: "madnessExiled",
+    warp: "warped",
+};
+
+/** Issue #9875 — a keyword trigger's subject, rendered as what can be observed
+ *  about it plus whether it still carries the flag the resolution reads: a
+ *  rebuild that stamped the marker on the wrong same-named card, or lost the
+ *  flag, resolves to nothing while naming the same object. */
+function keywordSubjectLabel(
+    state: GameState,
+    item: StackItem,
+    keyword: ScenarioKeywordTrigger,
+    seatOf: SeatOf
+): string {
+    const id = item[KEYWORD_TRIGGER_MARKER[keyword]]!;
+    const subject = state.players
+        .flatMap((p) => [...p.battlefield, ...p.exile])
+        .find((c) => c.id === id);
+    const live = subject?.[KEYWORD_TRIGGER_SUBJECT_FLAG[keyword]] === true;
+    return `${objectLabel(state, id, seatOf)}${live ? " {awaiting}" : ""}`;
+}
+
+/**
  * The stack as one label per object, bottom-up: seat, name, kind, every
  * announced target (in slot order — a slot's INDEX is load-bearing) and `x`.
  */
 export function stackFingerprint(state: GameState, seatOf: SeatOf): string[] {
     return state.stack.map((item: StackItem) => {
         const seat = seatOf(item.castById) ?? "?";
+        const keyword = keywordTriggerOf(item);
         // CR 603.2 (issue #3516) — a TRIGGER is fingerprinted by more than the
         // word: its ability id, the SOURCE it is pinned to (CR 113.7a — which
         // of two same-named copies is watching), and the EVENT it fired on,
@@ -82,7 +120,9 @@ export function stackFingerprint(state: GameState, seatOf: SeatOf): string[] {
                     }`
                   : item.triggerSourceId !== undefined
                     ? "trigger"
-                    : "spell";
+                    : keyword
+                      ? `trigger:${keyword} subject=${keywordSubjectLabel(state, item, keyword, seatOf)}`
+                      : "spell";
         const targets = (item.targets ?? [])
             .map((target) => targetLabel(state, target, seatOf))
             .join(", ");

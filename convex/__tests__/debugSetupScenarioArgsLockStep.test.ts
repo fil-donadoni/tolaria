@@ -104,6 +104,21 @@ describe("debugSetupScenario args validator declares `life` (issue #2147, sixth 
         expect(argsKeys).toEqual(specKeys);
     });
 
+    // Issue #9875 review — the same drift one level down. The mutation keeps
+    // its own copy of the CARD validator too, and a card field the lowering
+    // emits (`reboundExiled`) that this copy lacks is rejected at the function
+    // boundary exactly as a missing top-level field is.
+    it("carries the same CARD field names as scenarioSpecValidator (drift guard)", () => {
+        const cardKeys = (fields: Record<string, FieldJson>): string[] => {
+            const cards = fields.cards.fieldType as unknown as {
+                value: { value: Record<string, unknown> };
+            };
+            return Object.keys(cards.value.value).sort();
+        };
+        expect(cardKeys(specFields)).toContain("reboundExiled");
+        expect(cardKeys(argsFields)).toEqual(cardKeys(specFields));
+    });
+
     // Guard C (issue #3513 review): the SEVENTH site. `normalizeScenarioSpec`
     // is the tolerant READ path — `debugScenarios.spec` is stored `v.any()` on
     // purpose — and it copies known fields only, building a fresh object. A
