@@ -139,7 +139,7 @@ describe("investigate — golden fixtures (CR 701.16a)", () => {
             oracleText,
             layout: "normal",
         });
-        expect(definition.effects?.at(-1)).toEqual({
+        expect(definition.effects?.[definition.effects.length - 1]).toEqual({
             op: "createToken",
             token: CLUE_TOKEN_SPEC,
             controller: "controller",
