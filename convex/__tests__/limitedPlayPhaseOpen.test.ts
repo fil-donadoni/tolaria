@@ -298,8 +298,8 @@ describe("the opened round reaches the client through the projection (issue #164
 
 // ── An ALL-BOT table (no human seat) — issue #1644 review finding 2 ─────────
 //
-// `createLimitedEvent` does NOT seat its creator (`buildEmptySeats`, status
-// `open`), so an event whose seats are all still free is legal to start — and
+// `createLimitedEvent` seats its creator, who may then leave (`releaseSeat`,
+// status `open`), so an event whose seats are all free is legal to start — and
 // `startLimitedEvent` turns every free seat into a Bot Drafter. Such a table is
 // COMPLETE the instant that mutation finishes its own writes: Sealed deals every
 // bot seat a Pool (each immediately Auto-Build-ready), and a draft's
@@ -557,7 +557,7 @@ describe("an all-bot table reaches the play phase (issue #1644)", () => {
             }
         )._handler(ctx, { eventId: eventId as Id<"limitedEvents"> });
 
-    /** An UNSTARTED all-bot table: `createLimitedEvent`'s output, seats still
+    /** An UNSTARTED all-bot table: an open event whose creator left, seats still
      *  free (`startLimitedEvent` is what turns them into Bot Drafters). */
     function unstartedAllBotEvent(
         id: string,
