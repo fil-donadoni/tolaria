@@ -104,6 +104,48 @@ export const NINJUTSU_LANDS_4 = [
     })),
 ];
 
+/** Issue #9975 — the free-attack pair's attackers: a 4/4 and a 2/3, neither
+ *  vigilant nor carrying a `{T}` ability, both able to attack (CR 302.6). */
+export const FREE_ATTACK_ATTACKERS = [
+    {
+        name: "Two-Headed Giant of Foriys",
+        owner: "me" as const,
+        zone: "battlefield" as const,
+        summoningSick: false,
+    },
+    {
+        name: "Hurloon Minotaur",
+        owner: "me" as const,
+        zone: "battlefield" as const,
+        summoningSick: false,
+    },
+];
+
+/** The free-attack pair's defender has spent its mana: three TAPPED lands, so
+ *  the imagined hand holds cards but no open mana to cast them this combat. */
+export const FREE_ATTACK_OPP_TAPPED_LANDS = Array.from({ length: 3 }, () => ({
+    name: "Mountain",
+    owner: "opp" as const,
+    zone: "battlefield" as const,
+    tapped: true,
+}));
+
+/** The decklist the free-attack pair's search knows the defender plays: what
+ *  turns its hidden hand into real cards (burn, removal, a hasty one-drop) and
+ *  so widens the rollout spread the free damage used to drown in. */
+export const FREE_ATTACK_OPP_DECK = [
+    "Lightning Bolt",
+    "Swords to Plowshares",
+    "Counterspell",
+    "Ragavan, Nimble Pilferer",
+    "Fatal Push",
+    "Grizzly Bears",
+    "Mountain",
+    "Island",
+    "Plains",
+    "Swamp",
+];
+
 /** Issue #2927 — the `manaDevelopment` term's FLOODED branch, asserted on a
  *  position built through the real `ScenarioSpec` pipeline rather than a
  *  hand-assembled `GameState`.
