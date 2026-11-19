@@ -594,7 +594,7 @@ export const scenarioResolutionCheckpointValidator = v.object({
  * ability's item borrows its source permanent's id, a trigger's is fresh with
  * the source kept in `triggerSourceId`.
  *
- * A fourth kind, `keywordTrigger` (issue #9875), is the ENGINE-OWNED trigger
+ * A fourth kind, `keywordTrigger`, is the ENGINE-OWNED trigger
  * of a keyword — Rebound's and Madness's reflexive cast-trigger (CR 702.88a,
  * CR 702.35a), Warp's delayed exile (CR 702.185a). No card definition declares
  * the ability, so there is no `abilityId` to name and no firing event to carry:
