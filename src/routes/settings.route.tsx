@@ -5,6 +5,7 @@
 // only, same shape as `design-system.route.tsx`.
 import AmbientPageGround from "@/components/ui/ambient-page-ground";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import SettingsAutoOrderSection from "@/components/settings/settings-auto-order-section";
 import SettingsBoardSection from "@/components/settings/settings-board-section";
 import SettingsDensitySection from "@/components/settings/settings-density-section";
 import SettingsMotionSection from "@/components/settings/settings-motion-section";
@@ -28,6 +29,7 @@ export default function SettingsRoute() {
                     <SettingsMotionSection />
                     <SettingsPhaseStopsSection />
                     <SettingsBoardSection />
+                    <SettingsAutoOrderSection />
                     <SettingsPreviewSection />
                 </div>
             </div>
