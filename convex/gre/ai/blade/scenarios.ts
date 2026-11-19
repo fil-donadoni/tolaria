@@ -32049,15 +32049,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            moves: [
-                {
-                    kind: "activate-ability",
-                    card: "Teferi, Hero of Dominaria",
-                    target: "Chandra, Torch of Defiance",
-                },
-            ],
+            predicate: activationTargetsNamed(
+                "Teferi, Hero of Dominaria",
+                "Chandra, Torch of Defiance"
+            ),
+            describe:
+                "Teferi's −3 aimed at Chandra, never the token or the Bombardment",
         },
-        note: "Issue #9974. Each legal target is its own root Move, so the leaf `evaluate` decides, and it priced Chandra at 65 against 139 for the token: a planeswalker's worth was the blank `base + MV` body ADR 0107 scales by loyalty, with no loyalty ability read. Issue #9973's loyalty arm (`dslLoyaltyAbilityValue`, the best survivable loyalty ability, CR 606.3) fixed the valuation. Before it: the token on 5/5 seeds; after: Chandra on 5/5.",
+        note: "Issue #9974. Each legal target is its own root Move, so the leaf `evaluate` decides, and it priced Chandra at 65 against 139 for the token: a planeswalker's worth was the blank `base + MV` body ADR 0107 scales by loyalty, with no loyalty ability read. Issue #9973's loyalty arm (`dslLoyaltyAbilityValue`, the best survivable loyalty ability, CR 606.3) fixed the valuation. Before it: the token on 5/5 seeds; after: Chandra on 5/5. A predicate, not a `moves` verdict, on purpose: as a verdict it moved the Weight Fit enough to flip `self-harm: Fatal Push still destroys the opponent's mana value 4 creature beside the Bot's own` (seeds 3 and 4 pass), a conflict outside this issue.",
     },
     {
         // MUST. The discriminating half of the pair above: the SAME −3 with a
