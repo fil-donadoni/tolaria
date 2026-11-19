@@ -743,7 +743,7 @@ with `data-animated` (absent under `prefers-reduced-motion: reduce`).
 `bun run check:ui` walks this route THREE times — `draft-pick` stops at the
 pack stop, `draft-pool-stop` runs step 1 and probes there, and `draft-pool-peek`
 (issue #2667) goes one gesture further: from the same pool stop it taps the
-**last** Pool card tile (`[data-card-tile][title^='Remove ']` inside
+**last** Pool card tile (`[data-card-tile]:is([title^='Move '], [title^='Add '])` inside
 `[data-slot=draft-pool]`; the FIRST is buried under its own column pile at a
 realistic pool size, and Playwright waits out its whole timeout on it) and
 probes with the Pool's own `DeckZonePeek` (`[data-peek-panel]`) mounted — the

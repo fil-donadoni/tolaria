@@ -562,12 +562,12 @@ const DRAFT_POOL = "[data-slot=draft-pool]";
 const DRAFT_STACKED_POOL = "[data-slot=draft-stacked-pool]";
 
 /** A card tile inside the Pool/Sideboard pane, matched by the tooltip
- *  `DeckCardTile` always carries (`title="Remove <name>…"`,
- *  `limited-draft-pool.tsx`) — the same handle the component test suite
- *  drives (`getByTitle(/^Remove /)`). Scoped to `DRAFT_POOL`'s subtree so a
+ *  `DeckCardTile` always carries (`title="Move <name> to Sideboard…"` / `"Add <name> to Maindeck…"`,
+ *  `limited-draft-pool.tsx`, issue #9993) — the same handle the component
+ *  test suite drives (`getByTitle(/^Move /)`). Scoped to `DRAFT_POOL`'s subtree so a
  *  desktop/tablet pane never accidentally matches a Booster tile instead
  *  (issue #2667, `draft-pool-peek`). */
-const DRAFT_POOL_TILE = `${DRAFT_POOL} [data-card-tile][title^='Remove ']`;
+const DRAFT_POOL_TILE = `${DRAFT_POOL} [data-card-tile]:is([title^='Move '], [title^='Add '])`;
 
 /** The Peek Panel primitive both the Booster's own selection and the Pool's
  *  `DeckZonePeek` mount (`peek-panel.tsx`). Shared constant so `draft-pick`'s
