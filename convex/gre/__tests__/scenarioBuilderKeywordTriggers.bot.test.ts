@@ -337,6 +337,17 @@ describe("a keyword trigger the spec cannot declare is refused (issue #9875)", (
         ]);
     });
 
+    it("refuses an item whose owner is not its controller's seat", () => {
+        const live = reboundTriggerOnStack();
+        live.stack[0].ownerId = live.players[1].id;
+        const { spec, stackBlockers } = lowerAndRebuild(live);
+        expect(spec.stack).toBeUndefined();
+        expect(stackBlockers).toContainEqual({
+            item: `me ${ephemerate().name} trigger:rebound`,
+            field: "ownerId",
+        });
+    });
+
     it("refuses a marker of another keyword by name", () => {
         const live = reboundTriggerOnStack();
         const item = live.stack[0] as StackItem & Record<string, unknown>;

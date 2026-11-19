@@ -4675,6 +4675,21 @@ function lowerStack(
         // and is refused rather than rebuilt pointing at nothing.
         let subject: ScenarioObjectRef | undefined;
         if (keyword) {
+            // The resolution reads the item's OWNER (whose exile it searches)
+            // and the entry declares one seat, `controller`. Every builder
+            // writes the three ids equal; an item where they differ is one the
+            // single field would rebuild differently.
+            if (
+                item.ownerId !== item.castById ||
+                item.controllerId !== item.castById
+            ) {
+                refuse(
+                    index,
+                    label,
+                    "ownerId",
+                    "its owner or controller is not the player it was put on the stack by — the spec declares one seat for a keyword trigger"
+                );
+            }
             const zone = KEYWORD_TRIGGER_SUBJECT_ZONE[keyword];
             const ref = lowerEventObjectRef(
                 state,

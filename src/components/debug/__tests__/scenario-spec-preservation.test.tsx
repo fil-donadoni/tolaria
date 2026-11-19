@@ -20,6 +20,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ScenarioSpec } from "@convex/debugScenarioSpec";
+import { cardToDraft, draftToCard } from "../scenario-draft";
 
 import {
     SCENARIO_SPEC_FIELD_OWNER,
@@ -386,6 +387,16 @@ describe("scenario spec field ownership", () => {
             stack,
         });
         expect(removed.stack).toBeUndefined();
+
+        // …and the flag the trigger's resolution re-checks survives the
+        // card's own draft round trip, which has no input for it.
+        expect(draftToCard(cardToDraft(exiled))).toEqual(exiled);
+        const warped = { name: "Pinnacle Emissary", owner: "me" as const };
+        expect(
+            draftToCard(
+                cardToDraft({ ...warped, warped: true, madnessExiled: true })
+            )
+        ).toEqual({ ...warped, warped: true, madnessExiled: true });
     });
 
     it("drops an entry the edit made unresolvable by SEAT or by COUNT (issue #3488)", () => {
