@@ -401,6 +401,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Instant target:spell › counter+draw",
+            "issue": 10258
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Instant › addMana",
             "issue": 4822
         },
