@@ -700,6 +700,15 @@ export const OWN_PERMANENT_CARD_IN_GRAVEYARD: Discriminant = {
     detail: "Howling Mine in the bot's own graveyard",
 };
 
+/** Issue #9869 — the flip-walker front face grown past the planeswalker it
+ *  would return as: its +1/+1 counters do not survive the exile (CR 400.7).
+ *  `other`, not `card`: the halves hold the same cards, and the one differing
+ *  value is the front face's +1/+1 count (0 → 4). */
+export const FLIP_FRONT_FACE_GROWN: Discriminant = {
+    kind: "other",
+    detail: "four +1/+1 counters on the front face (Ajani, Nacatl Pariah)",
+};
+
 export const UNTAPPED_LAND_NEEDED: Discriminant = {
     kind: "card",
     detail: "Giant Spider in hand, castable this turn only off an untapped land drop",

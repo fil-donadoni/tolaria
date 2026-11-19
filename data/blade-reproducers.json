@@ -3040,6 +3040,8 @@
             }
         ]
     },
+    "flip-walker may-pay: exiles the front face into its planeswalker when no creature can attack it": null,
+    "flip-walker may-pay: keeps a front face grown bigger than the planeswalker it would return as": null,
     "flurry: Cori-Steel Cutter casts the second spell before combat": null,
     "flurry: Cori-Steel Cutter goes on the Monk it makes": null,
     "foretell: banks a foretell card with spare mana and nothing else to do": {
