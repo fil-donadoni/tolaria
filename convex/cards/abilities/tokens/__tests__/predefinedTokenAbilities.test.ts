@@ -201,6 +201,10 @@ describe("Junk token (CR 111.10t) — {T}, sacrifice: exile the top card, play i
         expect(p1.library.map((c) => c.id)).toEqual(["second"]);
         expect(exileCastPermitted(state, exiled!, "p1")).toBe(true);
         expect(exileCastPermitted(state, exiled!, "p2")).toBe(false);
+        // "this turn": the permission's upper bound is the current turn, which
+        // the cleanup step revokes; no own-turn window replaces it.
+        expect(exiled!.castableFromExileUntilTurn).toBe(state.turn);
+        expect(exiled!.castableFromExileUntilOwnTurn).toBeUndefined();
     });
 });
 
