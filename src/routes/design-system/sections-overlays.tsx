@@ -56,6 +56,7 @@ const ACTIVE_GAME: ActiveGameInfo = {
     opponentName: "Rival",
     limitedEventId: null,
     limitedRound: null,
+    matchScore: { wins: 0, losses: 0 },
 };
 
 /* ── The specimen table ───────────────────────────────────────────────── */

@@ -416,17 +416,13 @@ export const myActiveGame = query({
             vsAi,
             mode: game.mode ?? null,
             opponentName,
-<<<<<<< HEAD
             // Limited Event this Match belongs to (issue #9979): the lobby
             // titles a round Match by its event instead of "Constructed".
             limitedEventId: match.limitedEventId ?? null,
             limitedRound: match.limitedPairing?.round ?? null,
-||||||| parent of d889f9d8a (fix(limited): round card shows live Bo3 score, not 'not played yet' (issue #9983))
-=======
             // Games won so far, viewer's side (issue #9983): the Limited round
             // panel reads it as the live score of a Bo3 under way.
             matchScore: matchScoreForUser(match, userId),
->>>>>>> d889f9d8a (fix(limited): round card shows live Bo3 score, not 'not played yet' (issue #9983))
         };
     },
 });
