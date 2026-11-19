@@ -480,3 +480,110 @@ describe("verdicts.submit — classification and pair link (issue #4800, ADR 014
         ).rejects.toThrow(/must say what changed/);
     });
 });
+
+describe("verdicts.submit — the judge's reading (issue #10086, PRD #10083)", () => {
+    /** Three candidates, so a Preferred decision has an alternative to name. */
+    const THREE = {
+        ...ARGS,
+        candidates: [
+            ...CANDIDATES,
+            { key: '{"kind":"play-land"}', description: "play Mountain" },
+        ],
+    };
+
+    it("stores Plan, words, grade and alternatives on the row, outside the hash", async () => {
+        const stub = makeMutationCtx("u-tester", ALL_USERS);
+        const plain = (await runMutation(submit, stub.ctx, THREE)) as string;
+        const graded = (await runMutation(submit, stub.ctx, {
+            ...THREE,
+            plan: { text: "burn out the blockers, then swing", seq: 40 },
+            rationale: "Bolt now or the blocker eats my attack",
+            grade: "preferred" as const,
+            acceptedIndexes: [2],
+        })) as string;
+        expect(stub.doc(graded)).toMatchObject({
+            plan: { text: "burn out the blockers, then swing", seq: 40 },
+            rationale: "Bolt now or the blocker eats my attack",
+            grade: "preferred",
+            acceptedIndexes: [2],
+            answer: { kind: "right", rightIndexes: [1] },
+        });
+        expect(stub.doc(graded).verdictHash).toBe(stub.doc(plain).verdictHash);
+        for (const field of ["plan", "rationale", "grade", "acceptedIndexes"]) {
+            expect(stub.doc(plain), field).not.toHaveProperty(field);
+        }
+    });
+
+    it("refuses a grade outside Clear / Preferred / Indifferent", async () => {
+        const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
+        await expect(
+            runMutation(submit, ctx, { ...THREE, grade: "certain" })
+        ).rejects.toThrow("is not one of clear, preferred, indifferent");
+    });
+
+    it("refuses alternatives on any grade but Preferred", async () => {
+        const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
+        for (const grade of ["clear", "indifferent", undefined]) {
+            await expect(
+                runMutation(submit, ctx, {
+                    ...THREE,
+                    ...(grade === undefined ? {} : { grade }),
+                    acceptedIndexes: [2],
+                })
+            ).rejects.toThrow("belong to a preferred grade only");
+        }
+    });
+
+    it("refuses an alternative that is the preferred move itself", async () => {
+        const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
+        await expect(
+            runMutation(submit, ctx, {
+                ...THREE,
+                grade: "preferred",
+                acceptedIndexes: [2, 1],
+            })
+        ).rejects.toThrow(
+            "accepted alternative 1 is the preferred move itself"
+        );
+    });
+
+    it("refuses an alternative the candidate list does not hold, or named twice", async () => {
+        const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
+        await expect(
+            runMutation(submit, ctx, {
+                ...THREE,
+                grade: "preferred",
+                acceptedIndexes: [3],
+            })
+        ).rejects.toThrow("outside the 3-candidate list");
+        await expect(
+            runMutation(submit, ctx, {
+                ...THREE,
+                grade: "preferred",
+                acceptedIndexes: [2, 2],
+            })
+        ).rejects.toThrow("named twice");
+    });
+
+    it("refuses alternatives beside a forbidden answer, which names no right move", async () => {
+        const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
+        await expect(
+            runMutation(submit, ctx, {
+                ...THREE,
+                answer: { kind: "forbidden" as const, forbiddenIndexes: [0] },
+                grade: "preferred",
+                acceptedIndexes: [2],
+            })
+        ).rejects.toThrow("an answer that names the right move");
+    });
+
+    it("refuses blank words and a blank Plan", async () => {
+        const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
+        await expect(
+            runMutation(submit, ctx, { ...THREE, rationale: "   " })
+        ).rejects.toThrow("the rationale says nothing");
+        await expect(
+            runMutation(submit, ctx, { ...THREE, plan: { text: "" } })
+        ).rejects.toThrow("the plan states nothing");
+    });
+});

@@ -13,6 +13,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Id } from "../_generated/dataModel";
 import {
+    canonicalJson as canonicalJsonOf,
     positionKeyOf,
     verdictIdOf,
     type VerdictJudgement,
@@ -24,12 +25,15 @@ import {
     encodeAttestationObject,
     encodeVerdictObject,
     readAttestation,
+    readStoredCorpus,
     readVerdict,
     verdictAuthorOf,
     verdictObjectName,
     type VerdictStoreWriter,
 } from "../verdictStore";
 import { createMemoryVerdictStore } from "../verdictStoreMemory";
+import { quarantineContestedPositions } from "../gre/ai/verdicts/quarantine";
+import type { AttestedReading } from "../gre/ai/verdicts/reading";
 import { markStored, submit } from "../verdicts";
 import {
     directOutboxStore,
@@ -492,6 +496,197 @@ describe("attestation objects are verified against their names (issue #3580)", (
             JSON.stringify(attestation, null, 2)
         );
         expect(() => decodeAttestationObject(name, pretty)).toThrow(
+            VerdictStoreIntegrityError
+        );
+    });
+});
+
+// ── The judge's reading (issue #10086, PRD #10083) ────────────────────────────
+
+const SECOND_TESTER: Row = {
+    _id: "u-second",
+    __table: "users",
+    nickname: "Sam",
+    email: "sam@example.com",
+    isTester: true,
+};
+
+/** A reading with every field filled: Plan, words, grade, alternatives. */
+const READING: AttestedReading = {
+    plan: { text: "race: burn face every turn, hold nothing back", seq: 40 },
+    rationale: "the blocker is the only thing between me and lethal",
+    grade: "preferred",
+    acceptedIndexes: [0],
+};
+
+/** Drain ports over EVERY verdict row of one harness stub. */
+function allRowsPorts(
+    stub: MutationStub,
+    ids: string[],
+    store: VerdictStoreWriter
+): OutboxDrainPorts {
+    return {
+        ...harnessPorts(stub, ids[0], store),
+        pendingPage: async () => ({
+            rows: ids
+                .map((id) => stub.doc(id))
+                .filter((row) => row.storedAt === undefined)
+                .map((row) => row as unknown as OutboxRow),
+            cursor: "",
+            isDone: true,
+        }),
+    };
+}
+
+describe("the judge's reading travels with the attestation (issue #10086)", () => {
+    it("arrives intact from submit through the outbox into the store, and back", async () => {
+        const stub = makeMutationCtx("u-tester", [TESTER]);
+        const id = (await runMutation(submit, stub.ctx, {
+            ...ARGS,
+            ...READING,
+        })) as unknown as string;
+        const store = createMemoryVerdictStore();
+
+        expect(await drainOutbox(harnessPorts(stub, id, store))).toEqual({
+            stored: 1,
+            alreadySlim: 0,
+            pending: [],
+        });
+
+        const author = "jovial-guineapig-250:u-tester";
+        const stored = await readAttestation(store, VERDICT_ID, author);
+        expect(stored).toMatchObject(READING);
+        expect({
+            plan: stored?.plan,
+            rationale: stored?.rationale,
+            grade: stored?.grade,
+            acceptedIndexes: stored?.acceptedIndexes,
+        }).toEqual(READING);
+        // The answer is the judgement; an accepted alternative never joins it.
+        expect(await readVerdict(store, VERDICT_ID)).toEqual(JUDGEMENT);
+        // Read back as the review surface reads the whole store.
+        const corpus = await readStoredCorpus(store);
+        expect(corpus.attestations).toHaveLength(1);
+        expect(corpus.attestations[0]).toMatchObject(READING);
+    });
+
+    it("two testers grading one position differently are ONE verdict with two attestations, never contested", async () => {
+        const stub = makeMutationCtx("u-tester", [TESTER, SECOND_TESTER]);
+        const first = (await runMutation(submit, stub.ctx, {
+            ...ARGS,
+            ...READING,
+        })) as unknown as string;
+        const second = (await runMutation(submit, stub.asUser("u-second"), {
+            ...ARGS,
+            plan: { text: "stabilise first" },
+            rationale: "close call either way",
+            grade: "indifferent",
+        })) as unknown as string;
+        expect(stub.doc(second).verdictHash).toBe(stub.doc(first).verdictHash);
+        expect(stub.doc(second).positionKey).toBe(stub.doc(first).positionKey);
+
+        const store = createMemoryVerdictStore();
+        await drainOutbox(allRowsPorts(stub, [first, second], store));
+
+        expect(await store.list("verdicts/")).toEqual([
+            verdictObjectName(VERDICT_ID),
+        ]);
+        const corpus = await readStoredCorpus(store);
+        expect(corpus.attestations.map((a) => a.grade).sort()).toEqual([
+            "indifferent",
+            "preferred",
+        ]);
+        const quarantine = quarantineContestedPositions(
+            corpus.verdicts,
+            corpus.attestations,
+            corpus.resolutions
+        );
+        expect(quarantine.contested).toEqual([]);
+        expect(quarantine.promotable.map((v) => v.verdictId)).toEqual([
+            VERDICT_ID,
+        ]);
+        expect(quarantine.promotable[0].attestations).toHaveLength(2);
+    });
+
+    it("the outbox row drops the reading with the judgement once stored", async () => {
+        const stub = makeMutationCtx("u-tester", [TESTER]);
+        const id = (await runMutation(submit, stub.ctx, {
+            ...ARGS,
+            ...READING,
+        })) as unknown as string;
+        expect(stub.doc(id)).toMatchObject(READING);
+        await drainOutbox(harnessPorts(stub, id, createMemoryVerdictStore()));
+        for (const field of Object.keys(READING)) {
+            expect(stub.doc(id), field).not.toHaveProperty(field);
+        }
+    });
+});
+
+describe("an attestation written before the reading existed (issue #10086)", () => {
+    // Bytes as the store held them before issue #10086, written out by hand:
+    // re-encoding with today's code would prove only that today agrees with
+    // itself.
+    const name = attestationObjectName(
+        "v1-" + "a".repeat(64),
+        "jovial-guineapig-250:u-tester"
+    );
+    const legacy =
+        '{"author":"jovial-guineapig-250:u-tester","botPickIndex":0,' +
+        '"createdAt":1700000000000,"deployment":"jovial-guineapig-250",' +
+        '"deploymentKind":"cloud","gameId":"game-7","note":"bolt it",' +
+        '"seq":42,"sourceAxis":"explicit","verdictId":"v1-' +
+        "a".repeat(64) +
+        '"}';
+
+    it("decodes unchanged, with no reading field", () => {
+        const decoded = decodeAttestationObject(
+            name,
+            new TextEncoder().encode(legacy)
+        );
+        expect(decoded).toEqual(JSON.parse(legacy));
+        expect(encodeAttestationObject(decoded).bytes).toEqual(
+            new TextEncoder().encode(legacy)
+        );
+    });
+});
+
+describe("a stored reading is verified like every other field (issue #10086)", () => {
+    const base = {
+        verdictId: VERDICT_ID,
+        author: "jovial-guineapig-250:u-tester",
+        sourceAxis: "explicit" as const,
+        createdAt: 1,
+    };
+
+    it("round-trips a full reading", () => {
+        const { name, bytes } = encodeAttestationObject({
+            ...base,
+            ...READING,
+        });
+        expect(decodeAttestationObject(name, bytes)).toEqual({
+            ...base,
+            ...READING,
+        });
+    });
+
+    it.each([
+        ["a grade outside the closed set", { grade: "maybe" }],
+        [
+            "alternatives without a preferred grade",
+            { grade: "clear", acceptedIndexes: [0] },
+        ],
+        [
+            "an empty list of alternatives",
+            { grade: "preferred", acceptedIndexes: [] },
+        ],
+        ["a plan with no words", { plan: { text: "  " } }],
+        ["a plan that is not an object", { plan: "race" }],
+    ])("refuses %s", (_label, reading) => {
+        const { name } = encodeAttestationObject(base);
+        const bytes = new TextEncoder().encode(
+            canonicalJsonOf({ ...base, ...reading })
+        );
+        expect(() => decodeAttestationObject(name, bytes)).toThrow(
             VerdictStoreIntegrityError
         );
     });

@@ -33,3 +33,28 @@ export const pairOfValidator = v.object({
     anchorId: v.string(),
     discriminant: discriminantValidator,
 });
+
+// The judge's reading of a decision (PRD issue #10083) — Plan, verbatim
+// words, Verdict Grade, accepted alternatives. Same one-copy reason: the
+// `submit` door, the forwarding query and the outbox table carry it. Mirrors
+// `AttestedReading` (`gre/ai/verdicts/reading.ts`); the grade literals are
+// `VERDICT_GRADES`, spelled out for the same inferred-union reason.
+
+export const gradeValidator = v.union(
+    v.literal("clear"),
+    v.literal("preferred"),
+    v.literal("indifferent")
+);
+
+export const attestedPlanValidator = v.object({
+    text: v.string(),
+    seq: v.optional(v.number()),
+});
+
+/** The four optional fields, spread into an `args` or a table definition. */
+export const readingFields = {
+    plan: v.optional(attestedPlanValidator),
+    rationale: v.optional(v.string()),
+    grade: v.optional(gradeValidator),
+    acceptedIndexes: v.optional(v.array(v.number())),
+};
