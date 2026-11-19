@@ -844,19 +844,160 @@ export const POWERSTONE_TOKEN: EffectTokenSpec = {
     imagePrintId: "d45fe4b6-aeaf-4f84-b660-c7b482ed8512",
 };
 
+/** Gold token. CR 111.10c: "A Gold token is a colorless Gold artifact token
+ *  with 'Sacrifice this token: Add one mana of any color.'" The Treasure's mana
+ *  ability without the tap leg: a mana ability (CR 605.1a, `useStack: false`)
+ *  whose only cost is sacrificing the token itself (`cost.sacrifice`, CR
+ *  602.1), the colour chosen at activation from `manaChoices` — so, like the
+ *  Treasure's, it carries no `effects` body. Colorless: no `colors` (CR 105.2).
+ *
+ *  No pinned `imagePrintId`: the art is the Gold token of the producing card's
+ *  own printing (`src/lib/tokenArt.ts`). */
+export const GOLD_TOKEN: EffectTokenSpec = {
+    name: "Gold",
+    types: ["Artifact"],
+    subtypes: ["Gold"],
+    activatedAbilities: [
+        {
+            id: "gold-token-mana",
+            oracleText: "Sacrifice this token: Add one mana of any color.",
+            cost: { sacrifice: true },
+            useStack: false,
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
+        },
+    ],
+};
+
+/** Shard token. CR 111.10e: "A Shard token is a colorless Shard enchantment
+ *  token with '{2}, Sacrifice this token: Scry 1, then draw a card.'" An
+ *  ENCHANTMENT, not an artifact (the one predefined enchantment token). Not a
+ *  mana ability, so it uses the stack (CR 605.1a); the body is CR 701.22's
+ *  scry 1 followed by one draw, in that order.
+ *
+ *  No pinned `imagePrintId`: the producer's printing's Shard token. */
+export const SHARD_TOKEN: EffectTokenSpec = {
+    name: "Shard",
+    types: ["Enchantment"],
+    subtypes: ["Shard"],
+    activatedAbilities: [
+        {
+            id: "shard-token-scry-draw",
+            oracleText: "{2}, Sacrifice this token: Scry 1, then draw a card.",
+            cost: { mana: { generic: 2 }, sacrifice: true },
+            useStack: true,
+            effects: [
+                {
+                    op: "scryReorder",
+                    player: "controller",
+                    count: 1,
+                    destination: "library-bottom",
+                },
+                { op: "draw", player: "controller", count: 1 },
+            ],
+        },
+    ],
+};
+
+/** Junk token. CR 111.10t: "A Junk token is a colorless Junk artifact token
+ *  with '{T}, Sacrifice this token: Exile the top card of your library. You
+ *  may play that card this turn. Activate only as a sorcery.'"
+ *
+ *  The exiled card is bound by the exile itself (`bindAll`), never linked to
+ *  the source: the token was sacrificed to pay the cost, so there is no
+ *  source left to link to. "Play" is both casting a spell (CR 601.2) and
+ *  playing a land (CR 305.1), hence `includesLand`; the window is `this-turn`. "Activate only as a
+ *  sorcery" is `sorcerySpeedOnly` (CR 602.5d).
+ *
+ *  No pinned `imagePrintId`: the producer's printing's Junk token. */
+export const JUNK_TOKEN: EffectTokenSpec = {
+    name: "Junk",
+    types: ["Artifact"],
+    subtypes: ["Junk"],
+    activatedAbilities: [
+        {
+            id: "junk-token-exile-play",
+            oracleText:
+                "{T}, Sacrifice this token: Exile the top card of your library. You may play that card this turn. Activate only as a sorcery.",
+            cost: { tap: true, sacrifice: true },
+            useStack: true,
+            sorcerySpeedOnly: true,
+            effects: [
+                {
+                    op: "exileTopOfLibrary",
+                    player: "controller",
+                    count: 1,
+                    bindAll: "$exiled",
+                },
+                {
+                    op: "grantCastFromExile",
+                    card: { ref: "$exiled" },
+                    player: "controller",
+                    window: "this-turn",
+                    includesLand: true,
+                },
+            ],
+        },
+    ],
+};
+
+/** Lander token. CR 111.10u: "A Lander token is a colorless Lander artifact
+ *  token with '{2}, {T}, Sacrifice this token: Search your library for a basic
+ *  land card, put it onto the battlefield tapped, then shuffle.'"
+ *
+ *  The fetch-land body (`sets/eld/colorless.cards.ts` Fabled Passage): a
+ *  search for a basic land (CR 701.23b — a stated quality never compels the
+ *  find, so `min: 0`), onto the battlefield tapped, then a shuffle.
+ *
+ *  No pinned `imagePrintId`: the producer's printing's Lander token. */
+export const LANDER_TOKEN: EffectTokenSpec = {
+    name: "Lander",
+    types: ["Artifact"],
+    subtypes: ["Lander"],
+    activatedAbilities: [
+        {
+            id: "lander-token-fetch",
+            oracleText:
+                "{2}, {T}, Sacrifice this token: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+            cost: { mana: { generic: 2 }, tap: true, sacrifice: true },
+            useStack: true,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: "Land", supertype: "Basic" },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for a basic land card.",
+                    bind: "$found",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found" },
+                    player: "controller",
+                    from: "library",
+                    to: "battlefield",
+                    tapped: true,
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ],
+        },
+    ],
+};
+
 /** CR 111.10 — the predefined tokens the engine defines, by the name an effect
  *  prints ("Create a Treasure token"): ONE name→spec table, the only place a
  *  predefined token's characteristics are looked up by name (issue #9948). The
  *  oracle compiler's token sub-grammar reads exactly these names and refuses
  *  every other (`convex/oracle/grammar/shared/tokenSpec.ts`) — a name the
- *  engine has no spec for (Gold, Junk, Lander, Shard, Incubator, a Role) is a
- *  token it cannot create, never a guess (issue #9950).
+ *  engine has no spec for (Incubator, a Role) is a token it cannot create,
+ *  never a guess.
  *
  *  Each row is the producers' shared spec, so a compiled "create a Clue
  *  token" and a hand-written `investigateOp` create the identical token (one
  *  synthesized definition, one art lookup): CR 111.10a Treasure, 111.10b
- *  Food, 111.10f Clue, 111.10g Blood, 111.10h Powerstone, 111.10s Map,
- *  111.10v Mutagen. */
+ *  Food, 111.10c Gold, 111.10e Shard, 111.10f Clue, 111.10g Blood, 111.10h
+ *  Powerstone, 111.10s Map, 111.10t Junk, 111.10u Lander, 111.10v Mutagen. */
 export const PREDEFINED_TOKEN_SPECS = {
     Treasure: EFFECT_TREASURE_TOKEN,
     Food: FOOD_TOKEN,
@@ -865,6 +1006,10 @@ export const PREDEFINED_TOKEN_SPECS = {
     Powerstone: POWERSTONE_TOKEN,
     Map: MAP_TOKEN_SPEC,
     Mutagen: MUTAGEN_TOKEN,
+    Gold: GOLD_TOKEN,
+    Shard: SHARD_TOKEN,
+    Junk: JUNK_TOKEN,
+    Lander: LANDER_TOKEN,
 } as const satisfies Readonly<Record<string, EffectTokenSpec>>;
 
 /** A name {@link PREDEFINED_TOKEN_SPECS} defines. */

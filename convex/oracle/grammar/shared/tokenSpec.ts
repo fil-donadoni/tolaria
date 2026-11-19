@@ -46,7 +46,7 @@
  *    is the creating effect modifying the token as it is created (CR 111.10:
  *    "The effect that creates a predefined token may also modify or add to
  *    the predefined characteristics"). A name the table does not define
- *    (Gold, Junk, a Role) is refused, never read as a creature subtype. The
+ *    (Vibranium, Incubator, a Role) is refused, never read as a creature subtype. The
  *    count is a printed cardinal or the announced X (CR 107.3); "that many",
  *    "half X" and every other count are refused.
  *
