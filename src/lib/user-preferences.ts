@@ -88,6 +88,9 @@ export const DEFAULT_DENSITY_PREFERENCE: DensityPreference = "roomy";
 export const DEFAULT_MOTION_PREFERENCE: MotionPreference = "system";
 /** `CardPreviewBody`'s previous hard-coded initial `useState`. */
 export const DEFAULT_PREVIEW_PREFERENCE: PreviewPreference = "computed";
+/** Issue #9988 — off: the trigger-order and graveyard-arrangement prompts
+ *  stay, exactly as before the preference existed. */
+export const DEFAULT_AUTO_ORDER_PROMPTS = false;
 
 /**
  * Publish density/motion to `<html>` as `[data-density]`/`[data-motion]`

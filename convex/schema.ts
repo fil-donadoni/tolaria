@@ -1785,6 +1785,11 @@ export default defineSchema({
         previewPreference: v.optional(
             v.union(v.literal("computed"), v.literal("printed"))
         ),
+        // "Order my triggers and graveyard automatically" (issue #9988): the
+        // GRE answers the CR 603.3b trigger-order and CR 404.3 graveyard
+        // arrangement prompts with the engine's own order instead of raising
+        // them. Absent = false (the prompts stay).
+        autoOrderPrompts: v.optional(v.boolean()),
     }).index("by_user", ["userId"]),
 
     // Preferred printing per card (issue #8755): the Print ID a user last

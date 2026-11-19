@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import {
+    DEFAULT_AUTO_ORDER_PROMPTS,
     DEFAULT_DENSITY_PREFERENCE,
     DEFAULT_MOTION_PREFERENCE,
     DEFAULT_PREVIEW_PREFERENCE,
@@ -31,8 +32,12 @@ export function useUserPreferences() {
     const previewPreference: PreviewPreference =
         saved?.previewPreference ?? DEFAULT_PREVIEW_PREFERENCE;
 
+    const autoOrderPrompts: boolean =
+        saved?.autoOrderPrompts ?? DEFAULT_AUTO_ORDER_PROMPTS;
+
     return {
         density,
+        autoOrderPrompts,
         motion,
         previewPreference,
         /** `true` until the initial query resolves (matches `useQuery`'s own
@@ -42,5 +47,7 @@ export function useUserPreferences() {
         setMotion: (value: MotionPreference) => update({ motion: value }),
         setPreviewPreference: (value: PreviewPreference) =>
             update({ previewPreference: value }),
+        setAutoOrderPrompts: (value: boolean) =>
+            update({ autoOrderPrompts: value }),
     };
 }
