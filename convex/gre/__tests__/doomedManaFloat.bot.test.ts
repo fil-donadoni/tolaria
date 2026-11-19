@@ -8,6 +8,8 @@
 // this window, and only when the floated mana has a spender.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
+import { withTemporaryDefinition } from "../../cards/registry";
+import type { CardDefinition } from "../../cards/types";
 import { enumerateMoves, onlyPassIsLegal } from "../moves";
 import type { Move } from "../moves";
 import { applyMoveInSearch } from "../search";
@@ -247,6 +249,85 @@ describe("doomed mana source float — the controller's own land pick (CR 608.2d
     });
 });
 
+describe("doomed mana source float — a resolution that parks on a choice (CR 701.23b, issue #9865)", () => {
+    const SAGA_LABEL =
+        "saga: Urza's Saga floats its mana before chapter III's search sacrifices it";
+
+    it("chapter III's library search on the stack + a spender: the float is offered for Urza's Saga", () => {
+        const state = build(SAGA_LABEL);
+        expect(state.stack).toHaveLength(1);
+        expect(state.priorityPlayerId).toBe(me(state).id);
+        expect(floats(enumerateMoves(state, me(state).id))).toEqual([
+            {
+                kind: "activate-mana-ability",
+                cardInstanceId: idOf(state, 0, "Urza's Saga"),
+            },
+        ]);
+    });
+
+    it("the same search with no spender offers no float", () => {
+        // No Frogmite, and an Island for Fiery Islet: the Islet's own
+        // "{1}, {T}, sacrifice" draw is a spender only the floated {C} pays.
+        const scenario = entry(SAGA_LABEL);
+        const state = buildPositionFromSpec(
+            {
+                ...scenario.spec,
+                cards: scenario.spec.cards.flatMap((c) =>
+                    c.name === "Frogmite"
+                        ? []
+                        : c.name === "Fiery Islet"
+                          ? [{ ...c, name: "Island" }]
+                          : [c]
+                ),
+            },
+            scenario.setup,
+            "Urza's Saga chapter III, no spender"
+        );
+        expect(state.stack).toHaveLength(1);
+        expect(floats(enumerateMoves(state, me(state).id))).toEqual([]);
+    });
+
+    it("a parked choice the sandbox cannot answer still fails closed", () => {
+        // Chapter III swapped for a mandatory pick of a card in hand that is
+        // no discard: neither a search's empty find nor a forced answer, so
+        // the probe cannot settle the resolution and offers nothing rather
+        // than guess — even though the Saga is still sacrificed after it.
+        const saga = getCardByName("Urza's Saga");
+        const [first, second, third] = saga.chapterAbilities!;
+        const unanswerable: CardDefinition = {
+            ...saga,
+            chapterAbilities: [
+                first,
+                second,
+                {
+                    ...third,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "choose-hand-card",
+                            player: "controller",
+                            zone: "hand",
+                            count: 1,
+                            prompt: "Choose a card in your hand.",
+                            bind: "$chosen",
+                        },
+                    ],
+                },
+            ],
+        };
+        const scenario = entry(SAGA_LABEL);
+        withTemporaryDefinition(unanswerable, () => {
+            const state = buildPositionFromSpec(
+                scenario.spec,
+                scenario.setup,
+                "Urza's Saga chapter III, an unanswerable hand pick"
+            );
+            expect(state.stack).toHaveLength(1);
+            expect(floats(enumerateMoves(state, me(state).id))).toEqual([]);
+        });
+    });
+});
+
 describe("doomed mana source float — search application (CR 605.3b / 106.4)", () => {
     it("the float keeps {C}{C} in the pool through the sacrifice, and the three-drop is castable after it", () => {
         const state = build(SPENDER_LABEL);
@@ -279,6 +360,17 @@ describe("doomed mana source float — search application (CR 605.3b / 106.4)", 
 describe("doomed mana source float — blade discriminating pair", () => {
     it.each([SPENDER_LABEL, NO_SPENDER_LABEL])("%s", (label) => {
         const result = runBladeScenario(entry(label));
+        expect(result.ok, result.failureMessage).toBe(true);
+    });
+});
+
+describe("doomed mana source float — Urza's Saga chapter III (issue #9865)", () => {
+    it("blade: the Saga floats its mana before chapter III's search sacrifices it", () => {
+        const result = runBladeScenario(
+            entry(
+                "saga: Urza's Saga floats its mana before chapter III's search sacrifices it"
+            )
+        );
         expect(result.ok, result.failureMessage).toBe(true);
     });
 });

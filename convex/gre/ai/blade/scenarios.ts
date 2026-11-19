@@ -28679,6 +28679,50 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #9690, CR 714.4. The same last window on a contested board: an Ornithopter makes the Construct a 2/2 facing the opponent's Grizzly Bears. Passing lets chapter III resolve and the Saga go with no token made and the two Plains unspent.",
     },
     {
+        label: "saga: Urza's Saga floats its mana before chapter III's search sacrifices it",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DRAW",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Urza's Saga",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { lore: 0 },
+                },
+                { name: "Fiery Islet", owner: "me", zone: "battlefield" },
+                { name: "Skateboard", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Frogmite", owner: "me", zone: "hand" },
+            ],
+        },
+        // Lore 0, so chapters I and II both resolve and the Saga holds both
+        // granted abilities: into precombat main (chapter I), resolve it, to
+        // the next main (chapter II), resolve it, to the next main — chapter
+        // III on the stack, the Bot holding priority.
+        setup: [
+            { kind: "pass", seat: "me" },
+            { kind: "pass", seat: "opp" },
+            { kind: "resolve-top" },
+            { kind: "pass", seat: "me" },
+            ...PASSES_TO_OWN_NEXT_MAIN,
+            { kind: "resolve-top" },
+            { kind: "pass", seat: "me" },
+            ...PASSES_TO_OWN_NEXT_MAIN,
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-mana-ability", card: "Urza's Saga" }],
+        },
+        note: "Issue #9865, CR 605.3a / 106.4 / 714.4. Chapter III's library search parks its resolution on a choice even when nothing in the library qualifies; the float probe settles it by finding nothing (CR 701.23b) and sees the Saga sacrificed. Tapping the Saga in response keeps its {C} in the pool through the resolution, and with Fiery Islet it pays Frogmite's {2} (affinity for Skateboard and Ornithopter); the Islet alone cannot. Two other untapped mana sources are not there, so the Construct ability is out of reach and the float is the only play that keeps the Saga's mana.",
+    },
+    {
         label: "kicker: Sowing Mycospawn is cast kicked when the kicker is affordable",
         classification: { kind: "absolute" },
         spec: {

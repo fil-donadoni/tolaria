@@ -1565,6 +1565,11 @@
     ],
     "Urza's Saga": [
         {
+            "label": "saga: Urza's Saga floats its mana before chapter III's search sacrifices it",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
             "label": "saga: Urza's Saga makes the Construct before chapter III sacrifices it",
             "tier": "must",
             "needsSetup": true
