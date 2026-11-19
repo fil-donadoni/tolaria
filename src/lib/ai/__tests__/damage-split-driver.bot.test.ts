@@ -6,8 +6,8 @@
 // `bun run cr 510.1c`: a creature blocked by two or more creatures "assigns
 // its combat damage to those creatures divided as its controller chooses among
 // them". `bun run cr 510.1d`: the same for a blocker blocking two or more.
-// The driver used to confirm the engine's seed (all damage on the first live
-// blocker) unedited; it now submits the policy's split first (ADR 0074: the
+// The driver used to confirm the engine's seed (lethal to each blocker in
+// order) unedited; it now submits the policy's split first (ADR 0074: the
 // server re-validates it — a rejected shape throws here).
 
 import { describe, it, expect } from "vitest";
@@ -137,22 +137,24 @@ async function realiseDamage(
 const ids = (cards: CardInstanceState[]) => cards.map((c) => c.id).sort();
 
 describe("driver: confirm-combat-damage submits the Bot's split (issue #5662)", () => {
-    it("3/3 blocked by a 1/1 and a 2/1: assigns 1 and 2, both blockers die (CR 510.1c)", async () => {
+    it("3/3 blocked by a 1/1 then a 3/3: assigns all 3 to the 3/3 (CR 510.1c)", async () => {
+        // The seed (lethal in order) kills only the 1/1; the policy kills the
+        // more valuable 3/3.
         const state = damageStep(
             [permanent(hillGiant().id, "atk", "p1")],
             [
                 permanent(monssGoblinRaiders().id, "goblin", "p2"),
-                permanent(savannahLions().id, "lions", "p2"),
+                permanent(hillGiant().id, "giant", "p2"),
             ],
-            { goblin: ["atk"], lions: ["atk"] },
+            { goblin: ["atk"], giant: ["atk"] },
             { atk: "p1" }
         );
         const { submitted, calls, after } = await realiseDamage(state, "p1");
         expect(calls).toEqual(["setDamageAssignment", "confirmDamage"]);
         expect(submitted).toEqual([
-            { attackerId: "atk", assignments: { goblin: 1, lions: 2 } },
+            { attackerId: "atk", assignments: { goblin: 0, giant: 3 } },
         ]);
-        expect(ids(after.players[1].graveyard)).toEqual(["goblin", "lions"]);
+        expect(ids(after.players[1].graveyard)).toEqual(["giant"]);
     });
 
     it("trample: lethal to each blocker, the excess to the defending player (CR 702.19b)", async () => {
@@ -193,21 +195,22 @@ describe("driver: confirm-combat-damage submits the Bot's split (issue #5662)", 
             [permanent(hillGiant().id, "atk", "p1")],
             [
                 permanent(monssGoblinRaiders().id, "goblin", "p2"),
-                permanent(savannahLions().id, "lions", "p2"),
+                permanent(hillGiant().id, "giant", "p2"),
             ],
-            { goblin: ["atk"], lions: ["atk"] },
+            { goblin: ["atk"], giant: ["atk"] },
             { atk: "p1" }
         );
         const { calls, after } = await realiseDamage(state, "p1", true);
         expect(calls).toEqual(["setDamageAssignment", "confirmDamage"]);
-        // The seed (all 3 on the first blocker) was confirmed and applied.
+        // The seed (1 to the 1/1, the remaining 2 to the 3/3) was confirmed
+        // and applied.
         expect(after.combat?.damageConfirmed).not.toBe(false);
         expect(ids(after.players[1].graveyard)).toEqual(["goblin"]);
     });
 
     it("submits nothing when the seed already is the split, and still confirms", async () => {
         // 3/3 into a 3/3 and a 1/1: the policy kills the 3/3 — which the
-        // engine's seed (first live blocker) already does.
+        // engine's seed (lethal to each blocker in order) already does.
         const state = damageStep(
             [permanent(hillGiant().id, "atk", "p1")],
             [

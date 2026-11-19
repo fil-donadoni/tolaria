@@ -614,8 +614,9 @@ describe("forceAdvanceOwedInput — the priority window's declarations close leg
         const f = damageAssignmentOwed("p1");
         const state = expectLegalClose(f, "confirm-damage");
         expect(state.combat!.damageConfirmed).toBe(true);
-        // The engine's default puts all 2 on the first blocker — one of the
-        // divisions CR 510.1c leaves to the assigner.
+        // The engine's default (lethal to each blocker in order) kills only
+        // the first blocker — one of the divisions CR 510.1c leaves to the
+        // assigner.
         expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["blk1"]);
         expect(state.priorityPlayerId).toBe("p1");
     });
