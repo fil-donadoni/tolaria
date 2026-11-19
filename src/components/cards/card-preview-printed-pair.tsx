@@ -19,7 +19,7 @@ export default function CardPreviewPrintedPair({
     onImageLoaded?: () => void;
 }) {
     const front = presented.printedImageId;
-    const back = presented.backFaceHalf?.printedImageId;
+    const back = presented.otherFaceHalf?.printedImageId;
     const originalPrint = original.printedImageId;
     return (
         <div className="grid w-full grid-cols-2 items-start gap-1 px-1 pt-1">
@@ -44,7 +44,7 @@ export default function CardPreviewPrintedPair({
                             <PrintedFaceImage
                                 imageId={back.id}
                                 face={back.face}
-                                alt={`${presented.backFaceHalf?.name} (printed back face)`}
+                                alt={`${presented.otherFaceHalf?.name} (printed ${presented.otherFaceHalf?.face} face)`}
                                 className="w-full card-corner"
                                 backFaceMarker
                             />

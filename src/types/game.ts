@@ -661,6 +661,11 @@ export interface CardInstance {
      *  This flag, NOT the sentinel id, is the client's face-down predicate
      *  (`isFaceDownCard`, `~/lib/face-down.ts`). */
     faceDown?: boolean;
+    /** The FRONT face's own definition id of a transformed permanent (mirrors
+     *  `CardInstanceState.transformedFrom`, public to both players). The card
+     *  preview reads it to show the front face beside the live back face
+     *  (issue #9959). */
+    transformedFrom?: string;
     /** CR 708.2 / CR 406.3 (issue #2904) — WHICH mechanic put this object face
      *  down (`FaceDownProducer`, `convex/gre/faceDown.ts`). Public information
      *  and the ONLY input to the rendered face-down face, so the face never

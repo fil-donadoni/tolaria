@@ -269,9 +269,9 @@ describe("CardPreviewBody renders the back face of a double-faced card (CR 712)"
 
     it("renders a card with no back face exactly as a body without the field, in both modes", () => {
         const body = buildPreviewBody(SERRA.id);
-        expect(body.backFaceHalf).toBeNull();
+        expect(body.otherFaceHalf).toBeNull();
         const today: PreviewBodyContent = { ...body };
-        delete today.backFaceHalf;
+        delete today.otherFaceHalf;
         for (const mode of ["computed", "printed"] as const) {
             setPreviewPreferenceDefault(mode);
             const withField = render(<CardPreviewBody {...body} size="sm" />)

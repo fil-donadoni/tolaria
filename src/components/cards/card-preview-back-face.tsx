@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ART_CROP_RATIO } from "~/lib/images";
 import { formatOracleText } from "~/lib/oracle-text";
 import OracleParagraph from "./oracle-paragraph";
-import type { PreviewBackFaceHalf } from "~/lib/preview-body";
+import type { PreviewOtherFaceHalf } from "~/lib/preview-body";
 
 // CR 712.1 / 712.8a (issue #3552) — the back face of a double-faced card that
 // is showing its front, as a labelled subordinate section inside the front
@@ -12,7 +12,7 @@ import type { PreviewBackFaceHalf } from "~/lib/preview-body";
 // close the surface the player is trying to read. Carries its own art because
 // the back of a double-faced printing is a different picture.
 export type CardPreviewBackFaceProps = {
-    half: PreviewBackFaceHalf;
+    half: PreviewOtherFaceHalf;
     size: "sm" | "md";
 };
 
