@@ -397,8 +397,10 @@ export function cardValue(
     //
     // The body is WRITTEN onto that pieces object rather than both spread
     // into a third: `dslLatentPiecesById` returns a fresh literal per call,
-    // the two key sets are disjoint, and this runs per hand card per leaf —
-    // SpiderMonkey runs an object spread as a self-hosted `CopyDataProperties`.
+    // the body's keys are not among its own except `standingLockValue`, which
+    // the body overrides last exactly as the trailing spread did, and this
+    // runs per hand card per leaf — SpiderMonkey runs an object spread as a
+    // self-hosted `CopyDataProperties`.
     const chars = dslLatentPiecesById(
         String(card.card.id ?? ""),
         board,
