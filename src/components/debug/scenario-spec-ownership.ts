@@ -716,7 +716,7 @@ function dropStaleStack(spec: ScenarioSpec): void {
     }
     const has = (
         seat: "me" | "opp",
-        zone: "battlefield" | "graveyard",
+        zone: "battlefield" | "graveyard" | "exile",
         name: string,
         nth: number
     ) => (available.get(`${seat}:${zone}:${name}`) ?? 0) > nth;
@@ -729,6 +729,21 @@ function dropStaleStack(spec: ScenarioSpec): void {
                 "battlefield",
                 item.name,
                 item.sourceNth ?? 0
+            )
+        ) {
+            return false;
+        }
+        // Issue #9875 — a keyword trigger names its SUBJECT card the same way,
+        // in exile (Rebound, Madness) or on the battlefield (Warp).
+        if (
+            item.subject &&
+            (item.subject.zone === "battlefield" ||
+                item.subject.zone === "exile") &&
+            !has(
+                item.subject.seat,
+                item.subject.zone,
+                item.subject.name,
+                item.subject.nth ?? 0
             )
         ) {
             return false;

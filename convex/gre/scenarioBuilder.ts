@@ -131,6 +131,8 @@ import {
     type ScenarioObjectRef,
     type ScenarioTriggerEvent,
     type ScenarioZoneObjectRef,
+    type ScenarioKeywordTrigger,
+    KEYWORD_TRIGGER_SUBJECT_ZONE,
 } from "../debugScenarioSpec";
 import {
     lowerResolutionCheckpoint,
@@ -173,7 +175,12 @@ import { turnFaceDown, isFaceDownExile } from "./faceDown";
 import { startFirstTurn } from "./mulligan";
 import { computeExpectedInput } from "./expectedInput";
 import { buildActivatedAbilityStackItem } from "./activationCommit";
-import { buildTriggerItem } from "./triggers";
+import {
+    buildMadnessReflexiveTrigger,
+    buildReboundReflexiveTrigger,
+    buildTriggerItem,
+    buildWarpExileTrigger,
+} from "./triggers";
 import {
     lowerTriggerEvent,
     rebuildTriggerEvent,
@@ -993,7 +1000,23 @@ export function buildStateFromScenario(
                     (instance as CardInstanceState).warpExiledOnTurn =
                         state.turn - 1;
                 }
+                // CR 702.88a / 702.35a (issue #9875) — exiled by its own
+                // Rebound / Madness ability, the reflexive cast-trigger still
+                // owed: the flag that trigger's resolution re-checks.
+                if (entry.reboundExiled) {
+                    (instance as CardInstanceState).reboundExiled = true;
+                }
+                if (entry.madnessExiled) {
+                    (instance as CardInstanceState).madnessExiled = true;
+                }
             } else {
+                // CR 702.185a / 400.7 (issue #9875) — cast for its warp cost,
+                // the end-step exile still owed: the marker `applyWarpExile`
+                // re-checks to tell this object from one that left and came
+                // back.
+                if (entry.warped) {
+                    (instance as CardInstanceState).warped = true;
+                }
                 if (entry.damageMarked && entry.damageMarked > 0) {
                     (instance as CardInstanceState).damageMarked =
                         entry.damageMarked;
@@ -2442,6 +2465,59 @@ function seedDeclaredStack(
             return;
         }
 
+        if (entry.kind === "keywordTrigger") {
+            const { keyword, subject: ref } = entry;
+            if (!keyword || !ref) {
+                throw new Error(
+                    `buildStateFromScenario: stack index ${index} is a "keywordTrigger" with no ${keyword ? "subject" : "keyword"}.`
+                );
+            }
+            const zone = KEYWORD_TRIGGER_SUBJECT_ZONE[keyword];
+            if (ref.zone === "stack" || ref.zone !== zone) {
+                throw new Error(
+                    `buildStateFromScenario: stack index ${index} is a ${keyword} trigger whose subject is declared in "${ref.zone}" — its resolution looks for the card in ${zone}.`
+                );
+            }
+            const seat = seatPlayer(ref.seat);
+            const subject = pick(
+                zone === "exile" ? seat.exile : seat.battlefield,
+                ref.name,
+                ref.nth ?? 0,
+                `the subject of stack index ${index}`
+            );
+            // The engine's own builders, never a hand-built item — the
+            // argument both branches above make. Each stamps its marker with
+            // the REBUILT subject's instance id, which is the whole of what
+            // the item carries.
+            switch (keyword) {
+                case "rebound":
+                    state.stack.push(
+                        buildReboundReflexiveTrigger(state, subject, casterId)
+                    );
+                    break;
+                case "madness":
+                    state.stack.push(
+                        buildMadnessReflexiveTrigger(state, subject, casterId)
+                    );
+                    break;
+                case "warp":
+                    // CR 702.185a — the item presents the card the warp SPELL
+                    // was (the scheduled instance's `sourceCardId`), which the
+                    // entry's own `name` carries; the permanent may present
+                    // something else by now (CR 707.2).
+                    state.stack.push(
+                        buildWarpExileTrigger(
+                            state,
+                            combatDefId(entry.name),
+                            subject.id,
+                            casterId
+                        )
+                    );
+                    break;
+            }
+            return;
+        }
+
         if (entry.abilityId !== undefined) {
             throw new Error(
                 `buildStateFromScenario: stack index ${index} is a "spell" carrying an abilityId — a spell has no activated ability to name.`
@@ -3158,6 +3234,10 @@ export const CARD_STATE_ALLOWLIST = new Set<string>([
     "castableFromExileFromOwnTurn",
     "warped",
     "warpExiledOnTurn",
+    // CR 702.88a / 702.35a (issue #9875) — the "awaiting its reflexive
+    // cast-trigger" flags, lowered into the spec fields of the same name.
+    "reboundExiled",
+    "madnessExiled",
     "castableFromExileIncludesLand",
     // Rebuild behaviour, not spec-keyed data: `beginApplyingStaticEffects`
     // (CR 611.2) re-derives every CONTINUOUS grant/strip from a
@@ -3397,6 +3477,7 @@ function lowerCard(
     if (zone === "battlefield") {
         if (card.isTapped) entry.tapped = true;
         if (card.damageMarked) entry.damageMarked = card.damageMarked;
+        if (card.warped) entry.warped = true;
         if (card.counters && Object.keys(card.counters).length > 0) {
             entry.counters = { ...card.counters };
         } else if (!card.isToken && !card.faceDown) {
@@ -3496,6 +3577,8 @@ function lowerCard(
     } else if (zone === "exile") {
         if (card.plottedOnTurn !== undefined) entry.plotted = true;
         if (card.warpExiledOnTurn !== undefined) entry.warpExiled = true;
+        if (card.reboundExiled) entry.reboundExiled = true;
+        if (card.madnessExiled) entry.madnessExiled = true;
         if (card.castableFromExileBy) {
             if (card.castableFromExileBy === player.id) {
                 entry.castableFromExile = true;
@@ -4157,6 +4240,66 @@ const STACK_ITEM_ALLOWLIST = new Set<string>([
     "spellsCastBefore",
 ]);
 
+/**
+ * The marker field each engine-owned keyword trigger carries (issue #9875) —
+ * its subject's instance id, the one fact `resolveTopOfStack` dispatches on.
+ * Exhaustive over `ScenarioKeywordTrigger`, and the ONLY way a marker is
+ * admitted: a marker of a keyword not listed here classifies as nothing, so
+ * its item is refused by name like any other unknown field.
+ */
+export const KEYWORD_TRIGGER_MARKER: Record<
+    ScenarioKeywordTrigger,
+    "reboundTrigger" | "madnessTrigger" | "warpTrigger"
+> = {
+    rebound: "reboundTrigger", // CR 702.88a
+    madness: "madnessTrigger", // CR 702.35a
+    warp: "warpTrigger", // CR 702.185a
+};
+
+/**
+ * Every key the three keyword-trigger builders write besides the marker
+ * (`buildReboundReflexiveTrigger` and its two siblings, `gre/triggers.ts`),
+ * plus the layer bookkeeping any stack object may be stamped with. An EXACT
+ * list rather than `STACK_ITEM_ALLOWLIST`: that one excuses the announcement
+ * (`targets`, `chosenX`, a resolution checkpoint) because the other kinds
+ * lower it, and a `keywordTrigger` entry carries none of it — so on this kind
+ * each of those is a fact the rebuild would drop, and is refused.
+ */
+const STACK_KEYWORD_TRIGGER_KEYS = new Set<string>([
+    "id",
+    "card",
+    "controllerId",
+    "ownerId",
+    "zone",
+    "types",
+    "subtypes",
+    "staticAbilities",
+    "isTapped",
+    "castById",
+    "baseStaticAbilities",
+    "baseControllerId",
+    "baseTypes",
+    "baseSubtypes",
+    "printedSubtypes",
+    "staticSeq",
+]);
+
+/** Which keyword's engine-owned trigger `item` is, if any (issue #9875): an
+ *  item with no ability id of either kind that carries exactly one known
+ *  marker. Two markers at once is no object the engine builds, and classifies
+ *  as nothing — both are then refused as unknown fields. */
+export function keywordTriggerOf(
+    item: StackItem
+): ScenarioKeywordTrigger | undefined {
+    if (item.abilityId !== undefined || item.triggeredAbilityId !== undefined) {
+        return undefined;
+    }
+    const present = (
+        Object.keys(KEYWORD_TRIGGER_MARKER) as ScenarioKeywordTrigger[]
+    ).filter((keyword) => item[KEYWORD_TRIGGER_MARKER[keyword]] !== undefined);
+    return present.length === 1 ? present[0] : undefined;
+}
+
 /** CR 601.2a — the key only a SPELL item may carry and the `spell` entry
  *  lowers: its Cast Provenance (`castFromZone`, hand omitted). An ability or a
  *  trigger is not cast, so on either one it stays residue. */
@@ -4478,6 +4621,9 @@ function lowerStack(
         // firing event.
         const isTrigger = item.triggeredAbilityId !== undefined;
         const isClone = isAbility || isTrigger;
+        // Issue #9875 — an engine-owned keyword trigger (Rebound, Madness,
+        // Warp): neither id above, only the marker naming its subject.
+        const keyword = keywordTriggerOf(item);
         // CR 708.2 — same refusal as a face-down TARGET below, one line
         // earlier: a face-down object presents the sentinel, which
         // `getCardByName` cannot resolve, so `presentedName` would name
@@ -4498,20 +4644,54 @@ function lowerStack(
                 ? `ability:${item.abilityId}`
                 : isTrigger
                   ? `trigger:${item.triggeredAbilityId}`
-                  : "spell"
+                  : keyword
+                    ? `trigger:${keyword}`
+                    : "spell"
         }`;
 
+        const carried = (k: string): boolean =>
+            keyword
+                ? STACK_KEYWORD_TRIGGER_KEYS.has(k) ||
+                  k === KEYWORD_TRIGGER_MARKER[keyword]
+                : STACK_ITEM_ALLOWLIST.has(k) ||
+                  (!isClone && STACK_SPELL_ALLOWLIST.has(k)) ||
+                  (isClone && STACK_ABILITY_CLONE_KEYS.has(k)) ||
+                  (isTrigger && STACK_TRIGGER_ALLOWLIST.has(k));
         for (const key of Object.keys(item)
             .filter(
                 (k) =>
-                    !STACK_ITEM_ALLOWLIST.has(k) &&
-                    !(!isClone && STACK_SPELL_ALLOWLIST.has(k)) &&
-                    !(isClone && STACK_ABILITY_CLONE_KEYS.has(k)) &&
-                    !(isTrigger && STACK_TRIGGER_ALLOWLIST.has(k)) &&
+                    !carried(k) &&
                     (item as Record<string, unknown>)[k] !== undefined
             )
             .sort()) {
             refuse(index, label, key, `the spec has no field for "${key}"`);
+        }
+
+        // Issue #9875 — the SUBJECT the marker names, lowered to the zone the
+        // keyword's resolution looks it up in (CR 702.88a / 702.35a: the
+        // exiled card; CR 702.185a: the permanent). Anywhere else — it left
+        // (CR 400.7), it is face down (CR 708.2), it is in no zone the spec
+        // describes — the declaration has nothing to stamp the marker with,
+        // and is refused rather than rebuilt pointing at nothing.
+        let subject: ScenarioObjectRef | undefined;
+        if (keyword) {
+            const zone = KEYWORD_TRIGGER_SUBJECT_ZONE[keyword];
+            const ref = lowerEventObjectRef(
+                state,
+                item,
+                item[KEYWORD_TRIGGER_MARKER[keyword]]!,
+                seatOf
+            );
+            if (ref && ref.zone === zone) {
+                subject = ref;
+            } else {
+                refuse(
+                    index,
+                    label,
+                    `subject:${keyword}`,
+                    `its subject, the ${name} its ${keyword} trigger acts on, is not a card the spec can name ${zone === "exile" ? "in exile" : "on the battlefield"}: it has left that zone (CR 400.7) or is face down (CR 708.2)`
+                );
+            }
         }
 
         let source: CardInstanceState | undefined;
@@ -4749,9 +4929,16 @@ function lowerStack(
 
         const controller = seatOf(item.castById);
         entries.push({
-            kind: isAbility ? "ability" : isTrigger ? "trigger" : "spell",
+            kind: isAbility
+                ? "ability"
+                : isTrigger
+                  ? "trigger"
+                  : keyword
+                    ? "keywordTrigger"
+                    : "spell",
             name,
             controller,
+            ...(keyword && subject ? { keyword, subject } : {}),
             ...(resolution !== undefined ? { resolution } : {}),
             ...(event !== undefined ? { event } : {}),
             ...(isClone && source && sourceBattlefield && sourceSeat
@@ -4776,6 +4963,7 @@ function lowerStack(
                 ? { castOffSorceryTiming: true }
                 : {}),
             ...(!isClone &&
+            !keyword &&
             item.castFromZone !== undefined &&
             item.castFromZone !== "hand"
                 ? { castFromZone: item.castFromZone }

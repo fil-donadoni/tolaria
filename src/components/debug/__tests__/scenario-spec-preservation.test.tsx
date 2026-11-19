@@ -357,6 +357,37 @@ describe("scenario spec field ownership", () => {
         expect(tooFew.stack).toBeUndefined();
     });
 
+    it("carries a keyword trigger only while its SUBJECT is still placed (issue #9875)", () => {
+        // CR 702.88a — a Rebound cast-trigger names the exiled card it acts
+        // on, and `seedDeclaredStack` throws on a subject it cannot find.
+        const stack: ScenarioSpec["stack"] = [
+            {
+                kind: "keywordTrigger",
+                name: "Ephemerate",
+                controller: "me",
+                keyword: "rebound",
+                subject: { zone: "exile", name: "Ephemerate", seat: "me" },
+            },
+        ];
+        const exiled = {
+            name: "Ephemerate",
+            owner: "me" as const,
+            zone: "exile" as const,
+            reboundExiled: true,
+        };
+        const kept = assembleScenarioSpec(
+            { ...FORM_ASSEMBLED, cards: [...FORM_ASSEMBLED.cards, exiled] },
+            { ...STORED, stack }
+        );
+        expect(kept.stack).toEqual(stack);
+
+        const removed = assembleScenarioSpec(FORM_ASSEMBLED, {
+            ...STORED,
+            stack,
+        });
+        expect(removed.stack).toBeUndefined();
+    });
+
     it("drops an entry the edit made unresolvable by SEAT or by COUNT (issue #3488)", () => {
         // `seedContinuousEffects` resolves an entry's names against ONE
         // battlefield and consumes one instance per name, so a presence-only
