@@ -72,7 +72,12 @@ import { maindeckPaneIdFor } from "./deckPanes";
 import type { DeckZoneSelection } from "./deckZoneSelection";
 import { isCreatureCard } from "./deckZoneFilter";
 import DeckStatsButton from "./deck-stats-button";
-import type { DeckBuilderViewSpec, WorkingDeck } from "./deckBuilderVariant";
+import {
+    moveToMaindeckCardTitle,
+    moveToSideboardCardTitle,
+    type DeckBuilderViewSpec,
+    type WorkingDeck,
+} from "./deckBuilderVariant";
 import {
     recordGroupingChange,
     viewAfterGroupingChange,
@@ -968,6 +973,8 @@ export default function PoolDeckBuilderForm(props: PoolDeckBuilderFormProps) {
                 sideTabLabel: "Pool",
                 mainTabLabel: "Deck",
                 phonePiles: true,
+                mainCardTitle: moveToSideboardCardTitle,
+                sideCardTitle: moveToMaindeckCardTitle,
                 mainEmptyMessage:
                     "Move Pool cards here (or add Basics above) to build your deck.",
                 sideEmptyMessage:

@@ -93,6 +93,10 @@ interface Wrapper {
     title: string;
     /** Matches the Sideboard pane's header line. */
     sidePane: RegExp;
+    /** A Lightning Bolt tile's tooltip in each zone (issue #9993: it names the
+     *  click's real effect, which differs per variant). */
+    mainTile: RegExp;
+    sideTile: RegExp;
     /** The `localStorage` split key this variant must persist under — the two
      *  are distinct on purpose (issue #1622); a shared key would silently
      *  merge two independent saved layouts. */
@@ -105,6 +109,8 @@ const constructed: Wrapper = {
     name: "Constructed (DeckBuilder)",
     title: "Edit Deck",
     sidePane: /^Sideboard /,
+    mainTile: /Remove Lightning Bolt/,
+    sideTile: /Remove Lightning Bolt from the Sideboard/,
     splitKey: "tolaria:deckbuilderSplit:deckbuilder",
     render: (manager) =>
         render(
@@ -144,6 +150,8 @@ const limited: Wrapper = {
     name: "Limited (PoolDeckBuilderForm)",
     title: "Build Limited Deck",
     sidePane: /^Pool \(Sideboard\) /,
+    mainTile: /Move Lightning Bolt to Sideboard/,
+    sideTile: /Add Lightning Bolt to Maindeck/,
     splitKey: "tolaria:deckbuilderSplit:pool",
     render: (manager) =>
         render(
@@ -177,8 +185,9 @@ function cardsIn(container: HTMLElement, columnId: string): string[] {
     return [...column.querySelectorAll("[role=button][title]")].map((el) =>
         el
             .getAttribute("title")!
-            .replace(/^Remove /, "")
+            .replace(/^(Remove|Move|Add) /, "")
             .replace(/ \(.*$/, "")
+            .replace(/ (to (Sideboard|Maindeck)|from the Sideboard)$/, "")
     );
 }
 
@@ -262,7 +271,7 @@ describe.each([constructed, limited])(
         it("clicking a Maindeck card takes it out of the Maindeck", () => {
             const { container, getByTitle } = wrapper.render();
             expect(cardsIn(container, "mv:1")).toEqual(["Lightning Bolt"]);
-            fireEvent.click(getByTitle(/Remove Lightning Bolt/));
+            fireEvent.click(getByTitle(wrapper.mainTile));
             expect(cardsIn(container, "mv:1")).toEqual([]);
         });
 
@@ -272,14 +281,14 @@ describe.each([constructed, limited])(
 
             await dragOnto(
                 manager,
-                getByTitle(/Remove Lightning Bolt/),
+                getByTitle(wrapper.mainTile),
                 paneOf(container, wrapper.sidePane)
             );
 
             expect(cardsIn(container, "mv:1")).toEqual([]);
             expect(
                 within(paneOf(container, wrapper.sidePane)).getByTitle(
-                    /Remove Lightning Bolt/
+                    wrapper.sideTile
                 )
             ).toBeTruthy();
         });

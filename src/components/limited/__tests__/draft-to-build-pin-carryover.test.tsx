@@ -213,7 +213,7 @@ describe("draft → build Card Pin carry-over (issue #1632, ADR 0075 §6)", () =
 
         await dragOnto(
             manager,
-            within(pool).getByTitle(/Remove Lightning Bolt/),
+            within(pool).getByTitle(/Move Lightning Bolt to Sideboard/),
             pool.querySelector('[data-column="mv:6"]')!
         );
 
@@ -256,7 +256,7 @@ describe("draft → build Card Pin carry-over (issue #1632, ADR 0075 §6)", () =
 
         await dragOnto(
             manager,
-            within(pool).getByTitle(/Remove Lightning Bolt/),
+            within(pool).getByTitle(/Move Lightning Bolt to Sideboard/),
             sideboardPane
         );
 
