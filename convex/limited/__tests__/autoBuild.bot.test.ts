@@ -398,7 +398,14 @@ function profileLookup(profiles: Record<string, CardProfile>): GetCardProfile {
  *  relation, not the number, is what the second test re-derives every run. */
 function flashFixture() {
     const flash = metaOf("Flash");
-    const wurm = metaOf("Worldspine Wurm");
+    // The Wurm is exempt from the land drop: an eleven-drop is castable on
+    // no deck's land drops (`manaValueCastability`), so the no-profile build
+    // would cut it, and the subject here is the Capability term, not
+    // castability.
+    const wurm: AutoBuildCardMeta = {
+        ...metaOf("Worldspine Wurm"),
+        reducesOwnCost: true,
+    };
     const filler: AutoBuildCardMeta = {
         ...metaOf("Jump"),
         manaValue: 2,
@@ -1650,5 +1657,111 @@ describe("plans as soft weights: mixed plans (issue #9356)", () => {
         expect(
             planArchetypeWeights(new Map([["aggro", 3]]), 40, null).size
         ).toBe(0);
+    });
+});
+
+// --- Land drop: generic cost against the mana-source count (issue #9978) ----
+//
+// The pip half of castability reads a colourless twelve-drop as free. The
+// land-drop half (`manaValueCastability`) cuts it from a deck with no way to
+// put it into play, and keeps it beside one: "needs an enabler" is the
+// card's Profile, never a list.
+
+/** A Capability-only profile (no Archetype). */
+function capabilityProfile(
+    provides: string[],
+    requires: string[]
+): CardProfile {
+    return {
+        archetypes: [],
+        provides,
+        requires,
+        archetypesReviewed: true,
+        capabilitiesReviewed: true,
+    };
+}
+
+/** The red/green base plus one copy of each extra row. */
+function fattyPool(extra: [string, AutoBuildCardMeta][]) {
+    return invariantPool([
+        ...redGreenBase(),
+        ...extra.map(([k, m]): [string, AutoBuildCardMeta, number] => [
+            k,
+            m,
+            1,
+        ]),
+    ]);
+}
+
+const inMain = (built: { cards: { cardName: string }[] }, name: string) =>
+    built.cards.some((c) => c.cardName === name);
+
+describe("land drop: a fatty plays only beside its enabler (issue #9978)", () => {
+    const colossus = metaOf("Blightsteel Colossus");
+    // Tinker and Exhume as red one-pip spells: on-colour in the red/green
+    // base, so the subject is the enabler, never its colour.
+    const tinker = spellWithPips(metaOf("Tinker"), { R: 1 });
+    const exhume = spellWithPips(metaOf("Exhume"), { R: 1 });
+    const emrakul = metaOf("Emrakul, the Aeons Torn");
+    const profiles = profilesById([
+        ["Blightsteel Colossus", capabilityProfile(["big-artifact"], [])],
+        ["Tinker", capabilityProfile([], ["big-artifact"])],
+        [
+            "Emrakul, the Aeons Torn",
+            capabilityProfile(
+                ["value-on-attack", "value-on-cast", "cheat-target"],
+                []
+            ),
+        ],
+        [
+            "Exhume",
+            capabilityProfile(
+                ["cheap-spell"],
+                ["reanimatable", "discard-outlet", "self-mills"]
+            ),
+        ],
+    ]);
+
+    it("Discriminating Pair: a twelve-drop is cut with no cheat, and maindecked beside Tinker", () => {
+        const alone = fattyPool([["colossus", colossus]]);
+        const builtAlone = autoBuildDeck(
+            alone.pool,
+            alone.getMeta,
+            resolveBasicLand,
+            { getCardProfile: profiles }
+        );
+        expect(inMain(builtAlone, "colossus0")).toBe(false);
+
+        const cheated = fattyPool([
+            ["colossus", colossus],
+            ["tinker", tinker],
+        ]);
+        const builtCheated = autoBuildDeck(
+            cheated.pool,
+            cheated.getMeta,
+            resolveBasicLand,
+            { getCardProfile: profiles }
+        );
+        expect(inMain(builtCheated, "colossus0")).toBe(true);
+        expect(inMain(builtCheated, "tinker0")).toBe(true);
+    });
+
+    it("an enabler the payoff's Profile does not satisfy cheats nothing: Exhume never returns Emrakul", () => {
+        const { pool, getMeta } = fattyPool([
+            ["emrakul", emrakul],
+            ["exhume", exhume],
+        ]);
+        const built = autoBuildDeck(pool, getMeta, resolveBasicLand, {
+            getCardProfile: profiles,
+        });
+        expect(inMain(built, "emrakul0")).toBe(false);
+    });
+
+    it("a card that reduces its own cost is exempt from the land drop", () => {
+        const { pool, getMeta } = fattyPool([
+            ["colossus", { ...colossus, reducesOwnCost: true }],
+        ]);
+        const built = autoBuildDeck(pool, getMeta, resolveBasicLand);
+        expect(inMain(built, "colossus0")).toBe(true);
     });
 });

@@ -11,6 +11,7 @@ import {
     limitedSourceColors,
     oneShotSourceColors,
 } from "./limited/manaSourceColors";
+import { reducesOwnCost } from "./limited/ownCostReduction";
 import { v, type Infer } from "convex/values";
 import { internal } from "./_generated/api";
 import {
@@ -826,6 +827,7 @@ const makeAutoBuildCardMeta =
             isBasicLand:
                 def.types.includes("Land") &&
                 (def.supertypes?.includes("Basic") ?? false),
+            reducesOwnCost: reducesOwnCost(def),
         };
     };
 

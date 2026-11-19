@@ -7,8 +7,10 @@ import type { Color } from "../../cards/types";
 import {
     OPENING_HAND,
     addProducer,
+    LAND_DROP_HORIZON,
     hypergeometricAtLeast,
     manaSourceKinds,
+    manaValueCastability,
     pipCastability,
 } from "../castability";
 
@@ -256,5 +258,34 @@ describe("pipCastability — fractional one-shot sources (issue #9337)", () => {
             -1
         );
         expect(kinds.size).toBe(0);
+    });
+});
+
+describe("manaValueCastability — the land drop (issue #9978)", () => {
+    it("is the hypergeometric tail of mana value sources by the later of its turn and the horizon", () => {
+        expect(manaValueCastability(12, 40, 17)).toBeCloseTo(
+            hypergeometricAtLeast(40, 17, OPENING_HAND + 12 - 1, 12)
+        );
+        expect(manaValueCastability(3, 40, 17)).toBeCloseTo(
+            hypergeometricAtLeast(
+                40,
+                17,
+                OPENING_HAND + LAND_DROP_HORIZON - 1,
+                3
+            )
+        );
+    });
+
+    it("a curve-topper stays castable, a twelve-drop does not", () => {
+        expect(manaValueCastability(6, 40, 17)).toBeGreaterThan(0.9);
+        expect(manaValueCastability(10, 40, 17)).toBeLessThan(0.2);
+        expect(manaValueCastability(12, 40, 17)).toBeLessThan(0.05);
+    });
+
+    it("more sources pay more, and mana value 0 reads 1", () => {
+        expect(manaValueCastability(8, 40, 22)).toBeGreaterThan(
+            manaValueCastability(8, 40, 17)
+        );
+        expect(manaValueCastability(0, 40, 0)).toBe(1);
     });
 });
