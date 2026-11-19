@@ -22113,6 +22113,45 @@ export function buildSpellContext(
                 ) === undefined
             );
         },
+        getCastBlockReason(playerId, cardInstanceId, sourceZone, opts) {
+            // CR 601.2c / 601.2h (issue #9982) — the printed cast's two
+            // "if able" refusals, asked BEFORE the offer: a payment that
+            // covers the cost (at the cheapest X), a legal first target.
+            const payer = getPlayer(state, playerId);
+            const found = castZoneOwner(
+                state,
+                payer,
+                cardInstanceId,
+                sourceZone
+            )[sourceZone].find((c) => c.id === cardInstanceId);
+            if (!found) return undefined;
+            const def = getHandCardDef(state, playerId, cardInstanceId);
+            if (
+                opts?.free !== true &&
+                planResolutionCastPayment(
+                    state,
+                    payer,
+                    castSubjectView(found, undefined),
+                    opts?.alternativeCost ?? def?.manaCost ?? {},
+                    0
+                ) === null
+            ) {
+                return "cost";
+            }
+            const firstGroup = ctx.getCastTargetSlot(playerId, cardInstanceId, {
+                groupIndex: 0,
+                groupTargets: [],
+                priorTargets: [],
+            });
+            if (
+                firstGroup &&
+                firstGroup.min > 0 &&
+                firstGroup.legal.length === 0
+            ) {
+                return "target";
+            }
+            return undefined;
+        },
         getCastFaceTypes(playerId, cardInstanceId, _sourceZone, faceId) {
             // CR 709.3a / 712.11c / 715.3a — the announced face's own types.
             return [

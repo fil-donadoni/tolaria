@@ -529,6 +529,25 @@ const OFFER_PROMPT = {
     cast: "You may cast the card. Cast it or decline.",
 } as const;
 
+/** Issue #9982 — the question a "you may cast / play" offer asks. A card
+ *  already public (the caller passes its name only then, CR 406.3) is named;
+ *  `blockReason` says why "Cast" is not on offer (CR 601.2h / 601.2c). Without
+ *  either it is the generic {@link OFFER_PROMPT} wording. */
+function castOfferPrompt(
+    verb: "play" | "cast",
+    cardName: string | undefined,
+    blockReason: "cost" | "target" | undefined
+): string {
+    if (cardName === undefined) return OFFER_PROMPT[verb];
+    if (blockReason === "cost") {
+        return `You may ${verb} ${cardName}, but you can't pay its cost right now.`;
+    }
+    if (blockReason === "target") {
+        return `You may ${verb} ${cardName}, but it has no legal target.`;
+    }
+    return `You may ${verb} ${cardName}. ${verb === "cast" ? "Cast" : "Play"} it or decline.`;
+}
+
 /** CR 702.85a (issue #3216) — the picks binding the `cascade` Op writes the
  *  card its walk stopped on into, so `runCastDuringResolution` can name it with
  *  the ordinary `card: { ref }` shape instead of growing a cascade-specific
@@ -10037,7 +10056,7 @@ function runCastDuringResolution(
     const offerOptions = op.includesLand
         ? PLAY_DECLINE_OPTIONS
         : CAST_DECLINE_OPTIONS;
-    const offerPrompt = op.includesLand ? OFFER_PROMPT.play : OFFER_PROMPT.cast;
+    const offerVerb = op.includesLand ? "play" : "cast";
 
     // The card the offer is ABOUT, shown as an image above the question
     // (issue #3413). A prompt that says "the card" and pins nothing is the
@@ -10085,23 +10104,45 @@ function runCastDuringResolution(
     // it. A hidden card keeps the byte-identical offer and asks once accepted.
     const offerFaces = subjectCardId !== undefined ? faces : [];
     const [acceptRow, declineRow] = offerOptions;
+    // Issue #9982 — a printed cast no payment / target can complete is not
+    // offered: "Cast" there resolved silently as a decline. Asked of a PUBLIC
+    // card of a "cast" grant only: an `includesLand` offer stays byte-identical
+    // whatever the card (CR 406.3), and a hidden card is never named or judged.
+    const blockReason =
+        !op.includesLand && subjectCardId !== undefined && printedCastable
+            ? ctx.getCastBlockReason(playerId, cardInstanceId, sourceZone, {
+                  free: op.free,
+                  alternativeCost: op.alternativeCost,
+              })
+            : undefined;
     const options =
-        offerFaces.length === 0
-            ? offerOptions
-            : [
-                  // An `includesLand` grant keeps its accept row whatever the
-                  // printed cast's legality, for the land branch below.
-                  ...(printedCastable || op.includesLand
-                      ? [
-                            {
-                                ...acceptRow,
-                                label: `${acceptRow.label} ${ctx.getCardName(cardInstanceId) ?? "the card"}`,
-                            },
-                        ]
-                      : []),
-                  ...offerFaces,
-                  declineRow,
-              ];
+        blockReason !== undefined
+            ? [...offerFaces, declineRow]
+            : offerFaces.length === 0
+              ? offerOptions
+              : [
+                    // An `includesLand` grant keeps its accept row whatever the
+                    // printed cast's legality, for the land branch below.
+                    ...(printedCastable || op.includesLand
+                        ? [
+                              {
+                                  ...acceptRow,
+                                  label: `${acceptRow.label} ${ctx.getCardName(cardInstanceId) ?? "the card"}`,
+                              },
+                          ]
+                        : []),
+                    ...offerFaces,
+                    declineRow,
+                ];
+    const offerPrompt = castOfferPrompt(
+        offerVerb,
+        // CR 406.3 — an `includesLand` offer is keyed to the GRANT alone (its
+        // prompt is byte-identical whatever the card), so it never names it.
+        subjectCardId !== undefined && !op.includesLand
+            ? ctx.getCardName(cardInstanceId)
+            : undefined,
+        blockReason
+    );
     const offer = {
         options,
         prompt: offerPrompt,

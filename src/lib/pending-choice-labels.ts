@@ -2,6 +2,7 @@ import type { PendingChoiceKind } from "@convex/gre/types";
 import { choiceSpansAllBattlefields } from "@convex/gre/zonePickEligibility";
 import type { PendingChoice, PendingTarget } from "~/types/game";
 import type { MayPayCost } from "@convex/cards/types";
+import { tryGetDefinition } from "@convex/cards";
 import { normalizeMayPayCost, wantsSpellTarget } from "~/lib/card-utils";
 
 /** UI label shown as the source tag on a pending choice prompt
@@ -99,6 +100,19 @@ export function pendingChoiceSourceLabel(
     // CR 707.2 — an as-enters copy of a graveyard card returns nothing.
     if (choice.asEntersKind === "copy") return "Copy";
     return pendingChoiceLabel(choice.kind);
+}
+
+/** The prompt's title: the source tag, then the card the choice is ABOUT when
+ *  the server pinned one (`subjectCardId`, public cards only — CR 406.3), so
+ *  the header names it ("Choose — Minsc & Boo, Timeless Heroes", issue #9982). */
+export function pendingChoiceHeader(
+    choice: Pick<PendingChoice, "kind" | "asEntersKind" | "subjectCardId">
+): string {
+    const label = pendingChoiceSourceLabel(choice);
+    const name = choice.subjectCardId
+        ? tryGetDefinition(choice.subjectCardId)?.name
+        : undefined;
+    return name === undefined ? label : `${label} — ${name}`;
 }
 
 /** True when a `may-pay` cost's mana leg demands an actual payment — at least

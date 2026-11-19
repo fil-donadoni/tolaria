@@ -8,6 +8,7 @@ import {
 } from "~/hooks/usePendingChoiceBuffer";
 import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
 import PendingChoicePrompt from "../pending-choice-prompt";
+import { registerTokenDefinition } from "@convex/cards";
 
 // The prompt fires Convex mutations through useMutation — stub with one shared
 // spy, so a test can assert the payload a submit sent (issue #3323).
@@ -386,6 +387,16 @@ describe("PendingChoicePrompt — rebound-cast (CR 702.88a)", () => {
     });
 });
 
+const NAMED_SUBJECT_ID = "test-prompt-named-subject";
+registerTokenDefinition({
+    id: NAMED_SUBJECT_ID,
+    name: "Test Named Subject",
+    rarity: "common",
+    manaCost: { U: 1 },
+    types: ["Sorcery"],
+    effects: [],
+});
+
 // Issue #3413 — the card a choice is ABOUT renders ABOVE the question. Reading
 // order is title → card → question, so the question lands with its subject
 // already on screen; below the question the image read as an afterthought and,
@@ -420,6 +431,16 @@ describe("PendingChoicePrompt — the subject card renders above the prompt text
             image!.compareDocumentPosition(question) &
                 Node.DOCUMENT_POSITION_FOLLOWING
         ).toBeTruthy();
+    });
+
+    it("names the subject card in the header, next to the source tag (issue #9982)", () => {
+        const { getByText } = renderPrompt(castOffer(NAMED_SUBJECT_ID), "me");
+        expect(getByText("Choose — Test Named Subject")).toBeTruthy();
+    });
+
+    it("keeps the bare source tag when no subject is pinned (issue #9982)", () => {
+        const { getByText } = renderPrompt(castOffer(), "me");
+        expect(getByText("Choose")).toBeTruthy();
     });
 
     it("renders no image at all when the choice pins no subject (a face-down card stays hidden, CR 406.3)", () => {
