@@ -486,18 +486,20 @@ export const scenarioStackTargetValidator = v.union(
  * by name (`libraryCount` fills it with basics), so an event naming one cannot
  * be rebuilt and is refused instead.
  */
+export const scenarioZoneObjectRefValidator = v.object({
+    zone: v.union(
+        v.literal("battlefield"),
+        v.literal("graveyard"),
+        v.literal("exile"),
+        v.literal("hand")
+    ),
+    name: v.string(),
+    seat: v.union(v.literal("me"), v.literal("opp")),
+    nth: v.optional(v.number()),
+});
+
 export const scenarioObjectRefValidator = v.union(
-    v.object({
-        zone: v.union(
-            v.literal("battlefield"),
-            v.literal("graveyard"),
-            v.literal("exile"),
-            v.literal("hand")
-        ),
-        name: v.string(),
-        seat: v.union(v.literal("me"), v.literal("opp")),
-        nth: v.optional(v.number()),
-    }),
+    scenarioZoneObjectRefValidator,
     // CR 405.1 — an object on the declared stack, by its index in `stack`.
     v.object({ zone: v.literal("stack"), index: v.number() })
 );
@@ -935,6 +937,52 @@ export const scenarioSpecValidator = v.object({
                 )
             ),
             blockersConfirmed: v.optional(v.boolean()),
+            // CR 506.4 / 400.7 (issue #10120) — the combat-record slots of
+            // combatants that LEFT THE BATTLEFIELD during this combat. The
+            // engine keeps such a slot under a tombstone id no object answers
+            // to (`retireDepartingCombatant`, issue #6333), because the
+            // combat's HISTORY outlives the creature: an attacker whose
+            // blocker died stays blocked (CR 509.1h), and attackers WERE
+            // declared (CR 508.8) even once every one of them is dead. A name
+            // list cannot say that — the creature is on no battlefield — so
+            // every decision between a combat death and the end of combat
+            // used to be refused.
+            //
+            // `slot` is the departed attacker's position among the attacker
+            // SLOTS: the rebuilt `attackerIds` is `attackers`, in order, with
+            // each departed slot inserted at its own index — and that list is
+            // what every `blocking` index, live or departed, points into. A
+            // departed BLOCKER carries no slot: the assignment record is
+            // keyed, not ordered.
+            //
+            // `now` says where the CARD that was the combatant sits today, in
+            // the vocabulary a trigger event names an object with. It is what
+            // rebuilds the last-known lookup by the card's own id (CR 608.2h —
+            // "the player it was attacking", "blocking or blocked by it").
+            // Omitted for an object nothing can ask about by id: a token that
+            // has ceased to exist (CR 111.7). The rebuilt slot is NEVER the
+            // card's id, wherever the card is — one back on the battlefield
+            // is a new object in no slot at all (CR 400.7).
+            departed: v.optional(
+                v.object({
+                    attackers: v.optional(
+                        v.array(
+                            v.object({
+                                slot: v.number(),
+                                now: v.optional(scenarioZoneObjectRefValidator),
+                            })
+                        )
+                    ),
+                    blockers: v.optional(
+                        v.array(
+                            v.object({
+                                blocking: v.array(v.number()),
+                                now: v.optional(scenarioZoneObjectRefValidator),
+                            })
+                        )
+                    ),
+                })
+            ),
             // CR 506.4 / 508.4 — creatures that have ATTACKED or BLOCKED this
             // turn, the COMPLETE list including the ones currently in the
             // declaration above. The per-card flags outlive the combat object
@@ -1176,6 +1224,20 @@ export type ScenarioContinuousEffect = ContinuousEffectSlot & {
     characteristicDefining?: boolean;
 };
 
+/** CR 506.4 (issue #10120) — one attacker slot whose creature left the
+ *  battlefield. See `scenarioSpecValidator`'s `combat.departed`. */
+export type ScenarioDepartedAttacker = {
+    slot: number;
+    now?: ScenarioZoneObjectRef;
+};
+
+/** CR 506.4 (issue #10120) — one blocker whose creature left the battlefield,
+ *  and the attacker slots it was declared against (CR 509.1a). */
+export type ScenarioDepartedBlocker = {
+    blocking: number[];
+    now?: ScenarioZoneObjectRef;
+};
+
 /** CR 601.2c (issue #3513) — one announced target of a declared stack object.
  *  See `scenarioStackTargetValidator` for why `nth` exists and why
  *  `"hand-card"` is not a member. */
@@ -1193,13 +1255,17 @@ export type ScenarioStackTarget =
 /** CR 400.1 (issue #3516) — one object an event names, in any zone the spec
  *  places cards in. See `scenarioObjectRefValidator`. */
 export type ScenarioObjectRef =
-    | {
-          zone: "battlefield" | "graveyard" | "exile" | "hand";
-          name: string;
-          seat: "me" | "opp";
-          nth?: number;
-      }
+    | ScenarioZoneObjectRef
     | { zone: "stack"; index: number };
+
+/** CR 400.1 — the half of {@link ScenarioObjectRef} that names a CARD by the
+ *  zone it sits in. See `scenarioZoneObjectRefValidator`. */
+export type ScenarioZoneObjectRef = {
+    zone: "battlefield" | "graveyard" | "exile" | "hand";
+    name: string;
+    seat: "me" | "opp";
+    nth?: number;
+};
 
 /** CR 603.2 (issue #3516) — one field of a firing event. See
  *  `scenarioEventValueValidator`. */
@@ -1381,6 +1447,17 @@ export type ScenarioSpec = {
         confirmed?: boolean;
         blockers?: { blocker: string; blocking: number[] }[];
         blockersConfirmed?: boolean;
+        /** CR 506.4 / 400.7 (issue #10120) — the slots of combatants that
+         *  LEFT THE BATTLEFIELD during this combat, which the record keeps
+         *  under an id no object answers to. A departed attacker's `slot` is
+         *  its index among the attacker slots — `attackers` with the departed
+         *  ones inserted — and `blocking`, here and in `blockers`, indexes
+         *  that list. `now` names the card the combatant was, wherever it
+         *  sits; omitted for a token that ceased to exist (CR 111.7). */
+        departed?: {
+            attackers?: ScenarioDepartedAttacker[];
+            blockers?: ScenarioDepartedBlocker[];
+        };
         /** CR 506.4 / 508.4 — creatures that attacked/blocked this turn, the
          *  complete list per SEAT (both seats can hold a Grizzly Bears that
          *  attacked, which a flat list could not tell apart). Not implied by
@@ -1801,6 +1878,44 @@ function normalizeBlocker(
         .map((entry) => pickNumber(entry))
         .filter((entry): entry is number => entry !== undefined);
     return blocking.length > 0 ? { blocker, blocking } : null;
+}
+
+/** CR 400.1 — the card a departed combatant was, read off a raw stored row.
+ *  A stack reference is no card in a zone, and is dropped like any other
+ *  malformed value. */
+function normalizeDepartedNow(raw: unknown): { now?: ScenarioZoneObjectRef } {
+    const now = normalizeObjectRef(raw);
+    return now !== undefined && now.zone !== "stack" ? { now } : {};
+}
+
+/** CR 506.4 (issue #10120) — the departed slots of a declared combat, read
+ *  tolerantly (ADR 0044). A malformed entry is dropped; `undefined` when
+ *  nothing survives, so an empty `departed` never reaches the spec. */
+function normalizeDepartedCombatants(
+    raw: unknown
+): NonNullable<ScenarioSpec["combat"]>["departed"] {
+    if (!isRecord(raw)) return undefined;
+    const attackers: ScenarioDepartedAttacker[] = [];
+    for (const entry of Array.isArray(raw.attackers) ? raw.attackers : []) {
+        if (!isRecord(entry)) continue;
+        const slot = pickNumber(entry.slot);
+        if (slot === undefined) continue;
+        attackers.push({ slot, ...normalizeDepartedNow(entry.now) });
+    }
+    const blockers: ScenarioDepartedBlocker[] = [];
+    for (const entry of Array.isArray(raw.blockers) ? raw.blockers : []) {
+        if (!isRecord(entry) || !Array.isArray(entry.blocking)) continue;
+        const blocking = entry.blocking
+            .map((index) => pickNumber(index))
+            .filter((index): index is number => index !== undefined);
+        if (blocking.length === 0) continue;
+        blockers.push({ blocking, ...normalizeDepartedNow(entry.now) });
+    }
+    if (attackers.length === 0 && blockers.length === 0) return undefined;
+    return {
+        ...(attackers.length > 0 ? { attackers } : {}),
+        ...(blockers.length > 0 ? { blockers } : {}),
+    };
 }
 
 /** CR 208.2 / 611.1 / 611.2a (issue #3459) — the tolerant read of one entry's
@@ -2521,6 +2636,11 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
                 .filter((entry): entry is NonNullable<typeof entry> => !!entry);
             if (blockers.length > 0) combat.blockers = blockers;
         }
+        set(
+            combat,
+            "departed",
+            normalizeDepartedCombatants(raw.combat.departed)
+        );
         if (Object.keys(combat).length > 0) spec.combat = combat;
     }
     // CR 106.4 / 106.6 (issue #3460) — floating mana, read off a raw stored row
@@ -2653,6 +2773,12 @@ export function collectUnresolvedCardNames(
         ...(spec.combat?.attackedThisTurn?.opp ?? []),
         ...(spec.combat?.blockedThisTurn?.me ?? []),
         ...(spec.combat?.blockedThisTurn?.opp ?? []),
+        // CR 506.4 (issue #10120) — the card a departed combatant was, which
+        // the builder resolves and throws on like the four lists above.
+        ...[
+            ...(spec.combat?.departed?.attackers ?? []),
+            ...(spec.combat?.departed?.blockers ?? []),
+        ].flatMap((entry) => (entry.now ? [entry.now.name] : [])),
     ]) {
         if (!resolves(name) && !resolvesToken(name)) unresolved.add(name);
     }

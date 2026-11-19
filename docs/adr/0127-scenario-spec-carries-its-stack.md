@@ -303,5 +303,10 @@ that die together names its partner by the retired combat-record id
 graveyard — which is why a nameable card was refused. It stays unnameable, by
 design (a card back under its old id is a new object, CR 400.7): omitted for a
 non-reader, refused for a reader with a sentence that says what it is. The
-combat record itself still refuses such a decision as `combat-not-captured`;
-that wall is issue #10120.
+combat record itself refused such a decision as `combat-not-captured` until
+issue #10120 gave `spec.combat` a `departed` vocabulary: each tombstoned slot
+is declared by position (an attacker's `slot`, a blocker's `blocking`), with
+`now` naming the card the combatant was so the last-known lookup by its id is
+rebuilt (CR 608.2h). The rebuilt slot is a tombstone minted by the engine's own
+writer, never the card's id. A departed card the spec cannot name (a library,
+the stack, face down, a hidden hand) is still a `combat:` note and a refusal.
