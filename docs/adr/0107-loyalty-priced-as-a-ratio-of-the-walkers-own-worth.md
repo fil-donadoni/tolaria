@@ -111,34 +111,9 @@ permanent. No special case.
   with the search rather than competing with it: the leaf says how much a
   counter is worth, and the search says which ability to spend it on.
 
-## Amendment I (issue #9973, 2026-11-18) — the walker's worth reads its loyalty arm
-
-The ratio scaled a quantity that read no loyalty ability at all: a walker's
-`cardValue` was the blind `base + MV` floor, because
-`carriesStandingAbilityWorth` excludes planeswalkers. Teferi, Hero of
-Dominaria priced 58 in hand against a Grizzly Bears' 105, and the Bot
-surveiled him away for a random draw.
-
-- **The loyalty arm** (`dslLoyaltyAbilityValue`) is the BEST loyalty ability
-  the walker can activate the turn it enters and still stand (cost plus
-  starting loyalty above 0; CR 606.3 allows one per turn, CR 704.5i removes a
-  walker at 0). One arm, never the sum. It is undiscounted: its only cost is
-  loyalty, which this ADR's ratio already prices.
-- **It is ADDED** to the rest of the non-creature worth, never compared with
-  the Latent Floor: the floor stands for the permanent the ratio scales.
-- **At any loyalty above 0 the arm stays at its own worth**: the counters buy
-  or cost the body turns, never a better or worse turn. Scaled with the body
-  above the start, Jace, the Mind Sculptor's +2 outbid his Brainstorm. Scaled
-  below it, every minus ability paid a share of the arm on top of the body's:
-  Teferi's and Jace's bounce verdicts fell under `pass` at one ply, and the
-  weight fit chased them through `latentCreatureDiscount` (0.625 → 0.569),
-  which flipped the Snapcaster Mage hold-or-cast Eval Pair. At 0 the walker
-  is gone and so is the arm.
-
 ## References
 
 - Issue #2491 (both halves: enumeration and evaluation)
-- Issue #9973 (Amendment I: the loyalty arm)
 - CR 306.5b (starting loyalty), CR 606.2/606.3/606.4/606.6 (loyalty abilities),
   CR 704.5i (the zero-loyalty state-based action)
 - ADR 0058 (the loyalty framework slice this completes for the bot)
