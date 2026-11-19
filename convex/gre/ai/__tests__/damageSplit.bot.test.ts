@@ -8,8 +8,7 @@
 // trample excess reaches the player only once every blocker has lethal.
 // `bun run cr 702.2c`: one deathtouch point is lethal.
 //
-// Before the policy the Bot confirmed the engine's seed (everything on the
-// first live blocker). Every board here is hand-built at the combat damage step with the
+// Before the policy the Bot confirmed the engine's seed unedited. Every board here is hand-built at the combat damage step with the
 // engine's own seed in place, exactly as the step's entry leaves it.
 
 import { describe, it, expect } from "vitest";
@@ -128,8 +127,7 @@ function expectAccepted(
     ).toBe(true);
 }
 
-/** 3/3 Hill Giant blocked by a 1/1 and a 2/1 — the seed puts all 3 on the
- *  first blocker and kills only it. */
+/** 3/3 Hill Giant blocked by a 1/1 and a 2/1 — enough damage to kill both. */
 function threeIntoOneOneAndTwoOne(): GameState {
     return damageStep(
         [permanent(hillGiant().id, "atk", "p1")],
@@ -145,16 +143,13 @@ function threeIntoOneOneAndTwoOne(): GameState {
 describe("Bot combat-damage split (issue #5662, CR 510.1c)", () => {
     it("kills both blockers when the damage allows it: 1 to the 1/1, 2 to the 2/1", () => {
         const state = threeIntoOneOneAndTwoOne();
-        // The engine's seed is the one the Bot used to confirm unedited.
-        expect(state.combat!.damageAssignments!.atk).toEqual({
-            goblin: 3,
-            lions: 0,
-        });
         const split = splitOf(state, "p1", "atk")!;
         expect(split).toEqual({ goblin: 1, lions: 2 });
         expectAccepted(state, "atk", split);
-        // It differs from the seed, so the driver owes a submission.
-        expect(owedDamageSplits(state, "p1")).toHaveLength(1);
+        // The engine's seed is lethal to each blocker in order (issue #9987):
+        // already this split, so the driver owes no submission.
+        expect(state.combat!.damageAssignments!.atk).toEqual(split);
+        expect(owedDamageSplits(state, "p1")).toHaveLength(0);
     });
 
     it("kills the more valuable blocker when it cannot kill both, whatever the declaration order", () => {
@@ -176,6 +171,11 @@ describe("Bot combat-damage split (issue #5662, CR 510.1c)", () => {
             expect(split.giant).toBe(3);
             expect(split.goblin ?? 0).toBe(0);
             expectAccepted(state, "atk", split);
+            // Goblin first: the seed's lethal-in-order kills only the
+            // goblin, so the split differs and the driver owes it.
+            expect(owedDamageSplits(state, "p1")).toHaveLength(
+                order[0] === "goblin" ? 1 : 0
+            );
         }
     });
 
@@ -313,14 +313,15 @@ describe("several splits by one assigner (issue #5662 review)", () => {
     it("never prices a trample split against another source's seed it is about to replace (CR 702.19b)", () => {
         // X (1/1) blocks BOTH attackers (an ability lets it block an extra
         // creature). A is a 3/3 trampler blocked by X and Y (2/1); B a 3/3
-        // blocked by X and Z (3/3). The seed puts all of B's 3 on X, its first live blocker.
+        // blocked by X and Z (3/3). B is declared first, so its seed is
+        // lethal on X (1) and the rest on Z (2).
         // Priced against that seed, A would read X as already lethally
         // damaged and trample 2 past it — and B, re-split, prefers Z and
         // leaves X with nothing: an illegal pair the server never re-checks.
         const state = damageStep(
             [
-                permanent(warMammoth().id, "a", "p1"),
                 permanent(hillGiant().id, "b", "p1"),
+                permanent(warMammoth().id, "a", "p1"),
             ],
             [
                 permanent(monssGoblinRaiders().id, "x", "p2"),
@@ -330,7 +331,7 @@ describe("several splits by one assigner (issue #5662 review)", () => {
             { x: ["a", "b"], y: ["a"], z: ["b"] },
             { a: "p1", b: "p1" }
         );
-        expect(state.combat!.damageAssignments!.b).toEqual({ x: 3, z: 0 });
+        expect(state.combat!.damageAssignments!.b).toEqual({ x: 1, z: 2 });
         expect(splitOf(state, "p1", "a")).toEqual({ x: 1, y: 1, p2: 1 });
         expect(splitOf(state, "p1", "b")).toEqual({ x: 0, z: 3 });
     });

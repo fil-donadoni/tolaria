@@ -19387,8 +19387,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     {
         // COMBAT-DAMAGE SPLIT (CR 510.1c, issue #5662). The Bot's 3/3 is
         // double-blocked by a 1/1 and a 2/1: 1 + 1 is lethal for both, so the
-        // split kills both. The engine's seed puts all 3 on the first blocker
-        // and kills one — the split the Bot confirmed unedited before #5662.
+        // split kills both — the engine's seed (lethal to each blocker in order,
+        // issue #9987) now does too; before it, the seed put all 3 on the
+        // first blocker and the Bot confirmed that unedited.
         //
         // The split is not a Move (the driver submits it through
         // `setDamageAssignment` before `confirmDamage`), so the predicate
@@ -19461,7 +19462,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // The discriminating half of the entry above (issue #5662): the 2/1
         // becomes a 3/3, so 3 damage kills at most one blocker (lethal 3 + 1).
         // The policy kills the one it values more — the 3/3 Bog Wraith — and
-        // it is declared SECOND, so the engine's seed (first live blocker) would
+        // it is declared SECOND, so the engine's seed (lethal in order) would
         // kill the 1/1 instead: the entry discriminates the value pick from
         // declaration order.
         label: "discriminating pair: damage split kills the 3/3 of a 1/1 and a 3/3 blocking a 3/3",
@@ -19525,7 +19526,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "puts all 3 of Hill Giant's damage on Bog Wraith (the 3/3), none on Mons's Goblin Raiders",
         },
-        note: 'Issue #5662, the discriminating half of "discriminating pair: damage split kills both a 1/1 and a 2/1 blocking a 3/3". Proof-of-failure: a kill-set search that prefers the cheapest kill (or the seed\'s first live blocker) puts the 3 on the Raiders and the entry reds.',
+        note: 'Issue #5662, the discriminating half of "discriminating pair: damage split kills both a 1/1 and a 2/1 blocking a 3/3". Proof-of-failure: a kill-set search that prefers the cheapest kill (or the seed\'s lethal-in-order split) puts the 3 on the Raiders and the entry reds.',
     },
     {
         label: "regeneration shield: holds Regenerate against an Aura that destroys nothing",

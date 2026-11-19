@@ -92,7 +92,7 @@ export function realiseBotAction(
             return null;
 
         // Combat-damage confirmation (CR 510.1c-d, multi-target). The engine's
-        // pre-filled default (all damage on the first live blocker) is only the
+        // pre-filled default (lethal to each blocker in order) is only the
         // human modal's seed: the bot submits its own split for every source it
         // assigns (`owedDamageSplits`, issue #5662) through the same
         // `setDamageAssignment` the modal uses — re-validated server-side,
