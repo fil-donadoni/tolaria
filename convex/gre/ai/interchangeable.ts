@@ -66,12 +66,26 @@ import { assertNever } from "../assertNever";
  *    comparison, so it is PROJECTED to the boolean the rule asks for rather
  *    than dropped: two Treetop Villages that entered on turns 3 and 5 of a
  *    turn-9 board are interchangeable, and two where one entered this turn
- *    are not. */
+ *    are not.
+ *  - `seenByOpponent` exists only on a PROJECTED own-hand card
+ *    (`SlimHandCard`, `gameProjections.ts`): the eye icon, derived from
+ *    `knownTo` after the projection strips `knownTo` itself. It records what a
+ *    PLAYER knows, not anything about the card — the hand is a hidden zone
+ *    (CR 400.2) and no rule reads who has seen a card in it; nothing under
+ *    `convex/gre/` reads the field at all. Rehydrated by
+ *    `projectedToGameState`, it rode into the descriptor on the live side
+ *    only, so two copies of which the opponent had seen one stayed separate
+ *    while the verdict rebuild (whose spec cannot carry the flag) collapsed
+ *    them, and the quiz refused the decision (issue #9965). Dropped.
+ *    Raw `knownTo` on an engine state is deliberately NOT dropped:
+ *    `determinize` reads it to pin known library positions, so it stays in
+ *    the total descriptor and its failure mode stays the harmless one. */
 const DESCRIPTOR_PROJECTED_KEYS = new Set([
     "id",
     "enteredOnTurn",
     "imagePrintId",
     "sourcePrintId",
+    "seenByOpponent",
 ]);
 
 /** JSON with object keys in sorted order, so two structurally equal values
