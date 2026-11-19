@@ -32,6 +32,8 @@ import {
 } from "@convex/gre/categorizedPick";
 import { SLOT_SPRING } from "~/lib/board-motion";
 import { Minus, Hand, Layers, Skull, Swords } from "lucide-react";
+import { activateTileOnKey } from "~/lib/card-tile-keyboard";
+import { cardDefName } from "~/lib/restricted-mana";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { useViewportWidth } from "~/hooks/useViewportWidth";
 import {
@@ -374,6 +376,10 @@ export default function LibraryOrderPicker({
         lastClientX: number;
     } | null>(null);
 
+    /** Set when a drag gesture just committed, so the click the browser may
+     *  still fire after release never toggles the card (issue #9995). */
+    const dragEndedRef = useRef(false);
+
     const localX = useCallback((clientX: number) => {
         const rect = containerRef.current?.getBoundingClientRect();
         return clientX - (rect?.left ?? 0);
@@ -559,6 +565,7 @@ export default function LibraryOrderPicker({
     const onPointerDown = useCallback(
         (e: React.PointerEvent<HTMLDivElement>, id: string) => {
             if (e.button !== 0 || submitting) return;
+            dragEndedRef.current = false;
             const zone = top.includes(id) ? "top" : "second";
             const idx = (zone === "top" ? top : second).indexOf(id);
             const layout = computeLayout(
@@ -648,6 +655,7 @@ export default function LibraryOrderPicker({
             setDrag(null);
             return;
         }
+        dragEndedRef.current = true;
         const c = view._commit;
         setDrag(null);
         if (!c) return;
@@ -701,6 +709,49 @@ export default function LibraryOrderPicker({
         (keep !== undefined
             ? top.length > keep || top.length < (minKeep ?? keep)
             : false);
+
+    // ---- Click / keyboard path (issue #9995, WCAG 2.1.1) ----
+    // Same destination rules as a drag release: the pool-mode caps, the
+    // eligibility allow-list and the categorized keep all gate a move to the
+    // TOP zone, so the keyboard can never reach a state a drag cannot.
+    const toggleCard = (id: string) => {
+        if (submitting || !hasSecond) return;
+        if (top.includes(id)) {
+            setTop(top.filter((x) => x !== id));
+            setSecond([...second, id]);
+            return;
+        }
+        const top0 = top;
+        if (topCap !== undefined && top0.length >= topCap) return;
+        if (eligibleIds !== undefined && !eligibleIds.includes(id)) return;
+        if (
+            categories !== undefined &&
+            !canAddCategorizedPick(categories, top0, id)
+        )
+            return;
+        setSecond(second.filter((x) => x !== id));
+        setTop([...top0, id]);
+    };
+    // Left→right order, rightmost = topmost: ArrowRight moves one slot right.
+    const shiftCard = (id: string, delta: -1 | 1) => {
+        if (submitting) return;
+        const inTop = top.includes(id);
+        const arr = [...(inTop ? top : second)];
+        const i = arr.indexOf(id);
+        const j = i + delta;
+        if (i < 0 || j < 0 || j >= arr.length) return;
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+        (inTop ? setTop : setSecond)(arr);
+    };
+    const onCardKeyDown = (e: React.KeyboardEvent<HTMLElement>, id: string) => {
+        if (activateTileOnKey(e, () => toggleCard(id))) return;
+        if (e.target !== e.currentTarget) return;
+        if (e.altKey || e.ctrlKey || e.metaKey) return;
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+            e.preventDefault();
+            shiftCard(id, e.key === "ArrowLeft" ? -1 : 1);
+        }
+    };
 
     const handleConfirm = () => {
         if (confirmDisabled) return;
@@ -853,6 +904,25 @@ export default function LibraryOrderPicker({
                                         submitting
                                             ? "absolute"
                                             : "absolute cursor-grab active:cursor-grabbing"
+                                    }
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-disabled={submitting || undefined}
+                                    aria-label={`${cardDefName(defById[c.instanceId]) ?? "Card"} — ${
+                                        top.includes(c.instanceId)
+                                            ? rightMeta.title
+                                            : (leftMeta?.title ??
+                                              rightMeta.title)
+                                    }${hasSecond ? ". Enter to move to the other zone, arrow keys to reorder" : ". Arrow keys to reorder"}`}
+                                    onClick={() => {
+                                        if (dragEndedRef.current) {
+                                            dragEndedRef.current = false;
+                                            return;
+                                        }
+                                        toggleCard(c.instanceId);
+                                    }}
+                                    onKeyDown={(e) =>
+                                        onCardKeyDown(e, c.instanceId)
                                     }
                                     onPointerDown={(e) =>
                                         onPointerDown(e, c.instanceId)
