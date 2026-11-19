@@ -1890,8 +1890,8 @@ function resolveCreatePackSlots(args: {
     return resolvePackSlots(source, args.type);
 }
 
-/** Any authenticated user creates an event with `seatCount` Seats, the creator in the first (PRD
- *  #1107 story 1-6; the original admin gate was lifted — hosting a table is a
+/** Any authenticated user creates an event with `seatCount` Seats, the
+ *  creator in the first (PRD #1107 story 1-6; the original admin gate was lifted — hosting a table is a
  *  normal player action, and the creator already owns it via `createdBy` for
  *  `startLimitedEvent`/`cancelLimitedEvent`). Every `packSlots` entry must
  *  resolve to a currently-Draftable Set — defense-in-depth behind the create
