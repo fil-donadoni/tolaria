@@ -2038,43 +2038,6 @@ export const armadilloCloak = defineCard(() => ({
     ],
 }));
 
-// Aura Mutation — {G}{W} Instant. "Destroy target enchantment. Create X
-// 1/1 green Saproling creature tokens, where X is that enchantment's mana
-// value." (CR 701.8 destroy + CR 111 token creation with `count` reading
-// the `{ ref: "$x.manaValue" }` snapshot — the exact Artifact Mutation
-// shape, this file's RG tranche, target type swapped Artifact → Enchantment
-// and no `cantBeRegenerated` clause (enchantments don't regenerate).)
-export const auraMutation = defineCard(() => ({
-    id: "38421179-615e-4aba-91a4-503bfee05403",
-    rarity: "rare",
-    name: "Aura Mutation",
-    oracleText:
-        "Destroy target enchantment. Create X 1/1 green Saproling creature tokens, where X is that enchantment's mana value.",
-    manaCost: { G: 1, W: 1 },
-    types: ["Instant"],
-    targetRequirement: { type: "Enchantment", count: 1 },
-    effects: [
-        {
-            op: "destroy",
-            target: { target: 0 },
-            bind: "$ench",
-        },
-        {
-            op: "createToken",
-            token: {
-                name: "Saproling",
-                types: ["Creature"],
-                subtypes: ["Saproling"],
-                power: 1,
-                toughness: 1,
-                colors: ["G"],
-            },
-            controller: "controller",
-            count: { ref: "$ench.manaValue" },
-        },
-    ],
-}));
-
 // Aura Shards — {1}{G}{W} Enchantment. "Whenever a creature you control
 // enters, you may destroy target artifact or enchantment." (CR 603.6a
 // ETB trigger, scope "yours" + `filter: { types: "Creature" }" via
@@ -2215,21 +2178,6 @@ export const duelingGrounds = defineCard(() => ({
             oracleText: "No more than one creature can block each combat.",
         },
     ],
-}));
-
-// Heroes' Reunion — {G}{W} Instant. "Target player gains 7 life." (CR
-// 119.3 life gain.) A plain single-Op spell — exact shape precedent
-// Absorb's `gainLife` half (this file's WU tranche), target swapped from
-// the caster to an announced player target.
-export const heroesReunion = defineCard(() => ({
-    id: "135d6043-5ec1-4ad4-8296-41fe23f11cb9",
-    rarity: "uncommon",
-    name: "Heroes' Reunion",
-    oracleText: "Target player gains 7 life.",
-    manaCost: { G: 1, W: 1 },
-    types: ["Instant"],
-    targetRequirement: { type: "player", count: 1 },
-    effects: [{ op: "gainLife", player: { target: 0 }, amount: 7 }],
 }));
 
 // Horned Cheetah — {2}{G}{W} Creature — Cat, 2/2. "Whenever this creature

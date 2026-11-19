@@ -854,22 +854,3 @@ export const crimsonManticore = defineCard(() => ({
         },
     ],
 }));
-
-// Pyrotechnics — {4}{R} Sorcery. "Pyrotechnics deals 4 damage divided as you
-// choose among any number of targets." (CR 601.2d division at cast time; same
-// wording and shape as Pyrokinesis / Meteor Shower.)
-export const pyrotechnics = defineCard(() => ({
-    id: "2646284b-a94d-4c99-98d4-7becbb473e2b",
-    rarity: "common",
-    name: "Pyrotechnics",
-    oracleText:
-        "Pyrotechnics deals 4 damage divided as you choose among any number of targets.",
-    manaCost: { X: 4, R: 1 },
-    types: ["Sorcery"],
-    targetRequirement: {
-        type: "any",
-        count: { min: 1 },
-        divideAsChosen: { total: 4 },
-    },
-    effects: [{ op: "dealDamageDividedAsChosen", total: 4 }],
-}));
