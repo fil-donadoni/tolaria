@@ -1,35 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PublicMatch } from "@convex/matches";
 import GameDialog from "~/components/ui/game-dialog";
-import { Button } from "~/components/ui/button";
-import SegmentedControl from "~/components/ui/segmented-control";
 import { useGameContext } from "~/hooks/useGameContext";
-import { buildPreviewBody } from "~/lib/preview-body";
-import CardPreviewBody from "~/components/cards/card-preview-body";
-import { HOVER_GRACE_MS } from "~/components/cards/card-preview";
-import {
-    moveAllToMaindeck,
-    moveAllToSideboard,
-    moveToMaindeck,
-    moveToSideboard,
-    type SideboardSplit,
-} from "~/lib/deckSideboard";
+import type { SideboardSplit } from "~/lib/deckSideboard";
 import { interstitialChoiceState } from "~/lib/play-draw-choice";
-import SideboardSwapList from "./sideboard-swap-list";
 import SideboardOpponentStatus from "./sideboard-opponent-status";
+import SideboardEditor from "./sideboarding/sideboard-editor";
 import LimitedRoundDeadline from "~/components/limited/limited-round-deadline";
-
-/** Play/draw segmented-control options for the G2+ chooser (the loser of the
- *  last Game). Module-level: a fresh array identity per render would defeat
- *  nothing here (no memoized child below it), but there is also no reason to
- *  reallocate it every render. */
-const PLAY_DRAW_OPTIONS = [
-    { value: "play" as const, label: "Play" },
-    { value: "draw" as const, label: "Draw" },
-];
 
 /** The opponent seat in a 2-player Match (PRD #387 / #397), or null. The
  *  projection strips the opponent's deck contents but keeps their `ready` flag,
@@ -63,6 +43,29 @@ function sideboardableSeats(match: PublicMatch): PublicMatch["players"] {
     return withDeck;
 }
 
+/** A seat's deck copy as a fresh, editable split. */
+function seatSplit(seat: PublicMatch["players"][number]): SideboardSplit {
+    return {
+        cards: (seat.deck?.maindeck ?? []).map((c) => ({ ...c })),
+        sideboard: (seat.deck?.sideboard ?? []).map((c) => ({ ...c })),
+    };
+}
+
+/** The window's working state for one seat: the split it opened on (the
+ *  Changes baseline and the size floor) and the split as edited. */
+type SeatWindow = {
+    seatId: string | undefined;
+    start: SideboardSplit;
+    split: SideboardSplit;
+};
+
+function openWindow(
+    seat: PublicMatch["players"][number] | undefined
+): SeatWindow {
+    const start = seat ? seatSplit(seat) : { cards: [], sideboard: [] };
+    return { seatId: seat?.id, start, split: start };
+}
+
 export default function SideboardingDialog({
     match,
     viewerId,
@@ -79,67 +82,26 @@ export default function SideboardingDialog({
     // (made while sideboarding their seat) reaches the FINAL `setReady` that
     // triggers the build — in Solo the chooser may not be the last seat readied.
     const [playDraw, setPlayDraw] = useState<"play" | "draw">("play");
-    // Hover → the phase-2 computed preview (art + live oracle text) in the
-    // middle column. Must stay above the early returns (rules-of-hooks).
-    const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
-    // Close grace (same model as the board dock, `HOVER_GRACE_MS`): leaving a
-    // row or the preview column only clears the preview after a short delay, and
-    // entering either cancels it — so the pointer can travel from the row into
-    // the preview column and reach its Live text / Printed card toggle.
-    const graceRef = useRef<number | undefined>(undefined);
-    const cancelHoverClose = useCallback(() => {
-        window.clearTimeout(graceRef.current);
-    }, []);
-    const scheduleHoverClose = useCallback(() => {
-        window.clearTimeout(graceRef.current);
-        graceRef.current = window.setTimeout(
-            () => setHoveredCardId(null),
-            HOVER_GRACE_MS
-        );
-    }, []);
-    const handleHoverCard = useCallback(
-        (cardId: string | null) => {
-            if (cardId === null) {
-                scheduleHoverClose();
-                return;
-            }
-            cancelHoverClose();
-            setHoveredCardId(cardId);
-        },
-        [cancelHoverClose, scheduleHoverClose]
-    );
-    useEffect(() => cancelHoverClose, [cancelHoverClose]);
 
     const seat = seats[seatIdx];
-    // Working split for the current seat, seeded from its Match deck copy. Keyed
-    // by seat id so advancing reseeds from the freshly-projected deck.
-    const [split, setSplit] = useState<SideboardSplit>(() => ({
-        cards: (seat?.deck?.maindeck ?? []).map((c) => ({ ...c })),
-        sideboard: (seat?.deck?.sideboard ?? []).map((c) => ({ ...c })),
-    }));
-    const [splitSeatId, setSplitSeatId] = useState<string | undefined>(
-        seat?.id
-    );
-    if (seat && seat.id !== splitSeatId) {
+    // Keyed by seat id so advancing reseeds from the freshly-projected deck.
+    const [win, setWin] = useState<SeatWindow>(() => openWindow(seat));
+    if (seat && seat.id !== win.seatId) {
         // Reseed when the active seat changes (sequential Solo readies).
-        setSplit({
-            cards: (seat.deck?.maindeck ?? []).map((c) => ({ ...c })),
-            sideboard: (seat.deck?.sideboard ?? []).map((c) => ({ ...c })),
-        });
-        setSplitSeatId(seat.id);
+        setWin(openWindow(seat));
     }
+    const setSplit = (f: (s: SideboardSplit) => SideboardSplit) =>
+        setWin((w) => ({ ...w, split: f(w.split) }));
 
     const opponent = opponentSeat(match, viewerId);
     // A clocked Bo3's fixed sideboarding window (issue #2308): when it
     // closes the server readies every seat with its deck as it stands.
     const windowCountdown =
         match.sideboardDeadlineAt !== undefined ? (
-            <div className="flex justify-center">
-                <LimitedRoundDeadline
-                    deadlineAt={match.sideboardDeadlineAt}
-                    closingLabel="Starting the next game…"
-                />
-            </div>
+            <LimitedRoundDeadline
+                deadlineAt={match.sideboardDeadlineAt}
+                closingLabel="Starting the next game…"
+            />
         ) : null;
 
     if (!seat || !seat.deck) {
@@ -165,42 +127,12 @@ export default function SideboardingDialog({
         );
     }
 
-    // 2-player barrier: once the viewer has readied their own seat, the next
-    // Game builds only after BOTH seats are ready (PRD #387 user story 19 /
-    // #397). The projection reflects the viewer's own `ready` flag reactively;
-    // until the opponent readies (and the build re-points the session) the
-    // viewer sits on a waiting view showing the opponent's ready-state — the
-    // editor is no longer re-openable, so the swap can't change post-ready.
-    if (opponent && seat.ready) {
-        return (
-            <GameDialog
-                open
-                align="center"
-                title="Sideboarding"
-                dismissable={false}
-            >
-                <div className="flex flex-col gap-3 mt-1">
-                    {/* v4 (ADR 0103 §4): Beleren is retired from chrome —
-                        this status line is dialog chrome, not a card face. */}
-                    <p className="text-success-strong text-sm text-center tracking-wide">
-                        You are ready.
-                    </p>
-                    <p className="text-text-muted text-xs text-center">
-                        The next game starts once both players are ready.
-                    </p>
-                    {windowCountdown}
-                    <SideboardOpponentStatus opponent={opponent} />
-                </div>
-            </GameDialog>
-        );
-    }
-
     // Maindeck size FLOOR = the seat's starting size (the Match deck copy's
-    // current maindeck count — 60 constructed / 40 limited). The maindeck may
-    // GROW past it (>60 allowed, QA sideboard revamp); only going UNDER is
-    // blocked. The combined pool is preserved by the server.
-    const lockedSize = seat.deck.maindeck.length;
-    const sizeOk = split.cards.length >= lockedSize;
+    // maindeck count when the window opened — 60 constructed / 40 limited).
+    // The maindeck may GROW past it (>60 allowed, QA sideboard revamp); only
+    // going UNDER is blocked. The combined pool is preserved by the server.
+    const lockedSize = win.start.cards.length;
+    const sizeOk = win.split.cards.length >= lockedSize;
     // The play/draw chooser (previous Game's loser, CR 103.4) picks while
     // sideboarding their seat. `interstitialChoiceState` resolves the viewer's
     // role; the toggle shows only on the seat that is actually the chooser (and
@@ -208,36 +140,23 @@ export default function SideboardingDialog({
     const choiceKind = interstitialChoiceState(match, viewerId).kind;
     const isChooser =
         choiceKind === "prompt" && match.playDrawChooserId === seat.id;
-
-    // A move removes the row from under the pointer without a mouseleave, so
-    // drop the preview at once rather than leave a stale card.
-    const dropPreview = () => {
-        cancelHoverClose();
-        setHoveredCardId(null);
-    };
-    const handleToSide = (cardId: string, all = false) => {
-        dropPreview();
-        setSplit((s) =>
-            all ? moveAllToSideboard(s, cardId) : moveToSideboard(s, cardId)
-        );
-    };
-    const handleToMain = (cardId: string, all = false) => {
-        dropPreview();
-        setSplit((s) =>
-            all ? moveAllToMaindeck(s, cardId) : moveToMaindeck(s, cardId)
-        );
-    };
-    const hoveredBody = hoveredCardId ? buildPreviewBody(hoveredCardId) : null;
+    // 2-player barrier: once the viewer has readied their own seat, the next
+    // Game builds only after BOTH seats are ready (PRD #387 user story 19 /
+    // #397). The projection reflects the viewer's own `ready` flag reactively;
+    // until the opponent readies (and the build re-points the session) the
+    // window stays up LOCKED — the swap can't change post-ready — and the
+    // Ready dock says who it is waiting for.
+    const readied = !!opponent && seat.ready;
 
     const handleReady = async () => {
-        if (!sizeOk || submitting) return;
+        if (!sizeOk || submitting || readied) return;
         setSubmitting(true);
         try {
             await submitSideboard({
                 matchId: match.matchId,
                 seatId: seat.id,
-                maindeck: split.cards,
-                sideboard: split.sideboard,
+                maindeck: win.split.cards,
+                sideboard: win.split.sideboard,
             });
             // Always carry the current play/draw pick: the backend only applies
             // it on the final build and only relative to the recorded chooser,
@@ -273,114 +192,34 @@ export default function SideboardingDialog({
         }
     };
 
-    const total = split.cards.length + split.sideboard.length;
+    const gameNumber = match.currentGameNumber + 1;
+    const seatLabel =
+        seats.length > 1
+            ? `${seat.name} — seat ${seatIdx + 1} of ${seats.length}`
+            : seat.name;
 
     return (
         <GameDialog
             open
             title="Sideboarding"
-            subtitle={
-                seats.length > 1
-                    ? `${seat.name} — seat ${seatIdx + 1} of ${seats.length}`
-                    : seat.name
-            }
-            size="wide"
+            subtitle={`${seatLabel} · before game ${gameNumber}`}
+            size="sheet"
             dismissable={false}
         >
-            <div className="flex flex-col gap-3 mt-1">
-                <p className="text-text-disabled text-xs text-center">
-                    Swap cards between your Maindeck and Sideboard. Your
-                    Maindeck must stay at {lockedSize}+ cards.
-                </p>
-                {windowCountdown}
-                {/* FIXED row height (QA): the hovered-card preview used to size
-                    the dialog, so a long-oracle card grew the panel, moved the
-                    row out from under the pointer, dropped the hover and shrank
-                    it back — a flicker loop. The row is now a stable, taller box
-                    (capped to the viewport) and every column scrolls INSIDE it. */}
-                <div className="flex h-[min(30rem,60vh)] gap-4">
-                    <SideboardSwapList
-                        title="Maindeck"
-                        cards={split.cards}
-                        moveLabel="→ Side"
-                        onMove={handleToSide}
-                        onHoverCard={handleHoverCard}
-                        countSuffix={` / ${lockedSize}+`}
-                        disabled={submitting}
-                        emptyMessage="No cards in the Maindeck."
-                    />
-                    {/* Middle preview column (phase 2, winner B): the computed
-                        art + live oracle of the hovered card. Hidden on small
-                        screens. */}
-                    <div
-                        className="hidden h-full w-56 shrink-0 overflow-y-auto sm:block"
-                        data-testid="sideboard-preview-column"
-                        onPointerEnter={cancelHoverClose}
-                        onPointerLeave={scheduleHoverClose}
-                    >
-                        {hoveredBody ? (
-                            <div className="card-preview-dock panel-physical hairline overflow-hidden rounded-[var(--panel-radius)]">
-                                {/* Engine View slot compact (issue #2728):
-                                    this column is 224px wide (`w-56`) — the
-                                    full slot's eyebrow header + tree well
-                                    belongs to the roomy surfaces (mobile
-                                    overlay, anchored pin, InspectOverlay),
-                                    not here. */}
-                                <CardPreviewBody
-                                    {...hoveredBody}
-                                    size="sm"
-                                    compactEngineView
-                                />
-                            </div>
-                        ) : (
-                            <div className="flex h-full items-center justify-center rounded-md border border-dashed border-border-subtle/50 px-3 text-center text-[10px] text-text-disabled">
-                                Hover a card to preview it
-                            </div>
-                        )}
-                    </div>
-                    <SideboardSwapList
-                        title="Sideboard"
-                        cards={split.sideboard}
-                        moveLabel="→ Main"
-                        onMove={handleToMain}
-                        onHoverCard={handleHoverCard}
-                        disabled={submitting}
-                        emptyMessage="No cards in the Sideboard."
-                    />
-                </div>
-                {!sizeOk && (
-                    <p className="text-danger-strong text-xs text-center">
-                        Maindeck must hold at least {lockedSize} cards
-                        (currently {split.cards.length}). The combined pool is{" "}
-                        {total}.
-                    </p>
-                )}
-                {isChooser && (
-                    <div className="flex flex-col items-center gap-1">
-                        <span className="text-text-muted text-xs">
-                            You lost the last game — choose:
-                        </span>
-                        <SegmentedControl
-                            options={PLAY_DRAW_OPTIONS}
-                            value={playDraw}
-                            onChange={setPlayDraw}
-                            disabled={submitting}
-                            ariaLabel="Play or draw first"
-                        />
-                    </div>
-                )}
-                {opponent && <SideboardOpponentStatus opponent={opponent} />}
-                <Button
-                    type="button"
-                    variant="primary"
-                    size="sm"
-                    onClick={() => void handleReady()}
-                    disabled={!sizeOk || submitting}
-                    className="mt-1 w-full"
-                >
-                    {submitting ? "Confirming…" : "Ready"}
-                </Button>
-            </div>
+            <SideboardEditor
+                start={win.start}
+                split={win.split}
+                onSplitChange={setSplit}
+                lockedSize={lockedSize}
+                gameNumber={gameNumber}
+                isChooser={isChooser}
+                playDraw={playDraw}
+                onPlayDraw={setPlayDraw}
+                opponent={opponent}
+                countdown={windowCountdown}
+                locked={submitting || readied}
+                onReady={() => void handleReady()}
+            />
         </GameDialog>
     );
 }

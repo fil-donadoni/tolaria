@@ -52,6 +52,11 @@ export interface InspectOverlayProps {
     onStep?: { previous?: () => void; next?: () => void };
     /** Override the viewport-derived split. */
     layout?: "stacked" | "split";
+    /** Controlled face mode (issue #9820): Sideboarding passes the viewer's
+     *  session choice so the overlay opens on it and writes changes back.
+     *  Omitted: the overlay owns its mode, starting on Oracle. */
+    view?: CardPreviewView;
+    onViewChange?: (view: CardPreviewView) => void;
 }
 
 /**
@@ -82,9 +87,13 @@ export default function InspectOverlay({
     tapAnywhereCloses = false,
     onStep,
     layout,
+    view,
+    onViewChange,
 }: InspectOverlayProps) {
     const viewportMode = useViewportMode();
-    const [mode, setMode] = useState<CardPreviewView>("computed");
+    const [ownMode, setOwnMode] = useState<CardPreviewView>("computed");
+    const mode = view ?? ownMode;
+    const setMode = onViewChange ?? setOwnMode;
     const panelRef = useRef<HTMLDivElement>(null);
 
     // ESCAPE CLOSES, AND FOCUS COMES IN WITH THE OVERLAY (issue #2593).

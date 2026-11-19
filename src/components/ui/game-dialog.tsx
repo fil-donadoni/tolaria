@@ -11,7 +11,10 @@ import { cn } from "@/lib/utils";
 import useNestedBackdropDismiss from "@/hooks/useNestedBackdropDismiss";
 import { Panel, SunburstIcon, type PanelDensity } from "@/components/ui/panel";
 
-type GameDialogSize = "default" | "wide";
+/** `sheet` (issue #9820): the play area minus a margin, at a FIXED size — for
+ *  a body that lays out its own scrolling regions and its own action dock
+ *  (Sideboarding) instead of growing with its content. */
+type GameDialogSize = "default" | "wide" | "sheet";
 
 /** Header alignment. `start` (the default) is the v3 engraved-header language:
  *  title left, rule beneath, body left. `center` is for the terminal/waiting
@@ -73,6 +76,7 @@ const sizeClasses: Record<GameDialogSize, string> = {
     default:
         "w-max max-w-[min(28rem,calc(100vw-var(--right-piles-w,0px)-2rem))]",
     wide: "w-max max-w-[min(90vw,calc(100vw-var(--right-piles-w,0px)-2rem))]",
+    sheet: "h-[calc(100dvh-1rem)] w-[calc(100vw-var(--right-piles-w,0px)-1rem)] max-h-none max-w-none sm:h-[calc(100dvh-2rem)] sm:w-[calc(100vw-var(--right-piles-w,0px)-2rem)]",
 };
 
 /**
@@ -163,7 +167,12 @@ export default function GameDialog({
                     // <= this value, so the two caps never fight; the outer
                     // one is a backstop for every OTHER `DialogContent`
                     // consumer, not a second constraint on this one.
-                    className="flex max-h-[calc(100dvh-2rem)] max-w-full min-w-64 flex-col overflow-hidden sm:min-w-80"
+                    className={cn(
+                        "flex max-h-[calc(100dvh-2rem)] max-w-full min-w-64 flex-col overflow-hidden sm:min-w-80",
+                        // A sheet fills its fixed Popup; its body lays out
+                        // its own scrolling regions.
+                        size === "sheet" && "h-full max-h-full"
+                    )}
                 >
                     {/* ONE full-width column. The icon used to be a sibling
                         COLUMN, which shrank the body to the remaining width —
@@ -187,7 +196,10 @@ export default function GameDialog({
                         // auto` — exactly the "scrolls the body, not the
                         // page (or the title, or the footer)" contract.
                         data-slot="game-dialog-column"
-                        className="flex min-h-0 w-full min-w-0 flex-col"
+                        className={cn(
+                            "flex min-h-0 w-full min-w-0 flex-col",
+                            size === "sheet" && "flex-1"
+                        )}
                     >
                         {/* Header row: icon BESIDE the title when the body is
                             left-aligned, ABOVE it when the body is centred —
@@ -267,7 +279,14 @@ export default function GameDialog({
                             OUTSIDE the border box — without this breathing
                             room the overflow clips it at the container
                             edge. */}
-                        <div className="mt-3 min-h-0 overflow-auto p-[0.2rem]">
+                        <div
+                            className={cn(
+                                "mt-3 min-h-0 p-[0.2rem]",
+                                size === "sheet"
+                                    ? "flex flex-1 flex-col overflow-hidden"
+                                    : "overflow-auto"
+                            )}
+                        >
                             {children}
                         </div>
                     </div>
