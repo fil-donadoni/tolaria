@@ -1,0 +1,130 @@
+# blade-robustness — the blade robustness audit before landing (issue #9361,
+# ADR 0154 Amendment). `blade:robustness` (issue #4875) used to run only in a
+# health batch AFTER the merge: a search change leaving a `must` entry
+# noise-pinned landed green and reddened the base. Here the same audit runs on
+# the PR, on free GitHub-hosted VMs, in parallel with hand-off — no pass waits
+# on it and the `lane` runner is never loaded.
+#
+# One predicate: `scripts/blade-robustness-plan.ts` reads the health trigger
+# (`lib/health-robustness-trigger.ts`) on the PR's diff — FULL (every `must`
+# entry), INCREMENTAL (the registry's added or changed entries) or NONE. NONE
+# runs no search and reports the check green, so the queue condition
+# `check-success=blade-robustness` (`.mergify.yml`) is uniform. The four
+# shards are the audit's own `robustness.shard-N.spec.ts` files (the partition
+# the `must` suite uses), the search the health step runs.
+#
+# Mergify re-reads `queue_conditions` on its draft: the verdict job reports
+# green there at once — the audit was proven on the PR's own head, and the
+# draft is that head rebased.
+#
+# GitHub-hosted, no secret, read-only token, `persist-credentials: false`: a
+# fork PR never reaches the owner's machines. Every context value reaches the
+# shell through `env:`. docs/guides/github-pipeline.md § Workflows.
+name: blade-robustness
+
+on:
+    pull_request:
+        types: [opened, synchronize, reopened]
+
+permissions:
+    contents: read
+
+# A newer push supersedes the audit of the older head (hosted only).
+concurrency:
+    group: blade-robustness-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+jobs:
+    plan:
+        name: audit plan
+        if: ${{ !startsWith(github.head_ref, 'mergify/merge-queue/') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        outputs:
+            mode: ${{ steps.plan.outputs.mode }}
+            labels: ${{ steps.plan.outputs.labels }}
+        steps:
+            # The merge ref (the PR merged into the base tip: what would land),
+            # two commits deep: `HEAD^1` is the base the diff is taken from.
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 2
+                  persist-credentials: false
+            - uses: ./.github/actions/job-setup
+            - name: Plan
+              id: plan
+              shell: bash
+              run: bun scripts/blade-robustness-plan.ts
+
+    shard:
+        name: audit shard ${{ matrix.shard }}/4
+        needs: plan
+        if: ${{ needs.plan.outputs.mode != 'none' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 60
+        strategy:
+            fail-fast: false
+            matrix:
+                shard: [0, 1, 2, 3]
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: ./.github/actions/job-setup
+            - name: blade:robustness shard
+              env:
+                  SHARD: ${{ matrix.shard }}
+                  BLADE_ROBUSTNESS: "1"
+                  BLADE_ROBUSTNESS_LABELS: ${{ needs.plan.outputs.labels }}
+              shell: bash
+              run: |
+                  log="$RUNNER_TEMP/robustness-$SHARD.log"
+                  set +e
+                  bunx vitest run --config vitest.blade.config.ts "robustness.shard-$SHARD" >"$log" 2>&1
+                  code=$?
+                  set -e
+                  # Which entry and which leg: the machine finding lines and the
+                  # failed tests, into the run summary.
+                  {
+                      echo "### shard $SHARD (exit $code)"
+                      echo '```'
+                      grep -E '^\[blade:robustness:finding\]|FAIL|✗|×' "$log" | head -60 || true
+                      echo '```'
+                  } >>"$GITHUB_STEP_SUMMARY"
+                  tail -n 5 "$log"
+                  exit "$code"
+
+    verdict:
+        # The name the queue's condition reads (`check-success=blade-robustness`).
+        name: blade-robustness
+        needs: [plan, shard]
+        if: ${{ always() }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: ./.github/actions/job-setup
+            - name: Verdict
+              env:
+                  HEAD_REF: ${{ github.head_ref }}
+                  PLAN: ${{ needs.plan.result }}
+                  MODE: ${{ needs.plan.outputs.mode }}
+                  SHARD: ${{ needs.shard.result }}
+              shell: bash
+              run: |
+                  case "$HEAD_REF" in
+                      mergify/merge-queue/*)
+                          echo "queue draft: audited on the PR's own head"; exit 0 ;;
+                  esac
+                  if [ "$PLAN" != success ]; then
+                      echo "::error::audit plan $PLAN — the trigger could not be read"; exit 1
+                  fi
+                  if [ "$MODE" = none ]; then
+                      echo "no audit owed (trigger: NONE)"; exit 0
+                  fi
+                  if [ "$SHARD" != success ]; then
+                      echo "::error::blade robustness audit ($MODE) is $SHARD — see the shard summaries for the entry and leg"; exit 1
+                  fi
+                  echo "audit ($MODE) green on the PR head"

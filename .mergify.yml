@@ -79,6 +79,9 @@ queue_rules:
           - -check-failure=check:lane (advisory)
           - check-success=trusted-author
           - check-success=base-health
+          # The blade robustness audit on the PR's head (issue #9361): green
+          # at once when the health trigger says NONE for the diff.
+          - check-success=blade-robustness
           - -files~=^\.github/
           - -files=.mergify.yml
       # The queue's draft (the PR rebased onto the tip) owes only the lane;

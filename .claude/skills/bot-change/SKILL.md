@@ -236,6 +236,11 @@ No pre-PR lane gate (ADR 0136 §1). In order:
 - **A blade `moves` entry or a weight change runs `bun run bot:refit`
   locally** (issue #6690); `--check` names laggards. The PR never carries
   its output: base-owned (ADR 0157 Amendment II).
+- **The blade robustness audit runs for you** (issue #9361): a PR whose diff the
+  health trigger classes FULL or INCREMENTAL (`scripts/lib/health-robustness-trigger.ts`)
+  gets the hosted `blade-robustness` check, a queue condition; a finding names
+  the entry and leg and keeps the PR out. Hand-off never waits on it; NONE is
+  green unrun. Reproduce locally: `TOLARIA_ALLOW_FULL_SUITE=1 bun run blade:robustness`.
 - Never `check:pr` / `check:guards`: `check:pr` holds `check:guards` — both
   suites ran twice.
 
