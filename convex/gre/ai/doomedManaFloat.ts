@@ -17,7 +17,11 @@
 // ONE of its own permanents leaves (a bounce land's "return a land you control
 // to its owner's hand", issue #9698) is settled once per answer: a source is
 // doomed under the answer that removes it, and its float is weighed against
-// that same answer left unfloated. The float is offered only when the mana it
+// that same answer left unfloated. Any OTHER choice the resolution parks on is
+// answered once, deterministically, the same way on every probe: a library
+// search finds nothing (CR 701.23b), every other kind takes the search's forced
+// answer (`forcedChoiceAnswer`, handed in), and a choice with neither still
+// fails closed. The float is offered only when the mana it
 // keeps has a SPENDER — a cast or activation that the post-resolution position
 // offers with the floated mana and does not offer without it — so a float that
 // would only empty out unspent is never a candidate, and an ordinary position
@@ -27,8 +31,13 @@
 // enumerator is handed in), so `moves.ts` can import it without a cycle.
 
 import type { ActivatedAbility, ManaCost } from "../../cards/types";
-import type { CardInstanceState, GameState, PlayerState } from "../state";
-import { resolveTopOfStack } from "../state";
+import type {
+    CardInstanceState,
+    GameState,
+    PendingChoice,
+    PlayerState,
+} from "../state";
+import { getPendingChoiceMin, resolveTopOfStack } from "../state";
 import { checkStateBasedActions } from "../sba";
 import { cloneGameState } from "../clone";
 import {
@@ -59,6 +68,14 @@ export type FloatEnumerator = (
     playerId: string,
     options: { noManaFloat: true }
 ) => Move[];
+
+/** The search's forced answer to a choice it does not branch on
+ *  (`forcedChoiceAnswer`, `ai/choiceCandidates.ts`), handed in by `moves.ts`
+ *  for the same reason the enumerator is. */
+export type ForcedChoiceAnswerer = (
+    state: GameState,
+    choice: PendingChoice
+) => Move | null;
 
 /** One way to tap one source for mana right now. */
 type FloatOption = ManaFloatMove & { mana: ManaCost };
@@ -212,64 +229,165 @@ function resolveProbe(state: GameState): GameState | null {
     return probe;
 }
 
-/** `probe`'s pending single-permanent pick answered with `cardId`, or `null`
- *  when the resolver rejects it or the resolution does not settle after. */
-function answerPick(
+/** `answer` submitted to `probe`'s head choice in place, then SBAs (CR 704.3)
+ *  — `false` when the resolver rejects it. */
+function submitAnswer(
     probe: GameState,
-    playerId: string,
-    cardId: string
-): GameState | null {
-    const head = probe.pendingChoices![0];
-    const branch = cloneGameState(probe);
+    head: PendingChoice,
+    answer: { cardInstanceIds: string[]; secondZoneIds?: string[] }
+): boolean {
     try {
-        applyPendingChoiceSubmit(branch, {
-            playerId,
+        applyPendingChoiceSubmit(probe, {
+            playerId: head.playerId,
             stackItemId: head.stackItemId,
             step: head.step,
             choiceId: head.choiceId,
-            cardInstanceIds: [cardId],
+            cardInstanceIds: answer.cardInstanceIds,
+            ...(answer.secondZoneIds
+                ? { secondZoneIds: answer.secondZoneIds }
+                : {}),
         });
-        checkStateBasedActions(branch);
+        checkStateBasedActions(probe);
     } catch {
+        return false;
+    }
+    return true;
+}
+
+/** The ONE deterministic answer the probe gives a parked choice it does not
+ *  branch on, or `null` when it has none (fail closed).
+ *
+ *  CR 701.23b — a search of a hidden zone for cards with a stated quality may
+ *  find nothing, so a `search-library` whose count admits an empty pick is
+ *  answered with nothing: legal whatever the library holds, it reads no hidden
+ *  card, and it never credits the player with a find. Every other kind takes
+ *  the search's forced answer when that is a plain submission. Both arms of
+ *  the spender comparison go through here, so the floated mana is the only
+ *  difference between them. */
+function deterministicAnswer(
+    probe: GameState,
+    head: PendingChoice,
+    forcedAnswer: ForcedChoiceAnswerer
+): { cardInstanceIds: string[]; secondZoneIds?: string[] } | null {
+    if (head.kind === "search-library") {
+        return getPendingChoiceMin(head.count) <= 0
+            ? { cardInstanceIds: [] }
+            : null;
+    }
+    const forced = forcedAnswer(probe, head);
+    if (!forced || forced.kind !== "resolution-choice") return null;
+    return {
+        cardInstanceIds: forced.cardInstanceIds,
+        ...(forced.secondZoneIds
+            ? { secondZoneIds: forced.secondZoneIds }
+            : {}),
+    };
+}
+
+/** Bound on the deterministic answers one probe gives — a resolution parks a
+ *  handful of times at most; a loop past it fails closed. */
+const MAX_PARKED_ANSWERS = 8;
+
+/** Drive `probe` in place past every parked choice it answers
+ *  deterministically, stopping settled or at the controller's own
+ *  single-permanent pick (which `settlements` branches on). `false` when it
+ *  stops anywhere else — a game over, a half-made announcement, a choice with
+ *  no deterministic answer, a rejected answer: fail closed. */
+function advanceParked(
+    probe: GameState,
+    playerId: string,
+    forcedAnswer: ForcedChoiceAnswerer
+): boolean {
+    for (let i = 0; i < MAX_PARKED_ANSWERS; i++) {
+        if (isSettled(probe)) return true;
+        if (
+            probe.gameOver ||
+            probe.pendingCast ||
+            probe.pendingTarget ||
+            probe.pendingActivation ||
+            probe.pendingCompanionPay
+        ) {
+            return false;
+        }
+        if (isOwnSinglePermanentPick(probe, playerId)) return true;
+        const head = probe.pendingChoices![0];
+        const answer = deterministicAnswer(probe, head, forcedAnswer);
+        if (!answer || !submitAnswer(probe, head, answer)) return false;
+    }
+    return isSettled(probe);
+}
+
+/** `probe`'s pending single-permanent pick answered with `cardId` and every
+ *  later parked choice settled, or `null` when the resolver rejects it or the
+ *  resolution does not settle after. */
+function answerPick(
+    probe: GameState,
+    playerId: string,
+    cardId: string,
+    forcedAnswer: ForcedChoiceAnswerer
+): GameState | null {
+    const branch = cloneGameState(probe);
+    if (
+        !submitAnswer(branch, branch.pendingChoices![0], {
+            cardInstanceIds: [cardId],
+        })
+    ) {
         return null;
     }
-    return isSettled(branch) ? branch : null;
+    return advanceParked(branch, playerId, forcedAnswer) && isSettled(branch)
+        ? branch
+        : null;
+}
+
+/** The top of the stack resolved on a clone with every parked choice it
+ *  answers deterministically settled — settled, or parked on the
+ *  controller's own single-permanent pick; `null` otherwise (fail closed). */
+function resolveAndAdvance(
+    state: GameState,
+    playerId: string,
+    forcedAnswer: ForcedChoiceAnswerer
+): GameState | null {
+    const probe = resolveProbe(state);
+    if (!probe || !advanceParked(probe, playerId, forcedAnswer)) return null;
+    return probe;
 }
 
 /** Every position the top of the stack can settle into for `playerId`: one
- *  when the resolution asks nothing, one per eligible permanent when it parks
- *  on the controller's own single-permanent pick, none when the sandbox cannot
- *  settle it (an engine throw, a game over, any other suspension) — fail
- *  closed. */
-function settlements(state: GameState, playerId: string): Settlement[] {
-    const probe = resolveProbe(state);
+ *  when the resolution asks nothing or only what the probe answers
+ *  deterministically, one per eligible permanent when it parks on the
+ *  controller's own single-permanent pick, none when the sandbox cannot
+ *  settle it (an engine throw, a game over, a choice with no deterministic
+ *  answer) — fail closed. */
+function settlements(
+    state: GameState,
+    playerId: string,
+    forcedAnswer: ForcedChoiceAnswerer
+): Settlement[] {
+    const probe = resolveAndAdvance(state, playerId, forcedAnswer);
     if (!probe) return [];
     if (isSettled(probe)) return [{ state: probe, answer: null }];
-    if (probe.gameOver || !isOwnSinglePermanentPick(probe, playerId)) {
-        return [];
-    }
     const out: Settlement[] = [];
     for (const card of eligibleZonePickCards(probe, probe.pendingChoices![0])) {
-        const branch = answerPick(probe, playerId, card.id);
+        const branch = answerPick(probe, playerId, card.id, forcedAnswer);
         if (branch) out.push({ state: branch, answer: card.id });
     }
     return out;
 }
 
 /** `state`'s top of the stack settled under ONE answer — the replay of an
- *  outcome `settlements` found on the unfloated position. */
+ *  outcome `settlements` found on the unfloated position, every
+ *  deterministic answer given the same way. */
 function settleAs(
     state: GameState,
     playerId: string,
-    answer: string | null
+    answer: string | null,
+    forcedAnswer: ForcedChoiceAnswerer
 ): GameState | null {
-    const probe = resolveProbe(state);
+    const probe = resolveAndAdvance(state, playerId, forcedAnswer);
     if (!probe) return null;
     if (answer === null) return isSettled(probe) ? probe : null;
-    if (probe.gameOver || !isOwnSinglePermanentPick(probe, playerId)) {
-        return null;
-    }
-    return answerPick(probe, playerId, answer);
+    if (isSettled(probe)) return null;
+    return answerPick(probe, playerId, answer, forcedAnswer);
 }
 
 /** The spend set of a settled position: every cast and activation `playerId`
@@ -309,7 +427,8 @@ function spendKeys(
 export function enumerateDoomedManaFloatMoves(
     state: GameState,
     player: PlayerState,
-    enumerate: FloatEnumerator
+    enumerate: FloatEnumerator,
+    forcedAnswer: ForcedChoiceAnswerer
 ): ManaFloatMove[] {
     if (state.stack.length === 0) return [];
     if (state.priorityPlayerId !== player.id) return [];
@@ -318,7 +437,7 @@ export function enumerateDoomedManaFloatMoves(
     );
     if (candidates.length === 0) return [];
 
-    const outcomes = settlements(state, player.id);
+    const outcomes = settlements(state, player.id, forcedAnswer);
     if (outcomes.length === 0) return [];
     // Each outcome's spend set, computed once and shared by every candidate.
     const baselines = new Map<Settlement, Set<string> | null>();
@@ -352,7 +471,12 @@ export function enumerateDoomedManaFloatMoves(
         const hasSpender = doomedUnder.some((outcome) => {
             const baseline = baselineOf(outcome);
             if (!baseline) return false;
-            const settled = settleAs(floated, player.id, outcome.answer);
+            const settled = settleAs(
+                floated,
+                player.id,
+                outcome.answer,
+                forcedAnswer
+            );
             if (!settled) return false;
             const spend = spendKeys(settled, player.id, enumerate);
             if (!spend) return false;

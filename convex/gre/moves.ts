@@ -281,7 +281,7 @@ import { substituteColorFilter } from "./textChanges";
 // Choice-node candidate generation (PRD #1423, issue #1425) — a live
 // `PendingChoice` becomes an in-tree decision node whose candidate answers this
 // enumerator surfaces.
-import { choiceCandidates } from "./ai/choiceCandidates";
+import { choiceCandidates, forcedChoiceAnswer } from "./ai/choiceCandidates";
 // Dominance pruning (issue #1887) — the generic "this move is provably
 // dominated by `pass`" seam. Opt-in per caller (see `EnumerateMovesOptions`).
 import {
@@ -7037,7 +7037,12 @@ export function enumerateMoves(
     // spender after it resolves. Empty on every other position.
     if (!options?.noManaFloat) {
         moves.push(
-            ...enumerateDoomedManaFloatMoves(state, player, enumerateMoves)
+            ...enumerateDoomedManaFloatMoves(
+                state,
+                player,
+                enumerateMoves,
+                forcedChoiceAnswer
+            )
         );
     }
     // Interchangeable-candidate collapse (issue #3593), BEFORE dominance: the
@@ -7207,7 +7212,12 @@ export function onlyPassIsLegal(state: GameState, playerId: string): boolean {
     // it is empty at once on an empty stack.
     if (
         state.stack.length > 0 &&
-        enumerateDoomedManaFloatMoves(state, player, enumerateMoves).length > 0
+        enumerateDoomedManaFloatMoves(
+            state,
+            player,
+            enumerateMoves,
+            forcedChoiceAnswer
+        ).length > 0
     ) {
         return false;
     }
