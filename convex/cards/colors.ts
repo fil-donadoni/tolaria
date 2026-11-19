@@ -176,3 +176,23 @@ export function getCardColorIdentity(def: CardDefinition): Color[] {
     for (const c of COLORED) if (set.has(c)) out.push(c);
     return out;
 }
+
+const WUBRG_ORDER = ["W", "U", "B", "R", "G"] as const;
+
+/** A deck's colours: the union of its NONLAND cards' colour identities, in
+ *  WUBRG order (issue #9994). A land's identity is the mana it taps for, not a
+ *  colour the deck is — a Ziatora's Proving Ground (B/R/G) in an R/G deck does
+ *  not add B. The ONE answer to "what colours is this deck?", shared by the
+ *  client builders (`src/lib/deckColors.ts`) and the Limited standings
+ *  (`convex/limitedEvents.ts`). Pure over `{ isLand, colors }` so each caller
+ *  resolves its own cards (registry definition or catalogue row). */
+export function deckColorsOfNonlands(
+    cards: Iterable<{ isLand: boolean; colors: readonly string[] }>
+): string[] {
+    const set = new Set<string>();
+    for (const card of cards) {
+        if (card.isLand) continue;
+        for (const c of card.colors) set.add(c);
+    }
+    return WUBRG_ORDER.filter((c) => set.has(c));
+}
