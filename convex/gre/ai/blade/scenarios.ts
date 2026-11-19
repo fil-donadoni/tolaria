@@ -1445,6 +1445,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // to the crack-back. The free-attack proof must therefore NOT fire —
         // an opposing creature, tapped or not, makes a non-vigilant attacker's
         // tap a cost — and the search keeps a blocker home on every seed.
+        // No deck knowledge here, unlike the entry above: with the imagined
+        // hand drawn from the decklist the crack-back read is itself a
+        // horizon-edge call (refitted weights flip seed 2 to the all-in swing),
+        // and what this entry pins is the proof's crack-back guard, which
+        // forces the all-in swing on every seed when broken, measured.
         label: "free attack: holds a blocker back against a lethal crack-back",
         classification: { kind: "absolute" },
         spec: {
@@ -1466,7 +1471,6 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             hiddenHand: { opp: 4 },
             life: { me: 6, opp: 14 },
         },
-        deckKnowledge: [{ seat: "opp", cards: FREE_ATTACK_OPP_DECK }],
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7],
@@ -1479,7 +1483,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #9975 — discriminating pair with the entry above (only the tapped Craw Wurm differs): it pins that the free-attack pruning reads crack-back, so a proof that ignored tapped opposing creatures would force the all-in swing here and lose the game.",
+        note: "Issue #9975 — discriminating pair with the entry above (the tapped Craw Wurm differs; the hidden hand stays placeholders): it pins that the free-attack pruning reads crack-back, so a proof that ignored tapped opposing creatures would force the all-in swing here and lose the game.",
     },
     {
         // MUST. The attack-target seam (CR 508.1b / 510.1b, issue #2798). A

@@ -27,7 +27,7 @@
 //     gives the ability up by attacking.
 //   - F deals nothing: zero or less power (CR 510.1a) — no gain to force.
 //   - The attack costs something: any attack tax on the battlefield
-//     (CR 508.1c/1g — Propaganda, Flooded Woodlands), or a defending
+//     (CR 508.1h — Propaganda, Flooded Woodlands), or a defending
 //     permanent that triggers on attackers being declared (CR 508.1m).
 //
 // Hidden information is the one thing the proof gives up: a flash blocker in
@@ -52,7 +52,7 @@ const ATTACK_TAX_KINDS: ReadonlySet<string> = new Set([
     "attack-sacrifice-tax",
 ]);
 
-/** Whether any permanent on the battlefield taxes attacks (CR 508.1c/1g). */
+/** Whether any permanent on the battlefield taxes attacks (CR 508.1h). */
 function attackTaxInPlay(state: GameState): boolean {
     return state.players.some((p) =>
         p.battlefield.some((perm) =>

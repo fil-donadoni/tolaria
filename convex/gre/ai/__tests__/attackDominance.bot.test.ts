@@ -2,7 +2,7 @@
 // drops the declarations that leave home an attacker whose attack is provably
 // free. CR 509.1a: only untapped creatures block. CR 508.1f: an attacking
 // creature without vigilance taps (CR 702.20b), so it cannot block the
-// crack-back. CR 508.1c/1g: an attack tax makes an attack cost something.
+// crack-back. CR 508.1h: an attack tax makes an attack cost something.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -125,7 +125,7 @@ describe("free attacks into an empty board (CR 508.1, 509.1a)", () => {
         expect([...freeAttackerIds(state)]).toEqual(["mino"]);
     });
 
-    it("an attack tax makes no attack free (CR 508.1c/1g)", () => {
+    it("an attack tax makes no attack free (CR 508.1h)", () => {
         const state = declareAttackersStep(
             [permanent(GIANT, "giant", "p1")],
             [permanent("Collective Restraint", "tax", "p2")]
