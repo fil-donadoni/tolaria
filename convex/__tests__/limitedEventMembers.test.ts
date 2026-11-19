@@ -85,9 +85,6 @@ describe("myLimitedEvents / myCurrentLimitedEvents read only the viewer's own ev
         const mine = await newEvent(db, "alice");
         const finished = await newEvent(db, "alice");
         const theirs = await newEvent(db, "bob");
-        await join(as(db, "alice"), { eventId: mine });
-        await join(as(db, "alice"), { eventId: finished });
-        await join(as(db, "bob"), { eventId: theirs });
         await join(as(db, "carol"), { eventId: theirs });
         const row = db.tables.limitedEvents.find((r) => r._id === finished)!;
         row.status = "finished";
@@ -114,7 +111,6 @@ describe("myLimitedEvents / myCurrentLimitedEvents read only the viewer's own ev
     it("a membership row with no matching Seat surfaces nothing", async () => {
         const db = makeInMemoryDb({ users: USERS });
         const theirs = await newEvent(db, "bob");
-        await join(as(db, "bob"), { eventId: theirs });
         db.tables.limitedEventMembers.push({
             _id: "stale",
             userId: "alice",
@@ -129,9 +125,9 @@ describe("limitedEventMembers follows who holds a Seat (issue #6076)", () => {
     it("join adds the row, leaving an open event removes it, re-joining is idempotent", async () => {
         const db = makeInMemoryDb({ users: USERS });
         const eventId = await newEvent(db, "alice");
-        expect(members(db)).toEqual([]);
+        // The creator is seated at creation, so already a member.
+        expect(members(db)).toEqual([["alice", eventId]]);
 
-        await join(as(db, "alice"), { eventId });
         await join(as(db, "bob"), { eventId });
         expect(members(db)).toEqual([
             ["alice", eventId],
@@ -140,6 +136,21 @@ describe("limitedEventMembers follows who holds a Seat (issue #6076)", () => {
 
         await leave(as(db, "bob"), { eventId });
         expect(members(db)).toEqual([["alice", eventId]]);
+    });
+
+    it("seats the creator in the first Seat at creation, and they can leave (issue #9992)", async () => {
+        const db = makeInMemoryDb({ users: USERS });
+        const eventId = await newEvent(db, "alice");
+        const row = db.tables.limitedEvents.find((r) => r._id === eventId)!;
+        const seats = row.seats as { userId?: string; isBot?: boolean }[];
+        expect(seats[0]?.userId).toBe("alice");
+        expect(seats.slice(1).every((s) => s.userId === undefined)).toBe(true);
+
+        await leave(as(db, "alice"), { eventId });
+        expect((row.seats as { userId?: string }[]).some((s) => s.userId)).toBe(
+            false
+        );
+        expect(members(db)).toEqual([]);
     });
 
     it("saveSeats brings the index in step and writes nothing when no User moved", async () => {
@@ -160,7 +171,7 @@ describe("limitedEventMembers follows who holds a Seat (issue #6076)", () => {
     it("deleteSeats removes the event's rows with it", async () => {
         const db = makeInMemoryDb({ users: USERS });
         const eventId = await newEvent(db, "alice");
-        await join(as(db, "alice"), { eventId });
+        expect(members(db)).toEqual([["alice", eventId]]);
 
         await deleteSeats(db.ctx, eventId);
         expect(members(db)).toEqual([]);
@@ -170,8 +181,6 @@ describe("limitedEventMembers follows who holds a Seat (issue #6076)", () => {
         const db = makeInMemoryDb({ users: USERS });
         const a = await newEvent(db, "alice");
         const b = await newEvent(db, "bob");
-        await join(as(db, "alice"), { eventId: a });
-        await join(as(db, "bob"), { eventId: b });
         db.tables.limitedEventMembers = [];
 
         let cursor: string | null = null;
