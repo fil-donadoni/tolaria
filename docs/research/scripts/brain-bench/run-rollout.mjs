@@ -4,8 +4,11 @@
 //   node docs/research/scripts/brain-bench/run-rollout.mjs build <bundle.js>
 //   node docs/research/scripts/brain-bench/run-rollout.mjs counts <bundle.js> <out.json> \
 //        [--iterations 400] [--policy base] [--field <fixture.json>]...
+//   node docs/research/scripts/brain-bench/run-rollout.mjs speed <bundle.js> <out.json> \
+//        --field <fixture.json> --policies base,topk:3,... [--iterations 20] [--rounds 2]
 //   node docs/research/scripts/brain-bench/run-rollout.mjs blade <bundle.js> <out.jsonl> \
 //        --policies base,topk:3,... [--budget declared|<N>] [--every 1] [--slice 1/1]
+//        [--time-factors topk:3=1.8,...]
 //
 // `counts` searches every bench position (`entry.mjs`: the first 60 `must`
 // entries) and each `--field` fixture once under one policy and prints the
@@ -13,13 +16,24 @@
 // picks per iteration and their candidates (the probes), the memo key's
 // recurrence under `memo-count`.
 //
+// `speed` searches one field fixture under every policy at a fixed iteration
+// count on the process CPU clock, in interleaved rounds (the order rotating,
+// one warm-up round discarded): the policy's CPU per iteration on a board the
+// field Bot actually meets, paired with `base` round by round.
+//
 // `blade` runs each sampled `must` entry at its first declared seed (no
 // clock: every arm is deterministic) under every policy at the SAME
 // iterations — the declared budget, or `--budget N` for all (a field
 // budget, `blade-at-field-budgets.md`) — then every non-base policy again at
 // EQUAL TIME: the iterations it completes in the CPU time `base` spent on
 // that entry (base CPU ÷ the policy's CPU per iteration, at most 20× the
-// budget). Both CPU times are read in the same process, back to back.
+// budget). Both CPU times are read in the same process, back to back,
+// after one untimed warm-up search of the entry (an entry's first search runs
+// 10–60% slower: its cards' code paths are cold), in an order that rotates
+// by job so no policy always runs first.
+// `--time-factors` fixes a policy's factor instead — the speed-up measured on
+// FIELD boards (`fieldspeed`, the note § 1), where the field budget is spent:
+// a blade board's few probes understate what a cheaper policy buys there.
 // `--slice i/n` runs every n-th job from the i-th; `summarize-rollout.mjs`
 // reads the files together.
 
@@ -41,7 +55,7 @@ if (command === "build" && bundle) {
     console.log(`built ${bundle}`);
     process.exit(0);
 }
-if (!["counts", "blade"].includes(command) || !bundle || !out) {
+if (!["counts", "speed", "blade"].includes(command) || !bundle || !out) {
     console.error(
         "usage: run-rollout.mjs build <bundle.js> | counts <bundle.js> <out.json> [options] | blade <bundle.js> <out.jsonl> [options]"
     );
@@ -118,12 +132,72 @@ if (command === "counts") {
     process.exit(0);
 }
 
+if (command === "speed") {
+    const fixture = JSON.parse(readFileSync(option("field"), "utf8"));
+    const iterations = Number(option("iterations", "20"));
+    const rounds = Number(option("rounds", "2"));
+    const list = option("policies", "base").split(",");
+    const rows = [];
+    for (let round = 0; round <= rounds; round++) {
+        const order = list.map((_, i) => list[(i + round) % list.length]);
+        for (const policy of order) {
+            const t0 = process.cpuUsage();
+            const r = bench.rollout.runField(
+                fixture,
+                { iterations, clock: "cpu" },
+                policy
+            );
+            rows.push({
+                round,
+                policy,
+                completed: r.completed,
+                cpuMs: cpuMs(t0),
+                move: r.move,
+                counters: summarize(r.counters),
+            });
+        }
+        process.stderr.write(`speed round ${round + 1}/${rounds + 1}\n`);
+    }
+    const ratios = Object.fromEntries(
+        list.slice(1).map((policy) => {
+            const per = [];
+            for (let round = 1; round <= rounds; round++) {
+                const at = (p) =>
+                    rows.find((r) => r.round === round && r.policy === p);
+                const b = at("base");
+                const h = at(policy);
+                per.push(h.cpuMs / h.completed / (b.cpuMs / b.completed));
+            }
+            return [policy, median(per)];
+        })
+    );
+    writeFileSync(
+        out,
+        JSON.stringify(
+            { field: fixture.label, iterations, rounds, ratios, rows },
+            null,
+            1
+        )
+    );
+    console.log(JSON.stringify({ field: fixture.label, ratios }));
+    process.exit(0);
+}
+
 const policies = option("policies", "base").split(",");
 if (policies[0] !== "base") {
     console.error("blade: --policies must start with base");
     process.exit(2);
 }
 const budget = option("budget", "declared");
+const timeFactors = Object.fromEntries(
+    (option("time-factors", "") || "")
+        .split(",")
+        .filter(Boolean)
+        .map((pair) => {
+            const at = pair.lastIndexOf("=");
+            return [pair.slice(0, at), Number(pair.slice(at + 1))];
+        })
+);
 const every = Number(option("every", "1"));
 const [sliceIndex, sliceCount] = option("slice", "1/1").split("/").map(Number);
 const jobs = bench.rollout
@@ -144,7 +218,10 @@ for (const [j, entry] of jobs.entries()) {
         arms: {},
         load: Number(loadavg()[0].toFixed(1)),
     };
-    for (const policy of policies) {
+    // The warm-up: untimed, its result unused.
+    bench.rollout.blade(entry.index, { iterations: T, seed, policy: "base" });
+    const order = policies.map((_, i) => policies[(i + j) % policies.length]);
+    for (const policy of order) {
         const t0 = process.cpuUsage();
         const r = bench.rollout.blade(entry.index, {
             iterations: T,
@@ -164,10 +241,12 @@ for (const [j, entry] of jobs.entries()) {
     if (base.counters.rollouts > 0) {
         for (const policy of policies.slice(1)) {
             const arm = row.arms[policy];
-            const factor = Math.min(
-                MAX_EQUAL_TIME_FACTOR,
-                base.cpuMs / Math.max(arm.cpuMs, 1e-3)
-            );
+            const factor =
+                timeFactors[policy] ??
+                Math.min(
+                    MAX_EQUAL_TIME_FACTOR,
+                    base.cpuMs / Math.max(arm.cpuMs, 1e-3)
+                );
             const iterations = Math.max(1, Math.round(T * factor));
             const t0 = process.cpuUsage();
             const r = bench.rollout.blade(entry.index, {
