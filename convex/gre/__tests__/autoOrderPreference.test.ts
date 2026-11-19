@@ -15,6 +15,7 @@ import { placeTriggersOnStack } from "../triggers";
 import { withGraveyardArrivalBatch } from "../graveyardOrder";
 import { compactState, expandState } from "../serialize";
 import { loadAutoOrderSeatIds } from "../../autoOrderSeats";
+import { projectPublicState } from "../../gameProjections";
 
 const CARD_A = "6f1c8cb0-38eb-408b-94e8-16db83999b3b";
 const CARD_B = "55fe6449-1f23-43dc-adee-d144cd505b5c";
@@ -135,6 +136,17 @@ describe("auto-order preference: persistence + loader", () => {
         ).toBeUndefined();
     });
 
+    it("never reaches a client: projectPublicState strips it", () => {
+        const state = makeState();
+        state.autoOrderSeatIds = ["p1"];
+        expect(
+            projectPublicState(state, 1, "p2", false).autoOrderSeatIds
+        ).toBeUndefined();
+        expect(
+            projectPublicState(state, 1, "p1", false).autoOrderSeatIds
+        ).toBeUndefined();
+    });
+
     it("loadAutoOrderSeatIds lists opted-in seats, never the vs-AI Bot seat", async () => {
         const rows: Record<string, { autoOrderPrompts?: boolean }> = {
             u1: { autoOrderPrompts: true },
@@ -143,7 +155,6 @@ describe("auto-order preference: persistence + loader", () => {
         const ctx = {
             db: {
                 get: async () => ({ vsAi: true }),
-                normalizeId: (_t: string, id: string) => id,
                 query: () => ({
                     withIndex: (_n: string, f: (q: unknown) => unknown) => {
                         let uid = "";

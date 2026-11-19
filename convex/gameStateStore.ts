@@ -77,21 +77,33 @@ export async function getLatestGameState(
     ctx: ReadCtx,
     gameId: GenericId<"games">
 ): Promise<LoadedGameState | null> {
+    const loaded = await loadGameStateRows(ctx, gameId);
+    if (loaded) await hydrateAutoOrderSeats(ctx, gameId, loaded.state);
+    return loaded;
+}
+
+/** `getLatestGameState` without the preference hydration — the public view's
+ *  full read (ADR 0179), which never runs the engine and must not pay the
+ *  `userSettings` reads. */
+async function loadGameStateRows(
+    ctx: ReadCtx,
+    gameId: GenericId<"games">
+): Promise<LoadedGameState | null> {
     const doc = await readGameStateRow(ctx, gameId);
     if (!doc) return null;
     const stored = doc.state as Record<string, unknown>;
     if (!isSplitCompactState(stored)) {
-        const state = expandState(stored);
-        await hydrateAutoOrderSeats(ctx, gameId, state);
-        return { ...doc, state, libraryRow: null };
+        return { ...doc, state: expandState(stored), libraryRow: null };
     }
     const libraryRow = await readLibraryRow(ctx, gameId);
     if (!libraryRow) {
         throw new Error(`Game ${gameId} has no library companion row`);
     }
-    const state = expandState(stored, libraryRow.payload as CompactLibraries);
-    await hydrateAutoOrderSeats(ctx, gameId, state);
-    return { ...doc, state, libraryRow };
+    return {
+        ...doc,
+        state: expandState(stored, libraryRow.payload as CompactLibraries),
+        libraryRow,
+    };
 }
 
 /** Issue #9988 — hang the seats that opted into automatic trigger/graveyard
@@ -130,7 +142,7 @@ export async function getGameStateForPublicView(
             opaqueLibraries: true,
         };
     }
-    const full = await getLatestGameState(ctx, gameId);
+    const full = await loadGameStateRows(ctx, gameId);
     return full ? { ...full, opaqueLibraries: false } : null;
 }
 
