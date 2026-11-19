@@ -147,9 +147,10 @@ describe("limitedEventMembers follows who holds a Seat (issue #6076)", () => {
         expect(seats.slice(1).every((s) => s.userId === undefined)).toBe(true);
 
         await leave(as(db, "alice"), { eventId });
-        expect((row.seats as { userId?: string }[]).some((s) => s.userId)).toBe(
-            false
-        );
+        const after = db.tables.limitedEvents.find((r) => r._id === eventId)!;
+        expect(
+            (after.seats as { userId?: string }[]).some((s) => s.userId)
+        ).toBe(false);
         expect(members(db)).toEqual([]);
     });
 
