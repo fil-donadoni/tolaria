@@ -41,7 +41,9 @@
 // pass over a deferrable action in an EARLIER window, a deferrable action over
 // pass in the LAST window (`isLastDeferralWindow`) — are built exactly like
 // any pair and routed to `timing` instead of `pairs`: never fitted, never
-// dropped silently, and checked by the search (`verdicts:search`).
+// dropped silently, and checked by the search (`verdicts:search`). A `pass`
+// whose 1-ply leaf resolves nothing (`unresolvedPassPairClassifier`, CR
+// 117.4) rides the same bucket: its consequence lies past the probe.
 
 import { cloneGameState } from "../../clone";
 import type { EvalTerms } from "../../evaluate";
@@ -281,7 +283,14 @@ export function evalPairsOf(
     }
     const isTiming = timingPairClassifier(state, botId, moves);
     const isSequencing = sequencingPairClassifier(state, botId, moves, weights);
-    const isWhen = (p: EvalPair) => isTiming(p) || isSequencing(p);
+    const isUnresolvedPass = unresolvedPassPairClassifier(
+        state,
+        botId,
+        moves,
+        weights
+    );
+    const isWhen = (p: EvalPair) =>
+        isTiming(p) || isSequencing(p) || isUnresolvedPass(p);
     const pairs = built.filter((p) => !isWhen(p));
     const timing = built.filter(isWhen);
     return { verdict, pairs, timing, features };
@@ -427,6 +436,52 @@ export function timingPairClassifier(
         last
             ? deferrable[rightIndex] && isPass[otherIndex]
             : isPass[rightIndex] && deferrable[otherIndex];
+}
+
+/** Is a pair one whose `pass` side reads NOTHING of what the pass does?
+ *
+ *  CR 117.4: the top of the stack resolves only once every player has passed
+ *  in succession. A `pass` that is the FIRST of the round hands priority to
+ *  the other seat and resolves nothing, so its 1-ply leaf is the position
+ *  before the pass with the same object still on top of the stack — the
+ *  bot's own sacrifice trigger pending, a Dreadnought still alive. Against an
+ *  action that answers that object ("Stifle the trigger"), the pair's two
+ *  leaves differ by the answer's cost alone, and the fit can only satisfy it
+ *  by shrinking what the answer is worth in hand: one blade `must` charter
+ *  pair pulled `latent.disruption` down by ~13 points, under the threshold a
+ *  held Mana Drain needs. What the pass hands on is the search's to read,
+ *  never a weight's, so the pair rides the timing bucket: built, reported,
+ *  never fitted. A `pass` whose probe resolves the top (the other seat's pass
+ *  is already banked) reads its consequence and stays in the fit. */
+export function unresolvedPassPairClassifier(
+    state: GameState,
+    botId: string,
+    moves: readonly Move[],
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): (pair: Pick<EvalPair, "rightIndex" | "otherIndex">) => boolean {
+    const top = state.stack[state.stack.length - 1]?.id;
+    let unread: boolean | undefined;
+    const passUnread = (index: number): boolean => {
+        if (top === undefined) return false;
+        if (unread !== undefined) return unread;
+        const probe = cloneGameState(state);
+        applyMoveInSearch(probe, botId, moves[index]);
+        const settled = policyProbeState(
+            probe,
+            moves[index],
+            weights,
+            botId,
+            passEndsStep(state, botId),
+            answeredTriggerId(state, botId, moves[index])
+        );
+        unread = settled.stack[settled.stack.length - 1]?.id === top;
+        return unread;
+    };
+    return ({ rightIndex, otherIndex }) => {
+        if (moves[rightIndex].kind === "pass") return passUnread(rightIndex);
+        if (moves[otherIndex].kind === "pass") return passUnread(otherIndex);
+        return false;
+    };
 }
 
 /** A move read without its payment plan: `tapPlan` is HOW a cast or an
