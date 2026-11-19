@@ -163,9 +163,17 @@ iterations, two measured rounds), with the rollout's plies and probes:
 
 **Browsers, wall clock ÷ `base`** (`run-rollout-browsers.mjs`; blade
 positions 0, 11, 38, 52 at 200 iterations, field `jh7bkzta` at 10, two
-measured rounds; p10 / median / p90 over the five positions):
+measured rounds; each position's ratio the median of its rounds; blade:
+median over the four positions, range in brackets). `base` on the field board:
+240–309 ms per iteration in Chromium, 352–383 in Firefox.
 
-⟨TBD browsers⟩
+| policy     | Chromium, blade  | Chromium, field | Firefox, blade   | Firefox, field |
+| ---------- | ---------------- | --------------- | ---------------- | -------------- |
+| `topk:2`   | 0.98 (0.91–1.15) | 0.49            | 0.97 (0.84–1.04) | 0.43           |
+| `topk:3`   | 1.04 (0.95–1.07) | 0.64            | 0.92 (0.90–0.97) | 0.62           |
+| `prefix:3` | 1.00 (0.98–1.02) | 1.02            | 0.98 (0.93–1.01) | 0.79           |
+| `cap:16`   | 0.90 (0.78–0.98) | 0.90            | 0.85 (0.77–0.96) | 0.80           |
+| `prefix:0` | 0.81 (0.69–0.86) | 0.31            | 0.78 (0.68–1.00) | 0.31           |
 
 **Blade boards** read the same way through the quality run's own CPU times
 (§ 3, the `CPU ÷ base` column): ⟨TBD⟩
