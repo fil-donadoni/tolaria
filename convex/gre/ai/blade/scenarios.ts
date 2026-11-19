@@ -30120,16 +30120,16 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             { kind: "resolve-top" },
         ],
         bot: "me",
-        // The anchor's budget, so the pair differs by the Giant alone. 400
-        // iterations, 16 seeds, measured green too. Seed 3 swapped for 7
-        // (issue #9869): the cast and `pass` settle on the material
-        // tie-break, and the refit that issue's flip-walker pair moves
-        // (`latent.tokens` +12%, every other weight under 1.5%) turns seeds
-        // 3, 14 and 17 to `pass`
-        // at 100 iterations (17/20; 20/20 on the previous vector) — a noise
-        // pin, not a valuation, tracked by issue #10222.
+        // The anchor's budget, so the pair differs by the Giant alone. The
+        // Emperor cast tops the means on most seeds, and the self-harm rule
+        // reads that argmax (issue #10222): it ranks every Fatal Push sibling
+        // and the Giant wins it, where the material tie-break used to hand
+        // the pick to `pass` on rollout noise (seeds 3, 14, 17 of 0–19 at 100
+        // iterations). Seeds 0–19 now 19/20, the one miss a seed whose
+        // `pass` out-means every cast by 0.08 with every one-ply reward at
+        // the clipped floor.
         budget: { iterations: 100 },
-        seeds: [0xb1ade, 1, 2, 4, 5, 6, 7],
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6],
         tier: "must",
         // A PREDICATE, kept out of the weight fit on purpose: see the first
         // Esper Blink entry above.

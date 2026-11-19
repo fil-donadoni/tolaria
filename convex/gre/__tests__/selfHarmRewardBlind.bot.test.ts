@@ -223,3 +223,54 @@ describe("selectRootMove — self-harm hold under a blind reward band (issue #99
         expect(move.kind).toBe("cast-spell");
     });
 });
+
+// The self-harm reading on the search's OWN pick (issue #10222). The material
+// tie-break runs first: with the own-target cast on top of the means and
+// `pass` inside `outcomeEps` with a better subtree margin, the tie-break used
+// to take `pass`, and the sibling aimed at the opponent — a hair outside the
+// band, rollout residue like the rest — was never ranked.
+describe("selectRootMove — the self-harm reading on the search's argmax (issue #10222)", () => {
+    it("FIRE: redirects to the opponent's creature when the tie-break would have taken `pass`", () => {
+        const state = pushBoard(6, true);
+        const ownBears = castAt(state, "push", "myBears");
+        const oppBears = castAt(state, "push", "oppBears");
+        // `pass` is inside the band and out-margins the own-target cast;
+        // the opposing variant sits past the band, with the WORST margin, so
+        // only the variant ranking (never the margin) can pick it.
+        const { move, mechanism } = pick(state, [
+            { move: ownBears, meanReward: 0.31, meanMargin: -1500 },
+            { move: PASS, meanReward: 0.28, meanMargin: -1400 },
+            { move: oppBears, meanReward: 0.25, meanMargin: -1600 },
+        ]);
+        expect(move.kind).toBe("cast-spell");
+        if (move.kind !== "cast-spell") throw new Error("kind");
+        expect(move.targets[0]?.id).toBe("oppBears");
+        expect(mechanism).toBe("announcement-variant");
+    });
+
+    it("FIRE: with no sibling to redirect to, the argmax is still held on `pass`", () => {
+        const state = pushBoard(6);
+        const ownBears = castAt(state, "push", "myBears");
+        const { move, mechanism } = pick(state, [
+            { move: ownBears, meanReward: 0.31, meanMargin: -1500 },
+            { move: PASS, meanReward: 0.28, meanMargin: -1400 },
+        ]);
+        expect(move.kind).toBe("pass");
+        expect(mechanism).toBe("self-harm-removal");
+    });
+
+    it("NO-FIRE: in the open band the tie-break's `pass` stands", () => {
+        // One Wurm: the reward sees the lost Bears, so the argmax is no
+        // blind self-harm and the material tie-break keeps its reading.
+        const state = pushBoard(1, true);
+        const ownBears = castAt(state, "push", "myBears");
+        const oppBears = castAt(state, "push", "oppBears");
+        const { move, mechanism } = pick(state, [
+            { move: ownBears, meanReward: 0.46, meanMargin: -300 },
+            { move: PASS, meanReward: 0.43, meanMargin: -200 },
+            { move: oppBears, meanReward: 0.4, meanMargin: -400 },
+        ]);
+        expect(move.kind).toBe("pass");
+        expect(mechanism).toBe("material-tiebreak");
+    });
+});
