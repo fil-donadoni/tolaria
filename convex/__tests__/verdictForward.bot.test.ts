@@ -1057,3 +1057,58 @@ describe("the check:ui lane fixture never reaches the Verdict Store (issue #4905
         expect(sources.attestations[0].note).toBe(LANE_FIXTURE_NOTE);
     });
 });
+
+describe("the judge's reading crosses the forward intact (issue #10086)", () => {
+    const READING = {
+        plan: { text: "race: burn face, hold nothing back", seq: 40 },
+        rationale: "the blocker is all that stands between me and lethal",
+        grade: "preferred" as const,
+        acceptedIndexes: [0],
+    };
+
+    it("a local judgement's Plan, words, grade and alternatives reach the writer's bucket", async () => {
+        const stub = makeMutationCtx("u-tester", [TESTER]);
+        const id = (await runMutation(submit, stub.ctx, {
+            ...ARGS,
+            ...READING,
+        })) as unknown as string;
+        const store = createMemoryVerdictStore();
+
+        const report = await drainOutbox(
+            localDrainPorts(stub, [id], wire(writerPorts(store)))
+        );
+
+        expect(report).toEqual({ stored: 1, alreadySlim: 0, pending: [] });
+        const stored = await readAttestation(store, VERDICT_ID, LOCAL_AUTHOR);
+        expect({
+            plan: stored?.plan,
+            rationale: stored?.rationale,
+            grade: stored?.grade,
+            acceptedIndexes: stored?.acceptedIndexes,
+        }).toEqual(READING);
+        expect(await readVerdict(store, VERDICT_ID)).toEqual(JUDGEMENT);
+    });
+
+    it("the writer refuses a reading the local door could not have admitted, and the row stays fat", async () => {
+        // An alternative that IS the preferred move, on a row written past the
+        // door (an older build, a hand edit): the writer re-runs the checks.
+        const row: OutboxRow = {
+            ...localRow("r-1", JUDGEMENT, {
+                attestationAuthor: LOCAL_AUTHOR,
+                deployment: "local-3210",
+            }),
+            grade: "preferred",
+            acceptedIndexes: [1],
+        };
+        const store = createMemoryVerdictStore();
+        const result = await forwardOutboxStore(
+            wire(writerPorts(store)),
+            LOCAL
+        )(row);
+        expect(result).toMatchObject({ status: "pending" });
+        expect(JSON.stringify(result)).toContain(
+            "accepted alternative 1 is the preferred move itself"
+        );
+        expect(await store.list("attestations/")).toEqual([]);
+    });
+});

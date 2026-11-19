@@ -19,6 +19,12 @@ import {
     type Verdict,
 } from "../verdicts";
 import { sha256Hex } from "../verdicts/sha256";
+import { VERDICT_LOCK_PATH, parseVerdictLock } from "../verdicts/lockSource";
+import type { AttestedReading } from "../verdicts/reading";
+import {
+    committedVerdictCorpus,
+    CORPUS_EXCLUDED,
+} from "./committedVerdictCorpus.fixture";
 
 const BASE: Verdict = {
     id: "in-play:k17abc",
@@ -283,6 +289,62 @@ describe("verdict id and position key (issue #3575)", () => {
         expect(() => verdictIdOf(unknownKind)).toThrow(/canonical encoding/);
     });
 });
+
+/** Every field of a judge's reading (PRD issue #10083), filled. */
+const READING: AttestedReading = {
+    plan: { text: "hold up Counterspell, Jace next turn", seq: 12 },
+    rationale: "burn now, before the blocker untaps",
+    grade: "preferred",
+    acceptedIndexes: [1],
+};
+
+/** `verdict` as a submission carrying `reading` would present it. The hashes
+ *  take a judgement, and a judgement is never meant to carry these fields:
+ *  spreading them in is the strongest form of "the door forgot to strip them". */
+const withReading = (verdict: Verdict, reading: AttestedReading): Verdict =>
+    ({ ...verdict, ...reading }) as Verdict;
+
+describe("the judge's reading is outside the verdict id (issue #10086)", () => {
+    it("two submissions differing only in Plan, words, grade or alternatives are one verdict id and position key", () => {
+        const base = ids(BASE);
+        const readings: AttestedReading[] = [
+            READING,
+            { grade: "clear" },
+            { grade: "indifferent" },
+            { grade: "preferred", acceptedIndexes: [0, 1] },
+            { rationale: "other words entirely" },
+            { plan: { text: "race them" } },
+        ];
+        for (const reading of readings) {
+            expect(ids(withReading(BASE, reading))).toEqual(base);
+        }
+    });
+});
+
+describe.skipIf(CORPUS_EXCLUDED)(
+    "no verdict id in the committed corpus moves (issue #10086)",
+    () => {
+        it("every locked verdict still hashes to the id the lock names, with or without a reading beside it", async () => {
+            const { verdicts } = await committedVerdictCorpus();
+            const lockFile = resolve(
+                __dirname,
+                "../../../..",
+                VERDICT_LOCK_PATH
+            );
+            const lock = parseVerdictLock(readFileSync(lockFile, "utf8"));
+            const locked = verdicts.filter((v) => v.source === "store");
+            expect(locked.map((v) => v.id)).toEqual(lock.verdictIds);
+            for (const verdict of locked) {
+                expect(verdictIdOf(verdict), verdict.id).toBe(verdict.id);
+            }
+            for (const verdict of verdicts) {
+                expect(ids(withReading(verdict, READING)), verdict.id).toEqual(
+                    ids(verdict)
+                );
+            }
+        }, 60_000);
+    }
+);
 
 describe("dependency boundary (issue #3575)", () => {
     // The id is computed in the Convex bundle, the browser engine and the

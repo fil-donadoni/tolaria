@@ -421,8 +421,12 @@ repository is public. An alias is never retracted.
 
 One author's word for one stored verdict, at
 `attestations/<verdictId>/<author>`: who (`${deployment}:${userId}`, never an
-email), when, the note, and the deployment it came from. Two testers agreeing
-are one verdict object with two attestations.
+email), when, the note, and the deployment it came from — and, when the judge
+gave them, their reading of the decision: the Plan in force, their verbatim
+words, the Verdict Grade (`clear` / `preferred` / `indifferent`) and, on
+`preferred` only, the candidates they would also accept (issue #10086). None
+of that enters the verdict id. Two testers agreeing — even with different
+grades — are one verdict object with two attestations.
 
 ### <a id="g-outbox"></a>Outbox
 
