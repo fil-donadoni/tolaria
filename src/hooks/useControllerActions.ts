@@ -444,9 +444,11 @@ export function useControllerActions(): ControllerState {
                 e.preventDefault();
                 if (hasPassIntent) {
                     handleCancelAutoPass();
-                } else if (!hasPendingIntent) {
+                } else if (!hasPendingIntent && !pendingChoiceAction) {
                     // Same window as Space's fall-through below: a P pressed
                     // before the payment banner renders must not end the turn.
+                    // Nor while a mandatory choice awaits this viewer: the
+                    // server rejects every pass then (ADR 0047).
                     handleEndTurn();
                 }
                 return;
@@ -583,10 +585,11 @@ export function useControllerActions(): ControllerState {
                     // #7423): Enter again cancels it — or any other standing
                     // pass intent.
                     handleCancelAutoPass();
-                } else if (!hasPendingIntent) {
+                } else if (!hasPendingIntent && !pendingChoiceAction) {
                     // Same window as Space's fall-through above: Enter meant as
                     // "cancel the payment I just started" must not arm a pass
-                    // because the banner hasn't rendered yet.
+                    // because the banner hasn't rendered yet. Same for a
+                    // pending choice (ADR 0047): the pass would be rejected.
                     handlePassUntilAction();
                 }
             }
@@ -692,7 +695,7 @@ export function useControllerActions(): ControllerState {
         tone: "destructive",
         // A standing intent already owns the passing (e.g. armed and halted
         // at declare-blockers): a second press would be a silent no-op.
-        disabled: isBusy || hasPassIntent,
+        disabled: isBusy || hasPassIntent || pendingChoiceAction !== null,
         shortcut: HOTKEYS.passUntilAction,
         onClick: handlePassUntilAction,
     };
@@ -760,7 +763,7 @@ export function useControllerActions(): ControllerState {
             description: "Auto-pass priority until the turn ends",
             label: "Pass Turn",
             tone: "destructive",
-            disabled: isBusy,
+            disabled: isBusy || pendingChoiceAction !== null,
             shortcut: HOTKEYS.passTurn,
             onClick: handleEndTurn,
         });
@@ -808,7 +811,7 @@ export function useControllerActions(): ControllerState {
             description: "Auto-pass priority until the turn ends",
             label: "Pass Turn",
             tone: "destructive",
-            disabled: isBusy,
+            disabled: isBusy || pendingChoiceAction !== null,
             shortcut: HOTKEYS.passTurn,
             onClick: handleEndTurn,
         });
@@ -834,7 +837,7 @@ export function useControllerActions(): ControllerState {
             description: "Auto-pass priority until the turn ends",
             label: "Pass Turn",
             tone: "destructive",
-            disabled: isBusy,
+            disabled: isBusy || pendingChoiceAction !== null,
             shortcut: HOTKEYS.passTurn,
             onClick: handleEndTurn,
         });
@@ -860,7 +863,8 @@ export function useControllerActions(): ControllerState {
             shortcut: pendingChoiceAction ? undefined : HOTKEYS.passPriority,
             label: "Pass",
             tone: "primary",
-            disabled: isBusy,
+            // A pending choice (ADR 0047): the server rejects every pass.
+            disabled: isBusy || pendingChoiceAction !== null,
             onClick: handlePass,
         });
         actions.push({
@@ -868,7 +872,7 @@ export function useControllerActions(): ControllerState {
             description: "Auto-pass priority until the turn ends",
             label: "Pass Turn",
             tone: "destructive",
-            disabled: isBusy,
+            disabled: isBusy || pendingChoiceAction !== null,
             shortcut: HOTKEYS.passTurn,
             onClick: handleEndTurn,
         });
