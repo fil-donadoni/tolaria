@@ -91,4 +91,17 @@ describe("LibraryOrderPicker keyboard / click path (issue #9995)", () => {
             "Top of library"
         );
     });
+
+    it("keys the picker handles never reach window hotkeys (Space = confirm)", () => {
+        surveil();
+        const spy = vi.fn();
+        window.addEventListener("keydown", spy);
+        try {
+            fireEvent.keyDown(cards()[0], { key: " ", code: "Space" });
+            fireEvent.keyDown(cards()[0], { key: "ArrowLeft" });
+            expect(spy).not.toHaveBeenCalled();
+        } finally {
+            window.removeEventListener("keydown", spy);
+        }
+    });
 });

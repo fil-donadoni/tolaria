@@ -744,11 +744,17 @@ export default function LibraryOrderPicker({
         (inTop ? setTop : setSecond)(arr);
     };
     const onCardKeyDown = (e: React.KeyboardEvent<HTMLElement>, id: string) => {
-        if (activateTileOnKey(e, () => toggleCard(id))) return;
+        // Keys handled here never reach the board's window hotkeys: Space is
+        // the controller's pass/confirm key and would submit the choice.
+        if (activateTileOnKey(e, () => toggleCard(id))) {
+            e.stopPropagation();
+            return;
+        }
         if (e.target !== e.currentTarget) return;
         if (e.altKey || e.ctrlKey || e.metaKey) return;
         if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
             e.preventDefault();
+            e.stopPropagation();
             shiftCard(id, e.key === "ArrowLeft" ? -1 : 1);
         }
     };
