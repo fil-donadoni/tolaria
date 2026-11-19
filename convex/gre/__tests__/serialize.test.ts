@@ -2157,7 +2157,7 @@ describe("optional field round-trip smoke tests", () => {
                 landSourceZone: "exile",
                 cost: { life: 2 },
                 count: 1,
-                prompt: "You may pay 2 life. If you don't, This land enters the battlefield tapped.",
+                prompt: "You may pay 2 life. If you don't, Steam Vents enters tapped.",
             },
         ];
         const back = roundTrip(state);
