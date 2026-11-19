@@ -31228,7 +31228,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9698, CR 603.7a. The same attack with three Forests. The Viper would still kill the Wurm, but three lands cannot pay {2}{G}{G} at the next upkeep, and not paying loses the game. Taking six from the Wurm at 20 life is the play.",
     },
-    // W-U-B-G Goryo's, the modern metagame's level-2 rows
+    // Esper Goryo, the modern metagame's level-2 rows
     // (`docs/agents/modern-metagame-bot-level-2.md`, issue #9699). The Bot's
     // library is spells, never `libraryCount`'s basics: Griselbrand's seven
     // cards are the payoff, and seven basic lands are worth about the 7 life
