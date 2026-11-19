@@ -25,6 +25,10 @@ amended for `check:ui` alone, is overturned by ADR 0154 for every lane.
 **Amended 2026-10-20 (issue #6143)**: no automated run walks every surface —
 `release` runs the offline gates and `check:game-download`, and
 `check:ui --all` is a command run by hand.
+**Amended 2026-11-19 (issue #10230)**: a shared UI primitive
+(`src/components/ui/**`) is no longer a global input; its importers' closures
+place it, and a closed-by-default shell overlay walked by a specimen row is no
+longer part of the shell — § Amendment (issue #10230) below.
 
 ## Context
 
@@ -618,3 +622,52 @@ an option a session or the owner takes when several UI PRs wait at once. The `ui
 label, and the collector walks every such PR in one batch. Trigger: by hand /
 attended for now — a cron or label-event workflow is a follow-up once the lane
 slot cost is measured.
+
+## Amendment (issue #10230) — a shared UI primitive is scoped by its importers
+
+### What the global rule cost
+
+The argument's input 2 listed "shared UI primitives (`src/components/ui/**`)"
+beside the stylesheets as inputs that "can move every surface". In practice a
+primitive is a module like any other: it moves a surface only by being
+rendered there, and rendering it means importing it — which input 1, the
+import closure, already scopes exactly. The blanket rule made every primitive
+diff FULL (83 surfaces × 6 viewports, ~91 min). On PR #10212 (issue #9820) an
+additive `size="sheet"` variant of `GameDialog` paid that price, and the
+session dodged it by copying the shell into the feature instead of extending
+the primitive. Owner ruling (2026-11-19): the development workflow is never
+bent to avoid a disproportionate test; the scoping logic is fixed instead.
+
+### The rule
+
+1. **The shared UI primitives leave `globalReason`.** A changed
+   `src/components/ui/` module is placed like any module: in the shell's
+   closure → FULL; in surfaces' closures → those surfaces; reached only
+   through type-only edges or only from staff-only routes → nothing (the
+   existing rules); otherwise the fail-closed doubt (`undecided`).
+   A primitive the shell's chrome renders (a header button) is still FULL,
+   now by the shell rule, which is the honest reason.
+2. **The catalogue gate stays global by name** (`CATALOGUE_GATE`): the shell
+   mounts it lazily around every route, so no surface's closure holds it.
+3. **A closed-by-default shell overlay is not the shell**
+   (`SHELL_DEFERRED_OVERLAYS`). The shell mounts the bug-report dialog on
+   every route, closed. A closed base-ui dialog mounts no portal and renders
+   no element, so nothing in its closure can move a surface the walk never
+   opens it on. `shellClosure` stops descending at it, and the specimen row
+   that names it in `mounts` (`dlg-bug-report`) places its closure, so a
+   `GameDialog` change walks that row. A row is admitted only when the
+   shell's sole use of the module is that closed mount, closed it renders no
+   element, and a specimen row mounts it. `ui-scope-shell.test.ts` pins the
+   specimen half; the first two are a reviewed declaration. The opener stays in the shell and still forces FULL.
+
+Owed-ness is unchanged: `uiWalkOwed` still owes a walk for any `ui/` diff.
+Only WHAT the owed walk covers narrows.
+
+### Residual
+
+Closure scoping is coarse for a widely imported primitive: a `GameDialog`
+diff still walks every surface that imports any dialog (67 of 83 surfaces on
+2026-11-19), even when the change is a variant only one call site passes. A
+content-aware rule — a diff confined to a new variant scopes to the call
+sites passing it — was considered and deferred: it is heuristic and needs its
+own fail-closed design.

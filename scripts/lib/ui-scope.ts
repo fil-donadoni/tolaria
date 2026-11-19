@@ -3,9 +3,12 @@
  *
  * THE ARGUMENT. A surface's rendered layout is a function of three inputs:
  *   1. its route module's import closure — scoped EXACTLY, by `import-graph.ts`;
- *   2. the global styling inputs (stylesheets, design tokens, shared UI
- *      primitives, the shell every route renders inside) — which always force
- *      the full run, because they can move every surface;
+ *   2. the global styling inputs (stylesheets, design tokens, the shell
+ *      every route renders inside, the catalogue gate it mounts) — which
+ *      always force the full run, because they can move every surface. A
+ *      shared UI primitive (`src/components/ui/**`) is NOT one of them: it
+ *      moves only the surfaces that render it, so its closure places it like
+ *      any module (issue #10230, ADR 0131 Amendment);
  *   3. deployment data — pinned by the per-run lane account.
  *
  * FAIL-CLOSED, like `check:lane`'s `classifyPath`: a changed path narrows the
@@ -35,8 +38,9 @@
  *     → `full` (`ui-stylesheet-scope.ts`, issue #9295);
  *   - GLOBAL (`globalReason`) → `full`;
  *   - in the app SHELL's closure (`src/main.tsx`, not descending into route
- *     modules nor the catalogue gate) → `full`: the shell renders around
- *     every surface;
+ *     modules, the catalogue gate nor a closed-by-default shell overlay,
+ *     `SHELL_DEFERRED_OVERLAYS`) → `full`: the shell renders around every
+ *     surface;
  *   - reached from the shell only through the CATALOGUE GATE (the lazy chunk
  *     that loads the catalogue into the card registry) → selects
  *     every surface that reads that registry, or `full` if none does;
@@ -216,14 +220,22 @@ export function isServerOnlyPath(path: string): boolean {
 /**
  * Why `path` can move every surface, or `null`. These are the inputs no import
  * closure accounts for (a stylesheet is applied by the cascade, a public asset
- * by URL) or that every route shares by construction.
+ * by URL) or that every route shares by construction. A module some surfaces
+ * import is never listed here: its closure membership is its scope.
  */
 export function globalReason(path: string): string | null {
     if (path === "index.html") return "the HTML document every route loads";
     if (path.startsWith("public/")) return "a public asset, served by URL";
     if (/\.css$/.test(path)) return "a stylesheet";
     if (path === "src/lib/design-tokens.ts") return "a design-token source";
-    if (path.startsWith("src/components/ui/")) return "a shared UI primitive";
+    // A shared UI primitive (`src/components/ui/**`) is NOT global (issue
+    // #10230, ADR 0131 Amendment): it moves only the surfaces that render it,
+    // and rendering means importing, so the closures below place it. The one
+    // primitive every route renders without importing it is the catalogue
+    // gate the shell mounts lazily.
+    if (path === CATALOGUE_GATE) {
+        return "the catalogue gate, mounted around every route";
+    }
     if (path === SHELL_ENTRY || path === "src/app-router.tsx") {
         return "the app shell";
     }
@@ -231,12 +243,34 @@ export function globalReason(path: string): string | null {
     return null;
 }
 
+/**
+ * Shell overlays that render NOTHING until opened (issue #10230, ADR 0131
+ * Amendment). The shell mounts each one on every route, closed: a closed
+ * base-ui dialog mounts no portal and no DOM, so nothing in its closure can
+ * move a walked surface — which the walk never opens it on. Each is opened
+ * and measured by the specimen row that names it in `mounts`
+ * (`ui-scope-shell.test.ts` pins that every entry has one), so its closure
+ * places it there instead of forcing FULL through the shell.
+ *
+ * Criterion for a new row, reviewed like any scoper rule: (1) the shell's
+ * only use of the module is that closed-by-default mount; (2) closed, it
+ * renders no element at all (no trigger, no placeholder); (3) a specimen
+ * row mounts it. The opener (a floating button, a header item) stays in the
+ * shell closure and still forces FULL.
+ */
+export const SHELL_DEFERRED_OVERLAYS: readonly string[] = [
+    "src/components/bug-report/bug-report-dialog.tsx",
+];
+
 /** What renders around every surface: the shell entry's runtime closure, not
- *  descending into route modules nor into the lazily-loaded catalogue gate,
- *  which `computeUiScope` places on its own. */
+ *  descending into route modules, the lazily-loaded catalogue gate (which
+ *  `computeUiScope` places on its own) nor a closed-by-default shell overlay
+ *  (`SHELL_DEFERRED_OVERLAYS`, placed by its specimen row). */
 export function shellClosure(graph: ImportGraph): Set<string> {
+    const deferred = new Set(SHELL_DEFERRED_OVERLAYS);
     return graph.closureOf(SHELL_ENTRY, {
-        prune: (p) => isRouteModulePath(p) || p === CATALOGUE_GATE,
+        prune: (p) =>
+            isRouteModulePath(p) || p === CATALOGUE_GATE || deferred.has(p),
     });
 }
 
