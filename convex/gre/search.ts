@@ -103,6 +103,7 @@ import {
     markDeclaredBlockers,
     recordAttackerDeclared,
     validateAttackerEligibility,
+    validateBlockerEligibility,
 } from "./combat";
 import { beginLayer7Pass, getEffectivePT } from "./layers";
 import { lethalDamageThreshold } from "./lethalDamage";
@@ -7317,8 +7318,12 @@ export function selectRootMove(
  *     search horizon. It is left in because the gate still requires the two to
  *     be outcome-equal and because the cost argument genuinely applies (the
  *     creature can be sacrificed after blocks are declared instead, with strictly
- *     more information); if a blade position ever shows it costing the bot a
- *     real play, the narrowing goes here.
+ *     more information). NARROWED where that argument fails: an activation
+ *     whose resolution removes a creature able to block the mover's own
+ *     attack, with that attack still ahead ({@link clearsBlockerBeforeOwnAttack}),
+ *     is never deferred here. After blocks there is no blocker left to clear,
+ *     so the later window is not the same act (an Engineered Explosives sweep
+ *     that empties the opponent's board before a Craw Wurm attacks).
  *
  *  A third shape, the FLASH PERMANENT dumped at sorcery speed,
  *  lives in the `last-window-deferral` hold,
@@ -7356,6 +7361,10 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
         // CR 305.7 — a retype that makes a held cost payable is spent on
         // that cast this turn: nothing later reaches the same board.
         if (isCostUnlockingLandTypeChange(state, move)) return false;
+        // CR 508.1a / 509.1a — a resolution that takes a blocker away
+        // before the mover's own attack buys that attack, and the window it
+        // is held for comes after it: the payoff is THIS turn's combat.
+        if (clearsBlockerBeforeOwnAttack(state, player.id, move)) return false;
         // Shape 2 has TWO independent justifications, one per side of the
         // trade (issue #2939): a payoff that expires this turn, or a cost that
         // gives up a permanent still doing its job. See
@@ -7366,6 +7375,89 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
         );
     }
     return false;
+}
+
+/**
+ * Does `move`, resolved, take away a creature able to block the mover's own
+ * attack while that attack still lies ahead (CR 508.1a: attackers are
+ * declared after this window; CR 509.1a: only an untapped creature blocks)?
+ *
+ * Read off the one-resolution probe the rollout policy scores
+ * (`applyMoveInSearch`, then `policyProbeState`). The attackers are the
+ * mover's creatures still able to attack AFTER the resolution — an activation
+ * that sacrifices the only attacker clears nothing for it. A blocker is an
+ * untapped opposing creature `validateBlockerEligibility` lets block at least
+ * one of them; the move clears one when a creature that was such a blocker
+ * before the resolution no longer is (destroyed, bounced, tapped, or barred
+ * from blocking). Fails closed: a move the probe cannot simulate clears
+ * nothing. Pure — the probe runs on a clone.
+ */
+function clearsBlockerBeforeOwnAttack(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    if (!attacksBeforeTheWait(state, pid)) return false;
+    const probe = cloneGameState(state);
+    let settled: GameState;
+    try {
+        applyMoveInSearch(probe, pid, move);
+        settled = policyProbeState(probe, move, DEFAULT_EVAL_WEIGHTS, pid);
+    } catch {
+        return false;
+    }
+    const me = settled.players.find((p) => p.id === pid);
+    if (!me) return false;
+    const defendersAfter = settled.players
+        .filter((p) => p.id !== pid)
+        .flatMap((p) => p.battlefield);
+    const attackerIds = me.battlefield
+        .filter(
+            (c) =>
+                isCreature(c) &&
+                validateAttackerEligibility(c, defendersAfter, settled).eligible
+        )
+        .map((c) => c.id);
+    if (attackerIds.length === 0) return false;
+    const after = blockersOf(settled, pid, attackerIds);
+    for (const id of blockersOf(state, pid, attackerIds)) {
+        if (!after.has(id)) return true;
+    }
+    return false;
+}
+
+/** The ids of the untapped creatures `pid`'s opponents control that may
+ *  block at least one of `attackerIds` in `state` (CR 509.1a). An attacker
+ *  not on `pid`'s battlefield in `state` is skipped. */
+function blockersOf(
+    state: GameState,
+    pid: string,
+    attackerIds: readonly string[]
+): Set<string> {
+    const me = state.players.find((p) => p.id === pid);
+    const attackers = (me?.battlefield ?? []).filter((c) =>
+        attackerIds.includes(c.id)
+    );
+    const ids = new Set<string>();
+    for (const opp of state.players) {
+        if (opp.id === pid) continue;
+        for (const blocker of opp.battlefield) {
+            if (!isCreature(blocker) || blocker.tapped) continue;
+            if (
+                attackers.some(
+                    (a) =>
+                        validateBlockerEligibility(
+                            a,
+                            blocker,
+                            opp.battlefield,
+                            state
+                        ).eligible
+                )
+            )
+                ids.add(blocker.id);
+        }
+    }
+    return ids;
 }
 
 /**
