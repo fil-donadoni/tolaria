@@ -5,6 +5,7 @@ import { ConvexReactClient } from "convex/react";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { AppRouter } from "./app-router";
+import { router } from "./router";
 import * as Sentry from "@sentry/react";
 import { installConsoleRing } from "~/lib/diagnostics/console-ring";
 import { installNetworkRing } from "~/lib/diagnostics/network-ring";
@@ -32,6 +33,15 @@ Sentry.init({
     },
     // Enable logs to be sent to Sentry
     enableLogs: true,
+    // Tracing (issue #10214): page loads and route navigations, named by
+    // TanStack Router's parameterised route (`/game/$gameId`, not the id).
+    // Production builds only — the local dev server must not spend the
+    // free-tier span quota (ADR 0139 § 4). `tracePropagationTargets` stays
+    // the default (same origin): Convex is cross-origin and runs no Sentry
+    // SDK, so a `sentry-trace` header on its requests buys nothing and risks
+    // a CORS preflight failure.
+    integrations: [Sentry.tanstackRouterBrowserTracingIntegration(router)],
+    tracesSampleRate: import.meta.env.PROD ? 0.2 : 0,
 });
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
