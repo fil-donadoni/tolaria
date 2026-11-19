@@ -24,6 +24,11 @@ function fakeCtx() {
         },
         db: {
             get: async (id: string) => docs.get(id) ?? null,
+            // `syncEventMembers` reads the (empty) membership index.
+            query: () => ({
+                withIndex: () => ({ collect: async () => [] }),
+            }),
+            delete: async () => undefined,
             insert: async (table: string, doc: Record<string, unknown>) => {
                 const _id = `${table}-${docs.size}`;
                 docs.set(_id, { ...doc, _id });
