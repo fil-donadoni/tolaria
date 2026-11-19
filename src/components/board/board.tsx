@@ -544,6 +544,7 @@ export default function Board({
                 combat,
                 blocksDeclaredByAttacker,
                 pendingExtraCleanupStep,
+                mulligan,
                 cannotActivateAbilitiesThisTurn,
                 lifeGainedThisTurn: state.lifeGainedThisTurn,
                 spellsCastThisTurn: state.spellsCastThisTurn,

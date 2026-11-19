@@ -10,6 +10,7 @@ import type {
     CardInstance,
     Combat,
     GameOver,
+    MulliganState,
     PassUntilActionIntent,
     PendingActivation,
     PendingCast,
@@ -93,6 +94,10 @@ type GameContext = {
      *  no-priority step for the duration: without it the Pass affordance never
      *  renders and the board deadlocks with the cleanup trigger on the stack. */
     pendingExtraCleanupStep?: boolean;
+    /** CR 103.5 — the pre-game mulligan declaration, present while it runs.
+     *  Lets the controller cue read the viewer's Keep / Mulligan prompt as
+     *  theirs (issue #9980). */
+    mulligan?: MulliganState;
     /** Player ids under Abeyance's turn-scoped "can't activate abilities that
      *  aren't mana abilities" lock (CR 602.1 / 605.1a, issue #1124). Forwarded
      *  from the wire `GameState.cannotActivateAbilitiesThisTurn` to
