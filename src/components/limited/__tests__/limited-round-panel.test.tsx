@@ -21,9 +21,10 @@ import LimitedRoundPanel from "../limited-round-panel";
 // `convex/react`, the generated `api` and the project's own hooks — the
 // `event` prop still comes from the REAL projection.
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
+let activeGame: unknown = null;
 vi.mock("convex/react", () => ({
     useMutation: () => vi.fn(),
-    useQuery: () => null,
+    useQuery: () => activeGame,
 }));
 vi.mock("@convex/_generated/api", () => {
     const apiProxy: unknown = new Proxy({}, { get: () => apiProxy });
@@ -36,6 +37,7 @@ vi.mock("~/hooks/useUserDecks", () => ({ useUserDecks: () => [] }));
 
 afterEach(() => {
     cleanup();
+    activeGame = null;
 });
 
 const EVENT_ID = "event-1644" as Id<"limitedEvents">;
@@ -174,6 +176,39 @@ describe("LimitedRoundPanel — the viewer's pairing (PRD story 7)", () => {
         expect(
             screen.getByTestId("round-pairing-status").textContent
         ).toContain("not played yet");
+    });
+});
+
+describe("LimitedRoundPanel — match under way (issue #9983)", () => {
+    it("shows the live score instead of 'not played yet' at 1-0", () => {
+        activeGame = {
+            matchId: "match-1",
+            matchScore: { wins: 1, losses: 0 },
+        };
+        renderPanel(
+            projectedEvent([
+                { seatA: 0, seatB: 2, matchId: "match-1" },
+                { seatA: 1, seatB: 3 },
+            ])
+        );
+
+        const text = screen.getByTestId("round-pairing-status").textContent;
+        expect(text).toContain("in progress");
+        expect(text).toContain("1-0");
+        expect(text).not.toContain("not played yet");
+    });
+
+    it("says in progress without a score when the Match is not the viewer's active game", () => {
+        renderPanel(
+            projectedEvent([
+                { seatA: 0, seatB: 2, matchId: "match-1" },
+                { seatA: 1, seatB: 3 },
+            ])
+        );
+
+        const text = screen.getByTestId("round-pairing-status").textContent;
+        expect(text).toContain("in progress");
+        expect(text).not.toContain("not played yet");
     });
 });
 

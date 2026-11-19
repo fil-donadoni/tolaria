@@ -632,6 +632,21 @@ export function activeGameOpponentName(
     return match.players.find((p) => p.id !== userId)?.name ?? null;
 }
 
+/** Games won so far in a Match, read from `userId`'s side. The viewer's seat
+ *  handle is the user id (2-player) or `${userId}-p1` (vs-AI / solo, ADR 0000);
+ *  the opponent is the other player. `null` when the viewer's seat is absent. */
+export function matchScoreForUser(
+    match: { players: { id: string; score: number }[] },
+    userId: string
+): { wins: number; losses: number } | null {
+    const mine = match.players.find(
+        (p) => p.id === userId || p.id === `${userId}-p1`
+    );
+    if (!mine) return null;
+    const other = match.players.find((p) => p !== mine);
+    return { wins: mine.score, losses: other?.score ?? 0 };
+}
+
 /** The user's current active Match, or null. Scans only the small active set
  *  via the `by_status` index — finished Matches are never read. */
 export async function findActiveMatchForUser(
