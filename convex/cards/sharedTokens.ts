@@ -904,8 +904,8 @@ export const SHARD_TOKEN: EffectTokenSpec = {
  *
  *  The exiled card is bound by the exile itself (`bindAll`), never linked to
  *  the source: the token was sacrificed to pay the cost, so there is no
- *  source left to link to. The permission is CR 601.2's play — `includesLand`
- *  covers a land (CR 305.1) — for `this-turn` only. "Activate only as a
+ *  source left to link to. "Play" is both casting a spell (CR 601.2) and
+ *  playing a land (CR 305.1), hence `includesLand`; the window is `this-turn`. "Activate only as a
  *  sorcery" is `sorcerySpeedOnly` (CR 602.5d).
  *
  *  No pinned `imagePrintId`: the producer's printing's Junk token. */

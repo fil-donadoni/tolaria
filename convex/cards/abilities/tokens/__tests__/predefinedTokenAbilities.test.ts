@@ -103,7 +103,7 @@ function activate(state: GameState, token: CardInstanceState): void {
             : undefined,
     });
     tryAutoCommitPendingActivation(state, "p1");
-    // CR 602.2 / 118.3 — the sacrifice is a cost: the token is gone before the
+    // CR 602.2 — the sacrifice is a cost, paid on activation: the token is gone before the
     // ability resolves.
     expect(state.players[0].battlefield.some((c) => c.id === token.id)).toBe(
         false
