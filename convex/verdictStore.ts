@@ -37,6 +37,7 @@ import {
     resolutionProblems,
 } from "./gre/ai/verdicts/resolution";
 import { withoutLaneFixtures } from "./gre/ai/verdicts/laneFixture";
+import { readingOf, readingShapeProblem } from "./gre/ai/verdicts/reading";
 import { utf8Bytes } from "./gre/ai/verdicts/sha256";
 import type {
     VerdictAttestation,
@@ -312,6 +313,7 @@ function attestationPayload(
             ? {}
             : { gameId: attestation.gameId }),
         ...(attestation.seq === undefined ? {} : { seq: attestation.seq }),
+        ...readingOf(attestation),
     };
 }
 
@@ -401,6 +403,12 @@ export function decodeAttestationObject(
             name,
             `field ${mistyped?.[0] ?? "deploymentKind"} has the wrong type`
         );
+    }
+    // The judge's reading: absent on every attestation written before it
+    // existed, which therefore decodes exactly as it always did.
+    const reading = readingShapeProblem(attestation);
+    if (reading !== null) {
+        throw new VerdictStoreIntegrityError(name, reading);
     }
     if (!sameBytes(canonical, bytes)) {
         throw new VerdictStoreIntegrityError(

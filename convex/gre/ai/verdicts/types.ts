@@ -68,7 +68,32 @@ export type VerdictAttestation = {
     /** The game and the `seq` the decision was taken at, on `deployment`. */
     gameId?: string;
     seq?: number;
+    // The judge's own reading of the decision (PRD issue #10083). Judgement of
+    // a PERSON, never of the position: none of it is in the verdict id, so the
+    // same position graded two ways by two people is one Verdict with two
+    // attestations, never a Contested Position.
+    /** The Plan in force when the decision was taken. */
+    plan?: AttestedPlan;
+    /** The judge's words about this decision, verbatim — the raw half of a
+     *  Rationale; its decomposition is a separate record. */
+    rationale?: string;
+    /** How clear-cut the decision is. Absent = every attestation written
+     *  before the grade existed; readers take it as `clear`. */
+    grade?: VerdictGrade;
+    /** On a `preferred` grade only: the other candidates the judge would
+     *  also accept, by index. NOT added to the answer's right moves — the
+     *  answer is the judgement, these are one person's tolerance of it. */
+    acceptedIndexes?: number[];
 };
+
+/** The closed set of Verdict Grades (`GLOSSARY.md` § Verdict Grade). */
+export const VERDICT_GRADES = ["clear", "preferred", "indifferent"] as const;
+
+export type VerdictGrade = (typeof VERDICT_GRADES)[number];
+
+/** A Plan statement as an attestation carries it: the player's words, and
+ *  the `seq` of the state it was stated on, in the attestation's game. */
+export type AttestedPlan = { text: string; seq?: number };
 
 /** A human's decision about a Contested Position (issue #3582, ADR 0128 §6):
  *  which of its verdicts is right, and why each other one is not. The shape

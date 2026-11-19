@@ -36,6 +36,11 @@
 import type { VerdictJudgement } from "./gre/ai/verdicts/identity";
 import { isLaneFixture } from "./gre/ai/verdicts/laneFixture";
 import {
+    readingOf,
+    readingShapeProblem,
+    type AttestedReading,
+} from "./gre/ai/verdicts/reading";
+import {
     resolutionIdOf,
     resolutionProblems,
 } from "./gre/ai/verdicts/resolution";
@@ -215,7 +220,9 @@ export interface ForwardWriterPorts {
     now: () => number;
     /** The checks `verdicts.submit` runs on a judgement; throws the reason. */
     checkAdmissible: (
-        judgement: VerdictJudgement & { botPickIndex?: number }
+        judgement: VerdictJudgement & {
+            botPickIndex?: number;
+        } & AttestedReading
     ) => Promise<void>;
     /** Upload + re-read with the write key (`storeOutboxRow`). */
     storeVerdict: OutboxRowStore;
@@ -287,7 +294,8 @@ function attestationOfBody(raw: Fields): VerdictAttestation | null {
         !optional(raw.note, "string") ||
         !optional(raw.botPickIndex, "number") ||
         !optional(raw.gameId, "string") ||
-        !optional(raw.seq, "number")
+        !optional(raw.seq, "number") ||
+        readingShapeProblem(raw) !== null
     ) {
         return null;
     }
@@ -304,6 +312,9 @@ function attestationOfBody(raw: Fields): VerdictAttestation | null {
             : { botPickIndex: raw.botPickIndex as number }),
         ...(raw.gameId === undefined ? {} : { gameId: raw.gameId as string }),
         ...(raw.seq === undefined ? {} : { seq: raw.seq as number }),
+        // The judge's reading (PRD issue #10083): shape-checked above, the
+        // rest by `checkAdmissible` against the judgement it sits beside.
+        ...readingOf(raw as AttestedReading),
     };
 }
 
@@ -463,6 +474,7 @@ async function acceptForwardedVerdict(
             ...(attestation.botPickIndex === undefined
                 ? {}
                 : { botPickIndex: attestation.botPickIndex }),
+            ...readingOf(attestation),
         });
     } catch (error) {
         return refused(422, `inadmissible judgement: ${messageOf(error)}`);
@@ -487,6 +499,7 @@ async function acceptForwardedVerdict(
         deploymentKind: attestation.deploymentKind,
         createdAt: attestation.createdAt as number,
         ...(attestation.note === undefined ? {} : { note: attestation.note }),
+        ...readingOf(attestation),
         verdictHash: body.verdictHash,
         positionKey: body.positionKey,
     };

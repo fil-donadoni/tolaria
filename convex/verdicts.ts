@@ -48,7 +48,13 @@ import {
 import {
     classificationValidator,
     pairOfValidator,
+    readingFields,
 } from "./verdictClassificationValidators";
+import {
+    readingOf,
+    readingProblem,
+    type AttestedReading,
+} from "./gre/ai/verdicts/reading";
 import { VERDICT_AUTHOR_PATTERN, verdictAuthorOf } from "./verdictStore";
 import {
     judgementOfRow,
@@ -100,7 +106,7 @@ type AdmissibleJudgement = {
     classification?: Infer<typeof classificationValidator>;
     pairOf?: Infer<typeof pairOfValidator>;
     botPickIndex?: number;
-};
+} & AttestedReading;
 
 /** ADR 0148: which wrong a judgement means is said about a `forbidden` answer
  *  only — a `right` one names no move to rule out — and a right-hand half is
@@ -148,6 +154,8 @@ function assertAdmissible(args: AdmissibleJudgement): void {
         throw new Error("a verdict must name at least one candidate");
     }
     assertClassified(args);
+    const reading = readingProblem(args, args.answer, args.candidates.length);
+    if (reading !== null) throw new Error(reading);
     // A NAME THE ENGINE DOES NOT HAVE is refused here for exactly the reason
     // the index bounds below are: uploaded, the row fails at fit time as
     // "position could not be rebuilt" — far from whoever could still say what
@@ -227,6 +235,9 @@ export const submit = mutation({
         gameId: v.optional(v.string()),
         seq: v.optional(v.number()),
         note: v.optional(v.string()),
+        // The judge's reading (PRD issue #10083): attestation content,
+        // outside the judgement and so outside both hashes.
+        ...readingFields,
     },
     returns: v.id("verdicts"),
     handler: async (ctx, args) => {
@@ -271,6 +282,7 @@ export const submit = mutation({
             author: user.nickname,
             createdAt: Date.now(),
             ...(args.note === undefined ? {} : { note: args.note }),
+            ...readingOf(args),
             ...verdictStampOf(judgement),
             attestationAuthor: verdictAuthorOf(here.name, user._id),
             deployment: here.name,
@@ -396,6 +408,7 @@ export const forwardAdmissible = internalQuery({
         classification: v.optional(classificationValidator),
         pairOf: v.optional(pairOfValidator),
         botPickIndex: v.optional(v.number()),
+        ...readingFields,
     },
     returns: v.null(),
     handler: async (_ctx, args) => {

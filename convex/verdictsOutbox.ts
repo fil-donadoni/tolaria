@@ -21,8 +21,8 @@
 //
 // This module decides; it holds no credential and runs no Convex function. It
 // is exercised against the in-memory store (`verdictStoreMemory.ts`), and it
-// imports no engine code beyond the pure identity module, because the `"use
-// node"` drain reaches it (`scripts/__tests__/convex-node-bundle-seam.test.ts`).
+// imports no engine code beyond the pure identity and reading modules, because
+// the `"use node"` drain reaches it (`scripts/__tests__/convex-node-bundle-seam.test.ts`).
 
 import {
     positionKeyOf,
@@ -30,6 +30,7 @@ import {
     type VerdictJudgement,
 } from "./gre/ai/verdicts/identity";
 import { isLaneFixture } from "./gre/ai/verdicts/laneFixture";
+import { readingOf, type AttestedReading } from "./gre/ai/verdicts/reading";
 import type {
     VerdictAnswer,
     VerdictAttestation,
@@ -118,6 +119,12 @@ export interface OutboxRow {
     deploymentKind?: "cloud" | "local";
     createdAt: number;
     note?: string;
+    // The judge's reading (`gre/ai/verdicts/reading.ts`) — attestation
+    // content, dropped by `markStored` with the judgement.
+    plan?: AttestedReading["plan"];
+    rationale?: string;
+    grade?: AttestedReading["grade"];
+    acceptedIndexes?: number[];
     verdictHash?: string;
     positionKey?: string;
     storedAt?: number;
@@ -216,6 +223,7 @@ export function attestationOfRow(
             : { botPickIndex: row.botPickIndex }),
         ...(row.gameId === undefined ? {} : { gameId: row.gameId }),
         ...(row.seq === undefined ? {} : { seq: row.seq }),
+        ...readingOf(row),
     };
 }
 

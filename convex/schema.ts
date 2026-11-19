@@ -5,6 +5,7 @@ import { matchClockConfigValidator, tickClockValidator } from "./matchClock";
 import {
     classificationValidator,
     pairOfValidator,
+    readingFields,
 } from "./verdictClassificationValidators";
 // One Pool Arrangement entry (ADR 0060, issue #1247; Card Pins, ADR 0075
 // §3/§5, issue #1621). NOT re-declared here: the validator is exported from
@@ -1704,6 +1705,10 @@ export default defineSchema({
         author: v.string(),
         createdAt: v.number(),
         note: v.optional(v.string()),
+        // The judge's reading — Plan in force, verbatim words, Verdict Grade,
+        // accepted alternatives (`gre/ai/verdicts/reading.ts`). Attestation
+        // content, outside both hashes. Absent once stored.
+        ...readingFields,
         // The verdict id and position key (`gre/ai/verdicts/identity.ts`),
         // stamped server-side at insert. Optional only because rows written
         // before the outbox carry neither; the drain derives them for those.
