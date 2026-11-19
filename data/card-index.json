@@ -5100,6 +5100,16 @@
         "source": "compiled"
     },
     {
+        "name": "Auspicious Arrival",
+        "scryfallId": "5180c85c-6add-4066-83c4-27fb1fd4de16",
+        "oracleId": "b25d5b06-44cf-42bc-90dd-3b238f702361",
+        "firstSet": "mkm",
+        "firstPrintId": "5180c85c-6add-4066-83c4-27fb1fd4de16",
+        "firstPrintSet": "mkm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Autochthon Wurm",
         "scryfallId": "7002a87b-a55f-42ec-b247-119a3229129f",
         "oracleId": "18379907-ddba-479e-8953-3adc1ed40458",
@@ -5945,6 +5955,16 @@
         "firstPrintId": "c34963e6-850e-4ce4-b04f-5e623ce5b73f",
         "firstPrintSet": "mmq",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Ballroom",
+        "scryfallId": "6e982bf8-382f-4987-bc39-28e1ce290340",
+        "oracleId": "cb91e842-9f06-4863-a328-2cabe1bcfe27",
+        "firstSet": "clu",
+        "firstPrintId": "6e982bf8-382f-4987-bc39-28e1ce290340",
+        "firstPrintSet": "clu",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -7711,6 +7731,16 @@
         "firstPrintId": "2c0fcf98-1f3c-4cff-9234-7f3d0c8b22e9",
         "firstPrintSet": "ecl",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Billiard Room",
+        "scryfallId": "dc2a3de1-01ac-4425-8534-e5019e01f2cd",
+        "oracleId": "a4fc174e-7fa6-41a8-ae03-255f226840f9",
+        "firstSet": "clu",
+        "firstPrintId": "dc2a3de1-01ac-4425-8534-e5019e01f2cd",
+        "firstPrintSet": "clu",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -11762,6 +11792,16 @@
         "source": "compiled"
     },
     {
+        "name": "Byway Courier",
+        "scryfallId": "2f243a51-bbd3-4028-a469-469ab5591aae",
+        "oracleId": "e186cc6f-8c11-4475-a704-0b4c3a9eade9",
+        "firstSet": "soi",
+        "firstPrintId": "2f243a51-bbd3-4028-a469-469ab5591aae",
+        "firstPrintSet": "soi",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Cabal Archon",
         "scryfallId": "4bdf6e2a-1bf5-4d63-a58b-883cfb1ea0fa",
         "oracleId": "7d80f016-5a4a-4843-9aec-0fe64f7f7ae8",
@@ -15686,6 +15726,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cold Case Cracker",
+        "scryfallId": "f082111b-9b1c-4a25-8c5d-d6ef77533a9b",
+        "oracleId": "2e18ee5b-cda3-428b-be91-939c410256ac",
+        "firstSet": "mkm",
+        "firstPrintId": "f082111b-9b1c-4a25-8c5d-d6ef77533a9b",
+        "firstPrintSet": "mkm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Cold Snap",
         "scryfallId": "81b87a58-b20c-4f38-afa3-59d398195740",
         "oracleId": "3dcbcf5e-bdbe-46b3-881e-5ac4030c6e38",
@@ -16358,6 +16408,16 @@
         "source": "compiled"
     },
     {
+        "name": "Confirm Suspicions",
+        "scryfallId": "cf7fcbc2-1034-442d-9f2a-7d79ea40ac3d",
+        "oracleId": "a30d076b-c942-45e4-b943-3749ce955291",
+        "firstSet": "soi",
+        "firstPrintId": "cf7fcbc2-1034-442d-9f2a-7d79ea40ac3d",
+        "firstPrintSet": "soi",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Confiscate",
         "scryfallId": "7cba6d4a-58d0-42d6-b49b-65c72b86007f",
         "oracleId": "d599a38c-7719-443e-bb59-55bd43a8fee6",
@@ -16458,6 +16518,16 @@
         "firstSet": "lea",
         "firstPrintId": "c7824e2a-4eff-4f72-9216-0db30a4f4252",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Conservatory",
+        "scryfallId": "8bab22c5-4742-4f2e-bda1-26c72b09cd9c",
+        "oracleId": "8f88b0bf-81bd-4223-9dad-d8c49ff4b87a",
+        "firstSet": "clu",
+        "firstPrintId": "8bab22c5-4742-4f2e-bda1-26c72b09cd9c",
+        "firstPrintSet": "clu",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Consider",
@@ -18428,6 +18498,16 @@
         "source": "compiled"
     },
     {
+        "name": "Curious Inquiry",
+        "scryfallId": "5a3603c6-92df-45c7-b402-1f0a552ea398",
+        "oracleId": "52fe8101-82af-4aed-a395-54e7b7639bd2",
+        "firstSet": "mkm",
+        "firstPrintId": "5a3603c6-92df-45c7-b402-1f0a552ea398",
+        "firstPrintSet": "mkm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Curious Killbot",
         "scryfallId": "51a2b7e0-1f6c-4c17-9648-2d74d7789442",
         "oracleId": "d9cf6215-95fc-4058-97b0-14751d1c949e",
@@ -20366,6 +20446,16 @@
         "source": "compiled"
     },
     {
+        "name": "Deduce",
+        "scryfallId": "7cbb17af-e17e-438a-ad72-0c942e6706b6",
+        "oracleId": "eeae4161-9f35-45df-8b3c-c55e37f49cd1",
+        "firstSet": "mkm",
+        "firstPrintId": "7cbb17af-e17e-438a-ad72-0c942e6706b6",
+        "firstPrintSet": "mkm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Deem Worthy",
         "scryfallId": "99a2ed5f-62b8-4308-a656-f273f62f6ab8",
         "oracleId": "008c92bc-3022-4d34-aa04-584576ff8f8e",
@@ -21920,6 +22010,16 @@
         "firstSet": "lea",
         "firstPrintId": "65eb6cda-e512-40a8-9c1f-335b713409ff",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Dining Room",
+        "scryfallId": "1bf8dcb2-6fe7-4ab3-b290-fb427d116c74",
+        "oracleId": "0880461e-8943-443b-90e7-ff84eef46550",
+        "firstSet": "clu",
+        "firstPrintId": "1bf8dcb2-6fe7-4ab3-b290-fb427d116c74",
+        "firstPrintSet": "clu",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Dinotomaton",
@@ -23982,6 +24082,16 @@
         "firstSet": "shm",
         "firstPrintId": "28accc5f-63a5-47d0-b0e6-747aa0aa43e5",
         "firstPrintSet": "shm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Drownyard Explorers",
+        "scryfallId": "3714713f-deb4-4b1c-8764-35287293ca18",
+        "oracleId": "c1ebbe89-8976-4ed7-a68a-8b08aac4616c",
+        "firstSet": "soi",
+        "firstPrintId": "3714713f-deb4-4b1c-8764-35287293ca18",
+        "firstPrintSet": "soi",
         "rarity": "common",
         "source": "compiled"
     },
@@ -31156,6 +31266,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Floodhound",
+        "scryfallId": "a5b1ac05-bd87-4605-8443-0469276e1e3a",
+        "oracleId": "6dd8ba09-f117-4514-9e09-f9f9f5fb5025",
+        "firstSet": "mh2",
+        "firstPrintId": "a5b1ac05-bd87-4605-8443-0469276e1e3a",
+        "firstPrintSet": "mh2",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Floodwaters",
         "scryfallId": "3a211df0-fe9e-4d2c-9e0e-c7be50e6b906",
         "oracleId": "e89cce0e-4fd7-40fa-8a55-b07d72826956",
@@ -31517,6 +31637,16 @@
         "firstPrintId": "0c13311d-db83-483f-ba2b-4f54ceb8b026",
         "firstPrintSet": "ice",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Follow the Bodies",
+        "scryfallId": "52ecb9ef-37bc-4327-9ae6-bcef6e2fdb94",
+        "oracleId": "2d6a0d89-7ebd-420e-9892-be1506ab3714",
+        "firstSet": "mkc",
+        "firstPrintId": "52ecb9ef-37bc-4327-9ae6-bcef6e2fdb94",
+        "firstPrintSet": "mkc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -32040,6 +32170,16 @@
         "firstSet": "soi",
         "firstPrintId": "2378ac21-9912-40d7-972d-b1b71a8e4984",
         "firstPrintSet": "soi",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Foul Play",
+        "scryfallId": "87e4b75c-e993-4983-8933-977be314bba6",
+        "oracleId": "773c7a1e-0f59-4606-a2fc-c47bda760ecd",
+        "firstSet": "mid",
+        "firstPrintId": "87e4b75c-e993-4983-8933-977be314bba6",
+        "firstPrintSet": "mid",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -36806,6 +36946,16 @@
         "source": "compiled"
     },
     {
+        "name": "Gone Missing",
+        "scryfallId": "e88ae6bf-9c58-4543-ba66-19ea41d01e9b",
+        "oracleId": "a31a66ee-5ddf-4d70-9ae9-725fc7327706",
+        "firstSet": "soi",
+        "firstPrintId": "e88ae6bf-9c58-4543-ba66-19ea41d01e9b",
+        "firstPrintSet": "soi",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Gongaga, Reactor Town",
         "scryfallId": "7beccfa6-3e4b-4460-954e-870cb39e462d",
         "oracleId": "ac4e1818-4873-4143-9b99-46f205d006d9",
@@ -38738,6 +38888,16 @@
         "firstPrintSet": "eoe"
     },
     {
+        "name": "Hall",
+        "scryfallId": "ab3d0e50-630a-4ccc-aa79-1db912ea801e",
+        "oracleId": "949e455d-6a9e-491a-892f-826cc8be0fd9",
+        "firstSet": "clu",
+        "firstPrintId": "ab3d0e50-630a-4ccc-aa79-1db912ea801e",
+        "firstPrintSet": "clu",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Hall Monitor",
         "scryfallId": "02fdc551-0b22-49f4-8765-143ad82f16a3",
         "oracleId": "937a04c2-41be-4ff3-8992-6628a9ee9792",
@@ -39005,6 +39165,16 @@
         "firstPrintId": "e16c9f3a-534b-42d4-9765-8d1cb15375aa",
         "firstPrintSet": "m20",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Hard Evidence",
+        "scryfallId": "501599d6-1072-4124-b05d-01f96de153f3",
+        "oracleId": "0728b195-2dfe-4d73-91ae-e658a97b0b9a",
+        "firstSet": "mh2",
+        "firstPrintId": "501599d6-1072-4124-b05d-01f96de153f3",
+        "firstPrintSet": "mh2",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -41599,6 +41769,16 @@
         "firstPrintId": "f31bbc89-d5ee-4813-9ebe-ac5b998b076b",
         "firstPrintSet": "chk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Humble the Brute",
+        "scryfallId": "7c105686-8b45-494a-b9ef-8aa267bb1b5a",
+        "oracleId": "bea6606c-ea9a-4199-a8cd-b35d7c47fd7b",
+        "firstSet": "soi",
+        "firstPrintId": "7c105686-8b45-494a-b9ef-8aa267bb1b5a",
+        "firstPrintSet": "soi",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -44350,6 +44530,16 @@
         "source": "compiled"
     },
     {
+        "name": "Jace's Scrutiny",
+        "scryfallId": "3d0eea0d-c790-4d91-962f-f05b22d0c8fa",
+        "oracleId": "8578c462-7b2d-4b69-ad10-a2eab44ac98d",
+        "firstSet": "soi",
+        "firstPrintId": "3d0eea0d-c790-4d91-962f-f05b22d0c8fa",
+        "firstPrintSet": "soi",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Jackal Pup",
         "scryfallId": "3707ab74-9aec-4d30-86e0-ffa5f72d5b4f",
         "oracleId": "993e41e6-0643-4a1f-8ada-b7a4aae486d9",
@@ -46430,6 +46620,16 @@
         "firstSet": "leg",
         "firstPrintId": "7e0651ad-6901-4f9b-8807-d66e53a4ada8",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Kitchen",
+        "scryfallId": "4388ae8f-a2c4-4e0d-a6a1-0204ff3f469b",
+        "oracleId": "47f71408-5509-4651-9121-fd0867adae00",
+        "firstSet": "clu",
+        "firstPrintId": "4388ae8f-a2c4-4e0d-a6a1-0204ff3f469b",
+        "firstPrintSet": "clu",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Kitchen Finks",
@@ -48749,6 +48949,16 @@
         "source": "compiled"
     },
     {
+        "name": "Library",
+        "scryfallId": "442cf173-8042-40fa-98d6-6ca93caa3e03",
+        "oracleId": "33a7d29a-ebc0-4606-91b6-7381e2a16016",
+        "firstSet": "clu",
+        "firstPrintId": "442cf173-8042-40fa-98d6-6ca93caa3e03",
+        "firstPrintSet": "clu",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Library Larcenist",
         "scryfallId": "cb33529b-80bd-4f52-94cc-d8371c53ad75",
         "oracleId": "eb0e6f63-2861-4392-ac0e-64380fbbd8ae",
@@ -50229,6 +50439,16 @@
         "source": "compiled"
     },
     {
+        "name": "Lounge",
+        "scryfallId": "4b197079-488d-47c6-a494-8baf36c48667",
+        "oracleId": "98a22879-d0b2-441f-bcf6-a67b4552b73c",
+        "firstSet": "clu",
+        "firstPrintId": "4b197079-488d-47c6-a494-8baf36c48667",
+        "firstPrintSet": "clu",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Lowland Giant",
         "scryfallId": "7398dec7-5e60-43c0-81a0-ab49beb37077",
         "oracleId": "041cc2d0-eb67-484e-8da1-e91ddb2b3f70",
@@ -51055,6 +51275,16 @@
         "source": "compiled"
     },
     {
+        "name": "Magnifying Glass",
+        "scryfallId": "f7a708d5-f757-4fcf-a167-5b5920c6adeb",
+        "oracleId": "f2ce9e55-07c0-4f36-a59e-127693fc0f62",
+        "firstSet": "soi",
+        "firstPrintId": "f7a708d5-f757-4fcf-a167-5b5920c6adeb",
+        "firstPrintSet": "soi",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Magnigoth Sentry",
         "scryfallId": "d939d4bc-b7e8-4ee8-b904-68f0bff0fde1",
         "oracleId": "b52824f9-7897-46b7-a4e5-a0261861cb5b",
@@ -51361,6 +51591,16 @@
         "firstSet": "lci",
         "firstPrintId": "19d6834d-afa3-4747-a62d-0654f4d9729f",
         "firstPrintSet": "lci"
+    },
+    {
+        "name": "Malcolm, the Eyes",
+        "scryfallId": "521dffaa-813b-41e4-b7c2-a8c407167875",
+        "oracleId": "7932ab35-39dc-4500-aa44-2ad7228f0d2a",
+        "firstSet": "otj",
+        "firstPrintId": "521dffaa-813b-41e4-b7c2-a8c407167875",
+        "firstPrintSet": "otj",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Malevolent Awakening",
@@ -58503,6 +58743,16 @@
         "source": "compiled"
     },
     {
+        "name": "Novice Inspector",
+        "scryfallId": "0ad38866-fc5f-4f62-89c1-afc0f50765aa",
+        "oracleId": "c206bdcb-d2c4-4bda-a979-6c0627ef8f73",
+        "firstSet": "mkm",
+        "firstPrintId": "0ad38866-fc5f-4f62-89c1-afc0f50765aa",
+        "firstPrintSet": "mkm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Novice Occultist",
         "scryfallId": "a541ac79-a969-42b4-b989-f6e37572ec90",
         "oracleId": "e51f5b41-5465-4b1d-b96a-544762657ca5",
@@ -59437,6 +59687,16 @@
         "firstSet": "tmt",
         "firstPrintId": "f2c8397c-2014-4a43-9ed7-41795880011f",
         "firstPrintSet": "tmt",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "On the Job",
+        "scryfallId": "48b92629-4196-4943-91fd-8c8d5f3fcaef",
+        "oracleId": "e4733889-4d4c-4bf7-8a9b-fb5ad7a38395",
+        "firstSet": "mkm",
+        "firstPrintId": "48b92629-4196-4943-91fd-8c8d5f3fcaef",
+        "firstPrintSet": "mkm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -70204,6 +70464,16 @@
         "source": "compiled"
     },
     {
+        "name": "Root Out",
+        "scryfallId": "ffb04258-d6ab-440c-85d2-05a995aeba2c",
+        "oracleId": "bec03edc-261a-4b02-be37-2006f657e905",
+        "firstSet": "soi",
+        "firstPrintId": "ffb04258-d6ab-440c-85d2-05a995aeba2c",
+        "firstPrintSet": "soi",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Rootbreaker Wurm",
         "scryfallId": "9a686ed6-fc13-4882-b56c-667f556d9804",
         "oracleId": "d3edbb47-6892-4853-badc-cc01499d4e55",
@@ -71662,6 +71932,16 @@
         "firstSet": "5dn",
         "firstPrintId": "f0336e07-8eaf-4b90-af54-4764e5ba50f2",
         "firstPrintSet": "5dn",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Sam Kirk, Xenoanthropologist",
+        "scryfallId": "b2ffe160-1860-41ba-86a5-487211889804",
+        "oracleId": "eec55307-8525-4dae-a030-d210f3895138",
+        "firstSet": "trc",
+        "firstPrintId": "b2ffe160-1860-41ba-86a5-487211889804",
+        "firstPrintSet": "trc",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -73935,6 +74215,16 @@
         "firstPrintId": "b09586de-4853-4e51-a4ac-70eabb37eef4",
         "firstPrintSet": "ody",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Secret Passage",
+        "scryfallId": "6b35ede8-e882-46fd-9eda-9d6f64c73ea1",
+        "oracleId": "c6a46fc2-fc8f-4dcd-bca7-682abfbf303d",
+        "firstSet": "clu",
+        "firstPrintId": "6b35ede8-e882-46fd-9eda-9d6f64c73ea1",
+        "firstPrintSet": "clu",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -84042,6 +84332,16 @@
         "source": "compiled"
     },
     {
+        "name": "Study",
+        "scryfallId": "c694bc39-3eae-4b40-8f85-34785f9e75f1",
+        "oracleId": "7ffadb3f-0b88-416f-b1a1-876383c22720",
+        "firstSet": "clu",
+        "firstPrintId": "c694bc39-3eae-4b40-8f85-34785f9e75f1",
+        "firstPrintSet": "clu",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Stun",
         "scryfallId": "c09c0da6-37a7-42ba-b264-18898ee372f0",
         "oracleId": "d3491972-44c5-4962-a680-42b79357a189",
@@ -85150,6 +85450,16 @@
         "firstPrintSet": "exo"
     },
     {
+        "name": "Survive the Night",
+        "scryfallId": "5cb4a0bc-196a-466b-a704-377f5c7eb5b7",
+        "oracleId": "e8fcc7ff-6274-4130-a3a5-99f545eeee30",
+        "firstSet": "soi",
+        "firstPrintId": "5cb4a0bc-196a-466b-a704-377f5c7eb5b7",
+        "firstPrintSet": "soi",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Survivor of Korlis",
         "scryfallId": "817bcc8d-a5b7-448c-a3eb-825dc65944ec",
         "oracleId": "ca7a25f4-c280-48b8-9e04-b15f4c13e569",
@@ -86177,6 +86487,16 @@
         "firstPrintId": "daa20112-2955-439d-8802-3a228ba0832e",
         "firstPrintSet": "one",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Tamiyo's Journal",
+        "scryfallId": "b474378c-5fa8-418f-8d76-23e78003ed18",
+        "oracleId": "20591a83-7138-4876-b088-035bd3788be3",
+        "firstSet": "soi",
+        "firstPrintId": "b474378c-5fa8-418f-8d76-23e78003ed18",
+        "firstPrintSet": "soi",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -87712,6 +88032,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "The Chase Is On",
+        "scryfallId": "1d54d596-f7aa-4b05-ab13-19b246698c04",
+        "oracleId": "789899eb-3a33-4a41-b6b5-5e2f55a9af51",
+        "firstSet": "mkm",
+        "firstPrintId": "1d54d596-f7aa-4b05-ab13-19b246698c04",
+        "firstPrintSet": "mkm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "The Dross Pits",
         "scryfallId": "19d469f1-2219-4466-9f8a-769ee43e28db",
         "oracleId": "8110fe69-c66c-4e2c-86ee-dcc8dc9a13d1",
@@ -88116,6 +88446,16 @@
         "firstSet": "gtc",
         "firstPrintId": "b6f27909-e5cd-44c0-91c4-21624f692fd9",
         "firstPrintSet": "gtc"
+    },
+    {
+        "name": "They Went This Way",
+        "scryfallId": "f4a31d4a-34bc-46b4-b20f-a5460191b35d",
+        "oracleId": "47951720-9584-4ca3-a73d-3d259102b2f8",
+        "firstSet": "mkm",
+        "firstPrintId": "f4a31d4a-34bc-46b4-b20f-a5460191b35d",
+        "firstPrintSet": "mkm",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Thicket Basilisk",
@@ -90525,6 +90865,16 @@
         "firstPrintId": "294aa7fc-12be-4722-b288-de14a28919b2",
         "firstPrintSet": "ulg",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Trail of Evidence",
+        "scryfallId": "4b150797-ee8d-42f8-adcb-2f4b1783c074",
+        "oracleId": "e10065ba-fe24-4974-a500-d4151397a4d9",
+        "firstSet": "soi",
+        "firstPrintId": "4b150797-ee8d-42f8-adcb-2f4b1783c074",
+        "firstPrintSet": "soi",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

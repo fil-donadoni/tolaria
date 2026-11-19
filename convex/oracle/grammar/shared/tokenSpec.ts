@@ -382,3 +382,59 @@ export const linkedExileTokenRule: Rule<LinkedExileTokenIR> =
             subtypes: described.subtypes,
         });
     });
+
+/**
+ * CR 701.16a — "Investigate" means "Create a Clue token": the keyword action
+ * is the predefined-token form with the name fixed to Clue (CR 111.10f), so
+ * it reads into the very {@link CreatePredefinedTokenIR} "Create a Clue
+ * token" does and lowers through the one name→spec table — never a second
+ * copy of the Clue spec.
+ *
+ * Accepted: "Investigate" (one Clue), "Investigate twice", "Investigate
+ * <cardinal> times" (three or more — two is printed "twice"), and
+ * "Investigate X times" with nothing after it (CR 107.3's announced X, gated
+ * by the lowering on a site that announces one). Every other count — "for
+ * each …", "that many times", "X times, where X is …" — is refused.
+ */
+const INVESTIGATE = /^Investigate(?: (twice|(\S+) times))?$/;
+
+export const investigateRule: Rule<CreatePredefinedTokenIR> =
+    rule<CreatePredefinedTokenIR>("investigate", (span) => {
+        const match = span.match(INVESTIGATE);
+        if (match === null) return fail("not an investigate", span);
+        const clue = predefinedTokenName("Clue");
+        if (clue === null)
+            return fail(
+                '"Clue" is not a predefined token the engine defines',
+                span
+            );
+        if (match[1] === undefined)
+            return ok({
+                predefined: clue,
+                count: { kind: "fixed" as const, value: 1 },
+                tapped: false,
+            });
+        if (match[1] === "twice")
+            return ok({
+                predefined: clue,
+                count: { kind: "fixed" as const, value: 2 },
+                tapped: false,
+            });
+        if (match[2] === "X")
+            return ok({
+                predefined: clue,
+                count: { kind: "announced-x" as const },
+                tapped: false,
+            });
+        const count = readNumberWord(match[2]!);
+        if (count === null || count < 3)
+            return fail(
+                `"${match[2]} times" is not an investigate count`,
+                span
+            );
+        return ok({
+            predefined: clue,
+            count: { kind: "fixed" as const, value: count },
+            tapped: false,
+        });
+    });
