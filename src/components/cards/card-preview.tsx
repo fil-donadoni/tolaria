@@ -284,6 +284,38 @@ export default function CardPreview({
         };
     }, [onRightPress]);
 
+    // iOS (Safari and Chrome for iOS) does not route its image long-press menu
+    // through `contextmenu`: the callout is suppressed only by
+    // `-webkit-touch-callout: none` on the pressed element or an ancestor
+    // (inherited by the card image), and `user-select: none` stops text
+    // selection starting under the press. Set on the SAME hit-testable host
+    // the long-press binds to — on a tapped permanent that is the tilt root,
+    // outside the inert rotated layer, so styling only the inner image would
+    // miss it. Unconditional (not gated on `holdPreview`): on an editing
+    // surface the long-press is the drag, and the native menu fights it too.
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        const cardEl =
+            container.closest<HTMLElement>("[data-card-tilt-root]") ??
+            container;
+        const prevCallout = cardEl.style.getPropertyValue(
+            "-webkit-touch-callout"
+        );
+        const prevSelect = cardEl.style.getPropertyValue("user-select");
+        const prevWebkitSelect = cardEl.style.getPropertyValue(
+            "-webkit-user-select"
+        );
+        cardEl.style.setProperty("-webkit-touch-callout", "none");
+        cardEl.style.setProperty("user-select", "none");
+        cardEl.style.setProperty("-webkit-user-select", "none");
+        return () => {
+            cardEl.style.setProperty("-webkit-touch-callout", prevCallout);
+            cardEl.style.setProperty("user-select", prevSelect);
+            cardEl.style.setProperty("-webkit-user-select", prevWebkitSelect);
+        };
+    }, []);
+
     // Bind the mobile long-press gesture on the same resolved host as the
     // right-press/hover gestures above, instead of as React `onTouch*` props
     // directly on `containerRef` (the pre-#1994-round-4 shape). On the
