@@ -7,15 +7,16 @@
 // (`PREDEFINED_TOKEN_SPECS`, `convex/cards/sharedTokens.ts`).
 //
 //  1. GOLDEN fixtures — a real corpus card compiled whole, one per accepted
-//     form: each name the table defines (Treasure, Food, Clue, Blood, Map,
-//     Mutagen; Powerstone through the tapped form), a printed count, a tapped
+//     form: each name the table defines (Treasure, Food, Gold, Clue, Blood,
+//     Map, Junk, Lander, Mutagen; Powerstone through the tapped form; Shard
+//     on its sentence, no corpus card printing it compiling whole yet), a printed count, a tapped
 //     token, a tapped count. The announced-X form (Treasure Vault) is a
 //     `GOLDEN_FIXTURES` row, checked by `goldenFixtures.test.ts`: its count is
 //     a form the canned smoke scenario cannot size.
 //  2. GOLD — the lowered token IS the engine's shared spec, for every name in
 //     the table, and equals what a hand-written producer writes (Magda's
 //     Treasure).
-//  3. REFUSALS — a name the engine defines no spec for (CR 111.10c Gold), a
+//  3. REFUSALS — a name the engine defines no spec for (CR 111.10w Vibranium), a
 //     count that disagrees with "token[s]", a count the quantity reader does
 //     not bind ("that many"), and an X on a site that announces none.
 //  4. FULL PATH — compiled Oracle text → the GRE resolves it →
@@ -35,9 +36,13 @@ import { MAP_TOKEN_SPEC } from "../../cards/abilities/tokens/mapToken";
 import {
     EFFECT_TREASURE_TOKEN,
     FOOD_TOKEN,
+    GOLD_TOKEN,
+    JUNK_TOKEN,
+    LANDER_TOKEN,
     MUTAGEN_TOKEN,
     POWERSTONE_TOKEN,
     PREDEFINED_TOKEN_SPECS,
+    SHARD_TOKEN,
 } from "../../cards/sharedTokens";
 import type { EffectOp } from "../../cards/types";
 import { projectPublicState } from "../../gameProjections";
@@ -310,6 +315,164 @@ describe("predefined tokens — golden fixtures (CR 111.10)", () => {
         });
     });
 
+    it("Gold (CR 111.10c) — Gild, after an exile sentence", () => {
+        const oracleText =
+            'Exile target creature. Create a Gold token. (It\'s an artifact with "Sacrifice this token: Add one mana of any color.")';
+        expect(
+            compiled({
+                oracleId: "a5530fac-0bae-451d-921d-0dd4865ec91d",
+                name: "Gild",
+                manaCost: "{3}{B}",
+                typeLine: "Sorcery",
+                oracleText,
+                layout: "normal",
+            })
+        ).toEqual({
+            name: "Gild",
+            types: ["Sorcery"],
+            manaCost: { X: 3, B: 1 },
+            oracleText,
+            effects: [
+                { op: "exile", target: { target: 0 } },
+                {
+                    op: "createToken",
+                    token: GOLD_TOKEN,
+                    controller: "controller",
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        });
+    });
+
+    it("Junk (CR 111.10t) — Break Down, in the instant slot", () => {
+        const oracleText =
+            'Destroy target artifact or enchantment. Create a Junk token. (It\'s an artifact with "{T}, Sacrifice this token: Exile the top card of your library. You may play that card this turn. Activate only as a sorcery.")';
+        expect(
+            compiled({
+                oracleId: "73094bde-5466-41a4-88f9-a98e67f5ed2e",
+                name: "Break Down",
+                manaCost: "{2}{G}",
+                typeLine: "Instant",
+                oracleText,
+                layout: "normal",
+            })
+        ).toEqual({
+            name: "Break Down",
+            types: ["Instant"],
+            manaCost: { X: 2, G: 1 },
+            oracleText,
+            effects: [
+                { op: "destroy", target: { target: 0 } },
+                {
+                    op: "createToken",
+                    token: JUNK_TOKEN,
+                    controller: "controller",
+                },
+            ],
+            targetRequirement: {
+                type: ["Artifact", "Enchantment"],
+                count: 1,
+            },
+        });
+    });
+
+    it("Junk, a printed count in an activated ability — Junktown's three Junk tokens", () => {
+        const oracleText =
+            '{T}: Add {C}.\n{4}{R}, {T}, Sacrifice this land: Create three Junk tokens. (They\'re artifacts with "{T}, Sacrifice this token: Exile the top card of your library. You may play that card this turn. Activate only as a sorcery.")';
+        expect(
+            compiled({
+                oracleId: "c470a802-931f-4b63-92fd-ef9cf2e796dd",
+                name: "Junktown",
+                manaCost: "",
+                typeLine: "Land",
+                oracleText,
+                layout: "normal",
+            })
+        ).toEqual({
+            name: "Junktown",
+            types: ["Land"],
+            oracleText,
+            activatedAbilities: [
+                {
+                    id: "junktown-mana",
+                    oracleText: "{T}: Add {C}.",
+                    cost: { tap: true },
+                    useStack: false,
+                    manaProduced: { C: 1 },
+                },
+                {
+                    id: "junktown-ability-2",
+                    oracleText:
+                        "{4}{R}, {T}, Sacrifice this land: Create three Junk tokens.",
+                    cost: { mana: { X: 4, R: 1 }, tap: true, sacrifice: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "createToken",
+                            token: JUNK_TOKEN,
+                            controller: "controller",
+                            count: 3,
+                        },
+                    ],
+                },
+            ],
+        });
+    });
+
+    it("Lander (CR 111.10u) — Galactic Wayfarer's enters trigger", () => {
+        const oracleText =
+            'When this creature enters, create a Lander token. (It\'s an artifact with "{2}, {T}, Sacrifice this token: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.")';
+        expect(
+            compiled({
+                oracleId: "86746a84-3e8a-44b4-8494-60cbee9816b5",
+                name: "Galactic Wayfarer",
+                manaCost: "{2}{G}",
+                typeLine: "Creature — Human Scout",
+                oracleText,
+                power: "3",
+                toughness: "3",
+                layout: "normal",
+            })
+        ).toEqual({
+            name: "Galactic Wayfarer",
+            types: ["Creature"],
+            subtypes: ["Human", "Scout"],
+            manaCost: { X: 2, G: 1 },
+            power: 3,
+            toughness: 3,
+            oracleText,
+            compiledTriggeredAbilities: [
+                {
+                    id: "galactic-wayfarer-trigger",
+                    oracleText:
+                        "When this creature enters, create a Lander token.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "createToken",
+                            token: LANDER_TOKEN,
+                            controller: "controller",
+                        },
+                    ],
+                },
+            ],
+        });
+    });
+
+    it("Shard (CR 111.10e) — a printed count of the one predefined enchantment token", () => {
+        // No corpus card printing a Shard token compiles whole yet (Niko,
+        // Light of Hope and Niko Aris each carry another gap), so the form is
+        // pinned on the sentence: the name lowers to the shared spec.
+        expect(compiled(sorcery("Create two Shard tokens.")).effects).toEqual([
+            {
+                op: "createToken",
+                token: SHARD_TOKEN,
+                controller: "controller",
+                count: 2,
+            },
+        ]);
+    });
+
     it('a tapped token (CR 111.10h + CR 111.10) — Koilos Roc\'s "tapped Powerstone"', () => {
         const oracleText =
             "Flash\nFlying\nWhen this creature enters, create a tapped Powerstone token. (It's an artifact with \"{T}: Add {C}. This mana can't be spent to cast a nonartifact spell.\")";
@@ -455,9 +618,9 @@ describe("predefined tokens — gold: the lowered token is the engine's spec", (
 
 describe("predefined tokens — refusals (fail-closed)", () => {
     it.each([
-        // CR 111.10c — Gold is predefined, but the engine has no spec for it
-        // (issue #9950): never read as a creature subtype or a guess.
-        ["an undefined predefined name", "Create a Gold token."],
+        // CR 111.10w — Vibranium is predefined, but the engine has no spec
+        // for it: never read as a creature subtype or a guess.
+        ["an undefined predefined name", "Create a Vibranium token."],
         ["a role token (CR 111.10j)", "Create a Cursed Role token."],
         ["a singular count with a plural noun", "Create a Treasure tokens."],
         ["a plural count with a singular noun", "Create two Treasure token."],
