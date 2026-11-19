@@ -380,7 +380,7 @@ export type StaticClauseIR =
     | { readonly kind: "does-not-untap" }
     /** CR 509.1b — "<self> can't be blocked except by N or more creatures":
      *  an evasion restriction with no keyword name of its own (menace is the
-     *  N = 2 keyword, CR 702.111a), lowered to the `minimum-blockers:N`
+     *  N = 2 keyword, CR 702.111b), lowered to the `minimum-blockers:N`
      *  marker the combat registry reads. */
     | { readonly kind: "minimum-blockers"; readonly count: number }
     /** CR 401.5 — "Play with the top card of your library revealed". */
