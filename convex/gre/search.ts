@@ -6206,6 +6206,36 @@ export function selectRootMove(
     // and counting that as a flip would count the order `pool` was built in.
     // `mean-reward` has nothing before it and never flips.
     let flipped = contenders.length > 1 && mean(best) < bestMean;
+    // The self-harm reading belongs to the search's OWN pick, not to the
+    // material tie-break's (issue #10222). When the argmax is a cast that only
+    // hurts the bot and the reward band is blind to it
+    // (`selfHarmRemovalReading`), every mean beside it is the same clipped
+    // rollout residue, and so is the subtree `meanMargin` the tie-break
+    // compares: handing the pick to `pass` there settles on noise, and it
+    // skips the sibling-variant ranking below, which is the one reading that
+    // sees the cast's own target. MEASURED on the blade pair's board (Fatal
+    // Push, revolt on, a Hill Giant beside the bot's own Emperor of Bones):
+    // the Emperor cast topped the means and the tie-break took `pass` on 3 of
+    // 20 seeds, while the Giant variant sat 0.005 outside `outcomeEps`. The
+    // argmax goes back to the self-harm rule, which ranks every sibling and
+    // holds on `pass` only when none improves on it. A tie-break winner that
+    // is neither `pass` nor a sibling of the cast stands: another move kind
+    // is a reading the self-harm rule has no opinion on.
+    if (rootState && botId && ruleOn("self-harm-removal")) {
+        const argmax = contenders.reduce((m, e) => (mean(e) > mean(m) ? e : m));
+        if (
+            argmax !== best &&
+            argmax.move.kind === "cast-spell" &&
+            (best.move.kind === "pass" ||
+                isCastVariantOf(best.move, argmax.move)) &&
+            selfHarmRemovalReading(rootState, argmax.move, botId, weights)
+                ?.rewardBlind === true
+        ) {
+            best = argmax;
+            mechanism = "self-harm-removal";
+            flipped = false;
+        }
+    }
     // The search's pick the `last-window-deferral` hold replaced, if it did —
     // the hold does not return, so a later rule may take it back.
     let heldFrom: Edge | undefined;
