@@ -663,7 +663,7 @@ describe("Cipher: how the encoding ends (CR 702.99c)", () => {
 });
 
 describe("Cipher: the copy that is cast (CR 707.12 / 704.5e)", () => {
-    it("a copy with no legal target is not cast and ceases to exist", () => {
+    it("a copy with no legal target is offered Decline only, and none is created (issue #9982)", () => {
         const bear = creature("bear", "p1");
         const state = board([bear], [creature("victim", "p2")]);
         const item = pushSpell(state, TARGETED_CIPHER, "p1", [
@@ -681,11 +681,14 @@ describe("Cipher: the copy that is cast (CR 707.12 / 704.5e)", () => {
 
         resolveTopOfStack(state);
         const idsBefore = state.nextInstanceId ?? 0;
-        answer(state, ["cast"]);
+        // CR 601.2c — no legal target, so "Cast" is not on offer at all.
+        expect(state.pendingChoices![0].options!.map((o) => o.id)).toEqual([
+            "decline",
+        ]);
+        answer(state, ["decline"]);
 
-        // Accepted, so a copy was created; with no target it was never cast, and
-        // the resolution's own state-based check removed it (CR 704.5e).
-        expect(state.nextInstanceId).toBeGreaterThan(idsBefore);
+        // Declined: no copy was ever created.
+        expect(state.nextInstanceId ?? 0).toBe(idsBefore);
         expect(state.stack).toHaveLength(0);
         expect(exileIds(state, "p1")).toEqual([item.id]);
     });
