@@ -54,6 +54,8 @@ const ACTIVE_GAME: ActiveGameInfo = {
     vsAi: false,
     mode: null,
     opponentName: "Rival",
+    limitedEventId: null,
+    limitedRound: null,
 };
 
 /* ── The specimen table ───────────────────────────────────────────────── */

@@ -157,6 +157,30 @@ describe("yourTables — stories 6–8", () => {
         });
     });
 
+    it("titles a Limited Event Match by its event and round, not Constructed (issue #9979)", () => {
+        const events = [event({})];
+        const [round] = yourTables(
+            activeMatch({ vsAi: true, limitedEventId: "e1", limitedRound: 2 }),
+            events
+        );
+        expect(round.title).toBe("Vintage Cube Draft · Round 2");
+        const [challenge] = yourTables(
+            activeMatch({ limitedEventId: "e1", limitedRound: null }),
+            events
+        );
+        expect(challenge.title).toBe("Vintage Cube Draft");
+        const [unknown] = yourTables(
+            activeMatch({ limitedEventId: "gone", limitedRound: 1 }),
+            events
+        );
+        expect(unknown.title).toBe("Limited · Round 1");
+        const [constructed] = yourTables(
+            activeMatch({ limitedEventId: null }),
+            events
+        );
+        expect(constructed.title).toBe("Constructed");
+    });
+
     it("names a Limited Event by pool and phase, after the Match", () => {
         const rows = yourTables(activeMatch({}), [
             event({}),
