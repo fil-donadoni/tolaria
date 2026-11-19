@@ -62091,6 +62091,16 @@
         "source": "compiled"
     },
     {
+        "name": "Phyrexian Colossus",
+        "scryfallId": "1b0ba37a-ce52-4c01-89aa-25e90cda04ba",
+        "oracleId": "caab555c-7852-418a-bdc3-f908af7e0932",
+        "firstSet": "usg",
+        "firstPrintId": "1b0ba37a-ce52-4c01-89aa-25e90cda04ba",
+        "firstPrintSet": "usg",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Phyrexian Crusader",
         "scryfallId": "32aaa8b9-987b-4809-8a54-aa29bdc18805",
         "oracleId": "91760bdf-a82a-4f3d-b925-3bc81ffbd41f",
@@ -66427,6 +66437,16 @@
         "firstPrintId": "16638976-8a78-4233-8ebc-42ea9bb49e0a",
         "firstPrintSet": "mmq",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Rampaging Ceratops",
+        "scryfallId": "8bab3f8f-cb06-466d-a35d-0b5e1a2b524c",
+        "oracleId": "91d01119-9b3e-4629-8cf0-bbca2c19a7cc",
+        "firstSet": "lci",
+        "firstPrintId": "8bab3f8f-cb06-466d-a35d-0b5e1a2b524c",
+        "firstPrintSet": "lci",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

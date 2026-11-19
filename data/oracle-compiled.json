@@ -14257,7 +14257,6 @@
         {"key":"961d3ab7c05f","text":"This creature can't be blocked except by creatures with defender.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This creature can't be blocked except by creatures with defender"}},
         {"key":"2195f7299af0","text":"This creature can't be blocked except by creatures with flying or reach.","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"static","path":["static clause"],"span":"This creature can't be blocked except by creatures with flying or reach"}},
         {"key":"13cdf7568ef6","text":"This creature can't be blocked except by creatures with flying.","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"static","path":["static clause"],"span":"This creature can't be blocked except by creatures with flying"}},
-        {"key":"585438eb426f","text":"This creature can't be blocked except by three or more creatures.","reason":"no slot consumed the line","cards":8,"attribution":{"slot":"static","path":["static clause"],"span":"This creature can't be blocked except by three or more creatures"}},
         {"key":"8d051b09d051","text":"This creature can't be blocked if an artifact entered the battlefield under your control this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This creature can't be blocked if an artifact entered the battlefield under your control this turn"}},
         {"key":"d7ed9bd08dd7","text":"This creature can't be blocked if you had another Cleric, Rogue, Warrior, or Wizard enter the battlefield under your control this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This creature can't be blocked if you had another Cleric, Rogue, Warrior, or Wizard enter the battlefield under your control this turn"}},
         {"key":"7901e178edfd","text":"This creature can't be blocked if you've cast a historic spell this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This creature can't be blocked if you've cast a historic spell this turn"}},
@@ -38584,7 +38583,7 @@
 
         {"oracleId":"2227bab2-36a0-47f1-a797-7b82323eca9d","name":"Death Pulse","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["0b71e2be2f02"]},
 
-        {"oracleId":"222fd9fc-7af4-4269-bbb9-cd7b8ac029bd","name":"Troll of Khazad-dûm","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"bannedIn":["legacy"],"gaps":["585438eb426f","af22c053bce1"]},
+        {"oracleId":"222fd9fc-7af4-4269-bbb9-cd7b8ac029bd","name":"Troll of Khazad-dûm","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"bannedIn":["legacy"],"gaps":["af22c053bce1"]},
 
         {"oracleId":"2230ec18-4dcf-435e-b495-1905cb94e8b8","name":"Elite Archers","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["c4cabff33183"]},
 
@@ -50040,7 +50039,7 @@
 
         {"oracleId":"4bf589ed-58f8-40ad-bcee-50cb99da02ca","name":"Thief's Knife","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9c899a16c861"]},
 
-        {"oracleId":"4bf95747-4572-49b8-b892-87fe7f910252","name":"Pathrazer of Ulamog","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["585438eb426f","f60082cb48fa"]},
+        {"oracleId":"4bf95747-4572-49b8-b892-87fe7f910252","name":"Pathrazer of Ulamog","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f60082cb48fa"]},
 
         {"oracleId":"4bf9818d-fec2-430c-9278-76ef2539d987","name":"Staying Power","state":"unparsed","gaps":["2155ed88b55c"]},
 
@@ -51304,7 +51303,7 @@
 
         {"oracleId":"5097f4e6-50af-4641-909f-db44abf0ce32","name":"Rite of the Dragoncaller","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["createToken"],"definition":{"name":"Rite of the Dragoncaller","types":["Enchantment"],"manaCost":{"X":4,"R":2},"oracleText":"Whenever you cast an instant or sorcery spell, create a 5/5 red Dragon creature token with flying.","compiledTriggeredAbilities":[{"id":"rite-of-the-dragoncaller-trigger","oracleText":"Whenever you cast an instant or sorcery spell, create a 5/5 red Dragon creature token with flying.","head":{"kind":"spell-cast","scope":"you","filter":{"types":["Instant","Sorcery"]}},"effects":[{"op":"createToken","token":{"name":"Dragon","types":["Creature"],"subtypes":["Dragon"],"power":5,"toughness":5,"colors":["R"],"staticAbilities":["flying"]},"controller":"controller"}]}]},"botReach":"played"},
 
-        {"oracleId":"50994df7-300d-4e30-897a-0974dc0820ee","name":"Relentless X-ATM092","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["07ad5b4ad033","585438eb426f"]},
+        {"oracleId":"50994df7-300d-4e30-897a-0974dc0820ee","name":"Relentless X-ATM092","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["07ad5b4ad033"]},
 
         {"oracleId":"509bfcbc-a59a-47c8-be78-29823fc010e3","name":"Ray of Dissolution","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["destroy","gainLife"],"definition":{"name":"Ray of Dissolution","types":["Instant"],"manaCost":{"X":2,"W":1},"oracleText":"Destroy target enchantment. You gain 3 life.","effects":[{"op":"destroy","target":{"target":0}},{"op":"gainLife","player":"controller","amount":3}],"targetRequirement":{"type":"Enchantment","count":1}},"botReach":"played"},
 
@@ -53638,7 +53637,7 @@
 
         {"oracleId":"59180e94-ccdf-4d9f-9a4a-fe55497d0d63","name":"Creeping Mold","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["destroy"],"definition":{"name":"Creeping Mold","types":["Sorcery"],"manaCost":{"X":2,"G":2},"oracleText":"Destroy target artifact, enchantment, or land.","effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":["Artifact","Enchantment","Land"],"count":1}},"botReach":"played"},
 
-        {"oracleId":"591bbf84-259d-4885-8b5f-b29c04222d41","name":"Guile","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["071f6d1cbdec","585438eb426f","626978735e5a"]},
+        {"oracleId":"591bbf84-259d-4885-8b5f-b29c04222d41","name":"Guile","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["071f6d1cbdec","626978735e5a"]},
 
         {"oracleId":"591ce7dc-8407-43ed-acfc-e3d8fd547125","name":"Nomad Mythmaker","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["637b51995412"]},
 
@@ -56454,7 +56453,7 @@
 
         {"oracleId":"63701aa6-d3b8-4af2-96a4-2dec27d6a661","name":"Unnatural Endurance","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["ba66f30e197b"]},
 
-        {"oracleId":"6373c66d-edfc-44cb-af2a-2273e0ba53e0","name":"Gorilla Berserkers","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["585438eb426f","a48aea0a9e12"]},
+        {"oracleId":"6373c66d-edfc-44cb-af2a-2273e0ba53e0","name":"Gorilla Berserkers","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["a48aea0a9e12"]},
 
         {"oracleId":"63765157-e2ba-4cec-9501-8a405259de5b","name":"Unfathomable Truths","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["fb1343fc4817"]},
 
@@ -69342,7 +69341,7 @@
 
         {"oracleId":"91cac048-90ca-41bc-9177-56c78453c4a2","name":"Swallowing Plague","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["dealDamage","gainLife"],"definition":{"name":"Swallowing Plague","types":["Sorcery"],"subtypes":["Arcane"],"manaCost":{"X":"X","B":2},"oracleText":"Swallowing Plague deals X damage to target creature and you gain X life.","effects":[{"op":"dealDamage","amount":{"X":true},"to":{"target":0}},{"op":"gainLife","player":"controller","amount":{"X":true}}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
-        {"oracleId":"91d01119-9b3e-4629-8cf0-bbca2c19a7cc","name":"Rampaging Ceratops","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["585438eb426f"]},
+        {"oracleId":"91d01119-9b3e-4629-8cf0-bbca2c19a7cc","name":"Rampaging Ceratops","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Rampaging Ceratops","types":["Creature"],"subtypes":["Dinosaur"],"manaCost":{"X":4,"R":1},"power":5,"toughness":4,"oracleText":"This creature can't be blocked except by three or more creatures.","staticAbilities":["minimum-blockers:3"]},"botReach":"played"},
 
         {"oracleId":"91d0a557-7a80-46d5-b823-392a84a6be44","name":"Illusory Demon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["bf151f971670"]},
 
@@ -74184,7 +74183,7 @@
 
         {"oracleId":"a3648376-dc8b-409b-b2d1-c29e326a059c","name":"Surveillance Room","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["d78bbf06d096"]},
 
-        {"oracleId":"a36c2b76-d595-42ba-b8c2-bb8f02639981","name":"Underworld Cerberus","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0458b111a839","585438eb426f","8bedb6b13685"]},
+        {"oracleId":"a36c2b76-d595-42ba-b8c2-bb8f02639981","name":"Underworld Cerberus","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0458b111a839","8bedb6b13685"]},
 
         {"oracleId":"a36dda2e-4cb8-4821-9c93-bd637ae7b333","name":"Skullslither Worm","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["3b2eb30e2280"]},
 
@@ -84910,7 +84909,7 @@
 
         {"oracleId":"caa69b51-1efd-4d0e-803b-914a83ccb836","name":"Lifecraft Engine","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6877fe3d2c83","a8da45804418"]},
 
-        {"oracleId":"caab555c-7852-418a-bdc3-f908af7e0932","name":"Phyrexian Colossus","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["585438eb426f"]},
+        {"oracleId":"caab555c-7852-418a-bdc3-f908af7e0932","name":"Phyrexian Colossus","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["activated","static"],"opsUsed":["tapUntap"],"definition":{"name":"Phyrexian Colossus","types":["Artifact","Creature"],"subtypes":["Phyrexian","Golem"],"manaCost":{"X":7},"power":8,"toughness":8,"oracleText":"This creature doesn't untap during your untap step.\nPay 8 life: Untap this creature.\nThis creature can't be blocked except by three or more creatures.","staticAbilities":["does-not-untap","minimum-blockers:3"],"activatedAbilities":[{"id":"phyrexian-colossus-ability","oracleText":"Pay 8 life: Untap this creature.","cost":{"life":8},"useStack":true,"effects":[{"op":"tapUntap","action":"untap","target":{"ref":"$source"}}]}]},"botReach":"played"},
 
         {"oracleId":"caab67eb-65e7-4755-b116-6977e97f0844","name":"Leyline of Mutation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0a320933e666"]},
 
