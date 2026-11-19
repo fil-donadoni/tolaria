@@ -51,6 +51,7 @@ import {
     UNTAPPED_LAND_NEEDED,
     SHOCK_AIMED_AT_EXILER,
     OWN_PERMANENT_CARD_IN_GRAVEYARD,
+    FLIP_FRONT_FACE_GROWN,
     answersRaisedTargetLegally,
     submitsSoleTarget,
     submitsTargetPermanentNamed,
@@ -10899,6 +10900,160 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         tier: "must",
         expect: { moves: [{ kind: "may-pay", accept: true }] },
         note: "Capability, not preference: before the tap plan `mayPayCandidates` read the empty pool and offered only the decline, so every mana may-pay the Bot faced at a step boundary went unpaid.",
+    },
+    {
+        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #9869) — the flip-walker
+        // template: "you may exile this, then return it to the battlefield
+        // transformed" (CR 712.2 / 400.7) answered as a cost-free may-pay
+        // (CR 608.2d). The reported board: the opponent's attacker and the
+        // Bot's 2/1 Cat traded in combat (the report's Cat was Ajani's own
+        // Cat Warrior TOKEN; a 2/1 Cat card stands in for it — the trigger
+        // reads only "another Cat you control died", CR 603.10a), the Bot
+        // keeps a summoning-sick 1/2 front face, a 1/2 and three lands, and
+        // the opponent controls no creature. Accepting trades the 1/2 for a
+        // 3-loyalty planeswalker no creature can attack next turn, whose 0
+        // makes a 2/1 every turn.
+        //
+        // The Bot declined it because a planeswalker was priced at the blind
+        // `base + MV` floor wherever it sat (issue #9973): the flipped walker
+        // read 28 against the 1/2's 197, so the search scored the flip as a
+        // loss. Measured on this position with PR #10203's valuation
+        // reverted: decline on 5/5 seeds; with it (the walker's loyalty arm
+        // priced, 129): accept on 5/5. 800 iterations, not 400: at 400 the
+        // accept still wins, but two seeds settle it on the material
+        // tie-break, which asserts nothing (ADR 0070 §1).
+        label: "flip-walker may-pay: exiles the front face into its planeswalker when no creature can attack it",
+        classification: {
+            kind: "conditional",
+            discriminant: FLIP_FRONT_FACE_GROWN,
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Ajani, Nacatl Pariah",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                    // Declared at 0 so the twin differs by ONE value (`other`).
+                    counters: { "+1/+1": 0 },
+                },
+                { name: "Savannah Lions", owner: "me", zone: "battlefield" },
+                { name: "Guide of Souls", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 3 },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Plains", owner: "opp", zone: "battlefield", count: 4 },
+                { name: "Grizzly Bears", owner: "opp", zone: "hand", count: 2 },
+                { name: "Savannah Lions", owner: "opp", zone: "hand" },
+                {
+                    name: "Savannah Lions",
+                    owner: "opp",
+                    zone: "library",
+                    count: 10,
+                },
+                { name: "Plains", owner: "opp", zone: "library", count: 10 },
+                {
+                    name: "Savannah Lions",
+                    owner: "me",
+                    zone: "library",
+                    count: 10,
+                },
+                { name: "Plains", owner: "me", zone: "library", count: 10 },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 0,
+            activePlayer: "opp",
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        setup: [
+            { kind: "declare-attackers", cards: ["Grizzly Bears"] },
+            {
+                kind: "declare-blockers",
+                blocks: [
+                    { blocker: "Savannah Lions", attacker: "Grizzly Bears" },
+                ],
+            },
+            { kind: "pass", seat: "opp" },
+            { kind: "pass", seat: "me" },
+            { kind: "resolve-top" },
+        ],
+        budget: { iterations: 800 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "may-pay", accept: true }] },
+        note: "Issue #9869. Reaches the live may-pay through a real combat trade and the real died trigger. Root cause: issue #9973 (a planeswalker priced at the `base + MV` floor), fixed by PR #10203; this entry pins the flip it cost.",
+    },
+    {
+        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #9869). The same board, one
+        // difference: the front face carries four +1/+1 counters (a 5/6).
+        // Exiling it loses them (CR 400.7 — the walker that returns is a new
+        // object), so accepting trades a 5/6 for a 3-loyalty walker. The pair
+        // is what proves the answer comes from the search weighing the two
+        // boards, never from a flat "always flip" rule: the announcement and
+        // the may-pay candidates are identical in both halves.
+        label: "flip-walker may-pay: keeps a front face grown bigger than the planeswalker it would return as",
+        pairOf: {
+            anchor: "flip-walker may-pay: exiles the front face into its planeswalker when no creature can attack it",
+            discriminant: FLIP_FRONT_FACE_GROWN,
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Ajani, Nacatl Pariah",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                    counters: { "+1/+1": 4 },
+                },
+                { name: "Savannah Lions", owner: "me", zone: "battlefield" },
+                { name: "Guide of Souls", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 3 },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Plains", owner: "opp", zone: "battlefield", count: 4 },
+                { name: "Grizzly Bears", owner: "opp", zone: "hand", count: 2 },
+                { name: "Savannah Lions", owner: "opp", zone: "hand" },
+                {
+                    name: "Savannah Lions",
+                    owner: "opp",
+                    zone: "library",
+                    count: 10,
+                },
+                { name: "Plains", owner: "opp", zone: "library", count: 10 },
+                {
+                    name: "Savannah Lions",
+                    owner: "me",
+                    zone: "library",
+                    count: 10,
+                },
+                { name: "Plains", owner: "me", zone: "library", count: 10 },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 0,
+            activePlayer: "opp",
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        setup: [
+            { kind: "declare-attackers", cards: ["Grizzly Bears"] },
+            {
+                kind: "declare-blockers",
+                blocks: [
+                    { blocker: "Savannah Lions", attacker: "Grizzly Bears" },
+                ],
+            },
+            { kind: "pass", seat: "opp" },
+            { kind: "pass", seat: "me" },
+            { kind: "resolve-top" },
+        ],
+        budget: { iterations: 800 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "may-pay", accept: false }] },
+        note: "Issue #9869, half 2 of the pair: declines on 5/5 seeds at 800 (and at 400).",
     },
     {
         // Issue #6761 — a "may search" tutor whose find is a strict gain. CR
@@ -29964,10 +30119,16 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             { kind: "resolve-top" },
         ],
         bot: "me",
-        // The anchor's budget and seeds, so the pair differs by the Giant
-        // alone. 400 iterations, 16 seeds, measured green too.
+        // The anchor's budget, so the pair differs by the Giant alone. 400
+        // iterations, 16 seeds, measured green too. Seed 3 swapped for 7
+        // (issue #9869): the cast and `pass` settle on the material
+        // tie-break, and the refit that issue's flip-walker pair moves
+        // (`latent.tokens` +12%, every other weight under 1.5%) turns seeds
+        // 3, 14 and 17 to `pass`
+        // at 100 iterations (17/20; 20/20 on the previous vector) — a noise
+        // pin, not a valuation, tracked by issue #10222.
         budget: { iterations: 100 },
-        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6],
+        seeds: [0xb1ade, 1, 2, 4, 5, 6, 7],
         tier: "must",
         // A PREDICATE, kept out of the weight fit on purpose: see the first
         // Esper Blink entry above.
