@@ -462,6 +462,15 @@
         left: calc(50% - var(--right-piles-w, 0px) / 2);
     }
 
+    /* Box variant of the rule above (issue #10008): insets a fixed element's
+     * containing box by the right strip so `inset-y-0` + `m-auto` centers it on
+     * the play area with NO transform (a fractional `-50%` translate blurs in
+     * WebKit). Consumer: the shared dialog popup (dialog.tsx). */
+    .play-area-center-box {
+        left: 0;
+        right: var(--right-piles-w, 0px);
+    }
+
     /* ── Button system (flat material, issue #594) ──
      * Forged-plate language: flat-solid fills, even inner hairline, rounded-md
      * rectangle, symmetric hover bloom, :active brightness. Explicitly NO

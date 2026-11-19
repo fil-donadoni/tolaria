@@ -223,8 +223,8 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
 
     it("offsets centering by half the right-piles strip so in-game dialogs sit over the play area", () => {
         // The board publishes `--right-piles-w` to documentElement while
-        // mounted; the popup centers via the shared `.play-area-center-x`
-        // utility (`left: calc(50% - strip/2)`) so it shifts left over the play
+        // mounted; the popup centers via the shared `.play-area-center-box`
+        // utility (`right: strip` inset + `m-auto`) so it sits over the play
         // area. In the lobby the var is absent and the calc falls back to
         // `50% - 0px/2` = plain center (unchanged). The utility is the single
         // documented source of the play-area centering rule (index.css).
@@ -236,7 +236,10 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         const popup = baseElement.querySelector(
             '[data-slot="dialog-content"]'
         )!;
-        expect(classTokens(popup)).toContain("play-area-center-x");
+        expect(classTokens(popup)).toContain("play-area-center-box");
+        // issue #10008: no fractional `-50%` translate centering (WebKit blur).
+        expect(classTokens(popup)).not.toContain("-translate-x-1/2");
+        expect(classTokens(popup)).not.toContain("-translate-y-1/2");
     });
 
     // issue #1817, opus review round 2: Panel already exposed a `density`
