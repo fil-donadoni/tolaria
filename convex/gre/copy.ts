@@ -518,6 +518,37 @@ function unionTriggeredAbilities(
     return out;
 }
 
+/** Whether {@link effectiveTriggeredAbilities} can hold an ability whose
+ *  `event` is exactly `event` — a precheck for a scan that asks it of every
+ *  permanent (the CR 603.8 state-trigger scan at every state-based-action
+ *  check, issue #10097), so a permanent with no such source skips the composed
+ *  read and its arrays.
+ *
+ *  An OVER-approximation of `effectiveTriggeredAbilities(card).some((a) =>
+ *  a.event === event)`, source by source of that function: false only when
+ *  none of them can contribute one. A copy (`copiedFrom`, the CR 707.9d
+ *  retained triggers) and any granted trigger answer true without looking —
+ *  the full read decides those. A loss of abilities (CR 613.1f) only REMOVES
+ *  abilities from the composed list, so it can never make a false here wrong. */
+export function mayHaveTriggeredAbilityOn(
+    card: CardInstanceState,
+    event: string
+): boolean {
+    if (card.copiedFrom) return true;
+    if ((card.grantedTriggeredAbilities?.length ?? 0) > 0) return true;
+    if (
+        liveKeywordTriggerInstances(card.staticAbilities).some(
+            (a) => a.event === event
+        )
+    ) {
+        return true;
+    }
+    const presented = tryGetDefinition(presentedDefId(card));
+    return (
+        presented?.triggeredAbilities?.some((a) => a.event === event) ?? false
+    );
+}
+
 /** Triggered abilities granted to `card` by an anthem-style static effect
  *  (CR 113.1, 611 — Energy Flux). Each `grantedTriggeredAbilities` entry
  *  references a `triggeredGrantTemplates` template on the granting card's def;
