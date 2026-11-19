@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 // `bun run verdicts:testers` — per-tester quality: for each person, the
 // positions they judged, the ones someone else answered differently, the ones
-// quarantined now, and the ones the Weight Fit could not satisfy (issue #3585,
+// quarantined now, the ones the Weight Fit could not satisfy, and the Verdict
+// Grades they gave (issue #3585, PRD issue #10083,
 // ADR 0128). Every number is derived on this run from the Verdict Store, the
 // committed lock and the fit report over it, and lists the verdict ids behind
 // it for `/admin/verdicts`. Read-only: it needs this machine's reader key. The

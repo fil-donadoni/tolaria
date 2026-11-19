@@ -49,7 +49,8 @@ import {
     VERDICT_UPCASTERS,
     type VerdictUpcaster,
 } from "./upcasters";
-import type { Verdict } from "./types";
+import { copyReading, lockReadingProblem } from "./grade";
+import type { Verdict, VerdictReading } from "./types";
 
 /** Where the committed lock lives, relative to the repo root. */
 export const VERDICT_LOCK_PATH = "data/verdicts.lock.json";
@@ -73,6 +74,11 @@ export type VerdictLock = {
     /** The sha256 (hex) of the pack those verdicts were promoted into — over
      *  its uncompressed text, never its gzip bytes (`pack.ts` says why). */
     packHash: string;
+    /** The Verdict Grade each named verdict is read with (`grade.ts`), keyed
+     *  by id — non-clear readings only, so a lock no grade has reached keeps
+     *  its exact bytes. Read off the attestations at promotion: the fit is
+     *  re-derivable from this file and the pack, and neither holds those. */
+    readings?: Record<string, VerdictReading>;
 };
 
 /** One payload as the caller found it: the verdict id it was stored under
@@ -124,6 +130,36 @@ function checkVerdictLock(lock: VerdictLock): void {
     ) {
         bad(VERDICT_LOCK_PATH, `"packHash" must be a sha256 hex digest`);
     }
+    if (lock.readings === undefined) return;
+    if (!isJsonObject(lock.readings)) {
+        bad(VERDICT_LOCK_PATH, `"readings" must be an object`);
+    }
+    for (const [id, reading] of Object.entries(lock.readings)) {
+        // A reading of a verdict the lock does not name grades nothing the
+        // fit reads — a stale line, refused rather than carried.
+        if (!seen.has(id)) {
+            bad(
+                VERDICT_LOCK_PATH,
+                `"readings" grades ${id}, which "verdictIds" does not name`
+            );
+        }
+        const problem = lockReadingProblem(reading);
+        if (problem !== null) {
+            bad(VERDICT_LOCK_PATH, `"readings".${id}: ${problem}`);
+        }
+    }
+}
+
+/** `readings` in id order, copied — `undefined` when there are none, so an
+ *  ungraded lock is written and read exactly as before grades existed. */
+function sortedReadings(
+    readings: VerdictLock["readings"]
+): VerdictLock["readings"] {
+    const ids = Object.keys(readings ?? {}).sort();
+    if (ids.length === 0) return undefined;
+    return Object.fromEntries(
+        ids.map((id) => [id, copyReading(readings![id])])
+    );
 }
 
 /** The lock file's contents as a `VerdictLock`. Throws, naming the lock, on
@@ -142,9 +178,15 @@ export function parseVerdictLock(contents: string): VerdictLock {
     const lock = {
         verdictIds: raw.verdictIds,
         packHash: raw.packHash,
+        ...(raw.readings === undefined ? {} : { readings: raw.readings }),
     } as VerdictLock;
     checkVerdictLock(lock);
-    return { verdictIds: [...lock.verdictIds], packHash: lock.packHash };
+    const readings = sortedReadings(lock.readings);
+    return {
+        verdictIds: [...lock.verdictIds],
+        packHash: lock.packHash,
+        ...(readings === undefined ? {} : { readings }),
+    };
 }
 
 /** The lock file's contents for `lock` — what `parseVerdictLock` reads back,
@@ -154,8 +196,13 @@ export function parseVerdictLock(contents: string): VerdictLock {
  *  fit may run over, so no command can commit one. */
 export function serializeVerdictLock(lock: VerdictLock): string {
     checkVerdictLock(lock);
+    const readings = sortedReadings(lock.readings);
     return `${JSON.stringify(
-        { packHash: lock.packHash, verdictIds: lock.verdictIds },
+        {
+            packHash: lock.packHash,
+            ...(readings === undefined ? {} : { readings }),
+            verdictIds: lock.verdictIds,
+        },
         null,
         4
     )}\n`;
@@ -305,6 +352,10 @@ export function verdictsFromLock(
                 `${VERDICT_LOCK_PATH} names this verdict, but no payload was supplied for it`
             );
         }
-        return verdictFromPayload(id, byId.get(id), schema);
+        const verdict = verdictFromPayload(id, byId.get(id), schema);
+        const reading = lock.readings?.[id];
+        return reading === undefined
+            ? verdict
+            : { ...verdict, reading: copyReading(reading) };
     });
 }

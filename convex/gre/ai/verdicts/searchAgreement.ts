@@ -31,6 +31,7 @@ import {
     type AgreementTally,
     type BurnedCount,
 } from "./heldOutAgreement";
+import { agreesWithVerdict, isIndifferent } from "./grade";
 import type { Verdict } from "./types";
 
 export type VerdictSearchBudget = { iterations: number; seeds: number[] };
@@ -51,12 +52,18 @@ export type VerdictSearchRow = {
     picks: string[];
     /** Set when the verdict could not be searched at all. */
     error?: string;
+    /** Set when the verdict is graded Indifferent (`grade.ts`): it carries no
+     *  weight, so it is not searched (`seeds` 0) and every tally leaves it
+     *  out, counting it on its own line. */
+    indifferent?: true;
 };
 
 /**
  * Run `verdict`'s position through `searchWithTrace` once per seed and count
- * the seeds on which the pick lands in the verdict's ALLOWED set (its right
- * candidates, or everything but its forbidden ones). The pick is matched to a
+ * the seeds on which the pick AGREES (`agreesWithVerdict`): an allowed
+ * candidate (its right candidates, or everything but its forbidden ones), or
+ * an alternative its Preferred grade accepts. An Indifferent verdict is not
+ * searched: its row says so and holds no seed. The pick is matched to a
  * candidate by structural key, then by interchangeability — the same two
  * steps `evalPairsOf` resolves a candidate with, so an allowed copy of a card
  * counts whichever twin the search happened to take.
@@ -73,19 +80,14 @@ export function searchVerdict(
         seeds: budget.seeds.length,
         picks: [] as string[],
     };
+    if (isIndifferent(verdict)) {
+        return { ...base, seeds: 0, timing: false, indifferent: true };
+    }
     const pairs = evalPairsOf(verdict);
     const timing = pairs.timing.length > 0;
     if (pairs.error !== undefined) {
         return { ...base, timing, error: pairs.error };
     }
-
-    const named = new Set(
-        verdict.answer.kind === "right"
-            ? verdict.answer.rightIndexes
-            : verdict.answer.forbiddenIndexes
-    );
-    const isAllowed = (i: number) =>
-        verdict.answer.kind === "right" ? named.has(i) : !named.has(i);
 
     let agreed = 0;
     const picks: string[] = [];
@@ -105,7 +107,7 @@ export function searchVerdict(
         );
         picks.push(move ? describeMove(move, state) : "(no move)");
         const index = move ? candidateIndexOf(state, resolved.moves, move) : -1;
-        if (index >= 0 && isAllowed(index)) agreed++;
+        if (index >= 0 && agreesWithVerdict(verdict, index)) agreed++;
     }
     return { ...base, timing, agreed, picks };
 }
@@ -126,11 +128,15 @@ function candidateIndexOf(
 /** Agreement per verdict, then per class, then the timing class beside the
  *  rest — the table the PR of a root rule quotes before and after. */
 export function formatVerdictSearchReport(
-    rows: readonly VerdictSearchRow[],
+    allRows: readonly VerdictSearchRow[],
     budgetLine: string
 ): string {
+    // An Indifferent verdict carries no weight: listed, never tallied.
+    const indifferent = allRows.filter((r) => r.indifferent === true).length;
+    const rows = allRows.filter((r) => r.indifferent !== true);
     const out: string[] = [
         `== verdicts through the search (issue #4764) — ${rows.length} verdicts, ${budgetLine}`,
+        `  indifferent        : ${indifferent} verdicts graded Indifferent, not searched (no weight, outside every count)`,
     ];
     const ratio = (a: number, s: number) =>
         s === 0 ? "—" : `${a}/${s} (${((100 * a) / s).toFixed(1)}%)`;
@@ -154,8 +160,12 @@ export function formatVerdictSearchReport(
         );
     }
 
-    out.push("\n== per verdict (agreed/seeds, T = timing)");
-    for (const row of rows) {
+    out.push("\n== per verdict (agreed/seeds, T = timing, IND = Indifferent)");
+    for (const row of allRows) {
+        if (row.indifferent === true) {
+            out.push(`    IND   ${row.verdictId}`);
+            continue;
+        }
         const mark = row.timing ? "T" : " ";
         if (row.error !== undefined) {
             out.push(`  ERR ${mark} ${row.verdictId}: ${row.error}`);
@@ -200,7 +210,9 @@ export function searchHeldOutVerdicts(
 export function heldOutReceiptRefusals(
     rows: readonly VerdictSearchRow[]
 ): string[] {
-    if (rows.length === 0)
+    // An Indifferent row was never searched: a split of nothing else
+    // measures nothing either.
+    if (rows.every((r) => r.indifferent === true))
         return [
             "no held-out verdict was searched — an empty split measures nothing",
         ];
@@ -219,9 +231,13 @@ export function formatHeldOutPickAgreement(
     budgetLine: string,
     burned: BurnedCount
 ): string {
-    const searched = rows.filter((r) => r.error === undefined);
-    // A verdict agrees when the search picked an allowed candidate on every
-    // seed; the seed-level share is printed beside it.
+    // An Indifferent verdict is outside the denominator, counted on its line.
+    const indifferent = rows.filter((r) => r.indifferent === true).length;
+    const graded = rows.filter((r) => r.indifferent !== true);
+    const searched = graded.filter((r) => r.error === undefined);
+    // A verdict agrees when the search picked an agreeing candidate (allowed,
+    // or an accepted alternative) on every seed; the seed-level share is
+    // printed beside it.
     const verdictTally = (subset: readonly VerdictSearchRow[]): string => {
         const t: AgreementTally = {
             agreed: subset.filter((r) => r.agreed === r.seeds).length,
@@ -232,12 +248,13 @@ export function formatHeldOutPickAgreement(
         return `${formatAgreementTally(t)}  [seeds ${seedsAgreed}/${seeds}]`;
     };
     const out = [
-        `== held-out pick agreement (issue #3982) — verdicts whose every seed picked an allowed candidate, held-out side only, ${budgetLine}`,
+        `== held-out pick agreement (issue #3982) — verdicts whose every seed picked an allowed candidate or an accepted alternative, held-out side only, ${budgetLine}`,
         formatBurned(burned),
         `  all                : ${verdictTally(searched)}`,
         `  timing             : ${verdictTally(searched.filter((r) => r.timing))}`,
         `  everything else    : ${verdictTally(searched.filter((r) => !r.timing))}`,
-        `  unsearchable       : ${rows.length - searched.length} verdicts (errors, not agreement evidence)`,
+        `  unsearchable       : ${graded.length - searched.length} verdicts (errors, not agreement evidence)`,
+        `  indifferent        : ${indifferent} verdicts graded Indifferent (no weight, outside the denominator)`,
         "  by Decision Class",
     ];
     for (const cls of [...new Set(searched.map((r) => r.class))].sort()) {

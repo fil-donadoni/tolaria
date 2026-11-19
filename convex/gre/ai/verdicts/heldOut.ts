@@ -55,6 +55,7 @@
 
 import type { BladeScenario } from "../blade/types";
 import type { EvalPair } from "./evalPairs";
+import { isIndifferent } from "./grade";
 import {
     scenarioKeyOf,
     verdictIdOf,
@@ -283,9 +284,12 @@ const otherSide = (side: VerdictSide): VerdictSide =>
 
 /**
  * The Weight Fit's input: the Eval Pairs of `pairs` whose Verdict resolves
- * fit-side (`verdictSidesOf`). Throws on a pair whose Verdict's side is
- * unknown — not in `verdicts`, or a half without its anchor — so a pair of
- * unknown side is never let through to the fit.
+ * fit-side (`verdictSidesOf`) and carries weight — an Indifferent Verdict
+ * (`grade.ts`) is left out, so a close call nobody would argue moves no
+ * weight. Its side is still its own: grading moves no Verdict across the
+ * split. Throws on a pair whose Verdict's side is unknown — not in
+ * `verdicts`, or a half without its anchor — so a pair of unknown side is
+ * never let through to the fit.
  */
 export function fitInputPairs(
     pairs: readonly EvalPair[],
@@ -294,6 +298,9 @@ export function fitInputPairs(
     modulus: number = HELD_OUT_SPLIT_MODULUS
 ): EvalPair[] {
     const sideOf = verdictSidesOf(verdicts, testPositions, modulus);
+    const indifferent = new Set(
+        verdicts.filter((v) => isIndifferent(v)).map((v) => v.id)
+    );
     return pairs.filter((pair) => {
         const side = sideOf.get(pair.verdictId);
         if (side === undefined) {
@@ -301,7 +308,7 @@ export function fitInputPairs(
                 `Eval Pair of ${pair.verdictId}: its side of the held-out split is unknown (its Verdict, or its Minimal Pair anchor, is not in the corpus)`
             );
         }
-        return side === "fit";
+        return side === "fit" && !indifferent.has(pair.verdictId);
     });
 }
 

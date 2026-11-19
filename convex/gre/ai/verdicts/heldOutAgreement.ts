@@ -18,6 +18,7 @@
 // Pure: reads a `VerdictReport` and a corpus, no engine of its own.
 
 import { verdictDecisionClass } from "./coverage";
+import { isAcceptedAlternative, isIndifferent } from "./grade";
 import { burnedOf, pairSplitRefusals, verdictSidesOf } from "./heldOut";
 import { verdictIdOf } from "./identity";
 import { SATISFIED_EPS, type VerdictReport } from "./report";
@@ -81,12 +82,18 @@ export type HeldOutEvalAgreement = {
     excludedIncomplete: number;
     /** Held-out positions admitted to the registry anyway (issue #3983). */
     burned: BurnedCount;
+    /** Held-out Verdicts graded Indifferent (`grade.ts`) — excluded: they
+     *  carry no weight, so none of their pairs is counted. */
+    excludedIndifferent: number;
 };
 
 /**
  * The held-out Eval Pairs of `report`, tallied: a pair agrees when the
  * Evaluation orders the judged candidate strictly above the other
- * (`SATISFIED_EPS`, the bar `VerdictRow.ok` uses — a tie is not agreement).
+ * (`SATISFIED_EPS`, the bar `VerdictRow.ok` uses — a tie is not agreement),
+ * or when the other is an alternative the Verdict's Preferred grade accepts
+ * (`grade.ts`): playing it is agreement whichever way the pair is ordered. An
+ * Indifferent Verdict's pairs are left out and the Verdict counted.
  * `report` must be the report of `verdicts`.
  */
 export function heldOutEvalAgreement(
@@ -100,14 +107,24 @@ export function heldOutEvalAgreement(
     );
     const isHeldOut = (verdictId: string) =>
         sideOf.get(verdictId) === "held-out";
+    const byId = new Map(verdicts.map((v) => [v.id, v]));
+    const indifferent = new Set(
+        verdicts.filter((v) => isIndifferent(v)).map((v) => v.id)
+    );
 
     const aggregate: AgreementTally = { agreed: 0, n: 0 };
     const byClass = new Map<string, AgreementTally>();
     for (const pair of report.pairs) {
-        if (!isHeldOut(pair.verdictId)) continue;
+        if (!isHeldOut(pair.verdictId) || indifferent.has(pair.verdictId)) {
+            continue;
+        }
         const cls = classOf.get(pair.verdictId) ?? "unclassified";
         const tally = byClass.get(cls) ?? { agreed: 0, n: 0 };
-        const agreed = pair.delta > SATISFIED_EPS ? 1 : 0;
+        const verdict = byId.get(pair.verdictId);
+        const accepted =
+            verdict !== undefined &&
+            isAcceptedAlternative(verdict, pair.otherIndex);
+        const agreed = accepted || pair.delta > SATISFIED_EPS ? 1 : 0;
         tally.agreed += agreed;
         tally.n++;
         aggregate.agreed += agreed;
@@ -119,8 +136,9 @@ export function heldOutEvalAgreement(
         byClass: Object.fromEntries(
             [...byClass.entries()].sort(([a], [b]) => (a < b ? -1 : 1))
         ),
-        excludedTiming: report.timing.filter((p) => isHeldOut(p.verdictId))
-            .length,
+        excludedTiming: report.timing.filter(
+            (p) => isHeldOut(p.verdictId) && !indifferent.has(p.verdictId)
+        ).length,
         // An incomplete unit's side may be unknown (its anchor is missing):
         // it is not fit-side evidence either way, so only a fit-side one is
         // left out of this count.
@@ -128,6 +146,7 @@ export function heldOutEvalAgreement(
             (u) => sideOf.get(u.verdictId) !== "fit"
         ).length,
         burned: burnedCountOf(verdicts, testPositions),
+        excludedIndifferent: [...indifferent].filter(isHeldOut).length,
     };
 }
 
@@ -149,6 +168,7 @@ export function formatHeldOutEvalAgreement(
         formatBurned(agreement.burned),
         `  all                : ${formatAgreementTally(agreement.aggregate)}`,
         `  excluded           : ${agreement.excludedTiming} timing pairs, ${agreement.excludedIncomplete} incomplete units (not agreement evidence)`,
+        `  indifferent        : ${agreement.excludedIndifferent} verdicts graded Indifferent (no weight, outside the count)`,
         "  by Decision Class",
     ];
     for (const [cls, tally] of Object.entries(agreement.byClass)) {
