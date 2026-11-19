@@ -670,7 +670,7 @@ describe("the refusal a panel renders (issue #3457)", () => {
     it("titles every kind the quiz can refuse with, the lowering's and its own", () => {
         // The vocabulary is INHERITED, never restated: every kind
         // `lowerDecision` refuses with is a kind the panel can title, plus the
-        // two sites only a browser has.
+        // sites only a browser has.
         for (const kind of VERDICT_REFUSAL_KINDS) {
             expect(QUIZ_REFUSAL_KINDS).toContain(kind);
         }

@@ -108,7 +108,7 @@ export function proposalQuizSubject(
  * The lowering's kinds are inherited, never restated: `VERDICT_REFUSAL_KINDS`
  * is the frozen union `lowerDecision` refuses with and the lowering sweep
  * ranks, and a second copy here is how the two would drift. What is added is
- * the pair of sites ABOVE the lowering — a decision whose position the trace
+ * the sites ABOVE the lowering — a decision whose position the trace
  * store no longer holds, and a builder chunk that failed to load or threw —
  * which the panel refuses with today in free prose with no kind at all.
  *
@@ -147,7 +147,7 @@ type RefusalPresentation = {
  * The ONE table the refusal panel renders from — title and tracking issue per
  * kind, in the order the sites run.
  *
- * `Record<QuizRefusalKind, …>` is the exhaustiveness: a ninth kind added to
+ * `Record<QuizRefusalKind, …>` is the exhaustiveness: a further kind added to
  * the array above reds `tsc` here until it says what it is called, which is
  * the whole reason the kind is a frozen union rather than a string.
  */
