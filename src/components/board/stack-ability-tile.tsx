@@ -1,4 +1,5 @@
 import { tryGetDefinition } from "@convex/cards";
+import type { StackAbilityKind } from "~/lib/card-utils";
 import {
     ART_CROP_RATIO,
     getArtCropImageUrl,
@@ -12,7 +13,7 @@ import TokenPlaceholder from "../cards/token-placeholder";
 type StackAbilityTileProps = {
     cardId: string;
     abilityText: string;
-    kind: "activated" | "triggered" | "delayed";
+    kind: StackAbilityKind;
     /** The ability's source object: its chosen printing / the printing a token
      *  was made from pick the art, the way they do on the board (issue #4120). */
     source?: { imagePrintId?: string; sourcePrintId?: string };
@@ -39,7 +40,9 @@ export default function StackAbilityTile({
             ? "Trigger"
             : kind === "delayed"
               ? "Delayed Trigger"
-              : "Ability";
+              : kind === "reflexive"
+                ? "Reflexive Trigger"
+                : "Ability";
 
     return (
         <div className="w-full flex flex-col rounded-lg shadow-lg bg-surface overflow-hidden ring-1 ring-border-accent">

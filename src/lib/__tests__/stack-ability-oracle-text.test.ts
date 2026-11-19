@@ -30,8 +30,9 @@ describe("getStackAbilityOracleText", () => {
             delayedTriggerId: "inline",
             delayedOracleText:
                 "When you do, put a +1/+1 counter on target attacking creature. It gains trample until end of turn.",
+            reflexiveTrigger: true,
         };
-        expect(stackAbilityKindOf(item)).toBe("delayed");
+        expect(stackAbilityKindOf(item)).toBe("reflexive");
         expect(getStackAbilityOracleText(item)).toBe(item.delayedOracleText);
     });
 
