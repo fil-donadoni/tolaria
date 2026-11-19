@@ -95,7 +95,8 @@
                     "count": 4,
                     "name": "Mogg Salvage"
                 }
-            ]
+            ],
+            "featuredCard": "Goblin Lackey"
         },
         {
             "slug": "psychatog",
@@ -195,7 +196,8 @@
                     "count": 2,
                     "name": "Ivory Tower"
                 }
-            ]
+            ],
+            "featuredCard": "Psychatog"
         },
         {
             "slug": "parallax-replenish",
@@ -283,7 +285,8 @@
                     "count": 4,
                     "name": "Defense Grid"
                 }
-            ]
+            ],
+            "featuredCard": "Replenish"
         },
         {
             "slug": "landstill",
@@ -411,7 +414,8 @@
                     "count": 1,
                     "name": "Thawing Glaciers"
                 }
-            ]
+            ],
+            "featuredCard": "Standstill"
         },
         {
             "slug": "oath-ponza",
@@ -567,7 +571,8 @@
                     "count": 4,
                     "name": "Meddling Mage"
                 }
-            ]
+            ],
+            "featuredCard": "Oath of Druids"
         },
         {
             "slug": "aluren",
@@ -707,7 +712,8 @@
                     "count": 1,
                     "name": "Phyrexian Furnace"
                 }
-            ]
+            ],
+            "featuredCard": "Aluren"
         },
         {
             "slug": "stiflenought",
@@ -811,7 +817,8 @@
                     "count": 2,
                     "name": "Brain Freeze"
                 }
-            ]
+            ],
+            "featuredCard": "Phyrexian Dreadnought"
         },
         {
             "slug": "burn",
@@ -915,7 +922,8 @@
                     "count": 2,
                     "name": "Tranquil Domain"
                 }
-            ]
+            ],
+            "featuredCard": "Fireblast"
         },
         {
             "slug": "enchantress",
@@ -1039,7 +1047,8 @@
                     "count": 1,
                     "name": "Aura of Silence"
                 }
-            ]
+            ],
+            "featuredCard": "Argothian Enchantress"
         },
         {
             "slug": "rg-aggro",
@@ -1167,7 +1176,8 @@
                     "count": 2,
                     "name": "Tranquil Domain"
                 }
-            ]
+            ],
+            "featuredCard": "Wild Mongrel"
         },
         {
             "slug": "mono-black-aggro",
@@ -1267,7 +1277,8 @@
                     "count": 1,
                     "name": "Tormod's Crypt"
                 }
-            ]
+            ],
+            "featuredCard": "Hypnotic Specter"
         },
         {
             "slug": "madness-threshold",
@@ -1407,7 +1418,8 @@
                     "count": 1,
                     "name": "Stifle"
                 }
-            ]
+            ],
+            "featuredCard": "Nimble Mongoose"
         },
         {
             "slug": "elves",
@@ -1547,7 +1559,8 @@
                     "count": 1,
                     "name": "Goblin Sharpshooter"
                 }
-            ]
+            ],
+            "featuredCard": "Priest of Titania"
         },
         {
             "slug": "the-rock",
@@ -1659,7 +1672,8 @@
                     "count": 3,
                     "name": "Choke"
                 }
-            ]
+            ],
+            "featuredCard": "Pernicious Deed"
         },
         {
             "slug": "survival",
@@ -1815,7 +1829,8 @@
                     "count": 1,
                     "name": "Ravenous Baloth"
                 }
-            ]
+            ],
+            "featuredCard": "Survival of the Fittest"
         },
         {
             "slug": "stasis",
@@ -1923,7 +1938,8 @@
                     "count": 1,
                     "name": "Upheaval"
                 }
-            ]
+            ],
+            "featuredCard": "Stasis"
         },
         {
             "slug": "full-english-breakfast",
@@ -2083,7 +2099,8 @@
                     "count": 2,
                     "name": "Xantid Swarm"
                 }
-            ]
+            ],
+            "featuredCard": "Hermit Druid"
         },
         {
             "slug": "grow",
@@ -2195,7 +2212,8 @@
                     "count": 2,
                     "name": "Tsabo's Web"
                 }
-            ]
+            ],
+            "featuredCard": "Quirion Dryad"
         },
         {
             "slug": "angry-ghoul",
@@ -2315,7 +2333,8 @@
                     "count": 4,
                     "name": "Sylvan Safekeeper"
                 }
-            ]
+            ],
+            "featuredCard": "Sutured Ghoul"
         },
         {
             "slug": "doomsday",
@@ -2455,7 +2474,8 @@
                     "count": 1,
                     "name": "Doomsday"
                 }
-            ]
+            ],
+            "featuredCard": "Doomsday"
         },
         {
             "slug": "reanimator",
@@ -2543,7 +2563,8 @@
                     "count": 3,
                     "name": "Mana Leak"
                 }
-            ]
+            ],
+            "featuredCard": "Exhume"
         },
         {
             "slug": "stompy",
@@ -2659,7 +2680,8 @@
                     "count": 1,
                     "name": "Uktabi Orangutan"
                 }
-            ]
+            ],
+            "featuredCard": "Rancor"
         },
         {
             "slug": "zombie-infestation-aggro",
@@ -2795,7 +2817,8 @@
                     "count": 2,
                     "name": "Engineered Plague"
                 }
-            ]
+            ],
+            "featuredCard": "Zombie Infestation"
         },
         {
             "slug": "terrageddon",
@@ -2935,7 +2958,8 @@
                     "count": 2,
                     "name": "Aura of Silence"
                 }
-            ]
+            ],
+            "featuredCard": "Terravore"
         },
         {
             "slug": "mono-black-control",
@@ -3031,7 +3055,8 @@
                     "count": 1,
                     "name": "Phyrexian Negator"
                 }
-            ]
+            ],
+            "featuredCard": "The Rack"
         }
     ]
 }
