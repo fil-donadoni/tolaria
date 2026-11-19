@@ -34,7 +34,7 @@ on 2026-09-18 — they drift, so re-read them before acting on a number.
 | **Convex** (cloud)       | Backend: game state, GRE mutations, auth, crons — prod deployment `jovial-guineapig-250` | Free             |
 | **Resend**               | Password-reset OTP email only (`convex/resendOtpPasswordReset.ts`)                       | Free             |
 | **Google Cloud Storage** | Verdict Store bucket `tolaria-verdict-store`, `us-central1` (ADR 0128)                   | Always Free      |
-| **Sentry**               | Client error + console-log monitoring (`src/main.tsx`)                                   | Developer (free) |
+| **Sentry**               | Client errors, console logs, sampled tracing (`src/main.tsx`)                            | Developer (free) |
 | **GitHub**               | Source, issues; target of the in-app bug report (`fil-donadoni/tolaria`)                 | Free             |
 
 The local development backend is a self-hosted Convex (`CONVEX_SELF_HOSTED_URL`
@@ -91,7 +91,7 @@ values into a transcript is refused by the agent permission classifier, and
 | Convex  | 1M function calls; 20 GB-h action compute; 0.5 GB DB storage; 1 GB DB bandwidth; 1 GB file storage, 1 GB egress    | Mutations that write may fail; no automatic overage on Free | Pro $25/developer/month (25M calls, 50 GB storage) or pay-as-you-go |
 | Vercel  | 100 GB Fast Data Transfer; 1M edge requests; 1M function invocations; 100 deployments/day; non-commercial use only | **Hard stop until the 30-day window resets**                | Pro $20/seat/month (1 TB)                                           |
 | Resend  | 100 emails/day, 3,000/month; 3 domains                                                                             | Sending refused                                             | Pro $20/month (50,000/month)                                        |
-| Sentry  | 5,000 errors; 5 GB logs; 1 user                                                                                    | Events dropped                                              | Team $26/month                                                      |
+| Sentry  | 5,000 errors; 5M spans; 5 GB logs; 1 user                                                                          | Events dropped                                              | Team $26/month                                                      |
 | GCS     | 5 GB-months storage; 5,000 class A / 50,000 class B ops; 100 GB egress (US regions only)                           | Billed per use                                              | —                                                                   |
 | GitHub  | Issue creation: 80/minute, 500/hour (secondary limit)                                                              | Request rejected                                            | —                                                                   |
 
@@ -107,7 +107,8 @@ re-read by every subscriber that holds it — the `gameTicks` companion exists
 to keep that down), and 1 GB/month is small against 50 active players. Storage
 is held down by the `sweepFinishedGames` cron (24 h TTL). Vercel serves a
 static bundle with immutable asset caching and is far from 100 GB; Resend
-sends only password resets; Sentry sees only client errors.
+sends only password resets; Sentry sees only client errors, logs and
+sampled traces.
 
 ### 5. The upgrade rule (owner decision)
 
@@ -122,8 +123,9 @@ sends only password resets; Sentry sees only client errors.
 
 ### 6. Monitoring today
 
-- **Sentry** (client): errors and console logs, `userInfo: false`, no HTTP
-  bodies. Disclosed in the bug-report consent screen.
+- **Sentry** (client): errors, console logs and tracing (page loads and route
+  navigations, sampled, production builds only — issue #10214),
+  `userInfo: false`, no HTTP bodies. Disclosed in the bug-report consent screen.
 - **In-app bug report** (`convex/bugReports.ts` `submitBugReport`):
   authenticated users only; files a GitHub issue on the public repository;
   diagnostics (route, user agent, game id, client console/network rings) are
