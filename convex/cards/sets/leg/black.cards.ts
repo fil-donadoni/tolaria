@@ -231,41 +231,6 @@ export const blight = defineCard(() => ({
     ],
 }));
 
-// --- Removal / sweeper spells (CR 701.7) -----------------------------------
-
-// Hell Swarm — "All creatures get -1/-0 until end of turn." (CR 611.1 one-shot
-// team debuff applied per creature on the battlefield.)
-export const hellSwarm = defineCard(() => ({
-    id: "64164d1b-75f4-456e-a717-90ce554dc16c",
-    rarity: "common",
-    name: "Hell Swarm",
-    oracleText: "All creatures get -1/-0 until end of turn.",
-    manaCost: { B: 1 },
-    types: ["Instant"],
-    // Migrated resolve()→effects[] (ADR 0045, #840): `forEach` over every
-    // player's battlefield creatures (CR 110/205) → `pump` each -1/-0 until
-    // end of turn (CR 611.1).
-    effects: [
-        {
-            op: "forEach",
-            select: {
-                set: "permanents",
-                zone: "battlefield",
-                filter: { type: "Creature" },
-            },
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$each" },
-                    power: -1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
-
 // Hellfire — "Destroy all nonblack creatures. Hellfire deals X plus 3 damage to
 // you, where X is the number of creatures that died this way." (CR 701.7 mass
 // destroy filtered on colour + CR 614.5 count of permanents destroyed this way,
