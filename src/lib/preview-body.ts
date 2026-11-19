@@ -879,6 +879,9 @@ export function buildFaceDownPreviewBody(
         // ability list, to a viewer not entitled to its identity.
         engineView: null,
         engineTree: null,
+        // A face-down object has no other face to show (CR 708.2); the front
+        // of a transformed card would name the hidden identity (issue #9959).
+        otherFaceHalf: null,
     };
     if (hasSentinelBody) return anonymous;
     return {
