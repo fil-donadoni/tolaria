@@ -62111,6 +62111,7 @@
         {"id":"605.3a","line":"/** CR 605.3a (issue #3630) — does `manaChoiceIndex` name a destructive","sites":1,"status":"baseline"},
         {"id":"701.21a","line":"* - `action: \"sacrifice\"` (CR 701.21a) — a choice is owed when the payer","sites":1,"status":"baseline"},
         {"id":"704.5m","line":"describe(\"The Abyss (each-player upkeep destroy, CR 603.6a / 704.5m)\", () => {","sites":1,"status":"baseline"},
+        {"id":"105.1","line":"// R/G deck must not add B. CR 105.1 (colours are WUBRG) / 305 (lands are","sites":1,"status":"confirmed","ruleHash":"a0773a550784c5c5"},
         {"id":"102.2","line":"// CR 102.2 — \"deals damage to AN OPPONENT\" names the damaged player, who","sites":1,"status":"confirmed","ruleHash":"852afec2046f9914"},
         {"id":"122","line":"// abilityResolutionCount (CR 122 / 603.3, issue #1189) — how many times","sites":1,"status":"baseline"},
         {"id":"514.2","line":"// CR 514.2 / 608.2g (issue #1344) — a turn-scoped, per-card graveyard-","sites":1,"status":"baseline"},

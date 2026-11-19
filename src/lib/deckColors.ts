@@ -1,14 +1,14 @@
+import { deckColorsOfNonlands } from "@convex/cards/colors";
 import type { DeckCard } from "~/types/game";
 import {
     registryDeckCardShape,
     type DeckCardShapeResolver,
 } from "./deckCardShape";
 
-const COLOR_ORDER = ["W", "U", "B", "R", "G"] as const;
-
 /**
  * Derives a deck's color identity from its Maindeck contents — the union of
- * every card's colors, in WUBRG order. Shared between the catalogue-wide deck
+ * every NONLAND card's colors, in WUBRG order (a land's identity adds no
+ * colour, issue #9994 — `deckColorsOfNonlands`). Shared between the catalogue-wide deck
  * builder (`src/components/lobby/deck-builder/deck-builder.tsx`) and the
  * Limited pool-scoped builder (`src/components/deckbuilder/pool-deck-builder.tsx`,
  * issue #1111) — extracted here on its second use (project convention: a
@@ -23,11 +23,10 @@ export function computeDeckColors(
     cards: DeckCard[],
     resolve: DeckCardShapeResolver = registryDeckCardShape
 ): string[] {
-    const set = new Set<string>();
+    const shapes = [];
     for (const card of cards) {
-        for (const color of resolve(card.cardId, card)?.colors ?? []) {
-            set.add(color);
-        }
+        const shape = resolve(card.cardId, card);
+        if (shape) shapes.push(shape);
     }
-    return COLOR_ORDER.filter((c) => set.has(c));
+    return deckColorsOfNonlands(shapes);
 }
