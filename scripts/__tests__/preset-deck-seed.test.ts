@@ -15,6 +15,7 @@ import {
     tier1Reports,
     type DeckPlayability,
     type Tier1Deck,
+    validateDecks,
 } from "../lib/tier1-decks";
 import { tryGetCardByName } from "../../convex/cards";
 import { validateDeck } from "../../convex/formats";
@@ -30,6 +31,7 @@ import {
 import {
     readMetagameDecks,
     readModernMetagameDecks,
+    withCarriedFeaturedCard,
     type MetagameDeckFile,
 } from "../premodern-metagame-import";
 import { parseLockfile } from "../lib/oracle-lockfile";
@@ -495,5 +497,76 @@ describe("seed:preset over the Modern lists (issue #8453)", () => {
         expect(all.filter((d) => d.source.format === "modern")).toHaveLength(
             10
         );
+    });
+});
+
+describe("Featured Card of a canonical list (issue #10234)", () => {
+    it("the payload carries the list's featuredCard as its Card ID", () => {
+        const deck = { ...oathPonza(), featuredCard: "Oath of Druids" };
+        const { payload } = buildPresetPayload(
+            deck,
+            "premodern",
+            SUPPLIED,
+            resolve
+        );
+        expect(payload!.featuredCardId).toBe(resolve("Oath of Druids")!.id);
+        expect(
+            payload!.cards.some((c) => c.cardId === payload!.featuredCardId)
+        ).toBe(true);
+    });
+
+    it("a list naming no featuredCard sends no override", () => {
+        const deck: Tier1Deck = { ...oathPonza(), featuredCard: undefined };
+        const { payload } = buildPresetPayload(
+            deck,
+            "premodern",
+            SUPPLIED,
+            resolve
+        );
+        expect(payload).not.toHaveProperty("featuredCardId");
+    });
+
+    it("refuses a featuredCard that is not a maindeck entry", () => {
+        const deck = oathPonza();
+        const sideOnly = deck.sideboard.find(
+            (s) => !deck.main.some((m) => m.name === s.name)
+        )!.name;
+        expect(() =>
+            validateDecks([{ ...deck, featuredCard: sideOnly }], "x.json")
+        ).toThrow(/featuredCard.*is not a maindeck entry/);
+    });
+
+    it("every metagame list names its Featured Card, never a basic land", () => {
+        const basics = new Set([
+            "Plains",
+            "Island",
+            "Swamp",
+            "Mountain",
+            "Forest",
+        ]);
+        for (const deck of [
+            ...readMetagameDecks(ROOT).decks,
+            ...readModernMetagameDecks(ROOT).decks,
+        ]) {
+            expect({
+                slug: deck.slug,
+                set: deck.featuredCard !== undefined,
+            }).toEqual({
+                slug: deck.slug,
+                set: true,
+            });
+            expect(basics.has(deck.featuredCard!)).toBe(false);
+        }
+    });
+
+    it("a metagame refresh keeps the pick while the card is still in the main", () => {
+        const deck: Tier1Deck = { ...oathPonza(), featuredCard: undefined };
+        expect(
+            withCarriedFeaturedCard(deck, "Oath of Druids").featuredCard
+        ).toBe("Oath of Druids");
+        expect(
+            withCarriedFeaturedCard(deck, "Not In This List").featuredCard
+        ).toBeUndefined();
+        expect(withCarriedFeaturedCard(deck, undefined)).toBe(deck);
     });
 });

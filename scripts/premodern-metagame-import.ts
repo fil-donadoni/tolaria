@@ -477,6 +477,34 @@ async function importArchetype(
     );
 }
 
+/** Each list's hand-picked `featuredCard`, by slug — the one field of the
+ *  file a refresh does not fetch. */
+export function featuredCardsBySlug(
+    file: MetagameDeckFile | undefined
+): Map<string, string> {
+    const out = new Map<string, string>();
+    for (const deck of file?.decks ?? []) {
+        if (deck.featuredCard !== undefined)
+            out.set(deck.slug, deck.featuredCard);
+    }
+    return out;
+}
+
+/** A refreshed list keeps its previous `featuredCard` while that card is
+ *  still in the new maindeck; a list that dropped it loses the pick (the
+ *  lobby falls back to its first card) rather than failing `validateDecks`. */
+export function withCarriedFeaturedCard(
+    deck: Tier1Deck,
+    featuredCard: string | undefined
+): Tier1Deck {
+    if (
+        featuredCard === undefined ||
+        !deck.main.some((e) => e.name === featuredCard)
+    )
+        return deck;
+    return { ...deck, featuredCard };
+}
+
 async function importAll(): Promise<void> {
     const today = new Date();
     const fetchedAt = today.toISOString();
@@ -486,13 +514,21 @@ async function importAll(): Promise<void> {
         readFileSync(join(ROOT, "data", "oracle-compiled.json"), "utf8")
     );
     const resolveName = buildDiacriticsResolver(lock);
+    const priorFeatured = featuredCardsBySlug(
+        existsSync(METAGAME_DECKS_PATH)
+            ? parseMetagameDecks(
+                  readFileSync(METAGAME_DECKS_PATH, "utf8"),
+                  METAGAME_DECKS_PATH
+              )
+            : undefined
+    );
 
     for (const spec of ARCHETYPES) {
         process.stderr.write(
             `fetching ${spec.name} (archetype ${spec.archetypeId})...\n`
         );
         const { deck, row } = await importArchetype(spec, today, resolveName);
-        decks.push(deck);
+        decks.push(withCarriedFeaturedCard(deck, priorFeatured.get(spec.slug)));
         pinEntries.push({
             slug: spec.slug,
             archetypeId: spec.archetypeId,
