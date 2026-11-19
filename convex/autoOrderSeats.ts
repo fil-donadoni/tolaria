@@ -5,7 +5,7 @@
 
 import type { GenericId } from "convex/values";
 import type { GenericQueryCtx } from "convex/server";
-import type { DataModel } from "./_generated/dataModel";
+import type { DataModel, Id } from "./_generated/dataModel";
 import { isBotSeat } from "./matches";
 
 type ReadCtx = Pick<GenericQueryCtx<DataModel>, "db">;
@@ -25,21 +25,26 @@ export async function loadAutoOrderSeatIds(
     gameId: GenericId<"games">,
     seatIds: readonly string[]
 ): Promise<string[]> {
-    const game = await ctx.db.get(gameId);
+    // Only a `-p2` seat can be the Bot's, and only a vs-AI Game has one — the
+    // Game row is read lazily, for that seat alone.
+    let vsAi: boolean | undefined;
     const optedIn = new Map<string, boolean>();
     const seats: string[] = [];
     for (const seatId of seatIds) {
-        if (game?.vsAi === true && isBotSeat(seatId)) continue;
+        if (isBotSeat(seatId)) {
+            vsAi ??= (await ctx.db.get(gameId))?.vsAi === true;
+            if (vsAi) continue;
+        }
         const rawUserId = seatUserId(seatId);
         let on = optedIn.get(rawUserId);
         if (on === undefined) {
-            const userId = ctx.db.normalizeId("users", rawUserId);
-            const row = userId
-                ? await ctx.db
-                      .query("userSettings")
-                      .withIndex("by_user", (q) => q.eq("userId", userId))
-                      .unique()
-                : null;
+            // A handle that is no user id (a scenario seat) matches no row.
+            const row = await ctx.db
+                .query("userSettings")
+                .withIndex("by_user", (q) =>
+                    q.eq("userId", rawUserId as Id<"users">)
+                )
+                .unique();
             on = row?.autoOrderPrompts === true;
             optedIn.set(rawUserId, on);
         }

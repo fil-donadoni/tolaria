@@ -2101,6 +2101,7 @@ export function projectPublicState(
         // and this one would hand a viewer the colour composition of the other
         // seat's decklist.
         deckColorKnowledge: undefined,
+        autoOrderSeatIds: undefined,
     };
 }
 
@@ -2273,5 +2274,6 @@ export function projectFullState(
         // revealing a searcher's privileged knowledge, and the `...state`
         // spread above is exactly how an unnamed field would ride out anyway.
         deckColorKnowledge: undefined,
+        autoOrderSeatIds: undefined,
     };
 }
