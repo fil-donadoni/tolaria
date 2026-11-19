@@ -31,10 +31,10 @@
  *    rebuilt by `expandDefinition` into a `replacementEffects[]` entry;
  *  - `staticAbilities[]` — the `does-not-untap` marker, which the untap step
  *    reads directly (`gre/phases.ts`), and the CR 509.1b `minimum-blockers:N`
- *    marker, which the combat registry reads (`gre/combatRegistry.ts`). A filtered `untap-restriction` static
- *    would be the wrong encoding for a permanent talking about itself; the
- *    marker is what the hand-written catalogue writes (Island Fish Jasconius,
- *    Basalt Monolith).
+ *    marker, which the combat registry reads (`gre/combatRegistry.ts`). A
+ *    filtered `untap-restriction` static would be the wrong encoding for a
+ *    permanent talking about itself; the marker is what the hand-written
+ *    catalogue writes (Island Fish Jasconius, Basalt Monolith).
  *
  * Nothing here allocates a target slot: a static ability targets nothing
  * (CR 115.1 — only spells and abilities that say "target" do), so there is no
