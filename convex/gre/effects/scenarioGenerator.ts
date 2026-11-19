@@ -1500,9 +1500,13 @@ function eventSubjectFor(
     return undefined;
 }
 
-/** The damage source a seeded `DAMAGE_DEALT` names: an id on no board, as a
- *  source that has since left every zone would be. Nothing reads it. */
+/** The two objects a seeded `DAMAGE_DEALT` names: ids on no board. The
+ *  host's head says which side of the damage its own source was on ("deals
+ *  damage" / "is dealt damage") and the generator does not read the head, so
+ *  the event names neither side rather than assert the wrong one. Nothing
+ *  reads them. */
 const EVENT_DAMAGE_SOURCE_ID = "gen-damage-source";
+const EVENT_DAMAGE_RECIPIENT_ID = "gen-damage-recipient";
 
 /**
  * The firing events the canned scenario can build to carry a NUMBER
@@ -1510,8 +1514,7 @@ const EVENT_DAMAGE_SOURCE_ID = "gen-damage-source";
  * in that field. Only the magnitude is read — a script reading one of the
  * event's OBJECT or PLAYER fields goes through `eventSubjectFor` or a
  * player-ref skip, neither of which has a row for these types — so the other
- * fields only keep the event well-formed: the ability's own seeded source
- * was dealt noncombat damage by an object no longer on the board.
+ * fields only keep the event well-formed, naming objects on no board.
  */
 const EVENT_AMOUNT_BUILDERS: Partial<
     Record<
@@ -1525,7 +1528,7 @@ const EVENT_AMOUNT_BUILDERS: Partial<
             type: "DAMAGE_DEALT",
             sourceInstanceId: EVENT_DAMAGE_SOURCE_ID,
             sourceControllerId: OPPONENT_ID,
-            target: { type: "permanent", id: SOURCE_PERMANENT_ID },
+            target: { type: "permanent", id: EVENT_DAMAGE_RECIPIENT_ID },
             amount,
             isCombat: false,
         }),
@@ -1534,7 +1537,8 @@ const EVENT_AMOUNT_BUILDERS: Partial<
 
 /** The event amount the scenario seeds for `ref`, when it is a NUMBER
  *  `$event.<field>` at a triggered host one of whose event types has a builder
- *  for that field and whose source the scenario can seed; undefined otherwise.
+ *  for that field; undefined otherwise. The magnitude is fixed when the event
+ *  happens, so a source that has left by resolution reads the same number.
  *  Every build round-trips through the field's own `EVENT_FIELD_REGISTRY` row,
  *  so a builder that put the number anywhere else is a skip. */
 function eventAmountFor(
@@ -1543,7 +1547,6 @@ function eventAmountFor(
 ): EventSubject | undefined {
     if (!ref.startsWith("$event.")) return;
     if (req.host.site !== "ability") return;
-    if (seedableSource(req) === undefined) return;
     const field = ref.slice("$event.".length);
     for (const type of req.host.triggerEvents ?? []) {
         const build = EVENT_AMOUNT_BUILDERS[type]?.[field];
@@ -1556,9 +1559,9 @@ function eventAmountFor(
     return undefined;
 }
 
-/** Records an amount `eventAmountFor` accepted. The event it builds names the
- *  seeded source, so the source is seeded; and one stack item carries one
- *  firing event, so an object `$event` subject alongside it is a skip. */
+/** Records an amount `eventAmountFor` accepted. One stack item carries one
+ *  firing event, so a second `$event` number field is a skip here and an
+ *  object `$event` subject alongside it one in `buildScenario`. */
 function recordEventAmount(req: Requirements, eventAmount: EventSubject): void {
     if (
         req.eventAmount !== undefined &&
@@ -1572,7 +1575,6 @@ function recordEventAmount(req: Requirements, eventAmount: EventSubject): void {
         return;
     }
     req.eventAmount = eventAmount;
-    req.sourceSubject = true;
 }
 
 /** True when the canned scenario can seed the object `selector` names: an

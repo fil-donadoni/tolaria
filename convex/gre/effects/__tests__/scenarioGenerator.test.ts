@@ -2256,8 +2256,6 @@ describe("$event number amounts — the magnitude a trigger's firing event carri
                 ref: "$event.amount",
                 amount,
             });
-            // The event names the ability's own source, which is seeded.
-            expect(plan.scenario.sourcePermanentId).toBe(SOURCE_PERMANENT_ID);
             expect(plan.assertions.map((a) => a.label).join(" ")).toContain(
                 String(amount)
             );
@@ -2280,13 +2278,22 @@ describe("$event number amounts — the magnitude a trigger's firing event carri
             "a trigger with no builder for the field",
             abilityHost({ types: ["Creature"] }, true, false, "CREATURE_DIED"),
         ],
-        // The event names the source, which is gone at resolution (CR 608.2h).
-        ["a host that has left the battlefield", damageTakenHost(false)],
     ])("%s keeps the $event amount a card-dependent skip", (_name, host) => {
         const plan = planSmokeTest(loseThatMuch, host);
         if (plan.kind !== "skip") throw new Error("expected a skip");
         expect(plan.reason).toBe(
             'numeric ref "$event.amount" — amount depends on a runtime snapshot'
         );
+    });
+
+    // The magnitude is fixed when the damage is dealt: a creature the damage
+    // killed still has its trigger read "that much" off the event.
+    it("a host gone by resolution still reads the event's amount", () => {
+        const plan = planSmokeTest(loseThatMuch, damageTakenHost(false));
+        expect(plan.kind).toBe("run");
+        if (plan.kind !== "run") return;
+        expect(plan.scenario.sourcePermanentId).toBeUndefined();
+        resolveAsTrigger(plan, loseThatMuch, "gen-test-event-amount-departed");
+        expect(failedAssertions(plan)).toEqual([]);
     });
 });
