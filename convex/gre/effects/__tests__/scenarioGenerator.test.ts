@@ -428,7 +428,10 @@ describe("smoke skip classes (ADR 0105 § 7.1, issue #3823)", () => {
 function resolveOnSeededSource(
     plan: Extract<Plan, { kind: "run" }>,
     effects: EffectOp[],
-    hostId: string
+    hostId: string,
+    /** Snapshot the scenario's announced {X} onto the stack item, as the
+     *  catalogue sweep does for an activated ability (CR 107.3a). */
+    withX = false
 ): void {
     registerTokenDefinition({
         id: hostId,
@@ -461,6 +464,7 @@ function resolveOnSeededSource(
         castById: CASTER_ID,
         abilityId: `${hostId}-ab`,
         targets: plan.scenario.targets,
+        ...(withX ? { chosenX: plan.scenario.chosenX } : {}),
     });
     resolveTopOfStack(plan.scenario.state);
 }
@@ -1072,6 +1076,54 @@ describe("chosen-cost X amounts (CR 107.3a, issue #4022)", () => {
         ]);
         if (plan.kind !== "run") throw new Error("expected a run plan");
         expect(plan.scenario.chosenX).toBeUndefined();
+    });
+});
+
+describe("chosen-cost X counter counts (CR 107.3a, issue #5267)", () => {
+    // Blast Zone's shape: "{X}{X}, {T}: Put X charge counters on this land."
+    const xCounters: EffectOp[] = [
+        {
+            op: "counters",
+            action: "add",
+            counter: "charge",
+            target: { ref: "$source" },
+            count: { X: true },
+        },
+    ];
+    const LAND_HOST = abilityHost({ types: ["Land"] }, true, true);
+
+    it("an activated ability's X counter count is predicted from the announced X", () => {
+        const plan = planSmokeTest(xCounters, LAND_HOST);
+        expect(plan.kind).toBe("run");
+        if (plan.kind !== "run") return;
+        expect(plan.scenario.chosenX).toBe(4);
+        expect(plan.assertions.map((a) => a.label)).toEqual([
+            expect.stringContaining("add 4 charge counter(s)"),
+        ]);
+    });
+
+    it("the announced X resolves to the predicted counter tally", () => {
+        const plan = planSmokeTest(xCounters, LAND_HOST);
+        if (plan.kind !== "run") throw new Error("expected a run plan");
+        resolveOnSeededSource(plan, xCounters, "smoke-x-counters", true);
+        expect(failedAssertions(plan)).toEqual([]);
+    });
+
+    it("a stack item without the announcement fails the assertion", () => {
+        const plan = planSmokeTest(xCounters, LAND_HOST);
+        if (plan.kind !== "run") throw new Error("expected a run plan");
+        resolveOnSeededSource(plan, xCounters, "smoke-x-counters-no-x", false);
+        expect(failedAssertions(plan)).toHaveLength(1);
+    });
+
+    it("a triggered ability's X counter count stays a card-dependent skip", () => {
+        const plan = planSmokeTest(
+            xCounters,
+            abilityHost({ types: ["Land"] }, true)
+        );
+        expect(plan.kind).toBe("skip");
+        if (plan.kind !== "skip") return;
+        expect(plan.skips.map((s) => s.code)).toEqual(["unannounced-x"]);
     });
 });
 
