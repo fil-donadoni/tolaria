@@ -200,7 +200,9 @@ describe("LimitedDraftPool through projectLimitedEvent (ADR 0060, issue #1247)",
         // (poolIndex 1, still main-side) and one in the Sideboard column
         // (poolIndex 0, already moved). The surface renders the Pool/Main
         // zone FIRST (left column), so index 0 is the movable one.
-        const bolts = getAllByTitle(/Remove Lightning Bolt/);
+        const bolts = getAllByTitle(
+            /Move Lightning Bolt to Sideboard|Add Lightning Bolt to Maindeck/
+        );
         expect(bolts).toHaveLength(2);
         fireEvent.click(bolts[0]);
         expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
@@ -224,7 +226,9 @@ describe("LimitedDraftPool through projectLimitedEvent (ADR 0060, issue #1247)",
             />
         );
 
-        const bolts = getAllByTitle(/Remove Lightning Bolt/) as HTMLElement[];
+        const bolts = getAllByTitle(
+            /Move Lightning Bolt to Sideboard/
+        ) as HTMLElement[];
         expect(bolts).toHaveLength(2);
         for (const bolt of bolts) expect(bolt.className).toContain("absolute");
         // First card flush to the top, second revealed below it.
@@ -254,7 +258,9 @@ describe("LimitedDraftPool through projectLimitedEvent (ADR 0060, issue #1247)",
             />
         );
 
-        const bolts = getAllByTitle(/Remove Lightning Bolt/) as HTMLElement[];
+        const bolts = getAllByTitle(
+            /Add Lightning Bolt to Maindeck/
+        ) as HTMLElement[];
         expect(bolts).toHaveLength(2);
         for (const bolt of bolts) expect(bolt.className).toContain("absolute");
         expect(bolts[0].style.top).toContain("* 0");
@@ -277,7 +283,7 @@ describe("LimitedDraftPool through projectLimitedEvent (ADR 0060, issue #1247)",
             />
         );
 
-        fireEvent.click(getByTitle(/Remove Plains/));
+        fireEvent.click(getByTitle(/Add Plains to Maindeck/));
         expect(setPoolArrangementEntryMock).toHaveBeenCalledWith({
             eventId: "event-1",
             poolIndex: 2,
@@ -398,7 +404,9 @@ describe("LimitedDraftPool — no per-card overlay buttons (issue #2584)", () =>
         expect(
             rendered.queryAllByLabelText("Move Lightning Bolt to…")
         ).toHaveLength(0);
-        for (const tile of rendered.getAllByTitle(/Remove Lightning Bolt/)) {
+        for (const tile of rendered.getAllByTitle(
+            /Move Lightning Bolt to Sideboard/
+        )) {
             expect(tile.querySelectorAll("button")).toHaveLength(0);
         }
     });
@@ -427,7 +435,7 @@ describe("LimitedDraftPool — selection wiring (issue #2667)", () => {
             />
         );
 
-        fireEvent.click(getAllByTitle(/^Remove Lightning Bolt/)[0]);
+        fireEvent.click(getAllByTitle(/^Move Lightning Bolt to Sideboard/)[0]);
         expect(onCardSelect).toHaveBeenCalledTimes(1);
         expect(setPoolArrangementEntryMock).not.toHaveBeenCalled();
         const selection = onCardSelect.mock.calls[0][0];
@@ -458,7 +466,7 @@ describe("LimitedDraftPool — selection wiring (issue #2667)", () => {
             />
         );
 
-        fireEvent.click(getByTitle(/from the Sideboard/));
+        fireEvent.click(getByTitle(/to Maindeck/));
         expect(onCardSelect).toHaveBeenCalledTimes(1);
         const selection = onCardSelect.mock.calls[0][0];
         expect(selection.zone).toBe("sideboard");
@@ -478,7 +486,7 @@ describe("LimitedDraftPool — selection wiring (issue #2667)", () => {
                 onCardSelect={onCardSelect}
             />
         );
-        const bolts = getAllByTitle(/^Remove Lightning Bolt/);
+        const bolts = getAllByTitle(/^Move Lightning Bolt to Sideboard/);
         fireEvent.click(bolts[0]);
         const selection = onCardSelect.mock.calls[0][0];
 
@@ -499,9 +507,9 @@ describe("LimitedDraftPool — selection wiring (issue #2667)", () => {
         // the surviving `accent-soft` substring, which is unique to the
         // selection cue (the hover cue uses `danger-strong`; the `featured`
         // cue uses the `card-ring-selected` role class with no inline var).
-        const ringed = getAllByTitle(/^Remove Lightning Bolt/).filter((el) =>
-            el.querySelector("[class*=accent-soft]")
-        );
+        const ringed = getAllByTitle(
+            /^Move Lightning Bolt to Sideboard/
+        ).filter((el) => el.querySelector("[class*=accent-soft]"));
         expect(ringed).toHaveLength(1);
     });
 });
@@ -603,7 +611,7 @@ describe("LimitedDraftPool — the reduced draft bar (ADR 0075 §6, issue #1632)
         expect(catchAll).toBeTruthy();
         expect(
             within(catchAll as HTMLElement).getByTitle(
-                /Remove Unresolvable Card/
+                /Move Unresolvable Card to Sideboard/
             )
         ).toBeTruthy();
     });
@@ -672,7 +680,7 @@ describe("LimitedDraftPool — view preferences are the draft's own (issue #1632
         const boltsIn = (columnId: string) =>
             within(
                 container.querySelector(`[data-column="${columnId}"]`)!
-            ).queryAllByTitle(/Remove Lightning Bolt/).length;
+            ).queryAllByTitle(/Move Lightning Bolt to Sideboard/).length;
 
         expect(boltsIn("mv:6")).toBe(1);
         fireEvent.change(getByLabelText("Pool grouping"), {
@@ -738,7 +746,7 @@ describe("LimitedDraftPool — Unattended Pick ring through projectLimitedEvent 
         expect(
             plains.querySelector('[data-testid="unattended-pick-ring"]')
         ).not.toBeNull();
-        for (const bolt of getAllByTitle(/^Remove Lightning Bolt/)) {
+        for (const bolt of getAllByTitle(/^Move Lightning Bolt to Sideboard/)) {
             expect(
                 bolt.querySelector('[data-testid="unattended-pick-ring"]')
             ).toBeNull();
@@ -775,7 +783,7 @@ describe("LimitedDraftPool — Unattended Pick ring through projectLimitedEvent 
             />
         );
         const plains = getByTitle(
-            /^Auto-picked while you were away.*Plains.*Sideboard/
+            /^Auto-picked while you were away.*Plains.*Maindeck/
         );
         expect(
             plains.querySelector('[data-testid="unattended-pick-ring"]')

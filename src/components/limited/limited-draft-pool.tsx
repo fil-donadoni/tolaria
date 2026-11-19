@@ -264,8 +264,8 @@ export default function LimitedDraftPool({
                             ? "Auto-picked while you were away — "
                             : "") +
                         (onCardSelect
-                            ? `Remove ${card.cardName} (drag to move zone)`
-                            : `Remove ${card.cardName} (double-click, drag, or click)`)
+                            ? `Move ${card.cardName} to Sideboard (drag to move zone)`
+                            : `Move ${card.cardName} to Sideboard (double-click, drag, or click)`)
                     }
                     isUnattended={isUnattended}
                     emptyMessage="Every card you pick lands here."
@@ -302,8 +302,8 @@ export default function LimitedDraftPool({
                             ? "Auto-picked while you were away — "
                             : "") +
                         (onCardSelect
-                            ? `Remove ${card.cardName} from the Sideboard (drag to move zone)`
-                            : `Remove ${card.cardName} from the Sideboard (double-click, drag, or click)`)
+                            ? `Add ${card.cardName} to Maindeck (drag to move zone)`
+                            : `Add ${card.cardName} to Maindeck (double-click, drag, or click)`)
                     }
                     isUnattended={isUnattended}
                     emptyMessage="Move a card here to park it out of your working deck."

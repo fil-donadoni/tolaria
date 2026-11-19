@@ -39,7 +39,8 @@ export function cardsIn(root: HTMLElement, columnId: string): string[] {
     return [...column!.querySelectorAll("[role=button][title]")].map((el) =>
         el
             .getAttribute("title")!
-            .replace(/^Remove /, "")
+            .replace(/^(Remove|Move|Add) /, "")
             .replace(/ \(.*$/, "")
+            .replace(/ (to (Sideboard|Maindeck)|from the Sideboard)$/, "")
     );
 }

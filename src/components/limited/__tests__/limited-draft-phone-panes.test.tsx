@@ -302,7 +302,7 @@ describe("phone portrait — two snap stops, Pack 85 / Pool 15 (issue #2588 AC 1
             )
         ).toEqual(["Pick", "→ Side", "Inspect"]);
 
-        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(getByTitle(/^Move Lightning Bolt to Sideboard/));
 
         // The strip's CTA row — "Pick" included — is gone: a Pool selection
         // is now open, and the two must never both offer actions at once.

@@ -117,6 +117,10 @@ export interface DeckZonePresentation {
     sideTabLabel?: string;
     mainEmptyMessage: string;
     sideEmptyMessage: string;
+    /** Tile tooltip per zone — must name the click's real effect. Absent =
+     *  Constructed's `Remove …` (`deckCardTitle` / `deckSideCardTitle`). */
+    mainCardTitle?: (card: DeckCard) => string;
+    sideCardTitle?: (card: DeckCard) => string;
     /** e.g. `/15`. Absent = uncapped. */
     sideCountSuffix?: string;
     /** Soft-limit warning shown beside the Sideboard count. */
@@ -269,7 +273,22 @@ export interface DeckSourcePaneSpec {
     content: ReactNode;
 }
 
-/** The one card tooltip both zones of every variant use. */
+/** Constructed Maindeck tile: a click removes the card from the deck. */
 export function deckCardTitle(card: DeckCard): string {
     return `Remove ${card.cardName} (drag to move zone)`;
+}
+
+/** Constructed Sideboard tile: a click removes the card from the Sideboard. */
+export function deckSideCardTitle(card: DeckCard): string {
+    return `Remove ${card.cardName} from the Sideboard (drag to move zone)`;
+}
+
+/** Limited Maindeck tile: a click MOVES the card to the Sideboard. */
+export function moveToSideboardCardTitle(card: DeckCard): string {
+    return `Move ${card.cardName} to Sideboard (drag to move zone)`;
+}
+
+/** Limited Sideboard tile: a click ADDS the card to the Maindeck. */
+export function moveToMaindeckCardTitle(card: DeckCard): string {
+    return `Add ${card.cardName} to Maindeck (drag to move zone)`;
 }
