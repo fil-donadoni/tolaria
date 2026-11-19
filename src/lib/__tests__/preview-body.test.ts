@@ -879,7 +879,7 @@ describe("buildPreviewBody — the back face of a double-faced card (CR 712)", (
     const JACE = getCardByName("Jace, Vryn's Prodigy");
 
     it("carries the MODAL back face, read off its registered twin", () => {
-        const half = buildPreviewBody(SINK.id).backFaceHalf;
+        const half = buildPreviewBody(SINK.id).otherFaceHalf;
 
         expect(half).toBeTruthy();
         expect(half!.label).toBe("Back face");
@@ -893,7 +893,7 @@ describe("buildPreviewBody — the back face of a double-faced card (CR 712)", (
     });
 
     it("carries the NONMODAL back face of a card that has not transformed, loyalty included (CR 306.5b)", () => {
-        const half = buildPreviewBody(JACE.id).backFaceHalf;
+        const half = buildPreviewBody(JACE.id).otherFaceHalf;
 
         expect(half).toBeTruthy();
         expect(half!.label).toBe("Back face");
@@ -908,7 +908,7 @@ describe("buildPreviewBody — the back face of a double-faced card (CR 712)", (
 
     it("requests the printing's BACK art from the real print id, never a synthetic twin id", () => {
         for (const card of [SINK, JACE]) {
-            const half = buildPreviewBody(card.id).backFaceHalf!;
+            const half = buildPreviewBody(card.id).otherFaceHalf!;
             const path = `back/${card.id[0]}/${card.id[1]}/${card.id}`;
             expect(half.imageSrc).toBe(
                 `https://cards.scryfall.io/art/${path}.webp`
@@ -930,19 +930,102 @@ describe("buildPreviewBody — the back face of a double-faced card (CR 712)", (
         expect(body.imageSrc).toContain("/art/front/");
     });
 
-    it("adds nothing to a permanent ALREADY showing its back face", () => {
-        const modal = buildPreviewBody(modalBackFaceDefinitionId(SINK.id));
-        expect(modal.displayName).toBe("Soporific Springs");
-        expect(modal.backFaceHalf).toBeNull();
+    // Issue #9959 — the opposite direction: an object showing its BACK face
+    // labels its FRONT face, so both faces stay readable whichever is up.
+    // The instance goes through the real `projectPublicState` wire view, as a
+    // client would receive it; a hand-built body would not prove the field
+    // `transformedFrom` survives the projection.
+    function projectedBackUp(backId: string, frontId: string): CardInstance {
+        const backDef = tryGetDefinition(backId)!;
+        const state = {
+            players: [
+                {
+                    id: "p1",
+                    name: "p1",
+                    bgColor: "#000",
+                    life: 20,
+                    hand: [],
+                    library: [],
+                    graveyard: [],
+                    exile: [],
+                    battlefield: [
+                        {
+                            id: "dfc-1",
+                            card: { id: backId },
+                            transformedFrom: frontId,
+                            types: [...backDef.types],
+                            subtypes: [...(backDef.subtypes ?? [])],
+                            supertypes: [...(backDef.supertypes ?? [])],
+                            staticAbilities: [],
+                            counters: {},
+                        },
+                    ],
+                    manaPool: {},
+                },
+            ],
+            stack: [],
+            turn: 1,
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+            phase: "PRECOMBAT_MAIN",
+            rngSeed: 0,
+            rngCounter: 0,
+        } as unknown as GameState;
+        return projectPublicState(state, 1, "p1").players[0]
+            .battlefield[0] as unknown as CardInstance;
+    }
 
-        const transformed = buildPreviewBody(backFaceDefinitionIdOf(JACE.id)!);
-        expect(transformed.displayName).toBe("Jace, Telepath Unbound");
-        expect(transformed.imageSrc).toContain("/art/back/");
-        expect(transformed.backFaceHalf).toBeNull();
+    it("a MODAL permanent with its back face up labels the FRONT face (CR 712.8f)", () => {
+        const TRAWLER = getCardByName("Boggart Trawler");
+        const backId = modalBackFaceDefinitionId(TRAWLER.id);
+        const body = buildPreviewBody(
+            backId,
+            projectedBackUp(backId, TRAWLER.id)
+        );
+
+        expect(body.displayName).toBe("Boggart Bog");
+        const half = body.otherFaceHalf!;
+        expect(half.face).toBe("front");
+        expect(half.label).toBe("Front face");
+        expect(half.name).toBe("Boggart Trawler");
+        expect(half.manaCost).toBe("{2}{B}");
+        expect(half.typeLine).toBe("Creature — Goblin");
+        expect(half.statLine).toBe("3/1");
+        expect(half.oracleParagraphs.join(" ")).toContain(
+            "exile target player's graveyard"
+        );
+        expect(half.imageSrc).toContain("/art/front/");
+        expect(half.printedImageId).toEqual({
+            id: TRAWLER.id,
+            face: "front",
+        });
+    });
+
+    it("a modal spell cast as its back face (no instance) labels the front", () => {
+        const body = buildPreviewBody(modalBackFaceDefinitionId(SINK.id));
+
+        expect(body.displayName).toBe("Soporific Springs");
+        expect(body.otherFaceHalf!.face).toBe("front");
+        expect(body.otherFaceHalf!.name).toBe("Sink into Stupor");
+        expect(body.otherFaceHalf!.typeLine).toBe("Instant");
+    });
+
+    it("a TRANSFORMED permanent labels the front face from `transformedFrom`", () => {
+        const backId = backFaceDefinitionIdOf(JACE.id)!;
+        const body = buildPreviewBody(backId, projectedBackUp(backId, JACE.id));
+
+        expect(body.displayName).toBe("Jace, Telepath Unbound");
+        expect(body.imageSrc).toContain("/art/back/");
+        const half = body.otherFaceHalf!;
+        expect(half.face).toBe("front");
+        expect(half.label).toBe("Front face");
+        expect(half.name).toBe("Jace, Vryn's Prodigy");
+        expect(half.printedImageId).toEqual({ id: JACE.id, face: "front" });
     });
 
     it("is null for a card with no back face", () => {
-        expect(buildPreviewBody(SERRA.id).backFaceHalf).toBeNull();
+        expect(buildPreviewBody(SERRA.id).otherFaceHalf).toBeNull();
     });
 });
 

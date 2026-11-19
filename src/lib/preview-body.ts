@@ -6,6 +6,7 @@ import {
 import {
     isModalDoubleFaced,
     modalBackFaceDefinitionId,
+    modalBackFaceParentId,
 } from "@convex/cards/modalDfc";
 import { isSplitCard, splitSideOfDefinitionId } from "@convex/cards/splitCard";
 import { parentIdOfTwin } from "@convex/cards/twinId";
@@ -18,6 +19,7 @@ import {
     getPrintedCardImageUrl,
     resolveBackFaceImageId,
     resolveCardImageFace,
+    resolveCardImageId,
     type CardImageFace,
 } from "~/lib/images";
 import {
@@ -123,13 +125,19 @@ export type PreviewInsetHalf = {
  *  they differ in the door that turns the face up, not in what a player needs
  *  to read before walking through it (CR 712.11b / 712.12).
  *
- *  Absent for a permanent that has ALREADY turned the face up: its definition
- *  is the back face itself (a synthesized transform face or the `#back` twin),
- *  which declares no further back face. Unlike the inset half it carries its
- *  own ART: the back face of a double-faced printing is a different picture,
- *  served from the same Scryfall id under the `back/` path. */
-export type PreviewBackFaceHalf = {
-    /** The section heading — states that the card HAS a back face. */
+ *  Issue #9959 — the same section serves the opposite direction: an object
+ *  with its BACK face up (a transformed permanent, a modal permanent on the
+ *  battlefield, a modal spell cast as its back face, CR 712.8e / 712.8f)
+ *  prints its FRONT face as the labelled subordinate section, so both faces
+ *  are readable whichever one is up. Unlike the inset half it carries its
+ *  own ART: the two faces of a double-faced printing are different pictures,
+ *  served from the same Scryfall id under the `front/` / `back/` path. */
+export type PreviewOtherFaceHalf = {
+    /** Which face this section prints: the BACK of a card showing its front,
+     *  or the FRONT of a card showing its back (CR 712.8e / 712.8f). */
+    face: "front" | "back";
+    /** The section heading — states which face this is and that the card HAS
+     *  it. */
     label: string;
     name: string;
     /** Always null for every printed back face today (CR 712.8f leaves the
@@ -219,6 +227,7 @@ export function preventionShieldLines(
 }
 
 export const BACK_FACE_HALF_LABEL = "Back face";
+export const FRONT_FACE_HALF_LABEL = "Front face";
 
 /** CR 709.1 / 709.4 (issue #5490) — one half of a SPLIT card, rendered as a
  *  labelled subordinate section of the face.
@@ -371,7 +380,7 @@ export type PreviewBodyContent = {
     /** CR 712 (issue #3552) — the back face of a double-faced card showing its
      *  front, or null. Optional (not merely nullable) so hand-built
      *  `PreviewBodyContent` fixtures predating the field keep compiling. */
-    backFaceHalf?: PreviewBackFaceHalf | null;
+    otherFaceHalf?: PreviewOtherFaceHalf | null;
     /** CR 709 (issue #5490) — a split card's halves as labelled sections (both
      *  for the card, the other one for a half on the stack), or null for every
      *  other card. Optional (not merely nullable) so hand-built
@@ -393,35 +402,74 @@ type BackFaceCharacteristics = Pick<
     | "oracleText"
 > & { manaCost?: ManaCost };
 
-/** Builds the back-face section for `defId` (see {@link PreviewBackFaceHalf}),
- *  or null for a card with no back face — including a permanent whose
- *  definition IS a turned-up back face.
+/** Builds the other-face section for the object `defId` (see
+ *  {@link PreviewOtherFaceHalf}), or null for a card with no other face.
  *
- *  The modal kind reads its registered twin (`${defId}#back`, ADR 0122 §1),
- *  the definition that actually becomes the permanent; the nonmodal kind has
- *  no definition until something transforms, so it reads the printed
- *  `CardBackFace` record. Art is never resolved from the twin id (synthetic):
- *  {@link resolveBackFaceImageId} answers the printing's id and the `back`
- *  face is requested explicitly. */
-function buildBackFaceHalf(defId: string): PreviewBackFaceHalf | null {
+ *  Front face up: the BACK face. The modal kind reads its registered twin
+ *  (`${defId}#back`, ADR 0122 §1), the definition that actually becomes the
+ *  permanent; the nonmodal kind has no definition until something transforms,
+ *  so it reads the printed `CardBackFace` record. Art is never resolved from
+ *  the twin id (synthetic): {@link resolveBackFaceImageId} answers the
+ *  printing's id and the `back` face is requested explicitly.
+ *
+ *  Back face up (issue #9959): the FRONT face. The modal twin id answers its
+ *  parent through {@link modalBackFaceParentId}; a transformed permanent keeps
+ *  its front id in `transformedFrom` on the instance. */
+function buildOtherFaceHalf(
+    defId: string,
+    cardInstance?: CardInstance
+): PreviewOtherFaceHalf | null {
     const def = tryGetDefinition(defId);
+    const frontId =
+        modalBackFaceParentId(defId) ?? cardInstance?.transformedFrom;
+    const frontDef = frontId ? tryGetDefinition(frontId) : undefined;
+    if (frontId && frontDef?.backFace) {
+        return otherFaceSection({
+            face: "front",
+            label: FRONT_FACE_HALF_LABEL,
+            characteristics: frontDef,
+            imageId: resolveCardImageId(frontId),
+            imageFace: "front",
+        });
+    }
     const backFace = def?.backFace;
     if (!def || !backFace) return null;
-    const face: BackFaceCharacteristics = isModalDoubleFaced(def)
+    const characteristics: BackFaceCharacteristics = isModalDoubleFaced(def)
         ? (tryGetDefinition(modalBackFaceDefinitionId(defId)) ?? backFace)
         : backFace;
+    return otherFaceSection({
+        face: "back",
+        label: BACK_FACE_HALF_LABEL,
+        characteristics,
+        imageId: resolveBackFaceImageId(defId),
+        // CR 712.4 (ADR 0161) — a meld card's combined back face is a Scryfall
+        // card of its OWN, single-faced: its art is that print's FRONT image.
+        imageFace: isMeldCard(def) ? "front" : "back",
+    });
+}
+
+function otherFaceSection({
+    face: shown,
+    label,
+    characteristics: face,
+    imageId,
+    imageFace,
+}: {
+    face: PreviewOtherFaceHalf["face"];
+    label: string;
+    characteristics: BackFaceCharacteristics;
+    imageId: string | null;
+    imageFace: CardImageFace;
+}): PreviewOtherFaceHalf {
     const statLine =
         face.power !== undefined && face.toughness !== undefined
             ? `${face.power}/${face.toughness}`
             : face.loyalty !== undefined
               ? `Loyalty ${face.loyalty}`
               : null;
-    const imageId = resolveBackFaceImageId(defId);
-    // CR 712.4 (ADR 0161) — a meld card's combined back face is a Scryfall
-    // card of its OWN, single-faced: its art is that print's FRONT image.
-    const imageFace = isMeldCard(def) ? "front" : "back";
     return {
-        label: BACK_FACE_HALF_LABEL,
+        face: shown,
+        label,
         name: face.name,
         manaCost: manaCostToString(face.manaCost) || null,
         typeLine: formatTypeLine(face.types, face.subtypes, face.supertypes),
@@ -757,7 +805,7 @@ export function buildPreviewBody(
         abilityWordCounters,
         isManualGame: !!gameCtx?.isManualGame,
         insetHalf: buildInsetHalf(defId),
-        backFaceHalf: buildBackFaceHalf(defId),
+        otherFaceHalf: buildOtherFaceHalf(defId, cardInstance),
         splitHalves: buildSplitHalves(defId),
         engineView: def ? computeEngineViewBadge(def) : null,
         engineTree: def ? buildEngineViewTree(def) : null,
@@ -831,6 +879,9 @@ export function buildFaceDownPreviewBody(
         // ability list, to a viewer not entitled to its identity.
         engineView: null,
         engineTree: null,
+        // A face-down object has no other face to show (CR 708.2); the front
+        // of a transformed card would name the hidden identity (issue #9959).
+        otherFaceHalf: null,
     };
     if (hasSentinelBody) return anonymous;
     return {

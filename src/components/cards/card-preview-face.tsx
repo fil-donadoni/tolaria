@@ -77,7 +77,7 @@ export default function CardPreviewFace({
     engineView,
     engineTree,
     insetHalf,
-    backFaceHalf,
+    otherFaceHalf,
     splitHalves,
     size,
     onImageLoaded,
@@ -227,8 +227,8 @@ export default function CardPreviewFace({
                         size={size}
                     />
                 ))}
-                {backFaceHalf && (
-                    <CardPreviewBackFace half={backFaceHalf} size={size} />
+                {otherFaceHalf && (
+                    <CardPreviewBackFace half={otherFaceHalf} size={size} />
                 )}
                 <CardPreviewEngineView
                     badge={engineView}

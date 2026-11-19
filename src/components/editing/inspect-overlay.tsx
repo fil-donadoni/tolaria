@@ -264,13 +264,15 @@ export default function InspectOverlay({
                             {/* CR 712 (issue #3552) — the printed BACK of a
                                 double-faced card, beside the front in the
                                 split row and below it in the stacked column. */}
-                            {body.backFaceHalf?.printedImageId && (
+                            {body.otherFaceHalf?.printedImageId && (
                                 <PrintedFaceImage
                                     imageId={
-                                        body.backFaceHalf.printedImageId.id
+                                        body.otherFaceHalf.printedImageId.id
                                     }
-                                    face={body.backFaceHalf.printedImageId.face}
-                                    alt={`${body.backFaceHalf.name} (printed back face)`}
+                                    face={
+                                        body.otherFaceHalf.printedImageId.face
+                                    }
+                                    alt={`${body.otherFaceHalf.name} (printed ${body.otherFaceHalf.face} face)`}
                                     className="mx-auto max-h-full min-w-0 w-auto object-contain"
                                     backFaceMarker
                                 />

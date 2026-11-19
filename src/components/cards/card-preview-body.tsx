@@ -185,7 +185,7 @@ export default function CardPreviewBody({
     if (mode === "printed" && content.printedImageId) {
         return (
             <div className="flex w-full flex-col">
-                {content.backFaceHalf?.printedImageId ? (
+                {content.otherFaceHalf?.printedImageId ? (
                     // CR 712 (issue #3552) — a double-faced card's printed
                     // BACK beside its front, the way the physical card is
                     // read: side by side keeps the host's height unchanged.
@@ -202,9 +202,9 @@ export default function CardPreviewBody({
                             onLoad={onImageLoaded}
                         />
                         <PrintedFaceImage
-                            imageId={content.backFaceHalf.printedImageId.id}
-                            face={content.backFaceHalf.printedImageId.face}
-                            alt={`${content.backFaceHalf.name} (printed back face)`}
+                            imageId={content.otherFaceHalf.printedImageId.id}
+                            face={content.otherFaceHalf.printedImageId.face}
+                            alt={`${content.otherFaceHalf.name} (printed ${content.otherFaceHalf.face} face)`}
                             className="w-full card-corner"
                             backFaceMarker
                         />
