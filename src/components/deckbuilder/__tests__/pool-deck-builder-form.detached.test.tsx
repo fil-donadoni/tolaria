@@ -29,6 +29,16 @@ const setColumnMock = vi.fn().mockResolvedValue(null);
 const createMock = vi.fn().mockResolvedValue("deck-new");
 const updateMock = vi.fn().mockResolvedValue(undefined);
 
+// Auto-Build's one-shot query (issue #9976) needs `useConvex`, which this file's
+// `convex/react` mock does not carry; the hook is not what these tests drive.
+vi.mock("~/hooks/useAutoBuildMyDeck", () => ({
+    useAutoBuildMyDeck: () => ({
+        run: async () => null,
+        pending: false,
+        error: null,
+    }),
+}));
+
 vi.mock("~/lib/useDeckPrintResolver", async () => ({
     useDeckPrintResolver: (
         await import("~/components/deckbuilder/__tests__/basicLandPrintRows")

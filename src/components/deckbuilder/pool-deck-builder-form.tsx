@@ -33,6 +33,7 @@ import {
 } from "@convex/deckLayout";
 import { useSplitCreatures } from "~/hooks/useSplitCreatures";
 import { useLimitedEventMutations } from "~/hooks/useLimitedEvent";
+import { useAutoBuildMyDeck } from "~/hooks/useAutoBuildMyDeck";
 import { limitedEventName } from "~/lib/limitedEventName";
 import { useUserDeckMutations } from "~/hooks/useUserDecks";
 import type { UserLobbyDeck } from "~/lib/deckTypes";
@@ -59,6 +60,11 @@ import {
     seededBasicLandArt,
     type BasicLandSubtype,
 } from "./basicLands";
+import AutoBuildButton from "./auto-build-button";
+import {
+    autoBuiltWorkingDeck,
+    unbuiltPoolDeckReason,
+} from "./autoBuiltPoolDeck";
 import DeckBuilderShell from "./deck-builder-shell";
 import { flyDeckCard } from "./deckCardFly";
 import { detachedZones, offPoolEntryIndex } from "./detachedPoolDeck";
@@ -752,12 +758,52 @@ export default function PoolDeckBuilderForm(props: PoolDeckBuilderFormProps) {
     // elements (rather than one reused) mount two independent component
     // instances, each managing its own dialog open state — the same
     // mounting behaviour either way (React mounts once per JSX usage site).
-    const statsAction = <DeckStatsButton mainCards={deck.cards} />;
+    // Auto-Build (issue #9976) rides the same two slots, seat-bound builders
+    // only: a detached deck has no event Pool to build from. It replaces the
+    // working Maindeck/Sideboard with the server's suggestion, which the
+    // player then edits like any other deck (and the autosave persists).
+    const {
+        run: runAutoBuild,
+        pending: autoBuildPending,
+        error: autoBuildError,
+    } = useAutoBuildMyDeck(eventId);
+    const handleAutoBuild = useCallback(async () => {
+        const built = await runAutoBuild();
+        if (built === null) return;
+        updateDeck((d) =>
+            autoBuiltWorkingDeck(d, pool, poolArrangement, built)
+        );
+    }, [runAutoBuild, updateDeck, pool, poolArrangement]);
+    const compactClass =
+        "short-viewport:px-2 short-viewport:py-1 short-viewport:text-xs";
+    const autoBuildAction =
+        eventId === undefined ? null : (
+            <AutoBuildButton
+                onAutoBuild={() => void handleAutoBuild()}
+                pending={autoBuildPending}
+                error={autoBuildError}
+            />
+        );
+    const compactAutoBuildAction =
+        eventId === undefined ? null : (
+            <AutoBuildButton
+                onAutoBuild={() => void handleAutoBuild()}
+                pending={autoBuildPending}
+                error={autoBuildError}
+                className={compactClass}
+            />
+        );
+    const statsAction = (
+        <>
+            {autoBuildAction}
+            <DeckStatsButton mainCards={deck.cards} />
+        </>
+    );
     const compactStatsAction = (
-        <DeckStatsButton
-            mainCards={deck.cards}
-            className="short-viewport:px-2 short-viewport:py-1 short-viewport:text-xs"
-        />
+        <>
+            {compactAutoBuildAction}
+            <DeckStatsButton mainCards={deck.cards} className={compactClass} />
+        </>
     );
 
     // The user's basic-land art preference (issue #1629, ADR 0075 § "Basic-
@@ -871,6 +917,13 @@ export default function PoolDeckBuilderForm(props: PoolDeckBuilderFormProps) {
         [deck.cards, deck.sideboard, pool, printResolver]
     );
 
+    // A Maindeck still shaped like the raw Pool is not a built deck (issue
+    // #9976): flagged here, advisory like the rest of the panel.
+    const unbuilt = useMemo(
+        () => unbuiltPoolDeckReason(deck.cards),
+        [deck.cards]
+    );
+
     // A Basic re-arted by the art picker holds a printing the registry does not
     // know (issue #8387), so its row is what names its Card Definition.
     const cardLookup = useMemo(
@@ -939,8 +992,11 @@ export default function PoolDeckBuilderForm(props: PoolDeckBuilderFormProps) {
             }}
             legality={{
                 formatLabel: "Limited",
-                isLegal: legality.isLegal,
-                reasons: legality.reasons,
+                isLegal: legality.isLegal && unbuilt === null,
+                reasons:
+                    unbuilt === null
+                        ? legality.reasons
+                        : [unbuilt, ...legality.reasons],
             }}
             saveBar={{
                 name: deck.name,
