@@ -7,8 +7,8 @@
 // CR 510.1d gives a blocker blocking two or more creatures the same freedom,
 // and CR 702.22k hands that choice to the ACTIVE player when the blocked
 // creatures band — so the assigner may be splitting damage onto its OWN
-// creatures. The engine seeds every such source with a default (all damage on
-// the first live blocker, `buildDefaultDamageAssignments`), which is only the
+// creatures. The engine seeds every such source with a default (lethal damage
+// to each live target in order, `buildDefaultDamageAssignments`), which is only the
 // human assigner modal's pre-fill. Before this module the Bot confirmed that
 // seed unedited. Now the driver submits `damageSplitsFor`'s choice through
 // `setDamageAssignment` before `confirmDamage` (ADR 0074: the server

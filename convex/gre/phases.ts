@@ -1311,20 +1311,41 @@ export function buildDefaultDamageAssignments(
                 }
                 if (remaining > 0) assignment[excessSink] = remaining;
             } else {
-                // Default without trample: all damage to the first LIVE
-                // blocker. A dead blocker lingers in `blockerAssignments`
-                // (removal doesn't prune it) but can no longer receive
-                // combat damage (CR 510.1c) — seeding onto it would leave
-                // every live blocker at 0 and make this very default
+                // Default without trample: lethal damage to each LIVE
+                // blocker in damage assignment order while power lasts, the
+                // remainder on the last one assigned (issue #9987). CR 510.1c
+                // lets the attacker divide its damage among its blockers any
+                // way it likes, so this is only the modal's pre-fill; lethal
+                // is the CR 702.19b budget (see lethalForBlocker), the same
+                // figure the trample branch uses. A dead blocker lingers in
+                // `blockerAssignments` (removal doesn't prune it) but can no
+                // longer receive combat damage (CR 510.1c) — seeding onto it
+                // would leave a live blocker short and make this very default
                 // un-confirmable against `combatDamageAssignmentCompleteness`,
                 // which counts only live targets (issue #2906).
-                const liveBlockers = blockers.filter(
-                    (id) => findPermanent(state, id) !== undefined
-                );
-                liveBlockers.forEach((id, i) => {
-                    assignment[id] =
-                        i === 0 ? getCardPower(state, attacker, pass) : 0;
+                const liveBlockers = blockers.flatMap((id) => {
+                    const blocker = findPermanent(state, id);
+                    return blocker ? [blocker] : [];
                 });
+                let remaining = getCardPower(state, attacker, pass);
+                let lastAssigned: string | undefined;
+                for (const blocker of liveBlockers) {
+                    const lethal = lethalForBlocker(
+                        state,
+                        attacker,
+                        blocker,
+                        result,
+                        pass
+                    );
+                    const toThis = Math.min(remaining, lethal);
+                    assignment[blocker.id] = toThis;
+                    remaining -= toThis;
+                    if (toThis > 0) lastAssigned = blocker.id;
+                }
+                const sink = lastAssigned ?? liveBlockers[0]?.id;
+                if (remaining > 0 && sink !== undefined) {
+                    assignment[sink] += remaining;
+                }
             }
             result[attackerId] = assignment;
         }
