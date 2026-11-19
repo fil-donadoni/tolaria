@@ -32106,4 +32106,64 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9974, the discriminating pair of the entry above: valuing walkers by their loyalty abilities must not teach the Bot to skip tokens. Asserted by a predicate because a token has no catalogue card the matcher could resolve. With a 1/1 token instead, `+1` is the right play and the pair would assert nothing about targeting.",
     },
+    {
+        // MUST. The position right after an equip at sorcery speed: two
+        // identical evasive 1/1s, one carrying an Umezawa's Jitte whose value
+        // is its combat-damage trigger, and an opponent with no flyer to
+        // block either. Whatever else attacks, the equipped one does.
+        label: "equipment: the equipped flyer attacks, not its bare twin",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Flying Men",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Flying Men",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Umezawa's Jitte",
+                    owner: "me",
+                    zone: "battlefield",
+                    attachedTo: "Flying Men",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            // A predicate: the two Flying Men share a name, so only the
+            // state can say which one carries the Jitte.
+            predicate: (move, state) => {
+                const host = state.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.attachedTo !== undefined)?.attachedTo;
+                return (
+                    move?.kind === "declare-attackers" &&
+                    host !== undefined &&
+                    move.attackerIds.includes(host)
+                );
+            },
+            describe: "the Jitte's host is among the declared attackers",
+        },
+        note: "Issue #9977. Measured at 400 iterations: before, the bot attacked with the BARE Flying Men on every seed (`material-tiebreak`, the host's attack trailing it by ~40 margin). Cause: below the root, the Jitte's banked counters open three `-1/-1 to target creature` edges, two aimed at the bot's own creatures, and their visits dragged the mean of every line where the counters exist. `withoutMisdirectedVariants` now prunes them at every node below the root; after, both Flying Men attack on every seed.",
+    },
 ];

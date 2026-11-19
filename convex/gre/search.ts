@@ -3974,8 +3974,7 @@ function iterate(
     actionPriors: ActionPriorConfig | null = null,
     deckKnowledge?: DeckKnowledgeBySeat,
     opponentModel: OpponentModel | null = null,
-    openRootByPolicy = false,
-    unlockingRootKeys?: ReadonlySet<string>
+    openRootByPolicy = false
 ): void {
     const world = determinize(
         rootState,
@@ -4073,9 +4072,7 @@ function iterate(
                     !isOneSidedPutCast(world, pid, botId, k.move)
             );
             if (kept.length > 0) keyed = kept;
-            if (unlockingRootKeys?.has(path[0]?.key ?? "")) {
-                keyed = withoutMisdirectedVariants(world, pid, keyed);
-            }
+            keyed = withoutMisdirectedVariants(world, pid, keyed);
         }
         if (keyed.length === 0) break;
 
@@ -4233,14 +4230,16 @@ export function isWhollyMisdirectedMove(
 /** `keyed` less every wholly misdirected variant (`isWhollyMisdirectedMove`)
  *  of an announcement that keeps a sibling variant (`isCastVariantOf`) aimed
  *  otherwise; a misdirected variant with no such sibling is the
- *  announcement's only form and stays. Applied below a root move whose payoff
- *  is a cast it unlocks (`isCostUnlockingLandTypeChange`, CR 305.7): the tree
- *  backs up MEAN rewards, and a burn spell's own-side targets are as many
- *  edges as its real ones, so their visits dragged the activation's mean
- *  below `pass` with the payoff a few plies deep. Scoped to those subtrees
- *  because the sign table still misreads some self-targets — a creature
- *  transform on the mover's own artifact is a free body — and anywhere else
- *  the lifted means hand ties to the root's variant ranking. */
+ *  announcement's only form and stays. Applied at every node BELOW the root:
+ *  the tree backs up MEAN rewards, and an announcement's own-side variants are
+ *  as many edges as its real ones, so their visits drag down the mean of
+ *  whatever line leads to them. A burn spell a land-type change unlocks
+ *  (CR 305.7) read below `pass` with the payoff a few plies deep; an
+ *  Equipment's banked charge counters (three "-1/-1 to target creature"
+ *  edges, two of them at the holder's own creatures) made attacking with the
+ *  equipped creature read worse than attacking with its bare twin (issue
+ *  #9977). The root keeps every variant: its candidate set is what the trace
+ *  and the variant ranking read. */
 function withoutMisdirectedVariants(
     state: GameState,
     pid: string,
@@ -8324,14 +8323,6 @@ function runSearchWithTrace(
     const deniedRootKeys = new Set(
         deniedAtRoot.map((m) => priorityMoveKey(state, playerId, playerId, m))
     );
-    // The root moves whose subtree prunes misdirected variants
-    // (`withoutMisdirectedVariants`), read once on the real root state.
-    const unlockingRootKeys = new Set(
-        moves
-            .filter((m) => isCostUnlockingLandTypeChange(state, m))
-            .map((m) => priorityMoveKey(state, playerId, playerId, m))
-    );
-
     // Extra-turn soundness guard (issue #2685, issue #244): the extra-turn
     // structural credit in `selectRootMove` is the ONE full-pool tie-break not
     // gated on outcome-equality, so a settled NON-grant pick could still be
@@ -8373,8 +8364,7 @@ function runSearchWithTrace(
             actionPriors,
             deckKnowledge,
             opponentModel,
-            openRootByPolicy,
-            unlockingRootKeys
+            openRootByPolicy
         );
         i++;
         if (timeMs !== undefined && now() - start >= timeMs) {
