@@ -2214,3 +2214,86 @@ describe("$event object subjects — the object a trigger's firing event names (
         expect(plan.reason).toMatch(/seeded \$event\.combatant permanent/);
     });
 });
+
+describe("$event number amounts — the magnitude a trigger's firing event carries (CR 120.3, ADR 0049)", () => {
+    const loseThatMuch: EffectOp[] = [
+        {
+            op: "loseLife",
+            player: "controller",
+            amount: { ref: "$event.amount" },
+        },
+    ];
+    const dealThatMuch: EffectOp[] = [
+        {
+            op: "dealDamage",
+            amount: { ref: "$event.amount" },
+            to: { target: 0 },
+        },
+    ];
+    const damageTakenHost = (onBattlefield = true) =>
+        abilityHost(
+            { types: ["Creature"], subtypes: ["Dog"], power: 2, toughness: 2 },
+            onBattlefield,
+            false,
+            "DAMAGE_DEALT"
+        );
+
+    // CR 120.3 — "whenever this creature is dealt damage, you lose that much
+    // life" / "it deals that much damage to any target".
+    it.each<[string, EffectOp[]]>([
+        ["lose that much life", loseThatMuch],
+        ["deal that much damage", dealThatMuch],
+    ])(
+        "%s reads the seeded event's amount and its outcome holds",
+        (name, effects) => {
+            const plan = planSmokeTest(effects, damageTakenHost());
+            expect(plan.kind).toBe("run");
+            if (plan.kind !== "run") return;
+            const event = plan.scenario.triggerEvent;
+            expect(event?.type).toBe("DAMAGE_DEALT");
+            const amount = event?.type === "DAMAGE_DEALT" ? event.amount : 0;
+            expect(plan.scenario.eventAmount).toEqual({
+                ref: "$event.amount",
+                amount,
+            });
+            expect(plan.assertions.map((a) => a.label).join(" ")).toContain(
+                String(amount)
+            );
+            // Unresolved, no life moved — a green below is the Op's.
+            expect(failedAssertions(plan)).not.toEqual([]);
+            resolveAsTrigger(
+                plan,
+                effects,
+                `gen-test-event-amount-${name.replace(/\W+/g, "-")}`
+            );
+            expect(failedAssertions(plan)).toEqual([]);
+        }
+    );
+
+    it.each<[string, ReturnType<typeof abilityHost>]>([
+        // An activated ability's item carries no firing event to read.
+        ["an activated host", abilityHost({ types: ["Creature"] }, true, true)],
+        // No builder carries a number in this event's `amount`.
+        [
+            "a trigger with no builder for the field",
+            abilityHost({ types: ["Creature"] }, true, false, "CREATURE_DIED"),
+        ],
+    ])("%s keeps the $event amount a card-dependent skip", (_name, host) => {
+        const plan = planSmokeTest(loseThatMuch, host);
+        if (plan.kind !== "skip") throw new Error("expected a skip");
+        expect(plan.reason).toBe(
+            'numeric ref "$event.amount" — amount depends on a runtime snapshot'
+        );
+    });
+
+    // The magnitude is fixed when the damage is dealt: a creature the damage
+    // killed still has its trigger read "that much" off the event.
+    it("a host gone by resolution still reads the event's amount", () => {
+        const plan = planSmokeTest(loseThatMuch, damageTakenHost(false));
+        expect(plan.kind).toBe("run");
+        if (plan.kind !== "run") return;
+        expect(plan.scenario.sourcePermanentId).toBeUndefined();
+        resolveAsTrigger(plan, loseThatMuch, "gen-test-event-amount-departed");
+        expect(failedAssertions(plan)).toEqual([]);
+    });
+});

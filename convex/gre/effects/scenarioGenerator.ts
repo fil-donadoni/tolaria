@@ -407,6 +407,12 @@ const SMOKE_CONTROLLER_SPEED = 2;
  *  and distinct from the other seeded sizes, so an assertion that read the
  *  count off the wrong source would mispredict. */
 const SMOKE_HAND_SIZE = 7;
+/** The magnitude the canned scenario's firing event carries when a triggered
+ *  script reads a NUMBER `$event.<field>` ("you lose that much life", CR
+ *  120.3). Distinct from the other seeded sizes, so an assertion that read the
+ *  amount off the wrong source would mispredict; below the filler's toughness
+ *  and `LIBRARY_DEPTH`, so no outcome is clamped. */
+const SMOKE_EVENT_AMOUNT = 5;
 
 /** A scenario the generator built for one Effect Script: the pre-resolution
  *  state, the announced targets to push with the stack item, and the number of
@@ -431,14 +437,19 @@ export interface Scenario {
      *  item as `chosenX`, the field `getX()` reads at resolution. */
     chosenX?: number;
     /** The firing event of a triggered-ability script that acts on an
-     *  `$event.<field>` subject; absent otherwise. The caller pushes the
+     *  `$event.<field>` subject or reads a NUMBER `$event.<field>`; absent
+     *  otherwise. The caller pushes the
      *  script as a TRIGGERED stack item carrying it as `triggerEvent`, the
      *  field `$event` refs resolve from (ADR 0049). */
     triggerEvent?: GameEvent;
     /** The seeded permanent that event names (`EVENT_SUBJECT_PERMANENT_ID`)
-     *  and the one `$event.<field>` ref it answers; present exactly when
-     *  `triggerEvent` is. */
+     *  and the one `$event.<field>` ref it answers; present only with
+     *  `triggerEvent`, and never together with `eventAmount`. */
     eventSubject?: { readonly ref: string; readonly permanentId: string };
+    /** The NUMBER `$event.<field>` ref the script reads and the magnitude the
+     *  firing event carries for it (`SMOKE_EVENT_AMOUNT`); present only with
+     *  `triggerEvent`. What `predictAmount` answers that ref with. */
+    eventAmount?: { readonly ref: string; readonly amount: number };
     /** The per-Kicker payment record a branch scenario announces (CR 702.33),
      *  keyed by Kicker id; absent when the scenario casts unkicked. The caller
      *  snapshots it onto the stack item as `kickerPayments`, which
@@ -758,6 +769,9 @@ interface Requirements {
     /** The `$event.<field>` subject an Op acts on, and the firing event built
      *  to name the seeded permanent there (`eventSubjectFor`). */
     eventSubject?: EventSubject;
+    /** The NUMBER `$event.<field>` an amount reads, and the firing event built
+     *  to carry `SMOKE_EVENT_AMOUNT` there (`eventAmountFor`). */
+    eventAmount?: EventSubject;
     /** The hand count sets, by the player whose hand is banked
      *  (`settleHandCounts`). */
     handCounts: HandCount[];
@@ -887,6 +901,14 @@ function analyseOpFully(op: EffectOp, req: Requirements): void {
 function analyseValue(value: EffectValue, req: Requirements): void {
     if (typeof value === "number") return;
     if ("ref" in value) {
+        // CR 120.3 — "that much" reads the magnitude the firing event carries.
+        // At a triggered host the scenario builds that event itself, so it
+        // knows the number; elsewhere the ref names a runtime snapshot.
+        const eventAmount = eventAmountFor(req, value.ref);
+        if (eventAmount !== undefined) {
+            recordEventAmount(req, eventAmount);
+            return;
+        }
         skipBecause(
             req,
             "runtime-amount",
@@ -1476,6 +1498,83 @@ function eventSubjectFor(
         return { ref: selector.ref, event };
     }
     return undefined;
+}
+
+/** The two objects a seeded `DAMAGE_DEALT` names: ids on no board. The
+ *  host's head says which side of the damage its own source was on ("deals
+ *  damage" / "is dealt damage") and the generator does not read the head, so
+ *  the event names neither side rather than assert the wrong one. Nothing
+ *  reads them. */
+const EVENT_DAMAGE_SOURCE_ID = "gen-damage-source";
+const EVENT_DAMAGE_RECIPIENT_ID = "gen-damage-recipient";
+
+/**
+ * The firing events the canned scenario can build to carry a NUMBER
+ * `$event.<field>` (ADR 0049), per event type and field: each puts `amount`
+ * in that field. Only the magnitude is read — a script reading one of the
+ * event's OBJECT or PLAYER fields goes through `eventSubjectFor` or a
+ * player-ref skip, neither of which has a row for these types — so the other
+ * fields only keep the event well-formed, naming objects on no board.
+ */
+const EVENT_AMOUNT_BUILDERS: Partial<
+    Record<
+        GameEventType,
+        Readonly<Record<string, (amount: number) => GameEvent>>
+    >
+> = {
+    // CR 120.3 — damage dealt to a permanent; "that much" is its amount.
+    DAMAGE_DEALT: {
+        amount: (amount) => ({
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: EVENT_DAMAGE_SOURCE_ID,
+            sourceControllerId: OPPONENT_ID,
+            target: { type: "permanent", id: EVENT_DAMAGE_RECIPIENT_ID },
+            amount,
+            isCombat: false,
+        }),
+    },
+};
+
+/** The event amount the scenario seeds for `ref`, when it is a NUMBER
+ *  `$event.<field>` at a triggered host one of whose event types has a builder
+ *  for that field; undefined otherwise. The magnitude is fixed when the event
+ *  happens, so a source that has left by resolution reads the same number.
+ *  Every build round-trips through the field's own `EVENT_FIELD_REGISTRY` row,
+ *  so a builder that put the number anywhere else is a skip. */
+function eventAmountFor(
+    req: Requirements,
+    ref: string
+): EventSubject | undefined {
+    if (!ref.startsWith("$event.")) return;
+    if (req.host.site !== "ability") return;
+    const field = ref.slice("$event.".length);
+    for (const type of req.host.triggerEvents ?? []) {
+        const build = EVENT_AMOUNT_BUILDERS[type]?.[field];
+        const row = getEventFieldRow(type, field);
+        if (build === undefined || row?.family !== "number") continue;
+        const event = build(SMOKE_EVENT_AMOUNT);
+        if (row.resolve(event) !== String(SMOKE_EVENT_AMOUNT)) continue;
+        return { ref, event };
+    }
+    return undefined;
+}
+
+/** Records an amount `eventAmountFor` accepted. One stack item carries one
+ *  firing event, so a second `$event` number field is a skip here and an
+ *  object `$event` subject alongside it one in `buildScenario`. */
+function recordEventAmount(req: Requirements, eventAmount: EventSubject): void {
+    if (
+        req.eventAmount !== undefined &&
+        req.eventAmount.ref !== eventAmount.ref
+    ) {
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amounts read two different $event fields (${req.eventAmount.ref}, ${eventAmount.ref}) — the canned scenario seeds one`
+        );
+        return;
+    }
+    req.eventAmount = eventAmount;
 }
 
 /** True when the canned scenario can seed the object `selector` names: an
@@ -3944,6 +4043,19 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
     // A count set or a sweep would see it too, and their predictions are sized
     // without it — fail-closed rather than guess.
     const eventSubject = req.eventSubject;
+    const eventAmount = req.eventAmount;
+    // One stack item carries one firing event (CR 603.2): an object subject
+    // and an amount would each need their own.
+    if (eventSubject !== undefined && eventAmount !== undefined) {
+        return {
+            skip: [
+                {
+                    code: "source-or-each-subject",
+                    reason: `the script reads both ${eventSubject.ref} and ${eventAmount.ref} — the canned scenario builds one firing event for one of them`,
+                },
+            ],
+        };
+    }
     if (eventSubject !== undefined) {
         if (req.countSets.length > 0 || sweeps.length > 0) {
             return {
@@ -4003,6 +4115,15 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
                   eventSubject: {
                       ref: eventSubject.ref,
                       permanentId: EVENT_SUBJECT_PERMANENT_ID,
+                  },
+              }),
+        ...(eventAmount === undefined
+            ? {}
+            : {
+                  triggerEvent: eventAmount.event,
+                  eventAmount: {
+                      ref: eventAmount.ref,
+                      amount: SMOKE_EVENT_AMOUNT,
                   },
               }),
         ...(sourceCounters === undefined ? {} : { sourceCounters }),
@@ -4853,7 +4974,12 @@ function sourceContributesTo(
  *  factor the interpreter applies to the counted cardinality. */
 function predictAmount(value: EffectValue, scenario: Scenario): number | null {
     if (typeof value === "number") return value;
-    if ("ref" in value) return null; // skipped earlier — defensive
+    if ("ref" in value)
+        // The magnitude the seeded firing event carries; any other ref was
+        // skipped earlier.
+        return value.ref === scenario.eventAmount?.ref
+            ? scenario.eventAmount.amount
+            : null;
     if ("X" in value) return scenario.chosenX ?? null; // announced by the scenario
     // Seeded on the source by the scenario; any other subject skipped earlier.
     if ("counters" in value)
