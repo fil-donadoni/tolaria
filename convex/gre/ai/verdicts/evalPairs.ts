@@ -41,10 +41,7 @@
 // pass over a deferrable action in an EARLIER window, a deferrable action over
 // pass in the LAST window (`isLastDeferralWindow`) — are built exactly like
 // any pair and routed to `timing` instead of `pairs`: never fitted, never
-// dropped silently, and checked by the search (`verdicts:search`). A `pass`
-// whose 1-ply leaf resolves nothing, against an action that does not commute
-// with the stack (`unresolvedPassPairClassifier`, CR 117.4), rides the same
-// bucket: what the action changes lies past the probe.
+// dropped silently, and checked by the search (`verdicts:search`).
 
 import { cloneGameState } from "../../clone";
 import type { EvalTerms } from "../../evaluate";

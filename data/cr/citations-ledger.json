@@ -23747,7 +23747,6 @@
         {"id":"704.5f","line":"it(\"accepts it at the LAST counter — CR 704.5f sweeps the source\", () => {","sites":1,"status":"baseline"},
         {"id":"504.1","line":"// takes the normal draw (CR 504.1) via the DSL `draw` Op, which emits","sites":1,"status":"baseline"},
         {"id":"601.2f","line":"// CR 601.2f / 702.34a — an additional cost and a flashback cost are RIDERS","sites":1,"status":"baseline"},
-        {"id":"117.4","line":"// with the stack (`unresolvedPassPairClassifier`, CR 117.4), rides the same","sites":1,"status":"confirmed","ruleHash":"40bd73044a0bec89"},
         {"id":"707.2","line":"// CR 707.2's own example: a Clone of a face-down creature is a 2/2.","sites":1,"status":"baseline"},
         {"id":"303.4c","line":"describe(\"one predicate, both consumers (CR 303.4c/704.5m and CR 303.4f)\", () => {","sites":1,"status":"baseline"},
         {"id":"602.1a","line":"* hand\" as an activation cost (CR 602.1a — the activation cost is","sites":1,"status":"confirmed","ruleHash":"eb54b745a63c9fd6"},
