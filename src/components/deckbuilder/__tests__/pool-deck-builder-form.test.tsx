@@ -29,6 +29,16 @@ const useMutationMock = vi.fn();
 // `useMutation` call in this file returns the same stub).
 const setColumnMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
+// Auto-Build's one-shot query (issue #9976) needs `useConvex`, which this file's
+// `convex/react` mock does not carry; the hook is not what these tests drive.
+vi.mock("~/hooks/useAutoBuildMyDeck", () => ({
+    useAutoBuildMyDeck: () => ({
+        run: async () => null,
+        pending: false,
+        error: null,
+    }),
+}));
+
 vi.mock("~/lib/useCardPrintings", async () => ({
     useCardPrintings: (
         await import("~/components/deckbuilder/__tests__/basicLandPrintRows")

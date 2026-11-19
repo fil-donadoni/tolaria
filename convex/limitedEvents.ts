@@ -65,6 +65,7 @@ import { getCardColorIdentity, getPipCountsFromCost } from "./cards/colors";
 import { manaValue } from "./gre/constants";
 import { freshSeed, makeRng } from "./gre/rng";
 import {
+    autoBuildDeck,
     computeBotAutoBuiltDeck,
     isEventPoolFinal,
     type AutoBuildEventContext,
@@ -947,6 +948,23 @@ async function loadSeatDeckBuilder(
     event: Doc<"limitedEvents">
 ): Promise<(seat: LimitedEventSeat) => AutoBuiltDeck | null> {
     const eventContext = autoBuildEventContext(event);
+    const inputs = await loadAutoBuildInputs(ctx, event);
+    return (seat) =>
+        computeBotAutoBuiltDeck(
+            seat,
+            eventContext,
+            inputs.getMeta,
+            inputs.resolveBasicLand,
+            inputs.options
+        );
+}
+
+/** Every live input Auto-Build reads, loaded once: the registry meta, the
+ *  basic-land printings, Card Profiles (Capability term, ADR 0072), Pick
+ *  Ratings (spell base value) and the scope's Archetype frequency (issue
+ *  #9298). Shared by the Bot seats' builder and the human's on-demand one so
+ *  both decks come out of the SAME builder with the SAME inputs. */
+async function loadAutoBuildInputs(ctx: QueryCtx, event: Doc<"limitedEvents">) {
     const { getAutoBuildCardMeta } = await loadEventCardResolvers(
         ctx,
         event.packSlots
@@ -955,23 +973,16 @@ async function loadSeatDeckBuilder(
         ctx,
         event.packSlots[0] ?? ""
     );
-    // Card Profiles feed Auto-Build's Capability term (ADR 0072) and Pick
-    // Ratings its spell base value — the SAME layered seams the pick reads.
     const getCardProfile = await loadEventCardProfile(ctx, event.packSlots);
     const getPickRating = await loadEventPickRating(ctx, event.packSlots);
-    // The plan reads the Pool against its scope's Archetype frequency (issue
-    // #9298), computed once for every seat.
     const archetypeScopeShare =
         archetypeScopeShareForPackSlots(event.packSlots, getCardProfile) ??
         undefined;
-    return (seat) =>
-        computeBotAutoBuiltDeck(
-            seat,
-            eventContext,
-            getAutoBuildCardMeta,
-            resolveBasicLand,
-            { getCardProfile, getPickRating, archetypeScopeShare }
-        );
+    return {
+        getMeta: getAutoBuildCardMeta,
+        resolveBasicLand,
+        options: { getCardProfile, getPickRating, archetypeScopeShare },
+    };
 }
 
 /** Decides and STORES the Auto-Built deck of every auto-driven seat that has
@@ -1821,6 +1832,37 @@ export const getLimitedEvent = query({
         const event = await ctx.db.get(args.eventId);
         if (!event) return null;
         return projectEventForViewer(ctx, event, user._id, isAdminUser(user));
+    },
+});
+
+/** The VIEWER's own Auto-Built deck (issue #9976): the builder the Bot seats
+ *  use, run over the caller's own Pool so a human can start from it and edit
+ *  the result. Authority stays server-side (ADR 0074): the seat is derived
+ *  from `ctx.auth`, never from an argument, and the answer is a suggestion —
+ *  nothing is saved here; the deck the player keeps goes through the normal
+ *  `userDecks` write and `createGame` legality gate.
+ *
+ *  `null` when the caller has no Seat, the Pool is not final yet
+ *  (`isEventPoolFinal`: a Draft's Pool is still growing) or the Pool is empty.
+ *  Unlike a Bot seat's deck it is NOT stored: it is rebuilt from today's
+ *  inputs on each call, which is what a button press wants. */
+export const autoBuildMyLimitedDeck = query({
+    args: { eventId: v.id("limitedEvents") },
+    returns: v.union(v.null(), autoBuiltDeckValidator),
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        const event = await ctx.db.get(args.eventId);
+        if (!event) return null;
+        if (!isEventPoolFinal(autoBuildEventContext(event))) return null;
+        const seatIndex = event.seats.findIndex((s) => s.userId === user._id);
+        if (seatIndex === -1) return null;
+        const seat = (await hydrateSeat(ctx, event, seatIndex)).find(
+            (s) => s.seatIndex === seatIndex
+        );
+        if (!seat?.pool || seat.pool.length === 0) return null;
+        const { getMeta, resolveBasicLand, options } =
+            await loadAutoBuildInputs(ctx, event);
+        return autoBuildDeck(seat.pool, getMeta, resolveBasicLand, options);
     },
 });
 

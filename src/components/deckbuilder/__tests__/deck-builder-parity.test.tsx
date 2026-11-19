@@ -20,6 +20,16 @@ import { render, cleanup, fireEvent, within } from "@testing-library/react";
 import { DragDropManager } from "@dnd-kit/dom";
 import { dragOnto, installDndJsdomShims } from "./dragHarness";
 
+// Auto-Build's one-shot query (issue #9976) needs `useConvex`, which this file's
+// `convex/react` mock does not carry; the hook is not what these tests drive.
+vi.mock("~/hooks/useAutoBuildMyDeck", () => ({
+    useAutoBuildMyDeck: () => ({
+        run: async () => null,
+        pending: false,
+        error: null,
+    }),
+}));
+
 vi.mock("~/lib/useEarliestPrintFetcher", () => ({
     useEarliestPrintFetcher: () => async () => new Map(),
 }));
