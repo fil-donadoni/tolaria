@@ -47,7 +47,11 @@ describe("reportPublishFailure", () => {
     it("reports to the console and never throws", () => {
         const spy = vi.spyOn(console, "error").mockImplementation(() => {});
         expect(() =>
-            reportPublishFailure(new Error("x"), { id: 3, seq: 129 })
+            reportPublishFailure(new Error("x"), {
+                id: 3,
+                seq: 129,
+                feed: null,
+            })
         ).not.toThrow();
         expect(spy).toHaveBeenCalledOnce();
         spy.mockRestore();
