@@ -12,12 +12,12 @@
     },
     "medium (13 moves)": {
         "iterationsCompleted": 96,
-        "clones": 492,
+        "clones": 490,
         "enumerations": 600,
-        "evaluations": 395,
-        "sbaSweeps": 2254,
+        "evaluations": 393,
+        "sbaSweeps": 2251,
         "ptWalkVisits": 0,
-        "censuses": 962,
+        "censuses": 958,
         "rngDraws": 0,
         "searchDraws": 5466
     },
