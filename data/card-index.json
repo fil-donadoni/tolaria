@@ -7056,6 +7056,16 @@
         "source": "compiled"
     },
     {
+        "name": "Beamsaw Prospector",
+        "scryfallId": "6f717a3f-c6db-4e8d-8b62-6361ab33d000",
+        "oracleId": "bbe740f8-6e7c-4cfd-9134-9bf8d5f48cf5",
+        "firstSet": "eoe",
+        "firstPrintId": "6f717a3f-c6db-4e8d-8b62-6361ab33d000",
+        "firstPrintSet": "eoe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Beanstalk Wurm // Plant Beans",
         "scryfallId": "19f20c0a-22be-4a9c-96ce-4047f7a2d424",
         "oracleId": "a2192c80-c48f-44e2-807c-2f9ee1aa1152",
@@ -10855,6 +10865,16 @@
         "firstPrintId": "fb989895-a5c7-4151-8620-ab277d826303",
         "firstPrintSet": "scg",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Break Down",
+        "scryfallId": "3389f9d7-b8ae-4c51-90f9-b6385517914a",
+        "oracleId": "73094bde-5466-41a4-88f9-a98e67f5ed2e",
+        "firstSet": "pip",
+        "firstPrintId": "3389f9d7-b8ae-4c51-90f9-b6385517914a",
+        "firstPrintSet": "pip",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -17694,6 +17714,16 @@
         "firstSet": "inv",
         "firstPrintId": "c1718028-3009-4bdd-9f6f-59c17edd1344",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Crimson Caravaneer",
+        "scryfallId": "c2f12abc-34e9-486a-a160-1a99e3632403",
+        "oracleId": "ab3360e5-6a60-4806-bbc2-b7b26c119856",
+        "firstSet": "pip",
+        "firstPrintId": "c2f12abc-34e9-486a-a160-1a99e3632403",
+        "firstPrintSet": "pip",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Crimson Fleet Commodore",
@@ -33202,6 +33232,16 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Galactic Wayfarer",
+        "scryfallId": "85b898d2-050f-49a2-87af-07d54d105336",
+        "oracleId": "86746a84-3e8a-44b4-8494-60cbee9816b5",
+        "firstSet": "eoe",
+        "firstPrintId": "85b898d2-050f-49a2-87af-07d54d105336",
+        "firstPrintSet": "eoe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Galadhrim Guide",
         "scryfallId": "f4603f59-f899-4caf-a874-bf234d2045fb",
         "oracleId": "9204de14-cbb6-40e5-9dcc-44cce3723e8e",
@@ -34653,6 +34693,16 @@
         "firstPrintId": "b7f90eef-2393-4e44-9895-00489d3eaa92",
         "firstPrintSet": "tle",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Gild",
+        "scryfallId": "8ce5e6c4-02c8-4602-96d6-19dad34f7804",
+        "oracleId": "a5530fac-0bae-451d-921d-0dd4865ec91d",
+        "firstSet": "bng",
+        "firstPrintId": "8ce5e6c4-02c8-4602-96d6-19dad34f7804",
+        "firstPrintSet": "bng",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -45440,6 +45490,16 @@
         "firstSet": "uds",
         "firstPrintId": "c4f5a9d8-80b9-4765-adb2-10d53baaacb0",
         "firstPrintSet": "uds",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Junktown",
+        "scryfallId": "5e24c687-f070-469d-a09d-acf4ac6ed374",
+        "oracleId": "c470a802-931f-4b63-92fd-ef9cf2e796dd",
+        "firstSet": "pip",
+        "firstPrintId": "5e24c687-f070-469d-a09d-acf4ac6ed374",
+        "firstPrintSet": "pip",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -71943,6 +72003,16 @@
         "firstPrintId": "b2ffe160-1860-41ba-86a5-487211889804",
         "firstPrintSet": "trc",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Sami's Curiosity",
+        "scryfallId": "703ad0f3-bd05-42b0-85fb-0cd37807dc91",
+        "oracleId": "5f532b7f-cb76-4be7-b361-0106c561dcb2",
+        "firstSet": "eoe",
+        "firstPrintId": "703ad0f3-bd05-42b0-85fb-0cd37807dc91",
+        "firstPrintSet": "eoe",
+        "rarity": "common",
         "source": "compiled"
     },
     {

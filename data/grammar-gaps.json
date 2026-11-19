@@ -971,6 +971,16 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › Create a Shard token",
+            "issue": 9950
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Create three Junk tokens",
+            "issue": 9950
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › Discard a card",
             "issue": 4566
         },
@@ -1253,6 +1263,11 @@
             "kind": "grammar",
             "key": "activated › effect clause › {self} deals damage equal to its power to target creature",
             "issue": 4317
+        },
+        {
+            "kind": "grammar",
+            "key": "chapter › effect clause › Create a Gold token",
+            "issue": 9950
         },
         {
             "kind": "grammar",
@@ -1586,6 +1601,21 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › Create a Gold token",
+            "issue": 9950
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Create a Junk token",
+            "issue": 9950
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Create a Lander token",
+            "issue": 9950
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › Distribute three +N/+N counters among one, two, or three target creatures",
             "issue": 5699
         },
@@ -1641,8 +1671,23 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › If excess damage was dealt this way, create a Lander token",
+            "issue": 9950
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If its mana value was N or less, create a Lander token",
+            "issue": 9950
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › If that spell is countered this way, exile it instead of putting it into its owner's graveyard",
             "issue": 8500
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If they do, you create a Lander token",
+            "issue": 9950
         },
         {
             "kind": "grammar",
@@ -1673,6 +1718,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › Its controller",
             "issue": 4573
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Its controller creates a Lander token",
+            "issue": 9950
         },
         {
             "kind": "grammar",
@@ -2696,6 +2746,16 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › Create X Junk tokens",
+            "issue": 9950
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Create X Shard tokens",
+            "issue": 9950
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Create a Blood token",
             "issue": 9948
         },
@@ -2703,6 +2763,21 @@
             "kind": "grammar",
             "key": "triggered › effect clause › Create a Food token",
             "issue": 9948
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Create a Gold token",
+            "issue": 9950
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Create a Junk token",
+            "issue": 9950
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Create a Lander token",
+            "issue": 9950
         },
         {
             "kind": "grammar",
@@ -2718,6 +2793,11 @@
             "kind": "grammar",
             "key": "triggered › effect clause › Create a Treasure token",
             "issue": 9948
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Create two Shard tokens",
+            "issue": 9950
         },
         {
             "kind": "grammar",
@@ -2738,6 +2818,11 @@
             "kind": "grammar",
             "key": "triggered › effect clause › Draw two additional cards",
             "issue": 5698
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Each player creates a Lander token",
+            "issue": 9950
         },
         {
             "kind": "grammar",
@@ -2853,6 +2938,11 @@
             "kind": "grammar",
             "key": "triggered › effect clause › Target creature an opponent controls doesn't untap during its controller's next untap step",
             "issue": 8592
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Target opponent may have you create two Lander tokens",
+            "issue": 9950
         },
         {
             "kind": "grammar",

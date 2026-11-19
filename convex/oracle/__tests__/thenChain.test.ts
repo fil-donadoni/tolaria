@@ -283,13 +283,13 @@ describe("then-chain — refusals (fail-closed)", () => {
     });
 
     it("an unreadable head is refused on the HEAD span, under the token rule's own reason", () => {
-        // CR 111.10c — Gold is a predefined token the engine has no spec for
-        // (issue #9950), so the token rule refuses its head.
-        const result = readChain("Create a Gold token", "draw a card");
+        // CR 111.10w — Vibranium is a predefined token the engine has no
+        // spec for, so the token rule refuses its head.
+        const result = readChain("Create a Vibranium token", "draw a card");
         expect(result.ok).toBe(false);
         if (!result.ok) {
             expect(result.reason).toMatch(/predefined token/);
-            expect(result.fragment).toBe("Create a Gold token");
+            expect(result.fragment).toBe("Create a Vibranium token");
         }
     });
 
