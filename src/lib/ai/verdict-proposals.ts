@@ -133,7 +133,10 @@ export function sameDecision(
 export async function proposeVerdicts(
     decisions: readonly CapturedDecision[],
     config: VerdictProposalConfig,
-    judge: BrainJudge
+    judge: BrainJudge,
+    /** Called once the sample is drawn (`done` 0) and after each consult —
+     *  what the game-over dialog shows while the judge runs (issue #10229). */
+    onProgress?: (done: number, total: number) => void
 ): Promise<VerdictProposalList> {
     const identified: Identified[] = [];
     let unidentified = 0;
@@ -167,12 +170,14 @@ export async function proposeVerdicts(
         config.perClassQuota,
         config.seed
     );
-    for (const decision of sampled) {
+    onProgress?.(0, sampled.length);
+    for (const [index, decision] of sampled.entries()) {
         const brainMove = await judge(
             decision.source,
             { iterations: config.iterations },
             config.seed
         );
+        onProgress?.(index + 1, sampled.length);
         if (!brainMove) {
             unjudged++;
             continue;

@@ -44,7 +44,13 @@ Sentry.init({
     tracesSampleRate: import.meta.env.PROD ? 0.2 : 0,
 });
 
-const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
+// No `beforeunload` "unsaved changes" prompt (issue #10229): Convex's default
+// blocks leaving while ANY request is in flight — the game-end Verdict judge
+// keeps an action in flight for minutes, so leaving a game asked the browser.
+// Nothing the app sends is unsaved user work; leaving is always app navigation.
+const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL, {
+    unsavedChangesWarning: false,
+});
 
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {

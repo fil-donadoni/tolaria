@@ -5,7 +5,11 @@
 // every call is authorized here BEFORE any search runs. A call is accepted only
 // when:
 //
-//   - the caller is authenticated and owns the HUMAN seat of a vs-AI game
+//   - the caller is authenticated and may give a Verdict — a tester or an
+//     admin (`isTesterUser`, issue #10229): the judge only feeds the post-game
+//     review, which no other account is offered, so its search is never spent
+//     on one;
+//   - the caller owns the HUMAN seat of a vs-AI game
 //     (`vsAiSeats`), and the seat searched is that human seat — the judge
 //     judges the player's own decisions, from the player's own view; every
 //     seat `knowledge` names is one of the game's two seats;
@@ -32,7 +36,7 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { getCurrentUserId } from "./auth";
+import { getCurrentUserId, isTesterUser } from "./auth";
 import { DIFFICULTY_BUDGETS } from "./gre/difficulty";
 import { vsAiSeats, type VsAiSeats } from "./vsAiSeats";
 
@@ -78,11 +82,18 @@ export function clampJudgeIterations(requested: number): number {
 
 /** The caller, or a `ConvexError` the client can tell apart. */
 async function callerId(ctx: MutationCtx): Promise<Id<"users">> {
+    let userId: Id<"users">;
     try {
-        return await getCurrentUserId(ctx);
+        userId = await getCurrentUserId(ctx);
     } catch {
         throw new ConvexError("Sign in to use the judge.");
     }
+    // The review the judge feeds is offered to testers only (issue #10229):
+    // hiding it on the client is cosmetic, this is the gate.
+    if (!isTesterUser(await ctx.db.get(userId))) {
+        throw new ConvexError("The judge is open to testers only.");
+    }
+    return userId;
 }
 
 /** The seat checks every claim makes, against seats resolved either from the

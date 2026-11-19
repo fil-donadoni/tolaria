@@ -81,7 +81,7 @@ export default function LimitedVsAiPanel({
                 // refuse the Bot's seat.
                 matchFormat: "freeform",
                 // Binds the playtest to this event so ending it returns to the
-                // EVENT lobby, not the general one (`lobbyHrefForMatch`). The
+                // EVENT lobby, not the general one (`lobbyRouteForMatch`). The
                 // server re-checks the binding against the viewer's own deck.
                 limitedEventId: eventId,
             });

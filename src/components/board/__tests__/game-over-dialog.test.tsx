@@ -8,6 +8,9 @@ import type { PublicMatch } from "@convex/matches";
 import type { GameOver, Player } from "~/types/game";
 
 vi.mock("../sideboarding-dialog", () => ({ default: () => null }));
+// Leaving is in-app router navigation (issue #10229): observed at the router.
+const navigate = vi.fn();
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigate }));
 
 import GameOverDialog from "../game-over-dialog";
 
@@ -76,13 +79,15 @@ describe("GameOverDialog — Back to Lobby", () => {
 
 // Leaving a Match played INSIDE a Limited Event returns to the EVENT lobby —
 // the general lobby strands the player away from their pool and the seats they
-// still have to play. `window.location` is stubbed because jsdom refuses a real
-// navigation.
+// still have to play. Leaving is IN-APP navigation, never a full-page load: a
+// page unload let an in-flight request raise the browser's own "Leave site?"
+// dialog (issue #10229).
 describe("GameOverDialog — leaving an event Match", () => {
     const originalLocation = window.location;
     let href = "";
 
     beforeEach(() => {
+        navigate.mockClear();
         href = "";
         Object.defineProperty(window, "location", {
             configurable: true,
@@ -109,13 +114,19 @@ describe("GameOverDialog — leaving an event Match", () => {
         const match = makeMatch("finished");
         renderOver({ ...match, limitedEventId: "ev_1" });
         leaveButton()!.click();
-        expect(href).toBe("/limited/ev_1");
+        expect(navigate).toHaveBeenCalledWith({
+            to: "/limited/$eventId",
+            params: { eventId: "ev_1" },
+            replace: true,
+        });
+        expect(href).toBe("");
     });
 
-    it("returns to the general lobby for an ordinary Match", () => {
+    it("returns to the general lobby for an ordinary Match, with no page load", () => {
         renderOver(makeMatch("finished"));
         leaveButton()!.click();
-        expect(href).toBe("/");
+        expect(navigate).toHaveBeenCalledWith({ to: "/", replace: true });
+        expect(href).toBe("");
     });
 });
 

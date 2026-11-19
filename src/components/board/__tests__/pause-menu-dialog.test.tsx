@@ -43,6 +43,9 @@ vi.mock("@convex/_generated/api", () => ({
 vi.mock("~/lib/session", () => ({
     clearSession: () => clearSession(),
 }));
+// Leaving is in-app router navigation (issue #10229).
+const navigate = vi.fn();
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigate }));
 
 const gameId = "g1" as Id<"games">;
 
@@ -127,6 +130,8 @@ describe("PauseMenuDialog Concede vs Forfeit (issue #396)", () => {
             playerId: "me",
         });
         expect(clearSession).toHaveBeenCalledOnce();
+        // In-app navigation to the lobby, never a page load (issue #10229).
+        expect(navigate).toHaveBeenCalledWith({ to: "/", replace: true });
         expect(concede).not.toHaveBeenCalled();
         expect(manualConcedeMatch).not.toHaveBeenCalled();
     });
