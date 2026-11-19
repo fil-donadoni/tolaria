@@ -946,7 +946,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Thoughtcast",
     "Thoughtlace",
     "Thoughtleech",
-    "Thraben Inspector",
     "Thrull Retainer",
     "Thrull Wizard",
     "Thundering Falls",

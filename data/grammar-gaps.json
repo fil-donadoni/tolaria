@@ -981,6 +981,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › Investigate",
+            "issue": 9949
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › It",
             "issue": 8501
         },
@@ -1243,6 +1248,11 @@
             "kind": "grammar",
             "key": "activated › effect clause › {self} deals damage equal to its power to target creature",
             "issue": 4317
+        },
+        {
+            "kind": "grammar",
+            "key": "chapter › effect clause › Investigate",
+            "issue": 9949
         },
         {
             "kind": "grammar",
@@ -1636,6 +1646,21 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › Investigate",
+            "issue": 9949
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Investigate X times",
+            "issue": 9949
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Investigate three times",
+            "issue": 9949
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › It",
             "issue": 4587
         },
@@ -1973,6 +1998,16 @@
             "kind": "grammar",
             "key": "spell › effect clause › effect clause › Each player shuffles their hand and graveyard into their library",
             "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › effect clause › Investigate",
+            "issue": 9949
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › effect clause › Investigate X times",
+            "issue": 9949
         },
         {
             "kind": "grammar",
@@ -2732,7 +2767,12 @@
         {
             "kind": "grammar",
             "key": "triggered › effect clause › Investigate",
-            "issue": 8498
+            "issue": 9949
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Investigate twice",
+            "issue": 9949
         },
         {
             "kind": "grammar",
@@ -2883,6 +2923,11 @@
             "kind": "grammar",
             "key": "triggered › effect clause › effect clause › Discard your hand",
             "issue": 8502
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › effect clause › Investigate twice",
+            "issue": 9949
         },
         {
             "kind": "grammar",
