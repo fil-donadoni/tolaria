@@ -411,7 +411,7 @@ describe("check:ui surface table — Named Assertions", () => {
             ],
             "dlg-sideboarding": [
                 "visible role=dialog name=Sideboarding",
-                "reachable role=button name=Ready",
+                "reachable [data-ready-state]",
             ],
             "game-pregame": [
                 "visible role=dialog name=Coin toss",
