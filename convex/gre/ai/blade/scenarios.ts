@@ -32164,6 +32164,6 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             },
             describe: "the Jitte's host is among the declared attackers",
         },
-        note: "Issue #9977. Measured at 400 iterations: before, the bot attacked with the BARE Flying Men on every seed (`material-tiebreak`, the host's attack trailing it by ~40 margin). Cause: below the root, the Jitte's banked counters open three `-1/-1 to target creature` edges, two aimed at the bot's own creatures, and their visits dragged the mean of every line where the counters exist. `withoutMisdirectedVariants` now prunes them at every node below the root; after, both Flying Men attack on every seed.",
+        note: "Issue #9977. Measured at 400 iterations: before, the bot attacked with the BARE Flying Men on every seed (`material-tiebreak`, the host's attack trailing it by ~40 margin). Cause: below the root, the Jitte's banked counters open three `-1/-1 to target creature` edges, two aimed at the bot's own creatures, and their visits dragged the mean of every line where the counters exist. Below the root, `withoutMisdirectedVariants` now prunes the misdirected variants of a counter-paced activation (`isCounterPacedActivation`: the whole cost is removing counters, so it is offered at every window); after, both Flying Men attack on every seed. Pruning EVERY misdirected variant below the root instead reds the Oko +1 / Chromatic Star entry (issue #8734): the sign table reads a transform on the bot's own artifact as harm.",
     },
 ];

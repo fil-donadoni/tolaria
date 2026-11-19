@@ -3974,7 +3974,8 @@ function iterate(
     actionPriors: ActionPriorConfig | null = null,
     deckKnowledge?: DeckKnowledgeBySeat,
     opponentModel: OpponentModel | null = null,
-    openRootByPolicy = false
+    openRootByPolicy = false,
+    unlockingRootKeys?: ReadonlySet<string>
 ): void {
     const world = determinize(
         rootState,
@@ -4072,7 +4073,14 @@ function iterate(
                     !isOneSidedPutCast(world, pid, botId, k.move)
             );
             if (kept.length > 0) keyed = kept;
-            keyed = withoutMisdirectedVariants(world, pid, keyed);
+            keyed = unlockingRootKeys?.has(path[0]?.key ?? "")
+                ? withoutMisdirectedVariants(world, pid, keyed)
+                : withoutMisdirectedVariants(
+                      world,
+                      pid,
+                      keyed,
+                      isCounterPacedActivation
+                  );
         }
         if (keyed.length === 0) break;
 
@@ -4227,26 +4235,54 @@ export function isWhollyMisdirectedMove(
     );
 }
 
+/** An activation whose WHOLE cost is removing counters from its own source
+ *  (CR 602.1a / 122.1): no mana, no tap, no loyalty. Nothing but its counters
+ *  paces it, so it is offered at every priority window of a subtree in which
+ *  the counters exist, every target variant with it. An Equipment's banked
+ *  charge counters made three "-1/-1 to target creature" edges at each node,
+ *  two aimed at the holder's own creatures, and their visits dragged the mean
+ *  of every line that banked the counters: the Bot attacked with the bare
+ *  twin of the creature carrying its Umezawa's Jitte (issue #9977). */
+function isCounterPacedActivation(state: GameState, move: Move): boolean {
+    if (move.kind !== "activate-ability") return false;
+    const card = findCardInAnyZone(state, move.cardInstanceId);
+    if (!card) return false;
+    const ability = getEffectiveActivatedAbilities(card).find(
+        ({ ability }) => ability.id === move.abilityId
+    )?.ability;
+    const removal = ability?.cost.removeCounter;
+    if (!ability || !removal || removal.count < 1) return false;
+    return Object.entries(ability.cost).every(
+        ([leg, value]) =>
+            leg === "removeCounter" || value === undefined || value === false
+    );
+}
+
 /** `keyed` less every wholly misdirected variant (`isWhollyMisdirectedMove`)
  *  of an announcement that keeps a sibling variant (`isCastVariantOf`) aimed
  *  otherwise; a misdirected variant with no such sibling is the
- *  announcement's only form and stays. Applied at every node BELOW the root:
- *  the tree backs up MEAN rewards, and an announcement's own-side variants are
- *  as many edges as its real ones, so their visits drag down the mean of
- *  whatever line leads to them. A burn spell a land-type change unlocks
- *  (CR 305.7) read below `pass` with the payoff a few plies deep; an
- *  Equipment's banked charge counters (three "-1/-1 to target creature"
- *  edges, two of them at the holder's own creatures) made attacking with the
- *  equipped creature read worse than attacking with its bare twin (issue
- *  #9977). The root keeps every variant: its candidate set is what the trace
- *  and the variant ranking read. */
+ *  announcement's only form and stays. Applied below a root move whose payoff
+ *  is a cast it unlocks (`isCostUnlockingLandTypeChange`, CR 305.7): the tree
+ *  backs up MEAN rewards, and a burn spell's own-side targets are as many
+ *  edges as its real ones, so their visits dragged the activation's mean
+ *  below `pass` with the payoff a few plies deep. Scoped to those subtrees
+ *  because the sign table still misreads some self-targets — a creature
+ *  transform on the mover's own artifact is a free body — and anywhere else
+ *  the lifted means hand ties to the root's variant ranking.
+ *
+ *  `droppable`, when given, narrows the prune to the misdirected variants it
+ *  admits — every other node below the root prunes only a counter-paced
+ *  activation's (`isCounterPacedActivation`). */
 function withoutMisdirectedVariants(
     state: GameState,
     pid: string,
-    keyed: KeyedMove[]
+    keyed: KeyedMove[],
+    droppable?: (state: GameState, move: Move) => boolean
 ): KeyedMove[] {
-    const misdirected = keyed.filter((k) =>
-        isWhollyMisdirectedMove(state, pid, k.move)
+    const misdirected = keyed.filter(
+        (k) =>
+            (!droppable || droppable(state, k.move)) &&
+            isWhollyMisdirectedMove(state, pid, k.move)
     );
     if (misdirected.length === 0) return keyed;
     const aimed = keyed.filter((k) => !misdirected.includes(k));
@@ -8323,6 +8359,14 @@ function runSearchWithTrace(
     const deniedRootKeys = new Set(
         deniedAtRoot.map((m) => priorityMoveKey(state, playerId, playerId, m))
     );
+    // The root moves whose subtree prunes misdirected variants
+    // (`withoutMisdirectedVariants`), read once on the real root state.
+    const unlockingRootKeys = new Set(
+        moves
+            .filter((m) => isCostUnlockingLandTypeChange(state, m))
+            .map((m) => priorityMoveKey(state, playerId, playerId, m))
+    );
+
     // Extra-turn soundness guard (issue #2685, issue #244): the extra-turn
     // structural credit in `selectRootMove` is the ONE full-pool tie-break not
     // gated on outcome-equality, so a settled NON-grant pick could still be
@@ -8364,7 +8408,8 @@ function runSearchWithTrace(
             actionPriors,
             deckKnowledge,
             opponentModel,
-            openRootByPolicy
+            openRootByPolicy,
+            unlockingRootKeys
         );
         i++;
         if (timeMs !== undefined && now() - start >= timeMs) {
