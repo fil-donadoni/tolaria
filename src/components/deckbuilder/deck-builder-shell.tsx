@@ -28,6 +28,7 @@ import {
 } from "./deckZoneDrag";
 import {
     deckCardTitle,
+    deckSideCardTitle,
     type DeckBuilderSlots,
     type DeckBuilderViewSpec,
     type DeckLegalitySpec,
@@ -464,8 +465,12 @@ export default function DeckBuilderShell({
                                 onSelectionMoveToMaindeck={
                                     actions.onSelectionMoveToMaindeck
                                 }
-                                mainCardTitle={deckCardTitle}
-                                sideCardTitle={deckCardTitle}
+                                mainCardTitle={
+                                    zones.mainCardTitle ?? deckCardTitle
+                                }
+                                sideCardTitle={
+                                    zones.sideCardTitle ?? deckSideCardTitle
+                                }
                                 featuredCardId={featured?.cardId}
                                 onSetFeatured={featured?.onSet}
                                 phonePiles={zones.phonePiles}

@@ -676,7 +676,7 @@ describe("LimitedDraftTable Pool/Sideboard desktop menu (issue #2861)", () => {
 
     it("a click opens the menu after the double-click window, with → Side / Move to… / Inspect for a Pool card", () => {
         const { getByTitle } = renderTable({ pool: boltInPool });
-        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(getByTitle(/^Move Lightning Bolt to Sideboard/));
         expect(menu()).toBeNull(); // not yet — still inside the delay window
         act(() => {
             vi.advanceTimersByTime(200);
@@ -695,7 +695,7 @@ describe("LimitedDraftTable Pool/Sideboard desktop menu (issue #2861)", () => {
             pool: boltInPool,
             poolArrangement: [{ poolIndex: 0, sideboard: true }],
         });
-        fireEvent.click(getByTitle(/from the Sideboard/));
+        fireEvent.click(getByTitle(/to Maindeck/));
         act(() => {
             vi.advanceTimersByTime(200);
         });
@@ -710,7 +710,7 @@ describe("LimitedDraftTable Pool/Sideboard desktop menu (issue #2861)", () => {
 
     it('the menu\'s "→ Side" moves the card to the Sideboard', () => {
         const { getByTitle } = renderTable({ pool: boltInPool });
-        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(getByTitle(/^Move Lightning Bolt to Sideboard/));
         act(() => {
             vi.advanceTimersByTime(200);
         });
@@ -730,7 +730,7 @@ describe("LimitedDraftTable Pool/Sideboard desktop menu (issue #2861)", () => {
                 { scryfallId: "s2", cardId: PLAINS_ID, cardName: "Plains" },
             ],
         });
-        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(getByTitle(/^Move Lightning Bolt to Sideboard/));
         act(() => {
             vi.advanceTimersByTime(200);
         });
@@ -751,7 +751,7 @@ describe("LimitedDraftTable Pool/Sideboard desktop menu (issue #2861)", () => {
 
     it('the menu\'s "Inspect" opens the Inspect Overlay with the zone-move CTA', () => {
         const { getByTitle } = renderTable({ pool: boltInPool });
-        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(getByTitle(/^Move Lightning Bolt to Sideboard/));
         act(() => {
             vi.advanceTimersByTime(200);
         });
@@ -776,7 +776,7 @@ describe("LimitedDraftTable Pool/Sideboard desktop menu (issue #2861)", () => {
     // same as everywhere else in the app.
     it("a real right click opens neither the menu nor the Inspect Overlay", () => {
         const { getByTitle } = renderTable({ pool: boltInPool });
-        fireEvent.contextMenu(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.contextMenu(getByTitle(/^Move Lightning Bolt to Sideboard/));
         expect(menu()).toBeNull();
         expect(document.querySelector("[data-inspect-panel]")).toBeNull();
     });
@@ -787,7 +787,7 @@ describe("LimitedDraftTable Pool/Sideboard desktop menu (issue #2861)", () => {
     // pending open outright.
     it("a double click moves the card immediately and never leaves the menu open", () => {
         const { getByTitle } = renderTable({ pool: boltInPool });
-        const tile = getByTitle(/^Remove Lightning Bolt/);
+        const tile = getByTitle(/^Move Lightning Bolt to Sideboard/);
         fireEvent.click(tile);
         fireEvent.doubleClick(tile);
         act(() => {
@@ -807,7 +807,7 @@ describe("LimitedDraftTable Pool/Sideboard desktop menu (issue #2861)", () => {
             pool: boltInPool,
             poolArrangement: [{ poolIndex: 0, sideboard: true }],
         });
-        const tile = getByTitle(/from the Sideboard/);
+        const tile = getByTitle(/to Maindeck/);
         fireEvent.click(tile);
         fireEvent.doubleClick(tile);
         act(() => {
@@ -829,7 +829,7 @@ describe("LimitedDraftTable Pool/Sideboard desktop menu (issue #2861)", () => {
     // unmounts must not throw or leak a `setState` after unmount.
     it("unmounting with a pending menu-open timer does not throw", () => {
         const { getByTitle, unmount } = renderTable({ pool: boltInPool });
-        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(getByTitle(/^Move Lightning Bolt to Sideboard/));
         expect(() => unmount()).not.toThrow();
         expect(() => act(() => vi.advanceTimersByTime(1000))).not.toThrow();
     });
@@ -843,7 +843,7 @@ describe("LimitedDraftTable Pool/Sideboard desktop menu (issue #2861)", () => {
         const { getByTitle, getAllByRole } = renderTable({
             pool: boltInPool,
         });
-        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(getByTitle(/^Move Lightning Bolt to Sideboard/));
 
         const boosterCards = getAllByRole("button", { name: /Draft pick/ });
         fireEvent.click(boosterCards[0]);
@@ -880,7 +880,7 @@ describe("LimitedDraftTable Pool/Sideboard phone Peek Panel (issue #2667)", () =
             undefined,
             "phone-portrait"
         );
-        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(getByTitle(/^Move Lightning Bolt to Sideboard/));
         expect(panels()).toHaveLength(1);
         expect(panels()[0].getAttribute("aria-label")).toBe(
             "Selected card: Lightning Bolt"
@@ -899,7 +899,7 @@ describe("LimitedDraftTable Pool/Sideboard phone Peek Panel (issue #2667)", () =
             undefined,
             "phone-portrait"
         );
-        fireEvent.click(getByTitle(/from the Sideboard/));
+        fireEvent.click(getByTitle(/to Maindeck/));
         expect(panels()).toHaveLength(1);
         expect(panels()[0].getAttribute("aria-label")).toBe(
             "Selected card: Lightning Bolt"
@@ -916,7 +916,7 @@ describe("LimitedDraftTable Pool/Sideboard phone Peek Panel (issue #2667)", () =
             undefined,
             "phone-portrait"
         );
-        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(getByTitle(/^Move Lightning Bolt to Sideboard/));
         fireEvent.click(
             actionEls().find((el) => el.dataset.editingAction === "Inspect")!
         );
@@ -953,7 +953,7 @@ describe("LimitedDraftTable Pool/Sideboard phone Peek Panel (issue #2667)", () =
         );
         expect(panels()).toHaveLength(0);
 
-        fireEvent.click(getByTitle(/^Remove Plains/));
+        fireEvent.click(getByTitle(/^Move Plains to Sideboard/));
         expect(panels()).toHaveLength(1);
         expect(panels()[0].getAttribute("aria-label")).toBe(
             "Selected card: Plains"
@@ -982,7 +982,7 @@ describe("LimitedDraftTable Pool/Sideboard phone Peek Panel (issue #2667)", () =
             undefined,
             "phone-portrait"
         );
-        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(getByTitle(/^Move Lightning Bolt to Sideboard/));
         fireEvent.click(
             actionEls().find((el) => el.dataset.editingAction === "Move to…")!
         );
@@ -1000,7 +1000,7 @@ describe("LimitedDraftTable Pool/Sideboard phone Peek Panel (issue #2667)", () =
             undefined,
             "phone-portrait"
         );
-        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(getByTitle(/^Move Lightning Bolt to Sideboard/));
         fireEvent.click(
             actionEls().find((el) => el.dataset.editingAction === "→ Side")!
         );
@@ -1022,7 +1022,7 @@ describe("LimitedDraftTable Pool/Sideboard phone Peek Panel (issue #2667)", () =
             undefined,
             "phone-portrait"
         );
-        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(getByTitle(/^Move Lightning Bolt to Sideboard/));
         expect(panels()).toHaveLength(1);
 
         fireEvent.click(
@@ -1054,14 +1054,14 @@ describe("LimitedDraftTable Pool/Sideboard phone Peek Panel (issue #2667)", () =
             "phone-portrait"
         );
 
-        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(getByTitle(/^Move Lightning Bolt to Sideboard/));
         expect(panels()).toHaveLength(1);
 
         const pool = paneOf(container, /^Pool 2/);
         const sideboardPane = paneOf(container, /^Sideboard 0/);
         await dragOnto(
             manager,
-            within(pool).getByTitle(/^Remove Lightning Bolt/),
+            within(pool).getByTitle(/^Move Lightning Bolt to Sideboard/),
             sideboardPane
         );
         expect(setPoolArrangementEntryMock).toHaveBeenLastCalledWith({
@@ -1105,7 +1105,7 @@ describe("LimitedDraftTable Pool/Sideboard phone Peek Panel (issue #2667)", () =
         const surface = () =>
             container.querySelector("[data-slot=draft-surface]") as HTMLElement;
         expect(surface().style.paddingRight).toBe("");
-        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(getByTitle(/^Move Lightning Bolt to Sideboard/));
         expect(surface().style.paddingRight).toBe(PEEK_PANEL_RAIL_WIDTH);
     });
 
@@ -1119,7 +1119,7 @@ describe("LimitedDraftTable Pool/Sideboard phone Peek Panel (issue #2667)", () =
         const surface = () =>
             container.querySelector("[data-slot=draft-surface]") as HTMLElement;
         expect(surface().style.paddingBottom).toBe("");
-        fireEvent.click(getByTitle(/^Remove Lightning Bolt/));
+        fireEvent.click(getByTitle(/^Move Lightning Bolt to Sideboard/));
         expect(surface().style.paddingBottom).toBe(PEEK_PANEL_SHEET_RESERVE);
         expect(surface().style.paddingRight).toBe("");
     });

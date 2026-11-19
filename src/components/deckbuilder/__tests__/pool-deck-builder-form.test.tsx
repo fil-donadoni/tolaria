@@ -262,9 +262,13 @@ describe("PoolDeckBuilderForm — draft column arrangement carry-over (issue #15
             '[data-column="mv:1"]'
         ) as HTMLElement;
         expect(mv6).toBeTruthy();
-        expect(within(mv6).getByTitle(/Remove Lightning Bolt/)).toBeTruthy();
+        expect(
+            within(mv6).getByTitle(/Move Lightning Bolt to Sideboard/)
+        ).toBeTruthy();
         // ...and it is NOT in its auto MV 1 column.
-        expect(within(mv1).queryByTitle(/Remove Lightning Bolt/)).toBeNull();
+        expect(
+            within(mv1).queryByTitle(/Move Lightning Bolt to Sideboard/)
+        ).toBeNull();
     });
 });
 
@@ -602,7 +606,7 @@ describe("PoolDeckBuilderForm — a column drag persists under EVERY Grouping (i
         const { manager, container, getByTitle } = renderDraftSeat();
         await dragOnto(
             manager,
-            getByTitle(/Remove Lightning Bolt/),
+            getByTitle(/Move Lightning Bolt to Sideboard/),
             container.querySelector('[data-column="mv:6"]')!
         );
         expect(setColumnMock).toHaveBeenCalledWith({
@@ -620,7 +624,7 @@ describe("PoolDeckBuilderForm — a column drag persists under EVERY Grouping (i
         });
         await dragOnto(
             manager,
-            getByTitle(/Remove Lightning Bolt/),
+            getByTitle(/Move Lightning Bolt to Sideboard/),
             container.querySelector('[data-column="color:W"]')!
         );
         expect(setColumnMock).toHaveBeenCalledWith({
@@ -642,7 +646,7 @@ describe("PoolDeckBuilderForm — a column drag persists under EVERY Grouping (i
         });
         await dragOnto(
             manager,
-            getByTitle(/Remove Lightning Bolt/),
+            getByTitle(/Move Lightning Bolt to Sideboard/),
             container.querySelector('[data-column="type:lands"]')!
         );
         expect(setColumnMock).toHaveBeenCalledWith({
@@ -673,7 +677,7 @@ describe("PoolDeckBuilderForm — Grouping round-trip preserves the Pool Arrange
         );
         expect(
             within(container.querySelector('[data-column="mv:6"]')!).getByTitle(
-                /Remove Lightning Bolt/
+                /Move Lightning Bolt to Sideboard/
             )
         ).toBeTruthy();
 
@@ -683,7 +687,7 @@ describe("PoolDeckBuilderForm — Grouping round-trip preserves the Pool Arrange
         expect(
             within(
                 container.querySelector('[data-column="color:R"]')!
-            ).getByTitle(/Remove Lightning Bolt/)
+            ).getByTitle(/Move Lightning Bolt to Sideboard/)
         ).toBeTruthy();
 
         fireEvent.change(getByLabelText("Maindeck grouping"), {
@@ -695,8 +699,12 @@ describe("PoolDeckBuilderForm — Grouping round-trip preserves the Pool Arrange
         const mv1 = container.querySelector(
             '[data-column="mv:1"]'
         ) as HTMLElement;
-        expect(within(mv6).getByTitle(/Remove Lightning Bolt/)).toBeTruthy();
-        expect(within(mv1).queryByTitle(/Remove Lightning Bolt/)).toBeNull();
+        expect(
+            within(mv6).getByTitle(/Move Lightning Bolt to Sideboard/)
+        ).toBeTruthy();
+        expect(
+            within(mv1).queryByTitle(/Move Lightning Bolt to Sideboard/)
+        ).toBeNull();
     });
 });
 
