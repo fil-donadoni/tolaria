@@ -30,6 +30,8 @@
  *   "<self> enters with N <kind> counters on it for each time it was kicked"
  *                                                   → kicker-counted riders
  *   "<self> doesn't untap during your untap step"   → the `does-not-untap` marker
+ *   "<self> can't be blocked except by N or more creatures"
+ *                                                   → the `minimum-blockers:N` marker
  *   "Skip your draw step"                          → CR 614.10 `drawStepReplacement`
  *   "If you would draw a card during your draw step, instead you may skip
  *    that draw. If you do, <body>", "If you would begin your draw step, you
@@ -376,6 +378,11 @@ export type StaticClauseIR =
       }
     /** CR 502.3 — "doesn't untap during your untap step". */
     | { readonly kind: "does-not-untap" }
+    /** CR 509.1b — "<self> can't be blocked except by N or more creatures":
+     *  an evasion restriction with no keyword name of its own (menace is the
+     *  N = 2 keyword, CR 702.111b), lowered to the `minimum-blockers:N`
+     *  marker the combat registry reads. */
+    | { readonly kind: "minimum-blockers"; readonly count: number }
     /** CR 401.5 — "Play with the top card of your library revealed". */
     | { readonly kind: "reveal-library-top" }
     /** CR 401.5 — "You may look at the top card of your library any time":
@@ -1973,6 +1980,39 @@ const doesNotUntapRule: Rule<StaticClauseIR> = pattern(
             : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
 );
 
+// ── Frame: the minimum-blockers evasion restriction (CR 509.1b) ────────────
+
+const SELF_MINIMUM_BLOCKERS =
+    /^(.+) can't be blocked except by ([a-z]+) or more creatures$/;
+
+/**
+ * "<self> can't be blocked except by N or more creatures" (Phyrexian Colossus,
+ * Rampaging Ceratops, Troll of Khazad-dûm) — CR 509.1b: an evasion ability is
+ * a restriction on blocking, checked against the whole block declaration.
+ * N is a spelled number word of at least two (one blocker is no restriction).
+ * Anything after "creatures" — "… with flying", "… and/or …" — fails the
+ * anchored pattern and stays refused, as does a subject other than the source
+ * itself ("Each creature you control with menace …" grants to others).
+ */
+const selfMinimumBlockersRule: Rule<StaticClauseIR> = pattern(
+    "self minimum blockers",
+    SELF_MINIMUM_BLOCKERS,
+    (match): RuleResult<StaticClauseIR> => {
+        if (!isSelfPhrase(uncapitalise(match[1]!)))
+            return fail(
+                `"${match[1]}" is not this permanent (CR 109.2)`,
+                match[1]!
+            );
+        const count = readNumberWord(match[2]!);
+        if (count === null || count < 2)
+            return fail(
+                `"${match[2]}" is not a blocker count of two or more`,
+                match[2]!
+            );
+        return ok({ kind: "minimum-blockers" as const, count });
+    }
+);
+
 const SELF_CANT_BLOCK = /^(.+) can't block$/;
 
 const SELF_CANT_BLOCK_UNLESS_MORE =
@@ -3355,6 +3395,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         kickedEntersWithRule,
         entersWithEachKickRule,
         doesNotUntapRule,
+        selfMinimumBlockersRule,
         selfCantBlockRule,
         selfCantBlockUnlessMoreCreaturesRule,
         selfBlocksOnlyFlyersRule,

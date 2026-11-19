@@ -2417,7 +2417,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › This creature can't be blocked except by three or more creatures",
-            "issue": 8493
+            "issue": 9937
         },
         {
             "kind": "grammar",

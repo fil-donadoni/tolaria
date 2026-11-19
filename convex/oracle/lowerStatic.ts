@@ -30,7 +30,8 @@
  *    your life total to less than N reduces it to N instead" declaration,
  *    rebuilt by `expandDefinition` into a `replacementEffects[]` entry;
  *  - `staticAbilities[]` — the `does-not-untap` marker, which the untap step
- *    reads directly (`gre/phases.ts`). A filtered `untap-restriction` static
+ *    reads directly (`gre/phases.ts`), and the CR 509.1b `minimum-blockers:N`
+ *    marker, which the combat registry reads (`gre/combatRegistry.ts`). A filtered `untap-restriction` static
  *    would be the wrong encoding for a permanent talking about itself; the
  *    marker is what the hand-written catalogue writes (Island Fish Jasconius,
  *    Basalt Monolith).
@@ -250,6 +251,16 @@ export type LowerStaticResult =
  * rather than spelled inline at the call site.
  */
 const DOES_NOT_UNTAP_MARKER = "does-not-untap";
+
+/**
+ * CR 509.1b — the engine-internal `minimum-blockers:N` marker for "can't be
+ * blocked except by N or more creatures", read by `MINIMUM_BLOCKER_RULES`
+ * (`gre/combatRegistry.ts`). Spelled as the Mechanics Registry row's
+ * `bindingPattern` (`ENGINE_INTERNAL_MARKERS`, `cards/mechanicsRegistry.ts`).
+ */
+function minimumBlockersMarker(count: number): string {
+    return `minimum-blockers:${count}`;
+}
 
 /**
  * Is this keyword implemented by DEFINITION-LEVEL EXPANSION rather than by an
@@ -942,6 +953,11 @@ export function lowerStaticClause(
             return {
                 ok: true,
                 lowered: { staticAbility: DOES_NOT_UNTAP_MARKER },
+            };
+        case "minimum-blockers":
+            return {
+                ok: true,
+                lowered: { staticAbility: minimumBlockersMarker(clause.count) },
             };
         // CR 601.2c — the engine's own `StaticTargetChoiceRequirement`, whole
         // (see `CompiledStaticEffect`). The id is a private handle, so it is
