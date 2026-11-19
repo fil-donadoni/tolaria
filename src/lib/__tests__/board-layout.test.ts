@@ -363,10 +363,26 @@ describe("bandedRowsLayout (creatures row over a split back row)", () => {
         expect(placed.slice(2).every((p) => p.y === HEIGHT_BF * 0.74)).toBe(
             true
         );
-        // Back-row lands flush-left, the single other flush-right.
+        // Back-row lands flush-left (after the tapped-overhang inset, issue
+        // #9989), the single other flush-right.
         const half = CARD_WIDTH * placed[2].scale * 0.5;
-        expect(placed[2].x).toBeCloseTo(half, 4);
+        const inset = ((CARD_HEIGHT - CARD_WIDTH) / 2) * placed[2].scale;
+        expect(placed[2].x).toBeCloseTo(half + inset, 4);
         expect(placed[4].x).toBeCloseTo(WIDTH_BF - half, 4);
+    });
+
+    // Issue #9989: a tapped card rotates 90° about its centre, so its rotated
+    // footprint is CARD_HEIGHT * scale wide. The leftmost land's rotated left
+    // edge must stay inside the zone (x - rotatedWidth / 2 >= 0).
+    it("keeps a tapped leftmost land's rotated footprint inside the zone", () => {
+        const placed = bandedRowsLayout({
+            bands: [{ split: { left: 3, right: 1 }, centerYFrac: 0.74 }],
+            width: WIDTH_BF,
+            height: HEIGHT_BF,
+        });
+        const first = placed[0];
+        const rotatedLeft = first.x - (CARD_HEIGHT * first.scale) / 2;
+        expect(rotatedLeft).toBeGreaterThanOrEqual(-1e-6);
     });
 
     it("caps every card so a full-height card fits its band slice (no clip)", () => {

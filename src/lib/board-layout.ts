@@ -671,14 +671,31 @@ export function bandedRowsLayout(opts: {
             maxScale: maxScale / g,
         };
         const scaled = (ws?: number[]) => ws?.map((w) => w * g);
+        // A tapped card turns 90° about its centre, so its rotated footprint
+        // overhangs the slot by half the height-minus-width difference on each
+        // side (issue #9989). A split band packs its lands flush against the
+        // left edge, so inset that edge by the worst overhang at the band's
+        // largest scale; the band lays out in the narrower span and shifts
+        // right. A centered `count` band has slack either side and is left as is.
+        const inset = !band.split
+            ? 0
+            : Math.min(
+                  ((cardHeight - cardWidth) / 2) * maxScale,
+                  Math.max(0, usableWidth - cardWidth)
+              );
+        const bandWidth = usableWidth - inset;
         const fold = (ps: Placement[]) =>
-            g === 1 ? ps : ps.map((p) => ({ ...p, scale: p.scale * g }));
+            ps.map((p) => ({
+                ...p,
+                x: p.x + inset,
+                scale: p.scale * g,
+            }));
         if (band.split) {
             return fold(
                 splitRowLayout({
                     left: band.split.left,
                     right: band.split.right,
-                    width: usableWidth,
+                    width: bandWidth,
                     centerY,
                     ...grown,
                     leftWidths: scaled(band.leftWidths),
@@ -689,7 +706,7 @@ export function bandedRowsLayout(opts: {
         return fold(
             rowLayout({
                 count: band.count ?? 0,
-                width: usableWidth,
+                width: bandWidth,
                 centerY,
                 ...grown,
                 widths: scaled(band.widths),
