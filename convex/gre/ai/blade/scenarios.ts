@@ -10934,6 +10934,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     owner: "me",
                     zone: "battlefield",
                     summoningSick: true,
+                    // Declared at 0 so the twin differs by ONE value (`other`).
+                    counters: { "+1/+1": 0 },
                 },
                 { name: "Savannah Lions", owner: "me", zone: "battlefield" },
                 { name: "Guide of Souls", owner: "me", zone: "battlefield" },
