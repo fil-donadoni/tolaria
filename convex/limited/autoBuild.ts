@@ -36,7 +36,12 @@
 //      (`capabilityFitTerm`, ADR 0072) against the cards already in the
 //      Maindeck — so an enabler the Pool was drafted around is not cut for
 //      weak standalone quality, and a heavy spell the mana cannot pay loses
-//      its slot to a castable one;
+//      its slot to a castable one. Castability has two halves: the coloured
+//      pips, and the land drop — the spell's mana value against the deck's
+//      mana-source count (`manaValueCastability`), waived for a card that
+//      reduces its own cost and for a card one of the colour set's spells
+//      can put into play without paying for it (`costCheatedBy`), so a
+//      twelve-drop is maindecked beside Tinker and never without one;
 //   3. plays the Pool's own on-color LANDS (a dual that pays for a colour
 //      has to actually be in the deck), then tops the mana base up with
 //      unlimited basics of the drafted set, allotted across the chosen colors
@@ -79,6 +84,10 @@ import {
     type GetPickRating,
 } from "./botDrafter";
 import {
+    capabilityCheatsManaCost,
+    capabilitySatisfiedBy,
+} from "./capabilityRegistry";
+import {
     planArchetypeWeights,
     type ArchetypeScopeShare,
 } from "./planArchetype";
@@ -86,6 +95,7 @@ import {
     addProducer,
     addSources,
     manaSourceKinds,
+    manaValueCastability,
     pipCastability,
 } from "./castability";
 import { resolveFetchSources } from "./manaSourceColors";
@@ -108,12 +118,18 @@ import { arePoolsDealt, type LimitedEventStatus } from "./eventStatus";
  *    spending a land slot on it is precisely what takes a slot AWAY from the
  *    deck's other colours.
  *
+ *  - `reducesOwnCost` (`ownCostReduction.ts`) — delve, convoke, improvise or
+ *    a self cost reduction: the card's mana value is not what the deck pays,
+ *    so the land-drop half of castability does not apply to it. Absent reads
+ *    false.
+ *
  *  Extending (rather than re-declaring a parallel shape) is the point: adding
  *  a colour signal to `CardEvalMeta` reaches Auto-Build automatically, and the
  *  two modules cannot disagree about what a card's pips are. */
 export interface AutoBuildCardMeta extends CardEvalMeta {
     isLand: boolean;
     isBasicLand: boolean;
+    reducesOwnCost?: boolean;
 }
 
 /** The five TRUE colors (CR 105.1) — `Color` minus colorless `"C"`. A chosen
@@ -192,7 +208,8 @@ export const LAND_COUNT_BAND = { min: 16, max: 18 } as const;
 const LAND_COUNT_BASE = 11;
 const LAND_COUNT_PER_MANA_VALUE = 2;
 
-/** Rating points a spell earns at full castability (`pipCastability` = 1) —
+/** Rating points a spell earns at full castability (`pipCastability` ×
+ *  `manaValueCastability` = 1) —
  *  the build-time Castability term is `BUILD_CASTABILITY_RATING × p`, so a
  *  spell its deck pays half the time gives up half a point to one it always
  *  pays. Large on the 0–5 scale on purpose: an uncastable card is a dead
@@ -518,15 +535,74 @@ function deckSources(
     return sources;
 }
 
-/** Castability of each candidate against the PROVISIONAL deck's sources
- *  (`pipCastability`, the audit's own model). A candidate that is itself one
- *  of those sources does not count itself, as in the audit. */
+/** How many mana sources a producer is for the land-drop count: its best
+ *  colour's `sourceWeight` (a one-shot source is part of one), 0 for a card
+ *  that makes no mana. */
+function sourceCount(meta: AutoBuildCardMeta): number {
+    return meta.producedColors.reduce(
+        (best, c) => Math.max(best, sourceWeight(meta, c)),
+        0
+    );
+}
+
+/** A deck's mana-source COUNT, whatever their colours: every land of its
+ *  mana base, and every spell that makes mana (`sourceCount`) — the supply
+ *  the land-drop half of castability reads (`manaValueCastability`). */
+function deckSourceCount(
+    base: ManaBase,
+    spells: readonly ResolvedEntry[]
+): number {
+    let count = base.lands.length;
+    for (const n of base.basics.values()) count += n;
+    for (const r of spells) count += sourceCount(r.meta!);
+    return count;
+}
+
+/** The cards `enablers` can put onto the battlefield without their mana cost
+ *  being paid: a candidate is cost-cheated when ANOTHER enabler requires a
+ *  Capability it provides at its mana value (`capabilitySatisfiedBy`) and the
+ *  Capability's row says its requirer cheats the cost
+ *  (`capabilityCheatsManaCost`) — Show and Tell beside Griselbrand, Tinker
+ *  beside Blightsteel Colossus. Needing an enabler is the card's Profile,
+ *  never a list: Exhume requires `reanimatable`, which Emrakul, the Aeons
+ *  Torn does not provide, so Exhume cheats nothing for it. No profiles reads
+ *  "nothing is cheated". */
+function costCheatedBy(
+    enablers: readonly ResolvedEntry[],
+    getCardProfile: GetCardProfile | undefined
+): (entry: ResolvedEntry) => boolean {
+    if (!getCardProfile) return () => false;
+    const cheats = enablers.flatMap((r) =>
+        (getCardProfile(r.meta!.cardId)?.requires ?? [])
+            .filter(capabilityCheatsManaCost)
+            .map((capability) => ({ entry: r.entry, capability }))
+    );
+    if (cheats.length === 0) return () => false;
+    return (entry) => {
+        const meta = entry.meta!;
+        const provides = getCardProfile(meta.cardId)?.provides ?? [];
+        if (provides.length === 0) return false;
+        return cheats.some(
+            (c) =>
+                c.entry !== entry.entry &&
+                capabilitySatisfiedBy(c.capability, provides, meta.manaValue)
+        );
+    };
+}
+
+/** Castability of each candidate against the PROVISIONAL deck's sources: the
+ *  coloured pips (`pipCastability`, the audit's own model) times the land
+ *  drop (`manaValueCastability`), the latter waived for a card that reduces
+ *  its own cost or that `cheated` names. A candidate that is itself one of
+ *  those sources does not count itself, as in the audit. */
 function castabilityAgainst(
     provisional: readonly ResolvedEntry[],
     base: ManaBase,
-    deckSize: number
+    deckSize: number,
+    cheated: (entry: ResolvedEntry) => boolean
 ): (entry: ResolvedEntry) => number {
     const sources = deckSources(base, provisional);
+    const sourceTotal = deckSourceCount(base, provisional);
     const inDeck = new Set(provisional.map((r) => r.entry));
     // A spell's castability is a function of its pips, its mana value and
     // the source it removes when it is one itself: computed once per shape.
@@ -535,9 +611,11 @@ function castabilityAgainst(
         const meta = entry.meta!;
         const removes =
             inDeck.has(entry.entry) && meta.producedColors.length > 0;
+        const landDrop = !meta.reducesOwnCost && !cheated(entry);
         const shape = [
             JSON.stringify(meta.pips),
             meta.manaValue,
+            landDrop,
             removes ? JSON.stringify(meta.producedColors) : "",
             removes ? JSON.stringify(meta.oneShotColors ?? []) : "",
         ].join("|");
@@ -550,6 +628,14 @@ function castabilityAgainst(
                 own = less;
             }
             p = pipCastability(meta.pips, meta.manaValue, deckSize, own);
+            if (landDrop) {
+                p *= manaValueCastability(
+                    meta.manaValue,
+                    deckSize,
+                    sourceTotal -
+                        (inDeck.has(entry.entry) ? sourceCount(meta) : 0)
+                );
+            }
             byShape.set(shape, p);
         }
         return p;
@@ -738,10 +824,14 @@ function finishBuild(
 ): ColourBuild {
     const { colors, onColor, offColor, provisional, spellCount, landCount } =
         first;
+    // The enablers are every spell this colour set can play, not only the
+    // provisional deck's: a cheat the Pool holds keeps its target, and the
+    // Capability term then maindecks the cheat beside it.
     const castability = castabilityAgainst(
         provisional,
         first.manaBase,
-        TARGET_MAIN_SIZE
+        TARGET_MAIN_SIZE,
+        costCheatedBy(onColor, options.getCardProfile)
     );
     const fit = options.getCardProfile
         ? capabilityFit(
@@ -793,10 +883,13 @@ function castableValue(
     options: AutoBuildOptions,
     base: SpellScore
 ): number {
+    // Scored on the deck it plays: a target whose cheat was cut is valued
+    // at its land drop.
     const castability = castabilityAgainst(
         build.chosen,
         { lands: build.lands, basics: build.basics },
-        TARGET_MAIN_SIZE
+        TARGET_MAIN_SIZE,
+        costCheatedBy(build.chosen, options.getCardProfile)
     );
     const fit = options.getCardProfile
         ? capabilityFit(

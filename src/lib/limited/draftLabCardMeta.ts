@@ -22,6 +22,7 @@ import {
     limitedSourceColors,
     oneShotSourceColors,
 } from "@convex/limited/manaSourceColors";
+import { reducesOwnCost } from "@convex/limited/ownCostReduction";
 import { tryGetDefinition } from "@convex/cards";
 import { resolveDeckCardMeta } from "@convex/cards/catalogue";
 import {
@@ -67,7 +68,8 @@ export const draftLabGetCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
 
 /** Mirrors `convex/limitedEvents.ts`'s private `makeAutoBuildCardMeta` — the
  *  Pick Heuristic's `CardEvalMeta` plus the two builder-only facts Auto-Build
- *  reads: `isLand` and `isBasicLand` (`autoBuild.ts#AutoBuildCardMeta`). */
+ *  reads: `isLand`, `isBasicLand` and `reducesOwnCost`
+ *  (`autoBuild.ts#AutoBuildCardMeta`). */
 export const draftLabGetAutoBuildCardMeta: GetAutoBuildCardMeta = (
     scryfallId
 ) => {
@@ -80,5 +82,6 @@ export const draftLabGetAutoBuildCardMeta: GetAutoBuildCardMeta = (
         ...meta,
         isLand,
         isBasicLand: isLand && (def.supertypes?.includes("Basic") ?? false),
+        reducesOwnCost: reducesOwnCost(def),
     };
 };

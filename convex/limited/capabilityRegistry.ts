@@ -99,6 +99,18 @@ export interface CapabilityRow {
      *  names stay a closed set; the numeric constraint lives here, beside
      *  the row, and `capabilitySatisfiedBy` is the one place that reads it. */
     bound?: { capability: string; maxManaValue: number };
+    /** Set on a row whose REQUIRER can put the provider onto the battlefield
+     *  without its mana cost being paid — a reanimation spell, a cheat from
+     *  hand or library, Sneak Attack, Flash, Tinker. Auto-Build reads it
+     *  (`costCheatedBy`): a card the deck cannot cast on its land drops is
+     *  still maindecked beside such an enabler (issue #9978). Accepted
+     *  imprecision: a row whose requirers are mixed — `value-on-death` is
+     *  required by Flash and by Goblin Bombardment, `value-on-etb` by Sneak
+     *  Attack and by Flickerwisp — is flagged, so a sacrifice outlet or a
+     *  blink effect keeps such a payoff too: the build then does what it did
+     *  before the flag existed, never worse. A bounded row reads its base
+     *  row's flag. */
+    cheatsManaCost?: true;
 }
 
 /** The closed Capability vocabulary (ADR 0072). Each row names its
@@ -108,6 +120,7 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
     // ── Reanimator / graveyard cluster ──────────────────────────────────
     {
         id: "reanimatable",
+        cheatsManaCost: true,
         cluster: "Reanimator / graveyard",
         gloss: {
             provides:
@@ -175,6 +188,7 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
     // ── Cheat-into-play cluster (ADR 0072's motivating example) ─────────
     {
         id: "cheat-target",
+        cheatsManaCost: true,
         cluster: "Cheat into play",
         gloss: {
             provides:
@@ -188,6 +202,7 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
     },
     {
         id: "value-on-etb",
+        cheatsManaCost: true,
         cluster: "Cheat into play",
         gloss: {
             provides:
@@ -201,6 +216,7 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
     },
     {
         id: "value-on-attack",
+        cheatsManaCost: true,
         cluster: "Cheat into play",
         gloss: {
             provides:
@@ -216,6 +232,7 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
     },
     {
         id: "value-on-death",
+        cheatsManaCost: true,
         cluster: "Cheat into play",
         gloss: {
             provides: "A death trigger that pays however it died.",
@@ -269,6 +286,7 @@ export const CAPABILITY_REGISTRY: CapabilityRow[] = [
     },
     {
         id: "big-artifact",
+        cheatsManaCost: true,
         cluster: "Artifacts",
         gloss: {
             provides:
@@ -403,4 +421,16 @@ export function capabilitySatisfiedBy(
         providerCapabilities.includes(bound.capability) &&
         providerManaValue <= bound.maxManaValue
     );
+}
+
+/** True when a card REQUIRING `requiredCapability` can put its provider onto
+ *  the battlefield without that provider's mana cost being paid
+ *  (`CapabilityRow.cheatsManaCost`); a bounded row reads its base row. */
+export function capabilityCheatsManaCost(requiredCapability: string): boolean {
+    const row = CAPABILITY_REGISTRY.find((r) => r.id === requiredCapability);
+    if (!row) return false;
+    if (row.cheatsManaCost) return true;
+    return row.bound !== undefined
+        ? capabilityCheatsManaCost(row.bound.capability)
+        : false;
 }
