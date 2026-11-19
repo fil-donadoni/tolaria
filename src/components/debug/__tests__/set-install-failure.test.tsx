@@ -44,8 +44,9 @@ describe("a hand-written Set fails to install (issue #8728)", () => {
             />
         );
         expect(
+            // The detail carries the raw cause plus its stack head (issue #9822).
             await screen.findByText(
-                "the quiz could not be built: chunk failed to load",
+                /the quiz could not be built: .*chunk failed to load/s,
                 {},
                 { timeout: 30_000 }
             )
