@@ -758,6 +758,7 @@ export default function PoolDeckBuilderForm(props: PoolDeckBuilderFormProps) {
     // elements (rather than one reused) mount two independent component
     // instances, each managing its own dialog open state — the same
     // mounting behaviour either way (React mounts once per JSX usage site).
+
     // Auto-Build (issue #9976) rides the same two slots, seat-bound builders
     // only: a detached deck has no event Pool to build from. It replaces the
     // working Maindeck/Sideboard with the server's suggestion, which the
