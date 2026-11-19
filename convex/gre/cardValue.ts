@@ -30,7 +30,6 @@ import {
     dslEtbAbilityInFlightValue,
     dslEtbAbilityScriptValue,
     dslLatentDelayedTemplateValue,
-    dslLoyaltyAbilityValue,
     dslStandingAbilityScriptValue,
     dslSelfConsumingOption,
     readsSelfConsumingOptionOnBoard,
@@ -261,12 +260,6 @@ export function latentValue(chars: {
      *  ability gives it (`dslSelfConsumingOption`): read by the non-creature
      *  branch only, through `withSelfConsumingOption`. */
     selfConsumingOption?: SelfConsumingOption;
-    /** Issue #9973 — a PLANESWALKER's best survivable loyalty ability
-     *  (`dslLoyaltyAbilityValue`), read by the non-creature branch only and
-     *  ADDED to the rest of its worth: that rest prices the permanent the
-     *  loyalty ratio scales (`ai/loyaltyValue.ts`), this prices what it does
-     *  with its turn. */
-    dslLoyaltyAbilityValue?: number;
 }): number {
     if (chars.isCreature) {
         const discount =
@@ -315,42 +308,9 @@ export function latentValue(chars: {
                 DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount
         );
     }
-    // Issue #9973 — a walker's loyalty arm is ADDED, never compared with the
-    // Latent Floor: the floor stands for the permanent (what the loyalty ratio
-    // scales on the battlefield), and read through `max(floor, …)` a 5-MV
-    // walker's +1 (65 points, 32 discounted) moved nothing at all. Bounded by
-    // the cap every latent script reading takes, and never negative: a walker
-    // whose best arm hurts its controller can simply not activate it.
-    const loyalty = loyaltyArmWorth(chars.dslLoyaltyAbilityValue);
-    return (
-        withSelfConsumingOption(
-            nonCreatureScriptWorth(chars),
-            chars.selfConsumingOption
-        ) + loyalty
-    );
-}
-
-/** Issue #9973 — the share of a planeswalker's latent worth its loyalty arm
- *  (`dslLoyaltyAbilityValue`) contributes: the reading bounded by the cap every
- *  latent script reading takes, and never negative — a walker whose best arm
- *  hurts its controller can simply not activate it. ONE function, so the
- *  board face (`nonCreatureBodyValue`, `evaluate.ts`) separates exactly the
- *  number `latentValue` added. */
-export function loyaltyArmWorth(reading: number | undefined): number {
-    return Math.min(Math.max(0, reading ?? 0), MAX_LATENT_SCRIPT_VALUE);
-}
-
-/** Issue #9973 — {@link loyaltyArmWorth} of a card from its REGISTRY id
- *  (projection-safe, like `dslLatentPiecesById`). 0 for an unknown id and for
- *  every card that is not a planeswalker with a printed starting loyalty. */
-export function loyaltyArmValueById(
-    cardId: string,
-    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
-): number {
-    const def = tryGetDefinition(cardId);
-    if (!def || !def.types.includes("Planeswalker")) return 0;
-    return loyaltyArmWorth(
-        dslLoyaltyAbilityValue(def, contextFreeGrounding(latent))
+    return withSelfConsumingOption(
+        nonCreatureScriptWorth(chars),
+        chars.selfConsumingOption
     );
 }
 
@@ -478,12 +438,11 @@ export function withSelfConsumingOption(
 function carriesStandingAbilityWorth(def: CardDefinition): boolean {
     return (
         !def.types.includes("Creature") &&
-        // A planeswalker's loyalty abilities are read by their own reading,
-        // the BEST survivable one (`dslLoyaltyAbilityValue`, issue #9973),
-        // and `nonCreatureBodyValue` scales its worth by current/starting
-        // loyalty (ADR 0107): summing every loyalty ability here (CR 606.3
-        // allows one per turn) would multiply the price of each counter
-        // several times over.
+        // A planeswalker's loyalty abilities are priced by the loyalty model
+        // (`ai/loyaltyValue.ts`, ADR 0107), and `nonCreatureBodyValue` scales
+        // its worth by current/starting loyalty: summing every loyalty ability
+        // (CR 606.3 allows one per turn) would multiply the price of each
+        // counter several times over.
         !def.types.includes("Planeswalker") &&
         !def.types.includes("Instant") &&
         !def.types.includes("Sorcery")
@@ -572,7 +531,6 @@ export function dslLatentPieces(
     standingLockValue?: number;
     etbSelfSacrificeWeight?: number;
     selfConsumingOption?: SelfConsumingOption;
-    dslLoyaltyAbilityValue?: number;
 } {
     const dslSpellValue = dslSpellScriptValue(def, board, latent);
     const selfSacrificeWeight = etbSelfSacrificeWeight(def, route);
@@ -657,11 +615,6 @@ export function dslLatentPieces(
             declaresSpellCostModifier(def)
                 ? board?.standingLockWorth?.()
                 : undefined,
-        // Issue #9973 — read by the NON-CREATURE branch only; `undefined` for
-        // every card without a printed starting loyalty (CR 306.5b).
-        dslLoyaltyAbilityValue: def.types.includes("Planeswalker")
-            ? dslLoyaltyAbilityValue(def, contextFreeGrounding(latent))
-            : undefined,
     };
 }
 
@@ -709,7 +662,6 @@ export function dslLatentPiecesById(
     standingLockValue?: number;
     etbSelfSacrificeWeight?: number;
     selfConsumingOption?: SelfConsumingOption;
-    dslLoyaltyAbilityValue?: number;
 } {
     const def = tryGetDefinition(cardId);
     return def ? dslLatentPieces(def, board, latent) : {};
