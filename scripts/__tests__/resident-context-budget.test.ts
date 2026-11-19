@@ -117,7 +117,7 @@ const ON_DEMAND_CEILING_BYTES = 25_543; // +89: the ui-owed pointer in src/CLAUD
 const SKILL_MANIFEST_CEILING_BYTES: Record<string, number> = {
     "audit-tracker": 20_944,
     "bot-audit": 16_191, // measured size after the first audit's fixes (issue #4927)
-    "bot-change": 20_347,
+    "bot-change": 20_480, // +133 B: the hosted blade-robustness audit pointer (issue #9361)
     "cluster-gaps": 11_316,
     explain: 18_771,
     "grammar-rule": 17_934,

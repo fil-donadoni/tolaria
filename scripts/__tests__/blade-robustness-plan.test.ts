@@ -9,7 +9,14 @@ import { outputLines, planForMergeRef } from "../blade-robustness-plan";
 
 const dirs: string[] = [];
 afterAll(() =>
-    dirs.forEach((d) => rmSync(d, { recursive: true, force: true }))
+    dirs.forEach((d) =>
+        rmSync(d, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    )
 );
 
 function git(root: string, ...args: string[]): void {
