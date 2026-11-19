@@ -1179,6 +1179,55 @@ export function dslStandingAbilityScriptValue(
     return standing && standing.points * ABILITY_SCRIPT_DISCOUNT;
 }
 
+/** Issue #9973 — the latent worth of a PLANESWALKER's loyalty abilities: the
+ *  BEST one it can activate the turn it enters and still stand. `undefined`
+ *  for a card with no printed starting loyalty or no readable loyalty ability
+ *  script.
+ *
+ *  UNDISCOUNTED, unlike a standing ability (`ABILITY_SCRIPT_DISCOUNT`): that
+ *  discount stands for the activation cost still to be paid, and a loyalty
+ *  ability's only cost is loyalty, which the loyalty ratio already prices on
+ *  the battlefield (`ai/loyaltyValue.ts`, ADR 0107). Measured at half, the
+ *  Teferi, Hero of Dominaria surveil stayed a seed-by-seed coin flip.
+ *
+ *  ONE ability, never the sum: CR 606.3 lets a permanent activate one loyalty
+ *  ability per turn, so a walker's turn is worth its best arm — summing every
+ *  ability is what `carriesStandingAbilityWorth` (`cardValue.ts`) refuses, and
+ *  rightly, because it would price each counter several times over.
+ *
+ *  SURVIVABLE only: a cost that takes the starting loyalty (CR 306.5b) to 0 or
+ *  below empties the walker, and CR 704.5i puts it in the graveyard — that arm
+ *  trades the permanent for its effect, which is the move that activates it,
+ *  not a worth the permanent holds. An ultimate the walker cannot reach on
+ *  arrival is excluded for the same reason.
+ *
+ *  Before this reading a walker priced at the blind `base + MV` floor in hand
+ *  and on the battlefield alike: the loyalty model (`ai/loyaltyValue.ts`, ADR
+ *  0107) SCALES that floor by current/starting loyalty but reads no ability,
+ *  so Teferi, Hero of Dominaria (58) priced below a Grizzly Bears in hand
+ *  (105) and the Bot surveiled it away for a random draw. */
+export function dslLoyaltyAbilityValue(
+    def: CardDefinition,
+    ctx: GroundingContext = contextFreeGrounding()
+): number | undefined {
+    const start = def.loyalty;
+    if (start === undefined || start <= 0) return undefined;
+    let best: number | undefined;
+    for (const ability of def.activatedAbilities ?? []) {
+        const cost = ability.cost.loyalty;
+        if (cost === undefined || start + cost <= 0) continue;
+        const read = abilityScriptOpValue(
+            { ...def, activatedAbilities: [ability], triggeredAbilities: [] },
+            ctx,
+            undefined,
+            "standing"
+        );
+        if (read === undefined) continue;
+        best = Math.max(best ?? -Infinity, read.points);
+    }
+    return best;
+}
+
 /** Issue #9592 — the OPTION a self-consuming ability gives its permanent:
  *  `ceiling` is the best NET such ability yields (its script's value minus
  *  the price of the rest of its cost, `activationCostPrice`), `uplift` that

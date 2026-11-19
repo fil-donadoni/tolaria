@@ -341,7 +341,17 @@ between "pass" and a deferrable action is left out of the fit when:
 
 A deferrable action has instant timing, names only its controller's own
 objects, is taken with an empty stack, and comes before any attack is
-declared (`convex/gre/ai/deferral.ts`). The fit report and the
+declared (`convex/gre/ai/deferral.ts`).
+
+A pair between "pass" and an action also leaves the fit when the pass is the
+first of its round, so it resolves nothing and its leaf still has the same
+object on top of the stack, and when the action changes what that object
+would do (Stifle on your own sacrifice trigger, using a Saga before chapter
+III sacrifices it). The pass's leaf cannot show what the action prevents, so
+the fit could only answer such a pair by bending a material weight (issue
+#9973).
+
+The fit report and the
 [promotion](#g-promotion) report list these pairs under `TIMING pairs`, with
 the contradictory-pair count before and after they left the fit.
 

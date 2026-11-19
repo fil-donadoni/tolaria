@@ -5878,6 +5878,8 @@
             "opp": 3
         }
     },
+    "surveil: bins a dead land off the same board": null,
+    "surveil: keeps a castable planeswalker on top": null,
     "symmetric engine: Disenchant takes the Howling Mine that feeds the opponent's empty hand, not the 2-MV artifact (issue #5164)": {
         "cards": [
             {

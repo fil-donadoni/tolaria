@@ -48,6 +48,7 @@ import type { EvalTerms } from "../../evaluate";
 import type { Move } from "../../moves";
 import type { GameState } from "../../state";
 import {
+    actionCommutesWithStack,
     answeredTriggerId,
     applyMoveInSearch,
     decidingPlayer,
@@ -281,7 +282,14 @@ export function evalPairsOf(
     }
     const isTiming = timingPairClassifier(state, botId, moves);
     const isSequencing = sequencingPairClassifier(state, botId, moves, weights);
-    const isWhen = (p: EvalPair) => isTiming(p) || isSequencing(p);
+    const isUnresolvedPass = unresolvedPassPairClassifier(
+        state,
+        botId,
+        moves,
+        weights
+    );
+    const isWhen = (p: EvalPair) =>
+        isTiming(p) || isSequencing(p) || isUnresolvedPass(p);
     const pairs = built.filter((p) => !isWhen(p));
     const timing = built.filter(isWhen);
     return { verdict, pairs, timing, features };
@@ -427,6 +435,82 @@ export function timingPairClassifier(
         last
             ? deferrable[rightIndex] && isPass[otherIndex]
             : isPass[rightIndex] && deferrable[otherIndex];
+}
+
+/** Is a pair one whose `pass` side reads NOTHING of what the pass does,
+ *  against an action that changes what it would have done?
+ *
+ *  CR 117.4: the top of the stack resolves only once every player has passed
+ *  in succession. A `pass` that is the FIRST of the round hands priority to
+ *  the other seat and resolves nothing, so its 1-ply leaf is the position
+ *  before the pass with the same object still on top of the stack and no
+ *  resolution begun — the bot's own sacrifice trigger pending, a Dreadnought
+ *  still alive. Against an action that does NOT commute with that stack
+ *  (`actionCommutesWithStack`: Stifle the trigger, use the Saga before it is
+ *  sacrificed), the two leaves differ by the action's cost while its point —
+ *  what the stack would have done without it — sits past the probe, and the
+ *  fit can only satisfy the pair by bending a material weight: the
+ *  Dreadnought charter pair pulled `latent.disruption` down by ~13 points,
+ *  under the threshold a held Mana Drain needs. What the pass hands on is the
+ *  search's to read, so the pair rides the timing bucket: built, reported,
+ *  never fitted.
+ *
+ *  Stays in the fit: a `pass` whose probe resolves the top or begins to (the
+ *  other seat's pass is already banked), and an action that commutes with the
+ *  stack — both leaves then carry the same unresolved stack and differ by the
+ *  action's own worth, which is what the fit reads. */
+export function unresolvedPassPairClassifier(
+    state: GameState,
+    botId: string,
+    moves: readonly Move[],
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): (pair: Pick<EvalPair, "rightIndex" | "otherIndex">) => boolean {
+    const top = state.stack[state.stack.length - 1]?.id;
+    const unreadByIndex = new Map<number, boolean>();
+    const passUnread = (index: number): boolean => {
+        if (top === undefined) return false;
+        const cached = unreadByIndex.get(index);
+        if (cached !== undefined) return cached;
+        const probe = cloneGameState(state);
+        applyMoveInSearch(probe, botId, moves[index]);
+        const settled = policyProbeState(
+            probe,
+            moves[index],
+            weights,
+            botId,
+            passEndsStep(state, botId),
+            answeredTriggerId(state, botId, moves[index])
+        );
+        // A resolution suspended on a choice or a target (CR 608.2) has
+        // begun: the pass did resolve the top, as far as the probe can.
+        const unread =
+            settled.stack[settled.stack.length - 1]?.id === top &&
+            (settled.pendingChoices?.length ?? 0) === 0 &&
+            !settled.pendingTarget;
+        unreadByIndex.set(index, unread);
+        return unread;
+    };
+    const commutesByIndex = new Map<number, boolean>();
+    const commutes = (index: number): boolean => {
+        const cached = commutesByIndex.get(index);
+        if (cached !== undefined) return cached;
+        const answer = actionCommutesWithStack(
+            state,
+            botId,
+            moves[index],
+            weights
+        );
+        commutesByIndex.set(index, answer);
+        return answer;
+    };
+    return ({ rightIndex, otherIndex }) => {
+        const isPassRight = moves[rightIndex].kind === "pass";
+        const isPassOther = moves[otherIndex].kind === "pass";
+        if (isPassRight === isPassOther) return false;
+        const pass = isPassRight ? rightIndex : otherIndex;
+        const action = isPassRight ? otherIndex : rightIndex;
+        return passUnread(pass) && !commutes(action);
+    };
 }
 
 /** A move read without its payment plan: `tapPlan` is HOW a cast or an
