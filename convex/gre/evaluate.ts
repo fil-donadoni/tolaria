@@ -390,41 +390,51 @@ export function cardValue(
         card.zone === "battlefield"
             ? { power: 0, toughness: 0 }
             : entryCounterPtDelta(tryGetDefinition(String(card.card.id ?? "")));
-    return latentValue({
-        creatureDiscount,
-        flashCreatureDiscount,
-        // Issue #5012 — CR 601.3b / 702.8a: a held creature a battlefield
-        // permission lets its holder cast as though it had flash enters at
-        // instant speed like a printed-flash one. A permission covers a HAND
-        // cast alone (`collectCastPermissions`), so an exiled Adventure is
-        // not scanned; nor is a creature with printed flash or an `aiValue`
-        // (which `latentValue` returns before reading the flag) — the hand
-        // term runs per leaf. In hand the holder is the owner (CR 400.3).
-        castAsThoughFlash:
-            card.zone === "hand" &&
-            isCreature(card) &&
-            !card.staticAbilities.includes("flash") &&
-            getInstanceAiValue(card) === undefined &&
-            hasCastPermissionFlash(state, card.ownerId, card),
-        isCreature: isCreature(card),
-        power: pt.power + entry.power,
-        toughness: pt.toughness + entry.toughness,
-        manaValue: manaValue(getInstanceManaCost(card)),
-        staticAbilities: card.staticAbilities,
-        aiValue: getInstanceAiValue(card),
-        // DSL-derived semantic layer (PRD #1423, issue #1426): reads the card's
-        // Effect Script off the REGISTRY definition, keyed by the id that
-        // survives the wire projection (`card.card` is stripped to `{ id }`) —
-        // so the value is identical client- and server-side.
-        ...dslLatentPiecesById(String(card.card.id ?? ""), board, latent),
-        // Issue #5163 (ADR 0151) — a standing lock IN PLAY is measured: the
-        // board term and `permanentRealisedValue` carry its worth beside this
-        // body (`restrictionSourceWorth`), so the body drops the Latent Floor
-        // exactly as the hand face does, and the two faces are one number.
-        ...(card.zone === "battlefield" && isStandingLockInstance(card)
-            ? { standingLockValue: 0 }
-            : {}),
-    });
+    // DSL-derived semantic layer (PRD #1423, issue #1426): reads the card's
+    // Effect Script off the REGISTRY definition, keyed by the id that
+    // survives the wire projection (`card.card` is stripped to `{ id }`) —
+    // so the value is identical client- and server-side.
+    //
+    // The body is WRITTEN onto that pieces object rather than both spread
+    // into a third: `dslLatentPiecesById` returns a fresh literal per call,
+    // the body's keys are not among its own except `standingLockValue`, which
+    // the body overrides last exactly as the trailing spread did, and this
+    // runs per hand card per leaf — SpiderMonkey runs an object spread as a
+    // self-hosted `CopyDataProperties`.
+    const chars = dslLatentPiecesById(
+        String(card.card.id ?? ""),
+        board,
+        latent
+    ) as Parameters<typeof latentValue>[0];
+    chars.creatureDiscount = creatureDiscount;
+    chars.flashCreatureDiscount = flashCreatureDiscount;
+    // Issue #5012 — CR 601.3b / 702.8a: a held creature a battlefield
+    // permission lets its holder cast as though it had flash enters at
+    // instant speed like a printed-flash one. A permission covers a HAND
+    // cast alone (`collectCastPermissions`), so an exiled Adventure is
+    // not scanned; nor is a creature with printed flash or an `aiValue`
+    // (which `latentValue` returns before reading the flag) — the hand
+    // term runs per leaf. In hand the holder is the owner (CR 400.3).
+    chars.castAsThoughFlash =
+        card.zone === "hand" &&
+        isCreature(card) &&
+        !card.staticAbilities.includes("flash") &&
+        getInstanceAiValue(card) === undefined &&
+        hasCastPermissionFlash(state, card.ownerId, card);
+    chars.isCreature = isCreature(card);
+    chars.power = pt.power + entry.power;
+    chars.toughness = pt.toughness + entry.toughness;
+    chars.manaValue = manaValue(getInstanceManaCost(card));
+    chars.staticAbilities = card.staticAbilities;
+    chars.aiValue = getInstanceAiValue(card);
+    // Issue #5163 (ADR 0151) — a standing lock IN PLAY is measured: the
+    // board term and `permanentRealisedValue` carry its worth beside this
+    // body (`restrictionSourceWorth`), so the body drops the Latent Floor
+    // exactly as the hand face does, and the two faces are one number.
+    if (card.zone === "battlefield" && isStandingLockInstance(card)) {
+        chars.standingLockValue = 0;
+    }
+    return latentValue(chars);
 }
 
 /** Issue #5163 — `declaresStandingLock` off the registry id that survives the

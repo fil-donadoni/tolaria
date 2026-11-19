@@ -78,36 +78,35 @@ export function buildActivatedAbilityStackItem(
     source: CardInstanceState,
     commit: ActivatedAbilityCommit
 ): StackItem {
-    return {
-        ...structuredClone(source),
-        zone: "stack" as const,
-        castById: commit.castById,
-        abilityId: commit.abilityId,
-        ...(commit.targets !== undefined ? { targets: commit.targets } : {}),
-        ...(commit.targetAmounts
-            ? { targetAmounts: commit.targetAmounts }
-            : {}),
-        ...announcedModeFields(commit),
-        ...(commit.chosenX !== undefined ? { chosenX: commit.chosenX } : {}),
-        ...(commit.grantedSourceCardId
-            ? { grantedSourceCardId: commit.grantedSourceCardId }
-            : {}),
-        ...(commit.grantedAbilityOrigin
-            ? { grantedAbilityOrigin: commit.grantedAbilityOrigin }
-            : {}),
-        ...(commit.additionalSacrificeSnapshot
-            ? {
-                  additionalSacrificeSnapshot:
-                      commit.additionalSacrificeSnapshot,
-              }
-            : {}),
-        ...(commit.notedManaSpent
-            ? { notedManaSpent: commit.notedManaSpent }
-            : {}),
-        // CR 701.27f (issue #3537) — the moment this ability is put onto the
-        // stack, as its source and that source's transform count.
-        stackTransformStamp: stackTransformStamp(source),
-    };
+    // The clone is the item: the commit's fields are written onto it, never
+    // spread into a second copy (the search commits an activation per
+    // applied move, and SpiderMonkey runs an object spread as a self-hosted
+    // `CopyDataProperties`). A write to a key the source already holds keeps
+    // its position and a new key appends, exactly as the spread ordered them.
+    const item = structuredClone(source) as StackItem;
+    item.zone = "stack";
+    item.castById = commit.castById;
+    item.abilityId = commit.abilityId;
+    if (commit.targets !== undefined) item.targets = commit.targets;
+    if (commit.targetAmounts) item.targetAmounts = commit.targetAmounts;
+    const modes = announcedModeFields(commit);
+    if (modes.chosenModeIds) item.chosenModeIds = modes.chosenModeIds;
+    if (modes.modeTargetCounts) item.modeTargetCounts = modes.modeTargetCounts;
+    if (commit.chosenX !== undefined) item.chosenX = commit.chosenX;
+    if (commit.grantedSourceCardId) {
+        item.grantedSourceCardId = commit.grantedSourceCardId;
+    }
+    if (commit.grantedAbilityOrigin) {
+        item.grantedAbilityOrigin = commit.grantedAbilityOrigin;
+    }
+    if (commit.additionalSacrificeSnapshot) {
+        item.additionalSacrificeSnapshot = commit.additionalSacrificeSnapshot;
+    }
+    if (commit.notedManaSpent) item.notedManaSpent = commit.notedManaSpent;
+    // CR 701.27f (issue #3537) — the moment this ability is put onto the
+    // stack, as its source and that source's transform count.
+    item.stackTransformStamp = stackTransformStamp(source);
+    return item;
 }
 
 /** Records one activation of `abilityId` against `card` for the current turn
