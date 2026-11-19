@@ -1040,6 +1040,38 @@ export function castTargetsOnlyNamed(card: string, targetName: string) {
     };
 }
 
+/** Issue #9974 — the move IS an activation of `card` whose every target is a
+ *  battlefield permanent named `targetName`. Named by the instance's own
+ *  definition, as `castTargetsOnlyNamed` does, so the target may be a token.
+ *  Any other move fails: the entry asserts the removal is spent, and where. */
+export function activationTargetsNamed(card: string, targetName: string) {
+    return (move: Move | null, state: GameState): boolean => {
+        if (
+            !move ||
+            move.kind !== "activate-ability" ||
+            !matchesMove(state, move, { kind: "activate-ability", card })
+        ) {
+            return false;
+        }
+        const named = new Set(
+            state.players
+                .flatMap((p) => p.battlefield)
+                .filter((c) => {
+                    const id = (c.card as { id?: string } | undefined)?.id;
+                    return !!id && tryGetDefinition(id)?.name === targetName;
+                })
+                .map((c) => c.id)
+        );
+        if (named.size === 0) {
+            throw new Error(`no battlefield permanent named "${targetName}"`);
+        }
+        return (
+            move.targets.length > 0 &&
+            move.targets.every((t) => named.has(t.id))
+        );
+    };
+}
+
 /** Issue #8709 — the name a reveal-until-named effect (Demonic Consultation)
  *  is given empties the namer's library: the chosen move is a `name-card` whose
  *  name matches no card left in `seat`'s library, so the reveal never stops
