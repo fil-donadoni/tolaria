@@ -63,6 +63,13 @@ export type CardDraft = {
      *  carry it would DELETE the animation from the row on the next edit — and
      *  the permanent would come back a non-creature. */
     animated?: ScenarioCard["animated"];
+    /** Carried opaquely (no form input yet), like the three above (issue
+     *  #9875): the flag a declared keyword trigger's resolution re-checks on
+     *  its subject. A draft that dropped one would leave the spec's stack
+     *  naming a card its trigger then does nothing to. */
+    warped?: boolean;
+    reboundExiled?: boolean;
+    madnessExiled?: boolean;
 };
 
 /** A fresh, empty card row (defaults to a battlefield permanent the player
@@ -125,6 +132,9 @@ export function cardToDraft(card: ScenarioCard): CardDraft {
         activations: card.activations,
         abilityResolutions: card.abilityResolutions,
         animated: card.animated,
+        warped: card.warped,
+        reboundExiled: card.reboundExiled,
+        madnessExiled: card.madnessExiled,
     };
 }
 
@@ -183,6 +193,10 @@ export function draftToCard(draft: CardDraft): ScenarioCard {
     }
     // Re-emitted exactly as it was inflated — see `CardDraft.animated`.
     if (draft.animated) card.animated = draft.animated;
+    // Re-emitted exactly as they were inflated — see `CardDraft.warped`.
+    if (draft.warped) card.warped = true;
+    if (draft.reboundExiled) card.reboundExiled = true;
+    if (draft.madnessExiled) card.madnessExiled = true;
 
     return card;
 }
