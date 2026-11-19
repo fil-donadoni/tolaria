@@ -53,21 +53,23 @@ function DialogContent({
             <DialogPrimitive.Popup
                 data-slot="dialog-content"
                 className={cn(
+                    // Centering (issue #10008): NOT a `-50%` translate. Half a
+                    // fractional popup size is a fractional translate, and WebKit
+                    // rasterises a translated composited layer off the pixel grid
+                    // (text and art blur). The popup is instead an absolutely
+                    // positioned box with `inset-y-0` + `m-auto` + `h-fit`/`w-fit`,
+                    // whose layout position paints pixel-snapped in every engine.
                     // In-game the board publishes `--right-piles-w` (the right
-                    // pile-column strip width) to documentElement. The shared
-                    // `.play-area-center-x` utility sets `left: calc(50% -
-                    // strip/2)` (instead of plain 50%), shifting the popup left
-                    // by half the strip so it sits over the play area, not the
-                    // full viewport — the single documented source of the
-                    // play-area centering rule (see index.css), also used by the
-                    // life-nameplate (board-player.tsx). It adjusts `left`, NOT
-                    // the transform, so the zoom/fade enter-exit animation (which
-                    // animates `transform` via keyframes) stays intact. Lobby:
-                    // var absent ⇒ 0px ⇒ unchanged full-viewport centering.
+                    // pile-column strip width) to documentElement; the shared
+                    // `.play-area-center-box` utility (index.css) insets the
+                    // containing box by that strip on the right, so the popup
+                    // centers over the play area, not the full viewport. The
+                    // transform stays free for the zoom/fade enter-exit animation.
+                    // Lobby: var absent ⇒ 0px ⇒ full-viewport centering.
                     //
                     // `max-h-[calc(100dvh-2rem)]` (issue #2666): this popup used
                     // to carry NO height constraint at all — it centers via
-                    // `top-1/2 -translate-y-1/2` and sizes to its child's
+                    // `inset-y-0 m-auto` (was a translate) and sizes to its child's
                     // natural height, so a tall child (a form, a long dialog
                     // body) simply ran off both the top and bottom of the
                     // viewport with nothing to scroll it back into view. `dvh`,
@@ -91,7 +93,7 @@ function DialogContent({
                     // internal scrolling, like `GameDialog`, never conflicts
                     // with it — the popup simply never needs to shrink below
                     // its already-capped child).
-                    "play-area-center-x z-modal fixed top-1/2 grid max-h-[calc(100dvh-2rem)] w-fit -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-border-accent/40 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+                    "play-area-center-box z-modal fixed inset-y-0 grid m-auto h-fit max-h-[calc(100dvh-2rem)] w-fit gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-border-accent/40 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
                     className
                 )}
                 {...props}

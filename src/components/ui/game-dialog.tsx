@@ -62,8 +62,8 @@ type GameDialogProps = {
 };
 
 // The in-game dialog centers on the PLAY AREA (viewport minus the right piles
-// strip), not the viewport — via `.play-area-center-x` (`left: calc(50% -
-// --right-piles-w/2)`). The Popup is SIZED TO ITS PANEL (`w-max`, capped), never
+// strip), not the viewport — via `.play-area-center-box` (`right:
+// --right-piles-w` inset + `m-auto`, no transform: issue #10008). The Popup is SIZED TO ITS PANEL (`w-max`, capped), never
 // to the play area: a transparent wrapper wider than the visible panel is what
 // base-ui hands focus back to when a focused control disappears, and the global
 // unlayered `:focus-visible` outline then traced that invisible box (issue
