@@ -15,8 +15,14 @@
 // condition). A source that sacrifices itself for mana counts as a fraction of
 // one (`botDrafter.ts#sourceWeight`, issue #9337): a fractional kind count reads
 // as the multilinear interpolation between the integer counts either side of
-// it. Not modelled, deliberately: the generic part of the cost and the total
-// land drop, `{C}` pips, mulligans, the draw on the draw.
+// it. Not modelled here, deliberately: `{C}` pips, mulligans, the draw on the
+// draw.
+//
+// The generic part of the cost — the total land drop — is a second, separate
+// factor (`manaValueCastability`, issue #9978): the chance the deck has drawn
+// as many mana sources as the spell's mana value by the turn it is cast, or
+// by `LAND_DROP_HORIZON` when that comes later. The builder multiplies the two;
+// the audit reads the pip half alone.
 //
 // Pure: no DB, no registry, no RNG.
 import type { Color } from "../cards/types";
@@ -296,6 +302,34 @@ function allocatable(
         if (supply < pips) return false;
     }
     return true;
+}
+
+/** The turn a mana value is measured against when it is larger than the
+ *  turn itself (`manaValueCastability`): a Limited game is taken to have
+ *  been decided by then. Twelve draws 18 cards of a 40-card deck, so 17
+ *  sources pay a six-drop 0.92 of the time, an eight-drop 0.54, a ten-drop
+ *  0.12 and a twelve-drop 0.01 — a curve-topper stays castable, a card only a
+ *  cheat or a reanimation spell can put into play does not. */
+export const LAND_DROP_HORIZON = 12;
+
+/** The probability, under the declared model, that a deck of `deckSize`
+ *  cards holding `sources` mana sources (lands, and spells that make mana,
+ *  each counted once) has drawn `manaValue` of them by the turn it casts the
+ *  spell — turn `manaValue`, or `LAND_DROP_HORIZON` when that is later. The
+ *  generic half of the cost: one source pays one mana, whatever its colour.
+ *  A spell of mana value 0 reads 1. */
+export function manaValueCastability(
+    manaValue: number,
+    deckSize: number,
+    sources: number
+): number {
+    const need = Math.round(manaValue);
+    if (need <= 0) return 1;
+    const draws = Math.min(
+        deckSize,
+        OPENING_HAND + Math.max(need, LAND_DROP_HORIZON) - 1
+    );
+    return hypergeometricAtLeast(deckSize, sources, draws, need);
 }
 
 /** True when the spell has at least one coloured pip to pay for. */
