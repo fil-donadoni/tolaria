@@ -255,9 +255,9 @@ describe("modal double-faced card cast during resolution (CR 712.11b / 712.11c)"
             modalInstantBackProbe.id,
             lands("Mountain", 1)
         );
-        // {R} covers the back; the front's {1}{W} stays a row, as a printed cast
-        // always has (the offer does not ask its payment, CR 601.2h).
-        expect(offeredIds(state)).toEqual(["cast", FLARE, "decline"]);
+        // {R} covers the back; the front's {1}{W} is unpayable, so its printed
+        // "Cast" row is not offered (CR 601.2h, issue #9982).
+        expect(offeredIds(state)).toEqual([FLARE, "decline"]);
         submit(state, FLARE);
         submit(state, "p2");
 

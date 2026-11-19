@@ -58,6 +58,11 @@ describe("PendingChoiceOptions — the face a cast during resolution announces (
                             controllerId: "p1",
                             ownerId: "p1",
                         }),
+                        makeInstance(getCardByName("Mountain").id, {
+                            id: "mountain-3",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
                     ],
                     library: [
                         makeInstance(giant.id, {

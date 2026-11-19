@@ -8840,6 +8840,18 @@ export interface SpellContext {
          *  none is no cast to offer (CR 709.3a / 712.11c / 715.3a). */
         spellTypes?: CardType[]
     ) => boolean;
+    /** CR 601.2c / 601.2h (issue #9982) — why the PRINTED cast of a card in
+     *  `sourceZone` cannot be completed right now, for the cast-during-
+     *  resolution offer to say so instead of offering a "Cast" that silently
+     *  resolves as a decline: `"cost"` = no payment covers its mana cost (at
+     *  the cheapest X), `"target"` = a required first target group has no legal
+     *  choice, `undefined` = nothing blocks it. A `free` cast waives the cost. */
+    getCastBlockReason: (
+        playerId: string,
+        cardInstanceId: string,
+        sourceZone: "hand" | "graveyard" | "exile",
+        opts?: { free?: boolean; alternativeCost?: ManaCost }
+    ) => "cost" | "target" | undefined;
     /** CR 709.3a / 712.11c / 715.3a — the card types of the spell `faceId`
      *  names (omitted = the printed cast), for a rider scoped to the spell
      *  actually cast. */

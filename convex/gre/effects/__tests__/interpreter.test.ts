@@ -27082,7 +27082,7 @@ describe("Effect Script Op: castDuringResolution — exile-top source + paid cas
         expect(state.players[1].life).toBe(18);
     });
 
-    it("accepting with an UNPAYABLE mana cost resolves as a decline (can't-pay): the card stays exiled and $cast=false fires the reflexive 2 damage (CR 601.2g / 'if able')", () => {
+    it("an UNPAYABLE card is offered with NO Cast row, names the card and says why; Decline binds $cast=false (CR 601.2h, issue #9982)", () => {
         // No mana available — the bear's {1}{G} cost cannot be paid.
         const bear = bearOnTop("cantPayTop");
         const id = chandraShape("test-op-cdr-top-cantpay");
@@ -27091,14 +27091,29 @@ describe("Effect Script Op: castDuringResolution — exile-top source + paid cas
         resolveTopOfStack(state);
         const offer = state.pendingChoices![0];
         expect(offer.kind).toBe("option-pick");
+        // GRE: Cast is not on offer — it used to resolve silently as a decline.
+        expect(offer.options).toEqual([{ id: "decline", label: "Decline" }]);
+        expect(offer.prompt).toBe(
+            "You may cast test-effects-bear, but you can't pay its cost right now."
+        );
+        // Wire format: the projection keeps the reduced options, the reason
+        // and the pinned subject for BOTH viewers.
+        for (const viewer of ["p1", "p2"]) {
+            const wire = projectPublicState(state, 1, viewer);
+            const wired = wire.pendingChoices?.[0];
+            expect(wired?.options).toEqual([
+                { id: "decline", label: "Decline" },
+            ]);
+            expect(wired?.prompt).toContain("can't pay its cost");
+            expect(wired?.subjectCardId).toBe(offer.subjectCardId);
+        }
         applyPendingChoiceSubmit(state, {
             playerId: "p1",
             stackItemId: offer.stackItemId,
             step: offer.step,
             choiceId: offer.choiceId,
-            cardInstanceIds: ["cast"],
+            cardInstanceIds: ["decline"],
         });
-        // Cast attempted but unpayable → not cast; card remains in exile.
         expect(state.pendingChoices).toBeUndefined();
         expect(state.players[0].exile.some((c) => c.id === "cantPayTop")).toBe(
             true
@@ -27106,6 +27121,24 @@ describe("Effect Script Op: castDuringResolution — exile-top source + paid cas
         expect(state.stack.some((s) => s.id === "cantPayTop")).toBe(false);
         // $cast=false → reflexive 2 damage.
         expect(state.players[1].life).toBe(18);
+    });
+
+    it("an AFFORDABLE card keeps Cast / Decline and the prompt names it (issue #9982)", () => {
+        const bear = bearOnTop("namedTop");
+        const id = chandraShape("test-op-cdr-top-named");
+        const state = topOfLibrary([bear], 2);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const offer = state.pendingChoices![0];
+        expect(offer.options).toEqual([
+            { id: "cast", label: "Cast" },
+            { id: "decline", label: "Decline" },
+        ]);
+        expect(offer.prompt).toBe(
+            "You may cast test-effects-bear. Cast it or decline."
+        );
+        const wired = projectPublicState(state, 1, "p2").pendingChoices?.[0];
+        expect(wired?.prompt).toBe(offer.prompt);
     });
 
     it("an EMPTY library exiles nothing, binds $cast=false, and fires the reflexive 2 damage (CR 608.2b)", () => {
