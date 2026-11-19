@@ -470,7 +470,10 @@ export function makeLatentBoardLens(
         return (best ?? 0) / denominator;
     };
 
-    return {
+    // Built as one literal plus the two conditional members assigned after,
+    // never spread in: a lens is made per hand card per leaf, and an object
+    // spread is a self-hosted `CopyDataProperties` call in SpiderMonkey.
+    const lens: { -readonly [K in keyof LatentLens]: LatentLens[K] } = {
         weights: base.weights,
         presenceWeight: weights.permanentWeight,
         fightUnits(creatureSlot, otherSlot) {
@@ -576,36 +579,28 @@ export function makeLatentBoardLens(
             return total;
         },
         heldDifferentialFraction: weights.heldDifferentialFraction,
-        ...(card.zone === "battlefield"
-            ? {}
-            : { heldEngineFraction: weights.heldDifferentialFraction }),
-        // Issue #5163 (ADR 0151) — a symmetric lock's standing worth, read on
-        // the board the card would leave behind: the same per-leaf netting
-        // the board face reads, so the hand face and the board face of the
-        // lock are one number. Read only for a definition that declares a
-        // standing lock (`declaresStandingLock`, `cardValue.ts`).
-        ...(standingWorth
-            ? {
-                  standingLockWorth() {
-                      // Memoised: the hand term and a reader of the card's
-                      // own number may both ask on one leaf.
-                      if (standingMemo === undefined) {
-                          const entered = withCardEntered(
-                              state,
-                              casterId,
-                              card
-                          );
-                          standingMemo = standingWorth(
-                              entered.state,
-                              entered.perm
-                          );
-                      }
-                      return standingMemo;
-                  },
-              }
-            : {}),
         measured: () => measured,
     };
+    if (card.zone !== "battlefield") {
+        lens.heldEngineFraction = weights.heldDifferentialFraction;
+    }
+    // Issue #5163 (ADR 0151) — a symmetric lock's standing worth, read on
+    // the board the card would leave behind: the same per-leaf netting
+    // the board face reads, so the hand face and the board face of the
+    // lock are one number. Read only for a definition that declares a
+    // standing lock (`declaresStandingLock`, `cardValue.ts`).
+    if (standingWorth) {
+        lens.standingLockWorth = () => {
+            // Memoised: the hand term and a reader of the card's own number
+            // may both ask on one leaf.
+            if (standingMemo === undefined) {
+                const entered = withCardEntered(state, casterId, card);
+                standingMemo = standingWorth(entered.state, entered.perm);
+            }
+            return standingMemo;
+        };
+    }
+    return lens;
 }
 
 /** Issue #5574 — the source permanent and the board a step gate is asked

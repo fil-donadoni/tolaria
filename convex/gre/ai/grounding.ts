@@ -654,5 +654,17 @@ export function withLatentLens(
     ctx: GroundingContext,
     lens: LatentLens
 ): GroundingContext {
-    return { ...ctx, latent: lens };
+    // Every member named, never `{ ...ctx }`: the hand term derives one per
+    // card per leaf, and SpiderMonkey runs an object spread as a self-hosted
+    // `CopyDataProperties`. Every member is required, so `tsc` names one a
+    // new field forgets here.
+    return {
+        mode: ctx.mode,
+        value: ctx.value,
+        signedValue: ctx.signedValue,
+        isSelf: ctx.isSelf,
+        forEachCount: ctx.forEachCount,
+        isSourceBattlefieldRef: ctx.isSourceBattlefieldRef,
+        latent: lens,
+    };
 }
