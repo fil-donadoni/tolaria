@@ -544,6 +544,13 @@ export default function GreHandCard({
           ? `translate(0px, -${STAGED_LIFT_PX}px) scale(1.06)`
           : undefined;
 
+    // A click while a previous intent round-trips is refused by the commit
+    // guards (`hasPendingGameIntent()`), never queued. Say so on the card —
+    // "disable while pending": a waiting cursor + dimmed image on every card
+    // that has something to click, so the refused click is visibly refused
+    // instead of silently lost (issue #9981).
+    const intentBusy = intentInFlight && (optionCount > 0 || actionable);
+
     // Non-drag left click. With a menu, a desktop click falls through to the
     // ContextMenuTrigger (opens the menu) and a touch tap opens the action-sheet;
     // with a single option the click performs it directly (cycling-only card, or
@@ -563,6 +570,15 @@ export default function GreHandCard({
         // PHYSICALLY inside the card counts.
         if (!e.currentTarget.contains(e.target as Node)) return;
         if (useMenu) {
+            // Busy: no sheet to pick from — every entry would hit a refusing
+            // guard (issue #9981).
+            // Desktop: the ContextMenuTrigger opens its menu from this same
+            // click unless it is default-prevented.
+            if (intentBusy) {
+                e.preventDefault();
+                isTouchRef.current = false;
+                return;
+            }
             if (isTouchRef.current) {
                 isTouchRef.current = false;
                 e.preventDefault();
@@ -585,13 +601,6 @@ export default function GreHandCard({
         if (tapStage.consumeClick()) return;
         commit(e);
     };
-
-    // A click while a previous intent round-trips is refused by the commit
-    // guards (`hasPendingGameIntent()`), never queued. Say so on the card —
-    // "disable while pending": a waiting cursor + dimmed image on every card
-    // that has something to click, so the refused click is visibly refused
-    // instead of silently lost (issue #9981).
-    const intentBusy = intentInFlight && (optionCount > 0 || actionable);
 
     const cardEl = (
         <div

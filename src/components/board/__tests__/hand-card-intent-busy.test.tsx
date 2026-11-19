@@ -5,7 +5,13 @@
 // image, aria-busy) instead of dropping the click silently. Driven through the
 // REAL projection, the REAL hand card and the REAL pending-intent store.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render, screen, cleanup } from "@testing-library/react";
+import {
+    act,
+    render,
+    screen,
+    cleanup,
+    fireEvent,
+} from "@testing-library/react";
 import type { CardInstance, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import {
@@ -66,6 +72,7 @@ import {
     makeState,
 } from "@convex/cards/__tests__/setup.helper";
 import { getCardByName } from "@convex/cards";
+import { pillageTheBog } from "@convex/cards/sets/otj/multicolor.cards";
 
 /** `me` holds `cardId` in their own precombat main with priority, an empty
  *  stack and the given lands; projected through the REAL wire reducer. */
@@ -173,5 +180,24 @@ describe("hand card busy state while an intent is in flight (issue #9981)", () =
         });
         expect(el().getAttribute("data-intent-pending")).toBeNull();
         expect(el().className).toContain("cursor-pointer");
+    });
+
+    const menuCard = () =>
+        // Cast + Plot → two options → a click opens a menu when idle.
+        projected(pillageTheBog().id, ["Swamp", "Forest", "Swamp"]);
+
+    it("a menu card opens its menu when idle", () => {
+        renderCard(menuCard());
+        fireEvent.click(el());
+        expect(screen.queryAllByRole("menuitem").length).toBe(2);
+    });
+
+    it("a menu card opens no menu onto refusing entries while busy", () => {
+        renderCard(menuCard());
+        act(() => {
+            void trackGameIntent(new Promise<void>(() => {}));
+        });
+        fireEvent.click(el());
+        expect(screen.queryAllByRole("menuitem")).toEqual([]);
     });
 });
