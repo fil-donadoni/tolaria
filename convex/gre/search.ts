@@ -7388,9 +7388,13 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
  * that sacrifices the only attacker clears nothing for it. A blocker is an
  * untapped opposing creature `validateBlockerEligibility` lets block at least
  * one of them; the move clears one when a creature that was such a blocker
- * before the resolution no longer is (destroyed, bounced, tapped, or barred
- * from blocking). Fails closed: a move the probe cannot simulate clears
- * nothing. Pure — the probe runs on a clone.
+ * before the resolution is no longer an untapped creature the opponent
+ * controls (destroyed, exiled, bounced, stolen or tapped). A grant on the
+ * mover's own attacker that only makes the blocks illegal (protection,
+ * evasion until end of turn) removes nobody: its whole worth is this turn's
+ * window, the transience clause's question, and the Mother of Runes
+ * precombat hold stays a hold. Fails closed: a move the probe cannot
+ * simulate clears nothing. Pure — the probe runs on a clone.
  */
 function clearsBlockerBeforeOwnAttack(
     state: GameState,
@@ -7419,9 +7423,15 @@ function clearsBlockerBeforeOwnAttack(
         )
         .map((c) => c.id);
     if (attackerIds.length === 0) return false;
-    const after = blockersOf(settled, pid, attackerIds);
+    const standing = new Set(
+        settled.players
+            .filter((p) => p.id !== pid)
+            .flatMap((p) => p.battlefield)
+            .filter((c) => isCreature(c) && !c.tapped)
+            .map((c) => c.id)
+    );
     for (const id of blockersOf(state, pid, attackerIds)) {
-        if (!after.has(id)) return true;
+        if (!standing.has(id)) return true;
     }
     return false;
 }
