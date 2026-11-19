@@ -11640,7 +11640,7 @@ function stageReanimatedOnBattlefield(
             controllerId,
             card.id,
             putDef.entersTappedUnlessPay,
-            card.card,
+            putDef.name,
             // Effect entry, not a play: the land is ALREADY on the battlefield
             // (pushed two lines above) with its ETB deferred, so
             // `finalizeLandEntry` must look for it there rather than in any

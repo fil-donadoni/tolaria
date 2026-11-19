@@ -46,20 +46,16 @@ function playSteamVents(
 }
 
 /** A Steam Vents sitting in `zone` on p1 (issue #1980 — the two origins that
- *  used to skip the pay-choice entirely). `named` gives the instance a `.card`
- *  payload carrying a real `name`: production persists only the slim `{ id }`
- *  (see `makeInstance`), so the prompt today always falls back to "This land"
- *  and the redaction branch cannot be told apart without one. */
+ *  used to skip the pay-choice entirely). Its `.card` payload is the slim
+ *  `{ id }` production persists (see `makeInstance`): the prompt's name comes
+ *  from the definition registry, never from the payload. */
 function shockIn(
     zone: "exile" | "graveyard",
-    opts: { life?: number; knownTo?: string[]; named?: boolean } = {}
+    opts: { life?: number; knownTo?: string[] } = {}
 ) {
     const shock = makeInstance(steamVents().id, {
         id: "shock",
         zone,
-        ...(opts.named
-            ? { card: { id: steamVents().id, name: steamVents().name } }
-            : {}),
         ...(opts.knownTo ? { knownTo: opts.knownTo } : {}),
     });
     const state = makeState({
@@ -89,6 +85,21 @@ describe("shock land entry: suspend (CR 614.12, ADR 0051)", () => {
         expect(head?.landSourceZone).toBe("hand");
         expect(head?.cost).toEqual({ life: 2 });
         expect(state.priorityPlayerId).toBe("p1");
+    });
+
+    // CR 614.12 — the prompt names the land entering, resolved from the slim
+    // `{ id }` payload production persists, in current Oracle wording
+    // ("enters tapped", the Foundations update of "enters the battlefield").
+    it("names the land from its slim { id } payload, in current wording", () => {
+        const { state, player } = playSteamVents();
+        expect(state.players[0]!.hand[0]!.card).toEqual({
+            id: steamVents().id,
+        });
+        applyPlayLand(state, player, "shock");
+
+        expect(state.pendingChoices?.[0]?.prompt).toBe(
+            "You may pay 2 life. If you don't, Steam Vents enters tapped."
+        );
     });
 });
 
@@ -322,19 +333,16 @@ describe("shock land entry: exile origin specifics (CR 305.1-analog, #1980)", ()
     // `projectPublicState` unredacted to BOTH viewers. The prompt must not be
     // the thing that discloses the hidden card's identity.
     it("never names a still-face-down exiled land in the prompt", () => {
-        const { state, player } = shockIn("exile", {
-            named: true,
-            knownTo: ["p1"],
-        });
+        const { state, player } = shockIn("exile", { knownTo: ["p1"] });
         applyPlayLandFromExile(state, player, "shock");
 
-        const prompt = state.pendingChoices?.[0]?.prompt;
-        expect(prompt).not.toContain("Steam Vents");
-        expect(prompt).toContain("This land");
+        expect(state.pendingChoices?.[0]?.prompt).toBe(
+            "You may pay 2 life. If you don't, this land enters tapped."
+        );
     });
 
     it("DOES name an ordinary face-up exiled land (CR 406.3's default)", () => {
-        const { state, player } = shockIn("exile", { named: true });
+        const { state, player } = shockIn("exile");
         applyPlayLandFromExile(state, player, "shock");
 
         expect(state.pendingChoices?.[0]?.prompt).toContain("Steam Vents");
@@ -395,6 +403,9 @@ describe("shock land entry via effect — non-play ETB (CR 614.12)", () => {
         // the already-in-play completion and never re-moves it out of a
         // graveyard it no longer occupies (and never spends a land drop).
         expect(head?.landSourceZone).toBe("battlefield");
+        expect(head?.prompt).toBe(
+            "You may pay 2 life. If you don't, Steam Vents enters tapped."
+        );
         // Provisional: the land is on the battlefield but not settled untapped.
         const land = getPlayer(state, "p1").battlefield.find(
             (c) => c.id === "shock"
