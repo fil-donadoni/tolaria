@@ -23,6 +23,10 @@
 //   rollout   anything else under `rollout`
 //   gc        the whole run's garbage collection (V8 reports it outside any
 //             stack), charged to the search as `profile.mjs` does
+//
+// `descentInclusive` then opens the descent: every function's INCLUSIVE
+// share of the search over the descent's samples alone (overlapping, as
+// `buckets.mjs`'s inclusive shares do), the top 20.
 
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -66,6 +70,7 @@ function fold(profile) {
         self.set(id, (self.get(id) ?? 0) + (profile.timeDeltas[i] ?? 0));
     });
     const buckets = Object.fromEntries(NAMES.map((n) => [n, 0]));
+    const descentInclusive = new Map();
     let total = 0;
     for (const [id, micros] of self) {
         const name = byId.get(id).callFrame.functionName;
@@ -80,8 +85,10 @@ function fold(profile) {
         let callee = null;
         let inRollout = false;
         let below = null;
+        const onStack = new Set();
         for (let at = id; at !== undefined; at = parent.get(at)) {
             const fn = byId.get(at).callFrame.functionName;
+            onStack.add(fn.replace(/\d+$/, ""));
             if (!inRollout && ROLLOUT.test(fn)) {
                 inRollout = true;
                 callee = below;
@@ -93,6 +100,12 @@ function fold(profile) {
         total += micros;
         if (!inRollout) {
             buckets.descent += micros;
+            for (const fn of onStack) {
+                descentInclusive.set(
+                    fn,
+                    (descentInclusive.get(fn) ?? 0) + micros
+                );
+            }
             continue;
         }
         const hit =
@@ -106,6 +119,12 @@ function fold(profile) {
                 n,
                 Number(((100 * buckets[n]) / total).toFixed(1)),
             ])
+        ),
+        descentInclusive: Object.fromEntries(
+            [...descentInclusive.entries()]
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 20)
+                .map(([fn, n]) => [fn, Number(((100 * n) / total).toFixed(1))])
         ),
     };
 }
