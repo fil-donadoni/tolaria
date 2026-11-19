@@ -3476,7 +3476,6 @@
         {"key":"a78eea72bb4e","text":"At the beginning of your upkeep, if {self} is in your graveyard, roll a four-sided die. If the result is 1, return {self} from your graveyard to the battlefield.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Roll a four-sided die"}},
         {"key":"107509a06f6a","text":"At the beginning of your upkeep, instant and sorcery cards in your hand perpetually gain \"This spell costs {1} less to cast.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"At the beginning of your upkeep, instant and sorcery cards in your hand perpetually gain \"This spell costs {1} less to cast.\""}},
         {"key":"89d0a08f5272","text":"At the beginning of your upkeep, investigate once for each opponent who has more cards in hand than you.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate once for each opponent who has more cards in hand than you"}},
-        {"key":"171168646989","text":"At the beginning of your upkeep, investigate.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate"}},
         {"key":"813d1bc1639e","text":"At the beginning of your upkeep, look at the top card of your library. If it's a creature card of the chosen type, you may reveal it and put it into your hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Look at the top card of your library"}},
         {"key":"73b6f50c8db2","text":"At the beginning of your upkeep, look at the top card of your library. If it's a creature or planeswalker card, you may reveal it and put it into your hand. If you don't put the card into your hand, you may put it on the bottom of your library.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Look at the top card of your library"}},
         {"key":"78fc5f0185bf","text":"At the beginning of your upkeep, look at the top card of your library. If it's a land card, you may put it onto the battlefield.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Look at the top card of your library"}},
@@ -5772,7 +5771,6 @@
         {"key":"bccdf9421489","text":"Creatures you control get +2/+0 until end of turn. Whenever a nontoken creature you control dies this turn, create a 1/1 black Rat creature token with \"This token can't block.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Creatures you control get +2/+0 until end of turn. Whenever a nontoken creature you control dies this turn, create a 1/1 black Rat creature token with \"This token can't block.\""}},
         {"key":"53e4c3cac2b3","text":"Creatures you control get +2/+1 until end of turn. If this spell was kicked, those creatures also gain trample until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Those creatures also gain trample until end of turn"}},
         {"key":"ce154435cb54","text":"Creatures you control get +2/+1 until end of turn. If you control a Rabbit, scry 2.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If you control a Rabbit, scry 2"}},
-        {"key":"9c72bee25d11","text":"Creatures you control get +2/+1 until end of turn. Investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Investigate"}},
         {"key":"bbea5582c01f","text":"Creatures you control get +2/+1 until end of turn. Untap those creatures.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"those creatures"}},
         {"key":"fcc638de344a","text":"Creatures you control get +2/+1 until end of turn. White creatures you control also gain first strike until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"White creatures you control also gain first strike until end of turn"}},
         {"key":"bce0bed9f0a6","text":"Creatures you control get +2/+2 and gain trample until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","duration"],"span":"and gain trample until end of turn"}},
@@ -6241,7 +6239,6 @@
         {"key":"f77a54885de0","text":"Destroy target creature with mana value 3 or less. If it's your turn, create a Food token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If it's your turn, create a Food token"}},
         {"key":"c25711111164","text":"Destroy target creature with mana value 4 or less. You gain 1 life for each creature card in its controller's hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","counted set","object descriptor"],"span":"creature card in its controller's hand"}},
         {"key":"e7fb7f7c32e5","text":"Destroy target creature with mana value X. If that creature dies this way, {self} deals damage equal to the creature's power to the creature's controller.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If that creature dies this way, {self} deals damage equal to the creature's power to the creature's controller"}},
-        {"key":"182fe3752a80","text":"Destroy target creature with power 2 or less. Investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Investigate"}},
         {"key":"5efea021b85a","text":"Destroy target creature with power 4 or greater. If you weren't the starting player, you gain 4 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If you weren't the starting player, you gain 4 life"}},
         {"key":"29bed16247ee","text":"Destroy target creature with power X or less.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"spell","path":["effect clause","target filter","object descriptor"],"span":"creature with power X or less"}},
         {"key":"ccd982acd45c","text":"Destroy target creature with power or toughness 4 or greater.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","target filter","object descriptor"],"span":"creature with power or toughness 4 or greater"}},
@@ -6641,7 +6638,6 @@
         {"key":"06f60add0e30","text":"Draw a card. If mana from a Treasure was spent to cast this spell, seek a Pirate card instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If mana from a Treasure was spent to cast this spell, seek a Pirate card instead"}},
         {"key":"a5de883459bc","text":"Draw a card. If this spell was cast from a graveyard, draw two cards instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If this spell was cast from a graveyard, draw two cards instead"}},
         {"key":"39bd19afbe3f","text":"Draw a card. If this spell wasn't cast from your hand, draw two cards instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If this spell wasn't cast from your hand, draw two cards instead"}},
-        {"key":"ed3f14b9fda1","text":"Draw a card. Investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Investigate"}},
         {"key":"0b82262130fd","text":"Draw a card. The Ring tempts you.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"The Ring tempts you"}},
         {"key":"ed4d9cb7ef02","text":"Draw a card. Until end of turn, target creature gains trample and gets +1/+0 for each card you've drawn this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Until end of turn, target creature gains trample and"}},
         {"key":"df8d374f6813","text":"Draw a card. You may put a land card from your hand onto the battlefield.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"You may put a land card from your hand onto the battlefield"}},
@@ -7406,7 +7402,6 @@
         {"key":"a99a580525d0","text":"Enchanted creature gets +1/+1 and can't be blocked except by creatures with flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Enchanted creature gets +1/+1 and can't be blocked except by creatures with flying"}},
         {"key":"6f563861905a","text":"Enchanted creature gets +1/+1 and can't be blocked.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Enchanted creature gets +1/+1 and can't be blocked"}},
         {"key":"cbd8e3c022ea","text":"Enchanted creature gets +1/+1 and doesn't untap during its controller's untap step.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Enchanted creature gets +1/+1 and doesn't untap during its controller's untap step"}},
-        {"key":"a89b7ea6ce52","text":"Enchanted creature gets +1/+1 and has \"Whenever this creature deals combat damage to a player, investigate.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Enchanted creature gets +1/+1 and has \"Whenever this creature deals combat damage to a player, investigate.\""}},
         {"key":"36d831c81637","text":"Enchanted creature gets +1/+1 and has afterlife 1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Enchanted creature gets +1/+1 and has afterlife 1"}},
         {"key":"d59e29104dbb","text":"Enchanted creature gets +1/+1 and has flying, haste, and \"{1}: This creature gets +1/+0 until end of turn.\" It's a Dragon in addition to its other types.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Enchanted creature gets +1/+1 and has flying"}},
         {"key":"80511d003aad","text":"Enchanted creature gets +1/+1 and has lifelink and \"Whenever this creature deals combat damage to a player, draw a card.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Enchanted creature gets +1/+1 and has lifelink and \"Whenever this creature deals combat damage to a player, draw a card.\""}},
@@ -9100,7 +9095,6 @@
         {"key":"e68ab636f8ea","text":"I, II — Each opponent sacrifices a creature of their choice unless they discard a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause","verb frame"],"span":"Each opponent sacrifices a creature of their choice unless they discard a card"}},
         {"key":"d97cd60fdd81","text":"I, II — For each opponent, tap up to one target creature that player controls. Goad those creatures. Until your next turn, whenever any of those creatures deals combat damage to a player, draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause"],"span":"For each opponent, tap up to one target creature that player controls"}},
         {"key":"f04fe8bef2d3","text":"I, II — For each player, exile up to one target non-Saga, nonland permanent that player controls until this Saga leaves the battlefield.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause"],"span":"For each player, exile up to one target non-Saga, nonland permanent that player controls until this Saga leaves the battlefield"}},
-        {"key":"a2b6d614930d","text":"I, II — Investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause"],"span":"Investigate"}},
         {"key":"007bec300960","text":"I, II — Jecht Beam — Each opponent discards a card and you draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause"],"span":"Each opponent discards a card and you draw a card"}},
         {"key":"40e058a25dd3","text":"I, II — Look at the top seven cards of your library. You may reveal a non-Saga permanent card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause","from among"],"span":"a non-Saga permanent card"}},
         {"key":"1439b5a828e1","text":"I, II — Mill three cards. Then you may exile a creature or enchantment card from your graveyard. If you do, create a 2/2 black Zombie creature token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause"],"span":"Then you may exile a creature or enchantment card from your graveyard"}},
@@ -9173,7 +9167,6 @@
         {"key":"32c05224c1d5","text":"II — For each opponent, you create a 2/2 colorless Robot Villain artifact creature token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause"],"span":"For each opponent, you create a 2/2 colorless Robot Villain artifact creature token"}},
         {"key":"9bfc230d4e03","text":"II — Heavenward Howl — When you next cast a creature spell this turn, that creature enters with an additional +1/+1 counter on it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause"],"span":"When you next cast a creature spell this turn, that creature enters with an additional +1/+1 counter on it"}},
         {"key":"b14070f2bcbf","text":"II — If you have one or fewer cards in hand, draw four cards. Otherwise, scry 2, then draw two cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause"],"span":"If you have one or fewer cards in hand, draw four cards"}},
-        {"key":"7bc88b121703","text":"II — Investigate.","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"chapter","path":["effect clause"],"span":"Investigate"}},
         {"key":"f2a3bffd0feb","text":"II — Mill four cards. When you do, return target creature card from your graveyard to your hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["sentence assembly"],"span":"II — Mill four cards. When you do, return target creature card from your graveyard to your hand"}},
         {"key":"ad205c262787","text":"II — Noncreature spells your opponents cast cost {2} more to cast until your next turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause"],"span":"Noncreature spells your opponents cast cost {2} more to cast until your next turn"}},
         {"key":"ce0dca06e86f","text":"II — Prevent all damage that would be dealt by up to one target creature for as long as this Saga remains on the battlefield.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause"],"span":"Prevent all damage that would be dealt by up to one target creature for as long as this Saga remains on the battlefield"}},
@@ -9326,6 +9319,7 @@
         {"key":"0654159573d7","text":"III — Return target creature card from your graveyard to the battlefield. Put a +1/+1 counter on it. It gains haste until your next turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause"],"span":"It"}},
         {"key":"a8d804640b0f","text":"III — Return target creature or planeswalker card from your graveyard to the battlefield. Put a +1/+1 counter or a loyalty counter on it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause"],"span":"it"}},
         {"key":"0237fc3844ee","text":"III — Return the exiled card to the battlefield under its owner's control.","reason":"\"the exiled card\" names no exile linked to this ability (CR 607.2a)","cards":1},
+        {"key":"a72492399d35","text":"III — Return the exiled card to the battlefield under its owner's control. You gain 2 life.","reason":"\"the exiled card\" names no exile linked to this ability (CR 607.2a)","cards":1},
         {"key":"64c33000cc4b","text":"III — Return this Saga and the exiled card to their owner's hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause"],"span":"this Saga and the exiled card"}},
         {"key":"b8d575ee835d","text":"III — Return two cards exiled with this Saga to the battlefield under their owners' control and put the rest on the bottom of their owners' libraries.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause","zone reference"],"span":"the battlefield under their owners' control"}},
         {"key":"dd80fadb1c95","text":"III — Reveal up to five nonland cards from your hand. For each of those cards that has the same mana value as another card revealed this way, create a Treasure token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"chapter","path":["effect clause"],"span":"Reveal up to five nonland cards from your hand"}},
@@ -9977,14 +9971,10 @@
         {"key":"7193459861e6","text":"Intangibility — {self} can't be blocked.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Intangibility — {self} can't be blocked"}},
         {"key":"ee4da4ed7ef1","text":"Interplanar","reason":"no slot consumed the line","cards":1},
         {"key":"bdef59a96fe9","text":"Into the TARDIS — Whenever {self} becomes untapped during your untap step, you get an additional upkeep step after this step.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever {self} becomes untapped during your untap step"}},
-        {"key":"fea32e053ae9","text":"Investigate X times, then create an 0/0 Blue Elemental creature token. Put +1/+1 counters on that token equal to the number of Clues you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","effect clause"],"span":"Investigate X times"}},
-        {"key":"3503af8492f4","text":"Investigate X times.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Investigate X times"}},
-        {"key":"1c2077e4ba64","text":"Investigate three times.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Investigate three times"}},
-        {"key":"d2325a8b9e87","text":"Investigate, then target creature gets +1/+1 until end of turn for each Clue you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","effect clause"],"span":"Investigate"}},
-        {"key":"e782708eec70","text":"Investigate.","reason":"no slot consumed the line","cards":10,"attribution":{"slot":"spell","path":["effect clause"],"span":"Investigate"}},
-        {"key":"50d47bd8eaae","text":"Investigate. Creatures your opponents control get -2/-0 until end of turn. If any of them are suspected, they're no longer suspected.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Investigate"}},
-        {"key":"cc04c377c79d","text":"Investigate. If this spell was cast from a graveyard, investigate twice instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Investigate"}},
-        {"key":"0f2d7c141e43","text":"Investigate. You may play an additional land this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Investigate"}},
+        {"key":"0265d10532cf","text":"Investigate X times, then create an 0/0 Blue Elemental creature token. Put +1/+1 counters on that token equal to the number of Clues you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","effect clause"],"span":"Create an 0/0 Blue Elemental creature token"}},
+        {"key":"e787a21d4bde","text":"Investigate, then target creature gets +1/+1 until end of turn for each Clue you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","effect clause","duration"],"span":"until end of turn for each Clue you control"}},
+        {"key":"508394ab4123","text":"Investigate. Creatures your opponents control get -2/-0 until end of turn. If any of them are suspected, they're no longer suspected.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","mass subject","object descriptor"],"span":"Creatures your opponents control"}},
+        {"key":"54e9762d577f","text":"Investigate. If this spell was cast from a graveyard, investigate twice instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If this spell was cast from a graveyard, investigate twice instead"}},
         {"key":"ab3ea76d4f05","text":"Invoke Duplicity — Equipped creature gets +1/+1 and has \"Whenever this creature deals combat damage to a player, you may sacrifice {self}. If you do, create a token that's a copy of this creature.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Invoke Duplicity — Equipped creature gets +1/+1 and has \"Whenever this creature deals combat damage to a player, you may sacrifice {self}. If you do, create a token that's a copy of this creature.\""}},
         {"key":"f283303e0281","text":"Ironroot Warlord's power is equal to the number of creatures you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Ironroot Warlord's power is equal to the number of creatures you control"}},
         {"key":"27a45744999d","text":"Islandcycling {1}","reason":"no slot consumed the line","cards":1},
@@ -10578,7 +10568,6 @@
         {"key":"2ce69c45bb60","text":"Mill three cards, then return a land card or Elf card from your graveyard to your hand. If you can't, draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","effect clause","object descriptor"],"span":"land card or Elf card"}},
         {"key":"29b22b2c2405","text":"Mill three cards, then you may return a creature card from your graveyard to your hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","effect clause"],"span":"You may return a creature card from your graveyard to your hand"}},
         {"key":"b085d3b8e9b6","text":"Mill three cards, then you may return a creature or land card from your graveyard to your hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","effect clause"],"span":"You may return a creature or land card from your graveyard to your hand"}},
-        {"key":"b587026b7b3f","text":"Mill three cards. Investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Investigate"}},
         {"key":"cc304d4ee000","text":"Mill three cards. Then starting with the next opponent in turn order, each opponent chooses a creature card in your graveyard that hasn't been chosen. Return each card chosen this way to the battlefield under your control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Then starting with the next opponent in turn order, each opponent chooses a creature card in your graveyard that hasn't been chosen"}},
         {"key":"156a40a306ca","text":"Mill three cards. Then you may return a creature or land card from your graveyard to your hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Then you may return a creature or land card from your graveyard to your hand"}},
         {"key":"f39d204fc93c","text":"Mill two cards, then you may return a creature card from your graveyard to your hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","effect clause"],"span":"You may return a creature card from your graveyard to your hand"}},
@@ -12611,7 +12600,6 @@
         {"key":"fbb5d72e41dd","text":"Search your library for a basic land card or Town card, put it onto the battlefield tapped, then shuffle. When you search your library this way, put a +1/+1 counter on target creature you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","verb frame"],"span":"Search your library for a basic land card or Town card"}},
         {"key":"6ce57ce4fb3a","text":"Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. Bolster 1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Bolster 1"}},
         {"key":"406bcae56293","text":"Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. Create a 0/1 colorless Eldrazi Spawn creature token. It has \"Sacrifice this token: Add {C}.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. Create a 0/1 colorless Eldrazi Spawn creature token. It has \"Sacrifice this token: Add {C}.\""}},
-        {"key":"f1ec4ed091ac","text":"Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. Investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Investigate"}},
         {"key":"225a2c49e814","text":"Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. Open an Attraction.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Open an Attraction"}},
         {"key":"2aa4ccb63934","text":"Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. That land becomes a 0/0 green and blue Fractal creature that's still a land. Put a +1/+1 counter on it for each land you had enter the battlefield under your control this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"That land becomes a 0/0 green and blue Fractal creature that's still a land"}},
         {"key":"9ebc3f729634","text":"Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. Then if you control seven or more lands and/or Treefolk, create a 3/4 green Treefolk creature token with reach.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Then if you control seven or more lands and/or Treefolk, create a 3/4 green Treefolk creature token with reach"}},
@@ -13351,7 +13339,7 @@
         {"key":"36abd3ecb62e","text":"Tap up to two target artifacts and/or creatures. Put two stun counters on each of them.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","target filter","object descriptor"],"span":"artifacts and/or creatures"}},
         {"key":"afaccfb4ccb8","text":"Tap up to two target creatures and put a stun counter on each of them. Investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","target filter","object descriptor"],"span":"creatures and put a stun counter on each of them"}},
         {"key":"8fb81f560176","text":"Tap up to two target creatures your opponents control. Creatures you control gain vigilance until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","target filter","object descriptor"],"span":"creatures your opponents control"}},
-        {"key":"fc669e0acf95","text":"Tap up to two target creatures.","reason":"this verb acts on one object, and the sentence announced more (CR 601.2c)","cards":5},
+        {"key":"fc669e0acf95","text":"Tap up to two target creatures.","reason":"this verb acts on one object, and the sentence announced more (CR 601.2c)","cards":6},
         {"key":"fd9896ce7f5d","text":"Tap up to two target creatures. If this spell was kicked, put a stun counter on each of those creatures.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"each of those creatures"}},
         {"key":"7c61a71cbfd1","text":"Tap up to two target creatures. Put a stun counter on each of them.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"each of them"}},
         {"key":"904dc576caaa","text":"Tap up to two target creatures. Put a stun counter on either of them. Then put a stun counter on either of them.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"either of them"}},
@@ -13496,7 +13484,6 @@
         {"key":"bf65daf25260","text":"Target creature gets +2/+2 until end of turn. If you control an Equipment, create a 1/1 white Human Soldier creature token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If you control an Equipment, create a 1/1 white Human Soldier creature token"}},
         {"key":"e80996b96f20","text":"Target creature gets +2/+2 until end of turn. If you control four or more creatures, that creature gets +4/+4 until end of turn instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If you control four or more creatures, that creature gets +4/+4 until end of turn instead"}},
         {"key":"456faa320389","text":"Target creature gets +2/+2 until end of turn. If you control three or more creatures, it gets +4/+4 until end of turn instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"If you control three or more creatures, it gets +4/+4 until end of turn instead"}},
-        {"key":"417b7b54fb00","text":"Target creature gets +2/+2 until end of turn. Investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Investigate"}},
         {"key":"e808d3e9859d","text":"Target creature gets +2/+2 until end of turn. Prevent all damage that would be dealt to that creature this turn by colorless sources.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Prevent all damage that would be dealt to that creature this turn by colorless sources"}},
         {"key":"a90963c46bcd","text":"Target creature gets +2/+2 until end of turn. Put a flying counter on it.","reason":"\"it\" follows an announced target, which is the nearer antecedent (CR 608.2h)","cards":1},
         {"key":"0c1f4bab8bbd","text":"Target creature gets +2/+2 until end of turn. Put a flying counter on it. Scry 1.","reason":"\"it\" follows an announced target, which is the nearer antecedent (CR 608.2h)","cards":1},
@@ -13507,7 +13494,6 @@
         {"key":"fbd69f910971","text":"Target creature gets +2/+2 until end of turn. You may remove a -1/-1 counter from it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"You may remove a -1/-1 counter from it"}},
         {"key":"9897e1c1a7a6","text":"Target creature gets +2/+6 until end of turn and can block any number of creatures this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","duration"],"span":"until end of turn and can block any number of creatures this turn"}},
         {"key":"a18c31884406","text":"Target creature gets +2/+7 until end of turn. Untap it.","reason":"\"it\" follows an announced target, which is the nearer antecedent (CR 608.2h)","cards":1},
-        {"key":"651bf32c0e75","text":"Target creature gets +3/+0 and gains first strike until end of turn. Investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Investigate"}},
         {"key":"969c93e4010b","text":"Target creature gets +3/+0 and gains lifelink until end of turn. Regenerate it.","reason":"\"it\" follows an announced target, which is the nearer antecedent (CR 608.2h)","cards":1},
         {"key":"15080753d5c9","text":"Target creature gets +3/+0 and gains reach and first strike until end of turn.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"spell","path":["effect clause"],"span":"Target creature gets +3/+0 and gains reach and first strike until end of turn"}},
         {"key":"bf31f658adbc","text":"Target creature gets +3/+0 until end of turn. For each Spirit sacrificed this way, that creature gets an additional +3/+0 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"For each Spirit sacrificed this way, that creature gets an additional +3/+0 until end of turn"}},
@@ -15736,7 +15722,6 @@
         {"key":"51ce813b6e66","text":"When this Aura enters, if you control a Desert or there is a Desert card in your graveyard, you gain 3 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition","object descriptor"],"span":"Desert or there is a Desert card in your graveyard"}},
         {"key":"7499bc43807d","text":"When this Aura enters, if you control a token, tap enchanted creature, then scry 2.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","effect clause"],"span":"enchanted creature"}},
         {"key":"cdc2903713db","text":"When this Aura enters, incubate 2.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Incubate 2"}},
-        {"key":"3fdcb304ad73","text":"When this Aura enters, investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate"}},
         {"key":"3aec81175ada","text":"When this Aura enters, it deals 1 damage to enchanted creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"enchanted creature"}},
         {"key":"afe92623181f","text":"When this Aura enters, it deals 2 damage to enchanted creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"enchanted creature"}},
         {"key":"562e65e67188","text":"When this Aura enters, look at target player's hand. You may choose a nonland card from it. That player discards that card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["sentence assembly"],"span":"When this Aura enters, look at target player's hand. You may choose a nonland card from it. That player discards that card"}},
@@ -15945,7 +15930,6 @@
         {"key":"a416a5060521","text":"When this artifact enters, if it was kicked, create two tapped tokens that are copies of this artifact.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Create two tapped tokens that are copies of this artifact"}},
         {"key":"6c86367e1027","text":"When this artifact enters, if you cast it, exile target artifact or land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you cast it"}},
         {"key":"e6e84ef4a7a8","text":"When this artifact enters, if you cast it, for each player, choose a creature with power 2 or less that player controls. Then destroy all creatures except creatures chosen this way.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you cast it"}},
-        {"key":"4996ee5381cb","text":"When this artifact enters, investigate twice.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate twice"}},
         {"key":"310622c902b5","text":"When this artifact enters, it deals 4 damage to any target and 3 damage to you.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"any target and 3 damage to you"}},
         {"key":"f05cf7a49bae","text":"When this artifact enters, look at the top five cards of your library. You may reveal a blue or artifact card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","from among","object descriptor"],"span":"blue or artifact card"}},
         {"key":"7ce5c92e549e","text":"When this artifact enters, look at the top five cards of your library. You may reveal up to two creature cards from among them and put them into your hand. Put the rest on the bottom of your library in a random order.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Reveal up to two creature cards from among them and put them into your hand"}},
@@ -16178,7 +16162,6 @@
         {"key":"e927b2b47396","text":"When this creature dies, if you control a Vraska planeswalker, you gain life equal to this creature's power.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition","object descriptor"],"span":"Vraska planeswalker"}},
         {"key":"c689495bc326","text":"When this creature dies, incubate 3.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Incubate 3"}},
         {"key":"f58b0b43db61","text":"When this creature dies, incubate X, where X is its power.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Incubate X, where X is its power"}},
-        {"key":"7056adb2d9d3","text":"When this creature dies, investigate.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate"}},
         {"key":"23ed99889dc6","text":"When this creature dies, it deals 1 damage to target player.","reason":"a player is not an object (CR 109.1)","cards":1},
         {"key":"e7db6f0d4f3f","text":"When this creature dies, it deals 2 damage to target player or planeswalker.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","target filter","object descriptor"],"span":"player or planeswalker"}},
         {"key":"224278127710","text":"When this creature dies, it deals 4 damage to target opponent chosen at random.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","target filter","object descriptor"],"span":"opponent chosen at random"}},
@@ -16939,9 +16922,7 @@
         {"key":"ae3daca6eb43","text":"When this creature enters, incubate 2.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Incubate 2"}},
         {"key":"b4c04078b2d3","text":"When this creature enters, incubate 3 X times.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Incubate 3 X times"}},
         {"key":"73b35bab538e","text":"When this creature enters, incubate 5.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Incubate 5"}},
-        {"key":"0c684336f6b3","text":"When this creature enters, investigate X times, where X is the number of opponents you have.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate X times"}},
-        {"key":"a8b5fc05b5ff","text":"When this creature enters, investigate twice.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate twice"}},
-        {"key":"fb2bd5b0c29a","text":"When this creature enters, investigate.","reason":"no slot consumed the line","cards":8,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate"}},
+        {"key":"744f926a0c92","text":"When this creature enters, investigate X times, where X is the number of opponents you have.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","number of set","object descriptor"],"span":"opponents you have"}},
         {"key":"9a71c8660345","text":"When this creature enters, it assembles a Contraption for each Contraption you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"{it} assembles a Contraption for each Contraption you control"}},
         {"key":"f10fb1d8cd3d","text":"When this creature enters, it assembles a Contraption.","reason":"no slot consumed the line","cards":4,"attribution":{"slot":"triggered","path":["effect clause"],"span":"{it} assembles a Contraption"}},
         {"key":"563846952aaf","text":"When this creature enters, it becomes day.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"{it} becomes day"}},
@@ -17426,7 +17407,6 @@
         {"key":"42fca65a1173","text":"When this creature enters, you may destroy target non-Elf creature whose power and toughness aren't equal.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","target filter","object descriptor"],"span":"non-Elf creature whose power and toughness aren't equal"}},
         {"key":"69fe3b8cab5c","text":"When this creature enters, you may destroy up to three target noncreature permanents. For each permanent put into a graveyard this way, its controller creates a 3/3 green Elephant creature token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"For each permanent put into a graveyard this way, its controller creates a 3/3 green Elephant creature token"}},
         {"key":"eb341ede441a","text":"When this creature enters, you may discard a card or pay {2}. When you do, destroy target Room.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Discard a card or pay {2}"}},
-        {"key":"c1bbdf58fe4a","text":"When this creature enters, you may discard a card. If you do, investigate twice.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","effect clause"],"span":"Investigate twice"}},
         {"key":"018ebb16e5d8","text":"When this creature enters, you may discard a card. If you do, reveal the top five cards of your library. Ask a person outside the game to choose which of them is most like a rock band. Put that card into your hand and the rest on the bottom of your library in a random order.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"If you do, reveal the top five cards of your library"}},
         {"key":"c75f6a8b69c7","text":"When this creature enters, you may discard a card. If you do, search your library for a land or battle card, reveal it, put it into your hand, then shuffle.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","effect clause","verb frame"],"span":"Search your library for a land or battle card"}},
         {"key":"bfafe4b1f90a","text":"When this creature enters, you may discard a card. When you do, this creature deals 2 damage to any target.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["sentence assembly"],"span":"When this creature enters, you may discard a card. When you do, this creature deals 2 damage to any target"}},
@@ -17811,8 +17791,6 @@
         {"key":"255b2610923d","text":"When this enchantment enters, incubate 2.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Incubate 2"}},
         {"key":"bb3834e31adc","text":"When this enchantment enters, incubate 3.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Incubate 3"}},
         {"key":"e8dad49a0d6e","text":"When this enchantment enters, incubate 4.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Incubate 4"}},
-        {"key":"2349ee1a31c3","text":"When this enchantment enters, investigate twice.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate twice"}},
-        {"key":"51841c50a7e0","text":"When this enchantment enters, investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate"}},
         {"key":"02535f71bc2e","text":"When this enchantment enters, it becomes an Aura with enchant creature. Manifest the top card of your library and attach this enchantment to it.","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"triggered","path":["effect clause"],"span":"{it} becomes an Aura with enchant creature"}},
         {"key":"ece3e6b31a32","text":"When this enchantment enters, it deals X damage to any target.","reason":"an effect reads X but its source announces no {X} (CR 107.3)","cards":1},
         {"key":"4441a77a053c","text":"When this enchantment enters, learn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Learn"}},
@@ -18349,7 +18327,7 @@
         {"key":"0f4c0ff71a02","text":"When {self} enters, choose one —\n• Each player sacrifices a creature token of their choice.\n• Each player sacrifices a nontoken creature of their choice.\n• Each player sacrifices an enchantment of their choice.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","verb frame"],"span":"Each player sacrifices a creature token of their choice"}},
         {"key":"120d8f6dbb3b","text":"When {self} enters, choose one —\n• It gains trample and haste until end of turn.\n• It fights target creature you don't control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"It"}},
         {"key":"21587af33508","text":"When {self} enters, choose one —\n• Put a +1/+1 counter on each of up to two target creatures.\n• Return target artifact or enchantment card from your graveyard to your hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"each of up to two target creatures"}},
-        {"key":"00cdd1c451e5","text":"When {self} enters, choose one —\n• Tap target creature an opponent controls. Put two stun counters on it.\n• Investigate twice.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate twice"}},
+        {"key":"a9ec59441359","text":"When {self} enters, choose one —\n• Tap target creature an opponent controls. Put two stun counters on it.\n• Investigate twice.","reason":"\"it\" follows an announced target, which is the nearer antecedent (CR 608.2h)","cards":1},
         {"key":"00fe1b49201d","text":"When {self} enters, choose one —\n• Target creature gets +1/+0 until end of turn and can't be blocked this turn.\n• Surveil 2.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","duration"],"span":"until end of turn and can't be blocked this turn"}},
         {"key":"7926acd46643","text":"When {self} enters, choose one —\n• Target creature gets -X/-0 until end of turn, where X is the number of cards in your graveyard.\n• Surveil 2.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Target creature gets -X/-0 until end of turn"}},
         {"key":"d2c4e4207633","text":"When {self} enters, choose target creature an opponent controls. {self} and that creature are goaded for as long as you control {self}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Choose target creature an opponent controls"}},
@@ -18574,8 +18552,6 @@
         {"key":"7a0535b78bed","text":"When {self} enters, if you haven't scattered the Dragonstorm Globes this game, scatter them.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you haven't scattered the Dragonstorm Globes this game"}},
         {"key":"92349ada4ed4","text":"When {self} enters, if your starting library had at least 13 cards over the minimum, search your library for a card and put that card into your hand, then shuffle your library. Otherwise, {self} deals 4 damage to you.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","effect clause"],"span":"If your starting library had at least 13 cards over the minimum, search your library for a card and put that card into your hand"}},
         {"key":"203a11e19a4d","text":"When {self} enters, if {self} was kicked, create a token that's a copy of {self}, except it's not legendary and its starting loyalty is 1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"{self} was kicked"}},
-        {"key":"f2cd6504b043","text":"When {self} enters, investigate twice.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate twice"}},
-        {"key":"63c8aa7debc8","text":"When {self} enters, investigate.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate"}},
         {"key":"123a55a2bf1a","text":"When {self} enters, it and up to one target creature you control phase out.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"{it} and up to one target creature you control phase out"}},
         {"key":"709edd83aca1","text":"When {self} enters, it connives.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"{it} connives"}},
         {"key":"d1aec4e6db15","text":"When {self} enters, it deals 1 damage to any target. If a Dragon is dealt damage this way, destroy it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"If a Dragon is dealt damage this way, destroy it"}},
@@ -20038,7 +20014,6 @@
         {"key":"6320b1861629","text":"Whenever an opponent casts a creature or planeswalker spell with the same name as a card in their graveyard, that player loses 10 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever an opponent casts a creature or planeswalker spell with the same name as a card in their graveyard"}},
         {"key":"fbbd3c7e1bc2","text":"Whenever an opponent casts a creature spell that doesn't share a color with a creature you control, counter that spell unless that player pays {X}, where X is its mana value.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever an opponent casts a creature spell that doesn't share a color with a creature you control"}},
         {"key":"d66b522fbe13","text":"Whenever an opponent casts a creature spell, create a token that's a copy of it, except it's 1/1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"it, except it's 1/1"}},
-        {"key":"33269baa027c","text":"Whenever an opponent casts a creature spell, investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate"}},
         {"key":"f6b09bf46e19","text":"Whenever an opponent casts a creature spell, put a +1/+1 counter on enchanted creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"enchanted creature"}},
         {"key":"e10c898ebcd6","text":"Whenever an opponent casts a creature spell, that player loses 2 life unless they pay {2}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"That player loses 2 life unless they pay {2}"}},
         {"key":"5fcfd3771f27","text":"Whenever an opponent casts a creature spell, this creature isn't a creature until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"This creature isn't a creature until end of turn"}},
@@ -20329,7 +20304,6 @@
         {"key":"2a31a2ddbf1a","text":"Whenever another creature you control dies, if it had a +1/+1 counter on it, put a +1/+1 counter on {self}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"it had a +1/+1 counter on it"}},
         {"key":"1d12b9536fcd","text":"Whenever another creature you control dies, if it had counters on it, put its counters on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"it had counters on it"}},
         {"key":"b363f0f97fe6","text":"Whenever another creature you control dies, if you have the city's blessing, put a +1/+1 counter on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you have the city's blessing"}},
-        {"key":"c25628e70e73","text":"Whenever another creature you control dies, investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate"}},
         {"key":"ead7ac6489a1","text":"Whenever another creature you control dies, it deals damage equal to its power to target player or planeswalker.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","target filter","object descriptor"],"span":"player or planeswalker"}},
         {"key":"4be60a8ad781","text":"Whenever another creature you control dies, put a +1/+1 counter on Uglúk. If that creature was a Goblin or Orc, put two +1/+1 counters on Uglúk instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Uglúk"}},
         {"key":"71199eb7759c","text":"Whenever another creature you control dies, put a +1/+1 counter on this creature. It gains haste until end of turn if it exploited that creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"It"}},
@@ -21787,7 +21761,6 @@
         {"key":"9d8c1ba110b6","text":"Whenever this creature deals combat damage to a player, if you control no other creatures, look at the top four cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"excludeSource"}},
         {"key":"c2a3249999ca","text":"Whenever this creature deals combat damage to a player, if you have the city's blessing, draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you have the city's blessing"}},
         {"key":"474ec6395b81","text":"Whenever this creature deals combat damage to a player, if you've committed a crime this turn, you may sacrifice this creature. If you do, search your library for a card, put it into your hand, then shuffle.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you've committed a crime this turn"}},
-        {"key":"daf3bfa6a84a","text":"Whenever this creature deals combat damage to a player, investigate.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate"}},
         {"key":"d4693727563b","text":"Whenever this creature deals combat damage to a player, it assembles a Contraption.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"{it} assembles a Contraption"}},
         {"key":"a831e223950a","text":"Whenever this creature deals combat damage to a player, it deals 1 damage to each creature that player controls.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"each creature that player controls"}},
         {"key":"9e759d6a2dbb","text":"Whenever this creature deals combat damage to a player, it deals that much damage to each creature that player controls.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"each creature that player controls"}},
@@ -21974,7 +21947,6 @@
         {"key":"9cfaebbe84a2","text":"Whenever this creature enters or attacks, exile up to two target cards from graveyards. For each creature card exiled this way, each opponent loses 1 life and you gain 1 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","target filter","object descriptor"],"span":"cards from graveyards"}},
         {"key":"24bd0fa8b199","text":"Whenever this creature enters or attacks, goad target creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Goad target creature"}},
         {"key":"c95491f74d4f","text":"Whenever this creature enters or attacks, if you have no cards in hand, this creature deals 2 damage to any target.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you have no cards in hand"}},
-        {"key":"bf6dbf0dafbf","text":"Whenever this creature enters or attacks, investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate"}},
         {"key":"b8e708c879dc","text":"Whenever this creature enters or attacks, it connives.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"{it} connives"}},
         {"key":"fec0b68d0b08","text":"Whenever this creature enters or attacks, it endures 2.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"{it} endures 2"}},
         {"key":"3ebdddec742a","text":"Whenever this creature enters or attacks, mill five cards. You may put a creature card and/or a land card from among them into your hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","from among","object descriptor"],"span":"creature card and/or a land card"}},
@@ -22953,7 +22925,6 @@
         {"key":"a7da32119254","text":"Whenever you cast an instant or sorcery spell, flip a coin. If you lose the flip, return that spell to its owner's hand. If you win the flip, copy that spell, and you may choose new targets for the copy.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Return that spell to its owner's hand"}},
         {"key":"b11ae8e734ed","text":"Whenever you cast an instant or sorcery spell, if it targets one or more other permanents you control, create a token that's a copy of one of those permanents.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"it targets one or more other permanents you control"}},
         {"key":"68c59981b68f","text":"Whenever you cast an instant or sorcery spell, if this artifact has fewer than three charge counters on it, put a charge counter on it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"this artifact has fewer than three charge counters on it"}},
-        {"key":"66d7c29c72b6","text":"Whenever you cast an instant or sorcery spell, investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate"}},
         {"key":"0df51881e006","text":"Whenever you cast an instant or sorcery spell, put a +1/+1 counter on this creature. Then this creature deals damage equal to its power to target opponent.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Then this creature deals damage equal to its power to target opponent"}},
         {"key":"d7d922e60881","text":"Whenever you cast an instant or sorcery spell, put a charge counter on this artifact. Then if there are four or more charge counters on it, you may remove those counters and transform it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Then if there are four or more charge counters on it, you may remove those counters and transform it"}},
         {"key":"41b75f9656e1","text":"Whenever you cast an instant or sorcery spell, put a number of ember counters on this creature equal to the amount of mana spent to cast that spell. Then if this creature has seven or more ember counters on it, remove them and transform this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"this creature equal to the amount of mana spent to cast that spell"}},
@@ -23036,7 +23007,6 @@
         {"key":"469455b2c347","text":"Whenever you cast your second spell each turn, create a 4/4 red Dragon Elemental creature token with flying and prowess.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Create a 4/4 red Dragon Elemental creature token with flying and prowess"}},
         {"key":"b2a6235899e8","text":"Whenever you cast your second spell each turn, each opponent mills two cards. When one or more cards are milled this way, exile target enchantment, instant, or sorcery card with equal or lesser mana value than that spell from an opponent's graveyard. Copy the exiled card. You may cast the copy without paying its mana cost.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"When one or more cards are milled this way, exile target enchantment, instant, or sorcery card with equal or lesser mana value than that spell from an opponent's graveyard"}},
         {"key":"84233daa646e","text":"Whenever you cast your second spell each turn, goad target creature an opponent controls.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Goad target creature an opponent controls"}},
-        {"key":"a5a1a3741b5c","text":"Whenever you cast your second spell each turn, investigate.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate"}},
         {"key":"0fdc2bc12cd3","text":"Whenever you cast your second spell each turn, put a +1/+1 counter on this creature and draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"this creature and draw a card"}},
         {"key":"6aa06bb7eff3","text":"Whenever you cast your second spell each turn, put a +1/+1 counter on this creature and it gains flying until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"this creature and it gains flying until end of turn"}},
         {"key":"f36c3d56e1eb","text":"Whenever you cast your second spell each turn, put a +1/+1 counter on this creature. It can't be blocked this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"It"}},
@@ -23044,7 +23014,6 @@
         {"key":"335e89dd192c","text":"Whenever you cast your second spell each turn, put two +1/+1 counters on this creature. It gains menace until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"It"}},
         {"key":"35e3a58e1669","text":"Whenever you cast your second spell each turn, this creature deals 2 damage to target opponent. Scry 1.","reason":"a player is not an object (CR 109.1)","cards":1},
         {"key":"b205fd8d3367","text":"Whenever you cast your second spell each turn, this creature gets +2/+0 until end of turn and can't be blocked this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","duration"],"span":"until end of turn and can't be blocked this turn"}},
-        {"key":"bbe761431119","text":"Whenever you cast your second spell each turn, untap target creature, then investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","target filter","object descriptor"],"span":"creature, then investigate"}},
         {"key":"ec2cceca542b","text":"Whenever you cast your second spell each turn, you may sacrifice an artifact. If you do, flip a coin. When you win the flip, copy that spell. You may choose new targets for the copy. When you lose the flip, {self} deals damage equal to that spell's mana value to any target.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"If you do, flip a coin"}},
         {"key":"c48f8cd87ff3","text":"Whenever you cast your third spell each turn, exile a random card from your library. Until end of turn, you may play that card without paying its mana cost.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you cast your third spell each turn"}},
         {"key":"c43af2800897","text":"Whenever you cast your third spell each turn, put a +1/+1 counter on {self}, then it deals damage equal to its power to any target.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you cast your third spell each turn"}},
@@ -23775,7 +23744,6 @@
         {"key":"84912c991a62","text":"Whenever {self} attacks, earthbend X, where X is the number of creatures you control with power 4 or greater.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Earthbend X"}},
         {"key":"36d2c1ffb32e","text":"Whenever {self} attacks, exile a number of cards from the top of your library equal to the number of differently named tokens you control. During any turn you attacked with a commander, you may play those cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","object descriptor"],"span":"number of cards from the top of your library equal to the number of differently named tokens you control"}},
         {"key":"f02d47795d83","text":"Whenever {self} attacks, exile each creature that crewed it this turn. Return them to the battlefield tapped under their owner's control at the beginning of the next end step.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","mass subject","object descriptor"],"span":"creature that crewed it this turn"}},
-        {"key":"c5826540c35b","text":"Whenever {self} attacks, exile target card from a graveyard, then investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","verb frame"],"span":"investigate"}},
         {"key":"bcb4760ad24b","text":"Whenever {self} attacks, exile target creature card from your graveyard. Create a tapped and attacking token that's a copy of that card, except it's a 3/3 black Wraith with menace. At the beginning of the next end step, exile that token unless {self} is your Ring-bearer.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Create a tapped and attacking token that's a copy of that card, except it's a 3/3 black Wraith with menace"}},
         {"key":"de1311f2d968","text":"Whenever {self} attacks, exile target noncreature, nonland card with mana value less than Narset's power from a graveyard and copy it. You may cast the copy without paying its mana cost.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","target filter","object descriptor"],"span":"noncreature, nonland card with mana value less than Narset's power from a graveyard and copy it"}},
         {"key":"ac5d57ef9608","text":"Whenever {self} attacks, exile the top card of each player's library and put a fetch counter on each of them. Put a +1/+1 counter on {self} for each noncreature card exiled this way.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"the top card of each player's library"}},
@@ -23819,7 +23787,6 @@
         {"key":"645ca2c952cc","text":"Whenever {self} attacks, if you've cast a spell with mana value 4 or greater this turn, draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you've cast a spell with mana value 4 or greater this turn"}},
         {"key":"165550ebb816","text":"Whenever {self} attacks, if your life total is greater than your starting life total, creatures you control get +1/+1 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","mass subject","object descriptor"],"span":"If your life total is greater than your starting life total, creatures you control"}},
         {"key":"d4f186023fa2","text":"Whenever {self} attacks, investigate once for each nontoken attacking creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate once for each nontoken attacking creature"}},
-        {"key":"841f9869a691","text":"Whenever {self} attacks, investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate"}},
         {"key":"7563c98fd4ad","text":"Whenever {self} attacks, it deals 1 damage to any target. If {self} is saddled and a creature was dealt damage this way, that creature perpetually gains \"This creature can't block\" and \"Damage isn't removed from this creature during cleanup steps.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Whenever {self} attacks, it deals 1 damage to any target. If {self} is saddled and a creature was dealt damage this way, that creature perpetually gains \"This creature can't block\" and \"Damage isn't removed from this creature during cleanup steps.\""}},
         {"key":"459f0b42b232","text":"Whenever {self} attacks, it deals X damage to each opponent and you gain X life, where X is the number of creatures you control with power 2 or less.","reason":"a \"powerFilter\" clause has no resolution-time count here","cards":1},
         {"key":"1d85f4bbf661","text":"Whenever {self} attacks, it deals damage equal to the number of Equipment you control to each opponent.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"{it} deals damage equal to the number of Equipment you control to each opponent"}},
@@ -24196,7 +24163,6 @@
         {"key":"e563145fe97c","text":"Whenever {self} enters or attacks, exile up to one target non-Aura enchantment card from your graveyard. Create a token that's a copy of that card, except it's a 3/3 black Zombie creature in addition to its other types.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"that card, except it's a 3/3 black Zombie creature in addition to its other types"}},
         {"key":"aa07ab6b367d","text":"Whenever {self} enters or attacks, he connives.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"{it} connives"}},
         {"key":"a378de6e7349","text":"Whenever {self} enters or attacks, if you control an artifact and an enchantment, create a 2/2 white Samurai creature token with vigilance.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition","object descriptor"],"span":"artifact and an enchantment"}},
-        {"key":"a615fcb383f0","text":"Whenever {self} enters or attacks, investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate"}},
         {"key":"2db3116a6341","text":"Whenever {self} enters or attacks, look at the top six cards of your library. You may put any number of Equipment cards from among them onto the battlefield. Put the rest on the bottom of your library in a random order. When you put one or more Equipment onto the battlefield this way, you may attach one of them to a Samurai you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"any number of Equipment cards from among them"}},
         {"key":"64678ef1dd12","text":"Whenever {self} enters or attacks, look at the top six cards of your library. You may reveal a Human or artifact card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","from among","object descriptor"],"span":"Human or artifact card"}},
         {"key":"54819bcc71d6","text":"Whenever {self} enters or attacks, look at the top ten cards of your library. You may put a legendary playtest card from among them onto the battlefield. Put the rest on the bottom in a random order.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","from among","object descriptor"],"span":"legendary playtest card"}},
@@ -24360,7 +24326,6 @@
         {"key":"5f97ca7923c5","text":"Wizards you control get +2/+1 and have flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Wizards you control get +2/+1 and have flying"}},
         {"key":"feb3a44c5652","text":"Wolves and Werewolves you control have haste.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Wolves and Werewolves you control have haste"}},
         {"key":"98ec63f99a1b","text":"Wolves you control have deathtouch.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Wolves you control have deathtouch"}},
-        {"key":"8838dbb05c5d","text":"Woman Who Walked the Earth — When {self} enters, investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Investigate"}},
         {"key":"c045329057bd","text":"Wood Elemental's power and toughness are each equal to the number of Forests sacrificed as it entered.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Wood Elemental's power and toughness are each equal to the number of Forests sacrificed as it entered"}},
         {"key":"9c1506cf3de4","text":"Would You Like A...? — Once each turn, you may play a historic land or cast a historic spell from the top of your library. When you do, create a Food token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Would You Like A...? — Once each turn, you may play a historic land or cast a historic spell from the top of your library. When you do, create a Food token"}},
         {"key":"502126c5109c","text":"Wraith Form — This creature can't be blocked.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Wraith Form — This creature can't be blocked"}},
@@ -25322,7 +25287,6 @@
         {"key":"4f77b84cd51e","text":"{1}{G}, Discard this card: Return target land card from your graveyard to the battlefield tapped.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Discard this card"}},
         {"key":"7b3b9e63660c","text":"{1}{G}, Discard this card: Search your library for a basic land card or a Desert card, reveal it, put it into your hand, then shuffle. You gain 3 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Discard this card"}},
         {"key":"836bd1d95184","text":"{1}{G}, Discard this card: Search your library for a basic land card, reveal it, put it into your hand, then shuffle. You gain 3 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause","effect clause"],"span":"{1}{G}, Discard this card: Search your library for a basic land card, reveal it, put it into your hand"}},
-        {"key":"69b4ead0132c","text":"{1}{G}, Exile a creature card from your graveyard: Investigate. You gain 2 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Investigate"}},
         {"key":"f7538b5d5af0","text":"{1}{G}, Put a card an opponent owns from exile into that player's graveyard: Create a 1/1 colorless Eldrazi Scion creature token. It has \"Sacrifice this token: Add {C}.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"{1}{G}, Put a card an opponent owns from exile into that player's graveyard: Create a 1/1 colorless Eldrazi Scion creature token. It has \"Sacrifice this token: Add {C}.\""}},
         {"key":"6e4f010d8701","text":"{1}{G}, Remove a +1/+1 counter from this creature: Target player searches their library for a basic land card, puts it onto the battlefield tapped, then shuffles.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","effect clause"],"span":"Target player searches their library for a basic land card, puts it onto the battlefield tapped"}},
         {"key":"60cce544af22","text":"{1}{G}, Remove one or more +1/+1 counters from among creatures you control: Create an X/X green Ooze creature token, where X is the number of +1/+1 counters removed this way.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Remove one or more +1/+1 counters from among creatures you control"}},
@@ -26309,7 +26273,6 @@
         {"key":"f18d72ac2f1b","text":"{3}, {T}: Flip a coin. If you win the flip, create a 2/2 colorless Insect artifact creature token with flying named Wirefly. If you lose the flip, destroy all permanents named Wirefly.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Create a 2/2 colorless Insect artifact creature token with flying named Wirefly"}},
         {"key":"b1b498302ac3","text":"{3}, {T}: Goad target creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Goad target creature"}},
         {"key":"b450a683019b","text":"{3}, {T}: If it's night, it becomes day. Otherwise, it becomes night. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"If it's night, it becomes day"}},
-        {"key":"7b47cb4bb4a2","text":"{3}, {T}: Investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Investigate"}},
         {"key":"ab826e89744c","text":"{3}, {T}: Look at the top X cards of your library, where X is the number of Bobbleheads you control. You may cast a spell with mana value 3 or less from among them without paying its mana cost. Put the rest on the bottom of your library in a random order.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Look at the top X cards of your library"}},
         {"key":"b3735543cc85","text":"{3}, {T}: Look at the top card of your library. If it's a Mount card, you may reveal it and put it into your hand. If you don't put it into your hand, you may put it on the bottom of your library.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Look at the top card of your library"}},
         {"key":"b7488eb984eb","text":"{3}, {T}: Look at the top three cards of your library. You may reveal a creature card of the chosen type from among them and put it into your hand. Put the rest on the bottom of your library in a random order.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"You may reveal a creature card of the chosen type from among them and put it into your hand"}},
@@ -26618,7 +26581,6 @@
         {"key":"03b42c3c5e8e","text":"{4}, {T}: Exile this artifact and target nontoken permanent an opponent owns. That player may pay 10 life. If they do, put this card into its owner's graveyard. Otherwise, that player owns this card and you own the other exiled card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"this artifact and target nontoken permanent an opponent owns"}},
         {"key":"337e5b307b9f","text":"{4}, {T}: Flip a coin. If you win the flip, destroy target creature an opponent controls. If you lose the flip, destroy target creature you control unless you pay {3} and repeat this process.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","target filter","object descriptor"],"span":"creature you control unless you pay {3} and repeat this process"}},
         {"key":"31eb77f55d3c","text":"{4}, {T}: For each planeswalker you control, you may activate one of its loyalty abilities once this turn as though none of its loyalty abilities have been activated this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"For each planeswalker you control, you may activate one of its loyalty abilities once this turn as though none of its loyalty abilities have been activated this turn"}},
-        {"key":"ffefcf102923","text":"{4}, {T}: Investigate.","reason":"no slot consumed the line","cards":12,"attribution":{"slot":"activated","path":["effect clause"],"span":"Investigate"}},
         {"key":"84e16038098a","text":"{4}, {T}: Look at the top card of your library. If it's a land card, you may put it onto the battlefield tapped. If you don't put the card onto the battlefield, you may put it on the bottom of your library.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Look at the top card of your library"}},
         {"key":"5de15c3a7cfc","text":"{4}, {T}: Move the CRANK! counter to your Contraption deck's next sprocket and crank any number of that sprocket's Contraptions.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Move the CRANK! counter to your Contraption deck's next sprocket and crank any number of that sprocket's Contraptions"}},
         {"key":"931fae4364b2","text":"{4}, {T}: Proliferate twice.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Proliferate twice"}},
@@ -31281,7 +31243,7 @@
 
         {"oracleId":"0727dc95-03df-4a2c-aed5-73fb840f3db7","name":"Abstruse Archaic","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["6a22d46baa9b"]},
 
-        {"oracleId":"0728b195-2dfe-4d73-91ae-e658a97b0b9a","name":"Hard Evidence","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e782708eec70"]},
+        {"oracleId":"0728b195-2dfe-4d73-91ae-e658a97b0b9a","name":"Hard Evidence","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","draw"],"definition":{"name":"Hard Evidence","types":["Sorcery"],"manaCost":{"U":1},"oracleText":"Create a 0/3 blue Crab creature token.\nInvestigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","effects":[{"op":"createToken","token":{"name":"Crab","types":["Creature"],"subtypes":["Crab"],"power":0,"toughness":3,"colors":["U"]},"controller":"controller"},{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]},"botReach":"played"},
 
         {"oracleId":"072d05c4-e0d7-47af-b2a9-16b90810fd30","name":"Costume Closet","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["aaed22f092fe","b0a3312d3077"]},
 
@@ -31571,7 +31533,7 @@
 
         {"oracleId":"087f9ad7-e74f-40e2-8102-1ed2925d0418","name":"Rest in Peace","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4c372d69a2de","bd9ec8150f7b"]},
 
-        {"oracleId":"0880461e-8943-443b-90e7-ff84eef46550","name":"Dining Room","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ffefcf102923"]},
+        {"oracleId":"0880461e-8943-443b-90e7-ff84eef46550","name":"Dining Room","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["activated","mana-ability","static"],"opsUsed":["createToken","draw"],"definition":{"name":"Dining Room","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {R} or {G}.\n{4}, {T}: Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","activatedAbilities":[{"id":"dining-room-mana","oracleText":"{T}: Add {R} or {G}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"R":1},{"G":1}]},{"id":"dining-room-ability-2","oracleText":"{4}, {T}: Investigate.","cost":{"mana":{"X":4},"tap":true},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}],"entersTapped":true},"botReach":"played"},
 
         {"oracleId":"0880b36a-6141-4955-b532-cf88daca0869","name":"Draconian Cylix","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["activated"],"opsUsed":["regenerate"],"definition":{"name":"Draconian Cylix","types":["Artifact"],"manaCost":{"X":3},"oracleText":"{2}, {T}, Discard a card at random: Regenerate target creature.","activatedAbilities":[{"id":"draconian-cylix-ability","oracleText":"{2}, {T}, Discard a card at random: Regenerate target creature.","cost":{"mana":{"X":2},"tap":true,"discardAtRandom":1},"useStack":true,"effects":[{"op":"regenerate","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1}}]},"botReach":"played","retired":{"at":"2026-09-18","issue":4027}},
 
@@ -32507,7 +32469,7 @@
 
         {"oracleId":"0be4877d-72ff-4951-aa52-f4f816abc844","name":"Malachite Talisman","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["if","mayPay","tapUntap"],"definition":{"name":"Malachite Talisman","types":["Artifact"],"manaCost":{"X":2},"oracleText":"Whenever a player casts a green spell, you may pay {3}. If you do, untap target permanent.","compiledTriggeredAbilities":[{"id":"malachite-talisman-trigger","oracleText":"Whenever a player casts a green spell, you may pay {3}. If you do, untap target permanent.","head":{"kind":"spell-cast","scope":"any","filter":{"colors":["G"]}},"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1},"effects":[{"op":"mayPay","player":"controller","cost":{"X":3},"prompt":"You may pay {3}. If you do, untap target permanent","bind":"$paid1"},{"op":"if","predicate":{"binding":"$paid1"},"then":[{"op":"tapUntap","action":"untap","target":{"target":0}}]}]}]},"botReach":"played"},
 
-        {"oracleId":"0be72320-f870-486b-a3fb-128024a958ec","name":"Elemental, My Dear","state":"unparsed","gaps":["fea32e053ae9"]},
+        {"oracleId":"0be72320-f870-486b-a3fb-128024a958ec","name":"Elemental, My Dear","state":"unparsed","gaps":["0265d10532cf"]},
 
         {"oracleId":"0be907b2-54f9-4c8c-b6af-7c0093892e42","name":"Curiosity Crafter","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["aeb9776824b9","bd5f88f6d375"]},
 
@@ -33529,7 +33491,7 @@
 
         {"oracleId":"0fbe0610-8565-4910-bf35-2c10e38b633a","name":"Glassblower's Puzzleknot","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","triggered"],"opsUsed":["addPlayerCounter","scryReorder"],"definition":{"name":"Glassblower's Puzzleknot","types":["Artifact"],"manaCost":{"X":2},"oracleText":"When this artifact enters, scry 2, then you get {E}{E}. (You get two energy counters. To scry 2, look at the top two cards of your library, then put any number of them on the bottom and the rest on top in any order.)\n{2}{U}, Sacrifice this artifact: Scry 2, then you get {E}{E}.","activatedAbilities":[{"id":"glassblower-s-puzzleknot-ability","oracleText":"{2}{U}, Sacrifice this artifact: Scry 2, then you get {E}{E}.","cost":{"mana":{"X":2,"U":1},"sacrifice":true},"useStack":true,"effects":[{"op":"scryReorder","player":"controller","count":2,"destination":"library-bottom"},{"op":"addPlayerCounter","player":"controller","counter":"energy","amount":2}]}],"compiledTriggeredAbilities":[{"id":"glassblower-s-puzzleknot-trigger","oracleText":"When this artifact enters, scry 2, then you get {E}{E}.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"scryReorder","player":"controller","count":2,"destination":"library-bottom"},{"op":"addPlayerCounter","player":"controller","counter":"energy","amount":2}]}]},"botReach":"played"},
 
-        {"oracleId":"0fbe3805-b59b-47fc-ab21-f05a4aa4cfe0","name":"Duggan, Private Detective","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["64950cc3e6b6","99bde98dcdfb","a615fcb383f0"]},
+        {"oracleId":"0fbe3805-b59b-47fc-ab21-f05a4aa4cfe0","name":"Duggan, Private Detective","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["64950cc3e6b6","99bde98dcdfb"]},
 
         {"oracleId":"0fbec99f-0e49-4211-a06e-edd783cf47da","name":"Sparkspitter","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["50aaf0e8458a"]},
 
@@ -34805,7 +34767,7 @@
 
         {"oracleId":"14104a52-c4e8-4755-8196-7fa5c5a35f36","name":"Duneblast","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6d5267a7d486"]},
 
-        {"oracleId":"141a2757-8f20-4e10-9866-bb5d612ed62d","name":"Loxodon Eavesdropper","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["716254ba1cfc","fb2bd5b0c29a"]},
+        {"oracleId":"141a2757-8f20-4e10-9866-bb5d612ed62d","name":"Loxodon Eavesdropper","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["716254ba1cfc"]},
 
         {"oracleId":"141c33be-7a25-4981-b62c-efee8e8ec91d","name":"Clear the Mind","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["9b29fdb61a50"]},
 
@@ -36015,7 +35977,7 @@
 
         {"oracleId":"1862716c-02b9-4f0f-8d47-5ac8c86c32d4","name":"Fluros of Myra's Marvels","state":"unparsed","gaps":["2478950ca26a","b1c2525c09c0"]},
 
-        {"oracleId":"1863ba60-f786-4e52-90fc-f3135ca0257f","name":"Heaven Sent","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["a2b6d614930d","e84f3a6d9d5e"]},
+        {"oracleId":"1863ba60-f786-4e52-90fc-f3135ca0257f","name":"Heaven Sent","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["e84f3a6d9d5e"]},
 
         {"oracleId":"1869a326-8b48-4331-b969-5ce83cf4ff8a","name":"Fallen Angel","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["pump"],"definition":{"name":"Fallen Angel","types":["Creature"],"subtypes":["Angel"],"manaCost":{"X":3,"B":2},"power":3,"toughness":3,"oracleText":"Flying\nSacrifice a creature: This creature gets +2/+1 until end of turn.","staticAbilities":["flying"],"activatedAbilities":[{"id":"fallen-angel-ability","oracleText":"Sacrifice a creature: This creature gets +2/+1 until end of turn.","cost":{"sacrificeFilter":{"types":["Creature"]}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":2,"toughness":1,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played","retired":{"at":"2026-11-16","issue":4031}},
 
@@ -37733,7 +37695,7 @@
 
         {"oracleId":"1ed80dd0-0980-4830-aad2-5b78ca373098","name":"Piper's Melody","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["c85f8b967f29"]},
 
-        {"oracleId":"1ed9e351-0000-4b75-8ecb-d15bd88df68a","name":"Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["02574b7e4904","35bedcd32fbe","841f9869a691","abd9c801a430","f6a42e5d1b43"]},
+        {"oracleId":"1ed9e351-0000-4b75-8ecb-d15bd88df68a","name":"Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["02574b7e4904","35bedcd32fbe","abd9c801a430","f6a42e5d1b43"]},
 
         {"oracleId":"1edbb131-0dd0-4438-826f-3bfa787b8371","name":"Shrines","state":"unparsed","gaps":["c674ab8328b9"]},
 
@@ -38145,7 +38107,7 @@
 
         {"oracleId":"20582c7b-edd3-4189-98ec-8fabd39034b0","name":"Mandate of Abaddon","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["c485ac541356"]},
 
-        {"oracleId":"20591a83-7138-4876-b088-035bd3788be3","name":"Tamiyo's Journal","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["171168646989"]},
+        {"oracleId":"20591a83-7138-4876-b088-035bd3788be3","name":"Tamiyo's Journal","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","triggered"],"opsUsed":["choice","createToken","draw","libraryLook","moveZone"],"definition":{"name":"Tamiyo's Journal","types":["Artifact"],"supertypes":["Legendary"],"subtypes":["Book"],"manaCost":{"X":5},"oracleText":"At the beginning of your upkeep, investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")\n{T}, Sacrifice three Clues: Search your library for a card, put that card into your hand, then shuffle.","activatedAbilities":[{"id":"tamiyo-s-journal-ability","oracleText":"{T}, Sacrifice three Clues: Search your library for a card, put that card into your hand, then shuffle.","cost":{"tap":true,"sacrificeFilter":{"subtypes":["Clue"]},"sacrificeFilterCount":3},"useStack":true,"effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","count":1,"prompt":"Search your library for a card.","bind":"$found1"},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"hand"},{"op":"libraryLook","action":"shuffle","player":"controller"}]}],"compiledTriggeredAbilities":[{"id":"tamiyo-s-journal-trigger","oracleText":"At the beginning of your upkeep, investigate.","head":{"kind":"phase","phase":"UPKEEP","scope":"your"},"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}]},"botReach":"played"},
 
         {"oracleId":"20593b29-2987-4b3b-8956-66f91dfe8a13","name":"Garbage Elemental","state":"unparsed","gaps":["546e330f8b37"]},
 
@@ -38555,7 +38517,7 @@
 
         {"oracleId":"22113051-c971-4108-953b-95356d21323a","name":"Ox of Agonas","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6126cc9b48cf","c44239d0de94","cac736092c8b"]},
 
-        {"oracleId":"221240c5-3c97-438c-b906-2508eacf190f","name":"Confront the Unknown","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["d2325a8b9e87"]},
+        {"oracleId":"221240c5-3c97-438c-b906-2508eacf190f","name":"Confront the Unknown","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e787a21d4bde"]},
 
         {"oracleId":"22134489-efce-4903-9f14-37a2248e8546","name":"Goblin Brigand","state":"unparsed","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"gaps":["9aa45297d356"]},
 
@@ -39083,7 +39045,7 @@
 
         {"oracleId":"23f9bee4-ac7e-4828-82c0-576fee0d29b7","name":"Singing Tree","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["1251422ef687"]},
 
-        {"oracleId":"24038629-7c12-45ef-8ec4-0d2bb3e2265c","name":"Ethereal Investigator","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0c684336f6b3","c9b29dbebba5"]},
+        {"oracleId":"24038629-7c12-45ef-8ec4-0d2bb3e2265c","name":"Ethereal Investigator","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["744f926a0c92","c9b29dbebba5"]},
 
         {"oracleId":"240410a0-3288-4336-b1ad-34936e64ccf2","name":"Vision Quest","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["558976242377"]},
 
@@ -41501,7 +41463,7 @@
 
         {"oracleId":"2d668f67-7cde-447a-8eb3-35c0c5c5ab69","name":"Raven Wings","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["df3d3fcecbcc"]},
 
-        {"oracleId":"2d6a0d89-7ebd-420e-9892-be1506ab3714","name":"Follow the Bodies","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["e782708eec70"]},
+        {"oracleId":"2d6a0d89-7ebd-420e-9892-be1506ab3714","name":"Follow the Bodies","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["createToken","draw"],"definition":{"name":"Follow the Bodies","types":["Sorcery"],"manaCost":{"X":2,"U":1},"oracleText":"Gravestorm (When you cast this spell, copy it for each permanent put into a graveyard from the battlefield this turn.)\nInvestigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","staticAbilities":["gravestorm"],"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]},"botReach":"played"},
 
         {"oracleId":"2d6a387f-7ad4-419e-951a-9dcd4c9ac823","name":"Flow of Maggots","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["d30b67e083a9"]},
 
@@ -41681,7 +41643,7 @@
 
         {"oracleId":"2e17cd4c-ebf0-40d0-b52d-b4d84bbcf7b3","name":"Devastating Onslaught","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["905c07d8c937"]},
 
-        {"oracleId":"2e18ee5b-cda3-428b-be91-939c410256ac","name":"Cold Case Cracker","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["7056adb2d9d3"]},
+        {"oracleId":"2e18ee5b-cda3-428b-be91-939c410256ac","name":"Cold Case Cracker","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["createToken","draw"],"definition":{"name":"Cold Case Cracker","types":["Creature"],"subtypes":["Spirit","Detective"],"manaCost":{"X":3,"U":1},"power":3,"toughness":3,"oracleText":"Flying\nWhen this creature dies, investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"cold-case-cracker-trigger","oracleText":"When this creature dies, investigate.","head":{"kind":"died","scope":"self"},"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}]},"botReach":"played"},
 
         {"oracleId":"2e19baba-2d66-4e3a-b2bf-cb27dce89f44","name":"Quest for the Goblin Lord","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e1ca3abd9f42","ec5e24a84073"]},
 
@@ -41983,7 +41945,7 @@
 
         {"oracleId":"2f2cb579-f6f9-4775-9959-a678c899887c","name":"Urza's","state":"unparsed","gaps":["c674ab8328b9"]},
 
-        {"oracleId":"2f2d75a0-d751-4c74-b357-8f92a992447f","name":"Kellan, Inquisitive Prodigy // Tail the Suspect","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0f2d7c141e43","4e268e3c5eeb"]},
+        {"oracleId":"2f2d75a0-d751-4c74-b357-8f92a992447f","name":"Kellan, Inquisitive Prodigy // Tail the Suspect","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4e268e3c5eeb"]},
 
         {"oracleId":"2f301cc3-31f7-4728-94c4-4ae1bd0c439c","name":"My First Tome","state":"unparsed","gaps":["6aa172fdabc4"]},
 
@@ -43257,7 +43219,7 @@
 
         {"oracleId":"33a7a1e9-23b4-4cde-baf1-b1c0165c6729","name":"Warfire Javelineer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4b34f9e6fedb"]},
 
-        {"oracleId":"33a7d29a-ebc0-4606-91b6-7381e2a16016","name":"Library","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ffefcf102923"]},
+        {"oracleId":"33a7d29a-ebc0-4606-91b6-7381e2a16016","name":"Library","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["activated","mana-ability","static"],"opsUsed":["createToken","draw"],"definition":{"name":"Library","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {U} or {R}.\n{4}, {T}: Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","activatedAbilities":[{"id":"library-mana","oracleText":"{T}: Add {U} or {R}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"U":1},{"R":1}]},{"id":"library-ability-2","oracleText":"{4}, {T}: Investigate.","cost":{"mana":{"X":4},"tap":true},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}],"entersTapped":true},"botReach":"played"},
 
         {"oracleId":"33a90122-7280-4481-9b97-5879194cae40","name":"Dalkovan Encampment","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6f6a2f09f13c","9147ca0e1580"]},
 
@@ -45511,7 +45473,7 @@
 
         {"oracleId":"3ba19659-461f-482c-b882-b4fca7d5d1f8","name":"Assault Intercessor","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["891d7c7944a9"]},
 
-        {"oracleId":"3ba223b7-743f-4f99-836e-869778fb2e99","name":"Undercover Crocodelf","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["c06fb54619fc","daf3bfa6a84a"]},
+        {"oracleId":"3ba223b7-743f-4f99-836e-869778fb2e99","name":"Undercover Crocodelf","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["c06fb54619fc"]},
 
         {"oracleId":"3ba3405d-8c9a-4a80-811d-529cd3cb657f","name":"Perilous Shadow","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["pump"],"definition":{"name":"Perilous Shadow","types":["Creature"],"subtypes":["Insect","Shade"],"manaCost":{"X":2,"B":2},"power":0,"toughness":4,"oracleText":"{1}{B}: This creature gets +2/+2 until end of turn.","activatedAbilities":[{"id":"perilous-shadow-ability","oracleText":"{1}{B}: This creature gets +2/+2 until end of turn.","cost":{"mana":{"X":1,"B":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":2,"toughness":2,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
@@ -48795,7 +48757,7 @@
 
         {"oracleId":"47944bf1-b954-4143-b479-45c10071e35a","name":"Haunted Hellride","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c96121f3bfea"]},
 
-        {"oracleId":"47951720-9584-4ca3-a73d-3d259102b2f8","name":"They Went This Way","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["f1ec4ed091ac"]},
+        {"oracleId":"47951720-9584-4ca3-a73d-3d259102b2f8","name":"They Went This Way","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","createToken","draw","libraryLook","moveZone"],"definition":{"name":"They Went This Way","types":["Sorcery"],"manaCost":{"X":2,"G":1},"oracleText":"Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"type":"Land","supertype":"Basic"},"count":{"min":0,"max":1},"prompt":"Search your library for a basic land card.","bind":"$found1"},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"battlefield","tapped":true},{"op":"libraryLook","action":"shuffle","player":"controller"},{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]},"botReach":"played"},
 
         {"oracleId":"479adf64-f42c-4cb6-bf25-648c044bca8b","name":"Sunspine Lynx","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["184faeff57b7","3f681666e734","ac1b724ce583"]},
 
@@ -48879,7 +48841,7 @@
 
         {"oracleId":"47f5ea79-2bf2-4e17-9c6d-e1cbcd9d30d1","name":"Repel the Darkness","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["fc669e0acf95"]},
 
-        {"oracleId":"47f71408-5509-4651-9121-fd0867adae00","name":"Kitchen","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ffefcf102923"]},
+        {"oracleId":"47f71408-5509-4651-9121-fd0867adae00","name":"Kitchen","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["activated","mana-ability","static"],"opsUsed":["createToken","draw"],"definition":{"name":"Kitchen","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {G} or {U}.\n{4}, {T}: Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","activatedAbilities":[{"id":"kitchen-mana","oracleText":"{T}: Add {G} or {U}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"G":1},{"U":1}]},{"id":"kitchen-ability-2","oracleText":"{4}, {T}: Investigate.","cost":{"mana":{"X":4},"tap":true},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}],"entersTapped":true},"botReach":"played"},
 
         {"oracleId":"47f75e25-8a52-4452-a3a8-bf1bd00942d1","name":"Warren Instigator","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["choice","moveZone"],"definition":{"name":"Warren Instigator","types":["Creature"],"subtypes":["Goblin","Berserker"],"manaCost":{"R":2},"power":1,"toughness":1,"oracleText":"Double strike\nWhenever this creature deals damage to an opponent, you may put a Goblin creature card from your hand onto the battlefield.","staticAbilities":["double strike"],"compiledTriggeredAbilities":[{"id":"warren-instigator-trigger","oracleText":"Whenever this creature deals damage to an opponent, you may put a Goblin creature card from your hand onto the battlefield.","head":{"kind":"damage-dealt","source":"self","recipient":"opponent"},"effects":[{"op":"choice","kind":"choose-hand-card","player":"controller","zone":"hand","filter":{"type":"Creature","subtype":"Goblin"},"count":{"min":0,"max":1},"prompt":"You may put a Goblin creature card from your hand onto the battlefield.","bind":"$picked"},{"op":"moveZone","cards":{"ref":"$picked"},"player":"controller","from":"hand","to":"battlefield"}]}]},"botReach":"played"},
 
@@ -49313,7 +49275,7 @@
 
         {"oracleId":"495fc654-7986-4d76-9d5c-bc1484e98de2","name":"Yavimaya Enchantress","state":"unparsed","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"gaps":["4bc037e61b66"]},
 
-        {"oracleId":"4960c3a0-77ca-48d8-b565-6c5f1e6522cf","name":"Press for Answers","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e782708eec70","e7e877bb6fc4"]},
+        {"oracleId":"4960c3a0-77ca-48d8-b565-6c5f1e6522cf","name":"Press for Answers","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e7e877bb6fc4"]},
 
         {"oracleId":"4963011a-a49c-46ae-8868-dd975817cb1f","name":"Celestine Cave Witch","state":"unparsed","gaps":["afe6fd1686a6"]},
 
@@ -50775,7 +50737,7 @@
 
         {"oracleId":"4ebce651-ef95-4a96-b720-a23757d641c8","name":"Scrap Welder","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["748482b6141e"]},
 
-        {"oracleId":"4ec0b64d-c793-47a6-9c26-9ad4d9e9c182","name":"Lazav, Wearer of Faces","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2cbcdf65f346","c5826540c35b"]},
+        {"oracleId":"4ec0b64d-c793-47a6-9c26-9ad4d9e9c182","name":"Lazav, Wearer of Faces","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2cbcdf65f346"]},
 
         {"oracleId":"4ec84bb3-796a-4074-ac9a-1bd277158896","name":"Dream Eater","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["258a43de0408"]},
 
@@ -51983,7 +51945,7 @@
 
         {"oracleId":"52fdfe4b-10a7-421d-80ea-f6c39013062b","name":"Gigantoplasm","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["83a5fda0a97d"]},
 
-        {"oracleId":"52fe8101-82af-4aed-a395-54e7b7639bd2","name":"Curious Inquiry","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a89b7ea6ce52"]},
+        {"oracleId":"52fe8101-82af-4aed-a395-54e7b7639bd2","name":"Curious Inquiry","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":["createToken","draw"],"definition":{"name":"Curious Inquiry","types":["Enchantment"],"subtypes":["Aura"],"manaCost":{"U":1},"oracleText":"Enchant creature\nEnchanted creature gets +1/+1 and has \"Whenever this creature deals combat damage to a player, investigate.\" (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","compiledStaticEffects":[{"kind":"pt-buff","appliesTo":"host","power":1,"toughness":1},{"kind":"triggered-grant","appliesTo":"host","abilityId":"curious-inquiry-granted"}],"compiledTriggeredGrantTemplates":[{"id":"curious-inquiry-granted","oracleText":"Whenever this creature deals combat damage to a player, investigate.","head":{"kind":"combat-damage-to-player"},"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
         {"oracleId":"530140f1-e992-4b5e-882c-c15bacc328fa","name":"Trace of Abundance","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["3de4a4c80b15"]},
 
@@ -52727,7 +52689,7 @@
 
         {"oracleId":"55c71732-6ba1-401d-8759-4d64dae22133","name":"Declaration of Naught","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["cd22203b2cb8"]},
 
-        {"oracleId":"55c7ce94-3cd3-42f3-9dd8-0c118fa626c8","name":"Secrets of the Key","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["cc04c377c79d"]},
+        {"oracleId":"55c7ce94-3cd3-42f3-9dd8-0c118fa626c8","name":"Secrets of the Key","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["54e9762d577f"]},
 
         {"oracleId":"55cba59c-932c-4295-87dc-9179fbdfbd53","name":"One Last Job","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5b0ab85711e4","b9af219aad4b","ea9b4288e375"]},
 
@@ -53927,7 +53889,7 @@
 
         {"oracleId":"5a343a5f-3f9b-43c3-8532-8391de7a5443","name":"Jacked Rabbit","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["7f3a8d019724"]},
 
-        {"oracleId":"5a35201d-e9b1-433a-bb70-3280ceedbcd6","name":"Elmar, Ulvenwald Informant","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["5c435c34d1e8","bbe761431119"]},
+        {"oracleId":"5a35201d-e9b1-433a-bb70-3280ceedbcd6","name":"Elmar, Ulvenwald Informant","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["5c435c34d1e8"]},
 
         {"oracleId":"5a357a92-e6b0-40b3-a7a2-816b81de5a94","name":"Maître Tree","state":"unparsed","gaps":["ac21c7c22538"]},
 
@@ -54295,7 +54257,7 @@
 
         {"oracleId":"5b7bbc76-22cc-482e-8d65-34cff34c93c8","name":"Unstable Experiment","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["02ffde0a5229"]},
 
-        {"oracleId":"5b7ccdd2-40aa-4619-a147-0792dc02b2e5","name":"Martha Jones","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["04ce3b5526f6","8838dbb05c5d","c7e98bb2e773"]},
+        {"oracleId":"5b7ccdd2-40aa-4619-a147-0792dc02b2e5","name":"Martha Jones","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["04ce3b5526f6","c7e98bb2e773"]},
 
         {"oracleId":"5b7f6cc3-8d4e-42e5-a908-7ebe3bccaf1e","name":"Canoptek Scarab Swarm","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["b8c352cc70e4"]},
 
@@ -54727,7 +54689,7 @@
 
         {"oracleId":"5d170890-4c9c-4a06-b16e-eef0932b9099","name":"Smart Ass","state":"unparsed","gaps":["d3ef8ace88cd"]},
 
-        {"oracleId":"5d179680-96b8-42f7-97bb-ba9121f2c19d","name":"Blu, Mansion Prince","state":"unparsed","gaps":["0208ffa94616","bf6dbf0dafbf"]},
+        {"oracleId":"5d179680-96b8-42f7-97bb-ba9121f2c19d","name":"Blu, Mansion Prince","state":"unparsed","gaps":["0208ffa94616"]},
 
         {"oracleId":"5d19c68d-6eb8-4b34-9f31-c26931e59670","name":"Weatherseed Totem","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5d703d70a57a","97d46c7b616b"]},
 
@@ -57133,7 +57095,7 @@
 
         {"oracleId":"65e64c50-4757-4e8e-8043-bc61a5f21750","name":"Full Steam Ahead","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3f0f8f2d3bd5"]},
 
-        {"oracleId":"65e65eab-bc3f-4eae-8361-7f0a65fc1673","name":"Eloise, Nephalia Sleuth","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["c25628e70e73","f5b943e67c65"]},
+        {"oracleId":"65e65eab-bc3f-4eae-8361-7f0a65fc1673","name":"Eloise, Nephalia Sleuth","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["f5b943e67c65"]},
 
         {"oracleId":"65ea3638-1766-4096-88a8-662a0d6faf0c","name":"Jo Grant","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["654f9e219f02","785b5b35c499","c7e98bb2e773"]},
 
@@ -57743,7 +57705,7 @@
 
         {"oracleId":"681fc668-cb26-4ba4-a915-48ddfa2b9520","name":"Prized Statue","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"gaps":["e010f4e88607"]},
 
-        {"oracleId":"68227832-2916-49b9-92bb-c09b8a0c13f5","name":"Ongoing Investigation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["69b4ead0132c","a06c41aa7df5"]},
+        {"oracleId":"68227832-2916-49b9-92bb-c09b8a0c13f5","name":"Ongoing Investigation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a06c41aa7df5"]},
 
         {"oracleId":"68227969-39cf-42cf-b3b8-cf8a04647d7e","name":"Switcheroo","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1c981b093c80"]},
 
@@ -58301,7 +58263,7 @@
 
         {"oracleId":"69c8ec4d-d720-4607-abce-9d241ad3b00a","name":"Alberix, the Trade Planet","state":"unparsed","gaps":["a23b35e399a3","ea9738412116"]},
 
-        {"oracleId":"69ca69c7-403b-4b5d-be08-d9dce8ce410e","name":"Daring Sleuth // Bearer of Overwhelming Truths","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7755e1b5a7d5","daf3bfa6a84a"]},
+        {"oracleId":"69ca69c7-403b-4b5d-be08-d9dce8ce410e","name":"Daring Sleuth // Bearer of Overwhelming Truths","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7755e1b5a7d5"]},
 
         {"oracleId":"69cc006d-172f-4e4c-bb75-10d772b061b1","name":"Mitotic Manipulation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["920dab86f5d7"]},
 
@@ -59357,7 +59319,7 @@
 
         {"oracleId":"6dd887be-484b-4ecc-8c02-8cce7e43ec89","name":"Reaver Drone","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3cea586c2203"]},
 
-        {"oracleId":"6dd8ba09-f117-4514-9e09-f9f9f5fb5025","name":"Floodhound","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["7b47cb4bb4a2"]},
+        {"oracleId":"6dd8ba09-f117-4514-9e09-f9f9f5fb5025","name":"Floodhound","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["createToken","draw"],"definition":{"name":"Floodhound","types":["Creature"],"subtypes":["Elemental","Dog"],"manaCost":{"U":1},"power":1,"toughness":2,"oracleText":"{3}, {T}: Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","activatedAbilities":[{"id":"floodhound-ability","oracleText":"{3}, {T}: Investigate.","cost":{"mana":{"X":3},"tap":true},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}]},"botReach":"played"},
 
         {"oracleId":"6ddc1256-a166-464f-8136-bd111cba6327","name":"Keepers of the Faith","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Keepers of the Faith","types":["Creature"],"subtypes":["Human","Cleric"],"manaCost":{"X":1,"W":2},"power":2,"toughness":3},"botReach":"played"},
 
@@ -60697,7 +60659,7 @@
 
         {"oracleId":"727ca426-f4cc-4218-8ae5-8c427af2e816","name":"Cragcrown Pathway // Timbercrown Pathway","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["mana-ability"],"opsUsed":[],"definition":{"name":"Cragcrown Pathway","types":["Land"],"oracleText":"{T}: Add {R}.","activatedAbilities":[{"id":"cragcrown-pathway-mana","oracleText":"{T}: Add {R}.","cost":{"tap":true},"useStack":false,"manaProduced":{"R":1}}],"backFace":{"kind":"modal","name":"Timbercrown Pathway","types":["Land"],"activatedAbilities":[{"id":"timbercrown-pathway-mana","oracleText":"{T}: Add {G}.","cost":{"tap":true},"useStack":false,"manaProduced":{"G":1}}],"oracleText":"{T}: Add {G}."}},"botReach":"played"},
 
-        {"oracleId":"727e98cc-b295-47f9-9d3d-bcf38c9f56d2","name":"The Measure of a Man","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7bc88b121703"]},
+        {"oracleId":"727e98cc-b295-47f9-9d3d-bcf38c9f56d2","name":"The Measure of a Man","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a72492399d35"]},
 
         {"oracleId":"727ef984-1643-4a09-8283-a665508e85dd","name":"Vesuvan Drifter","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["283ec775a46f"]},
 
@@ -61299,7 +61261,7 @@
 
         {"oracleId":"74b1db17-636d-40ba-8752-276e80b603a6","name":"Yawgmoth's Testament","state":"unparsed","gaps":["6259baa4348a","9c9a9f9aa404"]},
 
-        {"oracleId":"74b58f31-7634-4b51-a900-6fbfccfb3cd2","name":"Constable Odo","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["00cdd1c451e5"]},
+        {"oracleId":"74b58f31-7634-4b51-a900-6fbfccfb3cd2","name":"Constable Odo","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a9ec59441359"]},
 
         {"oracleId":"74b631c5-9420-496e-8845-3b050d3d5340","name":"Streetwise Negotiator","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5dad5b34b2f6","a507c0109cb2"]},
 
@@ -61983,7 +61945,7 @@
 
         {"oracleId":"773b40b1-72f0-48a0-b210-2afa5df5485e","name":"Gimli's Axe","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["3668f0f57a25"]},
 
-        {"oracleId":"773c7a1e-0f59-4606-a2fc-c47bda760ecd","name":"Foul Play","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["182fe3752a80"]},
+        {"oracleId":"773c7a1e-0f59-4606-a2fc-c47bda760ecd","name":"Foul Play","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","destroy","draw"],"definition":{"name":"Foul Play","types":["Sorcery"],"manaCost":{"X":1,"B":1},"oracleText":"Destroy target creature with power 2 or less. Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","effects":[{"op":"destroy","target":{"target":0}},{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}],"targetRequirement":{"type":"Creature","count":1,"powerFilter":{"max":2}}},"botReach":"played"},
 
         {"oracleId":"7744bae4-a8b7-44a5-9b4c-0048ad4cc448","name":"Air Elemental","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Air Elemental","types":["Creature"],"subtypes":["Elemental"],"manaCost":{"X":3,"U":2},"power":4,"toughness":4,"oracleText":"Flying","staticAbilities":["flying"]},"botReach":"played"},
 
@@ -62373,7 +62335,7 @@
 
         {"oracleId":"78962897-e2e3-4cb2-ae97-eca5dbe74e49","name":"Moaning Spirit","state":"ready","poolIn":["pauper","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Moaning Spirit","types":["Creature"],"subtypes":["Spirit"],"manaCost":{"X":2,"B":1},"power":2,"toughness":1,"oracleText":"Flying","staticAbilities":["flying"]},"botReach":"played"},
 
-        {"oracleId":"789899eb-3a33-4a41-b6b5-5e2f55a9af51","name":"The Chase Is On","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["651bf32c0e75"]},
+        {"oracleId":"789899eb-3a33-4a41-b6b5-5e2f55a9af51","name":"The Chase Is On","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","draw","grantAbility","pump"],"definition":{"name":"The Chase Is On","types":["Instant"],"manaCost":{"X":2,"R":1},"oracleText":"Target creature gets +3/+0 and gains first strike until end of turn. Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","effects":[{"op":"pump","target":{"target":0},"power":3,"toughness":0,"duration":{"phase":"end-of-turn"}},{"op":"grantAbility","target":{"target":0},"ability":"first strike","duration":{"phase":"end-of-turn"}},{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
         {"oracleId":"789964f5-79c5-4329-b68f-b15b0d54b0b2","name":"Sarulf, Realm Eater","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["aea2be28bd51","c18da9f7f1a7"]},
 
@@ -62555,7 +62517,7 @@
 
         {"oracleId":"79301ae1-8c9c-4723-be21-dc27e1646f35","name":"Skyline Cascade","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["mana-ability","static","triggered"],"opsUsed":["skipNextUntap"],"definition":{"name":"Skyline Cascade","types":["Land"],"oracleText":"This land enters tapped.\nWhen this land enters, target creature an opponent controls doesn't untap during its controller's next untap step.\n{T}: Add {U}.","activatedAbilities":[{"id":"skyline-cascade-mana","oracleText":"{T}: Add {U}.","cost":{"tap":true},"useStack":false,"manaProduced":{"U":1}}],"compiledTriggeredAbilities":[{"id":"skyline-cascade-trigger","oracleText":"When this land enters, target creature an opponent controls doesn't untap during its controller's next untap step.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":1,"controller":"opponent"},"effects":[{"op":"skipNextUntap","target":{"target":0}}]}],"entersTapped":true},"botReach":"played"},
 
-        {"oracleId":"7932ab35-39dc-4500-aa44-2ad7228f0d2a","name":"Malcolm, the Eyes","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a5a1a3741b5c"]},
+        {"oracleId":"7932ab35-39dc-4500-aa44-2ad7228f0d2a","name":"Malcolm, the Eyes","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["createToken","draw"],"definition":{"name":"Malcolm, the Eyes","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Siren","Pirate"],"manaCost":{"U":1,"R":1},"power":2,"toughness":2,"oracleText":"Flying, haste\nWhenever you cast your second spell each turn, investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","staticAbilities":["flying","haste"],"compiledTriggeredAbilities":[{"id":"malcolm-the-eyes-trigger","oracleText":"Whenever you cast your second spell each turn, investigate.","head":{"kind":"spell-cast","scope":"you","nthSpellThisTurn":2},"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}]},"botReach":"played"},
 
         {"oracleId":"7932ddef-b274-4f56-be7f-72e82d17fc59","name":"Repository Skaab","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["533397044aed"]},
 
@@ -64411,7 +64373,7 @@
 
         {"oracleId":"7ff8940f-d798-41eb-b82e-a1eba2163fe7","name":"Steel Seraph","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["915ef372d015"]},
 
-        {"oracleId":"7ffadb3f-0b88-416f-b1a1-876383c22720","name":"Study","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ffefcf102923"]},
+        {"oracleId":"7ffadb3f-0b88-416f-b1a1-876383c22720","name":"Study","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["activated","mana-ability","static"],"opsUsed":["createToken","draw"],"definition":{"name":"Study","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {W} or {U}.\n{4}, {T}: Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","activatedAbilities":[{"id":"study-mana","oracleText":"{T}: Add {W} or {U}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"W":1},{"U":1}]},{"id":"study-ability-2","oracleText":"{4}, {T}: Investigate.","cost":{"mana":{"X":4},"tap":true},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}],"entersTapped":true},"botReach":"played"},
 
         {"oracleId":"7ffae8f8-3006-4969-a339-6d30678f87ea","name":"Night's Whisper","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["draw","loseLife"],"definition":{"name":"Night's Whisper","types":["Sorcery"],"manaCost":{"X":1,"B":1},"oracleText":"You draw two cards and lose 2 life.","effects":[{"op":"draw","player":"controller","count":2},{"op":"loseLife","player":"controller","amount":2}]},"botReach":"played"},
 
@@ -64587,7 +64549,7 @@
 
         {"oracleId":"80e9a42e-f4f4-4bfc-91a2-ad124737dca2","name":"Deep Forest Hermit","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f6924bfcf93e"]},
 
-        {"oracleId":"80ea3e65-946d-42c3-a26f-3d74e81d70b4","name":"Morska, Undersea Sleuth","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["171168646989","bd5f88f6d375","ef179fe2e23b"]},
+        {"oracleId":"80ea3e65-946d-42c3-a26f-3d74e81d70b4","name":"Morska, Undersea Sleuth","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["bd5f88f6d375","ef179fe2e23b"]},
 
         {"oracleId":"80ea56ad-e741-4a85-b4e8-ce62e7d593d5","name":"Blanchwood Armor","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["6750121825ba"]},
 
@@ -65883,7 +65845,7 @@
 
         {"oracleId":"857818d4-6cf0-4234-b9e0-d7181ba6b54f","name":"Flayed Nim","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1fd2293a0f48"]},
 
-        {"oracleId":"8578c462-7b2d-4b69-ad10-a2eab44ac98d","name":"Jace's Scrutiny","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e782708eec70"]},
+        {"oracleId":"8578c462-7b2d-4b69-ad10-a2eab44ac98d","name":"Jace's Scrutiny","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","draw","pump"],"definition":{"name":"Jace's Scrutiny","types":["Instant"],"manaCost":{"X":1,"U":1},"oracleText":"Target creature gets -4/-0 until end of turn.\nInvestigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","effects":[{"op":"pump","target":{"target":0},"power":-4,"toughness":0,"duration":{"phase":"end-of-turn"}},{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
         {"oracleId":"85791f11-44ab-4405-b284-1d91c7e0afbb","name":"Angrath's Ambusher","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e2f6fe4a5bba"]},
 
@@ -67927,7 +67889,7 @@
 
         {"oracleId":"8c8f93d7-d89a-401b-8764-76be71ad16e3","name":"Deification","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["095cc44e3602","12a1d68df357","5b911f0bf394"]},
 
-        {"oracleId":"8c90b558-de07-4689-9427-da68d823c2e8","name":"James, Wandering Dad // Follow Him","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["3503af8492f4","d44150db9922"]},
+        {"oracleId":"8c90b558-de07-4689-9427-da68d823c2e8","name":"James, Wandering Dad // Follow Him","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["d44150db9922"]},
 
         {"oracleId":"8c912b1f-4584-4945-9931-f6850e5ebfa4","name":"Assemble the Rank and Vile","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"bannedIn":["pauper","legacy","vintage","commander"],"gaps":["70bf20ecf31e"]},
 
@@ -68735,7 +68697,7 @@
 
         {"oracleId":"8f878efc-850f-43d2-a6fe-5ea8d1dd5afb","name":"Twincast","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["54d46c97f81d"]},
 
-        {"oracleId":"8f88b0bf-81bd-4223-9dad-d8c49ff4b87a","name":"Conservatory","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ffefcf102923"]},
+        {"oracleId":"8f88b0bf-81bd-4223-9dad-d8c49ff4b87a","name":"Conservatory","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["activated","mana-ability","static"],"opsUsed":["createToken","draw"],"definition":{"name":"Conservatory","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {G} or {W}.\n{4}, {T}: Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","activatedAbilities":[{"id":"conservatory-mana","oracleText":"{T}: Add {G} or {W}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"G":1},{"W":1}]},{"id":"conservatory-ability-2","oracleText":"{4}, {T}: Investigate.","cost":{"mana":{"X":4},"tap":true},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}],"entersTapped":true},"botReach":"played"},
 
         {"oracleId":"8f8dfc24-f466-4607-8991-acbcbb415db3","name":"Steadfastness","state":"ready","poolIn":["pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["forEach","pump"],"definition":{"name":"Steadfastness","types":["Sorcery"],"manaCost":{"X":1,"W":1},"oracleText":"Creatures you control get +0/+3 until end of turn.","effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","controller":"controller","filter":{"type":"Creature"}},"effects":[{"op":"pump","target":{"ref":"$each"},"power":0,"toughness":3,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
@@ -68829,7 +68791,7 @@
 
         {"oracleId":"8fe687aa-d134-4a29-9c93-64086c4a1977","name":"Morselhoarder","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["843d49b2fad0"]},
 
-        {"oracleId":"8fe6e954-f19b-4d11-83d3-74c634d51bad","name":"Briarbridge Tracker","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["dc736ab96e3e","fb2bd5b0c29a"]},
+        {"oracleId":"8fe6e954-f19b-4d11-83d3-74c634d51bad","name":"Briarbridge Tracker","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["dc736ab96e3e"]},
 
         {"oracleId":"8fe7436b-2467-486e-8a2d-7cbf21a65da9","name":"Consign // Oblivion","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["155e80a7fb8b"]},
 
@@ -69055,7 +69017,7 @@
 
         {"oracleId":"90c763b9-6173-46ff-b31c-7dcafc774170","name":"Walking Skyscraper","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["932448246d17","cc875e0d06ad"]},
 
-        {"oracleId":"90c78f79-982f-4acd-a8ba-0c6ce115a248","name":"In the Pale Moonlight","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3e4799cfd703","7bc88b121703"]},
+        {"oracleId":"90c78f79-982f-4acd-a8ba-0c6ce115a248","name":"In the Pale Moonlight","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3e4799cfd703"]},
 
         {"oracleId":"90c97fc4-597c-45cf-96c6-3ba9558ede0d","name":"To Arms!","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["draw","forEach","tapUntap"],"definition":{"name":"To Arms!","types":["Instant"],"manaCost":{"X":1,"W":1},"oracleText":"Untap all creatures you control.\nDraw a card.","effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","controller":"controller","filter":{"type":"Creature"}},"effects":[{"op":"tapUntap","action":"untap","target":{"ref":"$each"}}]},{"op":"draw","player":"controller","count":1}]},"botReach":"played"},
 
@@ -70205,7 +70167,7 @@
 
         {"oracleId":"949a02ad-7530-4b2b-a1e3-0c70324e23d6","name":"Dead Before Sunrise","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["322effcda2c3"]},
 
-        {"oracleId":"949e455d-6a9e-491a-892f-826cc8be0fd9","name":"Hall","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ffefcf102923"]},
+        {"oracleId":"949e455d-6a9e-491a-892f-826cc8be0fd9","name":"Hall","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["activated","mana-ability","static"],"opsUsed":["createToken","draw"],"definition":{"name":"Hall","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {R} or {W}.\n{4}, {T}: Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","activatedAbilities":[{"id":"hall-mana","oracleText":"{T}: Add {R} or {W}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"R":1},{"W":1}]},{"id":"hall-ability-2","oracleText":"{4}, {T}: Investigate.","cost":{"mana":{"X":4},"tap":true},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}],"entersTapped":true},"botReach":"played"},
 
         {"oracleId":"949eb86a-94b2-4c9f-8040-f4ad8e1a7e33","name":"Aphetto Runecaster","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["907e07c6c418"]},
 
@@ -71249,7 +71211,7 @@
 
         {"oracleId":"98a13f7b-ebe7-4a90-a0b9-95dccfff7fa6","name":"The Tale of Tamiyo","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["017e166c3df1","771ff95f230b"]},
 
-        {"oracleId":"98a22879-d0b2-441f-bcf6-a67b4552b73c","name":"Lounge","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ffefcf102923"]},
+        {"oracleId":"98a22879-d0b2-441f-bcf6-a67b4552b73c","name":"Lounge","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["activated","mana-ability","static"],"opsUsed":["createToken","draw"],"definition":{"name":"Lounge","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {B} or {G}.\n{4}, {T}: Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","activatedAbilities":[{"id":"lounge-mana","oracleText":"{T}: Add {B} or {G}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"B":1},{"G":1}]},{"id":"lounge-ability-2","oracleText":"{4}, {T}: Investigate.","cost":{"mana":{"X":4},"tap":true},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}],"entersTapped":true},"botReach":"played"},
 
         {"oracleId":"98a2a642-a30a-43e7-b47f-4776c22d1cb0","name":"Éowyn, Shieldmaiden","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["98d8a873f22c"]},
 
@@ -72441,7 +72403,7 @@
 
         {"oracleId":"9ce17fde-71ec-482a-b9f9-78681bc894d8","name":"Robo-Piñata","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"bannedIn":["pauper","legacy","vintage"],"gaps":["948a529d2503"]},
 
-        {"oracleId":"9ce5cc2f-e223-4c3b-adc1-c0109fd31762","name":"Weirding Wood","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3fdcb304ad73","c41e65e212da"]},
+        {"oracleId":"9ce5cc2f-e223-4c3b-adc1-c0109fd31762","name":"Weirding Wood","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c41e65e212da"]},
 
         {"oracleId":"9ce80c55-a995-4226-8506-901f6cf06efc","name":"Gorilla Titan","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["d6126d6d8bb7"]},
 
@@ -74063,7 +74025,7 @@
 
         {"oracleId":"a30b659e-ae2b-4736-9b4f-a9805905bf75","name":"Memory Sluice","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["mill"],"definition":{"name":"Memory Sluice","types":["Sorcery"],"manaCost":{"hybrid":[["U","B"]]},"oracleText":"Target player mills four cards.\nConspire (As you cast this spell, you may tap two untapped creatures you control that share a color with it. When you do, copy it and you may choose a new target for the copy.)","staticAbilities":["conspire"],"kickers":[{"id":"conspire","keyword":"conspire","description":"Conspire — tap two untapped creatures you control that each share a color with this spell","permanent":{"action":"tap","filter":{"types":["Creature"],"tapped":false},"count":2,"sharesColorWithCastSpell":true}}],"effects":[{"op":"mill","player":{"target":0},"count":4}],"targetRequirement":{"type":"player","count":1}},"botReach":"ignored","botGap":"never-chosen › Sorcery target:player [conspire] › mill"},
 
-        {"oracleId":"a30d076b-c942-45e4-b943-3749ce955291","name":"Confirm Suspicions","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1c2077e4ba64"]},
+        {"oracleId":"a30d076b-c942-45e4-b943-3749ce955291","name":"Confirm Suspicions","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["counter","createToken","draw"],"definition":{"name":"Confirm Suspicions","types":["Instant"],"manaCost":{"X":3,"U":2},"oracleText":"Counter target spell.\nInvestigate three times. (To investigate, create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","effects":[{"op":"counter","target":{"target":0}},{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller","count":3}],"targetRequirement":{"type":"spell","count":1}},"botReach":"played"},
 
         {"oracleId":"a30dee74-86e3-4888-980e-b22437fbbb66","name":"Spitting Image","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["dcee00c81a41"]},
 
@@ -74081,7 +74043,7 @@
 
         {"oracleId":"a317d5f4-a998-4f72-b080-5345bc7cc668","name":"Wiccan, Young Avenger","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["6c3761ce46df"]},
 
-        {"oracleId":"a31a66ee-5ddf-4d70-9ae9-725fc7327706","name":"Gone Missing","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e782708eec70"]},
+        {"oracleId":"a31a66ee-5ddf-4d70-9ae9-725fc7327706","name":"Gone Missing","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","draw","moveZone"],"definition":{"name":"Gone Missing","types":["Sorcery"],"manaCost":{"X":4,"U":1},"oracleText":"Put target permanent on top of its owner's library.\nInvestigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","effects":[{"op":"moveZone","target":{"target":0},"to":"library","position":1},{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}],"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1}},"botReach":"played"},
 
         {"oracleId":"a322ad80-e64b-4e9a-b542-3a036dc14d28","name":"Colossodon Yearling","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Colossodon Yearling","types":["Creature"],"subtypes":["Beast"],"manaCost":{"X":2,"G":1},"power":2,"toughness":4},"botReach":"played"},
 
@@ -74599,7 +74561,7 @@
 
         {"oracleId":"a4faed58-4b1b-4cab-8a12-4fcd20b320ab","name":"The Blackstaff of Waterdeep","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1686b58e6956","3231d7642d43"]},
 
-        {"oracleId":"a4fc174e-7fa6-41a8-ae03-255f226840f9","name":"Billiard Room","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ffefcf102923"]},
+        {"oracleId":"a4fc174e-7fa6-41a8-ae03-255f226840f9","name":"Billiard Room","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["activated","mana-ability","static"],"opsUsed":["createToken","draw"],"definition":{"name":"Billiard Room","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {B} or {R}.\n{4}, {T}: Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","activatedAbilities":[{"id":"billiard-room-mana","oracleText":"{T}: Add {B} or {R}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"B":1},{"R":1}]},{"id":"billiard-room-ability-2","oracleText":"{4}, {T}: Investigate.","cost":{"mana":{"X":4},"tap":true},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}],"entersTapped":true},"botReach":"played"},
 
         {"oracleId":"a4fed66f-ef3c-4547-8612-46e65d63ef1f","name":"Cabal Evangel","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Cabal Evangel","types":["Creature"],"subtypes":["Human","Cleric"],"manaCost":{"X":1,"B":1},"power":2,"toughness":2},"botReach":"played"},
 
@@ -77375,7 +77337,7 @@
 
         {"oracleId":"af2845cf-8770-4efa-8a83-bf9eb4122b78","name":"Phyrexian Scuta","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Phyrexian Scuta","types":["Creature"],"subtypes":["Phyrexian","Zombie"],"manaCost":{"X":3,"B":1},"power":3,"toughness":3,"oracleText":"Kicker—Pay 3 life. (You may pay 3 life in addition to any other costs as you cast this spell.)\nIf this creature was kicked, it enters with two +1/+1 counters on it.","kickers":[{"id":"kicker","description":"Kicker—Pay 3 life","life":3}],"entersWith":{"counters":[{"type":"+1/+1","count":"kicker"},{"type":"+1/+1","count":"kicker"}]}},"botReach":"played"},
 
-        {"oracleId":"af294df7-f8a0-4d52-88cb-086678463970","name":"Gleaming Geardrake","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1ebb29ce68f5","fb2bd5b0c29a"]},
+        {"oracleId":"af294df7-f8a0-4d52-88cb-086678463970","name":"Gleaming Geardrake","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1ebb29ce68f5"]},
 
         {"oracleId":"af29d23a-4322-469b-bbf9-df97f0b57b67","name":"Consuming Oni","state":"unparsed","gaps":["c74d61b6bf51"]},
 
@@ -77853,7 +77815,7 @@
 
         {"oracleId":"b0bf1964-c543-4c53-9f09-0dd7c608d5c5","name":"Black Panther, Vanguard","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0b420ae6e4af"]},
 
-        {"oracleId":"b0c28b2b-a2dd-4b76-bb1c-cec55a0a6784","name":"Flotsam // Jetsam","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["590532016140","b587026b7b3f"]},
+        {"oracleId":"b0c28b2b-a2dd-4b76-bb1c-cec55a0a6784","name":"Flotsam // Jetsam","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["590532016140"]},
 
         {"oracleId":"b0c2938d-8370-4786-8ddd-126c61538bdd","name":"The Fabulous Frog-Man","state":"ready","poolIn":["pauper","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"The Fabulous Frog-Man","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Human","Hero"],"manaCost":{"X":2,"G":1},"power":3,"toughness":3,"oracleText":"Reach (This creature can block creatures with flying.)","staticAbilities":["reach"]},"botReach":"played"},
 
@@ -77873,7 +77835,7 @@
 
         {"oracleId":"b0d60856-80f9-4c64-9768-28a0a690ecb1","name":"Twilight Drover","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["fe938431082c"]},
 
-        {"oracleId":"b0d639cb-71d4-454f-9dd6-89cd7a59b702","name":"Serene Sleuth","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["d04d96eaa370","fb2bd5b0c29a"]},
+        {"oracleId":"b0d639cb-71d4-454f-9dd6-89cd7a59b702","name":"Serene Sleuth","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["d04d96eaa370"]},
 
         {"oracleId":"b0d66546-c6a3-4052-b86e-98c3c2ab44b3","name":"Kessig Forgemaster // Flameheart Werewolf","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["16329ee0c064","b9c5dd7c5793","bd7f2573664c","d66481e01f11"]},
 
@@ -78275,7 +78237,7 @@
 
         {"oracleId":"b25ccb64-e114-4d54-a07a-c8cd4560b511","name":"Snowmelt Stag","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["2198565341ec","86ff40fb4350"]},
 
-        {"oracleId":"b25d5b06-44cf-42bc-90dd-3b238f702361","name":"Auspicious Arrival","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["417b7b54fb00"]},
+        {"oracleId":"b25d5b06-44cf-42bc-90dd-3b238f702361","name":"Auspicious Arrival","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","draw","pump"],"definition":{"name":"Auspicious Arrival","types":["Instant"],"manaCost":{"X":1,"W":1},"oracleText":"Target creature gets +2/+2 until end of turn. Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","effects":[{"op":"pump","target":{"target":0},"power":2,"toughness":2,"duration":{"phase":"end-of-turn"}},{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
         {"oracleId":"b260b5b4-048b-4a70-ab3a-b0dd1ceb7aa8","name":"Loxodon Mender","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["regenerate"],"definition":{"name":"Loxodon Mender","types":["Creature"],"subtypes":["Elephant","Cleric"],"manaCost":{"X":5,"W":1},"power":3,"toughness":3,"oracleText":"{W}, {T}: Regenerate target artifact.","activatedAbilities":[{"id":"loxodon-mender-ability","oracleText":"{W}, {T}: Regenerate target artifact.","cost":{"mana":{"W":1},"tap":true},"useStack":true,"effects":[{"op":"regenerate","target":{"target":0}}],"targetRequirement":{"type":"Artifact","count":1}}]},"botReach":"played"},
 
@@ -78617,7 +78579,7 @@
 
         {"oracleId":"b39f228f-d146-49c6-bab4-5304e0f742d8","name":"Azure Fleet Admiral","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"gaps":["feb149e67d9f"]},
 
-        {"oracleId":"b3a03768-7676-4b33-a813-cc69dea77c4d","name":"The Fugitive Doctor","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["63c8aa7debc8","eb559aa01362"]},
+        {"oracleId":"b3a03768-7676-4b33-a813-cc69dea77c4d","name":"The Fugitive Doctor","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["eb559aa01362"]},
 
         {"oracleId":"b3a479d4-3e36-496b-abf8-b83231628d76","name":"Gaze of Pain","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["a079c09dd577"]},
 
@@ -78727,13 +78689,13 @@
 
         {"oracleId":"b400700c-1d82-4721-a166-56f88ba6ad19","name":"Academy Journeymage","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["4c0dafc2248a"]},
 
-        {"oracleId":"b401179f-eded-4973-8182-df4627133886","name":"Persuasive Interrogators","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7466b21b91be","fb2bd5b0c29a"]},
+        {"oracleId":"b401179f-eded-4973-8182-df4627133886","name":"Persuasive Interrogators","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7466b21b91be"]},
 
         {"oracleId":"b40138c3-48bc-4825-ae48-5fea95304088","name":"Silver Shroud Costume","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["2cc7530e5c11"]},
 
         {"oracleId":"b4014b7c-aa1d-4feb-ab7a-4921ad150f9a","name":"Knights' Charge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["13e63bcedf26","ce11690dd781"]},
 
-        {"oracleId":"b401a490-d25f-4029-bb91-8999e140c6a1","name":"Armed with Proof","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["2349ee1a31c3","d1906db65979"]},
+        {"oracleId":"b401a490-d25f-4029-bb91-8999e140c6a1","name":"Armed with Proof","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["d1906db65979"]},
 
         {"oracleId":"b40202ff-8c51-4ca5-a641-61bc5c21ba79","name":"Six-y Beast","state":"unparsed","gaps":["d803a4733523"]},
 
@@ -79041,7 +79003,7 @@
 
         {"oracleId":"b5479c97-df19-49c7-b305-7a0336fd1cb3","name":"Sublime Archangel","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Sublime Archangel","types":["Creature"],"subtypes":["Angel"],"manaCost":{"X":2,"W":2},"power":4,"toughness":3,"oracleText":"Flying\nExalted (Whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn.)\nOther creatures you control have exalted. (If a creature has multiple instances of exalted, each triggers separately.)","staticAbilities":["flying","exalted"],"compiledStaticEffects":[{"kind":"keyword-grant","filter":{"types":["Creature"],"controllerRelation":"you","excludeSource":true},"keyword":"exalted"}]},"botReach":"played"},
 
-        {"oracleId":"b5483037-5dd2-4282-a201-de2e08aaa76e","name":"Expose Evil","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e782708eec70"]},
+        {"oracleId":"b5483037-5dd2-4282-a201-de2e08aaa76e","name":"Expose Evil","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["fc669e0acf95"]},
 
         {"oracleId":"b548578c-4910-402c-8e78-498924e0a9be","name":"Consumed by Greed","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["18675652597c","c6ff9ea3f823"]},
 
@@ -79181,7 +79143,7 @@
 
         {"oracleId":"b5b0e85f-6651-4667-829c-2253ff8b130d","name":"Madame Masque","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4b9bbd5f5962","e988e4b16d51"]},
 
-        {"oracleId":"b5b26cea-9be3-46f7-9603-a6eee0dd107e","name":"Lavinia, Foil to Conspiracy","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["62d75f5b5bb4","a5a1a3741b5c"]},
+        {"oracleId":"b5b26cea-9be3-46f7-9603-a6eee0dd107e","name":"Lavinia, Foil to Conspiracy","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["62d75f5b5bb4"]},
 
         {"oracleId":"b5b43d01-fce6-4a00-9c19-7a7e2a09d833","name":"Ultimate Green Goblin","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["51e1e15df963"]},
 
@@ -81617,7 +81579,7 @@
 
         {"oracleId":"bea40c67-73ca-4b5e-b902-5de07f21585c","name":"Death-Rattle Oni","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b6357489cd80","f348287969d3"]},
 
-        {"oracleId":"bea6606c-ea9a-4199-a8cd-b35d7c47fd7b","name":"Humble the Brute","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e782708eec70"]},
+        {"oracleId":"bea6606c-ea9a-4199-a8cd-b35d7c47fd7b","name":"Humble the Brute","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","destroy","draw"],"definition":{"name":"Humble the Brute","types":["Instant"],"manaCost":{"X":4,"W":1},"oracleText":"Destroy target creature with power 4 or greater.\nInvestigate.(Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","effects":[{"op":"destroy","target":{"target":0}},{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}],"targetRequirement":{"type":"Creature","count":1,"powerFilter":{"min":4}}},"botReach":"played"},
 
         {"oracleId":"beab66e0-2b6c-478f-ba42-8c0c216a527e","name":"Heroes' Reunion","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["gainLife"],"definition":{"name":"Heroes' Reunion","types":["Instant"],"manaCost":{"W":1,"G":1},"oracleText":"Target player gains 7 life.","effects":[{"op":"gainLife","player":{"target":0},"amount":7}],"targetRequirement":{"type":"player","count":1}},"botReach":"played"},
 
@@ -81639,7 +81601,7 @@
 
         {"oracleId":"bec0127a-ab3c-4923-93c2-c43ba8998091","name":"Fodder Launch","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["dealDamage","pump"],"definition":{"name":"Fodder Launch","types":["Kindred","Sorcery"],"subtypes":["Goblin"],"manaCost":{"X":3,"B":1},"oracleText":"As an additional cost to cast this spell, sacrifice a Goblin.\nTarget creature gets -5/-5 until end of turn. Fodder Launch deals 5 damage to that creature's controller.","effects":[{"op":"pump","target":{"target":0},"power":-5,"toughness":-5,"duration":{"phase":"end-of-turn"}},{"op":"dealDamage","amount":5,"to":{"player":{"controllerOf":{"target":0}}}}],"targetRequirement":{"type":"Creature","count":1},"additionalCosts":{"sacrificeFilter":{"subtypes":["Goblin"]}}},"botReach":"ignored","botGap":"position-unmodelled › Kindred target:Creature"},
 
-        {"oracleId":"bec03edc-261a-4b02-be37-2006f657e905","name":"Root Out","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e782708eec70"]},
+        {"oracleId":"bec03edc-261a-4b02-be37-2006f657e905","name":"Root Out","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","destroy","draw"],"definition":{"name":"Root Out","types":["Sorcery"],"manaCost":{"X":2,"G":1},"oracleText":"Destroy target artifact or enchantment.\nInvestigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","effects":[{"op":"destroy","target":{"target":0}},{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}],"targetRequirement":{"type":["Artifact","Enchantment"],"count":1}},"botReach":"played"},
 
         {"oracleId":"bec04768-c573-4886-9ca1-2511abc05a14","name":"Concord with the Kami","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ebcd2eadc71c"]},
 
@@ -82495,7 +82457,7 @@
 
         {"oracleId":"c1eb530c-dd36-40ae-8617-6bb6969565e1","name":"Cultivator's Caravan","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","mana-ability"],"opsUsed":["animate"],"definition":{"name":"Cultivator's Caravan","types":["Artifact"],"subtypes":["Vehicle"],"manaCost":{"X":3},"oracleText":"{T}: Add one mana of any color.\nCrew 3 (Tap any number of creatures you control with total power 3 or more: This Vehicle becomes an artifact creature until end of turn.)","staticAbilities":["crew 3"],"activatedAbilities":[{"id":"cultivator-s-caravan-mana","oracleText":"{T}: Add one mana of any color.","cost":{"tap":true},"useStack":false,"manaChoices":[{"W":1},{"U":1},{"B":1},{"R":1},{"G":1}]},{"id":"cultivators-caravan-crew","oracleText":"Crew 3 (Tap any number of creatures you control with total power 3 or more: This Vehicle becomes an artifact creature until end of turn.)","cost":{"tapOtherFilter":{"filter":{"types":"Creature","controllerRelation":"you"},"totalPower":3}},"useStack":true,"animatesSelf":true,"effects":[{"op":"animate","target":{"ref":"$source"},"power":5,"toughness":5,"duration":{"phase":"end-of-turn"}}]}],"power":5,"toughness":5},"botReach":"played"},
 
-        {"oracleId":"c1ebbe89-8976-4ed7-a68a-8b08aac4616c","name":"Drownyard Explorers","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["fb2bd5b0c29a"]},
+        {"oracleId":"c1ebbe89-8976-4ed7-a68a-8b08aac4616c","name":"Drownyard Explorers","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["createToken","draw"],"definition":{"name":"Drownyard Explorers","types":["Creature"],"subtypes":["Human","Wizard"],"manaCost":{"X":3,"U":1},"power":2,"toughness":4,"oracleText":"When this creature enters, investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","compiledTriggeredAbilities":[{"id":"drownyard-explorers-trigger","oracleText":"When this creature enters, investigate.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}]},"botReach":"played"},
 
         {"oracleId":"c1ebe189-db71-47cd-a763-8cb8c305383a","name":"Rejuvenation Chamber","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["gainLife"],"definition":{"name":"Rejuvenation Chamber","types":["Artifact"],"manaCost":{"X":3},"oracleText":"Fading 2 (This artifact enters with two fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)\n{T}: You gain 2 life.","staticAbilities":["fading 2"],"activatedAbilities":[{"id":"rejuvenation-chamber-ability","oracleText":"{T}: You gain 2 life.","cost":{"tap":true},"useStack":true,"effects":[{"op":"gainLife","player":"controller","amount":2}]}]},"botReach":"played"},
 
@@ -82531,7 +82493,7 @@
 
         {"oracleId":"c20635d2-20e9-48f7-88f0-6de0f953bb08","name":"Sylvan Bounty","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["7ee08e214a2b"]},
 
-        {"oracleId":"c206bdcb-d2c4-4bda-a979-6c0627ef8f73","name":"Novice Inspector","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["fb2bd5b0c29a"]},
+        {"oracleId":"c206bdcb-d2c4-4bda-a979-6c0627ef8f73","name":"Novice Inspector","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["createToken","draw"],"definition":{"name":"Novice Inspector","types":["Creature"],"subtypes":["Human","Detective"],"manaCost":{"W":1},"power":1,"toughness":2,"oracleText":"When this creature enters, investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","compiledTriggeredAbilities":[{"id":"novice-inspector-trigger","oracleText":"When this creature enters, investigate.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}]},"botReach":"played"},
 
         {"oracleId":"c20728ac-c01c-470f-a43b-de6104836645","name":"Matsu-Tribe Sniper","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["c079687d646c"]},
 
@@ -83769,7 +83731,7 @@
 
         {"oracleId":"c6a3a882-a127-4590-93d7-679ef4313efe","name":"Elvish Visionary","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["draw"],"definition":{"name":"Elvish Visionary","types":["Creature"],"subtypes":["Elf","Shaman"],"manaCost":{"X":1,"G":1},"power":1,"toughness":1,"oracleText":"When this creature enters, draw a card.","compiledTriggeredAbilities":[{"id":"elvish-visionary-trigger","oracleText":"When this creature enters, draw a card.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"draw","player":"controller","count":1}]}]},"botReach":"played"},
 
-        {"oracleId":"c6a46fc2-fc8f-4dcd-bca7-682abfbf303d","name":"Secret Passage","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ffefcf102923"]},
+        {"oracleId":"c6a46fc2-fc8f-4dcd-bca7-682abfbf303d","name":"Secret Passage","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["activated","mana-ability","static"],"opsUsed":["createToken","draw"],"definition":{"name":"Secret Passage","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {U} or {B}.\n{4}, {T}: Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","activatedAbilities":[{"id":"secret-passage-mana","oracleText":"{T}: Add {U} or {B}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"U":1},{"B":1}]},{"id":"secret-passage-ability-2","oracleText":"{4}, {T}: Investigate.","cost":{"mana":{"X":4},"tap":true},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}],"entersTapped":true},"botReach":"played"},
 
         {"oracleId":"c6a47548-c1e5-4223-aafe-2d578305314d","name":"Red-Hot Hottie","state":"unparsed","gaps":["150607228c61"]},
 
@@ -84019,7 +83981,7 @@
 
         {"oracleId":"c78c8f7d-45fd-46c0-9ed4-4d0e85aada2e","name":"Fell the Pheasant","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","dealDamage","gainLife"],"definition":{"name":"Fell the Pheasant","types":["Instant"],"manaCost":{"X":1,"G":1},"oracleText":"Fell the Pheasant deals 5 damage to target creature with flying. Create a Food token. (It's an artifact with \"{2}, {T}, Sacrifice this token: You gain 3 life.\")","effects":[{"op":"dealDamage","amount":5,"to":{"target":0}},{"op":"createToken","token":{"name":"Food","types":["Artifact"],"subtypes":["Food"],"activatedAbilities":[{"id":"food-token-sacrifice-gain-life","oracleText":"{2}, {T}, Sacrifice this token: You gain 3 life.","cost":{"mana":{"generic":2},"tap":true,"sacrifice":true},"useStack":true,"effects":[{"op":"gainLife","player":"controller","amount":3}]}]},"controller":"controller"}],"targetRequirement":{"type":"Creature","count":1,"requireAbility":"flying"}},"botReach":"played"},
 
-        {"oracleId":"c78d4cec-6764-4cce-96d2-a2d85a57b218","name":"Eliminate the Impossible","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["50d47bd8eaae"]},
+        {"oracleId":"c78d4cec-6764-4cce-96d2-a2d85a57b218","name":"Eliminate the Impossible","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["508394ab4123"]},
 
         {"oracleId":"c792229b-4a0f-48d5-93e5-60bd4cae9c42","name":"Bretagard Stronghold","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4e4e37dc7efe"]},
 
@@ -84901,7 +84863,7 @@
 
         {"oracleId":"ca9f9017-c952-4e89-b284-02396e6be0af","name":"Sand Scout","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["5ca6ea88719a"]},
 
-        {"oracleId":"caa02547-66e3-4e27-a2d3-5e94f3e7a069","name":"Thraben Inspector","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["fb2bd5b0c29a"]},
+        {"oracleId":"caa02547-66e3-4e27-a2d3-5e94f3e7a069","name":"Thraben Inspector","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["createToken","draw"],"definition":{"name":"Thraben Inspector","types":["Creature"],"subtypes":["Human","Soldier"],"manaCost":{"W":1},"power":1,"toughness":2,"oracleText":"When this creature enters, investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","compiledTriggeredAbilities":[{"id":"thraben-inspector-trigger","oracleText":"When this creature enters, investigate.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}]},"botReach":"played"},
 
         {"oracleId":"caa0c20c-594b-4ffd-87de-60bf15d8c3be","name":"Depths of Desire","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","moveZone"],"definition":{"name":"Depths of Desire","types":["Instant"],"manaCost":{"X":2,"U":1},"oracleText":"Return target creature to its owner's hand. Create a Treasure token. (It's an artifact with \"{T}, Sacrifice this token: Add one mana of any color.\")","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"},{"op":"createToken","token":{"name":"Treasure","types":["Artifact"],"subtypes":["Treasure"],"activatedAbilities":[{"id":"treasure-token-mana","oracleText":"{T}, Sacrifice this artifact: Add one mana of any color.","cost":{"tap":true,"sacrifice":true},"useStack":false,"manaChoices":[{"W":1},{"U":1},{"B":1},{"R":1},{"G":1}]}],"imagePrintId":"284ec798-2725-4741-8748-578c259d0623"},"controller":"controller"}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
@@ -84945,7 +84907,7 @@
 
         {"oracleId":"cacbdbcf-b5d2-40b3-bd8a-93636a248d3c","name":"Elspeth's Devotee","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["cd1291b78345"]},
 
-        {"oracleId":"cacda1c2-2fe8-40a3-89f3-38a835f10af3","name":"Fugitive of the Judoon","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["244e4af9325b","4a1601acb988","7bc88b121703"]},
+        {"oracleId":"cacda1c2-2fe8-40a3-89f3-38a835f10af3","name":"Fugitive of the Judoon","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["244e4af9325b","4a1601acb988"]},
 
         {"oracleId":"cad05528-917b-4296-9d23-ba9433612709","name":"Mana Leech","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["c8c88b41e1ce","d6861a5dda49"]},
 
@@ -85171,7 +85133,7 @@
 
         {"oracleId":"cb91e09e-f7fb-44bc-b78f-de29705bd2d6","name":"Mob Verdict","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0080b0bd709e"]},
 
-        {"oracleId":"cb91e842-9f06-4863-a328-2cabe1bcfe27","name":"Ballroom","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ffefcf102923"]},
+        {"oracleId":"cb91e842-9f06-4863-a328-2cabe1bcfe27","name":"Ballroom","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["activated","mana-ability","static"],"opsUsed":["createToken","draw"],"definition":{"name":"Ballroom","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {W} or {B}.\n{4}, {T}: Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","activatedAbilities":[{"id":"ballroom-mana","oracleText":"{T}: Add {W} or {B}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"W":1},{"B":1}]},{"id":"ballroom-ability-2","oracleText":"{4}, {T}: Investigate.","cost":{"mana":{"X":4},"tap":true},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}],"entersTapped":true},"botReach":"played"},
 
         {"oracleId":"cb9210eb-f5cb-430d-b893-b1d814117043","name":"Dwarven Lightsmith","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"gaps":["19d51cd7fe26"]},
 
@@ -86993,7 +86955,7 @@
 
         {"oracleId":"d1e326e8-6e9e-4dbd-8c2f-0bef90db2bb7","name":"Militant Inquisitor","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["14374ba55bf2"]},
 
-        {"oracleId":"d1ec1e4e-faa6-4afc-9e00-a3327105c11b","name":"Wavesifter","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["a8b5fc05b5ff","dd41ddb159d6"]},
+        {"oracleId":"d1ec1e4e-faa6-4afc-9e00-a3327105c11b","name":"Wavesifter","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["dd41ddb159d6"]},
 
         {"oracleId":"d1ecfad3-e79a-447b-a932-68ef728eaf1f","name":"Rockalanche","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4c5926257c56"]},
 
@@ -90247,7 +90209,7 @@
 
         {"oracleId":"dd757328-0593-4fc7-a099-e82f5c0677ff","name":"Essenceknit Scholar","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["45d5fe96c342","4c8245fdb6f9"]},
 
-        {"oracleId":"dd79a994-7dad-49d4-8d8f-62dbedde4a38","name":"Alquist Proft, Master Sleuth","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["63c8aa7debc8","7222898da3e2"]},
+        {"oracleId":"dd79a994-7dad-49d4-8d8f-62dbedde4a38","name":"Alquist Proft, Master Sleuth","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7222898da3e2"]},
 
         {"oracleId":"dd7df06c-9434-46ce-893c-80081fbc2df7","name":"Undead Leotau","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["delayedTrigger","exile","exileOnLeave","grantAbility","moveZone","pump"],"definition":{"name":"Undead Leotau","types":["Creature"],"subtypes":["Zombie","Cat"],"manaCost":{"X":5,"B":1},"power":3,"toughness":4,"oracleText":"{R}: This creature gets +1/-1 until end of turn.\nUnearth {2}{B} ({2}{B}: Return this card from your graveyard to the battlefield. It gains haste. Exile it at the beginning of the next end step or if it would leave the battlefield. Unearth only as a sorcery.)","activatedAbilities":[{"id":"undead-leotau-ability","oracleText":"{R}: This creature gets +1/-1 until end of turn.","cost":{"mana":{"R":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":-1,"duration":{"phase":"end-of-turn"}}]},{"id":"unearth","oracleText":"Unearth {2}{B} ({2}{B}: Return this card from your graveyard to the battlefield. It gains haste. Exile it at the beginning of the next end step or if it would leave the battlefield. Unearth only as a sorcery.)","cost":{"mana":{"X":2,"B":1}},"activateFromGraveyard":true,"sorcerySpeedOnly":true,"useStack":true,"effects":[{"op":"moveZone","target":{"ref":"$source"},"from":"graveyard","to":"battlefield","bind":"$returned"},{"op":"grantAbility","target":{"ref":"$returned"},"ability":"haste"},{"op":"exileOnLeave","target":{"ref":"$returned"}},{"op":"delayedTrigger","timing":"next-end-step","oracleText":"Exile it at the beginning of the next end step.","capture":{"$self":{"ref":"$returned"}},"effects":[{"op":"exile","target":{"ref":"$self"}}]}]}]},"botReach":"played"},
 
@@ -90331,7 +90293,7 @@
 
         {"oracleId":"ddcd5366-0a7d-4878-95b2-b3e3d12f8571","name":"Night of the Flying Merfolk","state":"unparsed","gaps":["05b653d314af","9ad084851c98","f83e21c7f66c"]},
 
-        {"oracleId":"ddcd8a0a-7ac3-4400-a16f-8bb5aa50994e","name":"Ezrim, Agency Chief","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9bf7f847d43f","f2cd6504b043"]},
+        {"oracleId":"ddcd8a0a-7ac3-4400-a16f-8bb5aa50994e","name":"Ezrim, Agency Chief","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9bf7f847d43f"]},
 
         {"oracleId":"ddd053ea-5b91-4def-a003-2e297a170d99","name":"Gaea's Touch","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"gaps":["f2c42f7b7956"]},
 
@@ -91189,7 +91151,7 @@
 
         {"oracleId":"e0fefaf0-da20-4d58-8db7-019dba16c780","name":"Scathe Zombies","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Scathe Zombies","types":["Creature"],"subtypes":["Zombie"],"manaCost":{"X":2,"B":1},"power":2,"toughness":2},"botReach":"played"},
 
-        {"oracleId":"e10065ba-fe24-4974-a500-d4151397a4d9","name":"Trail of Evidence","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["66d7c29c72b6"]},
+        {"oracleId":"e10065ba-fe24-4974-a500-d4151397a4d9","name":"Trail of Evidence","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["createToken","draw"],"definition":{"name":"Trail of Evidence","types":["Enchantment"],"manaCost":{"X":2,"U":1},"oracleText":"Whenever you cast an instant or sorcery spell, investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","compiledTriggeredAbilities":[{"id":"trail-of-evidence-trigger","oracleText":"Whenever you cast an instant or sorcery spell, investigate.","head":{"kind":"spell-cast","scope":"you","filter":{"types":["Instant","Sorcery"]}},"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}]},"botReach":"played"},
 
         {"oracleId":"e100f9fc-b6fb-42ab-b9b3-796bede6804d","name":"Kalemne, Disciple of Iroas","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["4a48aa4f443b","ad58df3bc8ce"]},
 
@@ -91339,7 +91301,7 @@
 
         {"oracleId":"e1865bec-1744-40c2-9031-7d6363be5333","name":"The Last Ronin","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b73e5cb317b6","f2a3bffd0feb"]},
 
-        {"oracleId":"e186cc6f-8c11-4475-a704-0b4c3a9eade9","name":"Byway Courier","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["7056adb2d9d3"]},
+        {"oracleId":"e186cc6f-8c11-4475-a704-0b4c3a9eade9","name":"Byway Courier","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["createToken","draw"],"definition":{"name":"Byway Courier","types":["Creature"],"subtypes":["Human","Scout"],"manaCost":{"X":2,"G":1},"power":3,"toughness":2,"oracleText":"When this creature dies, investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","compiledTriggeredAbilities":[{"id":"byway-courier-trigger","oracleText":"When this creature dies, investigate.","head":{"kind":"died","scope":"self"},"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}]},"botReach":"played"},
 
         {"oracleId":"e1890cbc-b15b-44bc-b1c0-ca3d9fd6028a","name":"Herald of Kozilek","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["bbc5acda9731"]},
 
@@ -91883,7 +91845,7 @@
 
         {"oracleId":"e380e37d-926b-4a4b-a275-7844bf4956d5","name":"Titania, Rugged Rumbler","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8d8aebf1f0bf","acf540b2606a"]},
 
-        {"oracleId":"e381b0af-6888-40e2-a86a-d352f7643edf","name":"Investi-Gate","state":"unparsed","gaps":["e782708eec70","eec424ee3609"]},
+        {"oracleId":"e381b0af-6888-40e2-a86a-d352f7643edf","name":"Investi-Gate","state":"unparsed","gaps":["eec424ee3609"]},
 
         {"oracleId":"e3886fe8-9b76-4613-8891-4ec74657c087","name":"Glorious Anthem","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Glorious Anthem","types":["Enchantment"],"manaCost":{"X":1,"W":2},"oracleText":"Creatures you control get +1/+1.","compiledStaticEffects":[{"kind":"pt-buff","filter":{"types":["Creature"],"controllerRelation":"you"},"power":1,"toughness":1}]},"botReach":"played"},
 
@@ -92123,7 +92085,7 @@
 
         {"oracleId":"e47253d1-9b12-4989-80c0-604906c88b5e","name":"Traumatic Revelation","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["01ef4bcbc5d0"]},
 
-        {"oracleId":"e4733889-4d4c-4bf7-8a9b-fb5ad7a38395","name":"On the Job","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["9c72bee25d11"]},
+        {"oracleId":"e4733889-4d4c-4bf7-8a9b-fb5ad7a38395","name":"On the Job","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","draw","forEach","pump"],"definition":{"name":"On the Job","types":["Instant"],"manaCost":{"X":2,"W":2},"oracleText":"Creatures you control get +2/+1 until end of turn. Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","controller":"controller","filter":{"type":"Creature"}},"effects":[{"op":"pump","target":{"ref":"$each"},"power":2,"toughness":1,"duration":{"phase":"end-of-turn"}}]},{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]},"botReach":"played"},
 
         {"oracleId":"e4751e45-8bb6-4f21-9659-cc8c1eb22456","name":"Audacious Knuckleblade","state":"unparsed","gaps":["2eccd0ef6037","8341abb8b1cd","bb058cfa17ce"]},
 
@@ -92265,7 +92227,7 @@
 
         {"oracleId":"e4ecd56c-216d-4c3a-9dfa-09ae1be03e4f","name":"Niveous Wisps","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["9d65a2944247"]},
 
-        {"oracleId":"e4ecfccd-b8b4-4b18-b989-30de79b4971e","name":"Detective's Satchel","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4996ee5381cb","adfef714fbb7"]},
+        {"oracleId":"e4ecfccd-b8b4-4b18-b989-30de79b4971e","name":"Detective's Satchel","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["adfef714fbb7"]},
 
         {"oracleId":"e4ed7935-0263-4cde-8118-ac18fffce3ef","name":"Determined Iteration","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["150653f17a44"]},
 
@@ -92851,7 +92813,7 @@
 
         {"oracleId":"e7194bca-0cf4-4a86-8b84-d2f9219a08b3","name":"Flow State","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ae7798ba750e"]},
 
-        {"oracleId":"e71ac446-02a4-4468-8d29-f28b21617665","name":"Havengul Laboratory // Havengul Mystery","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["6f40616aea00","994db40d5237","ffefcf102923"]},
+        {"oracleId":"e71ac446-02a4-4468-8d29-f28b21617665","name":"Havengul Laboratory // Havengul Mystery","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["6f40616aea00","994db40d5237"]},
 
         {"oracleId":"e71e7a68-d96e-4ebb-8d4f-9c45ff8b8b66","name":"Neverwinter Hydra","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["4680da90eb99"]},
 
@@ -93433,7 +93395,7 @@
 
         {"oracleId":"e8fbdf4b-ef64-4b82-b67f-ae5568772256","name":"Expedition Healer","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["4c31efcee1ee"]},
 
-        {"oracleId":"e8fcc7ff-6274-4130-a3a5-99f545eeee30","name":"Survive the Night","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e782708eec70"]},
+        {"oracleId":"e8fcc7ff-6274-4130-a3a5-99f545eeee30","name":"Survive the Night","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","draw","grantAbility","pump"],"definition":{"name":"Survive the Night","types":["Instant"],"manaCost":{"X":2,"W":1},"oracleText":"Target creature gets +1/+0 and gains indestructible until end of turn. (Damage and effects that say \"destroy\" don't destroy it.)\nInvestigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","effects":[{"op":"pump","target":{"target":0},"power":1,"toughness":0,"duration":{"phase":"end-of-turn"}},{"op":"grantAbility","target":{"target":0},"ability":"indestructible","duration":{"phase":"end-of-turn"}},{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
         {"oracleId":"e8fd428f-7521-4e6a-86b7-835f20ee3c5c","name":"Kellan, Planar Trailblazer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0ef94aa0a62f","6febe4441078"]},
 
@@ -94445,7 +94407,7 @@
 
         {"oracleId":"ec8a14d4-6ca0-43b1-abf6-0c129daf8350","name":"Grasping Thrull","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["dealDamage","gainLife"],"definition":{"name":"Grasping Thrull","types":["Creature"],"subtypes":["Thrull"],"manaCost":{"X":3,"W":1,"B":1},"power":3,"toughness":3,"oracleText":"Flying\nWhen this creature enters, it deals 2 damage to each opponent and you gain 2 life.","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"grasping-thrull-trigger","oracleText":"When this creature enters, it deals 2 damage to each opponent and you gain 2 life.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"dealDamage","amount":2,"to":{"player":"opponent"}},{"op":"gainLife","player":"controller","amount":2}]}]},"botReach":"played"},
 
-        {"oracleId":"ec8a4b26-633a-4e88-aa8a-82e9704b3439","name":"Resonance Technician","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["77c6cef964af","c1bbdf58fe4a"]},
+        {"oracleId":"ec8a4b26-633a-4e88-aa8a-82e9704b3439","name":"Resonance Technician","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["77c6cef964af"]},
 
         {"oracleId":"ec8bf245-4b2c-432b-9b2a-8d7b9224258c","name":"Staunch Defenders","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["gainLife"],"definition":{"name":"Staunch Defenders","types":["Creature"],"subtypes":["Human","Soldier"],"manaCost":{"X":3,"W":2},"power":3,"toughness":4,"oracleText":"When this creature enters, you gain 4 life.","compiledTriggeredAbilities":[{"id":"staunch-defenders-trigger","oracleText":"When this creature enters, you gain 4 life.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"gainLife","player":"controller","amount":4}]}]},"botReach":"played"},
 
@@ -95111,7 +95073,7 @@
 
         {"oracleId":"eead7f70-2dd3-42d4-8bc1-ce78760866ab","name":"Skyshroud Ambush","state":"unparsed","gaps":["e8accfee4f2e"]},
 
-        {"oracleId":"eeae4161-9f35-45df-8b3c-c55e37f49cd1","name":"Deduce","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["ed3f14b9fda1"]},
+        {"oracleId":"eeae4161-9f35-45df-8b3c-c55e37f49cd1","name":"Deduce","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","draw"],"definition":{"name":"Deduce","types":["Instant"],"manaCost":{"X":1,"U":1},"oracleText":"Draw a card. Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","effects":[{"op":"draw","player":"controller","count":1},{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]},"botReach":"played"},
 
         {"oracleId":"eeb07c8a-21d1-43fa-a5f3-ee3fe328a671","name":"Rally the Ranks","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a3341bbfcb39"]},
 
@@ -95137,7 +95099,7 @@
 
         {"oracleId":"eec31fe0-a633-4424-84d2-90fe88016310","name":"Embereth Paladin","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["c1b6fad200c5"]},
 
-        {"oracleId":"eec55307-8525-4dae-a030-d210f3895138","name":"Sam Kirk, Xenoanthropologist","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["33269baa027c"]},
+        {"oracleId":"eec55307-8525-4dae-a030-d210f3895138","name":"Sam Kirk, Xenoanthropologist","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["createToken","draw"],"definition":{"name":"Sam Kirk, Xenoanthropologist","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Human","Scientist"],"manaCost":{"X":3,"U":1},"power":3,"toughness":3,"oracleText":"Whenever an opponent casts a creature spell, investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","compiledTriggeredAbilities":[{"id":"sam-kirk-xenoanthropologist-trigger","oracleText":"Whenever an opponent casts a creature spell, investigate.","head":{"kind":"spell-cast","scope":"opponent","filter":{"types":["Creature"]}},"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}]},"botReach":"played"},
 
         {"oracleId":"eec72bcf-ccbc-43fc-8bdd-7bf4faa1fad7","name":"Songstitcher","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["a8e8d3ce9369"]},
 
@@ -96229,7 +96191,7 @@
 
         {"oracleId":"f2ccc9e8-8e92-4f8c-8728-8c748630e0dd","name":"Talisman of Impulse","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["df46cc49ffbb"]},
 
-        {"oracleId":"f2ce9e55-07c0-4f36-a59e-127693fc0f62","name":"Magnifying Glass","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["ffefcf102923"]},
+        {"oracleId":"f2ce9e55-07c0-4f36-a59e-127693fc0f62","name":"Magnifying Glass","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","mana-ability"],"opsUsed":["createToken","draw"],"definition":{"name":"Magnifying Glass","types":["Artifact"],"manaCost":{"X":3},"oracleText":"{T}: Add {C}.\n{4}, {T}: Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","activatedAbilities":[{"id":"magnifying-glass-mana","oracleText":"{T}: Add {C}.","cost":{"tap":true},"useStack":false,"manaProduced":{"C":1}},{"id":"magnifying-glass-ability-2","oracleText":"{4}, {T}: Investigate.","cost":{"mana":{"X":4},"tap":true},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}]},"botReach":"played"},
 
         {"oracleId":"f2cedb38-12b0-4489-a62b-9b6a3776d695","name":"Arnjlot's Ascent","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["grantAbility"],"definition":{"name":"Arnjlot's Ascent","types":["Enchantment"],"manaCost":{"X":1,"U":2},"oracleText":"Cumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\n{1}: Target creature gains flying until end of turn.","activatedAbilities":[{"id":"arnjlot-s-ascent-ability","oracleText":"{1}: Target creature gains flying until end of turn.","cost":{"mana":{"X":1}},"useStack":true,"effects":[{"op":"grantAbility","target":{"target":0},"ability":"flying","duration":{"phase":"end-of-turn"}}],"targetRequirement":{"type":"Creature","count":1}}],"cumulativeUpkeep":{"U":1}},"botReach":"played","retired":{"at":"2026-11-16","issue":4031}},
 
@@ -98697,7 +98659,7 @@
 
         {"oracleId":"fbafe993-8118-40cc-9cb7-ee3f62a2c888","name":"Contraband Livestock","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["2ae585ca766b","2bb3b0332b3b","82cb104e6e17","c293e15dadab"]},
 
-        {"oracleId":"fbb0173d-7ec9-4f43-b457-f8de6703497e","name":"Fleeting Memories","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["51841c50a7e0","c21b965fcb8c"]},
+        {"oracleId":"fbb0173d-7ec9-4f43-b457-f8de6703497e","name":"Fleeting Memories","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c21b965fcb8c"]},
 
         {"oracleId":"fbb04a21-e513-4317-aac8-fa6df91c3438","name":"Witherbloom, the Balancer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1573efc56aa7","57df51f35d87"]},
 
