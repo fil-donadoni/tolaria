@@ -7427,7 +7427,7 @@ function clearsBlockerBeforeOwnAttack(
         settled.players
             .filter((p) => p.id !== pid)
             .flatMap((p) => p.battlefield)
-            .filter((c) => isCreature(c) && !c.tapped)
+            .filter((c) => isCreature(c) && !c.isTapped)
             .map((c) => c.id)
     );
     for (const id of blockersOf(state, pid, attackerIds)) {
@@ -7452,7 +7452,7 @@ function blockersOf(
     for (const opp of state.players) {
         if (opp.id === pid) continue;
         for (const blocker of opp.battlefield) {
-            if (!isCreature(blocker) || blocker.tapped) continue;
+            if (!isCreature(blocker) || blocker.isTapped) continue;
             if (
                 attackers.some(
                     (a) =>
