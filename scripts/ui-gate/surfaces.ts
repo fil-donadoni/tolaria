@@ -2382,6 +2382,8 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
     },
     {
         slug: "sideboarding",
+        // Printed cards cascade in type columns (issue #9820).
+        cards: true,
         module: "board/sideboarding-dialog.tsx",
         label: "Sideboarding",
         layer: "[role=dialog]",
@@ -2392,7 +2394,10 @@ const BOARD_DIALOG_SPECIMENS: readonly DialogSpecimen[] = [
         },
         entry: {
             label: "primary: Ready",
-            locator: { role: "button", name: "Ready" },
+            // The CTA's name carries the game / shortfall / opponent
+            // ("Ready for game 3", issue #9820); its state attribute is the
+            // stable seam.
+            locator: { selector: "[data-ready-state]" },
             check: "reachable",
         },
     },
@@ -5954,6 +5959,8 @@ export const SURFACES: readonly Surface[] = [
         // forced (cleanup concedes it): an undecided Match blocks the next
         // row's fresh game.
         id: "game-sideboarding",
+        // Printed cards cascade in type columns (issue #9820).
+        cards: true,
         mounts: ["src/components/board/sideboarding-dialog.tsx"],
         needsGame: true,
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
@@ -5966,7 +5973,9 @@ export const SURFACES: readonly Surface[] = [
             },
             {
                 label: "primary: Ready",
-                locator: { role: "button", name: "Ready" },
+                // Named "Ready for game N" (issue #9820): the state
+                // attribute is the stable seam.
+                locator: { selector: "[data-ready-state]" },
                 check: "reachable",
             },
         ],

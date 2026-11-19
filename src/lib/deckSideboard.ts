@@ -93,3 +93,29 @@ export function moveAllToMaindeck(
         sideboard: split.sideboard.filter((c) => c.cardId !== cardId),
     };
 }
+
+/** Set exactly how many copies of `cardId` sit in the Maindeck, moving the
+ *  difference one copy at a time between the two piles (issue #9820: the
+ *  Sideboarding "Changes" chip undoes a card back to its count at window
+ *  open). `target` is clamped to the copies the pool holds. Pool preserved. */
+export function setMaindeckCount(
+    split: SideboardSplit,
+    cardId: string,
+    target: number
+): SideboardSplit {
+    let next = split;
+    let main = split.cards.filter((c) => c.cardId === cardId).length;
+    while (main < target) {
+        const moved = moveToMaindeck(next, cardId);
+        if (moved === next) break;
+        next = moved;
+        main += 1;
+    }
+    while (main > target) {
+        const moved = moveToSideboard(next, cardId);
+        if (moved === next) break;
+        next = moved;
+        main -= 1;
+    }
+    return next;
+}

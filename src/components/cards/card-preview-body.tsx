@@ -40,6 +40,12 @@ export type CardPreviewBodyProps = PreviewBodyContent & {
      *  (`CardPreviewDock`) renders the Engine View slot compact (issue
      *  #2728); every other host omits it for the full slot. */
     compactEngineView?: boolean;
+    /** Controlled mode (issue #9820). A host that passes it keeps the
+     *  viewer's last choice (Live text / Printed / Rulings) across cards —
+     *  Sideboarding persists it for the session — instead of re-seeding from
+     *  Settings at every mount. Omitted: the body owns its mode. */
+    view?: CardPreviewView;
+    onViewChange?: (view: CardPreviewView) => void;
 };
 
 const LABEL_CLASS =
@@ -54,6 +60,8 @@ export default function CardPreviewBody({
     compactEngineView,
     primaryFaceLabel = "Current",
     secondaryFaceLabel = "Original",
+    view,
+    onViewChange,
     ...content
 }: CardPreviewBodyProps) {
     // Seeded from the user's saved Settings default (issue #2595,
@@ -61,9 +69,11 @@ export default function CardPreviewBody({
     // `useState` initializer reads it exactly once, at mount. A preview
     // already open when the Settings value changes elsewhere keeps whatever
     // the viewer toggled it to (see `SettingsPreviewSection`'s docblock).
-    const [toggledMode, setToggledMode] = useState<CardPreviewView>(
+    const [ownMode, setOwnMode] = useState<CardPreviewView>(
         getPreviewPreferenceDefault
     );
+    const toggledMode = view ?? ownMode;
+    const setToggledMode = onViewChange ?? setOwnMode;
     // Manual Game (issue #2346): every computed field is genuinely empty for
     // a manual card (ADR 0080 — no hydrated CardDefinition, no oracle text,
     // no granted abilities, no effective P/T), so the live-text face is never

@@ -1112,6 +1112,26 @@
     }
 }
 
+/* The Sideboarding window's Ready CTA (issue #9820): a soft accent glow that
+   breathes while Ready can fire (`.ready-glow`). Ambient — gated by the
+   no-preference block below and by the `[data-motion="reduced"]` Settings
+   choice on the button. */
+@keyframes readyGlow {
+    0%,
+    100% {
+        box-shadow:
+            0 0 0 0 transparent,
+            0 10px 30px -10px
+                color-mix(in srgb, var(--color-accent) 55%, transparent);
+    }
+    50% {
+        box-shadow:
+            0 0 0 6px color-mix(in srgb, var(--color-accent) 22%, transparent),
+            0 10px 34px -8px
+                color-mix(in srgb, var(--color-accent) 75%, transparent);
+    }
+}
+
 /* Zone-arrival emphasis: a gold ring + halo that flashes once on a card that
    just changed zone, then fades. One-shot (the element unmounts on expiry) —
    the glow itself is also gated JS-side via useReducedMotion in ArrivalGlow,
@@ -1233,6 +1253,13 @@
     /* 8. HUD badge status dot — pending choice minimized (issue #2730). */
     .dot-pulse-ring {
         animation: dot-pulse-ring 1.4s ease-in-out infinite;
+    }
+
+    /* 9. Breathing glow on the Sideboarding Ready CTA while it can fire
+       (issue #9820). The Settings "reduced" choice is honoured on the
+       button itself (`in-data-[motion=reduced]:animate-none`). */
+    .ready-glow {
+        animation: readyGlow 2.4s ease-in-out infinite;
     }
 }
 
