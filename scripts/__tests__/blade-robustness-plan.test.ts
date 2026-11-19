@@ -39,7 +39,7 @@ function repoWith(files: Record<string, string>): string {
 
 describe("planForMergeRef (issue #9361)", () => {
     it("a diff touching no Bot-glob file owes nothing", () => {
-        const root = repoWith({ "docs/a.md": "x" });
+        const root = repoWith({ "tools/unrelated.txt": "x" });
         expect(planForMergeRef(root).kind).toBe("none");
     });
 
