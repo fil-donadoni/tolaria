@@ -10312,6 +10312,16 @@
         "source": "compiled"
     },
     {
+        "name": "Boros Reckoner",
+        "scryfallId": "82a18b07-38b8-4854-9735-3cfe83b11bf1",
+        "oracleId": "5f079a75-899e-467d-b443-3b87ce2fb548",
+        "firstSet": "gtc",
+        "firstPrintId": "82a18b07-38b8-4854-9735-3cfe83b11bf1",
+        "firstPrintSet": "gtc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Boros Recruit",
         "scryfallId": "5af01330-05c2-4c5b-9830-2886711b2b5d",
         "oracleId": "00abb43b-550f-42d2-9049-61ac56ff5d8d",
@@ -30030,6 +30040,16 @@
         "source": "compiled"
     },
     {
+        "name": "Filthy Cur",
+        "scryfallId": "634b2b46-b213-4eb0-81d8-0e9dd161b85f",
+        "oracleId": "4aa9764a-39ab-4d55-bc71-45f83035fb4c",
+        "firstSet": "ody",
+        "firstPrintId": "634b2b46-b213-4eb0-81d8-0e9dd161b85f",
+        "firstPrintSet": "ody",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Final Death",
         "scryfallId": "8e5b8580-9198-4735-83c1-289400c1d814",
         "oracleId": "1be3eea4-eaff-469c-9689-abadac1e848c",
@@ -46995,6 +47015,16 @@
         "oracleId": "dd1960ae-7e67-42aa-a2eb-59205126aa11",
         "firstSet": "hbg",
         "firstPrintId": "783a7e1a-2ff2-4c0f-bfcc-f08ffcb07f0f",
+        "firstPrintSet": "hbg",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Klement, Tempest Acolyte",
+        "scryfallId": "b2e5dab8-3a04-4c14-815a-df2de7e81a57",
+        "oracleId": "7108939e-521f-4a1a-b148-d83e38708a6a",
+        "firstSet": "hbg",
+        "firstPrintId": "b2e5dab8-3a04-4c14-815a-df2de7e81a57",
         "firstPrintSet": "hbg",
         "rarity": "rare",
         "source": "compiled"
@@ -81849,6 +81879,16 @@
         "source": "compiled"
     },
     {
+        "name": "Spitemare",
+        "scryfallId": "fefeb0e2-ddd4-4881-bca4-6c7699c82d79",
+        "oracleId": "cf4d8b19-fd11-4200-9871-896772019f4c",
+        "firstSet": "eve",
+        "firstPrintId": "fefeb0e2-ddd4-4881-bca4-6c7699c82d79",
+        "firstPrintSet": "eve",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Spitting Drake",
         "scryfallId": "c9f6ef97-587f-4f7b-98a2-e3cc8b39df8b",
         "oracleId": "bfbc12ec-ecc0-4e23-a9d1-d13babd99a46",
@@ -89169,6 +89209,16 @@
         "firstSet": "rix",
         "firstPrintId": "0d9264ff-9f7c-46f3-862a-fee7ad213250",
         "firstPrintSet": "rix",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Thrashing Mudspawn",
+        "scryfallId": "da84de0e-a4cd-4dff-8ee3-87c9debf0969",
+        "oracleId": "7f67b8e0-fbbd-48ef-989d-690d44b70304",
+        "firstSet": "ons",
+        "firstPrintId": "da84de0e-a4cd-4dff-8ee3-87c9debf0969",
+        "firstPrintSet": "ons",
         "rarity": "uncommon",
         "source": "compiled"
     },
