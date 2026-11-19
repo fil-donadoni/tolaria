@@ -177,6 +177,41 @@ describe("useControllerActions — Pass Until Action (issue #5782)", () => {
         }
     });
 
+    it("Pass, Pass Turn and Pass Until Action are disabled while a choice of the viewer's is open (issue #9972, ADR 0047)", () => {
+        mockPrimaryAction = { canConfirm: true, confirm: () => {} };
+        try {
+            const { result } = renderCtrl({});
+            for (const key of ["pass", "pass-turn", "pass-until-action"]) {
+                expect(
+                    result.current.actions.find((a) => a.key === key)?.disabled
+                ).toBe(true);
+            }
+        } finally {
+            mockPrimaryAction = null;
+        }
+    });
+
+    it("P and Enter send no intent while a choice of the viewer's is open (issue #9972)", async () => {
+        mockPrimaryAction = { canConfirm: true, confirm: () => {} };
+        try {
+            renderCtrl({});
+            await act(async () => press("P"));
+            await act(async () => pressEnter());
+            expect(calls).toEqual([]);
+        } finally {
+            mockPrimaryAction = null;
+        }
+    });
+
+    it("with no pending choice the pass descriptors stay enabled (issue #9972)", () => {
+        const { result } = renderCtrl({});
+        for (const key of ["pass", "pass-turn", "pass-until-action"]) {
+            expect(
+                result.current.actions.find((a) => a.key === key)?.disabled
+            ).toBe(false);
+        }
+    });
+
     it("Enter arms it through the passUntilAction mutation", async () => {
         renderCtrl({});
         await act(async () => pressEnter());
