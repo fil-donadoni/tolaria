@@ -148,6 +148,14 @@ root, p50/mean). The shares barely depend on the budget, so they carry over
 to the field's 71–313. In two of the 450 walks the `search` reply left the
 tree entirely: that reply was never visited.
 
+Two limits of the split. "Real choice" counts the options on the real
+board, not in the tree's worlds: a reply forced on the real board can still
+lose visits to a trick the sampled worlds held, but only 3 of the 419 forced
+walks keep less than 90% of the subtree. And at an opponent node the bench
+also adds any Bot edge stored under the same key, so a node decided by
+different seats in different worlds counts a shared `pass` twice. That case
+is rare, and its effect on the medians is negligible.
+
 **Reading.** The Bot's own next decision gets about half of the last search
 for free. A human reply with a real choice gets about a third of the subtree
 it lands in: a third of the iterations spent pondering a human decision
@@ -173,7 +181,11 @@ subtree once new cards are seen:
   opponent policy chose the move in each option-set view. That is a
   likelihood update with the tree's opponent model as the likelihood. It leans
   towards the worlds the tree explored most, which is a bias but not an
-  unsound one.
+  unsound one. This holds for an informed seat only: with blind placeholders
+  for the opponent's hidden zones the fold is inert (`priorityMoveKey`'s own
+  comment), so a human's cast from hand is on the tree only when the
+  opponent's deck knowledge is supplied. `expert`, the only level played
+  today (issue #10113), supplies it.
 - **New information the Bot observes from a chance event (its own draw, a
   reveal, a shuffle seen through, a random discard).** This is unsound. The
   tree has no chance nodes: a node after the Bot's draw pools every world's
@@ -181,9 +193,14 @@ subtree once new cards are seen:
   fuse strategies across draws the Bot can tell apart. That is the same
   strategy fusion the option-set views (issue #8939) remove at the opponent's
   nodes. The rule: **drop the kept tree when the path from the old root to the
-  new one crosses an observation the Bot makes.** Crossing a turn always does
-  this, because of the draw step. In the measurement 20–22 of 450 walks
-  crossed a Bot draw. Within one turn, the common case, nothing is lost.
+  new one crosses an observation the Bot makes.** The check is on the
+  observation, never on the turn: in the measurement all 22 of the 450 case B
+  walks where the Bot drew stayed inside one turn (an upkeep into the draw
+  step, a draw ability resolving), and only 2 crossed a turn at all. The
+  bench's `botDrew` flag (a new card id in the Bot's hand) is a rough proxy:
+  it also counts a bounce, which reveals nothing, and misses a reveal that
+  leaves the hand unchanged. Slice 1 needs the real predicate: an event that
+  moves a card out of a zone hidden from the Bot.
 - **Worlds the new information rules out (a card now visibly elsewhere).**
   Their visits stay in the kept nodes. New iterations sample only consistent
   worlds and outweigh them as the search runs. A discount (scaling a kept
@@ -195,9 +212,19 @@ subtree once new cards are seen:
   (`runSearchWithTrace`). A kept subtree never had them applied as a root.
   When it becomes the root, the denied edges must be removed together with
   their statistics, not just skipped, because `selectRootMove` reads the
-  root's child edges. Node caches decided from the public board
-  (`dominatedBlockKeys`, `dominatedTargetKeys`, `opposingGateArmKeys`) stay
-  valid. `policyValues` are already shared across worlds.
+  root's child edges.
+- **Below-root pruning, the other direction.** A node below the root was
+  pruned by rules the root deliberately does not apply. `iterate` filters
+  deferrable sacrifices and the sacrifice-conversion shapes, and decides
+  `opposingGateArmKeys`, only at `depth > 0`, because a sacrifice the Bot
+  could take now must stay a scored option at the root.
+  `dominatedTargetKeys` is decided with `belowRoot` set, which adds the beam
+  pruning `beamTriggerTargetsByValue`. It is also not purely public-board,
+  because a resolution reading a sampled hidden zone can judge differently.
+  When a kept node becomes the root, those caches are cleared, and moves the
+  below-root filters dropped are re-admitted as unopened edges.
+  `dominatedBlockKeys` (public board, same rule at every depth) and
+  `policyValues` (already shared across worlds) can stay.
 - **Reward clock.** Leaf rewards are decayed by time since the root's game
   clock (`winTimingDecay`, `since = gameClockOf(rootState)`). A kept subtree's
   rewards were measured from the old root's clock. Within one turn the
@@ -248,7 +275,8 @@ subtree once new cards are seen:
   time cap is unchanged. This is what turns reuse into the ruling's currency:
   case A alone moves Gecko's 71 to about 106 per decision and Chromium's 313
   past 400 on 91 of the 99 consecutive decisions measured (a kept share of
-  28% or more).
+  28% or more). Those 99 include 10 walks where the Bot drew, which § 3 says
+  to drop. Without them: 89 walks, median kept share 54%, 83 at 28% or more.
 - The root-only rules are re-applied at the new root, removing the denied
   edges with their statistics (§ 3).
 - The blade is unchanged. A `must` entry searches a fresh tree at its
@@ -262,8 +290,10 @@ subtree once new cards are seen:
 
 **Slice 2: pondering.** Pondering means growing the tree while the human
 decides. It needs a search entry rooted at the human's decision.
-`runSearchWithTrace` returns at once when the decider is not the Bot, but
-`iterate` already handles an opponent's node at any depth. Pondering runs in
+`runSearchWithTrace` returns at once when the deciding player is not the
+seat it searches for, so what pondering lacks is a tree grown from the Bot's
+point of view and rooted at a human decision. `iterate` already handles an
+opponent's node at any depth. Pondering runs in
 time slices (§ 4), from the position the Bot just left the human. It stops on
 a consult, on `visibilitychange` → `hidden`, on the node cap, and when
 `device.mobile` is true. The consult then continues from the subtree under
