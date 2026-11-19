@@ -3114,15 +3114,18 @@
                 "owner": "opp",
                 "zone": "battlefield",
                 "tapped": true
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "zone": "hand",
+                "count": 4
             }
         ],
         "phase": "DECLARE_ATTACKERS",
         "turn": 5,
         "landCount": 0,
         "libraryCount": 20,
-        "hiddenHand": {
-            "opp": 4
-        },
         "life": {
             "me": 6,
             "opp": 14

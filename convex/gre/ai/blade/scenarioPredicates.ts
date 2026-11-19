@@ -130,6 +130,18 @@ export const FREE_ATTACK_OPP_TAPPED_LANDS = Array.from({ length: 3 }, () => ({
     tapped: true,
 }));
 
+/** The free-attack pair's opponent hand: four REAL cards, not `hiddenHand`
+ *  placeholders, because a blade position must load into a live game
+ *  (`debugLoadBladeScenario`); the search re-deals the opponent's hand from
+ *  the unseen pool (or the known decklist) either way, so the stand-ins never
+ *  reach a rollout as themselves. */
+export const FREE_ATTACK_OPP_HAND = {
+    name: "Mountain",
+    owner: "opp" as const,
+    zone: "hand" as const,
+    count: 4,
+};
+
 /** The decklist the free-attack pair's search knows the defender plays: what
  *  turns its hidden hand into real cards (burn, removal, a hasty one-drop) and
  *  so widens the rollout spread the free damage used to drown in. */
