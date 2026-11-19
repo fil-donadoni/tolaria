@@ -42,14 +42,16 @@
 // pass in the LAST window (`isLastDeferralWindow`) — are built exactly like
 // any pair and routed to `timing` instead of `pairs`: never fitted, never
 // dropped silently, and checked by the search (`verdicts:search`). A `pass`
-// whose 1-ply leaf resolves nothing (`unresolvedPassPairClassifier`, CR
-// 117.4) rides the same bucket: its consequence lies past the probe.
+// whose 1-ply leaf resolves nothing, against an action that does not commute
+// with the stack (`unresolvedPassPairClassifier`, CR 117.4), rides the same
+// bucket: what the action changes lies past the probe.
 
 import { cloneGameState } from "../../clone";
 import type { EvalTerms } from "../../evaluate";
 import type { Move } from "../../moves";
 import type { GameState } from "../../state";
 import {
+    actionCommutesWithStack,
     answeredTriggerId,
     applyMoveInSearch,
     decidingPlayer,
@@ -438,21 +440,28 @@ export function timingPairClassifier(
             : isPass[rightIndex] && deferrable[otherIndex];
 }
 
-/** Is a pair one whose `pass` side reads NOTHING of what the pass does?
+/** Is a pair one whose `pass` side reads NOTHING of what the pass does,
+ *  against an action that changes what it would have done?
  *
  *  CR 117.4: the top of the stack resolves only once every player has passed
  *  in succession. A `pass` that is the FIRST of the round hands priority to
  *  the other seat and resolves nothing, so its 1-ply leaf is the position
- *  before the pass with the same object still on top of the stack — the
- *  bot's own sacrifice trigger pending, a Dreadnought still alive. Against an
- *  action that answers that object ("Stifle the trigger"), the pair's two
- *  leaves differ by the answer's cost alone, and the fit can only satisfy it
- *  by shrinking what the answer is worth in hand: one blade `must` charter
- *  pair pulled `latent.disruption` down by ~13 points, under the threshold a
- *  held Mana Drain needs. What the pass hands on is the search's to read,
- *  never a weight's, so the pair rides the timing bucket: built, reported,
- *  never fitted. A `pass` whose probe resolves the top (the other seat's pass
- *  is already banked) reads its consequence and stays in the fit. */
+ *  before the pass with the same object still on top of the stack and no
+ *  resolution begun — the bot's own sacrifice trigger pending, a Dreadnought
+ *  still alive. Against an action that does NOT commute with that stack
+ *  (`actionCommutesWithStack`: Stifle the trigger, use the Saga before it is
+ *  sacrificed), the two leaves differ by the action's cost while its point —
+ *  what the stack would have done without it — sits past the probe, and the
+ *  fit can only satisfy the pair by bending a material weight: the
+ *  Dreadnought charter pair pulled `latent.disruption` down by ~13 points,
+ *  under the threshold a held Mana Drain needs. What the pass hands on is the
+ *  search's to read, so the pair rides the timing bucket: built, reported,
+ *  never fitted.
+ *
+ *  Stays in the fit: a `pass` whose probe resolves the top or begins to (the
+ *  other seat's pass is already banked), and an action that commutes with the
+ *  stack — both leaves then carry the same unresolved stack and differ by the
+ *  action's own worth, which is what the fit reads. */
 export function unresolvedPassPairClassifier(
     state: GameState,
     botId: string,
@@ -460,10 +469,11 @@ export function unresolvedPassPairClassifier(
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): (pair: Pick<EvalPair, "rightIndex" | "otherIndex">) => boolean {
     const top = state.stack[state.stack.length - 1]?.id;
-    let unread: boolean | undefined;
+    const unreadByIndex = new Map<number, boolean>();
     const passUnread = (index: number): boolean => {
         if (top === undefined) return false;
-        if (unread !== undefined) return unread;
+        const cached = unreadByIndex.get(index);
+        if (cached !== undefined) return cached;
         const probe = cloneGameState(state);
         applyMoveInSearch(probe, botId, moves[index]);
         const settled = policyProbeState(
@@ -474,13 +484,35 @@ export function unresolvedPassPairClassifier(
             passEndsStep(state, botId),
             answeredTriggerId(state, botId, moves[index])
         );
-        unread = settled.stack[settled.stack.length - 1]?.id === top;
+        // A resolution suspended on a choice or a target (CR 608.2) has
+        // begun: the pass did resolve the top, as far as the probe can.
+        const unread =
+            settled.stack[settled.stack.length - 1]?.id === top &&
+            (settled.pendingChoices?.length ?? 0) === 0 &&
+            !settled.pendingTarget;
+        unreadByIndex.set(index, unread);
         return unread;
     };
+    const commutesByIndex = new Map<number, boolean>();
+    const commutes = (index: number): boolean => {
+        const cached = commutesByIndex.get(index);
+        if (cached !== undefined) return cached;
+        const answer = actionCommutesWithStack(
+            state,
+            botId,
+            moves[index],
+            weights
+        );
+        commutesByIndex.set(index, answer);
+        return answer;
+    };
     return ({ rightIndex, otherIndex }) => {
-        if (moves[rightIndex].kind === "pass") return passUnread(rightIndex);
-        if (moves[otherIndex].kind === "pass") return passUnread(otherIndex);
-        return false;
+        const isPassRight = moves[rightIndex].kind === "pass";
+        const isPassOther = moves[otherIndex].kind === "pass";
+        if (isPassRight === isPassOther) return false;
+        const pass = isPassRight ? rightIndex : otherIndex;
+        const action = isPassRight ? otherIndex : rightIndex;
+        return passUnread(pass) && !commutes(action);
     };
 }
 
