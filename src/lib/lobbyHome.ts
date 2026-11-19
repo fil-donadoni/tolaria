@@ -93,6 +93,10 @@ export interface ActiveMatchSlice {
     solo: boolean;
     vsAi: boolean;
     mode: "manual" | null;
+    /** The Limited Event this Match belongs to; absent/null for Constructed. */
+    limitedEventId?: string | null;
+    /** Round number of an event pairing; null for a free challenge. */
+    limitedRound?: number | null;
 }
 
 export type TableRow =
@@ -136,6 +140,18 @@ function matchOpponent(m: ActiveMatchSlice): string {
     return m.solo ? "Solo" : "vs Human";
 }
 
+/** Title of a Match row: the event's format for a Limited Event Match. */
+function matchTitle(
+    m: ActiveMatchSlice,
+    events: readonly LimitedEventSummaryView[]
+): string {
+    if (m.mode === "manual") return "Cockatrice";
+    if (!m.limitedEventId) return "Constructed";
+    const event = events.find((e) => e._id === m.limitedEventId);
+    const name = event ? limitedEventName(event) : "Limited";
+    return m.limitedRound ? `${name} · Round ${m.limitedRound}` : name;
+}
+
 /** Every Match and Limited Event the player is seated at, the Match first. */
 export function yourTables(
     activeMatch: ActiveMatchSlice | null,
@@ -146,7 +162,7 @@ export function yourTables(
         rows.push({
             kind: "match",
             key: activeMatch.gameId,
-            title: activeMatch.mode === "manual" ? "Cockatrice" : "Constructed",
+            title: matchTitle(activeMatch, events),
             line: matchOpponent(activeMatch),
             phase: matchPhase(activeMatch.status),
             gameId: activeMatch.gameId,

@@ -412,6 +412,10 @@ export const myActiveGame = query({
             vsAi,
             mode: game.mode ?? null,
             opponentName,
+            // Limited Event this Match belongs to (issue #9979): the lobby
+            // titles a round Match by its event instead of "Constructed".
+            limitedEventId: match.limitedEventId ?? null,
+            limitedRound: match.limitedPairing?.round ?? null,
         };
     },
 });
