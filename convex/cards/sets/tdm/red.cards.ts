@@ -167,7 +167,7 @@ export const coriSteelCutter = defineCard(() => ({
 //     ("play", CR 701.18a).
 //
 // compiler-gap: "When {self} enters, discard up to two cards, then draw that many cards." (#2693)
-// compiler-gap: "Whenever {self} attacks, if there are seven or more cards in your graveyard, exile a card at random from your graveyard. You may play that card this turn." (#2693)
+// compiler-gap: "Whenever {self} attacks, if there are seven or more cards in your graveyard, exile a card at random from your graveyard. You may play that card this turn." (#10360)
 export const tersaLightshatter = defineCard(() => ({
     id: "99e96b34-b1c4-4647-a38e-2cf1aedaaace",
     name: "Tersa Lightshatter",
