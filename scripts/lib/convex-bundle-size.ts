@@ -252,16 +252,6 @@ export const CONVEX_USER_MODULE_BUDGET = 3072;
 export const MEASURED_BYTES_PER_PACKED_ROW = 240;
 
 /**
- * How many times the push carries the compiled catalogue: once in the isolate
- * graph, plus once per `"use node"` module the Node seam admits to reach it
- * (issue #10024: `convex/verdictJudgeNode.ts`). A packed row costs the push
- * this many times {@link MEASURED_BYTES_PER_PACKED_ROW};
- * `scripts/__tests__/convex-node-bundle-seam.test.ts` pins it to its admitted
- * list, so the headroom forecast cannot drift from the seam.
- */
-export const CATALOGUE_COPIES_IN_PUSH = 2;
-
-/**
  * Entry points in directories that hold no Convex function by construction:
  * card-set data (`cards/sets/**`, ADR 0043) and test support
  * (any `__tests__/` directory). Every such file the CLI discovers is a user module
@@ -532,10 +522,7 @@ export function assessConvexBundle(
  *
  * Deliberately NOT part of `check:convex-bundle`'s total, which is a sum and
  * so cannot say WHICH half grew. Enforced by
- * `scripts/__tests__/convex-node-bundle-seam.test.ts`, in the light lane, over
- * the Node entry points MINUS the seam's admitted exceptions (issue #10024:
- * `convex/verdictJudgeNode.ts`, 11,537,140 B on its own, ships the catalogue
- * by design and is pinned by name instead).
+ * `scripts/__tests__/convex-node-bundle-seam.test.ts`, in the light lane.
  */
 export const CONVEX_NODE_BUNDLE_BUDGET_BYTES = 1.5 * 1024 * 1024;
 
@@ -555,44 +542,24 @@ export const CONVEX_NODE_BUNDLE_BUDGET_BYTES = 1.5 * 1024 * 1024;
  * the graph) and by EFFECT (how many bytes), that the cut stays cut —
  * `scripts/__tests__/convex-node-bundle-seam.test.ts`.
  */
-export async function measureConvexNodeBundle(
-    convexDir: string,
-    options: {
-        /** Repo-relative `"use node"` entry points to leave out of the build
-         *  (still listed in `allEntryPoints`) — the seam's admitted
-         *  exceptions, measured on their own (issue #10024). */
-        exclude?: readonly string[];
-        /** Build ONLY these repo-relative entry points. */
-        only?: readonly string[];
-    } = {}
-): Promise<{
-    /** The `"use node"` entry points BUILT, repo-relative. Empty means the
-     *  guard reading this is vacuous, and it must say so rather than pass. */
+export async function measureConvexNodeBundle(convexDir: string): Promise<{
+    /** `"use node"` entry points, repo-relative. Empty means the guard reading
+     *  this is vacuous, and it must say so rather than pass. */
     entryPoints: string[];
-    /** Every `"use node"` entry point found, built or not. */
-    allEntryPoints: string[];
     /** Every module esbuild pulled into the node graph, as metafile keys
      *  (repo-relative paths, `node_modules/...` included). */
     inputs: string[];
-    /** Source + source-map bytes of the built entry points alone. */
+    /** Source + source-map bytes of the node half alone. */
     totalBytes: number;
 }> {
-    const repoRelative = (f: string) =>
-        relative(join(convexDir, ".."), f).split(sep).join("/");
     const node = discoverEntryPoints(convexDir).filter((fpath) =>
         USE_NODE_DIRECTIVE.test(readFileSync(fpath, "utf8"))
     );
-    const built = node.filter((f) => {
-        const rel = repoRelative(f);
-        if (options.only && !options.only.includes(rel)) return false;
-        return !options.exclude?.includes(rel);
-    });
-    const bundle = await build(convexDir, built, "node", join("_deps", "node"));
+    const built = await build(convexDir, node, "node", join("_deps", "node"));
     return {
-        entryPoints: built.map(repoRelative),
-        allEntryPoints: node.map(repoRelative),
-        inputs: bundle.inputs,
-        totalBytes: bundle.source + bundle.map,
+        entryPoints: node.map((f) => relative(join(convexDir, ".."), f)),
+        inputs: built.inputs,
+        totalBytes: built.source + built.map,
     };
 }
 

@@ -104,6 +104,12 @@ Chromium's time per iteration on the same games (a Node-runtime action is the
 untried candidate, field note § 4), or when phone reports show a device class
 the client cannot serve at all.
 
+**Tested 2026-11-20 (issue #10030): not reopened.** In production a
+Node-runtime action searched at 54 ms or more per iteration where Chromium, in
+the same games, spent 17–23 ms: two to four times slower, not a third. The
+owner ruled the judge a budget the default runtime finishes (200 iterations)
+and the Node variant removed (`docs/research/judge-runtime-verdict.md`).
+
 ## Consequences
 
 - **The judge stays on the server.** Issue #9528's move stands on its own
