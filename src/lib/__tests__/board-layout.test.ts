@@ -385,6 +385,25 @@ describe("bandedRowsLayout (creatures row over a split back row)", () => {
         expect(rotatedLeft).toBeGreaterThanOrEqual(-1e-6);
     });
 
+    // Issue #9989: the inset must never shrink the cards (a sub-base row reads
+    // soft at DPR 2). A crowded back row keeps the scale it had at full span.
+    it("does not shrink a crowded back row to buy the tapped inset", () => {
+        const crowded = {
+            bands: [{ split: { left: 9, right: 3 }, centerYFrac: 0.74 }],
+            width: 640,
+            height: HEIGHT_BF,
+        };
+        const placed = bandedRowsLayout(crowded);
+        const plain = splitRowLayout({
+            left: 9,
+            right: 3,
+            width: 640,
+            centerY: HEIGHT_BF * 0.74,
+        });
+        expect(plain[0].scale).toBeLessThan(1);
+        expect(placed[0].scale).toBeCloseTo(plain[0].scale, 9);
+    });
+
     it("caps every card so a full-height card fits its band slice (no clip)", () => {
         const placed = bandedRowsLayout({
             bands: [

@@ -676,41 +676,48 @@ export function bandedRowsLayout(opts: {
         // side (issue #9989). A split band packs its lands flush against the
         // left edge, so inset that edge by the worst overhang at the band's
         // largest scale; the band lays out in the narrower span and shifts
-        // right. A centered `count` band has slack either side and is left as is.
-        const inset = !band.split
-            ? 0
-            : Math.min(
-                  ((cardHeight - cardWidth) / 2) * maxScale,
-                  Math.max(0, usableWidth - cardWidth)
-              );
-        const bandWidth = usableWidth - inset;
-        const fold = (ps: Placement[]) =>
+        // right. The inset is kept only when it costs no card size: a crowded
+        // row that would shrink (and read soft, never under 1.0x on a board
+        // that fits it) keeps the full span. A centered `count` band has slack
+        // either side and is left as is.
+        const fold = (ps: Placement[], inset: number) =>
             ps.map((p) => ({
                 ...p,
                 x: p.x + inset,
                 scale: p.scale * g,
             }));
         if (band.split) {
-            return fold(
+            const { split } = band;
+            const layoutIn = (w: number) =>
                 splitRowLayout({
-                    left: band.split.left,
-                    right: band.split.right,
-                    width: bandWidth,
+                    left: split.left,
+                    right: split.right,
+                    width: w,
                     centerY,
                     ...grown,
                     leftWidths: scaled(band.leftWidths),
                     rightWidths: scaled(band.rightWidths),
-                })
+                });
+            const full = layoutIn(usableWidth);
+            const inset = Math.min(
+                ((cardHeight - cardWidth) / 2) * maxScale,
+                Math.max(0, usableWidth - cardWidth)
             );
+            const insetLayout = layoutIn(usableWidth - inset);
+            const keeps =
+                inset > 0 &&
+                (insetLayout[0]?.scale ?? 0) >= (full[0]?.scale ?? 0);
+            return keeps ? fold(insetLayout, inset) : fold(full, 0);
         }
         return fold(
             rowLayout({
                 count: band.count ?? 0,
-                width: bandWidth,
+                width: usableWidth,
                 centerY,
                 ...grown,
                 widths: scaled(band.widths),
-            })
+            }),
+            0
         );
     });
 }
