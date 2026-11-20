@@ -252,7 +252,6 @@ const PASS_ANSWER = {
     move: { kind: "pass" },
     outcome: "move",
     searchMs: 120,
-    runtime: "node",
 };
 
 beforeEach(() => {
@@ -551,7 +550,7 @@ describe("issue #8889 — the game-over review survives a reload", () => {
         }
     );
 
-    it("the counts line carries the server's search time, the round trip and the runtime (issues #9528, #10024)", async () => {
+    it("the counts line carries the server's search time and the round trip (issue #9528)", async () => {
         const info = vi.spyOn(console, "info").mockImplementation(() => {});
         const { human, bot } = await captureLandDrop();
         renderGameOver(human, bot);
@@ -564,8 +563,6 @@ describe("issue #8889 — the game-over review survives a reload", () => {
             "judge.move": 1,
             "judge.serverMs.p50": 120,
             "judge.serverMs.max": 120,
-            // The runtime the server answered from (issue #10024).
-            "judge.runtime": "node",
         });
         expect(line["judge.roundTripMs.max"]).toBeGreaterThanOrEqual(0);
     });

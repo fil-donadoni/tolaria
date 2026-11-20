@@ -54,7 +54,6 @@ import {
     CONVEX_MAX_ZIPPED_PACKAGES_SIZE,
     CONVEX_USER_MODULE_BUDGET,
     MEASURED_BYTES_PER_PACKED_ROW,
-    CATALOGUE_COPIES_IN_PUSH,
     assessConvexBundle,
     compiledPoolRows,
     measureConvexBundle,
@@ -93,15 +92,12 @@ async function main(): Promise<void> {
             `enforced MAX_UNZIPPED_PACKAGES_SIZE ${fmt(CONVEX_MAX_UNZIPPED_PACKAGES_SIZE)} B / ` +
             `MAX_ZIPPED_PACKAGES_SIZE ${fmt(CONVEX_MAX_ZIPPED_PACKAGES_SIZE)} B`
     );
-    const bytesPerRow =
-        MEASURED_BYTES_PER_PACKED_ROW * CATALOGUE_COPIES_IN_PUSH;
     console.log(
         `[check:convex-bundle] headroom ${fmt(toDocumented)} B to the documented 32 MiB, ` +
             `${fmt(toHard)} B to the hard bound — at the measured ` +
             `${fmt(MEASURED_BYTES_PER_PACKED_ROW)} B per packed compiled row, ` +
-            `x${CATALOGUE_COPIES_IN_PUSH} catalogue copies in the push, ` +
-            `${fmt(Math.floor(toDocumented / bytesPerRow))} rows and ` +
-            `${fmt(Math.floor(toHard / bytesPerRow))} rows ` +
+            `${fmt(Math.floor(toDocumented / MEASURED_BYTES_PER_PACKED_ROW))} rows and ` +
+            `${fmt(Math.floor(toHard / MEASURED_BYTES_PER_PACKED_ROW))} rows ` +
             `(packed corpus is ${fmt(rows)} rows today)`
     );
     console.log(

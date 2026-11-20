@@ -1066,6 +1066,12 @@ exactly, and reds when its module stops being a `"use node"` entry, so the
 exception cannot outlive the measurement: PRD issue #10017 removes the Node
 judge if it fails the reopening test.
 
+### Retired (issue #10030, 2026-11-20)
+
+The Node judge failed the reopening test (`docs/research/judge-runtime-verdict.md`):
+`convex/verdictJudgeNode.ts` is deleted, the admitted-exception list with it,
+and Amendment II's rule holds again without exception.
+
 ## Open, deliberately not decided here
 
 - Whether retiring a hand-written card in favour of its proven-equal compiled
