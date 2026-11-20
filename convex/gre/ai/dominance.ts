@@ -341,8 +341,13 @@ export function isDominatedNoOpMove(
                 : applyProbeActivation(probe, pid, move);
         if (!applied) return false;
         branchWorkLeft = MAX_CHOICE_BRANCH_WORK;
+        const damageReading =
+            probeModelsWholeAnnouncement(move) &&
+            !announcesDivision(state, move)
+                ? enumerate
+                : undefined;
         return branchesAll(probe, baseline, pid, 0, (settled) =>
-            isDominatedDelta(baseline, settled, pid, spent, enumerate)
+            isDominatedDelta(baseline, settled, pid, spent, damageReading)
         );
     } catch {
         // A probe that throws proves nothing. Never let it change legality.
@@ -350,6 +355,83 @@ export function isDominatedNoOpMove(
     } finally {
         probing = false;
     }
+}
+
+/** The fields of an announcement the probe carries onto its stack item
+ *  (`applyProbeCast` / `applyProbeActivation`). */
+const PROBED_CAST_FIELDS: ReadonlySet<string> = new Set([
+    "kind",
+    "cardInstanceId",
+    "targets",
+    "confirmTargets",
+    "tapPlan",
+    "chosenX",
+    "chosenModeIds",
+    "modeTargetCounts",
+]);
+const PROBED_ACTIVATION_FIELDS: ReadonlySet<string> = new Set([
+    "kind",
+    "cardInstanceId",
+    "abilityId",
+    "targets",
+    "confirmTargets",
+    "tapPlan",
+    "chosenX",
+]);
+
+/** Whether the probe resolves `move` as announced: it sets no field the probe
+ *  drops. A kicker, a buyback, an alternative cost or a cost pick changes what
+ *  the resolution DOES, and the probe resolves the plain announcement.
+ *
+ *  The exact proof tolerates that: an under-modelled probe does less, and a
+ *  move whose plain form is a no-op is refused by the eligibility gate where
+ *  the dropped payment can be the payoff. The marked-damage shape cannot — a
+ *  kicked burn spell probed unkicked marks less damage than it deals, and
+ *  "less than lethal" is the very thing that shape proves. */
+function probeModelsWholeAnnouncement(move: Move): boolean {
+    const probed =
+        move.kind === "cast-spell"
+            ? PROBED_CAST_FIELDS
+            : move.kind === "activate-ability"
+              ? PROBED_ACTIVATION_FIELDS
+              : undefined;
+    if (!probed) return false;
+    return Object.entries(move).every(
+        ([key, value]) => value === undefined || probed.has(key)
+    );
+}
+
+/** Whether `move` announces a division among its targets (CR 601.2d): the
+ *  split is chosen at announcement and a `Move` does not carry it, so the
+ *  probe resolves some other split than the one the real cast would. Read off
+ *  every target slot of the spell or ability; an unresolvable one answers
+ *  `true`, the direction that proves nothing. */
+function announcesDivision(state: GameState, move: Move): boolean {
+    if (move.kind !== "cast-spell" && move.kind !== "activate-ability") {
+        return true;
+    }
+    const card = findCardInAnyZone(state, move.cardInstanceId);
+    if (!card) return true;
+    type Slots = {
+        targetRequirement?: unknown;
+        additionalTargetRequirements?: readonly unknown[];
+        modes?: readonly Slots[];
+    };
+    const site: Slots | undefined | null =
+        move.kind === "cast-spell"
+            ? tryGetDefinition((card.card as { id?: string }).id ?? "")
+            : abilityOf(card, move.abilityId);
+    if (!site) return true;
+    const divides = (slots: Slots): boolean =>
+        [
+            slots.targetRequirement,
+            ...(slots.additionalTargetRequirements ?? []),
+        ].some(
+            (req) =>
+                (req as { divideAsChosen?: unknown } | undefined)
+                    ?.divideAsChosen !== undefined
+        ) || (slots.modes ?? []).some(divides);
+    return divides(site);
 }
 
 /** Is `move` an announcement that can reach NOTHING but the mover's own side,
