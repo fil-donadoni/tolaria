@@ -746,8 +746,23 @@
         },
         {
             "kind": "grammar",
+            "key": "(card) › \"it\" follows an announced target, which is the nearer antecedent (CR 608.2h)",
+            "issue": 10351
+        },
+        {
+            "kind": "grammar",
             "key": "(card) › \"it\" names no object at this site",
             "issue": 8504
+        },
+        {
+            "kind": "grammar",
+            "key": "(card) › \"it\" names no single object announced before it (CR 608.2h)",
+            "issue": 10351
+        },
+        {
+            "kind": "grammar",
+            "key": "(card) › \"library\" is not a zone destination in grammar v0",
+            "issue": 10351
         },
         {
             "kind": "grammar",
@@ -756,13 +771,28 @@
         },
         {
             "kind": "grammar",
+            "key": "(card) › a fight is read between a single creature target on each side (CR 701.14a)",
+            "issue": 10351
+        },
+        {
+            "kind": "grammar",
             "key": "(card) › a modal trigger is read behind an enters-this-permanent head only",
             "issue": 8334
         },
         {
             "kind": "grammar",
+            "key": "(card) › a player is not an object (CR 109.1)",
+            "issue": 10351
+        },
+        {
+            "kind": "grammar",
             "key": "(card) › a splice card whose text is not one untargeted Effect Script (CR 702.47b)",
             "issue": 8805
+        },
+        {
+            "kind": "grammar",
+            "key": "(card) › an effect reads X but its source announces no {X} (CR 107.3)",
+            "issue": 10351
         },
         {
             "kind": "grammar",
@@ -886,6 +916,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › activation cost › Forage",
+            "issue": 10355
+        },
+        {
+            "kind": "grammar",
             "key": "activated › activation cost › N",
             "issue": 7213
         },
@@ -916,6 +951,21 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › activation cost › Tap four untapped tokens you control",
+            "issue": 10362
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › activation cost › Tap three untapped tokens you control",
+            "issue": 10362
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › activation cost › Tap two untapped tokens you control",
+            "issue": 10362
+        },
+        {
+            "kind": "grammar",
             "key": "activated › activation cost › Threshold — Put three cards from your graveyard on the bottom of your library",
             "issue": 5238
         },
@@ -938,6 +988,11 @@
             "kind": "grammar",
             "key": "activated › effect clause › Activate only if an opponent controls more lands than you",
             "issue": 5258
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Activate only if an opponent lost life this turn and only once each turn",
+            "issue": 10350
         },
         {
             "kind": "grammar",
@@ -1161,6 +1216,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › Until end of turn, you may cast creature spells from your graveyard by foraging in addition to paying their other costs",
+            "issue": 10359
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › X target lands",
             "issue": 8501
         },
@@ -1191,6 +1251,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › each Frog, Rabbit, Raccoon, or Squirrel you control that entered the battlefield this turn",
+            "issue": 10344
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › each creature and each player",
             "issue": 4306
         },
@@ -1206,13 +1271,28 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › effect clause › Discard your hand",
+            "issue": 10367
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › effect clause › Shuffle your library",
             "issue": 8502
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › effect clause › verb frame › You may cast target instant or sorcery card with mana value equal to the number of coin counters on this artifact from your graveyard without paying its mana cost",
+            "issue": 10358
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › enchanted creature",
             "issue": 4583
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › from among › object descriptor › Bat, Bird, Mouse, or Rabbit card",
+            "issue": 10344
         },
         {
             "kind": "grammar",
@@ -1223,6 +1303,11 @@
             "kind": "grammar",
             "key": "activated › effect clause › target filter › colors",
             "issue": 4589
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › target filter › object descriptor › Bat, Lizard, Rat, or Squirrel card from your graveyard",
+            "issue": 10344
         },
         {
             "kind": "grammar",
@@ -1273,6 +1358,16 @@
             "kind": "grammar",
             "key": "chapter › effect clause › Investigate",
             "issue": 9949
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Affinity for Frogs",
+            "issue": 10344
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Affinity for Lizards",
+            "issue": 10344
         },
         {
             "kind": "grammar",
@@ -1353,6 +1448,26 @@
             "kind": "grammar",
             "key": "keyword-line › keyword ability › Foretell {…}",
             "issue": 2096
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Gift a Food",
+            "issue": 10347
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Gift a Treasure",
+            "issue": 10347
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Gift a card",
+            "issue": 10347
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Gift a tapped Fish",
+            "issue": 10347
         },
         {
             "kind": "grammar",
@@ -1461,6 +1576,11 @@
         },
         {
             "kind": "grammar",
+            "key": "mana-ability › mana ability rider › Spend this mana only to cast a creature spell",
+            "issue": 10357
+        },
+        {
+            "kind": "grammar",
             "key": "mana-ability › mana ability rider › This artifact deals N damage to you",
             "issue": 8499
         },
@@ -1468,6 +1588,11 @@
             "kind": "grammar",
             "key": "mana-ability › mana ability rider › This land deals N damage to you",
             "issue": 4542
+        },
+        {
+            "kind": "grammar",
+            "key": "mana-ability › mana production › X mana of any one color, where X is Helga's power. Spend this mana only to cast creature spells with mana value N or greater or creature spells with {…} in their mana costs",
+            "issue": 10357
         },
         {
             "kind": "grammar",
@@ -1508,6 +1633,11 @@
             "kind": "grammar",
             "key": "spell › activation cost › Discard X cards",
             "issue": 4563
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › activation cost › Forage or pay {…}",
+            "issue": 10355
         },
         {
             "kind": "grammar",
@@ -1576,6 +1706,11 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › Choose target creature you control and target creature you don't control",
+            "issue": 10367
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › Choose three",
             "issue": 7224
         },
@@ -1583,6 +1718,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › Choose two target creatures controlled by the same player",
             "issue": 4594
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Choose up to five {…} worth of modes",
+            "issue": 10356
         },
         {
             "kind": "grammar",
@@ -1681,13 +1821,113 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › If that creature is a Bird, Frog, Otter, or Rat, draw a card",
+            "issue": 10346
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › If that spell is countered this way, exile it instead of putting it into its owner's graveyard",
             "issue": 8500
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › If the gift was promised, instead counter target spell",
+            "issue": 10348
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If the gift was promised, instead destroy two target artifacts and/or enchantments",
+            "issue": 10348
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If the gift was promised, instead return target nonland permanent an opponent controls to its owner's hand",
+            "issue": 10348
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If the gift was promised, instead return two target permanent cards from your graveyard to your hand",
+            "issue": 10348
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If the gift was promised, instead {self} deals N damage to any target and N damage to each creature",
+            "issue": 10348
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If the gift was promised, permanents you control also gain indestructible until end of turn",
+            "issue": 10349
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If the gift was promised, return a creature card put into your graveyard this way to the battlefield under your control",
+            "issue": 10349
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If the gift was promised, return target creature card from your graveyard to your hand",
+            "issue": 10349
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If the gift was promised, tap target creature an opponent controls and put a stun counter on it",
+            "issue": 10349
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If the gift was promised, target creature you control",
+            "issue": 10349
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If the gift was promised, that creature also",
+            "issue": 10349
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If the gift was promised, you may cast that card for as long as it remains exiled, and mana of any type can be spent to cast it",
+            "issue": 10349
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If the gift was promised, {self} also deals N damage to that creature's controller",
+            "issue": 10349
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If the gift wasn't promised, return that card to the battlefield under its owner's control with a +N/+N counter on it at the beginning of the next end step",
+            "issue": 10348
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If the gift wasn't promised, you lose N life",
+            "issue": 10348
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › If they do, you create a Lander token",
             "issue": 9950
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If this spell was cast from anywhere other than your hand, put a +N/+N counter on that creature",
+            "issue": 10358
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If you control a Bird, counter that spell unless its controller pays {…} instead",
+            "issue": 10346
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If you control a Rabbit, scry N",
+            "issue": 10346
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › If you control a Raccoon, you may discard a card",
+            "issue": 10346
         },
         {
             "kind": "grammar",
@@ -1733,6 +1973,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › Look at target player's hand",
             "issue": 4566
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Look at twice X cards from the top of your library",
+            "issue": 10359
         },
         {
             "kind": "grammar",
@@ -1836,6 +2081,21 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › Target creature you control deals damage equal to its power to target creature you don't control",
+            "issue": 10361
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Target creature you control deals damage equal to twice its power to target creature you don't control",
+            "issue": 10361
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Target creature's owner puts it on their choice of the top or bottom of their library",
+            "issue": 10367
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › Target opponent reveals their hand",
             "issue": 4566
         },
@@ -1876,6 +2136,21 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › Then if the gift was promised and that creature isn't legendary, create a token that's a copy of that creature, except it's N/N",
+            "issue": 10349
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Then if you control a Rat, surveil N",
+            "issue": 10346
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Then it deals damage equal to its power to target creature you don't control",
+            "issue": 10361
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › Then that permanent's controller may sacrifice a land of their choice",
             "issue": 5604
         },
@@ -1888,6 +2163,16 @@
             "kind": "grammar",
             "key": "spell › effect clause › This spell can't be countered",
             "issue": 4586
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › This spell costs {…} less to cast if it targets an attacking or tapped creature",
+            "issue": 10362
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › This spell costs {…} less to cast if you control an Otter",
+            "issue": 10362
         },
         {
             "kind": "grammar",
@@ -2071,6 +2356,11 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › effect clause › Surveil N",
+            "issue": 10367
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › exile all creatures",
             "issue": 8500
         },
@@ -2241,6 +2531,81 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › {…} — Choose an artifact or creature you control",
+            "issue": 10356
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {…} — Choose artifact or enchantment",
+            "issue": 10356
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {…} — Create a N/N white Rabbit creature token",
+            "issue": 10356
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {…} — Create a tapped Treasure token",
+            "issue": 10356
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {…} — Draw a card",
+            "issue": 10356
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {…} — Draw a card for each creature that died under your control this turn",
+            "issue": 10356
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {…} — Draw cards equal to the greatest power among creatures you control",
+            "issue": 10356
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {…} — Each opponent loses X life",
+            "issue": 10356
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {…} — Each player sacrifices a creature of their choice",
+            "issue": 10356
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {…} — Exile target nonland permanent",
+            "issue": 10356
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {…} — Exile the top two cards of your library",
+            "issue": 10356
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {…} — Put a +N/+N counter on a creature you control",
+            "issue": 10356
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {…} — Return each nonland, nontoken permanent to its owner's hand",
+            "issue": 10356
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {…} — Return target permanent card with mana value N or less from your graveyard to the battlefield with an indestructible counter on it",
+            "issue": 10356
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {…} — Until the end of your next turn, whenever you cast a spell, {self} deals N damage to up to one target creature",
+            "issue": 10356
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › Activated abilities of creatures can't be activated",
             "issue": 5309
         },
@@ -2276,6 +2641,11 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › As an additional cost to cast this spell, you may sacrifice any number of nonland permanents. This spell costs {…} less to cast for each permanent sacrificed this way",
+            "issue": 10362
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › As long as the top card of your graveyard is a creature card, this creature has the full text of that card and has the text \"{…}: Discard a card.\"",
             "issue": 7168
         },
@@ -2288,6 +2658,11 @@
             "kind": "grammar",
             "key": "static › static clause › As long as this card is in your graveyard and you control a Mountain, creatures you control have haste",
             "issue": 7167
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › As long as you've lost life this turn, this creature has flying and vigilance",
+            "issue": 10350
         },
         {
             "kind": "grammar",
@@ -2331,13 +2706,38 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › Burrowguard Mentor's power and toughness are each equal to the number of creatures you control",
+            "issue": 10363
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Creature tokens you control get +N/+N",
+            "issue": 10364
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Creatures you control of the chosen type get +N/+N",
+            "issue": 10363
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › Cumulative upkeep—Pay N life",
             "issue": 5187
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › Damage can't be prevented",
+            "issue": 10365
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › Domain — This spell costs {…} less to cast for each basic land type among lands you control",
             "issue": 4584
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › During your turn, you may cast instant and sorcery spells from your graveyard by paying N life in addition to their other costs",
+            "issue": 10359
         },
         {
             "kind": "grammar",
@@ -2361,6 +2761,11 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › Eluge's power and toughness are each equal to the number of Islands you control",
+            "issue": 10363
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › Enchanted creature doesn't untap during its controller's untap step",
             "issue": 4583
         },
@@ -2378,6 +2783,21 @@
             "kind": "grammar",
             "key": "static › static clause › Equipped creature gets +N/+N and has haste",
             "issue": 7215
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Equipped creature gets +N/+N and loses flying",
+            "issue": 10364
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › If a card or token would be put into your graveyard from anywhere, exile it instead",
+            "issue": 10365
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › If a creature an opponent controls would die, exile it instead",
+            "issue": 10365
         },
         {
             "kind": "grammar",
@@ -2411,6 +2831,11 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › If you would put one or more counters on a permanent or player, put twice that many of each of those kinds of counters on that permanent or player instead",
+            "issue": 10358
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › If {self} would be put into a graveyard from anywhere, reveal {self} and shuffle it into its owner's library instead",
             "issue": 4315
         },
@@ -2431,6 +2856,11 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › Lumra's power and toughness are each equal to the number of lands you control",
+            "issue": 10363
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › Nonblack creatures can't attack you unless their controller pays {…} for each creature they control that's attacking you",
             "issue": 5293
         },
@@ -2441,13 +2871,43 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › Other Frogs you control have ward {…}",
+            "issue": 10346
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Other Mice you control get +N/+N",
+            "issue": 10346
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Other Rabbits, Bats, Birds, and Mice you control get +N/+N",
+            "issue": 10346
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Other creatures you control enter with an additional +N/+N counter on them for each opponent who lost life this turn",
+            "issue": 10350
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › Other enchantments you control have shroud",
             "issue": 4570
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › Permanents you control with counters on them have ward {…}",
+            "issue": 10363
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › Play with the top card of your library revealed",
             "issue": 5693
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Players can't gain life",
+            "issue": 10350
         },
         {
             "kind": "grammar",
@@ -2486,6 +2946,11 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › The first instant or sorcery spell you cast each turn costs {…} less to cast for each land you control with a flood counter on it",
+            "issue": 10362
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › This creature attacks each combat if able",
             "issue": 4580
         },
@@ -2501,8 +2966,23 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › This creature can't be blocked",
+            "issue": 10364
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › This creature can't be blocked by blue creatures",
             "issue": 4580
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This creature can't be blocked by creatures with power N or greater",
+            "issue": 10364
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This creature can't be blocked by creatures with power N or less",
+            "issue": 10364
         },
         {
             "kind": "grammar",
@@ -2523,6 +3003,11 @@
             "kind": "grammar",
             "key": "static › static clause › This creature enters with X +N/+N counters on it",
             "issue": 8493
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This creature enters with a +N/+N counter on it if an opponent lost life this turn",
+            "issue": 10350
         },
         {
             "kind": "grammar",
@@ -2551,6 +3036,11 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › This creature gets +N/+N for each other Rat you control",
+            "issue": 10346
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › This land enters tapped unless you control a basic land",
             "issue": 8493
         },
@@ -2558,6 +3048,11 @@
             "kind": "grammar",
             "key": "static › static clause › This land enters tapped unless you control two or fewer other lands",
             "issue": 9936
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This land enters tapped. As it enters, choose a color",
+            "issue": 10363
         },
         {
             "kind": "grammar",
@@ -2571,13 +3066,48 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › This spell costs {…} less to cast for each creature card you own in exile and in your graveyard",
+            "issue": 10362
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This spell costs {…} less to cast for each instant and sorcery card in your graveyard",
+            "issue": 10362
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Threshold — As long as there are seven or more cards in your graveyard, creatures your opponents control get -N/-N",
+            "issue": 10360
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Threshold — As long as there are seven or more cards in your graveyard, this creature gets +N/+N",
+            "issue": 10360
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Threshold — As long as there are seven or more cards in your graveyard, this creature gets +N/+N and can't be blocked",
+            "issue": 10360
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › Threshold — This creature gets +N/+N as long as there are seven or more cards in your graveyard",
             "issue": 4551
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › Ward—Discard a card",
+            "issue": 10363
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › Ward—Pay N life",
             "issue": 7769
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Ward—Sacrifice a Food",
+            "issue": 10363
         },
         {
             "kind": "grammar",
@@ -2621,6 +3151,11 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › You may play lands and cast spells with mana value N or greater from the top of your library",
+            "issue": 10359
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › You may play lands from your graveyard",
             "issue": 7220
         },
@@ -2646,8 +3181,18 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › {…}, {T}: Choose a color. Add an amount of mana of that color equal to the number of creatures you control of the chosen type",
+            "issue": 10357
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › condition › a card left your graveyard this turn",
             "issue": 8496
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › an opponent lost life this turn",
+            "issue": 10350
         },
         {
             "kind": "grammar",
@@ -2686,6 +3231,21 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › condition › powerFilter",
+            "issue": 10366
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › the gift was promised",
+            "issue": 10347
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › there are seven or more cards in your graveyard",
+            "issue": 10360
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › condition › this card is in your graveyard",
             "issue": 4551
         },
@@ -2711,8 +3271,18 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › condition › you gained and lost life this turn",
+            "issue": 10350
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › condition › you gained life this turn",
             "issue": 8496
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › you gained or lost life this turn",
+            "issue": 10350
         },
         {
             "kind": "grammar",
@@ -2736,8 +3306,18 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › Add {…} or {…} for each Raccoon you control",
+            "issue": 10344
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Attach it to target creature you control",
             "issue": 7215
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Choose target opponent",
+            "issue": 10367
         },
         {
             "kind": "grammar",
@@ -2851,8 +3431,18 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › Forage",
+            "issue": 10355
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Have it deal X damage to target creature",
             "issue": 5709
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › If that creature had power N or less, put a +N/+N counter on this creature",
+            "issue": 10358
         },
         {
             "kind": "grammar",
@@ -2936,8 +3526,18 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › Target Mouse you control gains your choice of double strike or trample until end of turn",
+            "issue": 10344
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Target creature an opponent controls doesn't untap during its controller's next untap step",
             "issue": 8592
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Target creature you control deals damage equal to its power to target creature you don't control",
+            "issue": 10361
         },
         {
             "kind": "grammar",
@@ -2958,6 +3558,16 @@
             "kind": "grammar",
             "key": "triggered › effect clause › That player taps an untapped artifact, creature, or land they control for each fade counter on this artifact",
             "issue": 5710
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Then discard a card unless there are seven or more cards in your graveyard",
+            "issue": 10360
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Until end of turn, you don't lose this mana as steps and phases end",
+            "issue": 10357
         },
         {
             "kind": "grammar",
@@ -2996,6 +3606,16 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › all land cards from your graveyard",
+            "issue": 10367
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › another creature you control",
+            "issue": 10367
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › colors",
             "issue": 4557
         },
@@ -3008,6 +3628,16 @@
             "kind": "grammar",
             "key": "triggered › effect clause › duration › until end of turn for each other attacking Goblin",
             "issue": 4571
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › each of up to two target creatures",
+            "issue": 10367
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › each other creature you control that's a token or a Rabbit",
+            "issue": 10344
         },
         {
             "kind": "grammar",
@@ -3051,6 +3681,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › it for each other Squirrel and/or Food you control",
+            "issue": 10344
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › mass subject › Goblin creatures",
             "issue": 4557
         },
@@ -3061,13 +3696,38 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › number of set › object descriptor › other Squirrels, Bats, Lizards, and Rats you control",
+            "issue": 10344
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › or untap target creature",
             "issue": 8169
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › target creature you control",
+            "issue": 10367
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › target filter › colors",
             "issue": 4589
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › target filter › object descriptor › creature an opponent controls that was dealt damage this turn",
+            "issue": 10367
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › target filter › object descriptor › creature and put a stun counter on it",
+            "issue": 10358
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › target filter › object descriptor › creature and put three stun counters on it",
+            "issue": 10358
         },
         {
             "kind": "grammar",
@@ -3106,6 +3766,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › them",
+            "issue": 10367
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › this card from your graveyard",
             "issue": 4568
         },
@@ -3123,6 +3788,11 @@
             "kind": "grammar",
             "key": "triggered › effect clause › verb frame › Sacrifice it unless it escaped",
             "issue": 8496
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › verb frame › You may cast target instant or sorcery card with mana value N or less from your graveyard without paying its mana cost",
+            "issue": 10359
         },
         {
             "kind": "grammar",
@@ -3186,6 +3856,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › At the beginning of your second main phase",
+            "issue": 10366
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › When a creature with mana value N or greater enters",
             "issue": 5204
         },
@@ -3193,6 +3868,11 @@
             "kind": "grammar",
             "key": "triggered › trigger head › When enchanted creature becomes the target of a spell or ability",
             "issue": 4583
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When this artifact enters and when you sacrifice it",
+            "issue": 10353
         },
         {
             "kind": "grammar",
@@ -3218,6 +3898,11 @@
             "kind": "grammar",
             "key": "triggered › trigger head › When this creature's power is N or greater",
             "issue": 5206
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When this enchantment enters and whenever you expend N",
+            "issue": 10354
         },
         {
             "kind": "grammar",
@@ -3251,8 +3936,33 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › Whenever a Bat you control attacks",
+            "issue": 10345
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever a Food is put into a graveyard from the battlefield",
+            "issue": 10345
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › Whenever a Forest you control enters",
             "issue": 8587
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever a creature you control becomes the target of a spell or ability an opponent controls",
+            "issue": 10352
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever a creature you control deals combat damage to a player",
+            "issue": 10366
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever a creature you control with a +N/+N counter on it attacks",
+            "issue": 10358
         },
         {
             "kind": "grammar",
@@ -3306,6 +4016,26 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › Whenever another Frog",
+            "issue": 10345
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever another Squirrel or Food you control enters",
+            "issue": 10345
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever another creature you control with power N or less enters",
+            "issue": 10366
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever another nontoken Bird you control enters",
+            "issue": 10345
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › Whenever enchanted creature becomes tapped",
             "issue": 4583
         },
@@ -3331,6 +4061,21 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › Whenever one or more Birds you control deal combat damage to a player",
+            "issue": 10345
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever one or more other Rabbits",
+            "issue": 10345
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever one or more tokens you control enter",
+            "issue": 10366
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › Whenever this Vehicle attacks or blocks",
             "issue": 8495
         },
@@ -3351,8 +4096,18 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature attacks while you control a token",
+            "issue": 10366
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › Whenever this creature becomes blocked",
             "issue": 4581
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature becomes the target of a spell or ability you control for the first time each turn",
+            "issue": 10352
         },
         {
             "kind": "grammar",
@@ -3376,8 +4131,38 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature or another Bird you control enters",
+            "issue": 10353
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature or another Rabbit you control enters",
+            "issue": 10353
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › Whenever this creature or another artifact you control enters",
             "issue": 8495
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature or another creature you control leaves the battlefield without dying",
+            "issue": 10353
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature or another creature you control with flying dies",
+            "issue": 10353
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature or another creature you control with flying enters",
+            "issue": 10353
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature or another creature you control with toughness greater than its power enters",
+            "issue": 10353
         },
         {
             "kind": "grammar",
@@ -3391,8 +4176,33 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you attack with one or more Lizards",
+            "issue": 10345
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you attack with one or more Rats",
+            "issue": 10345
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you cast a Lizard spell",
+            "issue": 10345
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › Whenever you cast a colorless spell",
             "issue": 8494
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you cast a creature spell with mana value N or greater",
+            "issue": 10366
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you cast a noncreature or Otter spell",
+            "issue": 10345
         },
         {
             "kind": "grammar",
@@ -3426,6 +4236,36 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you expend N",
+            "issue": 10354
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you forage",
+            "issue": 10355
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you gain life",
+            "issue": 10350
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you gain or lose life during your turn",
+            "issue": 10350
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you give a gift",
+            "issue": 10347
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you put one or more +N/+N counters on a creature you control",
+            "issue": 10358
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › Whenever you sacrifice a Clue",
             "issue": 8494
         },
@@ -3433,6 +4273,16 @@
             "kind": "grammar",
             "key": "triggered › trigger head › Whenever you sacrifice a land",
             "issue": 7216
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you sacrifice a permanent",
+            "issue": 10366
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever you sacrifice one or more Foods",
+            "issue": 10345
         },
         {
             "kind": "grammar",
@@ -3458,6 +4308,16 @@
             "kind": "grammar",
             "key": "triggered › trigger head › Whenever {self} enter or attack",
             "issue": 8183
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever {self} or another Rat you control enters",
+            "issue": 10353
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever {self} or another creature you control enters",
+            "issue": 10353
         },
         {
             "kind": "hand-tail",
@@ -3493,6 +4353,11 @@
             "kind": "hand-tail",
             "key": "Alabaster Leech",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Alania, Divergent Storm",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -3571,8 +4436,18 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Baylen, the Haymaker",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Bend or Break",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Beza, the Bounding Spring",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -3583,6 +4458,11 @@
             "kind": "hand-tail",
             "key": "Black Widow, Super Spy",
             "issue": 7228
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Blacksmith's Talent",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -3606,13 +4486,28 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Blooming Blast",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Bog Down",
             "issue": 4595
         },
         {
             "kind": "hand-tail",
+            "key": "Bonecache Overseer",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Boomerang Basics",
             "issue": 7229
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Brambleguard Captain",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -3626,8 +4521,23 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Burrowguard Mentor",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Cache Grab",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Callous Giant",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Camellia, the Seedmiser",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -3638,6 +4548,11 @@
             "kind": "hand-tail",
             "key": "Captain's Maneuver",
             "issue": 4325
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Carrot Cake",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -3663,6 +4578,11 @@
             "kind": "hand-tail",
             "key": "Clarion Conqueror",
             "issue": 8610
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Clifftop Lookout",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -3698,6 +4618,11 @@
             "kind": "hand-tail",
             "key": "Collective Restraint",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Conduct Electricity",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -3763,6 +4688,11 @@
             "kind": "hand-tail",
             "key": "Dark Matter Manipulator",
             "issue": 8613
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Dazzling Denial",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -3836,8 +4766,18 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Dour Port-Mage",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Dragon Arch",
             "issue": 4328
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Dragonhawk, Fate's Tempest",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -3851,8 +4791,18 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Dreamdew Entrancer",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Dredge",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Driftgloom Coyote",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -3861,8 +4811,18 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Druid of the Spade",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Dueling Grounds",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Early Winter",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -3883,6 +4843,11 @@
             "kind": "hand-tail",
             "key": "Elfhame Sanctuary",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Eluge, the Shoreless Sea",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -3946,6 +4911,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Fabled Passage",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Fact or Fiction",
             "issue": 4596
         },
@@ -3966,6 +4936,21 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Fecund Greenshell",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Feed the Cycle",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Finneas, Ace Archer",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Firebrand Ranger",
             "issue": 4596
         },
@@ -3973,6 +4958,11 @@
             "kind": "hand-tail",
             "key": "Fleetfoot Panther",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "For the Common Good",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4028,6 +5018,11 @@
             "kind": "hand-tail",
             "key": "Get Lost",
             "issue": 7234
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Gev, Scaled Scorch",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4101,13 +5096,33 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Harnesser of Storms",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Harrow",
             "issue": 4596
         },
         {
             "kind": "hand-tail",
+            "key": "Harvestrite Host",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Haunted Angel",
             "issue": 4334
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Heaped Harvest",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Heirloom Epic",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4121,6 +5136,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Hired Claw",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Hobble",
             "issue": 4595
         },
@@ -4128,6 +5148,11 @@
             "kind": "hand-tail",
             "key": "Honorable Scout",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Honored Dreyleader",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4146,6 +5171,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Huskburster Swarm",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Hypnotic Cloud",
             "issue": 4596
         },
@@ -4161,6 +5191,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Innkeeper's Talent",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Iron Man Armor",
             "issue": 7237
         },
@@ -4168,6 +5203,11 @@
             "kind": "hand-tail",
             "key": "Jace, Wielder of Mysteries",
             "issue": 3231
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Jackdaw Savior",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4186,6 +5226,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Jolly Gerbils",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Juntu Stakes",
             "issue": 4596
         },
@@ -4198,6 +5243,11 @@
             "kind": "hand-tail",
             "key": "Kangee, Aerie Keeper",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Kastral, the Windcrested",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4236,8 +5286,18 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Kitsa, Otterball Elite",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Knight of the Reliquary",
             "issue": 7238
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Knightfisher",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4276,13 +5336,28 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Lilysplash Mentor",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Lobotomy",
             "issue": 4596
         },
         {
             "kind": "hand-tail",
+            "key": "Long River Lurker",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Lord of the Undead",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Mabel, Heir to Cragflame",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4321,6 +5396,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Manifold Mouse",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Manipulate Fate",
             "issue": 4596
         },
@@ -4351,6 +5431,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Might of the Meek",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Mind Extraction",
             "issue": 4338
         },
@@ -4366,6 +5451,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Mockingbird",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Mogg Jailer",
             "issue": 4595
         },
@@ -4378,6 +5468,11 @@
             "kind": "hand-tail",
             "key": "Molimo, Maro-Sorcerer",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Moonstone Harbinger",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4421,6 +5516,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Nightwhorl Hermit",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Noxious Vapors",
             "issue": 4595
         },
@@ -4461,8 +5561,23 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Osteomancer Adept",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Otterball Antics",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Overload",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Overprotect",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4478,6 +5593,16 @@
             "kind": "hand-tail",
             "key": "Past in Flames",
             "issue": 8629
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Pearl of Wisdom",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Persistent Marshstalker",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4531,6 +5656,21 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Plumecreed Mentor",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Polliwallop",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Portent of Calamity",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Prismatic Ending",
             "issue": 7246
         },
@@ -4553,6 +5693,11 @@
             "kind": "hand-tail",
             "key": "Psychic Battle",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Psychic Whorl",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4581,8 +5726,23 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Rabbit Response",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Rabid Gnaw",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Radiant Kavu",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Ral, Crackling Wit",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4608,6 +5768,16 @@
             "kind": "hand-tail",
             "key": "Recoil",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Repel Calamity",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Reptilian Recruiter",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4656,6 +5826,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Rottenmouth Viper",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Ruby Leech",
             "issue": 4596
         },
@@ -4663,6 +5838,21 @@
             "kind": "hand-tail",
             "key": "Ruham Djinn",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Run Away Together",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Ruthless Negotiation",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Salvation Swan",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4703,6 +5893,11 @@
             "kind": "hand-tail",
             "key": "Sawtooth Loon",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Scales of Shale",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4748,6 +5943,11 @@
             "kind": "hand-tail",
             "key": "Seasoned Pyromancer",
             "issue": 1363
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Seasoned Warrenguard",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4816,6 +6016,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Sonar Strike",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Soul Burn",
             "issue": 4596
         },
@@ -4851,6 +6056,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Splash Portal",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Spreading Plague",
             "issue": 4596
         },
@@ -4868,6 +6078,11 @@
             "kind": "hand-tail",
             "key": "Star Compass",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Stargaze",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4896,6 +6111,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Stormsplitter",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Street Wraith",
             "issue": 8634
         },
@@ -4921,6 +6141,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Sugar Coat",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Sulam Djinn",
             "issue": 4596
         },
@@ -4933,6 +6158,11 @@
             "kind": "hand-tail",
             "key": "Sunscape Familiar",
             "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Sunshower Druid",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -4966,6 +6196,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Take Out the Trash",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Talon Gates of Madara",
             "issue": 7253
         },
@@ -4978,6 +6213,11 @@
             "kind": "hand-tail",
             "key": "Tamiyo, Collector of Tales",
             "issue": 2607
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Tangle Tumbler",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -5016,6 +6256,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "The Infamous Cruelclaw",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "The Legend of Roku // Avatar Roku",
             "issue": 3235
         },
@@ -5051,6 +6296,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Thornplate Intimidator",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Thornscape Familiar",
             "issue": 4595
         },
@@ -5061,8 +6311,28 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Thornvault Forager",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Thought Shucker",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Thraben Charm",
             "issue": 8639
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Three Tree City",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Three Tree Scribe",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -5073,6 +6343,11 @@
             "kind": "hand-tail",
             "key": "Traveler's Cloak",
             "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Treeguard Duo",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -5141,6 +6416,26 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Valley Flamecaller",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Valley Mightcaller",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Valley Questcaller",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Valley Rotcaller",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Veil of Summer",
             "issue": 8643
         },
@@ -5196,6 +6491,16 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Waterspout Warden",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Wax-Wane Witness",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Wayfaring Giant",
             "issue": 4596
         },
@@ -5221,6 +6526,16 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Wick's Patrol",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Wick, the Whorled Mind",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Wild Research",
             "issue": 4343
         },
@@ -5233,6 +6548,11 @@
             "kind": "hand-tail",
             "key": "Wish",
             "issue": 8648
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Wishing Well",
+            "issue": 10368
         },
         {
             "kind": "hand-tail",
@@ -5256,6 +6576,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Ygra, Eater of All",
+            "issue": 10368
+        },
+        {
+            "kind": "hand-tail",
             "key": "Zanam Djinn",
             "issue": 4596
         },
@@ -5263,6 +6588,11 @@
             "kind": "hand-tail",
             "key": "Zombie Boa",
             "issue": 4388
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Zoraline, Cosmos Caller",
+            "issue": 10368
         },
         {
             "kind": "mechanic",
