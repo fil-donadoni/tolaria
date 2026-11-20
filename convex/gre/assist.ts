@@ -70,12 +70,12 @@ export function buildAssistChoice(
         spell: {
             spellCardId: card.id,
             spellName: def?.name ?? "this spell",
-            spellTypes: [...(def?.types ?? [])],
-            spellSupertypes: [...(def?.supertypes ?? [])],
+            spellTypes: (def?.types ?? []).slice(),
+            spellSupertypes: (def?.supertypes ?? []).slice(),
             ...(def
                 ? {
-                      spellColors: [...spellRestrictionSubject(def).colors],
-                      spellSubtypes: [...(def.subtypes ?? [])],
+                      spellColors: spellRestrictionSubject(def).colors.slice(),
+                      spellSubtypes: (def.subtypes ?? []).slice(),
                   }
                 : {}),
         },
@@ -129,7 +129,7 @@ function raiseAssistantWindow(
             spellSubtypes,
         },
     };
-    state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+    state.pendingChoices = (state.pendingChoices ?? []).concat([entry]);
 }
 
 /** CR 702.132a — "you may choose another player". Pure: the caller attempts the
@@ -247,5 +247,5 @@ export function noteAssistantManaTap(
     const others = (assist.assistantTappedIds ?? []).filter(
         (id) => id !== cardId
     );
-    assist.assistantTappedIds = isTapped ? [...others, cardId] : others;
+    assist.assistantTappedIds = isTapped ? others.concat([cardId]) : others;
 }

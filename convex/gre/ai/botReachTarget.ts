@@ -116,7 +116,9 @@ function plainRank(def: CardDefinition, required?: string): 0 | 1 | null {
     if (typeof def.power !== "number" || typeof def.toughness !== "number")
         return null;
     let rank: 0 | 1 = 0;
-    for (const [key, value] of Object.entries(def)) {
+    const entries2 = Object.entries(def);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, value] = entries2[i];
         if (PLAIN_KEYS.has(key) || value === undefined) continue;
         if (Array.isArray(value) && value.length === 0) continue;
         if (
@@ -249,6 +251,7 @@ function creatureFor(
     const cached = creatureCache.get(key);
     if (cached !== undefined) return cached;
     let found: { def: CardDefinition; rank: number } | null = null;
+    // eslint-disable-next-line no-restricted-syntax -- an iterable or generator, not an array (issue #10126)
     for (const def of registeredDefinitions()) {
         if (def.id.startsWith(SWEEP_ID_PREFIX)) continue;
         // A synthesized token (`gen-source-…`, registered by a scenario
@@ -406,7 +409,7 @@ function boostOutlastsDamage(
 ): boolean {
     const req = creatureRequirement(target);
     if (!req || favoursItsTarget(def, req, modeId)) return false;
-    const groups = [req, ...later];
+    const groups = [req].concat(later);
     if (groups.some((g) => asList(g.type).includes("Enchantment")))
         return false;
     const toughness = creatureFor(req)?.toughness;
@@ -703,9 +706,9 @@ function narrows(req: TargetRequirement): boolean {
 export function targetPose(def: CardDefinition): TargetPose {
     const own = spellPose(def);
     const etb = etbAbilityScripts(def).map((script) => spellPose(script));
-    const poses = [own, ...etb];
+    const poses = [own].concat(etb);
     return {
-        cards: [...poses.flatMap((p) => p.cards), ...etbLibraryCards(def)],
+        cards: poses.flatMap((p) => p.cards).concat(etbLibraryCards(def)),
         omitToughnessBoost: poses.some((p) => p.omitToughnessBoost),
         // The combat a target's role names is the SPELL's: a creature is cast
         // in a main phase, so an ETB Ability's combat window would be one the
@@ -788,7 +791,9 @@ function withDamageCeiling(pose: TargetPose, ceiling: boolean): TargetPose {
  */
 export function etbAbilityScripts(def: CardDefinition): CardDefinition[] {
     const scripts: CardDefinition[] = [];
-    for (const t of def.triggeredAbilities ?? []) {
+    const tList = def.triggeredAbilities ?? [];
+    for (let i = 0; i < tList.length; i++) {
+        const t = tList[i];
         if (t.etbAbility !== true) continue;
         if (!t.targetRequirement && !(t.modes ?? []).length) continue;
         scripts.push({
@@ -800,13 +805,15 @@ export function etbAbilityScripts(def: CardDefinition): CardDefinition[] {
             modes: t.modes,
         });
     }
-    for (const t of def.compiledTriggeredAbilities ?? []) {
+    const tList2 = def.compiledTriggeredAbilities ?? [];
+    for (let i = 0; i < tList2.length; i++) {
+        const t = tList2[i];
         if (t.head.kind !== "entered" || t.head.scope !== "self") continue;
         if (!t.targetRequirement) continue;
         scripts.push({
             ...def,
             subtypes: [],
-            effects: [...t.effects],
+            effects: t.effects.slice(),
             targetRequirement: t.targetRequirement,
             modes: undefined,
         });
@@ -832,11 +839,17 @@ function etbLookedForSubtypes(def: CardDefinition): string[] {
             found.push(subtype);
         Object.values(record).forEach(visit);
     };
-    for (const t of def.triggeredAbilities ?? [])
+    const tList = def.triggeredAbilities ?? [];
+    for (let i = 0; i < tList.length; i++) {
+        const t = tList[i];
         if (t.etbAbility === true) visit(t.effects);
-    for (const t of def.compiledTriggeredAbilities ?? [])
+    }
+    const tList2 = def.compiledTriggeredAbilities ?? [];
+    for (let i = 0; i < tList2.length; i++) {
+        const t = tList2[i];
         if (t.head.kind === "entered" && t.head.scope === "self")
             visit(t.effects);
+    }
     return found;
 }
 
@@ -927,13 +940,18 @@ function exchangesControl(ops: readonly EffectOp[]): boolean {
     let gives = false;
     let takes = false;
     const walk = (list: readonly EffectOp[]): void => {
-        for (const op of list) {
+        for (let i = 0; i < list.length; i++) {
+            const op = list[i];
             if (op.op === "gainControl") {
                 const target = op.target as { ref?: unknown; target?: unknown };
                 if (target.ref === "$source") gives = true;
                 else if (typeof target.target === "number") takes = true;
             }
-            for (const child of childOpArrays(op)) walk(child);
+            const childList = childOpArrays(op);
+            for (let j = 0; j < childList.length; j++) {
+                const child = childList[j];
+                walk(child);
+            }
         }
     };
     walk(ops);
@@ -1081,9 +1099,8 @@ function requirementPose(
         // attacker is unblocked and passing reads about as well as casting.
         const attacker = name === BASE_CREATURE ? SAVED_ATTACKER : name;
         return {
-            cards: [
-                ...cards,
-                ...(attacker === name
+            cards: cards.concat(
+                attacker === name
                     ? []
                     : [
                           {
@@ -1091,13 +1108,15 @@ function requirementPose(
                               owner: "me" as const,
                               zone: "battlefield" as const,
                           },
-                      ]),
-                {
-                    name: KILLING_BLOCKER,
-                    owner: "opp" as const,
-                    zone: "battlefield" as const,
-                },
-            ],
+                      ],
+                [
+                    {
+                        name: KILLING_BLOCKER,
+                        owner: "opp" as const,
+                        zone: "battlefield" as const,
+                    },
+                ]
+            ),
             omitToughnessBoost,
             position: {
                 phase: "DECLARE_BLOCKERS",
@@ -1186,11 +1205,11 @@ function withLaterCombatants(
     if (!combat || !active || firstRoles.length === 0) return pose;
     const sideOf = (role: PosedRole): "me" | "opp" =>
         role === "attacking" ? active : active === "me" ? "opp" : "me";
-    const attackers = [...(combat.attackers ?? [])];
-    const blockers = [...(combat.blockers ?? [])];
+    const attackers = (combat.attackers ?? []).slice();
+    const blockers = (combat.blockers ?? []).slice();
     const declared = (role: PosedRole): readonly string[] =>
         role === "attacking" ? attackers : blockers.map((b) => b.blocker);
-    const cards = [...pose.cards];
+    const cards = pose.cards.slice();
     // The first group's pick: its pose's first combatant in the role it
     // names, attacking before blocking as `requirementPose` reads them.
     const taken = new Set([
@@ -1234,7 +1253,8 @@ function withLaterCombatants(
     // the position's +0/+2 enchantment must not lift it over (as for the
     // first group in `requirementPose`).
     let ceiling = false;
-    for (const req of later) {
+    for (let j = 0; j < later.length; j++) {
+        const req = later[j];
         const roles = posedRoles(creatureRequirement(req));
         if (roles.length === 0) continue;
         if (
@@ -1316,7 +1336,7 @@ function withLaterBodies(
     if (poses.length === 0) return pose;
     return {
         ...pose,
-        cards: [...pose.cards, ...poses.flatMap((p) => p.cards)],
+        cards: pose.cards.concat(poses.flatMap((p) => p.cards)),
         omitToughnessBoost:
             pose.omitToughnessBoost || poses.some((p) => p.omitToughnessBoost),
     };

@@ -76,13 +76,16 @@ function shownColors(
     battlefield: readonly CardInstanceState[]
 ): ReadonlySet<string> | null {
     const shown = new Set<string>();
-    for (const [color, mass] of Object.entries(
-        observedOpponentColors(state, opponentId)
-    )) {
+    const entries2 = Object.entries(observedOpponentColors(state, opponentId));
+    for (let i = 0; i < entries2.length; i++) {
+        const [color, mass] = entries2[i];
         if (mass && mass > 0) shown.add(color);
     }
-    for (const permanent of battlefield) {
-        for (const color of getProducibleColors(permanent)) shown.add(color);
+    for (let i = 0; i < battlefield.length; i++) {
+        const permanent = battlefield[i];
+        getProducibleColors(permanent).forEach((color) => {
+            shown.add(color);
+        });
     }
     shown.delete("C");
     return shown.size > 0 ? shown : null;
@@ -102,7 +105,7 @@ export function inertKeywordDiscount(
 ): number {
     const opponents = state.players.filter((p) => p.id !== card.controllerId);
     if (opponents.length === 0) return 0;
-    const skip = [...alreadyRemoved];
+    const skip = alreadyRemoved.slice();
     let colors: (ReadonlySet<string> | null)[] | undefined;
     let discount = 0;
     // CR 612 — a text change rewrites the keyword the rules read (Magical

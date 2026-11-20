@@ -178,9 +178,9 @@ export function castAsAdventure(item: CardInstanceState): void {
     // Every array is COPIED, never aliased — handing the registry definition's
     // own array to an instance would let any later in-place writer corrupt the
     // catalogue globally (`turnFaceUp`'s note).
-    item.types = [...twin.types];
-    item.subtypes = [...(twin.subtypes ?? [])];
-    item.staticAbilities = [...(twin.staticAbilities ?? [])];
+    item.types = twin.types.slice();
+    item.subtypes = (twin.subtypes ?? []).slice();
+    item.staticAbilities = (twin.staticAbilities ?? []).slice();
     delete item.power;
     delete item.toughness;
 }
@@ -198,9 +198,9 @@ export function revertAdventureIdentity(item: CardInstanceState): void {
     delete item.adventureOf;
     if (!def) return;
     item.card = { id: def.id };
-    item.types = [...def.types];
-    item.subtypes = [...(def.subtypes ?? [])];
-    item.staticAbilities = [...(def.staticAbilities ?? [])];
+    item.types = def.types.slice();
+    item.subtypes = (def.subtypes ?? []).slice();
+    item.staticAbilities = (def.staticAbilities ?? []).slice();
     if (def.power !== undefined) item.power = def.power;
     if (def.toughness !== undefined) item.toughness = def.toughness;
 }

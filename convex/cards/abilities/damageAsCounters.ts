@@ -89,15 +89,14 @@ export function expandDamageAsCounters(base: CardDefinition): CardDefinition {
         ...base,
         replacementEffects: existing.some((r) => r.id === id)
             ? existing
-            : [
-                  ...existing,
+            : existing.concat([
                   damageAsCounters({
                       id,
                       oracleText: DAMAGE_AS_COUNTERS_ORACLE_TEXT(spec),
                       counterType: spec.counterType,
                       noncombatOnly: spec.noncombatOnly,
                   }),
-              ],
+              ]),
     };
     delete expanded.damageAsCounters;
     return expanded;

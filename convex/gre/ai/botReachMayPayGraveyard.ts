@@ -31,7 +31,10 @@ function graveyardLegs(
     out: NonNullable<CostLegs["graveyard"]>[] = []
 ): NonNullable<CostLegs["graveyard"]>[] {
     if (Array.isArray(node)) {
-        for (const child of node) graveyardLegs(child, out);
+        for (let i = 0; i < node.length; i++) {
+            const child = node[i];
+            graveyardLegs(child, out);
+        }
         return out;
     }
     if (node === null || typeof node !== "object") return out;
@@ -41,7 +44,11 @@ function graveyardLegs(
         if (cost && typeof cost === "object" && cost.graveyard)
             out.push(cost.graveyard);
     }
-    for (const child of Object.values(rec)) graveyardLegs(child, out);
+    const childList = Object.values(rec);
+    for (let i = 0; i < childList.length; i++) {
+        const child = childList[i];
+        graveyardLegs(child, out);
+    }
     return out;
 }
 

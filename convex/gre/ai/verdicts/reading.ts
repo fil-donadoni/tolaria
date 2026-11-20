@@ -42,7 +42,7 @@ export function readingOf(source: AttestedReading): AttestedReading {
         ...(source.grade === undefined ? {} : { grade: source.grade }),
         ...(source.acceptedIndexes === undefined
             ? {}
-            : { acceptedIndexes: [...source.acceptedIndexes] }),
+            : { acceptedIndexes: source.acceptedIndexes.slice() }),
     };
 }
 

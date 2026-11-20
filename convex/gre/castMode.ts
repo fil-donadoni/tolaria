@@ -306,11 +306,10 @@ export function independentCastOptionsFor(
     exileCaster?: { state: GameState; casterId: string }
 ): AlternativeCost[] {
     const adventure = adventureCastOptionFor(card, exileCaster);
-    return [
-        ...(adventure ? [adventure] : []),
-        ...splitCastOptionsFor(card),
-        ...modalBackCastOptionsFor(card, modalBackLicensed),
-    ];
+    return (adventure ? [adventure] : []).concat(
+        splitCastOptionsFor(card),
+        modalBackCastOptionsFor(card, modalBackLicensed)
+    );
 }
 
 /** CR 709.3 / 712.11b — `true` when `alternativeCostId` names WHICH face of
@@ -407,7 +406,9 @@ function castModeOf(
     // Morph's synthesized id is shared by every morph card, so it is matched
     // through the helper that also proves `def` HAS a morph cost.
     if (isMorphCastId(def, id)) return "morph";
-    for (const mode of Object.keys(CAST_MODE_CENSUS) as CastMode[]) {
+    const modeList = Object.keys(CAST_MODE_CENSUS) as CastMode[];
+    for (let i = 0; i < modeList.length; i++) {
+        const mode = modeList[i];
         if (mode === "morph") continue;
         if (CAST_MODE_CENSUS[mode].idOf(def) === id) return mode;
     }
@@ -489,11 +490,12 @@ export function castFaceTypeSets(
 ): CardType[][] {
     if (!def) return [];
     const faces: CardType[][] = offersPrintedCast(def)
-        ? [[...(def.types ?? [])]]
+        ? [(def.types ?? []).slice()]
         : [];
-    for (const mode of FACE_CHOICE_MODES) {
+    for (let i = 0; i < FACE_CHOICE_MODES.length; i++) {
+        const mode = FACE_CHOICE_MODES[i];
         if (CAST_MODE_CENSUS[mode].idOf(def) === undefined) continue;
-        faces.push([...(CAST_MODE_CENSUS[mode].subject(def)?.types ?? [])]);
+        faces.push((CAST_MODE_CENSUS[mode].subject(def)?.types ?? []).slice());
     }
     return faces;
 }
@@ -541,9 +543,9 @@ export function castSubjectView(
     return {
         ...card,
         card: { id: subject.id },
-        types: [...subject.types],
-        subtypes: [...(subject.subtypes ?? [])],
-        staticAbilities: [...(subject.staticAbilities ?? [])],
+        types: subject.types.slice(),
+        subtypes: (subject.subtypes ?? []).slice(),
+        staticAbilities: (subject.staticAbilities ?? []).slice(),
         power: subject.power,
         toughness: subject.toughness,
     };

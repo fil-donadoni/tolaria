@@ -98,7 +98,9 @@ export function emergeReductionForVictim(
     state: GameState,
     victimId: string
 ): number {
-    for (const p of state.players) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
         const victim = p.battlefield.find((c) => c.id === victimId);
         if (victim) return permanentManaValue(victim);
     }
@@ -159,7 +161,9 @@ export function largestEmergeVictim(
     emerge: AlternativeCost
 ): { id: string; manaValue: number } | undefined {
     let best: { id: string; manaValue: number } | undefined;
-    for (const c of matchingPermanentsForAltCost(player, emerge)) {
+    const cList = matchingPermanentsForAltCost(player, emerge);
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
         const mv = permanentManaValue(c);
         if (
             !best ||

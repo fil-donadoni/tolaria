@@ -157,7 +157,10 @@ function advanceTurn(spec: ScenarioSpec, next: BladeSeat): void {
             [next]: spec.turnsTaken[next]! + 1,
         };
     }
-    for (const key of PER_TURN_SPEC_KEYS) delete spec[key];
+    for (let i = 0; i < PER_TURN_SPEC_KEYS.length; i++) {
+        const key = PER_TURN_SPEC_KEYS[i];
+        delete spec[key];
+    }
     if (qualified !== undefined) {
         spec.qualifyingActionLastTurn = {
             ...spec.qualifyingActionLastTurn,
@@ -165,7 +168,9 @@ function advanceTurn(spec: ScenarioSpec, next: BladeSeat): void {
         };
     }
     delete spec.combat;
-    for (const card of spec.cards) {
+    const cardList = spec.cards;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         delete card.damageMarked;
         delete card.activations;
         delete card.abilityResolutions;
@@ -291,7 +296,7 @@ export function deriveRightHalfPosition(
                     "sequence Discriminant: the earlier move is at least one setup step"
                 );
             }
-            half.setup = [...(half.setup ?? []), ...copy(change.steps)];
+            half.setup = (half.setup ?? []).concat(copy(change.steps));
             break;
         case "other":
             break;

@@ -159,7 +159,9 @@ function rightHalfSegment(
     offset: number
 ): EffectOp[] {
     const rebased =
-        offset > 0 ? rebaseTargetRefs([...effects], offset) : [...effects];
+        offset > 0
+            ? rebaseTargetRefs(effects.slice(), offset)
+            : effects.slice();
     const declared = new Set<string>();
     declaredBindingNames(rebased, declared);
     if (declared.size === 0) return rebased;
@@ -187,17 +189,15 @@ export function fusedSplitTwinDefinition(
     if (fusedSplitShapeRefusal(halves) !== undefined) return undefined;
     const [left, right] = halves;
     const offset = fixedTargetCount(left) ?? 0;
-    const groups: TargetRequirement[] = [
-        ...(left.targetRequirement ? [left.targetRequirement] : []),
-        ...(right.targetRequirement ? [right.targetRequirement] : []),
-    ];
-    const effects: EffectOp[] = [
-        ...(left.effects ?? []),
-        ...rightHalfSegment(right.effects ?? [], offset),
-    ];
+    const groups: TargetRequirement[] = (
+        left.targetRequirement ? [left.targetRequirement] : []
+    ).concat(right.targetRequirement ? [right.targetRequirement] : []);
+    const effects: EffectOp[] = (left.effects ?? []).concat(
+        rightHalfSegment(right.effects ?? [], offset)
+    );
     const manaCost = combineSplitManaCosts(left.manaCost, right.manaCost);
     const subtypes = [
-        ...new Set([...(left.subtypes ?? []), ...(right.subtypes ?? [])]),
+        ...new Set((left.subtypes ?? []).concat(right.subtypes ?? [])),
     ];
     return {
         id: fusedSplitDefinitionId(parent.id),

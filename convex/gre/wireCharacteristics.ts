@@ -106,7 +106,9 @@ function registryKeywordGrantsFor(
     instanceId: string
 ): NonNullable<WireCharacteristics["grantedStaticAbilities"]> {
     const rows: { ability: string; seq?: number }[] = [];
-    for (const entry of continuousEffectsInLayer(state, 6)) {
+    const entryList = continuousEffectsInLayer(state, 6);
+    for (let i = 0; i < entryList.length; i++) {
+        const entry = entryList[i];
         if (entry.expiry.kind === "source") continue;
         if (entry.affected.kind !== "instances") continue;
         if (!entry.affected.instanceIds.includes(instanceId)) continue;
@@ -168,7 +170,9 @@ function temporaryPTModsFor(
     instanceId: string
 ): { power: number; toughness: number }[] | undefined {
     const rows: { power: number; toughness: number }[] = [];
-    for (const entry of continuousEffectsInLayer(state, 7, "7c")) {
+    const entryList = continuousEffectsInLayer(state, 7, "7c");
+    for (let i = 0; i < entryList.length; i++) {
+        const entry = entryList[i];
         if (entry.expiry.kind !== "duration") continue;
         if (entry.affected.kind !== "instances") continue;
         if (!entry.affected.instanceIds.includes(instanceId)) continue;
@@ -198,10 +202,12 @@ export function deriveWireCharacteristics(
     // S5 AC 1) is a BATTLEFIELD contract, and extending it to the stack is S5's
     // to finish, not bestow's. Asking for the derivation and then discarding it
     // would be a full per-item walk per projection for nothing.
-    for (const { card, result } of deriveLayers2to5Board(board, {
+    const entries = deriveLayers2to5Board(board, {
         deriveAll: true,
         includeStack: false,
-    })) {
+    });
+    for (let i = 0; i < entries.length; i++) {
+        const { card, result } = entries[i];
         const fields = layers2to5WireFields(card, result);
         // `printedSubtypes` is the pre-slice ALIAS of `baseSubtypes`, which
         // rides the wire already — the client's `layer4SubtypeBase` reads the
@@ -245,9 +251,11 @@ export function deriveWireCharacteristics(
     // `deriveAll`, for the reason the layer-2-5 pass above passes it: layer 6's
     // sync grew the same fast path in PRD #2064 S7, and a consumer that reads
     // the RESULT has nothing to read for a permanent the sync would skip.
-    for (const { card, result } of deriveLayer6Board(board, {
+    const entries2 = deriveLayer6Board(board, {
         deriveAll: true,
-    })) {
+    });
+    for (let i = 0; i < entries2.length; i++) {
+        const { card, result } = entries2[i];
         patches.set(card.id, {
             ...patches.get(card.id),
             ...layer6DerivedFields(card, result),
@@ -260,7 +268,7 @@ export function deriveWireCharacteristics(
             grantedStaticAbilities: (() => {
                 const derived = layer6WireFields(result).grantedStaticAbilities;
                 const fromRegistry = registryKeywordGrantsFor(state, card.id);
-                const all = [...(derived ?? []), ...fromRegistry];
+                const all = (derived ?? []).concat(fromRegistry);
                 return all.length > 0 ? all : undefined;
             })(),
             // CR 613.4c (PRD #2064 S6) — the until-boundary pumps applying to
@@ -323,7 +331,9 @@ export function applyWireCharacteristics<T extends { id: string }>(
 ): T {
     if (!patch) return projected;
     const out = { ...projected, ...patch } as T & Record<string, unknown>;
-    for (const key of Object.keys(patch)) {
+    const keyList = Object.keys(patch);
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         if ((patch as Record<string, unknown>)[key] === undefined) {
             delete out[key];
         }

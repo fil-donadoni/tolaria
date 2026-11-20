@@ -114,7 +114,9 @@ export function heldOutEvalAgreement(
 
     const aggregate: AgreementTally = { agreed: 0, n: 0 };
     const byClass = new Map<string, AgreementTally>();
-    for (const pair of report.pairs) {
+    const pairList = report.pairs;
+    for (let i = 0; i < pairList.length; i++) {
+        const pair = pairList[i];
         if (!isHeldOut(pair.verdictId) || indifferent.has(pair.verdictId)) {
             continue;
         }
@@ -171,7 +173,9 @@ export function formatHeldOutEvalAgreement(
         `  indifferent        : ${agreement.excludedIndifferent} verdicts graded Indifferent (no weight, outside the count)`,
         "  by Decision Class",
     ];
-    for (const [cls, tally] of Object.entries(agreement.byClass)) {
+    const entries2 = Object.entries(agreement.byClass);
+    for (let i = 0; i < entries2.length; i++) {
+        const [cls, tally] = entries2[i];
         out.push(`    ${cls.padEnd(16)} : ${formatAgreementTally(tally)}`);
     }
     return out.join("\n");

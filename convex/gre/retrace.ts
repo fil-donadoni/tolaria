@@ -107,7 +107,9 @@ function collectRetraceGrants(
     ownerId: string
 ): RetraceGrant[] {
     const grants: RetraceGrant[] = [];
-    for (const emblem of state.emblems ?? []) {
+    const emblemList = state.emblems ?? [];
+    for (let i = 0; i < emblemList.length; i++) {
+        const emblem = emblemList[i];
         if (emblem.ownerId !== ownerId) continue;
         const grant = tryGetEmblemDefinition(
             emblem.emblemId
@@ -115,7 +117,9 @@ function collectRetraceGrants(
         if (grant) grants.push(grant);
     }
     const owner = state.players.find((p) => p.id === ownerId);
-    for (const perm of owner?.battlefield ?? []) {
+    const permList = owner?.battlefield ?? [];
+    for (let i = 0; i < permList.length; i++) {
+        const perm = permList[i];
         // CR 613.1f — a granter that lost its abilities grants nothing.
         const grant = liveStaticDefinition(perm)?.grantsRetraceToOwnGraveyard;
         if (grant) grants.push(grant);

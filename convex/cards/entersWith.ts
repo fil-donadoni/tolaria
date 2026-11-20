@@ -187,7 +187,9 @@ export function countSpellsCastThisTurn(
     if (!tally) return 0;
     if (!types) return Math.max(0, tally.total);
     let n = 0;
-    for (const t of new Set(types)) n += tally.byType[t] ?? 0;
+    new Set(types).forEach((t) => {
+        n += tally.byType[t] ?? 0;
+    });
     return Math.max(0, n);
 }
 
@@ -216,7 +218,9 @@ export function countCardsExiledWithIt(
  *  therefore five, structurally — there are only five keys it can match. */
 export function distinctColorsSpent(spent: Record<string, number>): number {
     let n = 0;
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         if (color === "C") continue;
         if ((spent[color] ?? 0) > 0) n++;
     }
@@ -239,7 +243,8 @@ export function resolveEntersWithCounters(
     const delta: Record<string, number> = {};
     const declared = def?.entersWith?.counters;
     if (!declared || declared.length === 0) return delta;
-    for (const entry of declared) {
+    for (let i = 0; i < declared.length; i++) {
+        const entry = declared[i];
         const n =
             entry.count === "X"
                 ? Math.max(0, cast.chosenX ?? 0)
@@ -326,14 +331,20 @@ export function entryAbilitiesSuppressed(
     entering: PermanentView,
     state: StaticEffectStateView
 ): boolean {
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             if (source.id === entering.id) continue;
             const cardId = (source.card as { id?: string }).id;
             if (!cardId) continue;
             const def = tryGetDefinition(cardId);
             if (!def?.staticEffects) continue;
-            for (const effect of def.staticEffects) {
+            const effectList = def.staticEffects;
+            for (let k = 0; k < effectList.length; k++) {
+                const effect = effectList[k];
                 if (effect.kind !== "ability-loss") continue;
                 if (effect.applies(entering, source, ATTACK_RESTRICTION_CTX)) {
                     return true;

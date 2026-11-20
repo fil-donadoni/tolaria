@@ -451,7 +451,8 @@ export function tickOnlyLoyaltyMovesDominated(
     if (!state.players.some((p) => p.id === pid)) return dominated;
     type Loyalty = { move: Move & { kind: "activate-ability" }; cost: number };
     const bySource = new Map<string, Loyalty[]>();
-    for (const move of moves) {
+    for (let i = 0; i < moves.length; i++) {
+        const move = moves[i];
         if (move.kind !== "activate-ability") continue;
         const source = findPermanent(state, move.cardInstanceId);
         const cost = source && abilityOf(source, move.abilityId)?.cost.loyalty;
@@ -460,8 +461,8 @@ export function tickOnlyLoyaltyMovesDominated(
         group.push({ move, cost });
         bySource.set(move.cardInstanceId, group);
     }
-    for (const group of bySource.values()) {
-        if (group.length < 2) continue;
+    bySource.forEach((group) => {
+        if (group.length < 2) return;
         const outcomes = new Map<Move, LoyaltyOutcome>();
         const outcomeOf = (move: Move): LoyaltyOutcome => {
             let known = outcomes.get(move);
@@ -471,7 +472,8 @@ export function tickOnlyLoyaltyMovesDominated(
             }
             return known;
         };
-        for (const tick of group) {
+        for (let i = 0; i < group.length; i++) {
+            const tick = group[i];
             if (tick.cost < 0) continue;
             const siblings = group.filter(
                 (s) =>
@@ -484,7 +486,7 @@ export function tickOnlyLoyaltyMovesDominated(
                 dominated.add(tick.move);
             }
         }
-    }
+    });
     return dominated;
 }
 
@@ -574,7 +576,8 @@ function branchesTouchOnlyMover(
         if (head.playerId !== moverId) return false;
         const candidates = choiceCandidates(probe, head, MAX_CHOICE_BRANCHES);
         if (candidates.length === 0) return false;
-        for (const candidate of candidates) {
+        for (let i = 0; i < candidates.length; i++) {
+            const candidate = candidates[i];
             if (branchWorkLeft-- <= 0) return false;
             stats.choiceBranches++;
             const branch = cloneGameState(probe);
@@ -685,8 +688,13 @@ function touchesOnlyMoverDelta(
     const a = normalize(cloneGameState(baseline), moverId, spent, "base");
     const b = normalize(cloneGameState(probe), moverId, spent, "probe");
     if (!a || !b) return false;
-    for (const bag of [a, b] as unknown as Record<string, unknown>[]) {
-        for (const key of ECHOED_BOOKKEEPING_KEYS) delete bag[key];
+    const bagList = [a, b] as unknown as Record<string, unknown>[];
+    for (let i = 0; i < bagList.length; i++) {
+        const bag = bagList[i];
+        for (let j = 0; j < ECHOED_BOOKKEEPING_KEYS.length; j++) {
+            const key = ECHOED_BOOKKEEPING_KEYS[j];
+            delete bag[key];
+        }
     }
     a.players = a.players.filter((p) => p.id !== moverId);
     b.players = b.players.filter((p) => p.id !== moverId);
@@ -818,7 +826,7 @@ function choiceAnswerIdentity(
         choice.step,
         choice.choiceId,
         choice.playerId,
-        ids.length === 0 ? "<none>" : [...ids].sort().join(","),
+        ids.length === 0 ? "<none>" : ids.slice().sort().join(","),
     ].join("|");
 }
 
@@ -879,7 +887,9 @@ function isNoOpChoiceDelta(baseline: GameState, probe: GameState): boolean {
     const a = normalize(cloneGameState(baseline), "", {}, "base");
     const b = normalize(cloneGameState(probe), "", {}, "probe");
     if (!a || !b) return false;
-    for (const side of [a, b] as unknown as Record<string, unknown>[]) {
+    const sideList = [a, b] as unknown as Record<string, unknown>[];
+    for (let i = 0; i < sideList.length; i++) {
+        const side = sideList[i];
         delete side.stack;
         delete side.pendingChoices;
     }
@@ -962,8 +972,12 @@ function settledAnswerReading(
     const tapped = new Map<string, boolean>();
     const controller = new Map<string, string>();
     const land = new Set<string>();
-    for (const player of rest.players) {
-        for (const card of player.battlefield) {
+    const playerList = rest.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             tapped.set(card.id, card.isTapped === true);
             controller.set(card.id, card.controllerId);
             if (isLand(card)) land.add(card.id);
@@ -989,6 +1003,7 @@ function compareTapStatus(
     if (a.restJson !== b.restJson && !deepEqual(a.rest, b.rest)) return 0;
     let aBetter = false;
     let bBetter = false;
+    // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
     for (const [id, aTapped] of a.tapped) {
         const bTapped = b.tapped.get(id);
         if (bTapped === undefined) return 0;
@@ -1355,7 +1370,8 @@ function branchesAll(
         if (head.playerId !== moverId) return false;
         const candidates = choiceCandidates(probe, head, MAX_CHOICE_BRANCHES);
         if (candidates.length === 0) return false;
-        for (const candidate of candidates) {
+        for (let i = 0; i < candidates.length; i++) {
+            const candidate = candidates[i];
             // The work budget, not the depth cap, is what keeps a deeper bound
             // affordable (issue #3194): a probe may open at most
             // `MAX_CHOICE_BRANCH_WORK` branches in total, however they are
@@ -1572,8 +1588,14 @@ function isNoOpDelta(
     const basePlayer = a.players.find((p) => p.id === moverId);
     const probePlayer = b.players.find((p) => p.id === moverId);
     if (!basePlayer || !probePlayer) return false;
-    for (const c of basePlayer.battlefield) baseTapped.set(c.id, c.isTapped);
-    for (const c of probePlayer.battlefield) {
+    const cList = basePlayer.battlefield;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
+        baseTapped.set(c.id, c.isTapped);
+    }
+    const cList2 = probePlayer.battlefield;
+    for (let i = 0; i < cList2.length; i++) {
+        const c = cList2[i];
         if (c.isTapped && baseTapped.get(c.id) === false) c.isTapped = false;
     }
     return deepEqual(a, b);
@@ -1602,8 +1624,12 @@ const LAYER_LEDGER_INSTANCE_KEYS = [
  *  a change. */
 function readObservableCharacteristics(state: GameState): void {
     const readings = new Map<CardInstanceState, Record<string, unknown>>();
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             readings.set(card, {
                 observedColors: STATIC_EFFECT_CTX.getColors(card),
                 observedSuppressed:
@@ -1614,9 +1640,12 @@ function readObservableCharacteristics(state: GameState): void {
             });
         }
     }
-    for (const [card, reading] of readings) {
+    readings.forEach((reading, card) => {
         const bag = card as unknown as Record<string, unknown>;
-        for (const key of LAYER_LEDGER_INSTANCE_KEYS) delete bag[key];
+        for (let i = 0; i < LAYER_LEDGER_INSTANCE_KEYS.length; i++) {
+            const key = LAYER_LEDGER_INSTANCE_KEYS[i];
+            delete bag[key];
+        }
         delete bag.abilitiesSuppressedBy;
         if (card.indefiniteSubtypeSet) {
             const set = { ...card.indefiniteSubtypeSet };
@@ -1624,7 +1653,7 @@ function readObservableCharacteristics(state: GameState): void {
             bag.indefiniteSubtypeSet = set;
         }
         Object.assign(bag, reading);
-    }
+    });
     if (state.continuousEffects) {
         state.continuousEffects = state.continuousEffects.filter(
             (entry) =>
@@ -1646,29 +1675,48 @@ function normalize(
     side: "base" | "probe"
 ): GameState | null {
     const bag = state as unknown as Record<string, unknown>;
-    for (const key of IGNORED_STATE_KEYS) delete bag[key];
+    for (let j = 0; j < IGNORED_STATE_KEYS.length; j++) {
+        const key = IGNORED_STATE_KEYS[j];
+        delete bag[key];
+    }
 
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let j = 0; j < playerList.length; j++) {
+        const player = playerList[j];
         if (player.id === moverId) {
             const pbag = player as unknown as Record<string, unknown>;
-            for (const key of IGNORED_MOVER_PLAYER_KEYS) delete pbag[key];
+            for (let k = 0; k < IGNORED_MOVER_PLAYER_KEYS.length; k++) {
+                const key = IGNORED_MOVER_PLAYER_KEYS[k];
+                delete pbag[key];
+            }
         }
-        for (const zone of [
+        const zoneList = [
             player.hand,
             player.library,
             player.graveyard,
             player.exile,
             player.battlefield,
-        ]) {
-            for (const card of zone) {
+        ];
+        for (let k = 0; k < zoneList.length; k++) {
+            const zone = zoneList[k];
+            for (let m = 0; m < zone.length; m++) {
+                const card = zone[m];
                 const cbag = card as unknown as Record<string, unknown>;
-                for (const key of IGNORED_INSTANCE_KEYS) delete cbag[key];
+                for (let i2 = 0; i2 < IGNORED_INSTANCE_KEYS.length; i2++) {
+                    const key = IGNORED_INSTANCE_KEYS[i2];
+                    delete cbag[key];
+                }
             }
         }
     }
-    for (const item of state.stack) {
+    const itemList = state.stack;
+    for (let j = 0; j < itemList.length; j++) {
+        const item = itemList[j];
         const ibag = item as unknown as Record<string, unknown>;
-        for (const key of IGNORED_INSTANCE_KEYS) delete ibag[key];
+        for (let k = 0; k < IGNORED_INSTANCE_KEYS.length; k++) {
+            const key = IGNORED_INSTANCE_KEYS[k];
+            delete ibag[key];
+        }
     }
 
     const { cardId: spentCardId, permanentId: spentPermanentId } = spent;
@@ -1747,7 +1795,9 @@ function normalize(
     // graveyard, an exile-on-resolve one (flashback, rebound) in exile. If it
     // is in NEITHER (it stuck on the battlefield, bounced back to hand, …) the
     // move is not a pure cost and nothing is stripped, so the compare fails.
-    for (const zone of [mover.graveyard, mover.exile]) {
+    const zoneList2 = [mover.graveyard, mover.exile];
+    for (let j = 0; j < zoneList2.length; j++) {
+        const zone = zoneList2[j];
         const i = zone.findIndex((c) => c.id === spentCardId);
         if (i !== -1) {
             zone.splice(i, 1);
@@ -1780,7 +1830,8 @@ export function deepEqual(a: unknown, b: unknown): boolean {
     }
     const ao = a as Record<string, unknown>;
     const bo = b as Record<string, unknown>;
-    const keys = new Set([...Object.keys(ao), ...Object.keys(bo)]);
+    const keys = new Set(Object.keys(ao).concat(Object.keys(bo)));
+    // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
     for (const key of keys) {
         if (ao[key] === undefined && bo[key] === undefined) continue;
         if (!deepEqual(ao[key], bo[key])) return false;

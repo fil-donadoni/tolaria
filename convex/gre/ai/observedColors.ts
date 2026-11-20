@@ -109,7 +109,8 @@ function addColors(
     colors: readonly Color[],
     weight: number
 ): void {
-    for (const c of colors) {
+    for (let i = 0; i < colors.length; i++) {
+        const c = colors[i];
         if (c === "C") continue; // colourless carries no colour-evidence signal here
         evidence[c] = (evidence[c] ?? 0) + weight;
     }
@@ -186,7 +187,9 @@ function untappedProducibleColors(
         battlefield: p.battlefield,
     }));
     const colors = new Set<Color>();
-    for (const card of opponent.battlefield) {
+    const cardList = opponent.battlefield;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         if (card.isTapped) continue;
         const options = getManaTapOptionsDetailed(
             card,
@@ -196,9 +199,12 @@ function untappedProducibleColors(
             state.continuousEffects,
             state
         );
-        for (const option of options) {
+        for (let j = 0; j < options.length; j++) {
+            const option = options[j];
             if (!isNonDestructiveManaOption(card, option)) continue;
-            for (const c of MANA_COLORS) {
+            const cList = MANA_COLORS;
+            for (let k = 0; k < cList.length; k++) {
+                const c = cList[k];
                 if (c === "C") continue;
                 if ((option.mana[c] ?? 0) > 0) colors.add(c);
             }
@@ -219,13 +225,19 @@ export function observedOpponentColors(
     const opponent = getPlayer(state, opponentId);
     const evidence: Record<string, number> = {};
 
-    for (const card of opponent.battlefield) {
+    const cardList = opponent.battlefield;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         addColors(evidence, getEffectiveColors(card), BATTLEFIELD_WEIGHT);
     }
-    for (const card of opponent.graveyard) {
+    const cardList2 = opponent.graveyard;
+    for (let i = 0; i < cardList2.length; i++) {
+        const card = cardList2[i];
         addColors(evidence, cardStaticColors(card), COMMITTED_WEIGHT);
     }
-    for (const item of state.stack) {
+    const itemList = state.stack;
+    for (let i = 0; i < itemList.length; i++) {
+        const item = itemList[i];
         // `castById`, not `controllerId` — the player who put this object on
         // the stack (a spell's caster, an ability's activator), matching the
         // "already committed the card" evidence class even if control of the
@@ -233,16 +245,18 @@ export function observedOpponentColors(
         if (item.castById !== opponentId) continue;
         addColors(evidence, cardStaticColors(item), COMMITTED_WEIGHT);
     }
-    for (const c of untappedProducibleColors(state, opponent)) {
+    untappedProducibleColors(state, opponent).forEach((c) => {
         evidence[c] = (evidence[c] ?? 0) + POTENTIAL_MANA_WEIGHT;
-    }
+    });
     // The decklist, when the search was granted this seat's (issue #3533) —
     // folded into the SAME map, at the same scale, so every consumer of this
     // derivation sharpens at once and none of them grows a decklist branch of
     // its own. `undefined` on a blind search.
     const deckColors = deckColorsFor(state.deckColorKnowledge, opponentId);
     if (deckColors) {
-        for (const [color, count] of Object.entries(deckColors)) {
+        const entries2 = Object.entries(deckColors);
+        for (let i = 0; i < entries2.length; i++) {
+            const [color, count] = entries2[i];
             if (!count || count <= 0) continue;
             evidence[color] =
                 (evidence[color] ?? 0) + count * DECKLIST_CARD_WEIGHT;
@@ -282,7 +296,9 @@ export function estimateOpponentColorDemand(
     opponentId: string
 ): ColorDemandEstimate {
     const evidence = observedOpponentColors(state, opponentId);
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         if (color === "C") continue;
         if ((evidence[color] ?? 0) > 0) return { kind: "known", evidence };
     }

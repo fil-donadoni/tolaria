@@ -31,15 +31,21 @@ function filterCoversLands(filter: PermanentFilter): boolean {
  *  (`staticEffects`) or compiled (`compiledStaticEffects`). */
 function untapLockFilters(def: CardDefinition): PermanentFilter[] {
     const filters: PermanentFilter[] = [];
-    for (const effect of def.staticEffects ?? [])
+    const effectList = def.staticEffects ?? [];
+    for (let i = 0; i < effectList.length; i++) {
+        const effect = effectList[i];
         if (
             effect.kind === "untap-restriction" &&
             !effect.appliesToHost &&
             !effect.appliesToSelf
         )
             filters.push(effect.filter);
-    for (const effect of def.compiledStaticEffects ?? [])
+    }
+    const effectList2 = def.compiledStaticEffects ?? [];
+    for (let i = 0; i < effectList2.length; i++) {
+        const effect = effectList2[i];
         if (effect.kind === "untap-restriction") filters.push(effect.filter);
+    }
     return filters;
 }
 

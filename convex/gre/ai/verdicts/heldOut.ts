@@ -158,9 +158,11 @@ export function verdictSidesOf(
     // registry anchor is not its `verdict.id` (`registry:<label>`).
     const byHash = new Map(verdicts.map((v) => [verdictIdOf(v), v]));
     const halvesOf = new Map<Verdict, Verdict[]>();
-    for (const v of verdicts) {
+    for (let i = 0; i < verdicts.length; i++) {
+        const v = verdicts[i];
         const anchor = v.pairOf && byHash.get(v.pairOf.anchorId);
-        if (anchor) halvesOf.set(anchor, [...(halvesOf.get(anchor) ?? []), v]);
+        if (anchor)
+            halvesOf.set(anchor, (halvesOf.get(anchor) ?? []).concat([v]));
     }
     const unitSide = (anchor: Verdict): VerdictSide =>
         (halvesOf.get(anchor) ?? []).some((h) =>
@@ -169,7 +171,8 @@ export function verdictSidesOf(
             ? "fit"
             : verdictSideOf(anchor, testPositions, modulus);
     const sides = new Map<string, VerdictSide>();
-    for (const v of verdicts) {
+    for (let i = 0; i < verdicts.length; i++) {
+        const v = verdicts[i];
         if (v.pairOf === undefined) {
             sides.set(v.id, unitSide(v));
             continue;
@@ -231,12 +234,14 @@ export function pairSplitRefusals(
 ): Map<string, string> {
     const sideOf = verdictSidesOf(verdicts, testPositions, modulus);
     const byKey = new Map<string, Verdict[]>();
-    for (const v of verdicts) {
+    for (let i = 0; i < verdicts.length; i++) {
+        const v = verdicts[i];
         const key = scenarioKeyOf(v);
-        byKey.set(key, [...(byKey.get(key) ?? []), v]);
+        byKey.set(key, (byKey.get(key) ?? []).concat([v]));
     }
     const out = new Map<string, string>();
-    for (const half of verdicts) {
+    for (let i = 0; i < verdicts.length; i++) {
+        const half = verdicts[i];
         if (half.pairOf === undefined) continue;
         const side = sideOf.get(half.id);
         if (side === undefined) continue;
@@ -273,7 +278,7 @@ export function judgementSplitRefusals(
         source: "store",
     }));
     return pairSplitRefusals(
-        [...registry, ...stored],
+        registry.concat(stored),
         new Set(registry.map(scenarioKeyOf)),
         modulus
     );

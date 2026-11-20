@@ -133,7 +133,9 @@ export function createInitialGameState(
         nextInstanceId: counter.nextInstanceId,
     };
 
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let j = 0; j < playerList.length; j++) {
+        const player = playerList[j];
         seededShuffle(state, player.library);
         for (let i = 0; i < STARTING_HAND_SIZE; i++) drawCard(player);
     }

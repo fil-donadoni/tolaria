@@ -78,9 +78,8 @@ export function expandDemonstrate(def: CardDefinition): CardDefinition {
     if (existing.some((t) => t.id === DEMONSTRATE_TRIGGER_ID)) return def;
     return {
         ...def,
-        triggeredAbilities: [
-            ...existing,
-            ...Array.from({ length: instances }, () => demonstrateTrigger()),
-        ],
+        triggeredAbilities: existing.concat(
+            Array.from({ length: instances }, () => demonstrateTrigger())
+        ),
     };
 }

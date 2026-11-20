@@ -82,9 +82,9 @@ export function toSearchIndexRow(
         name: def.name,
         nameLower,
         nameFold: foldAccents(nameLower),
-        types: [...def.types] as string[],
-        subtypes: [...(def.subtypes ?? [])],
-        supertypes: [...(def.supertypes ?? [])] as string[],
+        types: def.types.slice() as string[],
+        subtypes: (def.subtypes ?? []).slice(),
+        supertypes: (def.supertypes ?? []).slice() as string[],
         colors: getCardColorIdentity(def) as string[],
         manaValue: manaValue(def.manaCost),
         oracleText,
@@ -160,7 +160,7 @@ export function fromSearchIndexWire(
         const key = values.join("\u0000");
         let hit = shared.get(key);
         if (hit === undefined) {
-            hit = Object.freeze([...values]);
+            hit = Object.freeze(values.slice());
             shared.set(key, hit);
         }
         return hit;

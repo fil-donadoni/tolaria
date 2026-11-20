@@ -66,7 +66,9 @@ function findBattlefieldRow(
     state: RestrictionBoardView,
     id: string
 ): BattlefieldRow | undefined {
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const row = player.battlefield.find((c) => c.id === id);
         if (row) return row;
     }
@@ -81,8 +83,12 @@ function findBattlefieldRow(
 export function boardDeclaresActivationRestriction(
     state: RestrictionBoardView
 ): boolean {
-    for (const player of state.players) {
-        for (const lock of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const lockList = player.battlefield;
+        for (let j = 0; j < lockList.length; j++) {
+            const lock = lockList[j];
             const cardId = (lock.card as { id?: string } | undefined)?.id;
             const def = cardId ? tryGetDefinition(cardId) : null;
             if (def && restrictionsOf(def).length > 0) return true;
@@ -98,8 +104,12 @@ function findOffBattlefieldSource(
     state: RestrictionBoardView,
     id: string
 ): NamedSource | undefined {
-    for (const player of state.players as ReadonlyArray<OffBattlefieldZones>) {
-        for (const zone of [player.hand, player.graveyard, player.exile]) {
+    const playerList = state.players as ReadonlyArray<OffBattlefieldZones>;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const zoneList = [player.hand, player.graveyard, player.exile];
+        for (let j = 0; j < zoneList.length; j++) {
+            const zone = zoneList[j];
             if (!Array.isArray(zone)) continue;
             const row = (zone as ReadonlyArray<NamedSource | null>).find(
                 (c) => c !== null && typeof c === "object" && c.id === id
@@ -139,8 +149,12 @@ export function activationRestrictionViolation(
     // none and never pays for either lookup.
     let onBattlefield: BattlefieldRow | undefined | null = null;
     let anyZone: NamedSource | undefined | null = null;
-    for (const player of state.players) {
-        for (const lock of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const lockList = player.battlefield;
+        for (let j = 0; j < lockList.length; j++) {
+            const lock = lockList[j];
             const cardId = (lock.card as { id?: string } | undefined)?.id;
             const def = cardId ? tryGetDefinition(cardId) : null;
             if (!def) continue;
@@ -150,7 +164,8 @@ export function activationRestrictionViolation(
             }
             if (onBattlefield === null)
                 onBattlefield = findBattlefieldRow(state, sourceId);
-            for (const effect of restrictions) {
+            for (let k = 0; k < restrictions.length; k++) {
+                const effect = restrictions[k];
                 if (isManaAbility && effect.exemptManaAbilities) continue;
                 if (effect.sourcesNamed === "chosen-name") {
                     // CR 614.12a — no name chosen (yet): nothing is locked. Also a

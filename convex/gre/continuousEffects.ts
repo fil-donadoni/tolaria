@@ -359,7 +359,8 @@ export function purgeContinuousEffectsForInstance(
     if (!entries?.length) return;
     let changed = false;
     const kept: ContinuousEffect[] = [];
-    for (const entry of entries) {
+    for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
         if (entry.affected.kind === "predicate") {
             kept.push(entry);
             continue;
@@ -428,10 +429,11 @@ export function compareContinuousEffects(
  *  authority as a registry entry — the point of #1715's hardening was that two
  *  sites comparing `seq` by hand are two sites that can disagree. */
 export function latestTimestamp(
-    stamps: Iterable<number | undefined>
+    stamps: readonly (number | undefined)[]
 ): number | null {
     let latest: number | null = null;
-    for (const stamp of stamps) {
+    for (let i = 0; i < stamps.length; i++) {
+        const stamp = stamps[i];
         if (stamp === undefined) continue;
         if (latest === null || stamp > latest) latest = stamp;
     }

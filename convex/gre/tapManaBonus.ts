@@ -90,12 +90,15 @@ export function getActiveTapManaBonuses(
     land: CardInstanceState
 ): BonusAmount[] {
     const out: BonusAmount[] = [];
-    for (const perm of battlefield) {
+    for (let i = 0; i < battlefield.length; i++) {
+        const perm = battlefield[i];
         if (abilitiesSuppressed(perm)) continue;
         const cardId = (perm.card as { id?: string }).id;
         const def = cardId ? tryGetDefinition(cardId) : undefined;
         if (!def?.triggeredAbilities) continue;
-        for (const ability of def.triggeredAbilities) {
+        const abilityList = def.triggeredAbilities;
+        for (let j = 0; j < abilityList.length; j++) {
+            const ability = abilityList[j];
             const bonus = ability.manaBonusForPotential;
             if (!bonus) continue;
             if (!bonusAppliesToLand(perm, bonus, land)) continue;
@@ -116,9 +119,13 @@ export function tapManaBonusUnits(
     land: CardInstanceState
 ): Set<Color>[] {
     const units: Set<Color>[] = [];
-    for (const amount of getActiveTapManaBonuses(battlefield, land)) {
+    const amountList = getActiveTapManaBonuses(battlefield, land);
+    for (let j = 0; j < amountList.length; j++) {
+        const amount = amountList[j];
         if (amount.kind === "fixed") {
-            for (const c of MANA_COLORS) {
+            const cList = MANA_COLORS;
+            for (let k = 0; k < cList.length; k++) {
+                const c = cList[k];
                 for (let i = 0; i < (amount.mana[c] ?? 0); i++) {
                     units.push(new Set<Color>([c]));
                 }
@@ -165,9 +172,15 @@ export function extraTapManaForOption(
     const add = (c: Color, n: number) => {
         if (n > 0) extra[c] = (extra[c] ?? 0) + n;
     };
-    for (const amount of getActiveTapManaBonuses(battlefield, land)) {
+    const amountList = getActiveTapManaBonuses(battlefield, land);
+    for (let i = 0; i < amountList.length; i++) {
+        const amount = amountList[i];
         if (amount.kind === "fixed") {
-            for (const c of MANA_COLORS) add(c, amount.mana[c] ?? 0);
+            const cList = MANA_COLORS;
+            for (let j = 0; j < cList.length; j++) {
+                const c = cList[j];
+                add(c, amount.mana[c] ?? 0);
+            }
         } else if (amount.kind === "anyColor") {
             add("C", amount.count); // generic proxy — colour chosen at resolve
         } else {

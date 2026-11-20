@@ -3025,16 +3025,15 @@ const OPENING_HAND_ACTIONS: MechanicRow[] = [
     },
 ];
 
-export const MECHANICS_REGISTRY: MechanicRow[] = [
-    ...KEYWORD_ACTIONS,
-    ...KEYWORD_ABILITIES,
-    ...ABILITY_WORDS,
-    ...SET_KEYWORDS,
-    ...CAST_RIDERS,
-    ...RULES_MODIFIERS,
-    ...CHARACTERISTIC_EFFECTS,
-    ...OPENING_HAND_ACTIONS,
-];
+export const MECHANICS_REGISTRY: MechanicRow[] = KEYWORD_ACTIONS.concat(
+    KEYWORD_ABILITIES,
+    ABILITY_WORDS,
+    SET_KEYWORDS,
+    CAST_RIDERS,
+    RULES_MODIFIERS,
+    CHARACTERISTIC_EFFECTS,
+    OPENING_HAND_ACTIONS
+);
 
 /** Engine-internal `staticAbilities` markers that are NOT CR 701/702
  *  keywords — card-specific rules text modelled as a static string rather

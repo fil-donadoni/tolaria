@@ -261,7 +261,9 @@ export function combatDamageAssignmentCompleteness(
         return { complete: true, assigned: 0, required: 0 };
     }
     let assigned = 0;
-    for (const [targetId, amount] of Object.entries(assignments)) {
+    const entries2 = Object.entries(assignments);
+    for (let i = 0; i < entries2.length; i++) {
+        const [targetId, amount] = entries2[i];
         if (legalTargets.has(targetId) || targetId === excessSinkId) {
             assigned += amount;
         }

@@ -97,7 +97,9 @@ function isPlainTapCost(ability: ActivatedAbility): boolean {
 
 function manaTotal(mana: ManaCost): number {
     let total = 0;
-    for (const value of Object.values(mana)) {
+    const valueList = Object.values(mana);
+    for (let i = 0; i < valueList.length; i++) {
+        const value = valueList[i];
         if (typeof value === "number") total += value;
     }
     return total;
@@ -170,9 +172,11 @@ export function applyManaFloatInSearch(
                 : {}),
         },
     ]);
-    for (const [color, count] of Object.entries(
+    const entries2 = Object.entries(
         replaceProducedManaColor(state, playerId, option.mana)
-    )) {
+    );
+    for (let i = 0; i < entries2.length; i++) {
+        const [color, count] = entries2[i];
         if (color !== "X" && typeof count === "number" && count > 0) {
             player.manaPool[color] = (player.manaPool[color] ?? 0) + count;
         }
@@ -367,7 +371,9 @@ function settlements(
     if (!probe) return [];
     if (isSettled(probe)) return [{ state: probe, answer: null }];
     const out: Settlement[] = [];
-    for (const card of eligibleZonePickCards(probe, probe.pendingChoices![0])) {
+    const cardList = eligibleZonePickCards(probe, probe.pendingChoices![0]);
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         const branch = answerPick(probe, playerId, card.id, forcedAnswer);
         if (branch) out.push({ state: branch, answer: card.id });
     }
@@ -407,7 +413,8 @@ function spendKeys(
     const moves = enumerate(settled, playerId, { noManaFloat: true });
     if (moves.length === 0) return null;
     const keys = new Set<string>();
-    for (const m of moves) {
+    for (let i = 0; i < moves.length; i++) {
+        const m = moves[i];
         if (m.kind === "cast-spell") {
             keys.add(`cast:${m.cardInstanceId}:${m.castFromZone ?? "hand"}`);
         } else if (m.kind === "activate-ability") {
@@ -449,7 +456,8 @@ export function enumerateDoomedManaFloatMoves(
     };
 
     const moves: ManaFloatMove[] = [];
-    for (const option of candidates) {
+    for (let i = 0; i < candidates.length; i++) {
+        const option = candidates[i];
         // Doomed under an outcome that leaves the source off its controller's
         // battlefield; that outcome's answer is replayed on the floated clone.
         const doomedUnder = outcomes.filter(
@@ -480,6 +488,7 @@ export function enumerateDoomedManaFloatMoves(
             if (!settled) return false;
             const spend = spendKeys(settled, player.id, enumerate);
             if (!spend) return false;
+            // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
             for (const key of spend) if (!baseline.has(key)) return true;
             return false;
         });

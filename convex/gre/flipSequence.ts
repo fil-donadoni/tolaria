@@ -156,7 +156,9 @@ export function flipOracleExcerpt(
     oracleText: string | undefined
 ): string | undefined {
     if (!oracleText) return undefined;
-    for (const line of oracleText.split("\n")) {
+    const lineList = oracleText.split("\n");
+    for (let i = 0; i < lineList.length; i++) {
+        const line = lineList[i];
         const sentences = line
             .replace(/\s*\([^)]*\)/g, "")
             .split(/(?<=[.!?]["”]?)\s+/)
@@ -166,10 +168,9 @@ export function flipOracleExcerpt(
         const last = sentences
             .map((s) => MENTIONS_THE_FLIP.test(s))
             .lastIndexOf(true);
-        return [
-            withoutActivationCost(sentences[first]),
-            ...sentences.slice(first + 1, last + 1),
-        ].join(" ");
+        return [withoutActivationCost(sentences[first])]
+            .concat(sentences.slice(first + 1, last + 1))
+            .join(" ");
     }
     return undefined;
 }

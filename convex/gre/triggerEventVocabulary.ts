@@ -528,7 +528,9 @@ export function lowerTriggerEvent(
     const fields: Record<string, ScenarioEventValue> = {};
     const blocked: string[] = [];
     const record = event as unknown as Record<string, unknown>;
-    for (const key of Object.keys(record).sort()) {
+    const keyList = Object.keys(record).sort();
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         if (key === "type") continue;
         const value = record[key];
         if (value === undefined) continue;
@@ -565,7 +567,8 @@ export function lowerTriggerEvent(
             const ids = value as string[];
             const refs: ScenarioObjectRef[] = [];
             let lost = false;
-            for (const id of ids) {
+            for (let j = 0; j < ids.length; j++) {
+                const id = ids[j];
                 const ref = ports.object(String(id));
                 if (!ref) {
                     lost = true;
@@ -629,7 +632,9 @@ export function rebuildTriggerEvent(
         );
     }
     const out: Record<string, unknown> = { type: declared.type };
-    for (const [key, value] of Object.entries(declared.fields ?? {})) {
+    const entries2 = Object.entries(declared.fields ?? {});
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, value] = entries2[i];
         const kind = kinds[key];
         const declaredKind =
             value.kind === "objects" ? "objectList" : value.kind;
@@ -687,7 +692,9 @@ export function triggerEventFingerprint(
         | undefined;
     const record = event as unknown as Record<string, unknown>;
     const parts: string[] = [];
-    for (const key of Object.keys(record).sort()) {
+    const keyList = Object.keys(record).sort();
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         if (key === "type") continue;
         const value = record[key];
         if (value === undefined) continue;

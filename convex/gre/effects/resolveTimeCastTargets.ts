@@ -83,7 +83,7 @@ export function announceResolveTimeCastTargets(
             ? { actingPlayerId: args.actingPlayerId }
             : {};
     for (let group = 0; ; group++) {
-        const prior = [...chosen];
+        const prior = chosen.slice();
         const first = slotQuery(group, [], prior);
         if (!first) return chosen; // every group announced
         // The most targets this group could take: its own bound, never more
@@ -130,7 +130,7 @@ export function announceResolveTimeCastTargets(
                 n + 1 < count
                     ? slot.legal.filter(
                           (t) =>
-                              (slotQuery(group, [...picks, t], prior)?.legal
+                              (slotQuery(group, picks.concat([t]), prior)?.legal
                                   .length ?? 0) >=
                               count - (n + 1)
                       )

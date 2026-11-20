@@ -24731,11 +24731,12 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         deckKnowledge: [
             {
                 seat: "opp",
-                cards: [
-                    ...Array<string>(17).fill("Mountain"),
-                    ...Array<string>(6).fill("Shivan Dragon"),
-                    ...Array<string>(5).fill("Savannah Lions"),
-                ],
+                cards: Array<string>(17)
+                    .fill("Mountain")
+                    .concat(
+                        Array<string>(6).fill("Shivan Dragon"),
+                        Array<string>(5).fill("Savannah Lions")
+                    ),
             },
         ],
         budget: {

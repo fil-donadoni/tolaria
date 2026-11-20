@@ -63,7 +63,9 @@ export function chargeManaCostOrThrow(
     // Execute the plan: tap the chosen sources and add their mana to the pool
     // (CR 605.1a), then pay the cost from the pool (CR 601.2g).
     const tappedIds = new Set(plan.map((step) => step.cardId));
-    for (const src of payer.battlefield) {
+    const srcList = payer.battlefield;
+    for (let i = 0; i < srcList.length; i++) {
+        const src = srcList[i];
         if (tappedIds.has(src.id)) src.isTapped = true;
     }
     const produced = replaceProducedManaColor(
@@ -71,7 +73,9 @@ export function chargeManaCostOrThrow(
         payer.id,
         manaFromPlan(sources, plan)
     );
-    for (const color of Object.keys(produced)) {
+    const colorList = Object.keys(produced);
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         const v = produced[color as keyof typeof produced];
         if (typeof v === "number" && v > 0) {
             payer.manaPool[color] = (payer.manaPool[color] ?? 0) + v;

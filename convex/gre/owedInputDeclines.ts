@@ -230,7 +230,9 @@ export function confirmBlockersOnState(
     // charged once per qualifying block; the engine auto-taps the blocking
     // player's mana sources (generic-only). If a charge can't be paid, the
     // block declaration is rejected and the player must reassign.
-    for (const charge of collectBlockBypassCharges(state)) {
+    const chargeList = collectBlockBypassCharges(state);
+    for (let i = 0; i < chargeList.length; i++) {
+        const charge = chargeList[i];
         chargeManaCostOrThrow(
             state,
             charge.controllerId,
@@ -304,7 +306,9 @@ export function cancelAttackTaxOnState(
     }
 
     const player = getPlayer(state, playerId);
-    for (const cardId of pending.tappedLandIds) {
+    const cardIdList = pending.tappedLandIds;
+    for (let i = 0; i < cardIdList.length; i++) {
+        const cardId = cardIdList[i];
         const card = player.battlefield.find((c) => c.id === cardId);
         if (card) untapSourceFromPayment(state, player, card);
     }

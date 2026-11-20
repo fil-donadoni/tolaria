@@ -37,8 +37,12 @@ export function encodedCardsGrantingAbility(
 ): Pick<DamageDealtEvent, "encodedCardIds"> {
     const strippedAt = abilityLossTimestamp(source);
     const ids: string[] = [];
-    for (const player of state.players) {
-        for (const card of player.exile) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.exile;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (card.encodedOn?.permanentId !== source.id) continue;
             if (grantOutrankedByAbilityLoss(card.encodedOn.seq, strippedAt)) {
                 continue;

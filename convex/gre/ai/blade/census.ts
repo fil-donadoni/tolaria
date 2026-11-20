@@ -133,13 +133,15 @@ export function buildCensusJobs(
     config: CensusConfig
 ): CensusJob[] {
     const jobs: Omit<CensusJob, "id">[] = [];
-    for (const e of entries) {
+    for (let k = 0; k < entries.length; k++) {
+        const e = entries[k];
         const iterations = config.iterations ?? e.budget.iterations;
         const seeds = e.seeds ?? [DEFAULT_CENSUS_SEED];
         if (seeds.length === 0) {
             throw new Error(`census: "${e.label}" declares an empty seed list`);
         }
-        for (const seed of seeds) {
+        for (let m = 0; m < seeds.length; m++) {
+            const seed = seeds[m];
             jobs.push({ label: e.label, seed, iterations });
         }
     }
@@ -157,7 +159,7 @@ export function sliceCensusJobs(
     jobs: readonly CensusJob[],
     slice: { index: number; count: number } | undefined
 ): CensusJob[] {
-    if (!slice) return [...jobs];
+    if (!slice) return jobs.slice();
     return jobs.filter((j) => j.id % slice.count === slice.index - 1);
 }
 
@@ -176,7 +178,9 @@ export function censusVerdicts(
     rows: readonly CensusRow[]
 ): CensusEntryVerdict[] {
     const byKey = new Map<string, CensusEntryVerdict>();
-    for (const r of [...rows].sort((a, b) => a.id - b.id)) {
+    const rList = rows.slice().sort((a, b) => a.id - b.id);
+    for (let i = 0; i < rList.length; i++) {
+        const r = rList[i];
         const key = `${r.label}\u0000${r.iterations}`;
         let v = byKey.get(key);
         if (!v) {
@@ -210,21 +214,26 @@ export function mergeCensusResults(
     const [first] = parts;
     const seen = new Set<number>();
     const rows: CensusRow[] = [];
-    for (const p of parts) {
-        for (const field of [
+    for (let i = 0; i < parts.length; i++) {
+        const p = parts[i];
+        const fieldList = [
             "tier",
             "variant",
             "iterations",
             "match",
             "failFast",
-        ] as const) {
+        ] as const;
+        for (let j = 0; j < fieldList.length; j++) {
+            const field = fieldList[j];
             if (p.meta[field] !== first.meta[field]) {
                 throw new Error(
                     `census merge: slices disagree on ${field} (${String(first.meta[field])} vs ${String(p.meta[field])})`
                 );
             }
         }
-        for (const r of p.rows) {
+        const rList = p.rows;
+        for (let j = 0; j < rList.length; j++) {
+            const r = rList[j];
             if (seen.has(r.id)) {
                 throw new Error(`census merge: job ${r.id} appears twice`);
             }
@@ -294,7 +303,7 @@ export const CENSUS_MS_NOTE =
 
 function distribution(values: readonly number[]): CensusDistribution {
     if (values.length === 0) return { p50: 0, p90: 0, p99: 0, max: 0, mean: 0 };
-    const sorted = [...values].sort((a, b) => a - b);
+    const sorted = values.slice().sort((a, b) => a - b);
     const rank = (q: number) =>
         sorted[Math.max(0, Math.ceil(q * sorted.length) - 1)];
     return {
@@ -386,19 +395,19 @@ export function diffCensus(
         redSeeds: v.redSeeds,
         moves: v.moves,
     });
-    for (const [k, v] of varBy) {
+    varBy.forEach((v, k) => {
         const b = baseBy.get(k);
         if (!b) {
             diff.unmatched.push(`${v.label} @${v.iterations}`);
-            continue;
+            return;
         }
         if (b.ok && !v.ok) diff.newReds.push(flip(v));
         else if (!b.ok && v.ok) diff.fixed.push(flip(b));
         else if (!b.ok && !v.ok) diff.stillRed.push(flip(v));
-    }
-    for (const [k, b] of baseBy) {
+    });
+    baseBy.forEach((b, k) => {
         if (!varBy.has(k)) diff.unmatched.push(`${b.label} @${b.iterations}`);
-    }
+    });
     return diff;
 }
 
@@ -445,9 +454,9 @@ export function formatCensusSummary(result: CensusResult): string {
             (m.sha ? ` sha=${m.sha.slice(0, 10)}` : ""),
         `entries ${verdicts.length}, jobs ${result.rows.length}, red entries ${red.length} (${redSeeds} seeds)`,
         `wall ${formatMs(m.wallMs)}, cpu ${formatMs(m.cpuMs)}, workers ${m.workers}`,
-        ...(result.readings ? formatCensusReadings(result.readings) : []),
-    ];
-    for (const v of red) {
+    ].concat(result.readings ? formatCensusReadings(result.readings) : []);
+    for (let i = 0; i < red.length; i++) {
+        const v = red[i];
         lines.push(`  RED ${v.label} @${v.iterations} — ${v.moves.join("; ")}`);
     }
     return lines.join("\n");
@@ -458,21 +467,25 @@ export function formatCensusDiff(diff: CensusDiff): string {
     const section = (title: string, flips: CensusFlip[]) =>
         flips.length === 0
             ? []
-            : [
-                  `${title} (${flips.length}):`,
-                  ...flips.map(
+            : [`${title} (${flips.length}):`].concat(
+                  flips.map(
                       (f) =>
                           `  ${f.label} @${f.iterations} — ${f.redSeeds.length} seeds: ${f.moves.join("; ")}`
-                  ),
-              ];
+                  )
+              );
     const newSeeds = diff.newReds.reduce((n, f) => n + f.redSeeds.length, 0);
     return [
         `new reds ${diff.newReds.length} (${newSeeds} seeds), fixed ${diff.fixed.length}, still red ${diff.stillRed.length}, unmatched ${diff.unmatched.length}`,
-        ...section("NEW RED (green in base)", diff.newReds),
-        ...section("FIXED (red in base)", diff.fixed),
-        ...section("STILL RED", diff.stillRed),
-        ...(diff.unmatched.length
-            ? [`unmatched (run by one arm only): ${diff.unmatched.join("; ")}`]
-            : []),
-    ].join("\n");
+    ]
+        .concat(
+            section("NEW RED (green in base)", diff.newReds),
+            section("FIXED (red in base)", diff.fixed),
+            section("STILL RED", diff.stillRed),
+            diff.unmatched.length
+                ? [
+                      `unmatched (run by one arm only): ${diff.unmatched.join("; ")}`,
+                  ]
+                : []
+        )
+        .join("\n");
 }

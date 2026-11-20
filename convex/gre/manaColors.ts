@@ -59,8 +59,11 @@ export function substitutionsForBreadth(
     breadth: ManaSubstitutionBreadth
 ): { from: Color; to: Color }[] {
     const out: { from: Color; to: Color }[] = [];
-    for (const from of MANA_COLORS) {
-        for (const to of substitutionTargets(breadth)) {
+    for (let i = 0; i < MANA_COLORS.length; i++) {
+        const from = MANA_COLORS[i];
+        const toList = substitutionTargets(breadth);
+        for (let j = 0; j < toList.length; j++) {
+            const to = toList[j];
             if (from === to) continue;
             out.push({ from, to });
         }
@@ -117,7 +120,8 @@ const HYBRID_PIP_SPELLING: readonly (readonly [Color, Color])[] = [
  *  (a same-colour or otherwise unprinted combination) falls back to
  *  `MANA_COLORS` order so the key stays deterministic. */
 export function hybridCostKey(a: Color, b: Color): string {
-    for (const [first, second] of HYBRID_PIP_SPELLING) {
+    for (let i = 0; i < HYBRID_PIP_SPELLING.length; i++) {
+        const [first, second] = HYBRID_PIP_SPELLING[i];
         if ((a === first && b === second) || (a === second && b === first)) {
             return `${first}/${second}`;
         }
@@ -169,7 +173,9 @@ export function parseRestrictedXCostKey(key: string): [Color, Color] | null {
 /** How many restricted-X points a normalized cost still owes. */
 export function restrictedXPipCount(cost: Record<string, number>): number {
     let total = 0;
-    for (const key of Object.keys(cost)) {
+    const keyList = Object.keys(cost);
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         if (parseRestrictedXCostKey(key)) total += cost[key] ?? 0;
     }
     return total;
@@ -184,7 +190,9 @@ export function takeGenericPoints(
     points: number
 ): number {
     let left = Math.max(0, points);
-    for (const key of Object.keys(cost).sort()) {
+    const keyList = Object.keys(cost).sort();
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         if (left <= 0) break;
         if (!parseRestrictedXCostKey(key)) continue;
         const take = Math.min(left, cost[key] ?? 0);
@@ -209,7 +217,9 @@ export function normalizedHybridPips(
     cost: Record<string, number>
 ): [Color, Color][] {
     const pips: [Color, Color][] = [];
-    for (const key of Object.keys(cost).sort()) {
+    const keyList = Object.keys(cost).sort();
+    for (let j = 0; j < keyList.length; j++) {
+        const key = keyList[j];
         const pair = parseHybridCostKey(key) ?? parseRestrictedXCostKey(key);
         if (!pair) continue;
         const count = cost[key] ?? 0;
@@ -231,7 +241,8 @@ function hybridPipPayableColors(
     substitutions: readonly ManaSubstitutionLike[]
 ): string[] {
     const colors = new Set<string>([pip[0], pip[1]]);
-    for (const sub of substitutions) {
+    for (let i = 0; i < substitutions.length; i++) {
+        const sub = substitutions[i];
         if (sub.to === pip[0] || sub.to === pip[1]) colors.add(sub.from);
     }
     return [...colors];
@@ -266,7 +277,9 @@ export function assignHybridPips(
     const spent: Record<string, number> = {};
 
     const tryAssign = (pip: number, seen: Set<string>): boolean => {
-        for (const color of options[pip]) {
+        const colorList = options[pip];
+        for (let i = 0; i < colorList.length; i++) {
+            const color = colorList[i];
             if (seen.has(color)) continue;
             seen.add(color);
             if ((spent[color] ?? 0) < (manaPool[color] ?? 0)) {

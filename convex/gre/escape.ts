@@ -53,7 +53,9 @@ export function getGrantedEscape(
     if (isLand(card)) return undefined; // "Each NONLAND card"
     const owner = state.players.find((p) => p.id === card.ownerId);
     if (!owner) return undefined;
-    for (const perm of owner.battlefield) {
+    const permList = owner.battlefield;
+    for (let i = 0; i < permList.length; i++) {
+        const perm = permList[i];
         // CR 613.1f — a granter that lost its abilities grants nothing.
         const grant = liveStaticDefinition(perm)?.grantsEscapeToOwnGraveyard;
         if (grant) {
@@ -107,8 +109,13 @@ export function findEscapeCastable(
  *  cards … with N or more card types among them" variable escape cost. */
 export function countDistinctCardTypes(cards: CardInstanceState[]): number {
     const types = new Set<string>();
-    for (const c of cards) {
-        for (const t of c.types) types.add(t);
+    for (let i = 0; i < cards.length; i++) {
+        const c = cards[i];
+        const tList = c.types;
+        for (let j = 0; j < tList.length; j++) {
+            const t = tList[j];
+            types.add(t);
+        }
     }
     return types.size;
 }

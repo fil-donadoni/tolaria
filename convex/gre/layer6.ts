@@ -228,7 +228,7 @@ export function ensureLayer6Base(card: CardInstanceState): void {
  *  So the arithmetic lives in the one place its precondition provably holds —
  *  the load — and this is a copy. */
 function captureLayer6Base(card: CardInstanceState): string[] {
-    return [...card.staticAbilities];
+    return card.staticAbilities.slice();
 }
 
 /** The static effects a source contributes, resolved through the card registry
@@ -258,7 +258,7 @@ function sourceStaticEffects(
     const modeEffects = mode?.staticEffects ?? [];
     if (modeEffects.length === 0) return cardEffects;
     if (cardEffects.length === 0) return modeEffects;
-    return [...cardEffects, ...modeEffects];
+    return cardEffects.concat(modeEffects);
 }
 
 /** One (source, static effect) pair that has cleared the whole SOURCE-side half
@@ -354,8 +354,12 @@ function collectLayer6Sources(state: LayerStateView): Layer6SourcePlan {
         }
     };
 
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             // PRD #2064 S7 — the registry-derived precheck, the exact twin of
             // the one `gre/layers2to5.ts` runs one layer over. Almost no
             // permanent declares a layer-6 static effect, and a `Set.has` on
@@ -372,7 +376,9 @@ function collectLayer6Sources(state: LayerStateView): Layer6SourcePlan {
     // CR 114 (issue #1221) — command-zone emblems contribute source-less,
     // owner-scoped statics through the same predicate walk. No precheck: the
     // emblem registry is a different map, and there are single-digit emblems.
-    for (const emblem of state.emblems ?? []) {
+    const emblemList = state.emblems ?? [];
+    for (let i = 0; i < emblemList.length; i++) {
+        const emblem = emblemList[i];
         // CR 613.7d — an emblem receives a timestamp when it enters the command
         // zone, and `emblemAsStaticSource` carries the one `createEmblem` mints
         // (`gre/state.ts`). PRD #2064 S6b-part-2 replaced the creation-ORDER
@@ -385,7 +391,9 @@ function collectLayer6Sources(state: LayerStateView): Layer6SourcePlan {
         push(synthetic, sourceStaticEffects(synthetic));
     }
     // CR 113.6b — static abilities that function from a graveyard.
-    for (const source of graveyardStaticSources(state)) {
+    const sourceList2 = graveyardStaticSources(state);
+    for (let i = 0; i < sourceList2.length; i++) {
+        const source = sourceList2[i];
         const cardId = (source.card as { id?: string }).id;
         if (!cardId || !declaresLayer6StaticEffect(cardId)) continue;
         push(source, sourceStaticEffects(source), "graveyard");
@@ -435,7 +443,8 @@ function layer6EffectsFor(
     const entries: ContinuousEffect[] = [];
     const templates = new Map<string, DerivedTemplate>();
 
-    for (const { source, effect, index, seq } of sources) {
+    for (let i = 0; i < sources.length; i++) {
+        const { source, effect, index, seq } = sources[i];
         const applies = (
             effect as {
                 applies: (
@@ -520,7 +529,9 @@ function layer6EffectsFor(
     // Wight's untap lock and its granted "{4}: Remove a paralyzation counter"
     // are both `counter`-expiry stored entries, so both outlive Dread Wight and
     // both stop the moment the last counter comes off.
-    for (const stored of state.continuousEffects ?? []) {
+    const storedList = state.continuousEffects ?? [];
+    for (let i = 0; i < storedList.length; i++) {
+        const stored = storedList[i];
         if (stored.layer !== 6) continue;
         if (!layer6EntryApplies(stored, target)) continue;
         if (!layer6ExpiryLive(state, stored)) continue;
@@ -652,7 +663,9 @@ function findPermanent(
     state: LayerStateView,
     id: string
 ): PermanentView | undefined {
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const found = player.battlefield.find((c) => c.id === id);
         if (found) return found;
     }
@@ -850,7 +863,9 @@ function resolveActivatedGrant(
         abilityId: string;
         origin: GrantedAbilityOrigin;
     }> = [];
-    for (const { card } of getCardsExiledWith(state, source.id)) {
+    const entries = getCardsExiledWith(state, source.id);
+    for (let i = 0; i < entries.length; i++) {
+        const { card } = entries[i];
         const cardId = (card.card as { id?: string }).id;
         if (!cardId) continue;
         const def = tryGetDefinition(cardId);
@@ -881,7 +896,9 @@ function resolveActivatedGrant(
         if (!types?.some((t) => effect.abilitiesOf!.types.includes(t))) {
             continue;
         }
-        for (const ability of def.activatedAbilities ?? []) {
+        const abilityList = def.activatedAbilities ?? [];
+        for (let j = 0; j < abilityList.length; j++) {
+            const ability = abilityList[j];
             grants.push({
                 sourceCardId: cardId,
                 abilityId: ability.id,
@@ -926,14 +943,16 @@ export function deriveLayer6(
         opts?.sources ?? collectLayer6Sources(state)
     );
     const instance = target as unknown as CardInstanceState;
-    const staticAbilities = [...layer6Base(instance)];
+    const staticAbilities = layer6Base(instance).slice();
     const grantedStatic: Layer6Derivation["grantedStatic"] = [];
     const grantedActivated: Layer6Derivation["grantedActivated"] = [];
     const grantedTriggered: Layer6Derivation["grantedTriggered"] = [];
     const removedKeywords: Layer6Derivation["removedKeywords"] = [];
     const abilitiesSuppressedBy: Layer6Derivation["abilitiesSuppressedBy"] = [];
 
-    for (const entry of entries) {
+    const entryList = entries;
+    for (let i = 0; i < entryList.length; i++) {
+        const entry = entryList[i];
         const action = resolveLayer6Action(state, target, entry, templates);
         if (!action) continue;
         switch (action.kind) {
@@ -975,7 +994,8 @@ export function deriveLayer6(
                 );
                 grantedStatic.length = 0;
                 grantedStatic.push(...keptGrants);
-                for (const keyword of taken) {
+                for (let j = 0; j < taken.length; j++) {
+                    const keyword = taken[j];
                     removedKeywords.push({
                         keyword,
                         sourceId:
@@ -988,7 +1008,8 @@ export function deriveLayer6(
                 break;
             }
             case "ability-loss":
-                for (const keyword of staticAbilities) {
+                for (let j = 0; j < staticAbilities.length; j++) {
+                    const keyword = staticAbilities[j];
                     removedKeywords.push({
                         keyword,
                         sourceId:
@@ -1015,17 +1036,21 @@ export function deriveLayer6(
                 grantedTriggered.length = 0;
                 break;
             case "activated-grant":
-                for (const grant of action.grants) {
-                    grantedActivated.push({
-                        sourceCardId: grant.sourceCardId,
-                        abilityId: grant.abilityId,
-                        ...(grant.origin ? { origin: grant.origin } : {}),
-                        auraId:
-                            entry.expiry.kind === "source"
-                                ? entry.expiry.sourceId
-                                : INDEFINITE_SOURCE_ID,
-                        seq: entry.timestamp,
-                    });
+                {
+                    const grantList = action.grants;
+                    for (let j = 0; j < grantList.length; j++) {
+                        const grant = grantList[j];
+                        grantedActivated.push({
+                            sourceCardId: grant.sourceCardId,
+                            abilityId: grant.abilityId,
+                            ...(grant.origin ? { origin: grant.origin } : {}),
+                            auraId:
+                                entry.expiry.kind === "source"
+                                    ? entry.expiry.sourceId
+                                    : INDEFINITE_SOURCE_ID,
+                            seq: entry.timestamp,
+                        });
+                    }
                 }
                 break;
             case "triggered-grant":
@@ -1178,7 +1203,9 @@ export function syncLayer6(
      *  catches up. */
     opts?: { stoppedSourceIds?: ReadonlySet<string> }
 ): void {
-    for (const { card, result } of deriveLayer6Board(state, opts)) {
+    const entries = deriveLayer6Board(state, opts);
+    for (let i = 0; i < entries.length; i++) {
+        const { card, result } = entries[i];
         Object.assign(card, layer6DerivedFields(card, result));
     }
 }
@@ -1232,8 +1259,12 @@ export function deriveLayer6Board(
     // only its own derivation reads them), but the SOURCE PLAN below is built
     // once for the whole pass, so "the board does not move mid-walk" stops
     // being a property nothing depends on.
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             ensureLayer6Base(card);
         }
     }
@@ -1244,8 +1275,12 @@ export function deriveLayer6Board(
     const noSourceEffects = sources.length === 0 && !hasStoredLayer6Entry(view);
 
     const derived: { card: CardInstanceState; result: Layer6Derivation }[] = [];
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList2 = state.players;
+    for (let i = 0; i < playerList2.length; i++) {
+        const player = playerList2[i];
+        const cardList2 = player.battlefield;
+        for (let j = 0; j < cardList2.length; j++) {
+            const card = cardList2[j];
             // FAST PATH — nothing anywhere can change this permanent's layer 6,
             // and nothing did last time either, so its derived answer IS its
             // base and the fields already hold it: `deriveLayer6` over an empty
@@ -1279,7 +1314,10 @@ export function deriveLayer6Board(
 function hasStoredLayer6Entry(state: LayerStateView): boolean {
     const stored = state.continuousEffects;
     if (!stored?.length) return false;
-    for (const entry of stored) if (entry.layer === 6) return true;
+    for (let i = 0; i < stored.length; i++) {
+        const entry = stored[i];
+        if (entry.layer === 6) return true;
+    }
     return false;
 }
 
@@ -1327,11 +1365,11 @@ export function layer6DerivedFields(
     const keptActivated = (card.grantedActivatedAbilities ?? []).filter(
         (g) => !g.auraId
     );
-    const activated = [...keptActivated, ...result.grantedActivated];
+    const activated = keptActivated.concat(result.grantedActivated);
     const keptTriggered = (card.grantedTriggeredAbilities ?? []).filter(
         (g) => !g.auraId
     );
-    const triggered = [...keptTriggered, ...result.grantedTriggered];
+    const triggered = keptTriggered.concat(result.grantedTriggered);
     return {
         staticAbilities: result.staticAbilities,
         // The one derived-output field that stays on the instance — see its doc

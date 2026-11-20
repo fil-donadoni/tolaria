@@ -57,7 +57,9 @@ export const IMPENDING_END_STEP_TRIGGER_ID = "impending-end-step";
 export function parseImpending(
     staticAbilities: readonly string[] | undefined
 ): number | null {
-    for (const ability of staticAbilities ?? []) {
+    const abilityList = staticAbilities ?? [];
+    for (let i = 0; i < abilityList.length; i++) {
+        const ability = abilityList[i];
         const match = IMPENDING_PATTERN.exec(ability);
         if (match) return Number(match[1]);
     }
@@ -139,10 +141,9 @@ export function expandImpending(def: CardDefinition): CardDefinition {
                 { type: TIME_COUNTER, count: { ifImpended: count } },
             ],
         },
-        staticEffects: [
-            ...(def.staticEffects ?? []),
-            ...IMPENDING_STATIC_EFFECTS,
-        ],
-        triggeredAbilities: [...existing, impendingEndStepTrigger()],
+        staticEffects: (def.staticEffects ?? []).concat(
+            IMPENDING_STATIC_EFFECTS
+        ),
+        triggeredAbilities: existing.concat([impendingEndStepTrigger()]),
     };
 }

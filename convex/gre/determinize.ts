@@ -167,7 +167,9 @@ export function determinize(
     // returns is blind or it is not, whatever reached it.
     if (opponentModel === "blind") next.deckColorKnowledge = undefined;
 
-    for (const player of next.players) {
+    const playerList = next.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const pinTop =
             topRevealed.has(player.id) ||
             (player.id === observerId && topLookedAt.has(player.id));
@@ -315,13 +317,13 @@ function determinizeOpponent(
         // The production norm — opponent library knowledge is rare, and this
         // runs once per seat per ISMCTS iteration. Same short-circuit
         // `determinizeObserver` takes.
-        const pool = shuffleWithRng([...player.hand, ...player.library], rng);
+        const pool = shuffleWithRng(player.hand.concat(player.library), rng);
         player.hand = pool.slice(0, handSize).map((c) => inZone(c, "hand"));
         player.library = pool.slice(handSize).map((c) => inZone(c, "library"));
         return;
     }
     const { held, unpinned } = splitPinned(player.library, pinned);
-    const pool = shuffleWithRng([...player.hand, ...unpinned], rng);
+    const pool = shuffleWithRng(player.hand.concat(unpinned), rng);
     player.hand = pool.slice(0, handSize).map((c) => inZone(c, "hand"));
     const fill = pool.slice(handSize).map((c) => inZone(c, "library"));
     player.library = placeAtPinned(player.library.length, held, fill);
@@ -493,7 +495,9 @@ function fillHiddenZonesFrom(
 
     // Strike every already-placed card from the pool, or it could be dealt a
     // SECOND time into a slot the observer cannot see.
-    for (const c of [...held.values(), ...keptHand]) {
+    const cList = [...held.values(), ...keptHand];
+    for (let j = 0; j < cList.length; j++) {
+        const c = cList[j];
         const at = remainder.indexOf(String(c.card.id ?? ""));
         if (at >= 0) remainder.splice(at, 1);
     }
@@ -512,10 +516,9 @@ function fillHiddenZonesFrom(
     // Known cards keep their real instances (and their real ids, which a move
     // naming one must round-trip to the server with); the unknown slots around
     // them are sampled.
-    player.hand = [
-        ...keptHand.map((c) => inZone(c, "hand")),
-        ...Array.from({ length: handSlots }, (_, i) => draw("hand", i)),
-    ];
+    player.hand = keptHand
+        .map((c) => inZone(c, "hand"))
+        .concat(Array.from({ length: handSlots }, (_, i) => draw("hand", i)));
     const fill = Array.from({ length: librarySlots }, (_, i) =>
         draw("library", i)
     );

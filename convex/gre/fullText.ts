@@ -136,7 +136,7 @@ function setRetainedTextRows(
         abilityId,
         origin: "card-abilities",
     }));
-    const next = [...kept, ...rows];
+    const next = kept.concat(rows);
     card.grantedActivatedAbilities = next.length > 0 ? next : undefined;
 }
 
@@ -212,11 +212,11 @@ export function installFullText(
     // acquired and the shapeshifter uses the characteristic from its own card."
     const own = layer1Values(card, underlyingDef);
     rebuildCopiableValuesAndReplayOverlays(state, card, {
-        types: [...shownDef.types],
-        subtypes: [...(shownDef.subtypes ?? [])],
+        types: shownDef.types.slice(),
+        subtypes: (shownDef.subtypes ?? []).slice(),
         power: shownDef.power ?? own.power,
         toughness: shownDef.toughness ?? own.toughness,
-        staticAbilities: [...(shownDef.staticAbilities ?? [])],
+        staticAbilities: (shownDef.staticAbilities ?? []).slice(),
     });
     return true;
 }
@@ -327,8 +327,12 @@ export function syncFullTextEffects(
     allocTimestamp: () => number
 ): boolean {
     let changed = false;
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             const shown = presentation(state, card, card.controllerId);
             if (!shown) {
                 if (card.fullTextAnchor) {

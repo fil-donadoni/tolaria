@@ -103,7 +103,9 @@ export function markAttacking(
 ): void {
     if (!state.combat) return;
     if (!state.combat.attackerIds.includes(permanent.id)) {
-        state.combat.attackerIds = [...state.combat.attackerIds, permanent.id];
+        state.combat.attackerIds = state.combat.attackerIds.concat([
+            permanent.id,
+        ]);
     }
     permanent.isAttacking = true;
 }
@@ -295,8 +297,12 @@ export function unblockedAttackerIds(
  *  differ per site, the flags do not. */
 export function markDeclaredBlockers(state: GameState): void {
     if (!state.combat) return;
-    for (const blockerId of Object.keys(state.combat.blockerAssignments)) {
-        for (const player of state.players) {
+    const blockerIdList = Object.keys(state.combat.blockerAssignments);
+    for (let i = 0; i < blockerIdList.length; i++) {
+        const blockerId = blockerIdList[i];
+        const playerList = state.players;
+        for (let j = 0; j < playerList.length; j++) {
+            const player = playerList[j];
             const card = player.battlefield.find((c) => c.id === blockerId);
             if (!card) continue;
             card.isBlocking = true;
@@ -383,8 +389,11 @@ export function validateMinimumBlockers(
 
     // Count distinct blockers per attacker from the assignment map.
     const blockerCountByAttacker = new Map<string, number>();
-    for (const attackerIds of Object.values(combat.blockerAssignments)) {
-        for (const attackerId of attackerIds) {
+    const attackerIdsList = Object.values(combat.blockerAssignments);
+    for (let i = 0; i < attackerIdsList.length; i++) {
+        const attackerIds = attackerIdsList[i];
+        for (let j = 0; j < attackerIds.length; j++) {
+            const attackerId = attackerIds[j];
             blockerCountByAttacker.set(
                 attackerId,
                 (blockerCountByAttacker.get(attackerId) ?? 0) + 1
@@ -397,7 +406,9 @@ export function validateMinimumBlockers(
     );
     if (!activePlayer) return { ok: true };
 
-    for (const attackerId of combat.attackerIds) {
+    const attackerIdList = combat.attackerIds;
+    for (let i = 0; i < attackerIdList.length; i++) {
+        const attackerId = attackerIdList[i];
         const blockedBy = blockerCountByAttacker.get(attackerId) ?? 0;
         if (blockedBy === 0) continue; // unblocked is always legal
         const attacker = activePlayer.battlefield.find(
@@ -460,7 +471,9 @@ export function collectAttackRestrictions(
     const collect = (source: CardInstanceState) => {
         const def = liveStaticDefinition(source);
         if (!def?.staticEffects) return;
-        for (const effect of def.staticEffects) {
+        const effectList = def.staticEffects;
+        for (let i = 0; i < effectList.length; i++) {
+            const effect = effectList[i];
             if (effect.kind === "attack-restriction") {
                 restrictions.push(effect);
             }
@@ -468,8 +481,12 @@ export function collectAttackRestrictions(
     };
     collect(card);
     if (state) {
-        for (const player of state.players) {
-            for (const perm of player.battlefield) {
+        const playerList = state.players;
+        for (let i = 0; i < playerList.length; i++) {
+            const player = playerList[i];
+            const permList = player.battlefield;
+            for (let j = 0; j < permList.length; j++) {
+                const perm = permList[j];
                 if (perm.attachedTo !== card.id) continue;
                 collect(perm);
             }
@@ -535,7 +552,9 @@ export function validateAttackerEligibility(
         const controllerBattlefield =
             state?.players.find((p) => p.id === card.controllerId)
                 ?.battlefield ?? [];
-        for (const r of collectAttackRestrictions(card, state)) {
+        const rList = collectAttackRestrictions(card, state);
+        for (let i = 0; i < rList.length; i++) {
+            const r = rList[i];
             if (
                 !r.predicate(card, defenderBattlefield, controllerBattlefield)
             ) {
@@ -602,15 +621,21 @@ function collectDeclaredAttackRestrictions(
     const collect = (source: CardInstanceState) => {
         const def = liveStaticDefinition(source);
         if (!def?.staticEffects) return;
-        for (const effect of def.staticEffects) {
+        const effectList = def.staticEffects;
+        for (let i = 0; i < effectList.length; i++) {
+            const effect = effectList[i];
             if (effect.kind === "declared-attack-restriction") {
                 restrictions.push(effect);
             }
         }
     };
     collect(card);
-    for (const player of state.players) {
-        for (const perm of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const permList = player.battlefield;
+        for (let j = 0; j < permList.length; j++) {
+            const perm = permList[j];
             if (perm.attachedTo !== card.id) continue;
             collect(perm);
         }
@@ -660,15 +685,18 @@ export function foldAttackRequirements(
     const quota = maxObeyableAttackRequirements(requiredIds.length, cap);
     const limit = cap ?? Number.POSITIVE_INFINITY;
     const out: string[] = [];
-    for (const id of selected) {
+    for (let i = 0; i < selected.length; i++) {
+        const id = selected[i];
         if (out.length >= quota) break;
         if (requiredSet.has(id) && !out.includes(id)) out.push(id);
     }
-    for (const id of requiredIds) {
+    for (let i = 0; i < requiredIds.length; i++) {
+        const id = requiredIds[i];
         if (out.length >= quota) break;
         if (!out.includes(id)) out.push(id);
     }
-    for (const id of selected) {
+    for (let i = 0; i < selected.length; i++) {
+        const id = selected[i];
         if (out.length >= limit) break;
         if (!requiredSet.has(id) && !out.includes(id)) out.push(id);
     }
@@ -760,7 +788,8 @@ export function validateDeclaredAttackers(
     // obeys one requirement fewer than attacking the player would. Selection
     // already refuses that target (`game.ts`); this is the backstop for any
     // producer that writes `combat.attackTargets` directly.
-    for (const attacker of declared) {
+    for (let i = 0; i < declared.length; i++) {
+        const attacker = declared[i];
         if (combat.attackTargets?.[attacker.id] === undefined) continue;
         if (pinnedAttackDefenderOf(attacker, state) === undefined) continue;
         return { ok: false, reason: pinnedAttackReason(attacker) };
@@ -792,8 +821,11 @@ export function declaredAttackRestrictionViolation(
     state: GameState
 ): string | undefined {
     const declaredViews = declared as unknown as PermanentView[];
-    for (const attacker of declared) {
-        for (const r of collectDeclaredAttackRestrictions(attacker, state)) {
+    for (let i = 0; i < declared.length; i++) {
+        const attacker = declared[i];
+        const rList = collectDeclaredAttackRestrictions(attacker, state);
+        for (let j = 0; j < rList.length; j++) {
+            const r = rList[j];
             if (
                 !r.predicate(
                     attacker as unknown as PermanentView,
@@ -827,7 +859,9 @@ export function collectBlockRestrictions(
     const collect = (source: CardInstanceState) => {
         const def = liveStaticDefinition(source);
         if (!def?.staticEffects) return;
-        for (const effect of def.staticEffects) {
+        const effectList = def.staticEffects;
+        for (let i = 0; i < effectList.length; i++) {
+            const effect = effectList[i];
             if (effect.kind === "block-restriction" && effect.side === side) {
                 restrictions.push(effect);
             }
@@ -835,8 +869,12 @@ export function collectBlockRestrictions(
     };
     collect(card);
     if (state) {
-        for (const player of state.players) {
-            for (const perm of player.battlefield) {
+        const playerList = state.players;
+        for (let i = 0; i < playerList.length; i++) {
+            const player = playerList[i];
+            const permList = player.battlefield;
+            for (let j = 0; j < permList.length; j++) {
+                const perm = permList[j];
                 if (perm.attachedTo !== card.id) continue;
                 collect(perm);
             }
@@ -980,7 +1018,8 @@ export function validateBlockerEligibility(
         const effBlocker = state
             ? { ...blocker, power: getEffectivePower(state, blocker) }
             : blocker;
-        for (const r of attackerRestrictions) {
+        for (let i = 0; i < attackerRestrictions.length; i++) {
+            const r = attackerRestrictions[i];
             if (!blockRestrictionAllows(r, effAttacker, effBlocker, state)) {
                 // CR 509.1b — a restriction with a `bypassCost` (Hipparion) does
                 // not forbid the block outright; the controller may pay to
@@ -990,7 +1029,8 @@ export function validateBlockerEligibility(
                 return { eligible: false, reason: r.oracleText };
             }
         }
-        for (const r of blockerRestrictions) {
+        for (let i = 0; i < blockerRestrictions.length; i++) {
+            const r = blockerRestrictions[i];
             if (!blockRestrictionAllows(r, effBlocker, effAttacker, state)) {
                 if (r.bypassCost) continue;
                 return { eligible: false, reason: r.oracleText };
@@ -1042,15 +1082,21 @@ function collectDeclaredBlockRestrictions(
     const collect = (source: CardInstanceState) => {
         const def = liveStaticDefinition(source);
         if (!def?.staticEffects) return;
-        for (const effect of def.staticEffects) {
+        const effectList = def.staticEffects;
+        for (let i = 0; i < effectList.length; i++) {
+            const effect = effectList[i];
             if (effect.kind === "declared-block-restriction") {
                 restrictions.push(effect);
             }
         }
     };
     collect(card);
-    for (const player of state.players) {
-        for (const perm of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const permList = player.battlefield;
+        for (let j = 0; j < permList.length; j++) {
+            const perm = permList[j];
             if (perm.attachedTo !== card.id) continue;
             collect(perm);
         }
@@ -1066,9 +1112,9 @@ function declaredBlockerInstances(state: GameState): CardInstanceState[] {
     const defender = state.players.find((p) => p.id !== state.activePlayerId);
     if (!defender) return [];
     const out: CardInstanceState[] = [];
-    for (const [blockerId, attackerIds] of Object.entries(
-        combat.blockerAssignments
-    )) {
+    const entries2 = Object.entries(combat.blockerAssignments);
+    for (let i = 0; i < entries2.length; i++) {
+        const [blockerId, attackerIds] = entries2[i];
         if (!attackerIds || attackerIds.length === 0) continue;
         const inst = defender.battlefield.find((c) => c.id === blockerId);
         if (inst) out.push(inst);
@@ -1163,7 +1209,9 @@ function rerouteFullBlockersToRequirement(state: GameState): void {
     if (!combat || !defender) return;
     const attacker = state.players.find((p) => p.id === state.activePlayerId);
     const { baseline } = blockRequirementMaps(state);
-    for (const [blockerId, requiredIds] of Object.entries(baseline)) {
+    const entries2 = Object.entries(baseline);
+    for (let i = 0; i < entries2.length; i++) {
+        const [blockerId, requiredIds] = entries2[i];
         const declared = combat.blockerAssignments[blockerId] ?? [];
         if (declared.length === 0) continue;
         const blocker = defender.battlefield.find((c) => c.id === blockerId);
@@ -1183,7 +1231,7 @@ function rerouteFullBlockersToRequirement(state: GameState): void {
             );
         });
         if (obeys) continue;
-        combat.blockerAssignments[blockerId] = [...requiredIds];
+        combat.blockerAssignments[blockerId] = requiredIds.slice();
     }
 }
 
@@ -1208,7 +1256,9 @@ export function foldBlockRequirements(state: GameState): void {
     const assignments = combat.blockerAssignments;
     const { baseline, missing } = blockRequirementMaps(state);
 
-    for (const [blockerId, attackerIds] of Object.entries(missing)) {
+    const entries2 = Object.entries(missing);
+    for (let i = 0; i < entries2.length; i++) {
+        const [blockerId, attackerIds] = entries2[i];
         const existing = assignments[blockerId] ?? [];
         if (
             existing.length === 0 &&
@@ -1223,10 +1273,9 @@ export function foldBlockRequirements(state: GameState): void {
             if (victim === undefined) continue;
             delete assignments[victim];
         }
-        assignments[blockerId] = [
-            ...(assignments[blockerId] ?? []),
-            ...attackerIds,
-        ];
+        assignments[blockerId] = (assignments[blockerId] ?? []).concat(
+            attackerIds
+        );
     }
     // Last: a blocker the loop above could not add to (every block it may make
     // already spent) but that still obeys nothing it could have obeyed. Runs
@@ -1264,8 +1313,11 @@ export function validateDeclaredBlockers(
     if (declared.length === 0) return { ok: true };
     const declaredViews = declared as unknown as PermanentView[];
 
-    for (const blocker of declared) {
-        for (const r of collectDeclaredBlockRestrictions(blocker, state)) {
+    for (let i = 0; i < declared.length; i++) {
+        const blocker = declared[i];
+        const rList = collectDeclaredBlockRestrictions(blocker, state);
+        for (let j = 0; j < rList.length; j++) {
+            const r = rList[j];
             if (
                 !r.predicate(blocker as unknown as PermanentView, declaredViews)
             ) {
@@ -1300,9 +1352,9 @@ export function collectBlockBypassCharges(
     if (!activePlayer || !defender) return [];
 
     const charges: BlockBypassCharge[] = [];
-    for (const [blockerId, attackerIds] of Object.entries(
-        combat.blockerAssignments
-    )) {
+    const entries2 = Object.entries(combat.blockerAssignments);
+    for (let i = 0; i < entries2.length; i++) {
+        const [blockerId, attackerIds] = entries2[i];
         if (!attackerIds || attackerIds.length === 0) continue;
         const blocker = defender.battlefield.find((c) => c.id === blockerId);
         if (!blocker) continue;
@@ -1316,7 +1368,9 @@ export function collectBlockBypassCharges(
             ...blocker,
             power: getEffectivePower(state, blocker),
         };
-        for (const attackerId of attackerIds) {
+        const attackerIdList = attackerIds;
+        for (let j = 0; j < attackerIdList.length; j++) {
+            const attackerId = attackerIdList[j];
             const attacker = activePlayer.battlefield.find(
                 (c) => c.id === attackerId
             );
@@ -1325,7 +1379,8 @@ export function collectBlockBypassCharges(
                 ...attacker,
                 power: getEffectivePower(state, attacker),
             };
-            for (const r of restrictions) {
+            for (let k = 0; k < restrictions.length; k++) {
+                const r = restrictions[k];
                 // The cost applies only when the restriction is actually
                 // triggered (e.g. the blocked attacker has power 3+). A block
                 // the predicate already permits costs nothing.
@@ -1376,13 +1431,20 @@ export function collectAttackSacrificeTax(
     if (declared.length === 0) return [];
 
     const perController = new Map<string, { count: number; reason: string }>();
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const def = liveStaticDefinition(source);
             if (!def?.staticEffects) continue;
-            for (const effect of def.staticEffects) {
+            const effectList = def.staticEffects;
+            for (let k = 0; k < effectList.length; k++) {
+                const effect = effectList[k];
                 if (effect.kind !== "attack-sacrifice-tax") continue;
-                for (const attacker of declared) {
+                for (let m = 0; m < declared.length; m++) {
+                    const attacker = declared[m];
                     if (
                         !effect.taxes(
                             attacker as unknown as PermanentView,
@@ -1448,8 +1510,12 @@ export function collectAttackManaTax(state: GameState): AttackManaCharge[] {
     if (declared.length === 0) return [];
 
     const charges: AttackManaCharge[] = [];
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             // "Creatures can't attack YOU": only a source controlled by the
             // player BEING attacked (the defending, non-active player in
             // 2-player combat) taxes the attack. A source the attacking player
@@ -1457,7 +1523,9 @@ export function collectAttackManaTax(state: GameState): AttackManaCharge[] {
             if (source.controllerId === state.activePlayerId) continue;
             const def = liveStaticDefinition(source);
             if (!def?.staticEffects) continue;
-            for (const effect of def.staticEffects) {
+            const effectList = def.staticEffects;
+            for (let k = 0; k < effectList.length; k++) {
+                const effect = effectList[k];
                 if (effect.kind !== "attack-mana-tax") continue;
                 // issue #1066 — `costPerAttacker` may be a fixed `ManaCost` OR
                 // a function evaluated ONCE per source at combat time
@@ -1473,7 +1541,8 @@ export function collectAttackManaTax(state: GameState): AttackManaCharge[] {
                               ATTACK_RESTRICTION_CTX
                           )
                         : effect.costPerAttacker;
-                for (const attacker of declared) {
+                for (let m = 0; m < declared.length; m++) {
+                    const attacker = declared[m];
                     // "Attacking YOU" taxes only creatures attacking the player
                     // (CR 508.1h cost to attack, CR 506.2 who may be attacked);
                     // a `combat.attackTargets` entry names the planeswalker or
@@ -1663,8 +1732,10 @@ export function hasAnyLegalBlock(
     const candidates = defenderBattlefield.filter(
         (c) => c.types.includes("Creature") && !c.isTapped
     );
-    for (const attacker of attackers) {
-        for (const blocker of candidates) {
+    for (let i = 0; i < attackers.length; i++) {
+        const attacker = attackers[i];
+        for (let j = 0; j < candidates.length; j++) {
+            const blocker = candidates[j];
             if (
                 validateBlockerEligibility(
                     attacker,
@@ -1691,7 +1762,9 @@ function collectBlockRequirements(
     const collect = (source: CardInstanceState) => {
         const def = liveStaticDefinition(source);
         if (!def?.staticEffects) return;
-        for (const effect of def.staticEffects) {
+        const effectList = def.staticEffects;
+        for (let i = 0; i < effectList.length; i++) {
+            const effect = effectList[i];
             if (effect.kind === "block-requirement") {
                 requirements.push(effect);
             }
@@ -1699,8 +1772,12 @@ function collectBlockRequirements(
     };
     collect(card);
     if (state) {
-        for (const player of state.players) {
-            for (const perm of player.battlefield) {
+        const playerList = state.players;
+        for (let i = 0; i < playerList.length; i++) {
+            const player = playerList[i];
+            const permList = player.battlefield;
+            for (let j = 0; j < permList.length; j++) {
+                const perm = permList[j];
                 if (perm.attachedTo !== card.id) continue;
                 collect(perm);
             }
@@ -1722,10 +1799,9 @@ export function getMaxBlockTargets(card: CardInstanceState): number {
 /** The attackers this creature is individually required to block, of either
  *  duration (CR 509.1c "this turn", CR 702.39a "this combat"). */
 function namedBlockRequirements(blocker: CardInstanceState): string[] {
-    return [
-        ...(blocker.mustBlockAttackersThisTurn ?? []),
-        ...(blocker.mustBlockAttackersThisCombat ?? []),
-    ];
+    return (blocker.mustBlockAttackersThisTurn ?? []).concat(
+        blocker.mustBlockAttackersThisCombat ?? []
+    );
 }
 
 /** Computes mandatory blocker assignments for must-block requirements
@@ -1755,7 +1831,8 @@ export function getRequiredBlockerAssignments(
 
     // Phase 1: Collect attackers that have block requirements (Lure)
     const attackersWithRequirement: CardInstanceState[] = [];
-    for (const attacker of attackers) {
+    for (let i = 0; i < attackers.length; i++) {
+        const attacker = attackers[i];
         const reqs = collectBlockRequirements(attacker, state);
         if (reqs.some((r) => r.scope === "all-able")) {
             attackersWithRequirement.push(attacker);
@@ -1763,11 +1840,11 @@ export function getRequiredBlockerAssignments(
     }
 
     // Phase 2: For each candidate blocker, determine what it must block
-    for (const blocker of candidates) {
-        const currentBlocks = [
-            ...(currentAssignments[blocker.id] ?? []),
-            ...(result[blocker.id] ?? []),
-        ];
+    for (let i = 0; i < candidates.length; i++) {
+        const blocker = candidates[i];
+        const currentBlocks = (currentAssignments[blocker.id] ?? []).concat(
+            result[blocker.id] ?? []
+        );
         const maxTargets = getMaxBlockTargets(blocker);
 
         // CR 509.1c — "blocks <attacker> this turn if able" (Rampant Elephant).
@@ -1776,7 +1853,9 @@ export function getRequiredBlockerAssignments(
         // `resetBattlefieldTransientState`, CR 400.7), and only
         // when the block is legal — evasion, protection or a "can't block"
         // flag excuse it through `validateBlockerEligibility`.
-        for (const attackerId of namedBlockRequirements(blocker)) {
+        const attackerIdList = namedBlockRequirements(blocker);
+        for (let j = 0; j < attackerIdList.length; j++) {
+            const attackerId = attackerIdList[j];
             if (currentBlocks.length >= maxTargets) break;
             if (currentBlocks.includes(attackerId)) continue;
             const attacker = attackers.find((a) => a.id === attackerId);
@@ -1796,7 +1875,8 @@ export function getRequiredBlockerAssignments(
         }
 
         // Check block requirements from attackers (Lure)
-        for (const attacker of attackersWithRequirement) {
+        for (let j = 0; j < attackersWithRequirement.length; j++) {
+            const attacker = attackersWithRequirement[j];
             if (currentBlocks.length >= maxTargets) break;
             if (currentBlocks.includes(attacker.id)) continue;
             if (
@@ -1818,7 +1898,8 @@ export function getRequiredBlockerAssignments(
         // with a single block left takes the attacker that also obeys the
         // named / Lure requirement (CR 509.1c — maximum requirements).
         if (blocker.mustBlockAllThisTurn) {
-            for (const attacker of attackers) {
+            for (let j = 0; j < attackers.length; j++) {
+                const attacker = attackers[j];
                 if (currentBlocks.length >= maxTargets) break;
                 if (currentBlocks.includes(attacker.id)) continue;
                 if (

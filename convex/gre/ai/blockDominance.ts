@@ -82,7 +82,8 @@ function simulateBlocks(
     const combat = probe.combat;
     if (!combat) return undefined;
     const byBlocker: Record<string, string[]> = {};
-    for (const { blockerId, attackerId } of assignments) {
+    for (let i = 0; i < assignments.length; i++) {
+        const { blockerId, attackerId } = assignments[i];
         (byBlocker[blockerId] ??= []).push(attackerId);
     }
     combat.blockerAssignments = byBlocker;
@@ -129,9 +130,11 @@ function simulateBlocks(
 
 /** `better` is at least as good as `worse` for the defender on every axis. */
 function weaklyDominates(better: CombatOutcome, worse: CombatOutcome): boolean {
+    // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
     for (const [id, counters] of worse.defenderAlive) {
         if (better.defenderAlive.get(id) !== counters) return false;
     }
+    // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
     for (const [id, counters] of better.attackingSideAlive) {
         if (worse.attackingSideAlive.get(id) !== counters) return false;
     }
@@ -148,7 +151,8 @@ function multiBlockedAttackers(
     assignments: readonly BlockAssignment[]
 ): Set<string> {
     const count = new Map<string, number>();
-    for (const a of assignments) {
+    for (let i = 0; i < assignments.length; i++) {
+        const a = assignments[i];
         count.set(a.attackerId, (count.get(a.attackerId) ?? 0) + 1);
     }
     return new Set([...count].filter(([, n]) => n >= 2).map(([id]) => id));
@@ -169,7 +173,7 @@ export function pruneDominatedBlocks(
             m.kind === "declare-blockers" &&
             multiBlockedAttackers(m.assignments).size > 0
     );
-    if (multi.length === 0 || !state.combat) return [...moves];
+    if (multi.length === 0 || !state.combat) return moves.slice();
     const legal = new Set(
         moves
             .filter(
@@ -186,7 +190,8 @@ export function pruneDominatedBlocks(
         return outcomes.get(key);
     };
     const dominated = new Set<Move>();
-    for (const move of multi) {
+    for (let i = 0; i < multi.length; i++) {
+        const move = multi[i];
         const full = outcomeOf(move.assignments);
         if (!full) continue;
         const multiAttackers = multiBlockedAttackers(move.assignments);

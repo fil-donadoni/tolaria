@@ -166,7 +166,11 @@ export function basisDirectionKey(
     sign: 1 | -1
 ): string {
     let norm = 0;
-    for (const k of FITTABLE_WEIGHT_KEYS) norm += basis[k] ** 2;
+    const kList = FITTABLE_WEIGHT_KEYS;
+    for (let i = 0; i < kList.length; i++) {
+        const k = kList[i];
+        norm += basis[k] ** 2;
+    }
     norm = Math.sqrt(norm) || 1;
     return FITTABLE_WEIGHT_KEYS.map((k) =>
         // `+ 0` normalises the negative zero `-1 * 0` produces, which would
@@ -195,10 +199,15 @@ export function contradictoryCouples(
 ): Contradiction[] {
     const byKey = new Map<string, EvalPair[]>();
     const out: Contradiction[] = [];
-    for (const pair of pairs) {
+    for (let i = 0; i < pairs.length; i++) {
+        const pair = pairs[i];
         if (isBlind(pair)) continue;
         const opposite = byKey.get(basisKey(pair, -1));
-        if (opposite) for (const a of opposite) out.push({ a, b: pair });
+        if (opposite)
+            for (let j = 0; j < opposite.length; j++) {
+                const a = opposite[j];
+                out.push({ a, b: pair });
+            }
         const key = basisKey(pair, 1);
         const bucket = byKey.get(key);
         if (bucket) bucket.push(pair);
@@ -241,7 +250,8 @@ export function collectVerdictReport(
         }))
     );
 
-    for (const [i, verdict] of verdicts.entries()) {
+    for (let i = 0; i < verdicts.length; i++) {
+        const verdict = verdicts[i];
         const standing = standings.get(ids[i]);
         if (standing?.kind === "incomplete") {
             incomplete.push({ verdictId: verdict.id, why: standing.why });
@@ -280,7 +290,7 @@ export function collectVerdictReport(
         violated,
         contradictions,
         timing,
-        contradictionsWithTiming: contradictoryCouples([...pairs, ...timing])
+        contradictionsWithTiming: contradictoryCouples(pairs.concat(timing))
             .length,
         blind,
         gaps: options.gaps ?? [],
@@ -355,10 +365,14 @@ export function formatVerdictReport(
     out.push(
         `\n== verdicts the evaluation gets WRONG (${report.rows.filter((r) => !r.ok && !r.error).length})`
     );
-    for (const row of report.rows) {
+    const rowList = report.rows;
+    for (let i = 0; i < rowList.length; i++) {
+        const row = rowList[i];
         if (row.ok || row.error) continue;
         out.push(`  ${row.verdictId}`);
-        for (const pair of report.violated) {
+        const pairList = report.violated;
+        for (let j = 0; j < pairList.length; j++) {
+            const pair = pairList[j];
             if (pair.verdictId !== row.verdictId) continue;
             out.push(
                 `      want  ${pair.right.description}\n      over  ${pair.other.description}\n      Δ policy ${pair.delta.toFixed(1)} (fittable ${pair.fittableDelta.toFixed(1)})  |  ${termDeltaLine(pair)}`
@@ -375,7 +389,9 @@ export function formatVerdictReport(
             string,
             { a: EvalPair; b: EvalPair; n: number }
         >();
-        for (const { a, b } of report.contradictions) {
+        const entries = report.contradictions;
+        for (let i = 0; i < entries.length; i++) {
+            const { a, b } = entries[i];
             const key = [a.verdictId, b.verdictId].sort().join(" \u21c4 ");
             const seen = couples.get(key);
             if (seen) seen.n++;
@@ -384,11 +400,11 @@ export function formatVerdictReport(
         out.push(
             `\n== CONTRADICTORY verdicts (${couples.size} couples, ${report.contradictions.length} pairs) — identical feature vectors, opposite order`
         );
-        for (const { a, b, n } of couples.values()) {
+        couples.forEach(({ a, b, n }) => {
             out.push(
                 `  ${a.verdictId}: ${a.right.description} > ${a.other.description}\n  ${b.verdictId}: ${b.right.description} > ${b.other.description}${n > 1 ? `\n      (and ${n - 1} further pair${n === 2 ? "" : "s"} with the same vector)` : ""}`
             );
-        }
+        });
     }
 
     out.push(`\n${formatTimingSection(report)}`);
@@ -397,7 +413,9 @@ export function formatVerdictReport(
         out.push(
             `\n== BLIND pairs (${report.blind.length}) — the evaluation cannot separate the two candidates at all`
         );
-        for (const pair of report.blind) {
+        const pairList2 = report.blind;
+        for (let i = 0; i < pairList2.length; i++) {
+            const pair = pairList2[i];
             out.push(
                 `  ${pair.verdictId}\n      want  ${pair.right.description}\n      over  ${pair.other.description}`
             );
@@ -414,22 +432,33 @@ export function formatVerdictReport(
         out.push(
             `\n== INCOMPLETE pairs — debt (${debt}): kept as Test Positions, left out of the fit (ADR 0148)`
         );
-        for (const row of report.incomplete)
+        const rowList2 = report.incomplete;
+        for (let i = 0; i < rowList2.length; i++) {
+            const row = rowList2[i];
             out.push(`  ${row.verdictId}: ${row.why}`);
-        for (const g of conditionalGaps)
+        }
+        for (let i = 0; i < conditionalGaps.length; i++) {
+            const g = conditionalGaps[i];
             out.push(
                 `  registry:${g.label}: Conditional Test Position (${g.conditional!.kind}: ${g.conditional!.detail}) with no right-hand half, and no verdict of its own (${g.reason}) (ADR 0148)`
             );
+        }
     }
 
     if (report.errors.length > 0) {
         out.push(`\n== verdicts in ERROR (${report.errors.length})`);
-        for (const e of report.errors) out.push(`  ${e.verdictId}: ${e.error}`);
+        const eList = report.errors;
+        for (let i = 0; i < eList.length; i++) {
+            const e = eList[i];
+            out.push(`  ${e.verdictId}: ${e.error}`);
+        }
     }
 
     if (report.gaps.length > 0) {
         const byReason = new Map<string, VerdictGap[]>();
-        for (const gap of report.gaps) {
+        const gapList = report.gaps;
+        for (let i = 0; i < gapList.length; i++) {
+            const gap = gapList[i];
             const bucket = byReason.get(gap.reason);
             if (bucket) bucket.push(gap);
             else byReason.set(gap.reason, [gap]);
@@ -437,11 +466,13 @@ export function formatVerdictReport(
         out.push(
             `\n== sources that yielded NO verdict (${report.gaps.length})`
         );
-        for (const [reason, gaps] of byReason) {
+        byReason.forEach((gaps, reason) => {
             out.push(`  ${reason} (${gaps.length})`);
-            for (const gap of gaps)
+            for (let i = 0; i < gaps.length; i++) {
+                const gap = gaps[i];
                 out.push(`      [${gap.tier}] ${gap.label} — ${gap.detail}`);
-        }
+            }
+        });
     }
     return out.join("\n");
 }
@@ -460,7 +491,9 @@ export function formatTimingSection(
     const out = [
         `== TIMING pairs (${report.timing.length}) — checked by the search, never fitted; contradictory pairs ${report.contradictionsWithTiming} → ${report.contradictions.length}`,
     ];
-    for (const pair of report.timing) {
+    const pairList = report.timing;
+    for (let i = 0; i < pairList.length; i++) {
+        const pair = pairList[i];
         out.push(
             `  ${pair.verdictId}\n      want  ${pair.right.description}\n      over  ${pair.other.description}`
         );
@@ -600,6 +633,7 @@ export function formatScoreComparison(
     return [
         `== ${scope}, ${rows.length} vectors — ordering, not loss (issue #3406)`,
         line(header),
-        ...cells.map(line),
-    ].join("\n");
+    ]
+        .concat(cells.map(line))
+        .join("\n");
 }

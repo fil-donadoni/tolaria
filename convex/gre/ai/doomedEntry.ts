@@ -57,7 +57,8 @@ const COMBAT_PAST_ATTACKS: ReadonlySet<Phase> = new Set([
 /** The binding names `body` removes from the battlefield at its top level. */
 function departingRefsIn(body: readonly EffectOp[]): string[] {
     const refs: string[] = [];
-    for (const op of body) {
+    for (let i = 0; i < body.length; i++) {
+        const op = body[i];
         if (
             op.op !== "sacrifice" &&
             op.op !== "destroy" &&
@@ -160,13 +161,15 @@ export function enteringBodyDepartureTiming(
     const memo = ENTRY_DEPARTURE_MEMO.get(effects);
     if (memo !== undefined) return memo ?? undefined;
     const entered = new Set<string>();
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         if (op.op === "moveZone" && op.to === "battlefield" && op.bind) {
             entered.add(op.bind);
         }
     }
     let timing: DelayedTriggerTiming | null = null;
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         if (op.op !== "delayedTrigger") continue;
         if (!DEPARTURE_TIMINGS.has(op.timing)) continue;
         const removes = departingRefsIn(op.effects).some((ref) => {
@@ -233,7 +236,9 @@ export function scheduledEndStepDeparture(
 ): EndStepDeparture | undefined {
     let departure: EndStepDeparture | undefined;
     const atOrPastEnd = AT_OR_PAST_END_STEP.has(state.phase);
-    for (const ability of effectiveTriggeredAbilities(body)) {
+    const abilityList = effectiveTriggeredAbilities(body);
+    for (let i = 0; i < abilityList.length; i++) {
+        const ability = abilityList[i];
         if (!isSelfEndStepDeparture(ability)) continue;
         const ownStep =
             ability.phaseScope === "each" ||

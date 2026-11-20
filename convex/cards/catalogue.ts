@@ -333,10 +333,14 @@ function addBackFaceOwner(tokenId: string, id: string): void {
 }
 
 function addLookups(lookups: DefinitionIndexLookups): void {
-    for (const [id, names] of Object.entries(lookups.chooseableNames)) {
+    const entries2 = Object.entries(lookups.chooseableNames);
+    for (let i = 0; i < entries2.length; i++) {
+        const [id, names] = entries2[i];
         addChooseable(id, names);
     }
-    for (const [tokenId, id] of Object.entries(lookups.backFaceTriggers)) {
+    const entries3 = Object.entries(lookups.backFaceTriggers);
+    for (let i = 0; i < entries3.length; i++) {
+        const [tokenId, id] = entries3[i];
         addBackFaceOwner(tokenId, id);
     }
 }
@@ -365,16 +369,24 @@ function addCompiled(
     compiledIds.push(id);
     compiledAt.set(id, at);
     addCompiledName([name.toLowerCase(), id]);
-    for (const entry of twinNames) addCompiledName(entry);
+    for (let i = 0; i < twinNames.length; i++) {
+        const entry = twinNames[i];
+        addCompiledName(entry);
+    }
 }
 
-for (const [id, name, setCode] of handWrittenIndex.entries) {
+const entries2 = handWrittenIndex.entries;
+for (let i = 0; i < entries2.length; i++) {
+    const [id, name, setCode] = entries2[i];
     definitionSetCode.set(id, setCode);
     addName([name.toLowerCase(), id]);
 }
-for (const [id] of handWrittenIndex.entries) {
-    for (const entry of ownEntries(handWrittenIndex.lookups.twinNames, id) ??
-        []) {
+const entries3 = handWrittenIndex.entries;
+for (let i = 0; i < entries3.length; i++) {
+    const [id] = entries3[i];
+    const entryList = ownEntries(handWrittenIndex.lookups.twinNames, id) ?? [];
+    for (let j = 0; j < entryList.length; j++) {
+        const entry = entryList[j];
         addName(entry);
     }
 }
@@ -421,7 +433,11 @@ if (bundledIndex !== null && packedCorpusLookup !== null) {
 
 /** Every Card ID the catalogue serves, in catalogue order. */
 function* catalogueIds(): Generator<string> {
-    for (const [id] of handWrittenIndex.entries) yield id;
+    const entries2 = handWrittenIndex.entries;
+    for (let i = 0; i < entries2.length; i++) {
+        const [id] = entries2[i];
+        yield id;
+    }
     yield* orderedCompiledIds();
 }
 
@@ -523,7 +539,9 @@ export const isCompiledRowResident = (id: string): boolean => {
  *  compares it with. */
 export function walkHandWrittenDefinitions(): HandWrittenExport[] {
     const walk: HandWrittenExport[] = [];
-    for (const setCode of setModuleSource.codes) {
+    const setCodeList = setModuleSource.codes;
+    for (let i = 0; i < setCodeList.length; i++) {
+        const setCode = setCodeList[i];
         // Every Set is resident on the server, the generator's only runtime;
         // a client graph walks what it has installed.
         const module = setModuleSource.resident(setCode);
@@ -531,7 +549,8 @@ export function walkHandWrittenDefinitions(): HandWrittenExport[] {
         const exports = Object.entries(module).sort(([a], [b]) =>
             a < b ? -1 : a > b ? 1 : 0
         );
-        for (const [exportName, value] of exports) {
+        for (let j = 0; j < exports.length; j++) {
+            const [exportName, value] = exports[j];
             const definition = resolveCardExport(value);
             if (definition !== undefined) {
                 walk.push({ setCode, exportName, definition });
@@ -580,10 +599,10 @@ export const tryGetCardByName = (name: string): CardDefinition | null => {
 //
 // Read from the Definition Index: the catalogue's names, with no definition
 // built to read them (issue #4856).
-export const getAllCardNames = (): string[] => [
-    ...handWrittenIndex.entries.map(([, name]) => name),
-    ...orderedCompiledIds().map((id) => compiledNameOf(id)!),
-];
+export const getAllCardNames = (): string[] =>
+    handWrittenIndex.entries
+        .map(([, name]) => name)
+        .concat(orderedCompiledIds().map((id) => compiledNameOf(id)!));
 
 /** What the Definition Index alone says about a NAME (issue #4166):
  *  - `unknown` — no catalogue name carries it;
@@ -619,6 +638,7 @@ export type IndexedCardName =
  *  A scan, run only on a name the index does not know. */
 function meldBackNameIn(name: string): IndexedCardName | undefined {
     const key = name.toLowerCase();
+    // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
     for (const [id, names] of chooseableById) {
         const hit = names.find((n) => n.toLowerCase() === key);
         if (hit !== undefined) return { kind: "meld-back", id, name: hit };
@@ -721,7 +741,9 @@ export const getChooseableCardNames = (): string[] => {
     //
     // Read from the Definition Index (issue #4856): no definition is built.
     const names: string[] = [];
-    for (const [id, name] of handWrittenIndex.entries) {
+    const entries2 = handWrittenIndex.entries;
+    for (let i = 0; i < entries2.length; i++) {
+        const [id, name] = entries2[i];
         names.push(...(chooseableById.get(id) ?? [name]));
     }
     // A COMPILED row contributes its FULL `chooseableNamesOf`, own printed
@@ -733,8 +755,11 @@ export const getChooseableCardNames = (): string[] => {
     // client) means both sides build this same list from the compiled
     // population once hydrated, so the submit gate and the button's
     // candidate list still agree.
-    for (const id of orderedCompiledIds())
+    const idList = orderedCompiledIds();
+    for (let i = 0; i < idList.length; i++) {
+        const id = idList[i];
         names.push(...(chooseableById.get(id) ?? [compiledNameOf(id)!]));
+    }
     return names;
 };
 
@@ -776,10 +801,9 @@ export const getAllCards = (): CardDefinition[] => {
  *  section after module load (`registerPackedCorpus`). */
 export const getAllCatalogueCards = (): CardDefinition[] => {
     if (!expandedCatalogueCards)
-        expandedCatalogueCards = [
-            ...getAllCards(),
-            ...orderedCompiledIds().map((id) => getDefinition(id)),
-        ];
+        expandedCatalogueCards = getAllCards().concat(
+            orderedCompiledIds().map((id) => getDefinition(id))
+        );
     return expandedCatalogueCards;
 };
 
@@ -816,8 +840,12 @@ export const isPrintedInSet = (cardId: string, setCode: string): boolean => {
 
 export const getAllSetCodes = (): string[] => {
     const codes = new Set<string>();
-    for (const code of definitionSetCode.values()) codes.add(code);
-    for (const id of orderedCompiledIds()) {
+    definitionSetCode.forEach((code) => {
+        codes.add(code);
+    });
+    const idList = orderedCompiledIds();
+    for (let i = 0; i < idList.length; i++) {
+        const id = idList[i];
         const code = setCodeOf(id);
         if (code) codes.add(code);
     }

@@ -27,7 +27,8 @@ export function collectBladeDecisions(
     const records: RootDecisionRecord[] = [];
     setRootDecisionSink((r) => records.push(r));
     try {
-        for (const scenario of scenarios) {
+        for (let i = 0; i < scenarios.length; i++) {
+            const scenario = scenarios[i];
             runBladeScenario(scenario);
         }
     } finally {

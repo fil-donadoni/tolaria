@@ -113,19 +113,28 @@ function handleTokens(state: GameState): Map<string, string> {
         const definitionId = (instance.card as { id?: string }).id;
         if (definitionId) tokens.set(instance.id, `${CARD}${definitionId}`);
     };
-    for (const player of state.players) {
-        for (const zone of [
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const zoneList = [
             player.battlefield,
             player.hand,
             player.graveyard,
             player.exile,
             player.library,
-        ]) {
-            for (const instance of zone) take(instance);
+        ];
+        for (let j = 0; j < zoneList.length; j++) {
+            const zone = zoneList[j];
+            for (let k = 0; k < zone.length; k++) {
+                const instance = zone[k];
+                take(instance);
+            }
         }
         // CR 702.139a — the companion slot holds a real instance.
         if (player.companion) take(player.companion.instance);
-        for (const grant of player.grantedAbilities ?? []) {
+        const grantList = player.grantedAbilities ?? [];
+        for (let j = 0; j < grantList.length; j++) {
+            const grant = grantList[j];
             // CR 113.1b — `grant-N` comes off `GameState.nextGrantSeq`, a
             // per-GAME counter, so it is pure per-world noise. The template the
             // grant references is what identifies it on both sides.
@@ -135,12 +144,26 @@ function handleTokens(state: GameState): Map<string, string> {
             );
         }
     }
-    for (const item of state.stack) take(item);
+    const itemList = state.stack;
+    for (let i = 0; i < itemList.length; i++) {
+        const item = itemList[i];
+        take(item);
+    }
     // CR 614.12a (ADR 0100) — an entry parked mid-flight is off every zone.
-    for (const staged of state.stagedEntries ?? []) take(staged.card);
+    const stagedList = state.stagedEntries ?? [];
+    for (let i = 0; i < stagedList.length; i++) {
+        const staged = stagedList[i];
+        take(staged.card);
+    }
     // CR 702.26 — a phased-out bundle is off the battlefield but still real.
-    for (const bundle of state.phasedOut ?? []) {
-        for (const instance of bundle.cards) take(instance);
+    const bundleList = state.phasedOut ?? [];
+    for (let i = 0; i < bundleList.length; i++) {
+        const bundle = bundleList[i];
+        const instanceList = bundle.cards;
+        for (let j = 0; j < instanceList.length; j++) {
+            const instance = instanceList[j];
+            take(instance);
+        }
     }
     return tokens;
 }

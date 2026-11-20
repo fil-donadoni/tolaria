@@ -451,17 +451,21 @@ function firingEvents(
 ): GameEvent[] {
     if (ability.perAttacker !== true) return events;
     const out: GameEvent[] = [];
-    for (const event of events) {
+    for (let i = 0; i < events.length; i++) {
+        const event = events[i];
         if (event.type !== "ATTACKERS_DECLARED") {
             out.push(event);
             continue;
         }
-        for (const attackerId of event.attackerIds)
+        const attackerIdList = event.attackerIds;
+        for (let j = 0; j < attackerIdList.length; j++) {
+            const attackerId = attackerIdList[j];
             out.push({
                 type: "ATTACKERS_DECLARED",
                 attackingPlayerId: event.attackingPlayerId,
                 attackerIds: [attackerId],
             });
+        }
     }
     return out;
 }
@@ -508,9 +512,11 @@ function collectZoneTriggers(
     if (!cardId) return;
     const abilities = tryGetDefinition(cardId)?.triggeredAbilities;
     if (!abilities || abilities.length === 0) return;
-    for (const ability of abilities) {
+    for (let i = 0; i < abilities.length; i++) {
+        const ability = abilities[i];
         if (ability.zone !== zone) continue;
-        for (const event of events) {
+        for (let j = 0; j < events.length; j++) {
+            const event = events[j];
             if (!triggerHandlesEventType(ability, event.type)) continue;
             if (!ability.matches(event, card, state)) continue;
             out.push(buildTriggerItem(state, card, ability.id, [event]));
@@ -540,7 +546,7 @@ export function collectTriggers(
     const opponents = state.players.filter(
         (p) => p.id !== state.activePlayerId
     );
-    const ordered = [active, ...opponents];
+    const ordered = [active].concat(opponents);
 
     const recentlyDead = new Set<string>();
     // CR 603.10 — PERMANENT_LEFT triggers on the leaving permanent itself
@@ -551,7 +557,8 @@ export function collectTriggers(
         string,
         "graveyard" | "exile" | "hand" | "library"
     >();
-    for (const ev of events) {
+    for (let j = 0; j < events.length; j++) {
+        const ev = events[j];
         if (ev.type === "CREATURE_DIED") {
             recentlyDead.add(ev.creatureInstanceId);
         } else if (ev.type === "PERMANENT_LEFT") {
@@ -572,10 +579,13 @@ export function collectTriggers(
     const lookBackSources = new Set<CardInstanceState>();
 
     const out: StackItem[] = [];
-    for (const player of ordered) {
-        const sources: CardInstanceState[] = [...player.battlefield];
+    for (let j = 0; j < ordered.length; j++) {
+        const player = ordered[j];
+        const sources: CardInstanceState[] = player.battlefield.slice();
         if (recentlyDead.size > 0) {
-            for (const c of player.graveyard) {
+            const cList = player.graveyard;
+            for (let k = 0; k < cList.length; k++) {
+                const c = cList[k];
                 if (!recentlyDead.has(c.id)) continue;
                 sources.push(c);
                 lookBackSources.add(c);
@@ -587,8 +597,8 @@ export function collectTriggers(
             // referenced by recentlyLeft.toZone so an aura that just hit
             // the graveyard can still place its LTB-trigger on the stack.
             const visitedIds = new Set<string>();
-            for (const [id, zone] of recentlyLeft) {
-                if (visitedIds.has(id)) continue;
+            recentlyLeft.forEach((zone, id) => {
+                if (visitedIds.has(id)) return;
                 const pile =
                     zone === "graveyard"
                         ? player.graveyard
@@ -597,7 +607,8 @@ export function collectTriggers(
                           : zone === "hand"
                             ? player.hand
                             : player.library;
-                for (const c of pile) {
+                for (let i = 0; i < pile.length; i++) {
+                    const c = pile[i];
                     if (c.id === id && !sources.includes(c)) {
                         sources.push(c);
                         lookBackSources.add(c);
@@ -605,9 +616,10 @@ export function collectTriggers(
                         break;
                     }
                 }
-            }
+            });
         }
-        for (const source of sources) {
+        for (let k = 0; k < sources.length; k++) {
+            const source = sources[k];
             // CR 603.10 / 603.10a — a source that has just LEFT the
             // battlefield contributes the triggers of what it WAS there, not
             // of the printed card the departure funnel's copy / transform /
@@ -632,7 +644,8 @@ export function collectTriggers(
             // (Vesuvan Doppelganger's upkeep re-copy).
             const abilities = effectiveTriggeredAbilities(permanent);
             if (abilities.length === 0) continue;
-            for (const ability of abilities) {
+            for (let m = 0; m < abilities.length; m++) {
+                const ability = abilities[m];
                 // Battlefield-zone abilities only here; graveyard-zone
                 // abilities (zone: "graveyard") are scanned separately below.
                 if (ability.zone) continue;
@@ -646,7 +659,8 @@ export function collectTriggers(
                 // can enumerate the whole set rather than only the first.
                 if (ability.oncePerEventBatch) {
                     const matching: GameEvent[] = [];
-                    for (const event of events) {
+                    for (let i2 = 0; i2 < events.length; i2++) {
+                        const event = events[i2];
                         if (!triggerHandlesEventType(ability, event.type))
                             continue;
                         // CR 603.2 — the per-turn cap is checked per event, so
@@ -673,7 +687,9 @@ export function collectTriggers(
                 // declared creature, so the loop below fires it once per
                 // attacker and each firing names its own (`$event.combatant`).
                 // Every other ability sees the batch exactly as emitted.
-                for (const event of firingEvents(ability, events)) {
+                const eventList = firingEvents(ability, events);
+                for (let i2 = 0; i2 < eventList.length; i2++) {
+                    const event = eventList[i2];
                     if (!triggerHandlesEventType(ability, event.type)) continue;
                     // CR 603.2 — "this ability triggers only N times each turn"
                     // (Nadu, Winged Wisdom). The cap is checked BEFORE
@@ -699,13 +715,17 @@ export function collectTriggers(
     // `matches`/`interveningIf` inspects card position via `TriggerStateView`.
     // A face-down exiled card has no characteristics (CR 406.3a), so it
     // contributes nothing.
-    for (const player of ordered) {
+    for (let j = 0; j < ordered.length; j++) {
+        const player = ordered[j];
         const zonePiles = [
             ["graveyard", player.graveyard],
             ["exile", player.exile],
         ] as const;
-        for (const [zone, pile] of zonePiles) {
-            for (const card of pile) {
+        for (let k = 0; k < zonePiles.length; k++) {
+            const [zone, pile] = zonePiles[k];
+            const cardList = pile;
+            for (let m = 0; m < cardList.length; m++) {
+                const card = cardList[m];
                 if (zone === "exile" && isFaceDownExile(card)) continue;
                 collectZoneTriggers(state, events, card, zone, out);
             }
@@ -717,15 +737,19 @@ export function collectTriggers(
     // owner-scoped `self`. APNAP grouping is applied later in
     // `placeTriggersOnStack` (which buckets by `controllerId`), so collection
     // order here need not be APNAP-perfect.
-    for (const emblem of state.emblems ?? []) {
+    const emblemList = state.emblems ?? [];
+    for (let j = 0; j < emblemList.length; j++) {
+        const emblem = emblemList[j];
         const abilities = tryGetEmblemDefinition(
             emblem.emblemId
         )?.triggeredAbilities;
         if (!abilities || abilities.length === 0) continue;
         const self = emblemAsTriggerSelf(emblem);
-        for (const ability of abilities) {
+        for (let k = 0; k < abilities.length; k++) {
+            const ability = abilities[k];
             let firedThisBatch = false;
-            for (const event of events) {
+            for (let m = 0; m < events.length; m++) {
+                const event = events[m];
                 if (!triggerHandlesEventType(ability, event.type)) continue;
                 if (ability.oncePerEventBatch && firedThisBatch) continue;
                 if (!ability.matches(event, self, state)) continue;
@@ -760,7 +784,9 @@ export function collectTriggers(
     // so they can't fire twice. recentlyLeft is the set of ids that just left.
     if (state.delayedTriggers?.length && recentlyLeft.size > 0) {
         const remaining: DelayedTriggerInstance[] = [];
-        for (const t of state.delayedTriggers) {
+        const tList = state.delayedTriggers;
+        for (let j = 0; j < tList.length; j++) {
+            const t = tList[j];
             const fires =
                 (t.timing === "leaves-battlefield" ||
                     t.timing === "leaves-battlefield-indefinite") &&
@@ -784,7 +810,9 @@ export function collectTriggers(
     // purges it (the "this turn" bound, CR 514.2). Dequeued by firing.
     if (state.delayedTriggers?.length && recentlyDead.size > 0) {
         const remaining: DelayedTriggerInstance[] = [];
-        for (const t of state.delayedTriggers) {
+        const tList2 = state.delayedTriggers;
+        for (let j = 0; j < tList2.length; j++) {
+            const t = tList2[j];
             const fires =
                 t.timing === "dies" &&
                 t.watchInstanceId !== undefined &&
@@ -808,13 +836,16 @@ export function collectTriggers(
     // dequeued by firing ("when", not "whenever") so it can't fire twice, and
     // purged at CLEANUP if it never fired (the "this turn" bound, CR 514.2).
     const unblockedAttackerIds = new Set<string>();
-    for (const ev of events) {
+    for (let j = 0; j < events.length; j++) {
+        const ev = events[j];
         if (ev.type === "ATTACKER_UNBLOCKED")
             unblockedAttackerIds.add(ev.attackerId);
     }
     if (state.delayedTriggers?.length && unblockedAttackerIds.size > 0) {
         const remaining: DelayedTriggerInstance[] = [];
-        for (const t of state.delayedTriggers) {
+        const tList3 = state.delayedTriggers;
+        for (let j = 0; j < tList3.length; j++) {
+            const t = tList3[j];
             const fires =
                 t.timing === "attacks-unblocked" &&
                 t.watchInstanceId !== undefined &&
@@ -844,9 +875,11 @@ export function collectTriggers(
             (t) => t.timing === "this-turn-creature-blocks"
         );
         if (repeaters.length > 0) {
-            for (const event of events) {
+            for (let j = 0; j < events.length; j++) {
+                const event = events[j];
                 if (event.type !== "BLOCKERS_CONFIRMED") continue;
-                for (const t of repeaters) {
+                for (let k = 0; k < repeaters.length; k++) {
+                    const t = repeaters[k];
                     out.push({
                         ...buildDelayedTriggerStackItem(state, t),
                         triggerEvent: event,
@@ -889,9 +922,11 @@ export function collectTriggers(
                 t.watchInstanceId !== undefined
         );
         if (blockWatchers.length > 0) {
-            for (const event of events) {
+            for (let j = 0; j < events.length; j++) {
+                const event = events[j];
                 if (event.type !== "BLOCKERS_CONFIRMED") continue;
-                for (const t of blockWatchers) {
+                for (let k = 0; k < blockWatchers.length; k++) {
+                    const t = blockWatchers[k];
                     if (event.attackerId !== t.watchInstanceId) continue;
                     // An event carrying no colours (a colourless blocker,
                     // CR 105.2c) matches no colour condition — fail closed.
@@ -929,9 +964,11 @@ export function collectTriggers(
                 t.watchInstanceId !== undefined
         );
         if (damageWatchers.length > 0) {
-            for (const event of events) {
+            for (let j = 0; j < events.length; j++) {
+                const event = events[j];
                 if (event.type !== "DAMAGE_DEALT" || !event.isCombat) continue;
-                for (const t of damageWatchers) {
+                for (let k = 0; k < damageWatchers.length; k++) {
+                    const t = damageWatchers[k];
                     if (event.sourceInstanceId !== t.watchInstanceId) continue;
                     out.push({
                         ...buildDelayedTriggerStackItem(state, t),
@@ -966,9 +1003,12 @@ export function collectTriggers(
     // (phases.ts). The event rides onto the StackItem so the body reads
     // `$event.amount`.
     if (state.delayedTriggers?.length) {
-        for (const event of events) {
+        for (let j = 0; j < events.length; j++) {
+            const event = events[j];
             if (event.type !== "DAMAGE_PREVENTED") continue;
-            for (const t of state.delayedTriggers) {
+            const tList4 = state.delayedTriggers;
+            for (let k = 0; k < tList4.length; k++) {
+                const t = tList4[k];
                 if (t.timing !== "this-turn-damage-prevented-this-way")
                     continue;
                 if (event.preventionWatchId !== t.id) continue;
@@ -995,9 +1035,12 @@ export function collectTriggers(
     // battlefield: instance ids survive zone changes, and its return is a new
     // object this watch must not reach.
     if (state.delayedTriggers?.length) {
-        for (const event of events) {
+        for (let j = 0; j < events.length; j++) {
+            const event = events[j];
             if (event.type !== "ATTACKERS_DECLARED") continue;
-            for (const t of state.delayedTriggers) {
+            const tList5 = state.delayedTriggers;
+            for (let k = 0; k < tList5.length; k++) {
+                const t = tList5[k];
                 if (
                     t.timing === "this-turn-watched-creature-attacks-monarch" &&
                     t.watchInstanceId !== undefined &&
@@ -1049,17 +1092,22 @@ export function collectTriggers(
     // one fires on, are rows of `UNTIL_NEXT_TURN_ATTACK_WATCHES`
     // (`gre/attackWatch.ts`, issue #8166).
     if (state.delayedTriggers?.length) {
-        for (const event of events) {
+        for (let j = 0; j < events.length; j++) {
+            const event = events[j];
             if (event.type !== "ATTACKERS_DECLARED") continue;
-            for (const t of state.delayedTriggers) {
+            const tList6 = state.delayedTriggers;
+            for (let k = 0; k < tList6.length; k++) {
+                const t = tList6[k];
                 const watch = UNTIL_NEXT_TURN_ATTACK_WATCHES[t.timing];
                 if (!watch) continue;
-                for (const firing of attackWatchFirings(
+                const firingList = attackWatchFirings(
                     state,
                     event,
                     t.controller,
                     watch
-                )) {
+                );
+                for (let m = 0; m < firingList.length; m++) {
+                    const firing = firingList[m];
                     out.push({
                         ...buildDelayedTriggerStackItem(state, t),
                         triggerEvent: firing,
@@ -1074,9 +1122,12 @@ export function collectTriggers(
     // turn, …", Dalkovan Encampment). Repeating: stays queued after firing and
     // is purged at CLEANUP (phases.ts), so an extra combat fires it again.
     if (state.delayedTriggers?.length) {
-        for (const event of events) {
+        for (let j = 0; j < events.length; j++) {
+            const event = events[j];
             if (event.type !== "ATTACKERS_DECLARED") continue;
-            for (const t of state.delayedTriggers) {
+            const tList7 = state.delayedTriggers;
+            for (let k = 0; k < tList7.length; k++) {
+                const t = tList7[k];
                 if (t.timing !== "this-turn-you-attack") continue;
                 if (t.controller !== event.attackingPlayerId) continue;
                 out.push({
@@ -1102,7 +1153,8 @@ export function collectTriggers(
             (t) =>
                 t.timing === "this-turn-creature-deals-combat-damage-to-player"
         );
-        for (const t of damageRepeaters) {
+        for (let j = 0; j < damageRepeaters.length; j++) {
+            const t = damageRepeaters[j];
             const matchEvent = events.find(
                 (e) =>
                     e.type === "DAMAGE_DEALT" &&
@@ -1127,7 +1179,8 @@ export function collectTriggers(
     // here so the trigger is built exactly once. A card is only ever discarded
     // from its owner's hand, so the discarding player IS the owner (CR 702.35a —
     // "its owner may cast it").
-    for (const event of events) {
+    for (let j = 0; j < events.length; j++) {
+        const event = events[j];
         if (event.type !== "CARD_DISCARDED") continue;
         const owner = getPlayer(state, event.playerId);
         const card = owner.exile.find(
@@ -1144,7 +1197,8 @@ export function collectTriggers(
     // ONLY off the dedicated MIRACLE_REVEALED event the miracle window emits
     // (`revealForMiracle`) — never a generic reveal — and only while the card
     // is still in that hand.
-    for (const event of events) {
+    for (let j = 0; j < events.length; j++) {
+        const event = events[j];
         if (event.type !== "MIRACLE_REVEALED") continue;
         const owner = getPlayer(state, event.playerId);
         const card = owner.hand.find((c) => c.id === event.cardInstanceId);
@@ -1156,9 +1210,12 @@ export function collectTriggers(
     // CR 702.99a — "whenever this creature deals combat damage to a player, you
     // may copy the encoded card". One trigger per encoded card and per damage
     // event, each naming its card, off what the event captured.
-    for (const event of events) {
+    for (let j = 0; j < events.length; j++) {
+        const event = events[j];
         if (event.type !== "DAMAGE_DEALT") continue;
-        for (const cardId of event.encodedCardIds ?? []) {
+        const cardIdList = event.encodedCardIds ?? [];
+        for (let k = 0; k < cardIdList.length; k++) {
+            const cardId = cardIdList[k];
             const item = buildEncodedCardTrigger(state, cardId, event);
             if (item) out.push(item);
         }
@@ -1179,7 +1236,8 @@ export function collectTriggers(
     // (Marauding Mako's "whenever you discard") is never collected here — which
     // together with the single-event design is CR 702.29d: a "cycles or
     // discards" ability fires exactly once on a cycled card.
-    for (const event of events) {
+    for (let j = 0; j < events.length; j++) {
+        const event = events[j];
         if (event.type !== "CARD_DISCARDED") continue;
         const owner = getPlayer(state, event.playerId);
         const card =
@@ -1190,7 +1248,8 @@ export function collectTriggers(
         if (!cardId) continue;
         const abilities = tryGetDefinition(cardId)?.triggeredAbilities;
         if (!abilities || abilities.length === 0) continue;
-        for (const ability of abilities) {
+        for (let k = 0; k < abilities.length; k++) {
+            const ability = abilities[k];
             if (!ability.functionsFromOwnDiscard) continue;
             if (!triggerHandlesEventType(ability, event.type)) continue;
             if (!ability.matches(event, card, state)) continue;
@@ -1226,11 +1285,14 @@ export function collectStateTriggers(state: GameState): StackItem[] {
     const opponents = state.players.filter(
         (p) => p.id !== state.activePlayerId
     );
-    const ordered = [active, ...opponents];
+    const ordered = [active].concat(opponents);
 
     const out: StackItem[] = [];
-    for (const player of ordered) {
-        for (const permanent of player.battlefield) {
+    for (let i = 0; i < ordered.length; i++) {
+        const player = ordered[i];
+        const permanentList = player.battlefield;
+        for (let j = 0; j < permanentList.length; j++) {
+            const permanent = permanentList[j];
             const cardId = (permanent.card as { id?: string }).id;
             if (!cardId) continue;
             // CR 603.8 — only a state-triggered ability can trigger here, so a
@@ -1240,7 +1302,8 @@ export function collectStateTriggers(state: GameState): StackItem[] {
             if (!mayHaveTriggeredAbilityOn(permanent, "STATE_CHECK")) continue;
             const abilities = effectiveTriggeredAbilities(permanent);
             if (abilities.length === 0) continue;
-            for (const ability of abilities) {
+            for (let k = 0; k < abilities.length; k++) {
+                const ability = abilities[k];
                 if (ability.event !== "STATE_CHECK") continue;
                 if (stateTriggerAlreadyOnStack(state, permanent.id, ability.id))
                     continue;
@@ -1373,15 +1436,15 @@ export function placeTriggersOnStack(
     if (triggers.length === 0) return false;
 
     // APNAP controller order: active player first, then the others in seat order.
-    const apnap = [
-        state.activePlayerId,
-        ...state.players
+    const apnap = [state.activePlayerId].concat(
+        state.players
             .map((p) => p.id)
-            .filter((id) => id !== state.activePlayerId),
-    ];
+            .filter((id) => id !== state.activePlayerId)
+    );
 
     const choices: PendingChoice[] = [];
-    for (const playerId of apnap) {
+    for (let i = 0; i < apnap.length; i++) {
+        const playerId = apnap[i];
         const slice = triggers.filter((t) => t.controllerId === playerId);
         // No ordering owed: a single trigger, identical copies (auto-ordered,
         // ADR 0003), or a slice with any engine-internal (delayed / Madness /
@@ -1434,7 +1497,7 @@ export function placeTriggersOnStack(
     // Suspend on the ordering choice(s). Hold the whole batch off-stack; the
     // final APNAP push runs when the last `trigger-order` choice clears.
     state.pendingTriggerBatch = triggers;
-    state.pendingChoices = [...(state.pendingChoices ?? []), ...choices];
+    state.pendingChoices = (state.pendingChoices ?? []).concat(choices);
     state.priorityPlayerId = state.pendingChoices[0].playerId;
     state.passCount = 0;
     return false;

@@ -91,7 +91,9 @@ export function searchVerdict(
 
     let agreed = 0;
     const picks: string[] = [];
-    for (const seed of budget.seeds) {
+    const seedList = budget.seeds;
+    for (let i = 0; i < seedList.length; i++) {
+        const seed = seedList[i];
         const state = buildVerdictState(verdict);
         const botId = seatPlayerId(state, verdict.seat);
         const resolved = resolveVerdictMoves(verdict, state, botId);
@@ -153,7 +155,8 @@ export function formatVerdictSearchReport(
     out.push(`  everything else    : ${tally(rows.filter((r) => !r.timing))}`);
     const classes = [...new Set(rows.map((r) => r.class))].sort();
     out.push("\n== by class (seed agreement)");
-    for (const cls of classes) {
+    for (let i = 0; i < classes.length; i++) {
+        const cls = classes[i];
         const subset = rows.filter((r) => r.class === cls);
         out.push(
             `  ${cls.padEnd(18)} : ${tally(subset)}  (${subset.length} verdicts)`
@@ -161,7 +164,8 @@ export function formatVerdictSearchReport(
     }
 
     out.push("\n== per verdict (agreed/seeds, T = timing, IND = Indifferent)");
-    for (const row of allRows) {
+    for (let i = 0; i < allRows.length; i++) {
+        const row = allRows[i];
         if (row.indifferent === true) {
             out.push(`    IND   ${row.verdictId}`);
             continue;
@@ -257,7 +261,9 @@ export function formatHeldOutPickAgreement(
         `  indifferent        : ${indifferent} verdicts graded Indifferent (no weight, outside the denominator)`,
         "  by Decision Class",
     ];
-    for (const cls of [...new Set(searched.map((r) => r.class))].sort()) {
+    const clsList = [...new Set(searched.map((r) => r.class))].sort();
+    for (let i = 0; i < clsList.length; i++) {
+        const cls = clsList[i];
         out.push(
             `    ${cls.padEnd(16)} : ${verdictTally(searched.filter((r) => r.class === cls))}`
         );

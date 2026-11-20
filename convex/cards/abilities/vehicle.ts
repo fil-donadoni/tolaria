@@ -244,27 +244,25 @@ export function makeVehicle(spec: VehicleSpec): CardDefinition {
         // CR 301.7 — an Artifact, NOT a Creature. It gains the creature type
         // only while a resolved crew ability's animation is active.
         types: ["Artifact"],
-        subtypes: ["Vehicle", ...(spec.extraSubtypes ?? [])],
+        subtypes: ["Vehicle"].concat(spec.extraSubtypes ?? []),
         ...(spec.supertypes ? { supertypes: spec.supertypes } : {}),
         power: spec.power,
         toughness: spec.toughness,
-        staticAbilities: [
-            ...(spec.staticAbilities ?? []),
+        staticAbilities: (spec.staticAbilities ?? []).concat([
             crewKeyword(spec.crew),
-        ],
+        ]),
         ...(spec.staticEffects ? { staticEffects: spec.staticEffects } : {}),
         ...(spec.triggeredAbilities
             ? { triggeredAbilities: spec.triggeredAbilities }
             : {}),
-        activatedAbilities: [
-            ...(spec.activatedAbilities ?? []),
+        activatedAbilities: (spec.activatedAbilities ?? []).concat([
             crewAbility({
                 name: spec.name,
                 n: spec.crew,
                 power: spec.power,
                 toughness: spec.toughness,
             }),
-        ],
+        ]),
         ...(spec.aiValue !== undefined ? { aiValue: spec.aiValue } : {}),
     };
 }

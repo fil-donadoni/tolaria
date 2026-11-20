@@ -279,7 +279,9 @@ export function activationConditionErrors(condition: unknown): string[] {
             `activationCondition: unknown comparison op ${JSON.stringify(pred.op)}`
         );
     }
-    for (const side of ["left", "right"] as const) {
+    const sideList = ["left", "right"] as const;
+    for (let i = 0; i < sideList.length; i++) {
+        const side = sideList[i];
         errors.push(
             ...operandErrors(pred[side]).map(
                 (e) => `activationCondition.${side}: ${e}`
@@ -308,7 +310,9 @@ function operandErrors(value: unknown): string[] {
     }
     const s = spec as Record<string, unknown>;
     const errors: string[] = [];
-    for (const key of Object.keys(s)) {
+    const keyList = Object.keys(s);
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         if (!COUNT_KEYS.has(key)) {
             errors.push(
                 `count.${key} is not readable at activation time (accepted: ${[...COUNT_KEYS].join(", ")})`
@@ -369,7 +373,9 @@ function filterErrors(zone: unknown, filter: unknown): string[] {
         return ["count.filter must be an EffectCardFilter object"];
     }
     const errors: string[] = [];
-    for (const [key, value] of Object.entries(filter)) {
+    const entries2 = Object.entries(filter);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, value] = entries2[i];
         if (!BATTLEFIELD_FILTER_KEYS.has(key)) {
             errors.push(
                 `count.filter.${key} is not readable at activation time (accepted: ${[...BATTLEFIELD_FILTER_KEYS].join(", ")})`

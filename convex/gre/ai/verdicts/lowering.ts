@@ -287,7 +287,7 @@ export function lowerDecision(
     // creature never happened. So it is a refusal, and it names every item and
     // field that blocked it: which field costs the most verdicts is what
     // decides the next slice (#3516 is the trigger one).
-    const blockers = [...stackBlockers, ...offStackObjectBlockers(position)];
+    const blockers = stackBlockers.concat(offStackObjectBlockers(position));
     if (blockers.length > 0) {
         return {
             ok: false,
@@ -559,7 +559,9 @@ export function lowerDecision(
  *  third seat gets a number rather than a special case. */
 function nameSeatsByRole(state: GameState, seatId: string): void {
     const seats = relativeSeatIndexes(state, seatId);
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const seat = seats.get(player.id);
         if (seat === undefined) continue;
         player.name =
@@ -653,6 +655,9 @@ export function candidateSetsDiffer(
 
 function countByKey(list: ComparedCandidate[]): Map<string, number> {
     const counts = new Map<string, number>();
-    for (const { key } of list) counts.set(key, (counts.get(key) ?? 0) + 1);
+    for (let i = 0; i < list.length; i++) {
+        const key = list[i].key;
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
     return counts;
 }
