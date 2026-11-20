@@ -14,12 +14,17 @@ import {
     primaryManaTapOptions,
     normalizedHybridPips,
 } from "./constants";
-import type { ManaReplacementView, ManaTapPlanContext } from "./constants";
+import type {
+    ManaReplacementView,
+    ManaTapOptionSource,
+    ManaTapPlanContext,
+} from "./constants";
 import type { CardInstanceState, GameState } from "./state";
 import type { Phase } from "./types";
 import {
     isManaCostCovered,
     normalizeManaCost,
+    restrictedManaMayPay,
     type ManaSubstitution,
 } from "./state";
 import { sourceUntapPrice } from "./autoTapDemands";
@@ -239,6 +244,23 @@ function withTapBonus(
     return merged;
 }
 
+/** CR 106.6 (issue #9861) — may the plan spend this option's mana? Always
+ *  for an unrestricted option; for a restricted one only when the context
+ *  names what the payment is for and `restrictedManaMayPay` allows it. */
+function restrictedOptionMayPay(
+    card: CardInstanceState,
+    source: ManaTapOptionSource,
+    context: ManaTapPlanContext | undefined
+): boolean {
+    const restriction = getManaTapOptionRestriction(card, source);
+    if (restriction === null) return true;
+    const payingFor = context?.payingFor;
+    return (
+        payingFor !== undefined &&
+        restrictedManaMayPay(restriction, card, payingFor)
+    );
+}
+
 /** Build the solver's source list from a player's battlefield, excluding
  *  tapped sources, summoning-sick creature dorks (CR 302.1), sacrifice mana
  *  abilities, and anything that produces no known mana output.
@@ -349,14 +371,18 @@ export function buildAutoTapSources(
                 ability?.manaColorSource
             );
         // CR 106.6 — restricted mana (Mishra's Workshop; the SECOND, legendary-
-        // spell-only ability on Delighted Halfling) can pay only for certain
-        // spells; the solver reasons over the fungible pool and can't model
-        // that constraint, so it drops restricted OPTIONS from its candidate
-        // set — per-OPTION, not per-source (issue #1559 review), so a card
-        // mixing a free ability with a restricted one (Halfling's OTHER,
-        // unrestricted "{T}: Add {C}.") stays auto-tappable on its free
-        // option; only Mishra's-Workshop-style wholly-restricted sources end
-        // up excluded entirely (their only option is filtered out below).
+        // spell-only ability on Delighted Halfling; Eldrazi Temple's {C}{C})
+        // can pay only for certain spells or abilities. Judged per-OPTION, not
+        // per-source (issue #1559 review), against the object the plan pays
+        // for (`context.payingFor`, issue #9861): an option whose restriction
+        // allows it is a candidate, and the solver may treat its mana as
+        // fungible because the plan spends it on that one payment only — the
+        // tap deposits it in `restrictedMana`, the commit drains it through
+        // `spendablePoolForSpell` / `spendablePoolForAbility`, and any unspent
+        // remainder keeps its restriction. With no `payingFor` (every caller
+        // but the human pending-payment Auto-Tap) every restricted option is
+        // dropped, as before; a source with an unrestricted option (Halfling's
+        // "{T}: Add {C}.") stays auto-tappable on it.
         // CR 122.6 (issue #2240 review, BLOCKING) — a `manaChoiceRemovesCounters`
         // option (Mana Battery / storage lands) whose choice index is > 0
         // spends the player's stored counters as PART OF the option's cost,
@@ -396,7 +422,7 @@ export function buildAutoTapSources(
             .filter(
                 ({ opt }) =>
                     (!opt.sacrificesSource || admitSacrifice) &&
-                    getManaTapOptionRestriction(card, opt.source) === null &&
+                    restrictedOptionMayPay(card, opt.source, context) &&
                     getManaChoiceCounterCost(card, opt.source) === null &&
                     !manaTapOptionSpendsUnplannedResource(
                         card,
