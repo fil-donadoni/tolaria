@@ -295,6 +295,7 @@ describe("purity", () => {
             (m) => m[1]
         );
         expect(imports.sort()).toEqual([
+            "./grade",
             "./identity",
             "./resolution",
             "./types",

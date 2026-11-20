@@ -65,8 +65,9 @@ import { convexRunErrorMessage } from "./convex-run-error";
 import { resolveSeedTarget } from "./seed-preset-run";
 import { loadLockedVerdicts } from "./verdict-pack-cache";
 
-/** The repository configuration holding the Admission bar (issue #3985). */
-const ADMISSION_CONFIG_FILE = "tolaria.config.json";
+/** The repository configuration: the Admission bar (issue #3985) and the
+ *  Reference Judge role (PRD issue #10083). */
+const REPO_CONFIG_FILE = "tolaria.config.json";
 
 /** Parallel GETs while snapshotting — a listing of thousands is thousands of
  *  objects, and an unbounded fan-out is a self-inflicted rate limit. */
@@ -123,7 +124,10 @@ export async function snapshotVerdictStore(
         ...(mode === "promote"
             ? {
                   streakLedger: readIfExists(join(root, PROMOTION_STREAK_PATH)),
-                  admission: readAdmissionBlock(root),
+                  admission: readConfigBlock(root, "admission"),
+                  // Whose Verdict Grade the lock's readings take (PRD issue
+                  // #10083): a role, configured, never a name in code.
+                  referenceJudge: readConfigBlock(root, "referenceJudge"),
               }
             : {}),
     };
@@ -132,13 +136,17 @@ export async function snapshotVerdictStore(
 const readIfExists = (path: string): string | null =>
     existsSync(path) ? readFileSync(path, "utf8") : null;
 
-/** `tolaria.config.json` § admission as written — validated by the engine
- *  step, which refuses a missing one (`parseAdmissionConfig`). */
-function readAdmissionBlock(root: string): unknown {
-    const text = readIfExists(join(root, ADMISSION_CONFIG_FILE));
+/** One block of `tolaria.config.json` as written — validated by the engine
+ *  step (`parseAdmissionConfig`, which refuses a missing one;
+ *  `parseReferenceJudgeConfig`). */
+function readConfigBlock(
+    root: string,
+    block: "admission" | "referenceJudge"
+): unknown {
+    const text = readIfExists(join(root, REPO_CONFIG_FILE));
     return text === null
         ? undefined
-        : (JSON.parse(text) as { admission?: unknown }).admission;
+        : (JSON.parse(text) as Record<string, unknown>)[block];
 }
 
 export type BladeMustResult = { passed: boolean; summary: string };

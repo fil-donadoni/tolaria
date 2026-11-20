@@ -49,6 +49,7 @@ import {
 } from "../../../verdictStore";
 import { positionKeyOf, verdictIdOf, type VerdictJudgement } from "./identity";
 import {
+    serializeVerdictLock,
     verdictsFromLock,
     type StoredVerdictPayload,
     type VerdictLock,
@@ -67,7 +68,13 @@ import {
     type VerdictQuarantine,
 } from "./quarantine";
 import { sha256Hex } from "./sha256";
-import type { Verdict, VerdictAttestation, VerdictResolution } from "./types";
+import { readingOfAttestations } from "./grade";
+import type {
+    Verdict,
+    VerdictAttestation,
+    VerdictReading,
+    VerdictResolution,
+} from "./types";
 
 /** Where the committed fitted literal (`FITTED_EVAL_WEIGHTS`, spread into
  *  `DEFAULT_EVAL_WEIGHTS`) lives, relative to the repo root — the file a
@@ -106,6 +113,10 @@ export type VerdictPromotionInput = {
     /** `tolaria.config.json` § admission, as read — `promote` only; the
      *  engine step validates it (`parseAdmissionConfig`). */
     admission?: unknown;
+    /** `tolaria.config.json` § referenceJudge, as read — `promote` only: whose
+     *  Verdict Grade the lock's readings take (`grade.ts`). The engine step
+     *  validates it (`parseReferenceJudgeConfig`); absent = no one. */
+    referenceJudge?: unknown;
 };
 
 /** What the engine step hands back. A promotion that is not a no-op carries
@@ -476,11 +487,42 @@ export type PromotionPlan = {
     noop: boolean;
 };
 
+/** The Verdict Grade each promotable verdict is read with (`grade.ts`), from
+ *  its attestations — non-clear readings only, keyed by id. A resolved
+ *  position's accepted verdict is read from its own attestations, like any
+ *  other. */
+export function promotionReadings(
+    validation: StoreValidation,
+    verdictIds: readonly string[],
+    isReferenceJudge: (author: string) => boolean
+): Record<string, VerdictReading> {
+    const attested = new Map(
+        [
+            ...validation.quarantine.promotable,
+            ...validation.quarantine.resolved.flatMap((r) =>
+                r.accepted === null ? [] : [r.accepted]
+            ),
+        ].map((v) => [v.verdictId, v.attestations])
+    );
+    const out: Record<string, VerdictReading> = {};
+    for (const id of [...verdictIds].sort(byString)) {
+        const reading = readingOfAttestations(
+            attested.get(id) ?? [],
+            isReferenceJudge
+        );
+        if (reading !== null) out[id] = reading;
+    }
+    return out;
+}
+
 /** The lock a promotion writes over `current`. Throws when `current` names a
- *  verdict the store listing holds no object for. */
+ *  verdict the store listing holds no object for. `isReferenceJudge` says
+ *  whose grade a verdict is read with (`grade.ts`); without it no one holds
+ *  the role. */
 export function planPromotion(
     current: VerdictLock | null,
-    validation: StoreValidation
+    validation: StoreValidation,
+    isReferenceJudge: (author: string) => boolean = () => false
 ): PromotionPlan {
     const promotable = new Map(
         validation.promotable.map((entry) => [entry.verdictId, entry])
@@ -513,16 +555,26 @@ export function planPromotion(
         (e) => !keptIds.has(e.verdictId)
     );
     const entries = [...kept, ...appended];
+    const verdictIds = entries.map((e) => e.verdictId);
+    const readings = promotionReadings(
+        validation,
+        verdictIds,
+        isReferenceJudge
+    );
     const lock: VerdictLock = {
-        verdictIds: entries.map((e) => e.verdictId),
+        verdictIds,
         packHash: sha256Hex(encodeVerdictPack(entries)),
+        ...(Object.keys(readings).length === 0 ? {} : { readings }),
     };
+    // A regrade is a change: the fit reads the grade off the lock, so a lock
+    // whose readings moved is rewritten even when no id did.
     const noop =
         current === null
             ? entries.length === 0
             : appended.length === 0 &&
               dropped.length === 0 &&
-              current.packHash === lock.packHash;
+              current.packHash === lock.packHash &&
+              serializeVerdictLock(current) === serializeVerdictLock(lock);
     return {
         lock,
         entries,

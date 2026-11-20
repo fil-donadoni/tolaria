@@ -687,6 +687,66 @@ describe("verdicts:testers — the engine step (issue #3585)", () => {
         return out;
     };
 
+    it("verdicts:promote writes the Reference Judge's Verdict Grade into the lock, joined through an alias (PRD issue #10083)", async () => {
+        const [held] = satisfiedAndFlipped();
+        const store = createMemoryVerdictStore();
+        const { verdictId } = await putVerdict(store, held);
+        const right =
+            held.answer.kind === "right" ? held.answer.rightIndexes[0] : 0;
+        await putAttestation(store, {
+            verdictId,
+            author: "prod-a:alice",
+            sourceAxis: "explicit",
+            grade: "indifferent",
+        });
+        await putAttestation(store, {
+            verdictId,
+            author: "prod-b:owner2",
+            sourceAxis: "explicit",
+            grade: "preferred",
+            acceptedIndexes: [1 - right],
+        });
+        await putAlias(store, { authors: ["prod-b:owner2", "dev-a:owner1"] });
+        const input = {
+            mode: "promote" as const,
+            lock: null,
+            streakLedger: null,
+            evalWeightsSource: readFileSync(
+                resolve(__dirname, "../../../..", EVAL_WEIGHTS_PATH),
+                "utf8"
+            ),
+            verdictObjects: await b64(store, VERDICT_OBJECT_PREFIX),
+            attestationObjects: await b64(store, ATTESTATION_OBJECT_PREFIX),
+            aliasObjects: await b64(store, ALIAS_OBJECT_PREFIX),
+            admission: {
+                minPersons: 2,
+                ownerPersons: [],
+                minConsecutivePromotions: 1,
+                seeds: [1],
+                iterations: 30,
+            },
+        };
+        const judged = runVerdictPromotionStep(
+            { ...input, referenceJudge: { authors: ["dev-a:owner1"] } },
+            []
+        );
+        if (judged.mode !== "promote" || judged.noop) {
+            throw new Error("expected a promotion that writes");
+        }
+        expect(judged.lock.readings).toEqual({
+            [verdictId]: { grade: "preferred", acceptedIndexes: [1 - right] },
+        });
+        expect(judged.text).toContain("  reference judge    : dev-a:owner1");
+        // No one holds the role: the least committal grade is read.
+        const unjudged = runVerdictPromotionStep(input, []);
+        if (unjudged.mode !== "promote" || unjudged.noop) {
+            throw new Error("expected a promotion that writes");
+        }
+        expect(unjudged.lock.readings).toEqual({
+            [verdictId]: { grade: "indifferent" },
+        });
+    });
+
     it("verdicts:promote restarts at 0 the streak of a locked verdict the fitted weights leave unsatisfied (issue #3985)", async () => {
         const [held, flipped] = satisfiedAndFlipped();
         const store = createMemoryVerdictStore();

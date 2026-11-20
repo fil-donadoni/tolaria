@@ -19,6 +19,11 @@
 //   - UNSATISFIED — positions where a verdict the person gave is in the
 //     committed Verdict Lock and the Weight Fit could not satisfy it.
 //
+// Beside them, the GRADES the person gave (PRD issue #10083): how many of
+// their explicit judgements they called clear, preferred or indifferent — an
+// attestation with no grade is clear. A tester who grades everything Clear,
+// or everything Indifferent, shows here; like the rest, it is a reading.
+//
 // THE LAST NUMBER IS A POINTER, NEVER A VERDICT ON THE JUDGE. A pair the fit
 // cannot satisfy is equally the signature of a term the evaluation lacks
 // (ADR 0124 §3): the person who keeps landing there may be the one seeing
@@ -39,9 +44,10 @@
 //
 // Pure: no store, no clock. Output order is a function of the content.
 
+import { attestedGradeOf, leastCommittalGrade } from "./grade";
 import type { VerdictLock } from "./lockSource";
 import type { AttestedVerdict, VerdictQuarantine } from "./quarantine";
-import type { VerdictAuthorAlias } from "./types";
+import type { VerdictAuthorAlias, VerdictGrade } from "./types";
 
 /** The fit report over the committed lock: the lock, and the ids of its
  *  verdicts with a pair the fit left unsatisfied. */
@@ -67,6 +73,10 @@ export type TesterQuality = {
     quarantined: TesterPosition[];
     /** Empty, not unknown, when a fit report was read; see `fitRead`. */
     unsatisfied: TesterPosition[];
+    /** The person's explicit judgements by the grade THEY gave — one per
+     *  verdict; two of their accounts grading one verdict differently count
+     *  once, at the least committal. */
+    grades: Record<VerdictGrade, number>;
 };
 
 export type TesterQualityReport = {
@@ -167,16 +177,30 @@ export function testerQualityOf(
     }
 
     const verdicts = explicitVerdicts(quarantine);
+    const explicitOf = (v: AttestedVerdict) =>
+        v.attestations.filter((a) => a.sourceAxis === "explicit");
     const explicitAuthorsOf = (v: AttestedVerdict) =>
-        v.attestations
-            .filter((a) => a.sourceAxis === "explicit")
-            .map((a) => a.author);
+        explicitOf(v).map((a) => a.author);
     const persons = personsOf(verdicts.flatMap(explicitAuthorsOf), aliases);
 
     // position key → every explicit verdict id at it.
     const givenAt = new Map<string, Set<string>>();
     // person → position key → the verdict ids the person gave there.
     const mine = new Map<string, Map<string, Set<string>>>();
+    // person → verdict id → the grades the person's accounts gave it.
+    const gradesOf = new Map<string, Map<string, VerdictGrade[]>>();
+    for (const v of verdicts) {
+        for (const a of explicitOf(v)) {
+            const person = persons.get(a.author)!;
+            const byVerdict =
+                gradesOf.get(person) ?? new Map<string, VerdictGrade[]>();
+            gradesOf.set(person, byVerdict);
+            byVerdict.set(v.verdictId, [
+                ...(byVerdict.get(v.verdictId) ?? []),
+                attestedGradeOf(a),
+            ]);
+        }
+    }
     for (const v of verdicts) {
         const atKey = givenAt.get(v.positionKey) ?? new Set<string>();
         givenAt.set(v.positionKey, atKey);
@@ -240,6 +264,7 @@ export function testerQualityOf(
                 ),
                 () => true
             ),
+            grades: gradeCounts(gradesOf.get(person)),
         };
     });
 
@@ -253,6 +278,20 @@ export function testerQualityOf(
             .filter((id) => !attributed.has(id))
             .sort(byString),
     };
+}
+
+function gradeCounts(
+    byVerdict: ReadonlyMap<string, readonly VerdictGrade[]> | undefined
+): Record<VerdictGrade, number> {
+    const out: Record<VerdictGrade, number> = {
+        clear: 0,
+        preferred: 0,
+        indifferent: 0,
+    };
+    for (const grades of byVerdict?.values() ?? []) {
+        out[leastCommittalGrade(grades)]++;
+    }
+    return out;
 }
 
 const UNSATISFIED_NOTE =
@@ -282,6 +321,7 @@ export function formatTesterQuality(report: TesterQualityReport): string {
             "",
             `${t.person}${t.authors.length > 1 ? `  (also ${t.authors.filter((a) => a !== t.person).join(", ")})` : ""}`,
             `  given        : ${t.given.length}`,
+            `  grades       : clear ${t.grades.clear} · preferred ${t.grades.preferred} · indifferent ${t.grades.indifferent}`,
             `  contradicted : ${t.contradicted.length}`,
             `  quarantined  : ${t.quarantined.length}`,
             `  unsatisfied  : ${unsatisfied}`

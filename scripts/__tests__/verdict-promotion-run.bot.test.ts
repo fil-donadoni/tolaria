@@ -301,7 +301,7 @@ describe("verdicts:promote — the streak ledger and the Admission Candidates (i
         expect(storeNames(store)).toEqual(names);
     });
 
-    it("hands the engine the committed ledger, the admission block and the aliases", async () => {
+    it("hands the engine the committed ledger, the admission and Reference Judge blocks and the aliases", async () => {
         const store = createMemoryVerdictStore();
         await attested(store, 1);
         const { name } = await putAlias(store, {
@@ -311,15 +311,20 @@ describe("verdicts:promote — the streak ledger and the Admission Candidates (i
         writeFileSync(join(root, PROMOTION_STREAK_PATH), "committed ledger");
         writeFileSync(
             join(root, "tolaria.config.json"),
-            JSON.stringify({ admission: { minPersons: 7 } })
+            JSON.stringify({
+                admission: { minPersons: 7 },
+                referenceJudge: { authors: ["prod-a:alice"] },
+            })
         );
         const input = await snapshotVerdictStore(store, root, "promote");
         expect(input.streakLedger).toBe("committed ledger");
         expect(input.admission).toEqual({ minPersons: 7 });
+        expect(input.referenceJudge).toEqual({ authors: ["prod-a:alice"] });
         expect(input.aliasObjects?.map((o) => o.name)).toEqual([name]);
         const validate = await snapshotVerdictStore(store, root, "validate");
         expect(validate.streakLedger).toBeUndefined();
         expect(validate.admission).toBeUndefined();
+        expect(validate.referenceJudge).toBeUndefined();
     });
 });
 

@@ -38,6 +38,8 @@ import {
     searchHeldOutVerdicts,
     searchVerdict,
     testPositionKeysOf,
+    verdictsFromRegistry,
+    type Verdict,
     type VerdictSearchBudget,
 } from "../../verdicts";
 
@@ -75,6 +77,86 @@ describe("verdict search report formatting (issue #4764)", () => {
         expect(text).toContain("  1/2 T registry:holds");
         expect(text).toContain("picks: pass | cast Impulse");
         expect(text).not.toContain("picks: cast Bolt");
+    });
+});
+
+describe("the Verdict Grade through the search (PRD issue #10083)", () => {
+    it("lists an Indifferent verdict and keeps it out of every tally", () => {
+        const text = formatVerdictSearchReport(
+            [
+                {
+                    verdictId: "store:clear",
+                    class: "cast",
+                    timing: false,
+                    agreed: 2,
+                    seeds: 2,
+                    picks: [],
+                },
+                {
+                    verdictId: "store:shrug",
+                    class: "cast",
+                    timing: false,
+                    agreed: 0,
+                    seeds: 0,
+                    picks: [],
+                    indifferent: true,
+                },
+            ],
+            "400 iterations"
+        );
+        expect(text).toContain("— 1 verdicts, 400 iterations");
+        expect(text).toContain("all                : 2/2 (100.0%)");
+        expect(text).toContain("indifferent        : 1 verdicts");
+        expect(text).toContain("    IND   store:shrug");
+    });
+
+    // A real registry position, searched once at its own budget: the move the
+    // Bot plays there is made an accepted alternative of a Preferred verdict
+    // naming another move right — agreement on every seed — while the same
+    // verdict ungraded disagrees.
+    it("counts the Bot's pick of an accepted alternative as agreement", () => {
+        const entry = [...BLADE_SCENARIOS]
+            .filter((s) => s.tier === "must")
+            .sort((a, b) => a.budget.iterations - b.budget.iterations)
+            .map((s) => ({
+                s,
+                v: verdictsFromRegistry([s]).verdicts[0] as Verdict | undefined,
+            }))
+            .find(
+                ({ v }) =>
+                    v?.answer.kind === "right" &&
+                    v.answer.rightIndexes.length === 1 &&
+                    v.candidates.length >= 2
+            );
+        if (entry === undefined || entry.v === undefined) {
+            throw new Error("no single-right must entry to search");
+        }
+        const { s, v } = entry;
+        const budget = {
+            iterations: s.budget.iterations,
+            seeds: [(s.seeds ?? [DEFAULT_BLADE_SEED])[0]],
+        };
+        const played = (v.answer as { rightIndexes: number[] }).rightIndexes[0];
+        const other = played === 0 ? 1 : 0;
+        const moved: Verdict = {
+            ...v,
+            answer: { kind: "right", rightIndexes: [other] },
+        };
+        expect(searchVerdict(moved, budget).agreed).toBe(0);
+        expect(
+            searchVerdict(
+                {
+                    ...moved,
+                    reading: { grade: "preferred", acceptedIndexes: [played] },
+                },
+                budget
+            ).agreed
+        ).toBe(1);
+        const shrug = searchVerdict(
+            { ...moved, reading: { grade: "indifferent" } },
+            budget
+        );
+        expect(shrug).toMatchObject({ indifferent: true, seeds: 0 });
     });
 });
 

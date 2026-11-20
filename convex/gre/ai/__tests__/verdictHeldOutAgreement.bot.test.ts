@@ -97,6 +97,7 @@ describe("held-out eval agreement (issue #3982)", () => {
                 "  burned             : 0 held-out positions admitted to the registry anyway (held-out n = 5 remaining)",
                 "  all                : 3/5 (60.0%)  n = 5, indicative, not a claim",
                 "  excluded           : 1 timing pairs, 1 incomplete units (not agreement evidence)",
+                "  indifferent        : 0 verdicts graded Indifferent (no weight, outside the count)",
                 "  by Decision Class",
                 "    cast             : 2/3 (66.7%)  n = 3, indicative, not a claim",
                 "    pass             : 1/2 (50.0%)  n = 2, indicative, not a claim",
@@ -178,12 +179,13 @@ describe("held-out pick agreement (issue #3982)", () => {
         );
         expect(text).toBe(
             [
-                "== held-out pick agreement (issue #3982) — verdicts whose every seed picked an allowed candidate, held-out side only, 400 iterations",
+                "== held-out pick agreement (issue #3982) — verdicts whose every seed picked an allowed candidate or an accepted alternative, held-out side only, 400 iterations",
                 "  burned             : 2 held-out positions admitted to the registry anyway (held-out n = 4 remaining)",
                 "  all                : 2/3 (66.7%)  n = 3, indicative, not a claim  [seeds 5/6]",
                 "  timing             : 1/1 (100.0%)  n = 1, indicative, not a claim  [seeds 2/2]",
                 "  everything else    : 1/2 (50.0%)  n = 2, indicative, not a claim  [seeds 3/4]",
                 "  unsearchable       : 1 verdicts (errors, not agreement evidence)",
+                "  indifferent        : 0 verdicts graded Indifferent (no weight, outside the denominator)",
                 "  by Decision Class",
                 "    cast             : 1/2 (50.0%)  n = 2, indicative, not a claim  [seeds 3/4]",
                 "    pass             : 1/1 (100.0%)  n = 1, indicative, not a claim  [seeds 2/2]",

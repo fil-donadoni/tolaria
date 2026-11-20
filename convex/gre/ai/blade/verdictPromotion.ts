@@ -58,6 +58,10 @@ import {
     serializePromotionStreakLedger,
     streaksOverLock,
     verdictsFromLock,
+    formatLockReadings,
+    parseReferenceJudgeConfig,
+    personsOf,
+    referenceJudgeOf,
     type PromotionStreaks,
 } from "../verdicts";
 import {
@@ -112,7 +116,12 @@ export function runVerdictPromotionStep(
     }
 
     const current = input.lock === null ? null : parseVerdictLock(input.lock);
-    const plan = planPromotion(current, validation);
+    const referenceJudge = parseReferenceJudgeConfig(input.referenceJudge);
+    const plan = planPromotion(
+        current,
+        validation,
+        referenceJudgeIn(input, validation, referenceJudge)
+    );
     const committedLedger =
         input.streakLedger == null
             ? null
@@ -204,6 +213,8 @@ export function runVerdictPromotionStep(
         "",
         formatTimingSection(after),
         "",
+        formatLockReadings(plan.lock.readings, referenceJudge),
+        "",
         // Re-derived at the FITTED vector, read on the side the fit never saw.
         formatHeldOutEvalAgreement(
             heldOutEvalAgreement(after, corpus.verdicts, testPositions)
@@ -294,6 +305,28 @@ function fitReportOverLock(
             ),
         ],
     };
+}
+
+/** The Reference Judge predicate over the snapshot: the configured authors,
+ *  joined to their people through the snapshot's aliases. */
+function referenceJudgeIn(
+    input: VerdictPromotionInput,
+    validation: StoreValidation,
+    configured: readonly string[]
+): (author: string) => boolean {
+    const authors = [
+        ...configured,
+        ...validation.quarantine.promotable.flatMap((v) =>
+            v.attestations.map((a) => a.author)
+        ),
+        ...validation.quarantine.resolved.flatMap((r) =>
+            r.accepted === null
+                ? []
+                : r.accepted.attestations.map((a) => a.author)
+        ),
+    ];
+    const persons = personsOf(authors, decodeAliases(input).aliases);
+    return referenceJudgeOf(configured, (a) => persons.get(a) ?? a);
 }
 
 /** The snapshot's author aliases. An alias that does not read joins nothing
