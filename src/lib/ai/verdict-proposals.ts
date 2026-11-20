@@ -1,5 +1,5 @@
-// A game's Verdict Proposal list, built once the game is over (issue #3984,
-// GLOSSARY.md § Verdict Proposal, PRD #3980).
+// A game's Verdict Proposal list, built once the game is over (GLOSSARY.md
+// § Verdict Proposal, PRD #3980).
 //
 // RECORD NOW, JUDGE AT GAME END. `human-decision-capture.ts` kept the human
 // seat's decisions during play; this is the one place the Brain is asked about
@@ -19,12 +19,12 @@
 //      `agreeingPerClass`: a corpus made only of disagreements cannot see a
 //      change that breaks what the Brain already gets right.
 //
-// COMMENTED DECISIONS ARE NEVER SAMPLED AWAY (issue #10088). A decision the
+// COMMENTED DECISIONS ARE NEVER SAMPLED AWAY. A decision the
 // player commented while playing skips step 2 — it is always judged — and
 // step 4 — it is always proposed, agreeing or not; the quota then fills the
 // rest of its class as before. Every proposal carries the Plan its seat had
 // in force at the decision's `seq` and the player's words, which the review
-// submits with the Attestation (`verdicts.submit`, issue #10086).
+// submits with the Attestation (`verdicts.submit`).
 //
 // The result is a list of QUESTIONS. Nothing here labels, confirms or stores a
 // judgement: no Verdict Store write exists on this path, and a proposal nobody

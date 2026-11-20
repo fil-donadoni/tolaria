@@ -6,12 +6,12 @@
 // already lowers from) and the mutations the player submitted until their next
 // decision. Nothing here consults the Brain, runs a search or enumerates a move
 // — the cost a player pays mid-game is one array push, plus a fire-and-forget
-// storage write of the rows that changed (issue #8889).
+// storage write of the rows that changed.
 //
 // Client-side by design, and never authoritative (ADR 0074): a proposal is a
 // QUESTION, not game state. Nothing reaches the server.
 //
-// RELOAD-SAFE (issue #8889). Every change is written through to client
+// RELOAD-SAFE. Every change is written through to client
 // storage (`verdict-proposal-persistence.ts`, best-effort), and a capture
 // started for the SAME game and seat rehydrates from it: the kept decisions,
 // the open decision and its calls, and the reservoir's state (`closed`, the
@@ -32,7 +32,7 @@
 // sampling over the whole game — a long game is sampled evenly rather than cut
 // off after its opening, where the decisions are land drops and nothing else.
 //
-// THE PLAYER'S OWN WORDS (issue #10088, PRD issue #10083). Beside the
+// THE PLAYER'S OWN WORDS. Beside the
 // decisions the capture keeps what the player SAID while playing: Plan
 // statements (`stateHumanPlan`, one stands until the seat states another) and
 // a per-decision annotation (`annotateHumanDecision`): a comment in their own

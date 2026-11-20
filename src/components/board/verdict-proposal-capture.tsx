@@ -1,5 +1,5 @@
-// Mount point for the Verdict Proposal capture of a vs-Bot or a solo game
-// (issue #3984, issue #10088): records the human seat's decisions during
+// Mount point for the Verdict Proposal capture of a vs-Bot or a solo game:
+// records the human seat's decisions during
 // play — both seats in solo — and samples them for the Brain at game end.
 // Renders the play-time notes (Plan, comment, "obvious") for the seat on
 // screen. Runs for an account that may give a Verdict only (issue #10229):

@@ -16,9 +16,9 @@
 //   - a capture for another game drops the previous game's stored decisions;
 //   - Plan statements, comments and "obvious" marks made mid-game are there
 //     after a reload, and a commented decision reaches the game-end list with
-//     its words and the Plan in force (issue #10088).
+//     its words and the Plan in force.
 //
-// And where the game-end judge runs (issue #9528): through the server action,
+// And where the game-end judge runs: through the server action,
 // one call per sampled decision, never a Brain on this device — and a call the
 // server refuses or that fails costs that decision, not the game-end path.
 
