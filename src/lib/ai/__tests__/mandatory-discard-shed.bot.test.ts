@@ -13,6 +13,7 @@ import { tryGetDefinition } from "@convex/cards";
 import { buildBladeState } from "@convex/gre/ai/blade/build";
 import { seatPlayerId } from "@convex/gre/ai/blade/matcher";
 import { findBladeScenario } from "@convex/gre/ai/blade/registry";
+import { runBladeScenario } from "@convex/gre/ai/blade/runner";
 import { forcedChoiceAnswer } from "@convex/gre/ai/choiceCandidates";
 import { projectPublicState } from "@convex/gameProjections";
 import type { GameState } from "@convex/gre/state";
@@ -64,6 +65,15 @@ describe("mandatory own-hand discard: the client sheds what the search sheds (CR
 
             expect(handNames(state, clientIds)).toEqual([sheds]);
             expect(clientIds).toEqual(searchIds);
+        });
+
+        // The blade pins the same answer at a window no search node opens on
+        // (`forcedSeatAnswer`, `runner.ts`), rather than throwing
+        // `BladeDeciderError`.
+        it(`${label} — the blade runner pins it`, () => {
+            const result = runBladeScenario(findBladeScenario(label)!);
+            expect(result.failureMessage).toBe("");
+            expect(result.ok).toBe(true);
         });
     }
 });
