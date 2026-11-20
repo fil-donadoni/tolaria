@@ -1344,20 +1344,6 @@ export const kjeldoranGuard = defineCard(() => ({
         },
     ],
 }));
-// Kjeldoran Phalanx — first strike + banding keyword creature (CR 702.7,
-// 702.22).
-export const kjeldoranPhalanx = defineCard(() => ({
-    id: "b6e91ba0-b229-4ab1-84f3-2a490dfa5051",
-    name: "Kjeldoran Phalanx",
-    rarity: "rare",
-    oracleText: "First strike, banding",
-    manaCost: { X: 5, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Soldier"],
-    power: 2,
-    toughness: 5,
-    staticAbilities: ["first strike", "banding"],
-}));
 // Kjeldoran Royal Guard — {3}{W}{W} 2/5. "{T}: All combat damage that would be
 // dealt to you by unblocked creatures this turn is dealt to this creature
 // instead." A turn-scoped all-unblocked combat-damage redirect (CR 614.6),
@@ -1394,47 +1380,6 @@ export const kjeldoranRoyalGuard = defineCard(() => ({
             },
         },
     ],
-}));
-// Kjeldoran Skycaptain — flying + first strike + banding (CR 702.9, 702.7,
-// 702.22).
-export const kjeldoranSkycaptain = defineCard(() => ({
-    id: "cf0115e0-6192-48a9-9e58-f3ef77ef77c2",
-    name: "Kjeldoran Skycaptain",
-    rarity: "uncommon",
-    oracleText: "Flying, first strike, banding",
-    manaCost: { X: 4, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Soldier"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["flying", "first strike", "banding"],
-}));
-// Kjeldoran Skyknight — flying + first strike + banding (CR 702.9, 702.7,
-// 702.22).
-export const kjeldoranSkyknight = defineCard(() => ({
-    id: "f794665a-8353-482a-b065-2a0777a8acda",
-    name: "Kjeldoran Skyknight",
-    rarity: "common",
-    oracleText: "Flying, first strike, banding",
-    manaCost: { X: 2, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Knight"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["flying", "first strike", "banding"],
-}));
-// Kjeldoran Warrior — banding keyword creature (CR 702.22).
-export const kjeldoranWarrior = defineCard(() => ({
-    id: "ce76f38f-566e-49ff-b197-510cfa1cb51c",
-    name: "Kjeldoran Warrior",
-    rarity: "common",
-    oracleText: "Banding",
-    manaCost: { W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Warrior"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["banding"],
 }));
 // Lightning Blow — {1}{W} Instant. "Target creature gains first strike until
 // end of turn" (CR 702.7 keyword grant via layer 6) plus the next-upkeep
@@ -1786,19 +1731,6 @@ export const seraph = defineCard(() => ({
             ],
         }),
     ],
-}));
-// Shield Bearer — 0/3 banding wall-style creature (CR 702.22).
-export const shieldBearer = defineCard(() => ({
-    id: "318ff2da-d309-469c-8e2f-fa3c7517a15a",
-    name: "Shield Bearer",
-    rarity: "common",
-    oracleText: "Banding",
-    manaCost: { X: 1, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Soldier"],
-    power: 0,
-    toughness: 3,
-    staticAbilities: ["banding"],
 }));
 // Snow Hound — {1}, {T}: Return this creature and target green or blue creature
 // you control to their owner's hand (CR 701.14). A self-bounce that also

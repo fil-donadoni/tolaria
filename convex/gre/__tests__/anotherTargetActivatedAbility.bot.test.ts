@@ -17,7 +17,6 @@
 
 import { describe, it, expect } from "vitest";
 import { fableOfTheMirrorBreaker } from "../../cards/sets/neo/red.cards";
-import { elvishArchers } from "../../cards/sets/lea/green.cards";
 import {
     makeInstance,
     makePlayer,
@@ -29,6 +28,11 @@ import { advanceSagasAtPrecombatMain } from "../sagas";
 import { enumerateMoves } from "../moves";
 import { LORE_COUNTER } from "../../cards/abilities/sagas";
 
+import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const elvishArchers = () =>
+    getDefinition("1cb9d405-f2b5-4e10-a405-feafd2a87d90");
 const KIKI_ABILITY_ID = "reflection-of-kiki-jiki-copy";
 
 /** A transformed Fable (Reflection of Kiki-Jiki) plus `others` on p1's

@@ -151,35 +151,6 @@ export const mossMonster = defineCard(() => ({
     toughness: 6,
 }));
 
-// Cat Warriors — forestwalk (CR 702.14 landwalk variant).
-export const catWarriors = defineCard(() => ({
-    id: "d2187a64-2823-4f58-ad35-70f8913db2dc",
-    rarity: "common",
-    name: "Cat Warriors",
-    oracleText:
-        "Forestwalk (This creature can't be blocked as long as defending player controls a Forest.)",
-    manaCost: { X: 1, G: 2 },
-    types: ["Creature"],
-    subtypes: ["Cat", "Warrior"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["forestwalk"],
-}));
-
-// Hornet Cobra — first strike (CR 702.7).
-export const hornetCobra = defineCard(() => ({
-    id: "27180bad-9bbc-462b-8832-626dc403a3fd",
-    rarity: "common",
-    name: "Hornet Cobra",
-    oracleText: "First strike",
-    manaCost: { X: 1, G: 2 },
-    types: ["Creature"],
-    subtypes: ["Snake"],
-    power: 2,
-    toughness: 1,
-    staticAbilities: ["first strike"],
-}));
-
 // Elven Riders — "can't be blocked except by Walls and/or creatures with
 // flying" (CR 509.1b block restriction via a `block-restriction` static on the
 // attacker side; the combat validator scans the attacker's own statics).

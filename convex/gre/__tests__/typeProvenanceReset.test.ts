@@ -24,9 +24,12 @@ import {
 import { projectPublicState } from "../../gameProjections";
 import { titaniasSong } from "../../cards/sets/atq/green.cards";
 
-import { airElemental } from "../../cards/sets/lea/blue.cards";
 import { wireCharacteristicsOf } from "../../cards/__tests__/setup.helper";
 import { getDefinition } from "../../cards";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const airElemental = () =>
+    getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea");
 const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 const moxSapphire = getDefinition("82da0972-b17b-4600-9efd-e9430a0db04b");
 

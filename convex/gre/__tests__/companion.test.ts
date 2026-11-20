@@ -23,10 +23,13 @@ import {
     mountain,
     plains,
     savannahLions,
-    serraAngel,
 } from "../../cards/sets/lea/index.cards";
 import { lutri, lurrus, zirda } from "../../cards/sets/iko/multicolor.cards";
 
+import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const serraAngel = () => getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 describe("companion.ts — Singleton (CR 702.139b, Lutri, the Spellchaser)", () => {
     it("passes a deck with duplicate LANDS but no duplicate nonland names", () => {
         const deck = [

@@ -17,7 +17,7 @@
 import { describe, expect, it } from "vitest";
 import { announceCast, selectCastAlternativeHandCost } from "../game";
 import { solitude } from "../cards/sets/mh2/white.cards";
-import { savannahLions, serraAngel } from "../cards/sets/lea/white.cards";
+import { savannahLions } from "../cards/sets/lea/white.cards";
 import { grizzlyBears } from "../cards/sets/lea/green.cards";
 import {
     makeInstance,
@@ -37,6 +37,10 @@ import {
     type Handler,
 } from "./gameMutationHarness.fixture";
 
+import { getDefinition } from "../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const serraAngel = () => getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 const GAME_ID = "game-1" as Id<"games">;
 
 /** p1 has no lands and holds Solitude plus TWO white cards, so the evoke's

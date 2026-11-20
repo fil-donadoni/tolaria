@@ -24,14 +24,12 @@ import type { ContinuousEffect } from "../continuousEffects";
 import { tryGetDefinition } from "../../cards";
 import { projectPublicState } from "../../gameProjections";
 import { checkCounterAnnihilationSBA } from "../sba";
-import {
-    lightningBolt,
-    giantGrowth,
-    bogWraith,
-} from "../../cards/sets/lea/index.cards";
+import { lightningBolt, giantGrowth } from "../../cards/sets/lea/index.cards";
 import { checkStateBasedActions } from "../sba";
 import { getDefinition } from "../../cards/index";
 
+// Registry seam (ADR 0114): the hand-written module is retired.
+const bogWraith = () => getDefinition("6701874e-986e-4b81-9268-90b6171e6187");
 const castle = () => getDefinition("b0da8d56-3178-44c2-9344-95d2346d326f");
 const crusade = () => getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
 const badMoon = () => getDefinition("43572906-ea74-4411-a549-5dc401591d2a");

@@ -7,25 +7,6 @@
 import { defineCard } from "../../types";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 
-// Goblin Patrol — {R} 2/1 Goblin with Echo {R} (CR 702.30). Home set is Urza's
-// Saga, its earliest paper printing (ADR 0041 routes a card to that set); the
-// print id below is the usg printing (Premodern-legal, in the CR-legal pool).
-export const goblinPatrol = defineCard(() => ({
-    id: "d0fcd8d3-f159-49a1-8dd9-582ae4a0adc3",
-    name: "Goblin Patrol",
-    rarity: "common",
-    oracleText:
-        "Echo {R} (At the beginning of your upkeep, if this came under your control since the beginning of your last upkeep, sacrifice it unless you pay its echo cost.)",
-    manaCost: { R: 1 },
-    types: ["Creature"],
-    subtypes: ["Goblin"],
-    power: 2,
-    toughness: 1,
-    // CR 702.30a — the `echo` cost field arms `echoPending` (state.ts) and
-    // expands into the upkeep pay-or-sacrifice trigger (ADR 0155).
-    echo: { R: 1 },
-}));
-
 // Goblin Cadets — {R} 2/1 Goblin with a control-donation drawback. Home set is
 // Urza's Saga, its earliest paper printing (ADR 0041 / ADR 0043; the issue's
 // "TMP" label is an author slip — the card has no Tempest printing, Scryfall

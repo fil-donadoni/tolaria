@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import { tryAutoCommitPendingCast } from "../../game";
 import { projectPublicState } from "../../gameProjections";
 import { dralnusPet } from "../../cards/sets/pls/blue.cards";
-import { grizzlyBears, serraAngel } from "../../cards/sets/lea/index.cards";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 import {
     makeInstance,
     makePlayer,
@@ -20,6 +20,10 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { resolveTopOfStack, type GameState } from "../state";
 
+import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const serraAngel = () => getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 function castPet(opts: { kicked: boolean; discard: "bears" | "angel" }) {
     const pet = makeInstance(dralnusPet().id, {
         id: "pet",

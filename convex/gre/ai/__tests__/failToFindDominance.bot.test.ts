@@ -35,11 +35,14 @@ import { tinker } from "../../../cards/sets/ulg/blue.cards";
 import { mysticalTutor } from "../../../cards/sets/mir/blue.cards";
 import { eladamrisCall } from "../../../cards/sets/pls/multicolor.cards";
 import { juggernaut } from "../../../cards/sets/lea/colorless.cards";
-import { ornithopter } from "../../../cards/sets/atq/colorless.cards";
 import { island } from "../../../cards/sets/lea/index.cards";
 import { registerTokenDefinition } from "../../../cards";
 import type { CardDefinition } from "../../../cards/types";
 
+import { getDefinition } from "../../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const ornithopter = () => getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 const ME = "p1";
 const OPP = "p2";
 const NONE = "search-library:none";

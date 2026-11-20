@@ -7,9 +7,12 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { resolveTopOfStack } from "../state";
 import { lightningBolt } from "../../cards/sets/lea/red.cards";
-import { serraAngel } from "../../cards/sets/lea/white.cards";
 import { checkStateBasedActions } from "../sba";
 
+import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const serraAngel = () => getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 /**
  * Noncombat damage ACCUMULATES on a creature across events (issue #4490).
  *

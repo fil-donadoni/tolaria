@@ -63,12 +63,10 @@ import {
 import type { Id } from "../../_generated/dataModel";
 import { tearAsunder } from "../../cards/sets/dmu/green.cards";
 import { burstLightning } from "../../cards/sets/zen/red.cards";
-import {
-    serraAngel,
-    grizzlyBears,
-    forest,
-    swamp,
-} from "../../cards/sets/lea/index.cards";
+import { grizzlyBears, forest, swamp } from "../../cards/sets/lea/index.cards";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const serraAngel = () => getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 

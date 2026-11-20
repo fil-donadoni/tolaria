@@ -1033,28 +1033,6 @@ export const metathranTransport = defineCard(() => ({
 //     types: ["Enchantment"],
 // };
 
-// Shoreline Raider — {2}{U} Creature — Merfolk, 2/2. "Protection from Kavu."
-//
-// CR 702.16a protection from a SUBTYPE quality (issue #2765): "if the quality
-// is a card type, subtype, or supertype, the ability applies to sources that
-// are permanents with that subtype and to any sources not on the battlefield
-// that are of that subtype" — so a Kavu SPELL on the stack and a Kavu card in
-// a graveyard are barred too, not only Kavu permanents. `gre/protection.ts`
-// parses the string against the CR 205.3m creature-type table and the single
-// `isProtectedFrom` predicate honours it at every CR 702.16b-f consult site.
-export const shorelineRaider = defineCard(() => ({
-    id: "d895b3b8-2acc-4c9f-8341-f651c1255b7c",
-    name: "Shoreline Raider",
-    rarity: "common",
-    oracleText: "Protection from Kavu",
-    manaCost: { X: 2, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Merfolk"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["protection from kavu"],
-}));
-
 // Sway of Illusion — {1}{U} Instant. "Any number of target creatures become
 // the color of your choice until end of turn. Draw a card." (CR 601.2c a
 // `{ min: 0 }` variable target count — "any number" — announces 0..N

@@ -47,11 +47,15 @@ import {
     copyArtifact,
     vesuvanDoppelganger,
 } from "../../cards/sets/lea/blue.cards";
-import { grizzlyBears, serraAngel } from "../../cards/sets/lea/index.cards";
+import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 import { phantasmalImage } from "../../cards/sets/m12/blue.cards";
 import { phyrexianMetamorph } from "../../cards/sets/nph/blue.cards";
 import { reanimate } from "../../cards/sets/tmp/black.cards";
 
+import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const serraAngel = () => getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 /** "As this creature enters, pay any amount of life, up to 2." The CR 707.6
  *  fixture: a copy SOURCE whose own definition owes a NON-copy as-enters
  *  choice, so answering the copy grows the owed list with a leg that cannot be

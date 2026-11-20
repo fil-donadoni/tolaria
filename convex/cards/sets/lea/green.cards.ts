@@ -249,19 +249,6 @@ export const crawWurm = defineCard(() => ({
     toughness: 4,
 }));
 
-export const elvishArchers = defineCard(() => ({
-    id: "1cb9d405-f2b5-4e10-a405-feafd2a87d90",
-    rarity: "rare",
-    name: "Elvish Archers",
-    oracleText: "First strike",
-    manaCost: { X: 1, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Elf", "Archer"],
-    power: 2,
-    toughness: 1,
-    staticAbilities: ["first strike"],
-}));
-
 // Force of Nature — "Trample. At the beginning of your upkeep, this
 // creature deals 8 damage to you unless you pay {G}{G}{G}{G}." (CR 702.19
 // trample, CR 603.6a phase trigger, CR 117.3a may-pay; on decline the
@@ -462,22 +449,6 @@ export const giantGrowth = defineCard(() => ({
             duration: { phase: "end-of-turn" },
         },
     ],
-}));
-
-// Giant Spider — vanilla 2/4 with reach. (CR 702.17 reach: a creature with
-// reach can block a creature with flying.) Combat validator already honors
-// "reach" alongside "flying" in `block.ts`.
-export const giantSpider = defineCard(() => ({
-    id: "77636b4c-faea-4bf5-b88c-dd5bb88dc930",
-    rarity: "common",
-    name: "Giant Spider",
-    oracleText: "Reach (This creature can block creatures with flying.)",
-    manaCost: { X: 3, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Spider"],
-    power: 2,
-    toughness: 4,
-    staticAbilities: ["reach"],
 }));
 
 export const grizzlyBears = defineCard(() => ({
@@ -927,33 +898,6 @@ export const regrowth = defineCard(() => ({
     effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
 }));
 
-export const scrybSprites = defineCard(() => ({
-    id: "6d929c38-91e6-457c-937a-d1884f4bba44",
-    rarity: "common",
-    name: "Scryb Sprites",
-    oracleText: "Flying",
-    manaCost: { G: 1 },
-    types: ["Creature"],
-    subtypes: ["Faerie"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["flying"],
-}));
-
-export const shanodinDryads = defineCard(() => ({
-    id: "814cf35c-f1ad-4bf4-8c10-a5592c3b1be8",
-    rarity: "common",
-    name: "Shanodin Dryads",
-    oracleText:
-        "Forestwalk (This creature can't be blocked as long as defending player controls a Forest.)",
-    manaCost: { G: 1 },
-    types: ["Creature"],
-    subtypes: ["Nymph", "Dryad"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["forestwalk"],
-}));
-
 // Stream of Life — "Target player gains X life." (CR 107.3 X cost, 118.3
 // life gain).
 export const streamOfLife = defineCard(() => ({
@@ -986,21 +930,6 @@ export const thicketBasilisk = defineCard(() => ({
     toughness: 4,
     triggeredAbilities: [thicketBasiliskCombatKill.trigger],
     delayedTriggers: [thicketBasiliskCombatKill.delayed],
-}));
-
-// Timber Wolves — vanilla 1/1 Wolf with banding (CR 702.22).
-export const timberWolves = defineCard(() => ({
-    id: "bc2570a4-eef9-430d-b6c2-cd51d29b9d01",
-    rarity: "rare",
-    name: "Timber Wolves",
-    oracleText:
-        "Banding (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
-    manaCost: { G: 1 },
-    types: ["Creature"],
-    subtypes: ["Wolf"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["banding"],
 }));
 
 export const tranquility = defineCard(() => ({
@@ -1093,32 +1022,6 @@ export const verduranEnchantress = defineCard(() => ({
     ],
 }));
 
-export const wallOfIce = defineCard(() => ({
-    id: "cc743a03-867c-4bb0-8fb0-2bcaa0a8a756",
-    rarity: "uncommon",
-    name: "Wall of Ice",
-    oracleText: "Defender (This creature can't attack.)",
-    manaCost: { X: 2, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Wall"],
-    power: 0,
-    toughness: 7,
-    staticAbilities: ["defender"],
-}));
-
-export const wallOfWood = defineCard(() => ({
-    id: "8df80424-3bd9-4982-ad79-e55d9ba3b43d",
-    rarity: "common",
-    name: "Wall of Wood",
-    oracleText: "Defender (This creature can't attack.)",
-    manaCost: { G: 1 },
-    types: ["Creature"],
-    subtypes: ["Wall"],
-    power: 0,
-    toughness: 3,
-    staticAbilities: ["defender"],
-}));
-
 // Wanderlust — "Enchant creature. At the beginning of the upkeep of
 // enchanted creature's controller, this Aura deals 1 damage to that
 // player." (CR 303.4 aura, CR 603.6a phase trigger keyed on the host's
@@ -1159,19 +1062,6 @@ export const wanderlust = defineCard(() => ({
             ],
         }),
     ],
-}));
-
-export const warMammoth = defineCard(() => ({
-    id: "c8d6081e-f686-4263-a0a2-21c0d9af5fdb",
-    rarity: "common",
-    name: "War Mammoth",
-    oracleText: "Trample",
-    manaCost: { X: 3, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Elephant"],
-    power: 3,
-    toughness: 3,
-    staticAbilities: ["trample"],
 }));
 
 // Web — "Enchant creature. Enchanted creature gets +0/+2 and has reach."

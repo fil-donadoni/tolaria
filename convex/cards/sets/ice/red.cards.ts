@@ -1622,22 +1622,6 @@ export const melting = defineCard(() => ({
         },
     ],
 }));
-// Meteor Shower is implemented below (divide-as-you-choose cluster, #664).
-// Mountain Goat — 1/1 with mountainwalk (CR 702.14 landwalk; unblockable while
-// the defender controls a Mountain).
-export const mountainGoat = defineCard(() => ({
-    id: "ccf70276-a40c-4d25-b584-4c8a07a00602",
-    name: "Mountain Goat",
-    rarity: "common",
-    oracleText:
-        "Mountainwalk (This creature can't be blocked as long as defending player controls a Mountain.)",
-    manaCost: { R: 1 },
-    types: ["Creature"],
-    subtypes: ["Goat"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["mountainwalk"],
-}));
 // Mudslide — {2}{R} Enchantment. Symmetric untap-lock on non-flying creatures
 // (CR 611 — `untapRestriction` with `excludeAbility: "flying"`, maxUntap 0) plus
 // a per-upkeep pay-{2}-to-untap escape for each player (the Thelon's Curse / FEM
@@ -2137,19 +2121,6 @@ export const pyroclasm = defineCard(() => ({
             effects: [{ op: "dealDamage", amount: 2, to: { ref: "$each" } }],
         },
     ],
-}));
-// Sabretooth Tiger — 2/1 with first strike (CR 702.7).
-export const sabretoothTiger = defineCard(() => ({
-    id: "6914c5a8-2114-41c5-a471-ca97524d622f",
-    name: "Sabretooth Tiger",
-    rarity: "common",
-    oracleText: "First strike",
-    manaCost: { X: 2, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Cat"],
-    power: 2,
-    toughness: 1,
-    staticAbilities: ["first strike"],
 }));
 // Stone Rain — ICE reprint of the LEA sorcery ("Destroy target land").
 // Stone Spirit — 4/3 "can't be blocked by creatures with flying" (CR 509.1b
