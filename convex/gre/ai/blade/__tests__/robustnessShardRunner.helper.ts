@@ -90,9 +90,11 @@ function labelFilter(): ReadonlySet<string> | null {
 const ENTRY_TIMEOUT_FLOOR_MS = 900_000;
 
 /** Wall-clock allowance per search iteration. A rich board costs ~23 ms an
- *  iteration idle (issue #5424: 1000 iterations = 23 s a search); 60 ms leaves
- *  room for a loaded shared machine. */
-const MS_PER_ITERATION = 60;
+ *  iteration idle (issue #5424: 1000 iterations = 23 s a search); the Oko
+ *  loyalty entry measured 137 ms an iteration on a GitHub-hosted runner
+ *  (issue #10319: 14,000 iterations, 1914 s, past the 900 s floor). 200 ms is
+ *  that plus half: the timeout is a hang guard, never a speed assertion. */
+const MS_PER_ITERATION = 200;
 
 /** An entry's audit cost in search iterations: it runs its own seeds plus
  *  every vector over the wide seed list, each search at the entry's

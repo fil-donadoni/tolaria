@@ -17,7 +17,9 @@
 # files (the partition the `must` suite and health use) on the runner's four
 # vCPUs, narrowed by `BLADE_ROBUSTNESS_PART=<part>/<PARTS>` to a cost-balanced
 # part of each shard (`costBalancedSlice`). The part count is the matrix
-# length (`strategy.job-total`), nowhere else.
+# length (`strategy.job-total`), nowhere else. Measured on PR #10333 (run
+# 44746367265): parts took 21-30 min, the one holding the Oko loyalty entry
+# (1914 s alone) 61 min; `timeout-minutes: 120` is ~2x the slowest part.
 #
 # Mergify re-reads `queue_conditions` on its draft: the verdict job reports
 # green there at once — the audit was proven on the PR's own head, and the
@@ -74,7 +76,7 @@ jobs:
         needs: plan
         if: ${{ needs.plan.outputs.mode != 'none' }}
         runs-on: ubuntu-24.04
-        timeout-minutes: 90
+        timeout-minutes: 120
         strategy:
             fail-fast: false
             matrix:
