@@ -39,12 +39,15 @@ import {
 import { voiceOfAll } from "../../cards/sets/pls/white.cards";
 import { prismaticWard } from "../../cards/sets/ice/white.cards";
 import { getDefinition } from "../../cards/registry";
-import { jihad, repentantBlacksmith } from "../../cards/sets/arn/white.cards";
+import { jihad } from "../../cards/sets/arn/white.cards";
 import { mijaeDjinn } from "../../cards/sets/arn/red.cards";
 import { visionCharm } from "../../cards/sets/vis/blue.cards";
 import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 import type { CardDefinition } from "../../cards/types";
 
+// Registry seam (ADR 0114): the hand-written module is retired.
+const repentantBlacksmith = () =>
+    getDefinition("61fc30b6-1355-425b-a86f-18f59f83141c");
 // Compiled from Oracle text (ADR 0114): the registry is the seam.
 const quirionElves = getDefinition("be9a64fb-1e8d-4ed8-b4c5-3d44db9c1d3b");
 

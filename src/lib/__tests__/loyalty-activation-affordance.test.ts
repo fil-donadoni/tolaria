@@ -21,11 +21,14 @@ import { tezzeretCruelCaptain } from "@convex/cards/sets/eoe/index.cards";
 import { uginEyeOfTheStorms } from "@convex/cards/sets/tdm/index.cards";
 import { nissaWhoShakesTheWorld } from "@convex/cards/sets/war/index.cards";
 import { forest, grizzlyBears } from "@convex/cards/sets/lea/index.cards";
-import { ornithopter } from "@convex/cards/sets/atq/index.cards";
 import { withTemporaryDefinition } from "@convex/cards/registry";
 import type { CardInstance } from "../../types/game";
 import { buildTriggerStateView, getStackAbilities } from "../card-utils";
 
+import { getDefinition } from "@convex/cards";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const ornithopter = () => getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 const VIEWER = "p1";
 
 function perm(

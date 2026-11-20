@@ -1704,21 +1704,6 @@ export const walkingWall = defineCard(() => ({
         },
     ],
 }));
-// Wall of Shields — Defender + Banding artifact Wall (CR 702.3 defender,
-// CR 702.22 banding). Pure keyword data.
-export const wallOfShields = defineCard(() => ({
-    id: "6376c7c4-aaca-4625-83d4-a49f01aec535",
-    name: "Wall of Shields",
-    rarity: "uncommon",
-    oracleText:
-        "Defender (This creature can't attack.)\nBanding (If any creatures with banding you control are blocking a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by.)",
-    manaCost: { X: 3 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Wall"],
-    power: 0,
-    toughness: 4,
-    staticAbilities: ["defender", "banding"],
-}));
 // Glacial Chasm — Land (issue #727). Four clauses over shipped seams:
 //   • Cumulative upkeep—Pay 2 life — the ADR 0042 template with a life cost
 //     (`cost: { life: 2 }`), the `{ life }` MayPayCost union leg.

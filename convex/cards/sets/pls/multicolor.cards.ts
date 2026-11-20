@@ -231,23 +231,6 @@ function bounceOnEntry(
     });
 }
 
-// Ancient Spider — {2}{G}{W} Creature — Spider, 2/5. Pure keyword data: both
-// "first strike" (CR 702.7) and "reach" (CR 702.17) are already-implemented
-// Mechanics Registry rows, so the card needs no script at all.
-export const ancientSpider = defineCard(() => ({
-    id: "75ca99de-57e7-47c4-b40a-6e41e3b18069", // PLS printing (scryfallId)
-    rarity: "rare",
-    name: "Ancient Spider",
-    oracleText:
-        "First strike; reach (This creature can block creatures with flying.)",
-    manaCost: { X: 2, G: 1, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Spider"],
-    power: 2,
-    toughness: 5,
-    staticAbilities: ["first strike", "reach"],
-}));
-
 // Daring Leap — {1}{W}{U} Instant. One target creature, three until-end-of-turn
 // riders: a CR 613 layer-7c P/T modification (`pump`) and two CR 702 keyword
 // grants (`grantAbility`). Three already-exercised Ops, no new vocabulary.

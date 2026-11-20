@@ -2073,20 +2073,6 @@ export const moleWorms = defineCard(() => ({
         },
     ],
 }));
-// Moor Fiend — 3/3 swampwalk (CR 702.14b landwalk evasion).
-export const moorFiend = defineCard(() => ({
-    id: "57089dd4-e30d-498d-9341-43c104c6f3f9",
-    name: "Moor Fiend",
-    rarity: "common",
-    oracleText:
-        "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)",
-    manaCost: { X: 3, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Horror"],
-    power: 3,
-    toughness: 3,
-    staticAbilities: ["swampwalk"],
-}));
 // Necropotence (#667) — the Ice Age card-advantage engine, composed from
 // shipped primitives plus the CARD_DISCARDED seam this slice added:
 //   1. "Skip your draw step." — CR 504 / 614 draw-step skip via the

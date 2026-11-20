@@ -240,36 +240,6 @@ export const wormwoodTreefolk = defineCard(() => ({
 // oracle text is authoritative (ADR 0004).
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Carnivorous Plant — vanilla Defender Plant Wall (CR 702.3 defender keyword;
-// the body is pure stats + the can't-attack keyword, no rules text otherwise).
-export const carnivorousPlant = defineCard(() => ({
-    id: "6a615650-4da3-4efc-aa5e-c1f2c4f79478",
-    rarity: "common",
-    name: "Carnivorous Plant",
-    oracleText: "Defender (This creature can't attack.)",
-    manaCost: { X: 3, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Plant", "Wall"],
-    power: 4,
-    toughness: 5,
-    staticAbilities: ["defender"],
-}));
-
-// Land Leeches — vanilla First strike Leech (CR 702.7 first strike keyword).
-export const landLeeches = defineCard(() => ({
-    id: "ff99543d-86a1-44f8-88ec-aaec071d6c05",
-    rarity: "common",
-    name: "Land Leeches",
-    oracleText:
-        "First strike (This creature deals combat damage before creatures without first strike.)",
-    manaCost: { X: 1, G: 2 },
-    types: ["Creature"],
-    subtypes: ["Leech"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["first strike"],
-}));
-
 // Lurker — "This creature can't be the target of spells unless it attacked or
 // blocked this turn." (CR 115 targeting restriction.) A self permanent-guard
 // (`source.id === target.id`) with `cantBeTargeted` narrowed to SPELLS only

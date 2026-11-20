@@ -36,7 +36,7 @@
 
 import { describe, expect, it } from "vitest";
 import { clone } from "@convex/cards/sets/lea/blue.cards";
-import { grizzlyBears, serraAngel } from "@convex/cards/sets/lea/index.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/index.cards";
 import {
     makeInstance,
     makePlayer,
@@ -52,6 +52,10 @@ import { buildBotView } from "../bot-view";
 import { escalationLadder } from "../owed-input";
 import type { BotAction } from "../brain";
 
+import { getDefinition } from "@convex/cards";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const serraAngel = () => getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 const BOT = "p2";
 
 function opponentCreature(defId: string, id: string): CardInstanceState {

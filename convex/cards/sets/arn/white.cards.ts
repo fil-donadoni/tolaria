@@ -17,45 +17,6 @@ import { colorDefiningCostForCardId } from "../../manaCostLookup";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 
-export const moorishCavalry = defineCard(() => ({
-    id: "f86f0781-7614-4779-a58d-f13ce96bdf33",
-    rarity: "common",
-    name: "Moorish Cavalry",
-    oracleText: "Trample",
-    manaCost: { X: 2, W: 2 },
-    types: ["Creature"],
-    subtypes: ["Human", "Knight"],
-    power: 3,
-    toughness: 3,
-    staticAbilities: ["trample"],
-}));
-
-export const repentantBlacksmith = defineCard(() => ({
-    id: "61fc30b6-1355-425b-a86f-18f59f83141c",
-    rarity: "rare",
-    name: "Repentant Blacksmith",
-    oracleText: "Protection from red",
-    manaCost: { X: 1, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human"],
-    power: 1,
-    toughness: 2,
-    staticAbilities: ["protection from red"],
-}));
-
-export const warElephant = defineCard(() => ({
-    id: "7416c366-95cc-4799-b6c6-34d8fad8c202",
-    rarity: "common",
-    name: "War Elephant",
-    oracleText: "Trample, banding",
-    manaCost: { X: 3, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Elephant"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["trample", "banding"],
-}));
-
 export const armyOfAllah = defineCard(() => ({
     id: "3d170015-b125-49a6-a15e-8fd116bbcb14",
     rarity: "common",

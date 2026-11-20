@@ -22,13 +22,17 @@ import {
 import { projectPublicState } from "@convex/gameProjections";
 import { turnFaceDown } from "@convex/gre/faceDown";
 import { pendingTargetFiltersFromRequirement } from "@convex/gre/rules";
-import { mahamotiDjinn } from "@convex/cards/sets/lea/index.cards";
 import type { TargetRequirement } from "@convex/cards/types";
 import type { PendingTarget, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import { useDivideTargets } from "../useDivideTargets";
 import { NO_BOARD_LAYER_VIEW } from "../../../convex/gre/layers";
 
+import { getDefinition } from "@convex/cards";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const mahamotiDjinn = () =>
+    getDefinition("36204ddd-ddf7-4b44-ae3c-b4a5a41ac9cb");
 type Ctx = React.ContextType<typeof GameContext>;
 
 describe("useDivideTargets — permanent label for the controller's own face-down creature (#1735)", () => {

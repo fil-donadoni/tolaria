@@ -689,19 +689,6 @@ export const forceVoid = defineCard(() => ({
         },
     ],
 }));
-// Glacial Wall — 0/7 Wall with Defender (CR 702.3).
-export const glacialWall = defineCard(() => ({
-    id: "07b71bc1-d9a2-4e99-a8fa-cd696925328d",
-    name: "Glacial Wall",
-    rarity: "uncommon",
-    oracleText: "Defender",
-    manaCost: { X: 2, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Wall"],
-    power: 0,
-    toughness: 7,
-    staticAbilities: ["defender"],
-}));
 // Hydroblast — modal "choose one" (CR 700.2): counter a red spell OR destroy a
 // red permanent. Each mode restricts its target to red via `colorFilter: "R"`
 // (the "if it's red" clause is enforced as a target restriction in the current
@@ -832,22 +819,6 @@ export const icyPrison = defineCard(() => ({
             effects: [{ op: "returnExiledForSource" }],
         }),
     ],
-}));
-// Illusionary Forces — {3}{U} 4/4 flier with cumulative upkeep {U} (CR 702.24,
-// ADR 0042). Flying is a plain keyword static; the CU keyword is the template.
-export const illusionaryForces = defineCard(() => ({
-    id: "ab02268e-01cf-4729-95ca-5773afd40b56",
-    name: "Illusionary Forces",
-    rarity: "common",
-    oracleText:
-        "Flying\nCumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)",
-    manaCost: { X: 3, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Illusion"],
-    power: 4,
-    toughness: 4,
-    staticAbilities: ["flying"],
-    cumulativeUpkeep: { U: 1 },
 }));
 // Illusionary Presence — cumulative upkeep {U} (CR 702.24, ADR 0042) plus an
 // "at the beginning of your upkeep, choose a land type" trigger that grants
@@ -1004,22 +975,6 @@ export const illusionaryTerrain = defineCard(() => ({
         },
     ],
     cumulativeUpkeep: { generic: 2 },
-}));
-// Illusionary Wall — {4}{U} 7/4 with defender, flying, first strike and
-// cumulative upkeep {U} (CR 702.24, ADR 0042). All keywords are plain statics.
-export const illusionaryWall = defineCard(() => ({
-    id: "6430e8e2-fee3-4744-820e-d6e16cb992bd",
-    name: "Illusionary Wall",
-    rarity: "common",
-    oracleText:
-        "Defender, flying, first strike\nCumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)",
-    manaCost: { X: 4, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Illusion", "Wall"],
-    power: 7,
-    toughness: 4,
-    staticAbilities: ["defender", "flying", "first strike"],
-    cumulativeUpkeep: { U: 1 },
 }));
 // Illusions of Grandeur — {3}{U} Enchantment with cumulative upkeep {2}
 // (CR 702.24), an ETB "gain 20 life" and an LTB "lose 20 life" (the classic
@@ -1900,19 +1855,6 @@ export const sibilantSpirit = defineCard(() => ({
         },
     ],
 }));
-// Silver Erne — 2/2 flying + trample keyword creature (CR 702.9, 702.19).
-export const silverErne = defineCard(() => ({
-    id: "685076cc-098c-4f98-918c-0ad825eda10f",
-    name: "Silver Erne",
-    rarity: "uncommon",
-    oracleText: "Flying, trample",
-    manaCost: { X: 3, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Bird"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["flying", "trample"],
-}));
 // "It's blocking and you control a snow land" gate for Snow Devil's
 // conditional first-strike grant (CR 611.2c board-state-conditional
 // keyword-grant, the Kavu Runner `condition` shape — `inv/red.cards.ts`). `source`
@@ -2159,19 +2101,6 @@ export const updraft = defineCard(() => ({
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-}));
-// Wind Spirit — 3/2 flying + menace keyword creature (CR 702.9, 702.111).
-export const windSpirit = defineCard(() => ({
-    id: "4d882447-9594-4aab-b1a7-8bb275f250cf",
-    name: "Wind Spirit",
-    rarity: "uncommon",
-    oracleText: "Flying\nMenace",
-    manaCost: { X: 4, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Elemental", "Spirit"],
-    power: 3,
-    toughness: 2,
-    staticAbilities: ["flying", "menace"],
 }));
 // Winter's Chill — {X}{U} Instant (issue #738). "Cast only during combat before
 // blockers are declared. X can't be greater than the number of snow lands you

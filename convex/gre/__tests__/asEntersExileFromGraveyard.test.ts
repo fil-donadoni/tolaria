@@ -43,12 +43,12 @@ import {
     makeState,
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
-import {
-    forest,
-    grizzlyBears,
-    serraAngel,
-} from "../../cards/sets/lea/index.cards";
+import { forest, grizzlyBears } from "../../cards/sets/lea/index.cards";
 
+import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const serraAngel = () => getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 const withGhoul = <T>(fn: () => T): T =>
     withTemporaryDefinition(suturedGhoul, fn);
 

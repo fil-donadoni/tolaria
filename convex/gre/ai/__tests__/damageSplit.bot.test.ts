@@ -21,11 +21,7 @@ import {
     hillGiant,
     monssGoblinRaiders,
 } from "../../../cards/sets/lea/red.cards";
-import {
-    crawWurm,
-    grizzlyBears,
-    warMammoth,
-} from "../../../cards/sets/lea/green.cards";
+import { crawWurm, grizzlyBears } from "../../../cards/sets/lea/green.cards";
 import { savannahLions } from "../../../cards/sets/lea/white.cards";
 import { questingBeast } from "../../../cards/sets/eld/green.cards";
 import type { CardInstanceState, GameState } from "../../state";
@@ -39,6 +35,10 @@ import { damageSplitsFor, owedDamageSplits } from "../damageSplit";
 import { evaluateCreature } from "../../evaluate";
 import { findPermanent } from "../../lookup";
 
+import { getDefinition } from "../../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const warMammoth = () => getDefinition("c8d6081e-f686-4263-a0a2-21c0d9af5fdb");
 function permanent(
     defId: string,
     id: string,

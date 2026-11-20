@@ -476,21 +476,6 @@ export const liberate = defineCard(() => ({
     ],
 }));
 
-// Razorfoot Griffin — vanilla flying + first strike.
-export const razorfootGriffin = defineCard(() => ({
-    id: "819e2046-9b78-4fd0-92f8-798bfac51195",
-    rarity: "common",
-    name: "Razorfoot Griffin",
-    oracleText:
-        "Flying (This creature can't be blocked except by creatures with flying or reach.)\nFirst strike (This creature deals combat damage before creatures without first strike.)",
-    manaCost: { X: 3, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Griffin"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["flying", "first strike"],
-}));
-
 // Restrain — "Prevent all combat damage that would be dealt by target
 // attacking creature this turn. Draw a card." (CR 615) — a genuine
 // source-scoped combat-damage PREVENTION shield + a cantrip, via the

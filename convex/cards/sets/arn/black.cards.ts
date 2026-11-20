@@ -12,19 +12,6 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 
-export const stoneThrowingDevils = defineCard(() => ({
-    id: "d1c387dd-1347-4443-91ce-b71f7ccdceba",
-    rarity: "common",
-    name: "Stone-Throwing Devils",
-    oracleText: "First strike",
-    manaCost: { B: 1 },
-    types: ["Creature"],
-    subtypes: ["Devil"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["first strike"],
-}));
-
 export const juzamDjinn = defineCard(() => ({
     id: "31bf3f14-b5df-498b-a1bb-965885c82401",
     rarity: "rare",

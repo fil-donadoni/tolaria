@@ -165,7 +165,10 @@ describe("gold round-trip — precision", () => {
 describe("gold round-trip — the harness is not vacuous", () => {
     it("accepts a meaningful number of cards in each grammar-v0 bucket", () => {
         expect(REPORT.buckets.vanilla.accepted).toBeGreaterThan(10);
-        expect(REPORT.buckets["keyword-only"].accepted).toBeGreaterThan(30);
+        // Floor lowered from 30 (issue #4037): the keyword-line retirement wave
+        // leaves Scryb Sprites as the lone hand-written keyword-only card —
+        // kept on purpose as the gold fixture, so the bucket is never empty.
+        expect(REPORT.buckets["keyword-only"].accepted).toBeGreaterThan(0);
         // The mana-ability bucket is empty by design: every hand-written
         // twin was retired (issue #4026, ADR 0114 §2).
         // #2697 — without this the activated slot could be switched off

@@ -34,7 +34,6 @@ import {
 } from "../cards/__tests__/setup.helper";
 import { grizzlyBears } from "../cards/sets/lea/green.cards";
 import { duelingGrounds } from "../cards/sets/inv/multicolor.cards";
-import { serraAngel } from "../cards/sets/lea/white.cards";
 import type { GameState, CardInstanceState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -45,6 +44,10 @@ import {
     type MutationStub,
 } from "./gameMutationHarness.fixture";
 
+import { getDefinition } from "../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const serraAngel = () => getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 const GAME_ID = "game-1" as Id<"games">;
 const SEED_SEQ = 1;
 

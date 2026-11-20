@@ -414,20 +414,6 @@ export const icatianMoneychanger = defineCard(() => ({
     ],
 }));
 
-export const icatianPhalanx = defineCard(() => ({
-    id: "7bc02d30-3eef-4a48-8b11-b4f37219ab3a", // FEM 11
-    rarity: "uncommon",
-    name: "Icatian Phalanx",
-    oracleText:
-        "Banding (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
-    manaCost: { X: 4, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Soldier"],
-    power: 2,
-    toughness: 4,
-    staticAbilities: ["banding"],
-}));
-
 // DIVERGENCE (tracked-by: #2119): the "Whenever this creature attacks, all
 // creatures banded with it gain first strike until end of turn" trigger is NOT
 // modelled; the printed first strike + banding keywords ship. The band members

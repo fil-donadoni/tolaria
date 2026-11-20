@@ -138,21 +138,6 @@ export const headlessHorseman = defineCard(() => ({
     toughness: 2,
 }));
 
-// Lost Soul — swampwalk (CR 702.14 landwalk variant).
-export const lostSoul = defineCard(() => ({
-    id: "601eed5c-436d-425b-a45f-07881ad893c8",
-    rarity: "common",
-    name: "Lost Soul",
-    oracleText:
-        "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)",
-    manaCost: { X: 1, B: 2 },
-    types: ["Creature"],
-    subtypes: ["Spirit", "Minion"],
-    power: 2,
-    toughness: 1,
-    staticAbilities: ["swampwalk"],
-}));
-
 // --- Activated-ability creatures (CR 605) ----------------------------------
 
 // Hell's Caretaker — "{T}, Sacrifice a creature: Return target creature card

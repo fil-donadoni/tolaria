@@ -107,7 +107,6 @@ import { thopterFoundry } from "@convex/cards/sets/arb/multicolor.cards";
 import { legionExtruder } from "@convex/cards/sets/big/red.cards";
 import { bloodfireInfusion } from "@convex/cards/sets/apc/red.cards";
 import { grizzlyBears } from "@convex/cards/sets/lea/index.cards";
-import { ornithopter } from "@convex/cards/sets/atq/colorless.cards";
 import { caribouRange } from "@convex/cards/sets/ice/white.cards";
 import { norritt } from "@convex/cards/sets/ice/black.cards";
 import { whiteout } from "@convex/cards/sets/ice/green.cards";
@@ -146,6 +145,9 @@ import {
 import type { PendingTarget } from "~/types/game";
 import type { CardInstanceState } from "@convex/gre/state";
 import { NO_BOARD_LAYER_VIEW } from "../../../convex/gre/layers";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const ornithopter = () => getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 const karakas = () => getDefinition("31d2422a-bb7d-4cdd-9aac-e5a936a4be3b");
 const quirionExplorer = getDefinition("141a031d-f899-497b-adf7-4af142078085");
 const fellwarStone = getDefinition("dc47e322-f8b8-4685-b035-fda0cc433e6b");

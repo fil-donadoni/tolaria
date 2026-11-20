@@ -47,13 +47,18 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { projectPublicState } from "../../gameProjections";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
-import { airElemental, flight } from "../../cards/sets/lea/blue.cards";
+import { flight } from "../../cards/sets/lea/blue.cards";
 import { gravitySphere } from "../../cards/sets/leg/red.cards";
 import {
     grantedKeywordRows,
     removedKeywordRows,
 } from "../../cards/__tests__/setup.helper";
 
+import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const airElemental = () =>
+    getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea");
 const UNTIL_EOT = { phase: "end-of-turn" } as const;
 
 function makeBoard(bear: CardInstanceState, extra: CardInstanceState[] = []) {
