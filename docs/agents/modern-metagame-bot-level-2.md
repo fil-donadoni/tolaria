@@ -98,7 +98,7 @@ is listed in [Not playable yet](#not-playable-yet) with the issue making it so.
 | Summoner's Pact      | four mana next upkeep: cast it for the creature the board needs     | cast it with the upkeep unpayable, losing the game    | `pact: Summoner's Pact is cast for a flash blocker with the upkeep payable`, `pact: Summoner's Pact finds the creature the board needs`; wrong: `pact: Summoner's Pact is never cast with the upkeep unpayable` |
 | Green Sun's Zenith   | the X that finds the creature it needs                              | spend more X than the find needs                      | `X spell: Green Sun's Zenith finds the Bears at X = 2`; wrong: `X spell: Green Sun's Zenith never overpays the find`                                                                                            |
 
-## W-U-B-G Goryo's
+## Esper Goryo
 
 | Card              | Right                                                               | Wrong: must not                                    | Has                                                                                                                                                                    |
 | ----------------- | ------------------------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
