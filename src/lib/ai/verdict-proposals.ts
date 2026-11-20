@@ -19,6 +19,13 @@
 //      `agreeingPerClass`: a corpus made only of disagreements cannot see a
 //      change that breaks what the Brain already gets right.
 //
+// COMMENTED DECISIONS ARE NEVER SAMPLED AWAY (issue #10088). A decision the
+// player commented while playing skips step 2 — it is always judged — and
+// step 4 — it is always proposed, agreeing or not; the quota then fills the
+// rest of its class as before. Every proposal carries the Plan its seat had
+// in force at the decision's `seq` and the player's words, which the review
+// submits with the Attestation (`verdicts.submit`, issue #10086).
+//
 // The result is a list of QUESTIONS. Nothing here labels, confirms or stores a
 // judgement: no Verdict Store write exists on this path, and a proposal nobody
 // answers simply goes away with the game (`verdict-proposal-store.ts`).
@@ -36,7 +43,12 @@ import {
 import type { GameState } from "@convex/gre/state";
 import { projectedToGameState } from "./state-adapter";
 import { identifyHumanMove } from "./human-move-match";
-import type { CapturedDecision } from "./human-decision-capture";
+import type { AttestedPlan } from "@convex/gre/ai/verdicts/types";
+import {
+    planInForce,
+    type CapturedDecision,
+    type PlanStatement,
+} from "./human-decision-capture";
 import type { AiTraceSource } from "./trace-store";
 import type { VerdictProposalConfig } from "./verdict-proposal-config";
 
@@ -52,7 +64,21 @@ export type VerdictProposal = {
     /** Whether the two are the same decision. NOT a judgement — an agreeing
      *  proposal is as unconfirmed as a disagreeing one. */
     agrees: boolean;
+    /** The Plan the deciding seat had in force at this decision's `seq`
+     *  (issue #10088), as the Attestation carries it. */
+    plan?: AttestedPlan;
+    /** The player's comment on this decision, verbatim — set exactly when
+     *  the decision was commented, which is what made it always proposed. */
+    rationale?: string;
+    /** The player marked this decision obvious while playing. */
+    obvious?: true;
 };
+
+/** Whether the player commented this decision — such a proposal is never
+ *  sampled or selected away. */
+export function isCommented(p: { rationale?: string }): boolean {
+    return p.rationale !== undefined;
+}
 
 /** A game's proposals, plus what fell out on the way — each a count a reader
  *  can hold the sample against. */
@@ -79,13 +105,21 @@ type Identified = {
     position: GameState;
     humanMove: Move;
     decisionClass: DecisionClass;
+    /** The player's own reading of the decision, carried to its proposal. */
+    said: Pick<VerdictProposal, "plan" | "rationale" | "obvious">;
 };
 
-/** Up to `quota` items per class, by a seeded shuffle, returned in their
- *  original order. Deterministic: same items, same seed, same sample. */
+/** Up to `quota` items per class (`quotaOf(cls)` when given), by a seeded
+ *  shuffle, returned in their original order. Deterministic: same items,
+ *  same seed, same sample. */
 export function sampleByDecisionClass<
     T extends { decisionClass: DecisionClass },
->(items: readonly T[], quota: number, seed: number): T[] {
+>(
+    items: readonly T[],
+    quota: number,
+    seed: number,
+    quotaOf: (cls: DecisionClass) => number = () => quota
+): T[] {
     const rng = makeRng(seed);
     const keep = new Set<number>();
     for (const cls of DECISION_CLASSES) {
@@ -96,13 +130,36 @@ export function sampleByDecisionClass<
             const j = Math.floor(rng() * (i + 1));
             [indexes[i], indexes[j]] = [indexes[j], indexes[i]];
         }
-        for (const index of indexes.slice(0, quota)) keep.add(index);
+        const room = Math.max(0, quotaOf(cls));
+        for (const index of indexes.slice(0, room)) keep.add(index);
     }
     return items.filter((_, i) => keep.has(i));
 }
 
-/** Per class: every disagreement, then at most `agreeingPerClass`
- *  agreements — in class order, game order within a class. */
+/** The commented decisions, plus a seeded sample of the others that fills
+ *  each class's quota around them — in original order. */
+export function sampleAroundCommented<
+    T extends { decisionClass: DecisionClass; said: { rationale?: string } },
+>(items: readonly T[], quota: number, seed: number): T[] {
+    const commented = items.filter((item) => isCommented(item.said));
+    const rest = items.filter((item) => !isCommented(item.said));
+    const taken = (cls: DecisionClass) =>
+        commented.filter((item) => item.decisionClass === cls).length;
+    const sampled = new Set<T>([
+        ...commented,
+        ...sampleByDecisionClass(
+            rest,
+            quota,
+            seed,
+            (cls) => quota - taken(cls)
+        ),
+    ]);
+    return items.filter((item) => sampled.has(item));
+}
+
+/** Per class: every disagreement, then the agreements — every commented
+ *  one, and uncommented ones up to what `agreeingPerClass` leaves — in class
+ *  order, game order within a class. */
 export function selectProposals(
     judged: readonly VerdictProposal[],
     agreeingPerClass: number
@@ -111,9 +168,38 @@ export function selectProposals(
     for (const cls of DECISION_CLASSES) {
         const ofClass = judged.filter((p) => p.decisionClass === cls);
         out.push(...ofClass.filter((p) => !p.agrees));
-        out.push(...ofClass.filter((p) => p.agrees).slice(0, agreeingPerClass));
+        const agreeing = ofClass.filter((p) => p.agrees);
+        const commented = agreeing.filter(isCommented).length;
+        let room = Math.max(0, agreeingPerClass - commented);
+        out.push(
+            ...agreeing.filter((p) => {
+                if (isCommented(p)) return true;
+                if (room === 0) return false;
+                room--;
+                return true;
+            })
+        );
     }
     return out;
+}
+
+/** What the player said about `decision` while playing, as its proposal
+ *  carries it: the Plan in force at its `seq`, its comment or mark. */
+export function saidAbout(
+    decision: CapturedDecision,
+    plans: readonly PlanStatement[]
+): Identified["said"] {
+    const plan = planInForce(
+        plans,
+        decision.source.botId,
+        decision.source.state.seq
+    );
+    const note = decision.annotation;
+    return {
+        ...(plan ? { plan: { text: plan.text, seq: plan.seq } } : {}),
+        ...(note?.kind === "comment" ? { rationale: note.text } : {}),
+        ...(note?.kind === "obvious" ? { obvious: true as const } : {}),
+    };
 }
 
 /** Whether the Brain's pick is the player's decision: the same structural
@@ -136,11 +222,14 @@ export async function proposeVerdicts(
     judge: BrainJudge,
     /** Called once the sample is drawn (`done` 0) and after each consult —
      *  what the game-over dialog shows while the judge runs (issue #10229). */
-    onProgress?: (done: number, total: number) => void
+    onProgress?: (done: number, total: number) => void,
+    /** Every Plan statement of the game (issue #10088). */
+    plans: readonly PlanStatement[] = []
 ): Promise<VerdictProposalList> {
     const identified: Identified[] = [];
     let unidentified = 0;
-    for (const { source, calls } of decisions) {
+    for (const decision of decisions) {
+        const { source, calls } = decision;
         const position = projectedToGameState(
             source.state,
             source.knowledge,
@@ -160,12 +249,13 @@ export async function proposeVerdicts(
             position,
             humanMove,
             decisionClass: decisionClassOfMove(humanMove),
+            said: saidAbout(decision, plans),
         });
     }
 
     const judged: VerdictProposal[] = [];
     let unjudged = 0;
-    const sampled = sampleByDecisionClass(
+    const sampled = sampleAroundCommented(
         identified,
         config.perClassQuota,
         config.seed
@@ -192,6 +282,7 @@ export async function proposeVerdicts(
                 decision.humanMove,
                 brainMove
             ),
+            ...decision.said,
         });
     }
 

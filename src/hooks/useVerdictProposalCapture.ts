@@ -1,6 +1,8 @@
-// Verdict Proposal capture for a vs-Bot game (issue #3984, GLOSSARY.md
-// § Verdict Proposal): record the HUMAN seat's decisions during play, judge a
-// sample of them once the game is over.
+// Verdict Proposal capture for a vs-Bot or a solo game (issue #3984, issue
+// #10088, GLOSSARY.md § Verdict Proposal): record the HUMAN seat's decisions
+// during play — both seats in solo, where one person plays both — judge a
+// sample of them once the game is over. The player's Plan statements and
+// comments ride with the capture (`human-decision-capture.ts`).
 //
 // DURING PLAY nothing is asked of the Brain. Each window the engine says the
 // human owes (the tick's `owedPlayerIds`, ADR 0047) and that is a fresh
@@ -29,6 +31,8 @@ import {
     capturingGame,
     clearHumanCapture,
     humanCaptureReady,
+    humanPlans,
+    isSeatOwnView,
     recordHumanCall,
     startHumanCapture,
     takeHumanDecisions,
@@ -51,56 +55,66 @@ import {
 import { openVerdictJudge, type JudgeClient } from "~/lib/ai/verdict-judge";
 import { seatKnowledge } from "~/lib/ai/seat-knowledge";
 
+/** The seat's decklist as definition ids (issue #5617) — the driver's read.
+ *  The server judge searches it as the seat's own deck knowledge. */
+function useSeatDeckIds(
+    gameId: Id<"games">,
+    seatId: string | null
+): readonly string[] | undefined {
+    const knowledge = useResilientQuery(
+        api.gameReads.getSeatDeckKnowledge,
+        seatId ? { gameId, playerId: seatId } : "skip"
+    ).data;
+    const legacyDeck = useResilientQuery(
+        api.gameReads.getSeatDeck,
+        seatId && knowledge === null ? { gameId, playerId: seatId } : "skip"
+    ).data;
+    return useMemo(
+        () => seatKnowledge(knowledge, legacyDeck),
+        [knowledge, legacyDeck]
+    )?.cardIds;
+}
+
 export function useVerdictProposalCapture(
     gameId: Id<"games">,
-    botId: string | null,
-    humanId: string | null,
+    /** The seats whose decisions are captured: a vs-Bot game's human seat,
+     *  or a solo game's two seats (at most two). Empty = no capture. */
+    seatIds: readonly string[],
     /** Whether the viewer may give a Verdict (issue #10229): the capture and
      *  the game-end judge run for testers and admins only — the review they
      *  feed is offered to no one else, and the server refuses anyone else. */
     mayJudge: boolean
 ): void {
     const convex = useConvex();
-    const active = mayJudge && !!botId && !!humanId && humanId !== botId;
+    const [firstSeat = null, secondSeat = null] = seatIds;
+    const active = mayJudge && firstSeat !== null;
+    // A stable identity for the effect below: the seats, not the array.
+    const seatsKey = seatIds.join("|");
 
     // The same tick the driver gates on — Convex shares one subscription.
     const tick = useResilientQuery(
         api.gameReads.getGameTick,
         active ? { gameId } : "skip"
     ).data;
-    const humanOwes = !!(
-        active &&
-        tick &&
-        !tick.gameOver &&
-        tick.owedPlayerIds?.includes(humanId!)
-    );
-    // The human's own projection — the board holds the same subscription.
-    const humanState = useResilientQuery(
+    // The captured seat the engine waits on now — solo: whichever of the two.
+    const owing =
+        active && tick && !tick.gameOver
+            ? ([firstSeat, secondSeat].find(
+                  (seat) => seat !== null && tick.owedPlayerIds?.includes(seat)
+              ) ?? null)
+            : null;
+    // That seat's own projection — the board holds the same subscription.
+    const owingState = useResilientQuery(
         api.game.getPublicState,
-        humanOwes ? { gameId, playerId: humanId! } : "skip"
+        owing ? { gameId, playerId: owing } : "skip"
     ).data;
-    // The seat's decklist as definition ids (issue #5617) — the driver's
-    // read. The Brain worker judging it was primed by the driver with the
-    // game's Manifest, which holds this deck.
-    const humanKnowledge = useResilientQuery(
-        api.gameReads.getSeatDeckKnowledge,
-        active ? { gameId, playerId: humanId! } : "skip"
-    ).data;
-    const legacyDeck = useResilientQuery(
-        api.gameReads.getSeatDeck,
-        active && humanKnowledge === null
-            ? { gameId, playerId: humanId! }
-            : "skip"
-    ).data;
-    const humanDeck = useMemo(
-        () => seatKnowledge(humanKnowledge, legacyDeck),
-        [humanKnowledge, legacyDeck]
-    );
+    const firstDeck = useSeatDeckIds(gameId, active ? firstSeat : null);
+    const secondDeck = useSeatDeckIds(gameId, active ? secondSeat : null);
     const gameOver = !!tick?.gameOver;
 
     useEffect(() => {
         if (!active) return;
-        startHumanCapture(gameId, humanId!, {
+        startHumanCapture(gameId, seatsKey.split("|"), {
             limit: VERDICT_PROPOSAL_CONFIG.captureLimit,
             seed: VERDICT_PROPOSAL_CONFIG.seed,
         });
@@ -112,12 +126,20 @@ export function useVerdictProposalCapture(
             clearHumanCapture();
             clearVerdictProposals();
         };
-    }, [active, convex, gameId, humanId]);
+    }, [active, convex, gameId, seatsKey]);
 
     useEffect(() => {
-        if (!active || !humanState || humanState.gameOver) return;
-        observeHumanWindow(gameId, humanState, humanId!, humanDeck?.cardIds);
-    }, [active, gameId, humanId, humanState, humanDeck]);
+        if (!active || !owing || !owingState || owingState.gameOver) return;
+        // Solo: right after the owed seat changes, the query may still hold
+        // the other seat's view for a render — never classify on it.
+        if (!isSeatOwnView(owingState, owing)) return;
+        observeHumanWindow(
+            gameId,
+            owingState,
+            owing,
+            owing === firstSeat ? firstDeck : secondDeck
+        );
+    }, [active, gameId, owing, owingState, firstSeat, firstDeck, secondDeck]);
 
     useEffect(() => {
         if (!active || !gameOver) return;
@@ -164,7 +186,10 @@ async function buildProposalsAtGameEnd(
                 if (capturingGame() === gameId) {
                     setVerdictJudging(gameId, done, total);
                 }
-            }
+            },
+            // The Plans stated during play: each proposal carries the one
+            // in force at its decision (issue #10088).
+            humanPlans(gameId)
         );
         // Why a game offers no review, or a shorter one than expected — to
         // Sentry as well as the console (issue #8732).
