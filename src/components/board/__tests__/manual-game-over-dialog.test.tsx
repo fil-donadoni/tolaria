@@ -43,6 +43,9 @@ vi.mock("~/lib/session", () => ({
     clearSession: vi.fn(),
 }));
 
+// Leaving is in-app router navigation (issue #10229).
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
+
 import ManualGameOverDialog from "../manual-game-over-dialog";
 
 const PLAYERS = [

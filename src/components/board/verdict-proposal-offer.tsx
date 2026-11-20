@@ -1,16 +1,20 @@
 // The game-over offer of the post-game review queue (issue #3986): one button,
-// shown only to an account that may give a Verdict and only once the finished
-// game's Verdict Proposals have landed (they are judged by the Brain after the
-// last move, so they arrive a moment after the dialog opens).
+// shown only to an account that may give a Verdict. While the game-end judge
+// runs (the Brain judges the sampled decisions after the last move, ~25 s
+// each) it reads as a disabled progress line (issue #10229); once the finished
+// game's Verdict Proposals land it becomes the review CTA. Leaving never waits
+// for either.
 
 import { useSyncExternalStore } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { canSubmitVerdicts } from "~/lib/adminGating";
 import {
+    getVerdictJudging,
     getVerdictProposals,
     subscribeVerdictProposals,
 } from "~/lib/ai/verdict-proposal-store";
+import { verdictJudgingLabel } from "~/lib/ai/verdict-judging-label";
 import { Button } from "~/components/ui/button";
 
 export default function VerdictProposalOffer({
@@ -23,12 +27,27 @@ export default function VerdictProposalOffer({
     const list = useSyncExternalStore(subscribeVerdictProposals, () =>
         getVerdictProposals(gameId)
     );
-    const count = list?.proposals.length ?? 0;
-    const currentUser = useQuery(
-        api.users.currentUser,
-        count > 0 ? {} : "skip"
+    const judging = useSyncExternalStore(subscribeVerdictProposals, () =>
+        getVerdictJudging(gameId)
     );
-    if (count === 0 || !canSubmitVerdicts(currentUser)) return null;
+    const count = list?.proposals.length ?? 0;
+    const shown = count > 0 || (!list && judging !== null);
+    const currentUser = useQuery(api.users.currentUser, shown ? {} : "skip");
+    if (!shown || !canSubmitVerdicts(currentUser)) return null;
+    if (count === 0 && judging) {
+        return (
+            <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled
+                aria-busy
+                className="mt-3 w-full"
+            >
+                {verdictJudgingLabel(judging)}
+            </Button>
+        );
+    }
     return (
         <Button
             type="button"

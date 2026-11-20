@@ -31,9 +31,18 @@ function seeds(
         gameOver?: boolean | null;
         positions?: number;
         userBudget?: Partial<Row>;
+        /** The caller's role flags (issue #10229); a tester by default. */
+        caller?: Partial<Row>;
     } = {}
 ): Row[] {
     const rows: Row[] = [
+        // Every caller the tests sign in as — the judge is tester-only.
+        ...[USER, "u2"].map((id) => ({
+            _id: id,
+            __table: "users",
+            isTester: true,
+            ...(id === USER ? opts.caller : {}),
+        })),
         {
             _id: GAME,
             __table: "games",
@@ -142,13 +151,14 @@ describe("verdictJudgeGuard.claimJudgeConsult — an accepted call (issue #9528)
     it("reads the games row and the tick on the first claim only", async () => {
         const stub = makeMutationCtx(USER, seeds());
         await claim(stub.ctx);
-        expect(stub.gets).toEqual([GAME]);
+        // The caller's own row (the tester gate, issue #10229), then the game.
+        expect(stub.gets).toEqual([USER, GAME]);
         expect(stub.queried).toContain("gameTicks");
 
         stub.gets.length = 0;
         stub.queried.length = 0;
         await claim(stub.ctx);
-        expect(stub.gets).toEqual([]);
+        expect(stub.gets).toEqual([USER]);
         expect(stub.queried).not.toContain("gameTicks");
         expect(stub.queried).toContain("verdictJudgeBudgets");
     });
@@ -161,6 +171,34 @@ describe("verdictJudgeGuard.claimJudgeConsult — rejections write nothing (issu
             /Sign in to use the judge/
         );
         expect(stub.writes).toHaveLength(0);
+    });
+
+    it("rejects a caller who is neither a tester nor an admin (issue #10229)", async () => {
+        const stub = makeMutationCtx(
+            USER,
+            seeds({ caller: { isTester: false } })
+        );
+        await expect(claim(stub.ctx)).rejects.toThrow(
+            /The judge is open to testers only/
+        );
+        expect(stub.writes).toHaveLength(0);
+        // A later claim on a game already judged is refused the same way.
+        const later = makeMutationCtx(
+            USER,
+            seeds({ caller: { isTester: false }, positions: 3 })
+        );
+        await expect(claim(later.ctx)).rejects.toThrow(
+            /The judge is open to testers only/
+        );
+        expect(later.writes).toHaveLength(0);
+    });
+
+    it("accepts an admin who carries no tester flag (issue #10229)", async () => {
+        const stub = makeMutationCtx(
+            USER,
+            seeds({ caller: { isTester: false, isAdmin: true } })
+        );
+        await expect(claim(stub.ctx)).resolves.toEqual({ iterations: 400 });
     });
 
     it("rejects a caller who is not the human of the game, on the first claim and on a later one", async () => {
