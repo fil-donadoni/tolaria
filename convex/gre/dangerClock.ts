@@ -176,8 +176,16 @@ export function predictCombatOutcome(
     const defender = state.players.find((p) => p.id === defenderId);
     const combat = state.combat;
     if (!attacker || !defender || !combat) return empty;
-    const ptOf = (c: CardInstanceState): EffectivePT =>
-        getEffectivePT(state, c, { pass });
+    // CR 120.6 / 704.5g (issue #10331) — damage already marked on a creature
+    // stays until cleanup and counts toward lethal, so the toughness this
+    // one-shot combat must overcome is what is LEFT of it. A blocker burned
+    // for 3 earlier in the turn dies to a 1-power attacker it would otherwise
+    // eat.
+    const ptOf = (c: CardInstanceState): EffectivePT => {
+        const pt = getEffectivePT(state, c, { pass });
+        const marked = c.damageMarked ?? 0;
+        return marked > 0 ? { ...pt, toughness: pt.toughness - marked } : pt;
+    };
 
     const declared = combat.attackerIds
         .map((id) => attacker.battlefield.find((c) => c.id === id))
