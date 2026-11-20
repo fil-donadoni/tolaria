@@ -237,7 +237,7 @@ describe("Man-o'-War (CR 603.3d targeted ETB, CR 400.3 owner's hand)", () => {
             id: "trig-jelly",
             zone: "stack",
             castById: "p1",
-            triggeredAbilityId: "man-o-war-etb-bounce",
+            triggeredAbilityId: "man-o-war-trigger",
             triggerSourceId: jelly.id,
             triggerEvent: {
                 type: "PERMANENT_ENTERED",

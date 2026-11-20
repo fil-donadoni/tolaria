@@ -71,7 +71,7 @@ describe("Juzám Djinn (upkeep: 1 damage to you)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveTrigger(state, juzam, "juzam-djinn-upkeep", upkeepEvent("p1"));
+        resolveTrigger(state, juzam, "juz-m-djinn-trigger", upkeepEvent("p1"));
         expect(state.players[0].life).toBe(19);
     });
 });

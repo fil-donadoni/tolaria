@@ -1404,7 +1404,7 @@ describe("Pyknite (1/1 Ouphe with self-ETB cantrip, CR 603.6a)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveTrigger(state, pyk, "pyknite-etb", {
+        resolveTrigger(state, pyk, "pyknite-trigger", {
             type: "PERMANENT_ENTERED",
             instanceId: "pyk",
             controllerId: "p1",

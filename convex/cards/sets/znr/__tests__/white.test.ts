@@ -120,7 +120,7 @@ describe("Luminarch Aspirant (CR 603.6a beginning-of-combat trigger; CR 122 coun
         ]);
         expect(
             triggers.some(
-                (t) => t.triggeredAbilityId === "luminarch-aspirant-counter"
+                (t) => t.triggeredAbilityId === "luminarch-aspirant-trigger"
             )
         ).toBe(false);
     });
@@ -240,7 +240,7 @@ describe("Skyclave Apparition (CR 603.6a ETB exile; CR 603.10a leave-trigger; CR
         removePermanentTo(state, "apparition", zone);
         processPendingActionTriggers(state);
         const trig = state.stack.find(
-            (s) => s.triggeredAbilityId === "skyclave-apparition-token"
+            (s) => s.triggeredAbilityId === "skyclave-apparition-trigger-2"
         );
         expect(trig).toBeDefined();
         state.stack = state.stack.filter((s) => s.id !== trig!.id);

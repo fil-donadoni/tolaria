@@ -50,8 +50,12 @@ import {
     grizzlyBears,
 } from "@convex/cards/sets/lea/index.cards";
 import { thermokarst } from "@convex/cards/sets/ice/green.cards";
-import { oathOfDruids } from "@convex/cards/sets/exo/green.cards";
+
 import { getDefinition } from "@convex/cards";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const oathOfDruids = () =>
+    getDefinition("cf14de50-d123-400c-862e-2c95fd2aa23f");
 const shivanDragon = () =>
     getDefinition("fefbf149-f988-4f8b-9f53-56f5878116a6");
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");

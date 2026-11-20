@@ -15,12 +15,12 @@ import {
 } from "../../types";
 import { countSnowLands } from "../../snowReads";
 import {} from "../../abilities";
-import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
-import { diedTrigger } from "../../abilities/triggers/diedTrigger";
+
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 
 // "Draw a card at the beginning of the next turn's upkeep" cantrip rider
@@ -1013,42 +1013,6 @@ export const naturesLore = defineCard(() => ({
         { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
 }));
-// Pyknite — {2}{G} 1/1 Ouphe. Self-ETB cantrip rider (CR 603.6a ETB trigger
-// arming the CR 502.2 / 603.7d next-upkeep delayed draw).
-export const pyknite = defineCard(() => ({
-    id: "6ffc64e4-ae3c-49f9-8ed6-518dd497bfe6",
-    name: "Pyknite",
-    rarity: "common",
-    oracleText:
-        "When this creature enters, draw a card at the beginning of the next turn's upkeep.",
-    manaCost: { X: 2, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Ouphe"],
-    power: 1,
-    toughness: 1,
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "pyknite-etb",
-            oracleText:
-                "When this creature enters, draw a card at the beginning of the next turn's upkeep.",
-            scope: "self",
-            // Migrated resolve()→effects[] (ADR 0045): the next-upkeep
-            // cantrip as an inline `delayedTrigger` Op (CR 603.7d — the
-            // Foxfire / Touch of Vitae shape), replacing the shared
-            // `scheduleNextUpkeepDraw` helper (now unused — Pyknite was its
-            // last caller).
-            effects: [
-                {
-                    op: "delayedTrigger",
-                    timing: "next-upkeep",
-                    oracleText:
-                        "At the beginning of the next turn's upkeep, draw a card.",
-                    effects: [{ op: "draw", player: "controller", count: 1 }],
-                },
-            ],
-        }),
-    ],
-}));
 // Rime Dryad — snow forestwalk (CR 702.14 / 205.4a): can't be blocked while the
 // defending player controls a snow Forest. The `snow forestwalk` keyword is
 // enforced by the combat registry's `LANDWALK_SNOW_RULES`
@@ -1199,30 +1163,6 @@ export const stuntedGrowth = defineCard(() => ({
             count: 3,
             prompt: "Choose three cards to put on top of your library in any order.",
         },
-    ],
-}));
-// Tarpan — {G} 1/1 with "When this creature dies, you gain 1 life." (CR 700.4
-// dies trigger; CR 119.3 life gain.)
-export const tarpan = defineCard(() => ({
-    id: "b1420ec5-367c-4514-86c5-3993bf339e37",
-    name: "Tarpan",
-    rarity: "common",
-    oracleText: "When this creature dies, you gain 1 life.",
-    manaCost: { G: 1 },
-    types: ["Creature"],
-    subtypes: ["Horse"],
-    power: 1,
-    toughness: 1,
-    triggeredAbilities: [
-        diedTrigger({
-            id: "tarpan-death-lifegain",
-            oracleText: "When this creature dies, you gain 1 life.",
-            scope: "self",
-            // Migrated resolve()→effects[] (ADR 0045): diedTrigger's effects[]
-            // site binds the source's controller — a plain controller-scoped
-            // gainLife (CR 119.3) needs nothing from the dead creature's LKI.
-            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
-        }),
     ],
 }));
 // Thermokarst — {1}{G}{G} Sorcery. "Destroy target land. If that land was a snow

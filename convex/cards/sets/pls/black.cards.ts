@@ -480,47 +480,6 @@ export const nightscapeFamiliar = defineCard(() => ({
     ],
 }));
 
-// Phyrexian Bloodstock — {4}{B} Creature — Phyrexian Zombie, 3/3. "When this
-// creature leaves the battlefield, destroy target white creature. It can't
-// be regenerated." (CR 603.10 leaves-the-battlefield trigger with a CR
-// 603.3d announcement-time target — `leftTrigger`'s `targetRequirement`,
-// added this issue (#1950) mirroring `EnteredTriggerArgs.targetRequirement`
-// exactly: no leaves-trigger in the catalogue had needed one before this
-// card. `scope: "self"`, no `toZone` filter — Bloodstock's own Oracle text
-// has no destination restriction, unlike Warped Devotion above.)
-export const phyrexianBloodstock = defineCard(() => ({
-    id: "785e1a67-af94-48e8-bb37-4999d1fb4c66", // PLS 50
-    name: "Phyrexian Bloodstock",
-    rarity: "common",
-    oracleText:
-        "When this creature leaves the battlefield, destroy target white creature. It can't be regenerated.",
-    manaCost: { X: 4, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Phyrexian", "Zombie"],
-    power: 3,
-    toughness: 3,
-    triggeredAbilities: [
-        leftTrigger({
-            id: "phyrexian-bloodstock-ltb",
-            oracleText:
-                "When this creature leaves the battlefield, destroy target white creature. It can't be regenerated.",
-            scope: "self",
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                colorFilter: "W",
-            },
-            effects: [
-                {
-                    op: "destroy",
-                    target: { target: 0 },
-                    cantBeRegenerated: true,
-                },
-            ],
-        }),
-    ],
-}));
-
 // Phyrexian Scuta — {3}{B} Creature — Phyrexian Zombie, 3/3. "Kicker—Pay 3
 // life. If this creature was kicked, it enters with two +1/+1 counters on
 // it." (CR 702.33a Kicker with a non-mana LIFE leg, ADR 0079 — the second

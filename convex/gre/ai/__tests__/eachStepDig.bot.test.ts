@@ -32,7 +32,12 @@ import { MAX_LATENT_SCRIPT_VALUE } from "../../cardValue";
 import { isEachStepEngineScript } from "../opValuers";
 import { forest } from "../../../cards/sets/lea/colorless.cards";
 import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
-import { oathOfDruids } from "../../../cards/sets/exo/green.cards";
+
+import { getDefinition } from "../../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const oathOfDruids = () =>
+    getDefinition("cf14de50-d123-400c-862e-2c95fd2aa23f");
 
 const OATH = oathOfDruids().id;
 const LAND = forest().id;

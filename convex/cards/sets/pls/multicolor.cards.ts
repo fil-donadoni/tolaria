@@ -324,24 +324,6 @@ export const gerrardsCommand = defineCard(() => ({
     ],
 }));
 
-// Horned Kavu — {R}{G} Creature — Kavu, 3/4. A two-mana 3/4 whose whole cost is
-// the mandatory bounce.
-export const hornedKavu = defineCard(() => ({
-    id: "ecd79fbf-626d-4549-917b-435f16b973d9", // PLS printing (scryfallId)
-    rarity: "common",
-    name: "Horned Kavu",
-    oracleText:
-        "When this creature enters, return a red or green creature you control to its owner's hand.",
-    manaCost: { R: 1, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Kavu"],
-    power: 3,
-    toughness: 4,
-    triggeredAbilities: [
-        bounceOnEntry("horned-kavu", ["R", "G"], "red or green"),
-    ],
-}));
-
 // Malicious Advice — {X}{U}{B} Instant. "Tap X target artifacts, creatures,
 // and/or lands. You lose X life."
 //
@@ -435,55 +417,6 @@ export const marshCrocodile = defineCard(() => ({
                             player: { ref: "$each" },
                             cards: { ref: "$crocDiscard" },
                         },
-                    ],
-                },
-            ],
-        }),
-    ],
-}));
-
-// Razing Snidd — {4}{B}{R} Creature — Beast, 3/3. Bounce template plus a
-// symmetric land sacrifice. "A land of their choice" is explicit in the modern
-// Oracle text: each player picks their OWN land (CR 701.17a), which is the
-// `choice(kind: "sacrifice-permanents")` feeding `sacrifice` shape Mana Vortex
-// (`drk/blue.cards.ts`) and Keldon Twilight (above) already use.
-export const razingSnidd = defineCard(() => ({
-    id: "d2090b80-2ce2-4c9a-87fe-d221f3c677b4", // PLS printing (scryfallId)
-    rarity: "uncommon",
-    name: "Razing Snidd",
-    oracleText:
-        "When this creature enters, return a black or red creature you control to its owner's hand.\nWhen this creature enters, each player sacrifices a land of their choice.",
-    manaCost: { X: 4, B: 1, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Beast"],
-    power: 3,
-    toughness: 3,
-    triggeredAbilities: [
-        bounceOnEntry("razing-snidd", ["B", "R"], "black or red"),
-        enteredTrigger({
-            id: "razing-snidd-etb-sac-land",
-            oracleText:
-                "When this creature enters, each player sacrifices a land of their choice.",
-            scope: "self",
-            effects: [
-                {
-                    op: "forEach",
-                    select: { set: "players" },
-                    // CR 101.4 — every player picks (APNAP), then all the
-                    // chosen lands are sacrificed together.
-                    simultaneous: true,
-                    effects: [
-                        {
-                            op: "choice",
-                            kind: "sacrifice-permanents",
-                            player: { ref: "$each" },
-                            zone: "battlefield",
-                            filter: { type: "Land" },
-                            count: 1,
-                            prompt: "Sacrifice a land of your choice.",
-                            bind: "$snidLand",
-                        },
-                        { op: "sacrifice", permanents: { ref: "$snidLand" } },
                     ],
                 },
             ],
