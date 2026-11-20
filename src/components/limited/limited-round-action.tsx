@@ -163,7 +163,7 @@ export default function LimitedRoundAction({
             ) : resumable ? (
                 <div className="flex items-center justify-between gap-2">
                     <span className="text-sm text-text-muted">
-                        Your round Match is in progress.
+                        Your round match is in progress.
                     </span>
                     <ActionButton
                         onClick={handleResume}

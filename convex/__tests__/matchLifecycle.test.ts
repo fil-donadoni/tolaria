@@ -1125,3 +1125,29 @@ describe("projectMatch — 2-player sideboarding secrecy (issue #397)", () => {
         expect(proj.players.find((p) => p.id === "u-p2")!.ready).toBe(true);
     });
 });
+
+describe("matchScoreForUser (issue #9983)", () => {
+    it("reads the score from the viewer's side, for 2-player and vs-AI seats", async () => {
+        const { matchScoreForUser } = await import("../matches");
+        const match = {
+            players: [
+                { id: "u1", score: 1 },
+                { id: "u2", score: 0 },
+            ],
+        };
+        expect(matchScoreForUser(match, "u1")).toEqual({ wins: 1, losses: 0 });
+        expect(matchScoreForUser(match, "u2")).toEqual({ wins: 0, losses: 1 });
+        expect(
+            matchScoreForUser(
+                {
+                    players: [
+                        { id: "u1-p1", score: 2 },
+                        { id: "u1-p2", score: 1 },
+                    ],
+                },
+                "u1"
+            )
+        ).toEqual({ wins: 2, losses: 1 });
+        expect(matchScoreForUser(match, "nobody")).toBeNull();
+    });
+});
