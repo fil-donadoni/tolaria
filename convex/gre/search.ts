@@ -107,6 +107,7 @@ import {
 import { beginLayer7Pass, getEffectivePT } from "./layers";
 import { lethalDamageThreshold } from "./lethalDamage";
 import {
+    enumerateCastMoves,
     enumerateMoves,
     onlyPassIsLegal,
     enumerateRaisedTargetMoves,
@@ -2434,11 +2435,16 @@ export function policyValueOfSettled(
         combat.confirmed &&
         !combat.blockersConfirmed &&
         combat.attackerIds.length > 0 &&
-        hasCastableInstant(settled, settled.activePlayerId, undefined, memo)
+        hasCastableInstant(settled, settled.activePlayerId, undefined, memo) &&
+        heldInstantSwingsExchange(settled)
     ) {
         // Don't PRE-JUDGE the attacker's combat while the attacker holds a
         // castable trick (ADR 0021 slice 3): the held instant may swing the
         // exchange, and the competent line is to wait for blocks and respond.
+        // Only a trick that CAN swing it (issue #10331): a held instant that
+        // leaves the declared exchange as it is — 2 damage at a 4/4 blocker
+        // a 1/1 attacks into, a draw spell — is no reason to stop reading the
+        // attacker as walking into the block.
         // `evaluate` folds in the pre-block predicted exchange (`declaredCombatDelta`,
         // ADR 0020 §3), which reads the attacker as walking into the block —
         // making the policy either dump the pump early or decline the bait.
@@ -2693,7 +2699,8 @@ function isAmbushSetupAttack(move: Move, held: HeldInstantProbe): boolean {
     return (
         move.kind === "declare-attackers" &&
         move.attackerIds.length > 0 &&
-        held.instant()
+        held.instant() &&
+        held.swingsAttack(move)
     );
 }
 
@@ -2736,7 +2743,15 @@ function isReactiveHold(
     if (pid !== state.activePlayerId) return false;
     const combat = state.combat;
     if (combat && combat.confirmed && !combat.blockersConfirmed) {
-        if (combat.attackerIds.length > 0 && held.instant()) {
+        // Waiting for blocks only pays when the held instant can answer
+        // them (issue #10331): the same swing read the policy's strip of
+        // `declaredCombatDelta` asks, so the tree explores the wait exactly
+        // where the rollout plays it.
+        if (
+            combat.attackerIds.length > 0 &&
+            held.instant() &&
+            held.swingsNow()
+        ) {
             return true;
         }
     }
@@ -2755,6 +2770,11 @@ function isReactiveHold(
 export type HeldInstantProbe = {
     instant: () => boolean;
     flashPermanent: () => boolean;
+    /** `heldInstantSwingsExchange` of THIS position (issue #10331). */
+    swingsNow: () => boolean;
+    /** `heldInstantSwingsExchange` of the position after `move`, a
+     *  `declare-attackers` by `pid`; memoized per declaration. */
+    swingsAttack: (move: Move) => boolean;
 };
 
 function heldInstantProbe(
@@ -2764,12 +2784,127 @@ function heldInstantProbe(
 ): HeldInstantProbe {
     let instant: boolean | undefined;
     let flashPermanent: boolean | undefined;
+    let swingsNow: boolean | undefined;
+    const swingsByAttack = new Map<string, boolean>();
     return {
         instant: () =>
             (instant ??= hasCastableInstant(state, pid, undefined, memo)),
         flashPermanent: () =>
             (flashPermanent ??= hasCastableFlashPermanent(state, pid, memo)),
+        swingsNow: () => (swingsNow ??= heldInstantSwingsExchange(state)),
+        swingsAttack: (move) => {
+            const key = moveKey(move);
+            let swings = swingsByAttack.get(key);
+            if (swings === undefined) {
+                const declared = cloneGameState(state);
+                applyMoveInSearch(declared, pid, move);
+                swings = heldInstantSwingsExchange(declared);
+                swingsByAttack.set(key, swings);
+            }
+            return swings;
+        },
     };
+}
+
+/** The declared exchange as the ATTACKER would fare against a defender that
+ *  blocks what it sees: `declaredCombatDelta` read from the defender's seat
+ *  (no held pump folded in, ADR 0021) and turned to the attacker's sign. */
+function visibleDeclaredExchange(state: GameState): number {
+    const defender = state.players.find((p) => p.id !== state.activePlayerId);
+    if (!defender) return 0;
+    return -declaredCombatDelta(state, defender.id, DEFAULT_EVAL_WEIGHTS);
+}
+
+/** The creatures the cast took off the battlefield, priced on the pre-cast
+ *  position from the attacker's side: a defender's creature gone is a gain,
+ *  an attacker's own a loss. Without it, an attacker killed by its own spell
+ *  would read as an improvement — its predicted death in the block leaves
+ *  the exchange along with it. */
+function creaturesRemovedValue(before: GameState, after: GameState): number {
+    const attackerId = before.activePlayerId;
+    let value = 0;
+    for (const player of before.players) {
+        const remaining = new Set(
+            after.players
+                .find((p) => p.id === player.id)
+                ?.battlefield.map((c) => c.id) ?? []
+        );
+        for (const card of player.battlefield) {
+            if (!isCreature(card) || remaining.has(card.id)) continue;
+            const worth = evaluateCreature(before, card);
+            value += player.id === attackerId ? -worth : worth;
+        }
+    }
+    return value;
+}
+
+/** Upper bound on the stack items a swing probe resolves for one cast — the
+ *  spell plus the "when you cast" triggers above it (CR 601.2i). */
+const SWING_PROBE_MAX_RESOLUTIONS = 8;
+
+/** Whether the active player holds a castable instant that could CHANGE the
+ *  declared exchange (issue #10331): some instant-speed card in hand, cast in
+ *  `state` on one of its legal targets and resolved (CR 608.2, then the
+ *  CR 704.3 SBA check), leaves the attacker's visible declared-exchange
+ *  reading, plus the creatures the cast itself removed, STRICTLY better than
+ *  not casting it. A pump that lets the attacker
+ *  survive or kill its blocker qualifies, and so does removal that takes the
+ *  only blocker out. Damage that leaves the blocker alive through combat
+ *  damage does not, nor does a card with no combat effect.
+ *
+ *  Read only where a combat is declared and confirmed with no blocks yet, the
+ *  window `policyValueOfSettled` and the ambush nudges gate on; `false`
+ *  outside it. Scored under the DEFAULT weights so the answer is a property
+ *  of the position, never of the vector one Eval Pair reads it under. A cast
+ *  whose resolution stops on a choice cannot be read here and counts as a
+ *  swing — the bare castable-instant gate this predicate narrows. Pure:
+ *  every probe runs on a clone. */
+export function heldInstantSwingsExchange(state: GameState): boolean {
+    const combat = state.combat;
+    if (
+        !combat ||
+        !combat.confirmed ||
+        combat.blockersConfirmed ||
+        combat.attackerIds.length === 0
+    ) {
+        return false;
+    }
+    const attackerId = state.activePlayerId;
+    const attacker = state.players.find((p) => p.id === attackerId);
+    if (!attacker) return false;
+    const baseline = visibleDeclaredExchange(state);
+    for (const card of attacker.hand) {
+        if (!hasInstantSpeed(card)) continue;
+        for (const move of enumerateCastMoves(state, attacker, card)) {
+            const probe = cloneGameState(state);
+            const depth = probe.stack.length;
+            try {
+                applyMoveInSearch(probe, attackerId, move);
+                for (
+                    let i = 0;
+                    i < SWING_PROBE_MAX_RESOLUTIONS &&
+                    probe.stack.length > depth &&
+                    (probe.pendingChoices?.length ?? 0) === 0 &&
+                    !probe.pendingTarget;
+                    i++
+                ) {
+                    resolveTopOfStack(probe);
+                }
+            } catch {
+                continue;
+            }
+            if ((probe.pendingChoices?.length ?? 0) > 0 || probe.pendingTarget)
+                return true;
+            checkStateBasedActions(probe);
+            if (
+                visibleDeclaredExchange(probe) +
+                    creaturesRemovedValue(state, probe) >
+                baseline
+            )
+                return true;
+        }
+    }
+    return false;
 }
 
 /** Soft progressive-bias prior added to an edge's UCB1 score (ADR 0021 slice 3,
