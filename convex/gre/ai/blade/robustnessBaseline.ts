@@ -24,4 +24,19 @@
 
 import type { RobustnessBaselineRow } from "./robustness";
 
-export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [];
+// The first FULL PR-side audit to finish (issue #10319, PR #10333) found
+// these three, pre-existing: no full audit had completed since 2026-10-11.
+export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
+    {
+        label: "poison clock: Terror takes the infect Grizzly Bears over the bigger Hill Giant at seven poison (issue #5153)",
+        issue: 10335,
+    },
+    {
+        label: "Self-growing sacrifice outlet: casts the creature",
+        issue: 10336,
+    },
+    {
+        label: "self-harm: Fatal Push still destroys the opponent's mana value 4 creature beside the Bot's own",
+        issue: 10337,
+    },
+];

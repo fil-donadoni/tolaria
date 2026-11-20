@@ -357,7 +357,7 @@ newer draft (`SUPERSEDED_JOBS`, issue #6020).
 | [`bot-costs-refresh`](#bot-costs-refresh) | daily 04:30 UTC, dispatch                                                              | `[self-hosted, maint, host:macbook]`            | re-derives the bot test cost table from health's walls; a data PR only when a row changed                |
 | [`ui-batch`](#ui-batch)                   | every 30 min, dispatch                                                                 | GitHub-hosted probe, then `[self-hosted, lane]` | one `check:ui` batch walk of every `ui-owed` PR; lands, fails or holds each                              |
 | [`blade-census`](#blade-census)           | dispatch (`ref`, `variant`, `tier`, `match`, `iterations`, `fail_fast`)                | GitHub-hosted `ubuntu-24.04`, 16 slices         | one arm of a Bot flip census, off the owner's machines — a report, never a gate                          |
-| [`blade-robustness`](#blade-robustness)   | `pull_request` (opened, synchronize, reopened)                                         | GitHub-hosted `ubuntu-24.04`, plan + 4 shards   | the robustness audit on a Bot diff before landing — a queue condition (`check-success=blade-robustness`) |
+| [`blade-robustness`](#blade-robustness)   | `pull_request` (opened, synchronize, reopened)                                         | GitHub-hosted `ubuntu-24.04`, plan + 8 parts    | the robustness audit on a Bot diff before landing — a queue condition (`check-success=blade-robustness`) |
 
 ### pr-check
 
@@ -1798,9 +1798,22 @@ no status, no label, no merge waits on it.
 blade robustness audit (`blade:robustness`, issue #4875) before landing, on
 free GitHub-hosted runners, in parallel with hand-off. `plan`
 (`scripts/blade-robustness-plan.ts`) reads the health trigger
-(`scripts/lib/health-robustness-trigger.ts`) on the PR's merge ref: FULL (the
-whole `must` tier), INCREMENTAL (the registry's added or changed entries) or
-NONE. Four `shard` jobs run `robustness.shard-N.spec.ts` (what health runs);
+(`scripts/lib/health-robustness-trigger.ts`) on the PR's own change —
+`merge-base(origin/<base>, head)..head`, from a blobless full-history checkout
+(~14 MB), never the merge ref's `HEAD^1..HEAD`: GitHub can hand out a merge
+ref on a base tip older than the PR's fork point, and PR #10295 (two `src/`
+files) then read FULL on base files (issue #10319). FULL (the whole `must`
+tier), INCREMENTAL (the registry's added or changed entries) or NONE. Eight
+`audit part N` jobs (`timeout-minutes: 120`) each run all four
+`robustness.shard-N.spec.ts` files (what health runs) on the runner's four
+vCPUs (`TOLARIA_VITEST_WORKERS=4`), narrowed by `BLADE_ROBUSTNESS_PART=N/8`
+to a cost-balanced part of each shard (`costBalancedSlice`, cost = the
+entry's search iterations); the part count is the matrix length. Measured on
+PR #10333 (run 44746367265): parts took 21–30 min, the one holding the Oko
+loyalty entry (1914 s alone) 61 min, so the timeout is ~2× the slowest part;
+an entry's own timeout allows 200 ms a search iteration (137 ms measured on
+the Oko board). A part cut by the timeout reads `cancelled` in the verdict,
+never red; its per-entry rows stay in the job log (`tee`).
 `verdict`, named `blade-robustness`, is the check `.mergify.yml` requires in
 `queue_conditions`. NONE runs no search and reports green; a finding reds the
 check and the run summary names the entry and the leg. The queue's draft

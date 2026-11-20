@@ -11,7 +11,15 @@ import { readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { BLADE_SCENARIOS, bladeScenariosForTier } from "..";
-import { BLADE_SHARDS, bladeShardOf, bladeShardSlice } from "../shard";
+import { robustnessVectors } from "../robustness";
+import {
+    BLADE_SHARDS,
+    bladeShardOf,
+    bladeShardSlice,
+    costBalancedSlice,
+    parseBladePart,
+} from "../shard";
+import { entrySearchIterations } from "./robustnessShardRunner.helper";
 
 describe("blade shard partition (issue #4482)", () => {
     for (const tier of ["must", "stretch"] as const) {
@@ -83,4 +91,66 @@ describe("blade shard partition (issue #4482)", () => {
             });
         }
     );
+});
+
+// The PR-side robustness audit (issue #10319) splits each shard's slice into
+// cost-balanced parts, one CI job per part.
+describe("robustness parts (issue #10319)", () => {
+    const PARTS = 8;
+    const must = bladeScenariosForTier("must");
+    const vectors = robustnessVectors().length;
+    const cost = (s: (typeof must)[number]) =>
+        entrySearchIterations(s, vectors);
+
+    it("every must entry is audited by exactly one (shard, part)", () => {
+        const seen: string[] = [];
+        for (let shard = 0; shard < BLADE_SHARDS; shard++) {
+            const slice = bladeShardSlice(must, shard);
+            for (let part = 0; part < PARTS; part++)
+                seen.push(
+                    ...costBalancedSlice(slice, part, PARTS, cost).map(
+                        (s) => s.label
+                    )
+                );
+        }
+        expect([...seen].sort()).toEqual(must.map((s) => s.label).sort());
+        expect(new Set(seen).size).toBe(must.length);
+    });
+
+    it("no part outweighs the mean by more than its heaviest entry", () => {
+        for (let shard = 0; shard < BLADE_SHARDS; shard++) {
+            const slice = bladeShardSlice(must, shard);
+            const total = slice.reduce((n, s) => n + cost(s), 0);
+            const heaviest = Math.max(...slice.map(cost));
+            for (let part = 0; part < PARTS; part++) {
+                const load = costBalancedSlice(slice, part, PARTS, cost).reduce(
+                    (n, s) => n + cost(s),
+                    0
+                );
+                expect(load).toBeLessThanOrEqual(total / PARTS + heaviest);
+            }
+        }
+    });
+
+    it("keeps the items' order and balances a skewed list", () => {
+        const items = [1, 10, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+        expect(costBalancedSlice(items, 0, 2, (n) => n)).toEqual([10]);
+        expect(costBalancedSlice(items, 1, 2, (n) => n)).toEqual(
+            Array(10).fill(1)
+        );
+        expect(costBalancedSlice(items, 0, 1, (n) => n)).toEqual(items);
+    });
+
+    it("refuses a part outside [0, parts)", () => {
+        expect(() => costBalancedSlice([1], 2, 2, (n) => n)).toThrow();
+        expect(() => costBalancedSlice([1], 0, 0, (n) => n)).toThrow();
+    });
+
+    it("parseBladePart reads i/N and refuses anything else", () => {
+        expect(parseBladePart(undefined)).toBeNull();
+        expect(parseBladePart("")).toBeNull();
+        expect(parseBladePart("3/8")).toEqual({ part: 3, parts: 8 });
+        for (const raw of ["8/8", "1/0", "x", "1/", "-1/4", "1.5/4"])
+            expect(() => parseBladePart(raw)).toThrow();
+    });
 });
