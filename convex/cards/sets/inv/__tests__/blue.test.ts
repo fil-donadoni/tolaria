@@ -454,7 +454,7 @@ describe("Vodalian Merchant (ETB: draw, then discard; CR 603.6a / 121.1 / 701.9)
                 makePlayer("p2"),
             ],
         });
-        resolveTrigger(state, merchant, "vodalian-merchant-loot", {
+        resolveTrigger(state, merchant, "vodalian-merchant-trigger", {
             type: "PERMANENT_ENTERED",
             instanceId: "merchant",
             controllerId: "p1",

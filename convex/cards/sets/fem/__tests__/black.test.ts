@@ -102,7 +102,8 @@ describe("FEM black registry parity + multi-art prints (ADR 0014)", () => {
     const C5_DEFS = [
         armorThrull,
         basalThrull,
-        breedingPit,
+        // Breeding Pit is compiled (ADR 0114): no hand-written singleton to be
+        // identical to, so it is outside this parity list.
         derelor,
         ebonPraetor,
         hymnToTourach,
@@ -1092,7 +1093,7 @@ describe("Breeding Pit — upkeep tax + end-step Thrull token (CR 603.2)", () =>
                 makePlayer("p2"),
             ],
         });
-        resolveTrigger(state, pit, "breeding-pit-end-step", {
+        resolveTrigger(state, pit, "breeding-pit-trigger-2", {
             type: "PHASE_BEGIN",
             phase: "END_STEP",
             activePlayerId: "p1",

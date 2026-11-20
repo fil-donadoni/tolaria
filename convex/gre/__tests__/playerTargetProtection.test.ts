@@ -108,7 +108,7 @@ describe("targeted 'target opponent' triggers honour player protection (CR 702.1
             announceTrigger(
                 state,
                 source,
-                "ravenous-rats-etb",
+                "ravenous-rats-trigger",
                 etbEvent(source)
             )
         ).toBe(false);
@@ -130,7 +130,7 @@ describe("targeted 'target opponent' triggers honour player protection (CR 702.1
             announceTrigger(
                 state,
                 source,
-                "ravenous-rats-etb",
+                "ravenous-rats-trigger",
                 etbEvent(source)
             )
         ).toBe(false);
@@ -159,7 +159,7 @@ describe("targeted 'target opponent' triggers honour player protection (CR 702.1
             announceTrigger(
                 state,
                 source,
-                "ravenous-rats-etb",
+                "ravenous-rats-trigger",
                 etbEvent(source)
             )
         ).toBe(false);
@@ -196,7 +196,7 @@ describe("targeted 'target opponent' triggers honour player protection (CR 702.1
             announceTrigger(
                 state,
                 source,
-                "ravenous-rats-etb",
+                "ravenous-rats-trigger",
                 etbEvent(source)
             )
         ).toBe(false);
@@ -205,7 +205,12 @@ describe("targeted 'target opponent' triggers honour player protection (CR 702.1
 
     it("survives the wire projection — the client sees the same locked target", () => {
         const { state, source } = twoSeatBoard(ravenousRats().id, "rats");
-        announceTrigger(state, source, "ravenous-rats-etb", etbEvent(source));
+        announceTrigger(
+            state,
+            source,
+            "ravenous-rats-trigger",
+            etbEvent(source)
+        );
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.stack).toHaveLength(1);
         expect(projected.stack[0].targets).toEqual([

@@ -69,7 +69,7 @@ function putTriggerOnStack(
         id: "portable-hole-trig",
         zone: "stack",
         castById: source.controllerId,
-        triggeredAbilityId: "portable-hole-exile",
+        triggeredAbilityId: "portable-hole-trigger",
         triggerSourceId: source.id,
         triggerEvent: ETB_EVENT,
         targets: undefined,
@@ -145,7 +145,7 @@ describe("Portable Hole (AFR — exile-until-leaves scoped to mv<=2, CR 603.6a/6
         removePermanentTo(state, "ph", "graveyard");
         processPendingActionTriggers(state);
         const returnTrig = state.stack.find(
-            (s) => s.triggeredAbilityId === "portable-hole-return"
+            (s) => s.triggeredAbilityId === "portable-hole-trigger-2"
         );
         expect(returnTrig).toBeDefined();
         resolveTopOfStack(state);

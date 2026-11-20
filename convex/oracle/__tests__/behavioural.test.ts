@@ -123,7 +123,7 @@ describe("compiled twin — ability ids are grafted, not invented (issue #2703)"
         // applied to `triggeredAbilities` on the compiler's raw output finds
         // nothing and silently does nothing. That defect reported four cards as
         // behavioural disagreements when all four twins were identical.
-        const card = getCardByName("Juzám Djinn");
+        const card = getDefinition(getCardByName("Juzám Djinn").id);
         const twin = compiledTwin(card);
         expect(twin.ok).toBe(true);
         if (!twin.ok) return;
@@ -164,7 +164,7 @@ describe("ability id graft — paired by structural key, not position (issue #30
     // rather than through `compiledTwin`.
     const assassin = getCardByName("Royal Assassin");
     const activatedTemplate = assassin.activatedAbilities![0];
-    const djinn = getCardByName("Juzám Djinn");
+    const djinn = getDefinition(getCardByName("Juzám Djinn").id);
     const triggeredTemplate = djinn.triggeredAbilities![0];
 
     it("pairs activated abilities by COST when the compiler reorders them", () => {

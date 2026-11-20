@@ -86,7 +86,7 @@ function exileTriggerOnStack(
         id: "bl-etb-trig",
         zone: "stack",
         castById: source.controllerId,
-        triggeredAbilityId: "banishing-light-exile",
+        triggeredAbilityId: "banishing-light-trigger",
         triggerSourceId: source.id,
         triggerEvent: ETB_EVENT,
         targets: undefined,
@@ -151,7 +151,7 @@ describe("Banishing Light (JOU — exile-until-leaves, CR 603.6a/603.7a)", () =>
         removePermanentTo(state, "bl", "graveyard");
         processPendingActionTriggers(state);
         const trig = state.stack.find(
-            (s) => s.triggeredAbilityId === "banishing-light-return"
+            (s) => s.triggeredAbilityId === "banishing-light-trigger-2"
         );
         expect(trig).toBeDefined();
         resolveTopOfStack(state);

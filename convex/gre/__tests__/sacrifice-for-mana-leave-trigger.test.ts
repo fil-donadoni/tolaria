@@ -156,7 +156,7 @@ describe("sacrifice-for-mana fires the source's leave-the-battlefield trigger (C
         // auto-resolve; left unresolved here to avoid its may-pay sub-choice).
         processPendingActionTriggers(state);
         expect(
-            state.stack.some((s) => s.triggeredAbilityId === "soul-net-life")
+            state.stack.some((s) => s.triggeredAbilityId === "soul-net-trigger")
         ).toBe(true);
     });
 });

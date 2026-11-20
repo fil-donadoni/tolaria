@@ -1168,7 +1168,9 @@ describe("blade setup — `phase-trigger` fires an at-the-beginning trigger (iss
             setup: [{ kind: "phase-trigger" }],
         });
         expect(state.stack).toHaveLength(1);
-        expect(state.stack[0].triggeredAbilityId).toBe("oath-of-druids-upkeep");
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "oath-of-druids-trigger"
+        );
         // CR 603.3d — the sole legal target auto-selected as the trigger was
         // placed, which only happens on the REAL placement path.
         expect(state.stack[0].targets).toEqual([

@@ -38,7 +38,7 @@ function portalEtbTriggerOnStack(
         id: "trig-portal-etb",
         zone: "stack",
         castById: source.controllerId,
-        triggeredAbilityId: "portal-to-phyrexia-etb",
+        triggeredAbilityId: "portal-to-phyrexia-trigger",
         triggerSourceId: source.id,
         triggerEvent: {
             type: "PERMANENT_ENTERED",
@@ -63,7 +63,7 @@ function portalUpkeepTriggerOnStack(
         id: "trig-portal-upkeep",
         zone: "stack",
         castById: source.controllerId,
-        triggeredAbilityId: "portal-to-phyrexia-upkeep",
+        triggeredAbilityId: "portal-to-phyrexia-trigger-2",
         triggerSourceId: source.id,
         triggerEvent: {
             type: "PHASE_BEGIN",
