@@ -17,7 +17,7 @@ import {
     LANDWALK_KEYWORD_BY_BASIC_TYPE,
 } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
+
 import { colorChoiceModes } from "../../abilities/chooseColor";
 
 // Mirrorwood Treefolk — {3}{G} Creature — Treefolk, 2/4. "{2}{R}{W}: The next
@@ -606,45 +606,6 @@ export const pygmyKavu = defineCard(() => ({
                             filter: { type: "Creature", color: "B" },
                         },
                     },
-                },
-            ],
-        }),
-    ],
-}));
-
-// Quirion Dryad — {1}{G} Creature — Dryad, 1/1. "Whenever you cast a spell
-// that's white, blue, black, or red, put a +1/+1 counter on this creature."
-// (CR 601.2i / 603.2 SPELL_CAST trigger, `spellCastTrigger` factory — the
-// Crystal Rod color-sphere shape (`lea/colorless.cards.ts`) with an OR-of-four-
-// colors `filter.colors` array instead of one, discriminating the CAST
-// SPELL's color off `SpellCastEvent.spellColors` — never this permanent's
-// own color, and never a lookup. `scope: "you"` — only the controller's own
-// casts. The counter is the censused `counters` Op targeting `$source`.)
-export const quirionDryad = defineCard(() => ({
-    id: "f6841ae6-b15f-488e-9cae-2cc5ec668278", // PLS 89
-    name: "Quirion Dryad",
-    rarity: "rare",
-    oracleText:
-        "Whenever you cast a spell that's white, blue, black, or red, put a +1/+1 counter on this creature.",
-    manaCost: { X: 1, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Dryad"],
-    power: 1,
-    toughness: 1,
-    triggeredAbilities: [
-        spellCastTrigger({
-            id: "quirion-dryad-grow",
-            oracleText:
-                "Whenever you cast a spell that's white, blue, black, or red, put a +1/+1 counter on this creature.",
-            scope: "you",
-            filter: { colors: ["W", "U", "B", "R"] },
-            effects: [
-                {
-                    op: "counters",
-                    action: "add",
-                    counter: "+1/+1",
-                    target: { ref: "$source" },
-                    count: 1,
                 },
             ],
         }),

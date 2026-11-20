@@ -36,7 +36,6 @@ import {
     withTemporaryDefinition,
 } from "../../../cards/registry";
 import {
-    copperTablet,
     forest,
     island,
     mountain,
@@ -46,6 +45,11 @@ import {
 import { karma } from "../../../cards/sets/lea/white.cards";
 import { spiritualSanctuary } from "../../../cards/sets/leg/white.cards";
 import { collapsingBorders } from "../../../cards/sets/inv/red.cards";
+import { getDefinition } from "../../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const copperTablet = () =>
+    getDefinition("30935e4a-013e-4c46-ad05-304df8e5dfa4");
 
 const KARMA = karma().id;
 const TABLET = copperTablet().id;

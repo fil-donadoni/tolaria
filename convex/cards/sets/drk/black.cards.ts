@@ -301,45 +301,6 @@ export const inquisition = defineCard(() => ({
     },
 }));
 
-// Murk Dwellers — "Whenever this creature attacks and isn't blocked, it gets
-// +2/+0 until end of combat." (CR 509.1h — the new ATTACKER_UNBLOCKED combat
-// event fires once per unblocked attacker when the block graph is finalized;
-// CR 611.2 the +2/+0 pump scoped to end of combat.)
-export const murkDwellers = defineCard(() => ({
-    id: "a213450f-02f4-4c08-8da8-891ebfa8e237",
-    rarity: "common",
-    name: "Murk Dwellers",
-    oracleText:
-        "Whenever this creature attacks and isn't blocked, it gets +2/+0 until end of combat.",
-    manaCost: { X: 3, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Zombie"],
-    power: 2,
-    toughness: 2,
-    triggeredAbilities: [
-        {
-            id: "murk-dwellers-unblocked-pump",
-            oracleText:
-                "Whenever this creature attacks and isn't blocked, it gets +2/+0 until end of combat.",
-            event: "ATTACKER_UNBLOCKED",
-            matches: (event, self) =>
-                event.type === "ATTACKER_UNBLOCKED" &&
-                event.attackerId === self.id,
-            // Migrated resolve()→effects[] (ADR 0045, #840): self-pump +2/0
-            // until end of combat (CR 611.2).
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 2,
-                    toughness: 0,
-                    duration: { phase: "end-of-combat" },
-                },
-            ],
-        },
-    ],
-}));
-
 // Nameless Race — "Trample\nAs this creature enters, pay any amount of life.
 // The amount you pay can't be more than the total number of white nontoken
 // permanents your opponents control plus the total number of white cards in

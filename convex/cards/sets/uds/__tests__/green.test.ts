@@ -51,7 +51,9 @@ function compostBoard(
 /** Collects the triggers the last action produced and returns Compost's. */
 function compostTriggers(state: GameState) {
     processPendingActionTriggers(state);
-    return state.stack.filter((i) => i.triggeredAbilityId === "compost-draw");
+    return state.stack.filter(
+        (i) => i.triggeredAbilityId === "compost-trigger"
+    );
 }
 
 describe("Compost (CR 603.6c graveyard-from-anywhere trigger, CR 400.3 owner's graveyard)", () => {

@@ -11,10 +11,15 @@
 //  3. REFUSALS — the neighbours the rules must NOT read.
 
 import { describe, expect, it } from "vitest";
-import { goblinLackey } from "../../cards/sets/usg/red.cards";
+
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { oracleCard } from "./oracle.fixture";
+import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const goblinLackey = () =>
+    getDefinition("9b848caa-aad8-4060-8f86-304a8556de2d");
 
 const LACKEY =
     "Whenever this creature deals damage to a player, you may put a Goblin permanent card from your hand onto the battlefield.";

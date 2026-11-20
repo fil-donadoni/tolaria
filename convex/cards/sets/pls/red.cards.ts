@@ -7,39 +7,8 @@ import { defineCard, type SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
-import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
-import { chooseColorEffects } from "../../abilities/chooseColor";
 
-// Flametongue Kavu — {3}{R} Creature — Kavu, 4/2. "When this creature enters,
-// it deals 4 damage to target creature." (CR 603.6a self-ETB trigger with a
-// CR 603.3d announcement-time target — `enteredTrigger` scope `self` +
-// `targetRequirement`, the Fury/#1193 seam. The single-target 4 damage is a
-// plain `dealDamage` Op reading the announced slot via `{ target: 0 }`, so
-// the effect is DSL-first — no divide-as-you-choose, no `resolve`.) The
-// mandatory "target creature" may be Flametongue Kavu itself when it is the
-// only creature — self is a legal target, the classic FTK self-kill.
-export const flametongueKavu = defineCard(() => ({
-    id: "e5056bca-bd90-4b50-8630-105558f8ef92", // PLS printing (scryfallId)
-    name: "Flametongue Kavu",
-    rarity: "uncommon",
-    oracleText:
-        "When this creature enters, it deals 4 damage to target creature.",
-    manaCost: { X: 3, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Kavu"],
-    power: 4,
-    toughness: 2,
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "flametongue-kavu-etb",
-            oracleText:
-                "When this creature enters, it deals 4 damage to target creature.",
-            scope: "self",
-            targetRequirement: { type: "Creature", count: 1 },
-            effects: [{ op: "dealDamage", amount: 4, to: { target: 0 } }],
-        }),
-    ],
-}));
+import { chooseColorEffects } from "../../abilities/chooseColor";
 
 // Caldera Kavu — {2}{R} Creature — Kavu, 2/2. "{1}{B}: This creature gets
 // +1/+1 until end of turn.\n{G}: This creature becomes the color of your
@@ -325,40 +294,6 @@ export const moggJailer = defineCard(() => ({
             oracleText:
                 "This creature can't attack if defending player controls an untapped creature with power 2 or less.",
         },
-    ],
-}));
-
-// Mogg Sentry — {R} Creature — Goblin Warrior, 1/1. "Whenever an opponent
-// casts a spell, this creature gets +2/+2 until end of turn." (CR 603.2
-// SPELL_CAST trigger via `spellCastTrigger({ scope: "opponents" })`; the pump
-// is the censused `pump` Op.)
-export const moggSentry = defineCard(() => ({
-    id: "8536ec54-cebd-4d44-8e52-42344a3e6daa", // PLS 69
-    rarity: "rare",
-    name: "Mogg Sentry",
-    oracleText:
-        "Whenever an opponent casts a spell, this creature gets +2/+2 until end of turn.",
-    manaCost: { R: 1 },
-    types: ["Creature"],
-    subtypes: ["Goblin", "Warrior"],
-    power: 1,
-    toughness: 1,
-    triggeredAbilities: [
-        spellCastTrigger({
-            id: "mogg-sentry-pump",
-            oracleText:
-                "Whenever an opponent casts a spell, this creature gets +2/+2 until end of turn.",
-            scope: "opponents",
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 2,
-                    toughness: 2,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        }),
     ],
 }));
 

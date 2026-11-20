@@ -294,7 +294,7 @@ describe("full-text effect — re-evaluated at once (CR 611.3a)", () => {
             const fired = collectTriggers(state, state.pendingEvents ?? []).map(
                 (t) => t.triggeredAbilityId
             );
-            expect(fired).not.toContain("man-o-war-etb-bounce");
+            expect(fired).not.toContain("man-o-war-trigger");
         });
     });
 

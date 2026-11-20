@@ -69,9 +69,8 @@ import {
     mostCommonColors,
     tallyMostCommonColors,
 } from "../../types";
-import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
+
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 
 // "Most common color among all permanents" (Goham Djinn, Tsabo's Assassin,
 // CR 613 census) — the `StaticEffectStateView` variant used by a `pt-cda`
@@ -688,66 +687,6 @@ export const phyrexianBattleflies = defineCard(() => ({
     ],
 }));
 
-// Phyrexian Delver — {3}{B}{B} 3/2. "When this creature enters, return
-// target creature card from your graveyard to the battlefield. You lose
-// life equal to that card's mana value." (CR 603.6a ETB, CR 603.3d
-// announcement-time target, CR 400.7 reanimation, CR 202.3 mana value,
-// CR 119.3 life loss.)
-//
-// CR 603.3d — "target creature card from your graveyard" is a REAL target
-// chosen when the ETB trigger is put on the stack (a `targetRequirement` on
-// the TriggeredAbility, issue #1193 machinery `raiseTriggerTargetSelection`
-// in gre/rules.ts), NOT a resolution-time `requestChoice`. `zone:
-// "graveyard"` + `controller: "you"` scopes it to the CONTROLLER's own
-// graveyard — modern Oracle says "your graveyard", not "a graveyard".
-//
-// Migrated resolve()→effects[] (ADR 0045): the MV-snapshot clause is the
-// exact Reanimate template (tmp/black.cards.ts) — `moveZone`'s `target` addresses
-// the announced target slot (CR 603.3d, populated the same way for a
-// TriggeredAbility's `targetRequirement` as for a spell's), `bind` snapshots
-// the graveyard card's mana value BEFORE it leaves the graveyard (CR 202.3 /
-// 608.2h), and `loseLife`'s `amount` reads it back via `ref.manaValue`.
-export const phyrexianDelver = defineCard(() => ({
-    id: "e66d87a5-7b67-4ec5-b5e2-518d67123118", // INV 115
-    rarity: "rare",
-    name: "Phyrexian Delver",
-    oracleText:
-        "When this creature enters, return target creature card from your graveyard to the battlefield. You lose life equal to that card's mana value.",
-    manaCost: { X: 3, B: 2 },
-    types: ["Creature"],
-    subtypes: ["Phyrexian", "Zombie"],
-    power: 3,
-    toughness: 2,
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "phyrexian-delver-etb",
-            oracleText:
-                "When this creature enters, return target creature card from your graveyard to the battlefield. You lose life equal to that card's mana value.",
-            scope: "self",
-            // CR 603.3d — target chosen at stack placement (not resolution).
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                zone: "graveyard",
-                controller: "you",
-            },
-            effects: [
-                {
-                    op: "moveZone",
-                    target: { target: 0 },
-                    to: "battlefield",
-                    bind: "$delverReanimated",
-                },
-                {
-                    op: "loseLife",
-                    player: "controller",
-                    amount: { ref: "$delverReanimated.manaValue" },
-                },
-            ],
-        }),
-    ],
-}));
-
 // Phyrexian Reaper — {4}{B} 3/3. "Whenever this creature becomes blocked by
 // a green creature, destroy that creature. It can't be regenerated." (CR
 // 509.1h becomes-blocked, CR 701.8 destroy, CR 701.19c regen suppression.)
@@ -835,91 +774,6 @@ export const phyrexianSlayer = defineCard(() => ({
                 },
             ],
         },
-    ],
-}));
-
-// Plague Spitter — {2}{B} 2/2. "At the beginning of your upkeep, this
-// creature deals 1 damage to each creature and each player. When this
-// creature dies, it deals 1 damage to each creature and each player." (CR
-// 603.6a upkeep, CR 120.3 damage, CR 700.4/603.2 dies.) Both halves are the
-// exact Pestilence `forEach` template (lea/black.cards.ts) — the dies half doesn't
-// read the dead creature's own LKI (it deals damage to every OTHER creature
-// and every player, not itself), so it composes fully now that `diedTrigger`
-// accepts `effects[]` (binds `ctx.controller`/`$source` only — sufficient
-// here since neither is referenced).
-export const plagueSpitter = defineCard(() => ({
-    id: "8845e6bd-40ee-45ca-a099-53f19ff20a8a", // INV 119
-    rarity: "uncommon",
-    name: "Plague Spitter",
-    oracleText:
-        "At the beginning of your upkeep, this creature deals 1 damage to each creature and each player.\nWhen this creature dies, it deals 1 damage to each creature and each player.",
-    manaCost: { X: 2, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Phyrexian", "Horror"],
-    power: 2,
-    toughness: 2,
-    triggeredAbilities: [
-        phaseTrigger({
-            id: "plague-spitter-upkeep",
-            oracleText:
-                "At the beginning of your upkeep, this creature deals 1 damage to each creature and each player.",
-            phase: "UPKEEP",
-            scope: "your",
-            effects: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        filter: { type: "Creature" },
-                    },
-                    effects: [
-                        { op: "dealDamage", amount: 1, to: { ref: "$each" } },
-                    ],
-                },
-                {
-                    op: "forEach",
-                    select: { set: "players" },
-                    effects: [
-                        {
-                            op: "dealDamage",
-                            amount: 1,
-                            to: { player: { ref: "$each" } },
-                        },
-                    ],
-                },
-            ],
-        }),
-        diedTrigger({
-            id: "plague-spitter-dies",
-            oracleText:
-                "When this creature dies, it deals 1 damage to each creature and each player.",
-            scope: "self",
-            effects: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        filter: { type: "Creature" },
-                    },
-                    effects: [
-                        { op: "dealDamage", amount: 1, to: { ref: "$each" } },
-                    ],
-                },
-                {
-                    op: "forEach",
-                    select: { set: "players" },
-                    effects: [
-                        {
-                            op: "dealDamage",
-                            amount: 1,
-                            to: { player: { ref: "$each" } },
-                        },
-                    ],
-                },
-            ],
-        }),
     ],
 }));
 

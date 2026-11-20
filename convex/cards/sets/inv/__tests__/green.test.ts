@@ -533,7 +533,7 @@ describe("Elfhame Sanctuary (CR 504.1 skip-draw-step, CR 603.6a upkeep, issue #1
         enterUpkeep(state);
         expect(
             state.stack.some(
-                (s) => s.triggeredAbilityId === "elfhame-sanctuary-upkeep"
+                (s) => s.triggeredAbilityId === "elfhame-sanctuary-trigger"
             )
         ).toBe(true);
         resolveTopOfStack(state); // suspends at the cost-free may-pay

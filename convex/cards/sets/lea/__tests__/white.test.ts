@@ -1907,7 +1907,7 @@ describe("SPELL_CAST event emission", () => {
         processPendingActionTriggers(state);
         // Verduran trigger now on stack (above the aura).
         expect(state.stack[1].triggeredAbilityId).toBe(
-            "verduran-enchantress-draw"
+            "verduran-enchantress-trigger"
         );
     });
 });

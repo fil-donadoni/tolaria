@@ -311,7 +311,7 @@ describe("Phyrexian Delver (ETB → reanimate + lose life equal to MV; CR 603.6a
             ...delver,
             zone: "stack",
             castById: delver.controllerId,
-            triggeredAbilityId: "phyrexian-delver-etb",
+            triggeredAbilityId: "phyrexian-delver-trigger",
             triggerSourceId: delver.id,
             triggerEvent: {
                 type: "PERMANENT_ENTERED",
@@ -457,7 +457,7 @@ describe("Plague Spitter (dies → 1 damage to each creature and each player; CR
         });
         const beforeP1 = state.players[0].life;
         const beforeP2 = state.players[1].life;
-        resolveTrigger(state, spitter, "plague-spitter-dies", {
+        resolveTrigger(state, spitter, "plague-spitter-trigger-2", {
             type: "CREATURE_DIED",
             creatureInstanceId: "spitter",
             creatureControllerId: "p1",

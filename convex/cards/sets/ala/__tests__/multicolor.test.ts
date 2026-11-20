@@ -77,7 +77,7 @@ function etbTriggerOnStack(
         id: "sculler-etb-trig",
         zone: "stack",
         castById: source.controllerId,
-        triggeredAbilityId: "tidehollow-sculler-exile",
+        triggeredAbilityId: "tidehollow-sculler-trigger",
         triggerSourceId: source.id,
         triggerEvent: {
             type: "PERMANENT_ENTERED",
@@ -120,7 +120,7 @@ function scullerLeaves(state: GameState): void {
     removePermanentTo(state, "sculler", "graveyard");
     processPendingActionTriggers(state);
     const trig = state.stack.find(
-        (s) => s.triggeredAbilityId === "tidehollow-sculler-return"
+        (s) => s.triggeredAbilityId === "tidehollow-sculler-trigger-2"
     );
     expect(trig).toBeDefined();
     resolveTopOfStack(state);
@@ -179,8 +179,8 @@ describe("Tidehollow Sculler (ALA — linked hand exile + return on leave, CR 60
         removePermanentTo(state, "sculler", "graveyard");
         processPendingActionTriggers(state);
         expect(state.stack.map((s) => s.triggeredAbilityId)).toEqual([
-            "tidehollow-sculler-exile",
-            "tidehollow-sculler-return",
+            "tidehollow-sculler-trigger",
+            "tidehollow-sculler-trigger-2",
         ]);
         resolveTopOfStack(state); // the return — nothing to return
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["bears"]);

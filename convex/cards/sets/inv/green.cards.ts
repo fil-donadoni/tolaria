@@ -6,7 +6,7 @@ import type { EffectOp, StaticKeywordGrant } from "../../types";
 import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
-import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
+
 import {
     enteringEffectivePower,
     additionalCostPaidCondition,
@@ -258,28 +258,6 @@ export const jadeLeech = defineCard(() => ({
                 ctx.getColors(card).includes("G"),
             costIncrease: { G: 1 },
         },
-    ],
-}));
-
-// Kavu Climber — {3}{G} Creature — Kavu, 3/3. "When this creature enters,
-// draw a card." (CR 603.6a ETB; CR 121.1 draw.)
-export const kavuClimber = defineCard(() => ({
-    id: "2063f31e-d972-411e-a265-1d409153b49c",
-    rarity: "common",
-    name: "Kavu Climber",
-    oracleText: "When this creature enters, draw a card.",
-    manaCost: { X: 3, G: 2 },
-    types: ["Creature"],
-    subtypes: ["Kavu"],
-    power: 3,
-    toughness: 3,
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "kavu-climber-etb",
-            oracleText: "When this creature enters, draw a card.",
-            scope: "self",
-            effects: [{ op: "draw", player: "controller", count: 1 }],
-        }),
     ],
 }));
 
@@ -1079,101 +1057,6 @@ export const canopySurge = defineCard(() => ({
                 },
             ],
         },
-    ],
-}));
-
-// Elfhame Sanctuary — "At the beginning of your upkeep, you may search your
-// library for a basic land card, reveal that card, put it into your hand,
-// then shuffle. If you do, you skip your draw step this turn." (CR 603.6a
-// upkeep trigger; 117.3a/608.2b cost-free "you may"; 701.19 search/reveal;
-// 504.1 draw-step skip, issue #1097.)
-//
-// The "you may … if you do" gate is the pre-existing cost-free `mayPay`
-// (issue #680) + `if` shape (Formidable Speaker, `ecl/green.cards.ts`) — bind
-// `$searched` on the bare may-decision, then gate the WHOLE search/reveal/
-// hand/shuffle/skip sequence on it. "If you do" is the entire preceding
-// compound action (searching — even one that finds no basic land — reveals,
-// puts into hand, and shuffles), NOT "if you found a land": the skip fires
-// whenever the player chooses to search, mirroring how Formidable Speaker's
-// own "if you do" gates on having discarded, not on finding a creature.
-//
-// The remaining gap (issue #1097) was "skip your draw step this turn" itself:
-// no `skipDrawStepThisTurn` flag/primitive existed anywhere in `GameState`/
-// `phases.ts`. Closed by a new one-shot per-player `GameState
-// .skipDrawStepThisTurn` array (`SpellContext.skipDrawStepThisTurn`, the
-// `skipDrawStepThisTurn` Op) armed here at upkeep and consumed by
-// `advancePhase` (`gre/phases.ts`) the next time this player's DRAW step is
-// entered, later the SAME turn — per CR 500.8 the whole step is skipped (no
-// draw, no beginning-of-step triggers), not merely the draw. Kept
-// DELIBERATELY SEPARATE from the one existing
-// draw-step-skip precedent, Fasting (`drk/white.ts`, CR 504/614): Fasting is
-// a STATIC per-card `drawStepReplacement` flag re-checked every turn, which
-// hands off to its OWN DRAW-phase trigger for an INTERACTIVE may-skip choice
-// made AT the draw step itself (the choice AND the skip happen at the same
-// step). Elfhame Sanctuary's skip is already DECIDED at upkeep — nothing is
-// asked again at the draw step — so unifying it with Fasting's replacement
-// shape would mean inventing a fake "replacement" with no choice to offer,
-// contorting a different mechanic to fit. A plain armed flag consumed
-// directly is the honest shape for "if you do [something earlier], you skip
-// [a later step] — no further decision".
-export const elfhameSanctuary = defineCard(() => ({
-    id: "6ab9a90c-5fd8-4f8c-b692-f98a2974810c",
-    name: "Elfhame Sanctuary",
-    rarity: "uncommon",
-    oracleText:
-        "At the beginning of your upkeep, you may search your library for a basic land card, reveal that card, put it into your hand, then shuffle. If you do, you skip your draw step this turn.",
-    manaCost: { X: 1, G: 1 },
-    types: ["Enchantment"],
-    triggeredAbilities: [
-        phaseTrigger({
-            id: "elfhame-sanctuary-upkeep",
-            oracleText:
-                "At the beginning of your upkeep, you may search your library for a basic land card, reveal that card, put it into your hand, then shuffle. If you do, you skip your draw step this turn.",
-            phase: "UPKEEP",
-            scope: "your",
-            effects: [
-                {
-                    op: "mayPay",
-                    player: "controller",
-                    prompt: "Search your library for a basic land card? If you do, you skip your draw step this turn.",
-                    bind: "$searched",
-                },
-                {
-                    op: "if",
-                    predicate: { binding: "$searched" },
-                    then: [
-                        {
-                            op: "choice",
-                            kind: "search-library",
-                            player: "controller",
-                            zone: "library",
-                            filter: { type: "Land", supertype: "Basic" },
-                            count: { min: 0, max: 1 },
-                            prompt: "Search your library for a basic land card.",
-                            bind: "$found",
-                        },
-                        {
-                            op: "reveal",
-                            player: "controller",
-                            cards: { ref: "$found" },
-                        },
-                        {
-                            op: "moveZone",
-                            cards: { ref: "$found" },
-                            player: "controller",
-                            from: "library",
-                            to: "hand",
-                        },
-                        {
-                            op: "libraryLook",
-                            action: "shuffle",
-                            player: "controller",
-                        },
-                        { op: "skipDrawStepThisTurn", player: "controller" },
-                    ],
-                },
-            ],
-        }),
     ],
 }));
 

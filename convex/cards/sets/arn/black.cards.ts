@@ -12,31 +12,6 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 
-export const juzamDjinn = defineCard(() => ({
-    id: "31bf3f14-b5df-498b-a1bb-965885c82401",
-    rarity: "rare",
-    name: "Juzám Djinn",
-    oracleText:
-        "At the beginning of your upkeep, Juzám Djinn deals 1 damage to you.",
-    manaCost: { X: 2, B: 2 },
-    types: ["Creature"],
-    subtypes: ["Djinn"],
-    power: 5,
-    toughness: 5,
-    triggeredAbilities: [
-        phaseTrigger({
-            id: "juzam-djinn-upkeep",
-            oracleText:
-                "At the beginning of your upkeep, Juzám Djinn deals 1 damage to you.",
-            phase: "UPKEEP",
-            scope: "your",
-            effects: [
-                { op: "dealDamage", amount: 1, to: { player: "controller" } },
-            ],
-        }),
-    ],
-}));
-
 export const hasranOgress = defineCard(() => ({
     id: "9f310cf5-0985-4826-9779-19a713089d6d",
     rarity: "common",

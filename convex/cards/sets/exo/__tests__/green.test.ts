@@ -99,7 +99,7 @@ describe("Oath of Druids (CR 603.6a each-player upkeep + CR 603.3d targeting + C
             ...oath,
             zone: "stack",
             castById: oath.controllerId,
-            triggeredAbilityId: "oath-of-druids-upkeep",
+            triggeredAbilityId: "oath-of-druids-trigger",
             triggerSourceId: oath.id,
             triggerEvent: {
                 type: "PHASE_BEGIN",
