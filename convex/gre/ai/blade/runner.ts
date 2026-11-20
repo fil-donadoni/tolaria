@@ -481,8 +481,9 @@ export function bladeDeckKnowledge(
  *  parked, and the choice is a mandatory own-hand discard, whose one answer
  *  (`mandatoryOwnHandDiscardAnswer`) is what both the search's playout and the
  *  live client submit. `null` everywhere else, so a mis-authored entry still
- *  throws `BladeDeciderError`. */
-function forcedSeatAnswer(
+ *  throws `BladeDeciderError`. The verdict lowering reads it too
+ *  (`registrySource.ts`): such a window yields a `forced` gap, never a verdict. */
+export function forcedSeatAnswer(
     state: GameState,
     decider: string | null,
     seatId: string
