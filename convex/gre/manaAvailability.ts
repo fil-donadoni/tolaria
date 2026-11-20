@@ -51,8 +51,7 @@ import type {
 } from "./state";
 import {
     normalizeManaCost,
-    restrictionAllowsSpell,
-    restrictionChosenCreatureType,
+    restrictedManaMayPay,
     unrestrictedFloatingMana,
 } from "./state";
 import type { Color, ManaCost } from "../cards/types";
@@ -179,7 +178,7 @@ type BattlefieldsView = ReadonlyArray<{
  *  CR 106.6 — a SPELL-SPECIFIC probe (`spell` given, the castability gate's
  *  `buildManaSourceUnits`) drops every option whose own ability's
  *  `manaRestriction` forbids that spell (`getManaTapOptionRestriction` +
- *  `restrictionAllowsSpell`) BEFORE the colours are unioned, so Delighted
+ *  `restrictedManaMayPay`, shared with Auto-Tap's source builder) BEFORE the colours are unioned, so Delighted
  *  Halfling's any-colour "legendary spell" mana counts for a legendary spell
  *  and for nothing else, and an `Adarkar Unicorn` contributes nothing to any
  *  cast. Resolved per OPTION, not per card: the same permanent's unrestricted
@@ -263,13 +262,10 @@ function producibleManaUnitsWithDebt(
               const restriction = getManaTapOptionRestriction(card, opt.source);
               return (
                   restriction === null ||
-                  restrictionAllowsSpell(
-                      restriction,
-                      spell.types,
-                      spell.supertypes,
-                      spell.subject,
-                      restrictionChosenCreatureType(restriction, card)
-                  )
+                  restrictedManaMayPay(restriction, card, {
+                      kind: "spell",
+                      ...spell,
+                  })
               );
           })
         : allOptions;

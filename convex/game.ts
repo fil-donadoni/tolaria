@@ -9439,6 +9439,32 @@ export const autoTapForPayment = mutation({
             // of what `getAbilityManaSubstitutions` will hand the payment, so
             // the plan can under-admit a costed option but never over-admit one.
             abilityManaSubstitutions: getManaSubstitutions(state, player.id),
+            // CR 106.6 (issue #9861) — what the mana is spent on, read off the
+            // same definition / activation source the commit's spendable pool
+            // reads (`tryAutoCommitPendingCast` → `spendablePoolForSpell`,
+            // `tryAutoCommitPendingActivation` → `spendablePoolForAbility`),
+            // so a restricted option is planned exactly when the commit can
+            // spend its mana.
+            payingFor: castDef
+                ? {
+                      kind: "spell",
+                      types: castDef.types,
+                      supertypes: castDef.supertypes ?? [],
+                      subject: spellRestrictionSubject(castDef),
+                  }
+                : state.pendingActivation?.playerId === args.playerId
+                  ? {
+                        kind: "ability",
+                        sourceTypes: activationSourceTypes(
+                            state,
+                            state.pendingActivation.cardInstanceId
+                        ),
+                        sourceSubject: activationSourceSubject(
+                            state,
+                            state.pendingActivation.cardInstanceId
+                        ),
+                    }
+                  : undefined,
         };
         // CR 701.67a — a permanent picked to pay a generic pip by tapping is
         // spoken for: auto-tap planning it as a mana source too would make the

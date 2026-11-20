@@ -21,7 +21,7 @@ import { liveDefinitionOf } from "../cards/liveStatics";
 import { liveSupertypesOf } from "../cards/snowReads";
 import { chosenColorOf, LANDWALK_KEYWORD_BY_BASIC_TYPE } from "../cards/types";
 import type { CardType } from "../cards/types";
-import type { ManaRestriction } from "./types";
+import type { ManaPaymentSubject, ManaRestriction } from "./types";
 import {
     ARTIFACT_SUBTYPES,
     CREATURE_SUBTYPES,
@@ -3362,6 +3362,13 @@ export type ManaTapPlanContext = {
      *  none: the leg must be payable with no substitution at all, which
      *  under-admits and never over-admits. */
     abilityManaSubstitutions?: ManaSubstitution[];
+    /** CR 106.6 (issue #9861) — the spell or ability this payment is for. With
+     *  it, an option carrying a spend restriction (Eldrazi Temple's {C}{C},
+     *  Mishra's Workshop) is a candidate exactly when `restrictedManaMayPay`
+     *  allows that object — the judgement the castability census makes.
+     *  Omitted (companion, enlist tax, special actions, cost probes): every
+     *  restricted option stays excluded, the conservative default. */
+    payingFor?: ManaPaymentSubject;
 };
 
 /** CR 106.6 — does this option's mana carry a rider the current plan is
