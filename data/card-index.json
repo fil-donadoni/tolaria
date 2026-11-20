@@ -8232,6 +8232,16 @@
         "source": "compiled"
     },
     {
+        "name": "Blast Zone",
+        "scryfallId": "ea6bc7d5-e8f6-4103-920c-9f7ec5cd6c28",
+        "oracleId": "393a254f-be31-431a-9341-a51286f8cbce",
+        "firstSet": "war",
+        "firstPrintId": "ea6bc7d5-e8f6-4103-920c-9f7ec5cd6c28",
+        "firstPrintSet": "war",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Blasted Landscape",
         "scryfallId": "ac71d910-6c50-4894-8092-d39cbb7a83b4",
         "oracleId": "9c8007ac-4b3d-4444-93e9-f583185e5d81",
