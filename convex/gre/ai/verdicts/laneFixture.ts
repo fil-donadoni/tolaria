@@ -48,7 +48,8 @@ export function withoutLaneFixtures<A extends VerdictAttestation>(
     const kept: A[] = [];
     const fixtureIds = new Set<string>();
     const realIds = new Set<string>();
-    for (const a of attestations) {
+    for (let i = 0; i < attestations.length; i++) {
+        const a = attestations[i];
         if (isLaneFixture(a)) {
             fixtureIds.add(a.verdictId);
         } else {

@@ -70,9 +70,8 @@ export function expandIngest(def: CardDefinition): CardDefinition {
     if (existing.some((t) => t.id === INGEST_TRIGGER_ID)) return def;
     return {
         ...def,
-        triggeredAbilities: [
-            ...existing,
-            ...Array.from({ length: instances }, () => ingestTrigger()),
-        ],
+        triggeredAbilities: existing.concat(
+            Array.from({ length: instances }, () => ingestTrigger())
+        ),
     };
 }

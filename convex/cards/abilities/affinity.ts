@@ -84,10 +84,9 @@ export function affinity(args: {
     alsoKeywords?: string[];
 }): AffinityDeclaration {
     return {
-        staticAbilities: [
-            `affinity for ${args.quality.toLowerCase()}`,
-            ...(args.alsoKeywords ?? []),
-        ],
+        staticAbilities: [`affinity for ${args.quality.toLowerCase()}`].concat(
+            args.alsoKeywords ?? []
+        ),
         selfCostReduction: {
             // CR 702.41a — "costs {1} less to cast for each [text] you
             // control". `{ X: 1 }` is one GENERIC mana (the normalized

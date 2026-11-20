@@ -143,13 +143,13 @@ export const NON_ZONE_CANDIDATE_SOURCE: Record<
 export function nonZoneChoiceCandidateIds(head: NonZoneChoiceHead): string[] {
     switch (NON_ZONE_CANDIDATE_SOURCE[head.kind]) {
         case "players":
-            return [...(head.candidatePlayerIds ?? [])];
+            return (head.candidatePlayerIds ?? []).slice();
         case "options":
             return (head.options ?? []).map((o) => o.id);
         case "piles":
             return [...PILE_LABELS];
         case "candidateIds":
-            return [...(head.candidateIds ?? [])];
+            return (head.candidateIds ?? []).slice();
         case "none":
             return [];
     }

@@ -52,8 +52,12 @@ export function computeLibraryTopRevealedPlayers(
     state: GameState
 ): Set<string> {
     const revealed = new Set<string>();
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             // CR 613.1f — a source that lost its abilities reveals nothing.
             const scope = liveStaticDefinition(card)?.revealsLibraryTop;
             if (!scope) continue;
@@ -84,8 +88,12 @@ export function computeLibraryTopLookedAtPlayers(
     state: GameState
 ): Set<string> {
     const looking = new Set<string>();
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             const def = liveStaticDefinition(card);
             const scope = def ? looksAtLibraryTopOf(def, card) : undefined;
             if (!scope) continue;

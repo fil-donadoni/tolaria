@@ -31,6 +31,7 @@ export type PrintRowIndex = ReadonlyMap<string, PrintRow>;
 
 export function indexPrintRows(rows: Iterable<PrintRow>): PrintRowIndex {
     const index = new Map<string, PrintRow>();
+    // eslint-disable-next-line no-restricted-syntax -- an iterable or generator, not an array (issue #10126)
     for (const row of rows) index.set(row.printId, row);
     return index;
 }

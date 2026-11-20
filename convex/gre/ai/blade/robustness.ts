@@ -69,7 +69,11 @@ export type RobustnessVector = {
 export function jitterSigns(): Record<FittableWeightKey, 1 | -1> {
     const next = makeRng(JITTER_SIGN_SEED);
     const signs = {} as Record<FittableWeightKey, 1 | -1>;
-    for (const key of FITTABLE_WEIGHT_KEYS) signs[key] = next() < 0.5 ? -1 : 1;
+    const keyList = FITTABLE_WEIGHT_KEYS;
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
+        signs[key] = next() < 0.5 ? -1 : 1;
+    }
     return signs;
 }
 
@@ -81,7 +85,9 @@ export function jitteredEvalWeights(
     const signs = jitterSigns();
     const flat: Record<string, number> = {};
     const latent: Record<string, number> = {};
-    for (const key of FITTABLE_WEIGHT_KEYS) {
+    const keyList = FITTABLE_WEIGHT_KEYS;
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         const value =
             weightValue(DEFAULT_EVAL_WEIGHTS, key) *
             (1 + direction * signs[key] * JITTER_FRACTION);
@@ -179,11 +185,16 @@ export function auditBladeScenario(
         seeds: bladeScenarioSeeds(scenario).length,
         passed: ownResult.seeds.filter((s) => s.ok).length,
     };
-    const wide: BladeScenario = { ...scenario, seeds: [...ROBUSTNESS_SEEDS] };
+    const wide: BladeScenario = {
+        ...scenario,
+        seeds: ROBUSTNESS_SEEDS.slice(),
+    };
     const legs = vectors.map((vector): RobustnessLeg => {
         const result = runBladeScenario(wide, vector.variant);
         const mechanisms: Record<string, number> = {};
-        for (const s of result.seeds) {
+        const sList = result.seeds;
+        for (let i = 0; i < sList.length; i++) {
+            const s = sList[i];
             const key = s.mechanism ?? "none";
             mechanisms[key] = (mechanisms[key] ?? 0) + 1;
         }
@@ -267,7 +278,8 @@ export function compareRobustness(
     if (options.mustLabels) {
         const must = new Set(options.mustLabels);
         const seen = new Set<string>();
-        for (const b of baseline) {
+        for (let i = 0; i < baseline.length; i++) {
+            const b = baseline[i];
             if (!must.has(b.label)) {
                 findings.malformed.push(`${b.label}: not a must entry`);
             }
@@ -309,18 +321,19 @@ export function robustnessFindingRecords(
 
 /** Every finding as one message line, empty when the slice is clean. */
 export function describeRobustnessFindings(f: RobustnessFindings): string[] {
-    return [
-        ...f.unlisted.map(
+    return f.unlisted
+        .map(
             (l) =>
                 `NEW noise-pinned entry "${l}" — file its follow-up issue and add a baseline row, or rewrite the entry`
-        ),
-        ...f.wrong.map(
-            (l) => `"${l}" fails its own seeds — the must tier is red`
-        ),
-        ...f.cleared.map(
-            (l) =>
-                `"${l}" is robust now — delete its baseline row (the baseline only shrinks)`
-        ),
-        ...f.malformed.map((m) => `baseline row ${m}`),
-    ];
+        )
+        .concat(
+            f.wrong.map(
+                (l) => `"${l}" fails its own seeds — the must tier is red`
+            ),
+            f.cleared.map(
+                (l) =>
+                    `"${l}" is robust now — delete its baseline row (the baseline only shrinks)`
+            ),
+            f.malformed.map((m) => `baseline row ${m}`)
+        );
 }

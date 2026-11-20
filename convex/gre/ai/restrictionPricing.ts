@@ -196,7 +196,11 @@ function cardId(card: CardInstanceState): string | undefined {
 /** Every permanent on the battlefield, both seats, board order. */
 function battlefieldOf(state: GameState): CardInstanceState[] {
     const out: CardInstanceState[] = [];
-    for (const player of state.players) out.push(...player.battlefield);
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        out.push(...player.battlefield);
+    }
     return out;
 }
 
@@ -211,10 +215,16 @@ function restrictionsBySource<R>(
     collect: (perm: CardInstanceState) => R[]
 ): { sourceId: string; restriction: R }[] {
     const out: { sourceId: string; restriction: R }[] = [];
-    for (const r of collect(card))
+    const rList = collect(card);
+    for (let i = 0; i < rList.length; i++) {
+        const r = rList[i];
         out.push({ sourceId: card.id, restriction: r });
-    for (const aura of attachments) {
-        for (const r of collect(aura)) {
+    }
+    for (let i = 0; i < attachments.length; i++) {
+        const aura = attachments[i];
+        const rList2 = collect(aura);
+        for (let j = 0; j < rList2.length; j++) {
+            const r = rList2[j];
             out.push({ sourceId: aura.id, restriction: r });
         }
     }
@@ -268,7 +278,8 @@ function buildRestrictionPlan(
     }[] = [];
     // CR 303.4 — attachments by host, walked once for the whole board.
     const attachmentsOf = new Map<string, CardInstanceState[]>();
-    for (const perm of permanents) {
+    for (let i = 0; i < permanents.length; i++) {
+        const perm = permanents[i];
         if (perm.attachedTo !== undefined) {
             let list = attachmentsOf.get(perm.attachedTo);
             if (!list) {
@@ -282,7 +293,9 @@ function buildRestrictionPlan(
             continue;
         }
         const def = liveStaticDefinition(perm);
-        for (const effect of def?.staticEffects ?? []) {
+        const effectList = def?.staticEffects ?? [];
+        for (let j = 0; j < effectList.length; j++) {
+            const effect = effectList[j];
             if (effect.kind !== "global-attack-restriction") continue;
             globalAttackSources.push({ source: perm, effect });
         }
@@ -311,7 +324,8 @@ function buildRestrictionPlan(
     // CR 613.4c — a predicate reading toughness sees the printed value there
     // too, so the two readings cannot disagree).
     const probeView = new Map<string, CardInstanceState>();
-    for (const perm of permanents) {
+    for (let i = 0; i < permanents.length; i++) {
+        const perm = permanents[i];
         if (!isCreature(perm)) continue;
         const pt = getEffectivePT(state, perm, { pass });
         probeView.set(perm.id, { ...perm, power: pt.power });
@@ -325,11 +339,15 @@ function buildRestrictionPlan(
             (r) => r.bypassCost === undefined
         );
 
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const opponents = state.players.filter((p) => p.id !== player.id);
         const opponentBattlefield = opponents.flatMap((p) => p.battlefield);
         const opposingCreatures = opponentBattlefield.filter(isCreature);
-        for (const card of player.battlefield) {
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (!isCreature(card)) continue;
             const attachments = attachmentsOf.get(card.id) ?? [];
             const lasting = getEffectivePT(state, card, {
@@ -350,11 +368,13 @@ function buildRestrictionPlan(
             // CR 702.3b — a printed `defender` is already priced by the body
             // table; a "can't attack" on top of it takes nothing more away.
             if (!card.staticAbilities.includes("defender")) {
-                for (const { sourceId, restriction } of restrictionsBySource(
+                const entries2 = restrictionsBySource(
                     card,
                     attachments,
                     collectAttack
-                )) {
+                );
+                for (let k = 0; k < entries2.length; k++) {
+                    const { sourceId, restriction } = entries2[k];
                     if (
                         restriction.predicate(
                             card,
@@ -366,7 +386,8 @@ function buildRestrictionPlan(
                     }
                     attackBy.add(sourceId);
                 }
-                for (const { source, effect } of globalAttackSources) {
+                for (let k = 0; k < globalAttackSources.length; k++) {
+                    const { source, effect } = globalAttackSources[k];
                     if (
                         effect.forbids(
                             card as unknown as PermanentView,
@@ -391,12 +412,15 @@ function buildRestrictionPlan(
                 (c) => probeView.get(c.id) ?? c
             );
             if (probes.length > 0) {
-                for (const { sourceId, restriction } of restrictionsBySource(
+                const entries3 = restrictionsBySource(
                     card,
                     attachments,
                     collectBlock
-                )) {
-                    for (const probe of probes) {
+                );
+                for (let k = 0; k < entries3.length; k++) {
+                    const { sourceId, restriction } = entries3[k];
+                    for (let m = 0; m < probes.length; m++) {
+                        const probe = probes[m];
                         if (
                             blockRestrictionAllows(
                                 restriction,
@@ -420,7 +444,8 @@ function buildRestrictionPlan(
             const untapBy = new Set<string>();
             if (hardSkips.length > 0) {
                 const view = effectivePermanentView(state, card);
-                for (const { sourceId, filter, escapeCost } of hardSkips) {
+                for (let k = 0; k < hardSkips.length; k++) {
+                    const { sourceId, filter, escapeCost } = hardSkips[k];
                     if (!matchesPermanentFilter(view, filter)) continue;
                     // CR 503.1a — a pay-to-untap escape the controller can
                     // buy and that costs less than the creature: not held.
@@ -466,7 +491,9 @@ function buildManaLocks(
 ): ReadonlyMap<string, readonly ManaLock[]> {
     if (untapRestrictions.length === 0) return EMPTY_MANA_LOCKS;
     const out = new Map<string, ManaLock[]>();
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const sources = player.battlefield
             .filter(
                 (perm) =>
@@ -479,7 +506,8 @@ function buildManaLocks(
             }));
         if (sources.length === 0) continue;
         const locks: ManaLock[] = [];
-        for (const { source, restriction } of untapRestrictions) {
+        for (let j = 0; j < untapRestrictions.length; j++) {
+            const { source, restriction } = untapRestrictions[j];
             const matched = sources
                 .filter(({ view }) =>
                     matchesPermanentFilter(view, restriction.filter)
@@ -522,10 +550,12 @@ function discountOf(
     if (holds(entry.attackBy)) attackLost = entry.attackShare;
     if (entry.blockProbes > 0 && entry.blockRejectsBy.size > 0) {
         const rejected = new Set<string>();
-        for (const [sourceId, probes] of entry.blockRejectsBy) {
-            if (sourceId === exclude) continue;
-            for (const p of probes) rejected.add(p);
-        }
+        entry.blockRejectsBy.forEach((probes, sourceId) => {
+            if (sourceId === exclude) return;
+            probes.forEach((p) => {
+                rejected.add(p);
+            });
+        });
         blockLost = (rejected.size / entry.blockProbes) * entry.blockShare;
     }
     // CR 502.3 — a creature its controller's untap step will not untap, while
@@ -563,11 +593,14 @@ function lockedManaShares(
     exclude?: string
 ): Map<string, { perm: CardInstanceState; share: number }> {
     const out = new Map<string, { perm: CardInstanceState; share: number }>();
-    for (const lock of locks) {
+    for (let i = 0; i < locks.length; i++) {
+        const lock = locks[i];
         if (lock.sourceId === exclude) continue;
         const n = lock.matched.length;
         const share = lock.maxUntap === 0 ? 1 : (n - lock.maxUntap) / n;
-        for (const perm of lock.matched) {
+        const permList = lock.matched;
+        for (let j = 0; j < permList.length; j++) {
+            const perm = permList[j];
             const prior = out.get(perm.id);
             if (!prior || prior.share < share)
                 out.set(perm.id, { perm, share });
@@ -581,9 +614,9 @@ function lockedManaTotal(
     weights: RestrictionShareWeights
 ): number {
     let total = 0;
-    for (const { perm, share } of shares.values()) {
+    shares.forEach(({ perm, share }) => {
         total += share * lockedManaLoss(perm, weights);
-    }
+    });
     return total;
 }
 
@@ -618,13 +651,13 @@ export function manaLockSourceWorth(
     pass: Layer7Pass
 ): number {
     let worth = 0;
-    for (const [playerId, locks] of planFor(state, pass).manaLocks) {
-        if (!locks.some((lock) => lock.sourceId === source.id)) continue;
+    planFor(state, pass).manaLocks.forEach((locks, playerId) => {
+        if (!locks.some((lock) => lock.sourceId === source.id)) return;
         const taken =
             lockedManaTotal(lockedManaShares(locks), shares) -
             lockedManaTotal(lockedManaShares(locks, source.id), shares);
         worth += playerId === source.controllerId ? -taken : taken;
-    }
+    });
     return worth;
 }
 
@@ -676,19 +709,19 @@ export function restrictionSourceWorth(
     const plan = planFor(state, pass);
     if (plan.entries.size === 0) return 0;
     let worth = 0;
-    for (const entry of plan.entries.values()) {
-        if (entry.card.id === source.id) continue;
+    plan.entries.forEach((entry) => {
+        if (entry.card.id === source.id) return;
         if (
             !entry.attackBy.has(source.id) &&
             !entry.blockRejectsBy.has(source.id) &&
             !entry.untapBy.has(source.id)
         ) {
-            continue;
+            return;
         }
         const taken =
             discountOf(entry, shares) - discountOf(entry, shares, source.id);
         worth +=
             entry.card.controllerId === source.controllerId ? -taken : taken;
-    }
+    });
     return worth;
 }

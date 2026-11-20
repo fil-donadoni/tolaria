@@ -37,7 +37,9 @@ export function treasureHasPositiveExtra(
     card: CardInstanceState,
     battlefield: readonly CardInstanceState[]
 ): boolean {
-    for (const [kind, count] of Object.entries(card.counters ?? {})) {
+    const entries2 = Object.entries(card.counters ?? {});
+    for (let i = 0; i < entries2.length; i++) {
+        const [kind, count] = entries2[i];
         if (count > 0 && kind !== "-1/-1") return true;
     }
     const attachedOwnAuraOrEquipment = battlefield.some(

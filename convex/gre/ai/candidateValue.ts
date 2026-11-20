@@ -99,7 +99,7 @@ const NONCREATURE_SCRIPT_SCALE = 1 / 3;
  *  needed here to combine a NONCREATURE's spell script with its ability
  *  scripts (two different sites `cardScriptValue.ts` never itself merges). */
 function mergeOpValue(a: OpValue, b: OpValue): OpValue {
-    const tags = new Set<ValueTag>([...a.tags, ...b.tags]);
+    const tags = new Set<ValueTag>(a.tags.concat(b.tags));
     return { points: a.points + b.points, tags: [...tags] };
 }
 
@@ -289,7 +289,8 @@ export function sacrificeRankWorths(
         pred: (c: CardInstanceState) => boolean,
         floor: number
     ) => {
-        for (const c of pool) {
+        for (let i = 0; i < pool.length; i++) {
+            const c = pool[i];
             if (pred(c) && worth.get(c.id)! >= floor)
                 worth.set(c.id, floor - 1);
         }
@@ -593,7 +594,12 @@ function landHandNeed(
 ): number {
     const board = manaUnitsFor(state, searcher, { ignoreTapState: true });
     const boardColors = new Set<Color>();
-    for (const unit of board) for (const c of unit) boardColors.add(c);
+    for (let i = 0; i < board.length; i++) {
+        const unit = board[i];
+        unit.forEach((c) => {
+            boardColors.add(c);
+        });
+    }
     const offered = getProducibleColorsOnBoard(
         card,
         state.players.map((p) => ({
@@ -607,7 +613,9 @@ function landHandNeed(
     const spare = [...offered].some((c) => !boardColors.has(c));
     if (!spare) return 0;
     let best = 0;
-    for (const spell of searcher.hand) {
+    const spellList = searcher.hand;
+    for (let i = 0; i < spellList.length; i++) {
+        const spell = spellList[i];
         if (spell.types.includes("Land")) continue;
         const cost = getInstanceManaCost(spell);
         if (coversCostColors(board, cost, { life: searcher.life })) continue;
@@ -618,12 +626,11 @@ function landHandNeed(
                 c !== "C" &&
                 !boardColors.has(c) &&
                 !coversCostColors(
-                    [
-                        ...board,
-                        ...NEEDABLE_COLORS.filter((o) => o !== c).map(
+                    board.concat(
+                        NEEDABLE_COLORS.filter((o) => o !== c).map(
                             (o) => new Set<Color>([o])
-                        ),
-                    ],
+                        )
+                    ),
                     cost,
                     { life: searcher.life }
                 )
@@ -845,10 +852,19 @@ function resolveCountSpecAgainstBoard(
     if (spec.acrossAllPlayers) {
         if (spec.zone === "graveyard" && spec.countTypes) {
             const types = new Set<string>();
-            for (const p of state.players) {
-                for (const c of countZoneCardsFor(state, p.id, spec.zone)) {
-                    if (matchesCountFilter(c, spec.filter))
-                        for (const t of c.types) types.add(t);
+            const pList = state.players;
+            for (let i = 0; i < pList.length; i++) {
+                const p = pList[i];
+                const cList = countZoneCardsFor(state, p.id, spec.zone);
+                for (let j = 0; j < cList.length; j++) {
+                    const c = cList[j];
+                    if (matchesCountFilter(c, spec.filter)) {
+                        const tList = c.types;
+                        for (let k = 0; k < tList.length; k++) {
+                            const t = tList[k];
+                            types.add(t);
+                        }
+                    }
                 }
             }
             return times * types.size;

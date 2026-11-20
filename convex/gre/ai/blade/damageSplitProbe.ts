@@ -52,9 +52,13 @@ export function damageSplitAtDamageStep(
     };
     const seatId = state.players[seat === "me" ? 0 : 1].id;
     const out: NamedDamageSplit = {};
-    for (const { sourceId, assignments } of damageSplitsFor(state, seatId)) {
+    const entries2 = damageSplitsFor(state, seatId);
+    for (let j = 0; j < entries2.length; j++) {
+        const { sourceId, assignments } = entries2[j];
         const named: Record<string, number> = {};
-        for (const [targetId, amount] of Object.entries(assignments)) {
+        const entries3 = Object.entries(assignments);
+        for (let k = 0; k < entries3.length; k++) {
+            const [targetId, amount] = entries3[k];
             if (amount > 0) named[nameOf(targetId)] = amount;
         }
         out[nameOf(sourceId)] = named;

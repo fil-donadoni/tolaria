@@ -151,14 +151,13 @@ export function offerStacklessMiracleReveal(
 ): boolean {
     const card = miracleRevealCandidate(state, playerId, drawnBefore);
     if (!card) return false;
-    state.pendingChoices = [
-        ...(state.pendingChoices ?? []),
+    state.pendingChoices = (state.pendingChoices ?? []).concat([
         miracleRevealChoice(card, playerId, {
             stackItemId: "",
             step: 0,
             choiceId: `miracle-reveal-${card.id}`,
         }),
-    ];
+    ]);
     state.priorityPlayerId = state.pendingChoices[0].playerId;
     return true;
 }
@@ -183,10 +182,9 @@ export function revealForMiracle(
     const player = getPlayer(state, playerId);
     if (!player.hand.some((c) => c.id === cardInstanceId)) return;
     grantKnowledgeToAll(state, playerId, [cardInstanceId]);
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         { type: "MIRACLE_REVEALED", playerId, cardInstanceId },
-    ];
+    ]);
 }
 
 /** The oracle text the linked triggered ability renders with on the stack. */

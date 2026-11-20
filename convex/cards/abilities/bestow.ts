@@ -100,6 +100,6 @@ export function expandBestow(def: CardDefinition): CardDefinition {
     if (!def.bestow) return def;
     return {
         ...def,
-        staticEffects: [...(def.staticEffects ?? []), ...BESTOW_STATIC_EFFECTS],
+        staticEffects: (def.staticEffects ?? []).concat(BESTOW_STATIC_EFFECTS),
     };
 }

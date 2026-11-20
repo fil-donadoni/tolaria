@@ -42,7 +42,8 @@ export type CompanionCondition = (deck: readonly CardDefinition[]) => boolean;
  *  must be unique by name. */
 export const singleton: CompanionCondition = (deck) => {
     const seen = new Set<string>();
-    for (const def of deck) {
+    for (let i = 0; i < deck.length; i++) {
+        const def = deck[i];
         if (def.types.includes("Land")) continue;
         if (seen.has(def.name)) return false;
         seen.add(def.name);
@@ -158,11 +159,13 @@ export function selectCompanion(
     maindeckCardIds: readonly string[]
 ): CardDefinition | undefined {
     const maindeck: CardDefinition[] = [];
-    for (const id of maindeckCardIds) {
+    for (let i = 0; i < maindeckCardIds.length; i++) {
+        const id = maindeckCardIds[i];
         const def = tryGetDefinition(id);
         if (def) maindeck.push(def);
     }
-    for (const cardId of sideboardCardIds) {
+    for (let i = 0; i < sideboardCardIds.length; i++) {
+        const cardId = sideboardCardIds[i];
         const def = tryGetDefinition(cardId);
         if (!def) continue;
         const isCompanion = def.staticAbilities?.some(

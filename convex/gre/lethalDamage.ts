@@ -57,7 +57,9 @@ export function damageAssignedByOtherSources(
 ): OtherAssignedDamage {
     let amount = 0;
     let fromDeathtouch = false;
-    for (const [sourceId, perTarget] of Object.entries(assignments)) {
+    const entries2 = Object.entries(assignments);
+    for (let i = 0; i < entries2.length; i++) {
+        const [sourceId, perTarget] = entries2[i];
         if (sourceId === excludeSourceId) continue;
         const damage = perTarget?.[targetId] ?? 0;
         if (damage <= 0) continue;
@@ -134,7 +136,9 @@ export function assignmentThresholds(input: {
     hasDeathtouch: (sourceId: string) => boolean;
 }): Record<string, number> {
     const thresholds: Record<string, number> = {};
-    for (const blocker of input.blockers) {
+    const blockerList = input.blockers;
+    for (let i = 0; i < blockerList.length; i++) {
+        const blocker = blockerList[i];
         thresholds[blocker.id] = lethalDamageThreshold({
             effectiveToughness: blocker.effectiveToughness,
             damageMarked: blocker.damageMarked,
@@ -174,7 +178,9 @@ export function underAssignedBlockerBlockingExcess(
         0
     );
     if (toSinks <= 0) return undefined;
-    for (const [blockerId, threshold] of Object.entries(thresholds)) {
+    const entries2 = Object.entries(thresholds);
+    for (let i = 0; i < entries2.length; i++) {
+        const [blockerId, threshold] = entries2[i];
         if ((assignments[blockerId] ?? 0) < threshold) return blockerId;
     }
     return undefined;

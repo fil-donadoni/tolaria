@@ -218,6 +218,6 @@ function expandPrintedKeywordTriggers(def: CardDefinition): CardDefinition {
 
     return {
         ...def,
-        triggeredAbilities: [...existing, ...injected],
+        triggeredAbilities: existing.concat(injected),
     };
 }

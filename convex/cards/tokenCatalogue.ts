@@ -69,9 +69,12 @@ export type TokenCatalogueEntry = {
  *  `divideIntoPiles`). */
 export function collectTokenSpecs(ops: readonly EffectOp[]): EffectTokenSpec[] {
     const specs: EffectTokenSpec[] = [];
-    for (const op of ops) {
+    for (let i = 0; i < ops.length; i++) {
+        const op = ops[i];
         if (op.op === "createToken") specs.push(op.token);
-        for (const child of childOpArrays(op)) {
+        const childList = childOpArrays(op);
+        for (let j = 0; j < childList.length; j++) {
+            const child = childList[j];
             specs.push(...collectTokenSpecs(child));
         }
     }
@@ -80,13 +83,12 @@ export function collectTokenSpecs(ops: readonly EffectOp[]): EffectTokenSpec[] {
 
 /** Every `effects[]` site on a card that can carry a `createToken` Op. */
 export function allTokenSpecsFor(card: CardDefinition): EffectTokenSpec[] {
-    const sites: (EffectOp[] | undefined)[] = [
-        card.effects,
-        ...(card.activatedAbilities ?? []).map((a) => a.effects),
-        ...(card.triggeredAbilities ?? []).map((a) => a.effects),
-        ...(card.grantTemplates ?? []).map((a) => a.effects),
-        ...(card.triggeredGrantTemplates ?? []).map((a) => a.effects),
-    ];
+    const sites: (EffectOp[] | undefined)[] = [card.effects].concat(
+        (card.activatedAbilities ?? []).map((a) => a.effects),
+        (card.triggeredAbilities ?? []).map((a) => a.effects),
+        (card.grantTemplates ?? []).map((a) => a.effects),
+        (card.triggeredGrantTemplates ?? []).map((a) => a.effects)
+    );
     return sites
         .filter((effects): effects is EffectOp[] => effects !== undefined)
         .flatMap(collectTokenSpecs);
@@ -223,15 +225,21 @@ function collectRawEntries(): RawEntry[] {
         }
     };
 
-    for (const card of getAllCards()) {
-        for (const raw of allTokenSpecsFor(card)) {
+    const cardList = getAllCards();
+    for (let j = 0; j < cardList.length; j++) {
+        const card = cardList[j];
+        const rawList = allTokenSpecsFor(card);
+        for (let k = 0; k < rawList.length; k++) {
+            const raw = rawList[k];
             add(toTokenSpec(raw, card.id), card.name);
         }
     }
     // Shared specs (`sharedTokens.ts`) — included explicitly so a token whose
     // only producer is a `resolve()` closure (invisible to the static walk) is
     // still stageable, as long as it uses the shared spec.
-    for (const value of Object.values(SHARED_TOKENS)) {
+    const valueList = Object.values(SHARED_TOKENS);
+    for (let j = 0; j < valueList.length; j++) {
+        const value = valueList[j];
         if (isTokenSpecLike(value)) add(toTokenSpec(value, undefined), "");
     }
 
@@ -265,7 +273,8 @@ export function listTokenCatalogue(): TokenCatalogueEntry[] {
     // case, and what a human types); a name shared by several shapes gets a
     // characteristics suffix so every shape stays reachable.
     const nameCounts = new Map<string, number>();
-    for (const entry of raw) {
+    for (let i = 0; i < raw.length; i++) {
+        const entry = raw[i];
         nameCounts.set(
             entry.spec.name,
             (nameCounts.get(entry.spec.name) ?? 0) + 1

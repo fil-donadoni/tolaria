@@ -74,7 +74,7 @@ export function normalizeChosenModeIds(
         const i = modes.findIndex((m) => m.id === id);
         return i < 0 ? modes.length : i;
     };
-    return [...ids].sort((a, b) => rank(a) - rank(b));
+    return ids.slice().sort((a, b) => rank(a) - rank(b));
 }
 
 /** Why an announced mode list is illegal (CR 700.2a / 700.2d / 609.3), or
@@ -103,7 +103,8 @@ export function chosenModeIdsViolation(args: {
     if (ids.length === 0) {
         return "Modal spell — must choose a mode at announcement";
     }
-    for (const id of ids) {
+    for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
         if (!modes.some((m) => m.id === id)) {
             return `Unknown mode id "${id}" for ${ownerName}`;
         }
@@ -179,7 +180,7 @@ export function announceableModeCombinations(args: {
             return;
         }
         for (let i = from; i < modes.length; i++) {
-            extend([...prefix, i], bounds.repeats ? i : i + 1, size);
+            extend(prefix.concat([i]), bounds.repeats ? i : i + 1, size);
         }
     };
     for (let size = 1; size <= bounds.max; size++) extend([], 0, size);
@@ -286,10 +287,9 @@ export function modeInstanceTargetGroups(
     return chosenModeIds.flatMap((id, instance) => {
         const mode = modes.find((m) => m.id === id);
         if (!mode) return [];
-        return [
-            ...(mode.targetRequirement ? [mode.targetRequirement] : []),
-            ...(mode.additionalTargetRequirements ?? []),
-        ].map((requirement) => ({ requirement, instance }));
+        return (mode.targetRequirement ? [mode.targetRequirement] : [])
+            .concat(mode.additionalTargetRequirements ?? [])
+            .map((requirement) => ({ requirement, instance }));
     });
 }
 
@@ -311,7 +311,7 @@ export function modeInstances(
     targets: readonly (TargetSelection | undefined)[]
 ): ModeInstance[] {
     if (chosenModeIds.length === 1) {
-        return [{ modeId: chosenModeIds[0], targets: [...targets] }];
+        return [{ modeId: chosenModeIds[0], targets: targets.slice() }];
     }
     if (!modeTargetCounts || modeTargetCounts.length !== chosenModeIds.length) {
         throw new Error(
@@ -344,7 +344,7 @@ export function recordModeTargetGroup(
     if (!pt.groupModeInstances || !pt.modeTargetCounts) return;
     const [instance, ...rest] = pt.groupModeInstances;
     if (instance === undefined) return;
-    const counts = [...pt.modeTargetCounts];
+    const counts = pt.modeTargetCounts.slice();
     counts[instance] += picks;
     pt.modeTargetCounts = counts;
     pt.groupModeInstances = rest.length > 0 ? rest : undefined;
@@ -377,7 +377,8 @@ export function writeFinalModeSpans(
     }
 ): void {
     recordModeTargetGroup(pt, pt.selected.length);
-    if (pt.modeTargetCounts) item.modeTargetCounts = [...pt.modeTargetCounts];
+    if (pt.modeTargetCounts)
+        item.modeTargetCounts = pt.modeTargetCounts.slice();
 }
 
 /** The earlier picks a group's `excludePriorTargets` ("another target", CR
@@ -414,10 +415,10 @@ export function announcedModeFields(src: {
 }): { chosenModeIds?: string[]; modeTargetCounts?: number[] } {
     return {
         ...(src.chosenModeIds && src.chosenModeIds.length > 0
-            ? { chosenModeIds: [...src.chosenModeIds] }
+            ? { chosenModeIds: src.chosenModeIds.slice() }
             : {}),
         ...(src.modeTargetCounts
-            ? { modeTargetCounts: [...src.modeTargetCounts] }
+            ? { modeTargetCounts: src.modeTargetCounts.slice() }
             : {}),
     };
 }

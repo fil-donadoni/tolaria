@@ -95,9 +95,12 @@ export function applyTapPlanInSearch(
     // prefilter, so an ordinary board of lands and {T} rocks pays one cached
     // lookup per tap and nothing else.
     const sacrificed: string[] = [];
-    for (const tap of tapPlan) {
+    for (let i = 0; i < tapPlan.length; i++) {
+        const tap = tapPlan[i];
         if (tap.abilityId) {
-            for (const otherId of tap.tapOtherIds ?? []) {
+            const otherIdList = tap.tapOtherIds ?? [];
+            for (let j = 0; j < otherIdList.length; j++) {
+                const otherId = otherIdList[j];
                 const other = player.battlefield.find((c) => c.id === otherId);
                 if (other) other.isTapped = true;
             }
@@ -178,7 +181,8 @@ export function applyTapPlanInSearch(
     // the second lookup miss (the planner never emits one — see
     // `manaConverterParity.bot.test.ts` invariant B — but this model must not
     // depend on that).
-    for (const id of sacrificed) {
+    for (let i = 0; i < sacrificed.length; i++) {
+        const id = sacrificed[i];
         moveCard(player, id, "battlefield", "graveyard");
     }
 }
@@ -223,7 +227,8 @@ export function searchCastManaSpent(
     const player = state.players.find((p) => p.id === playerId);
     if (!player) return spent;
     const battlefields = manaGateBattlefields(state);
-    for (const tap of tapPlan) {
+    for (let i = 0; i < tapPlan.length; i++) {
+        const tap = tapPlan[i];
         const src = player.battlefield.find((c) => c.id === tap.cardInstanceId);
         if (!src) continue;
         let yieldMana: ManaCost | undefined;
@@ -257,7 +262,9 @@ export function searchCastManaSpent(
               )?.ability.cost.mana
             : undefined;
         if (leg) drainManaLeg(spent, leg);
-        for (const color of MANA_COLORS) {
+        const colorList = MANA_COLORS;
+        for (let j = 0; j < colorList.length; j++) {
+            const color = colorList[j];
             const n = yieldMana?.[color] ?? 0;
             if (n > 0) spent[color] = (spent[color] ?? 0) + n;
         }
@@ -274,12 +281,18 @@ export function searchCastManaSpent(
             spent[color] = (spent[color] ?? 0) + n;
             shortfall -= n;
         };
-        for (const color of MANA_COLORS) {
+        const colorList2 = MANA_COLORS;
+        for (let i = 0; i < colorList2.length; i++) {
+            const color = colorList2[i];
             const pips = printed.manaCost?.[color];
             if (typeof pips === "number")
                 draw(color, pips - (spent[color] ?? 0));
         }
-        for (const color of MANA_COLORS) draw(color, Infinity);
+        const colorList3 = MANA_COLORS;
+        for (let i = 0; i < colorList3.length; i++) {
+            const color = colorList3[i];
+            draw(color, Infinity);
+        }
     }
     return spent;
 }
@@ -295,12 +308,15 @@ function drainManaLeg(pool: Record<string, number>, leg: ManaCost): void {
         if (pool[color] === 0) delete pool[color];
         return Math.max(n, 0);
     };
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         const pips = leg[color];
         if (typeof pips === "number") take(color, pips);
     }
     let generic = (leg.generic ?? 0) + (typeof leg.X === "number" ? leg.X : 0);
-    for (const color of GENERIC_LEG_DRAIN_ORDER) {
+    for (let i = 0; i < GENERIC_LEG_DRAIN_ORDER.length; i++) {
+        const color = GENERIC_LEG_DRAIN_ORDER[i];
         if (generic <= 0) break;
         generic -= take(color, generic);
     }
@@ -343,13 +359,15 @@ export function applyMayPayTapPlanInSearch(
     const mana = normalizeMayPayCost(head.cost).mana;
     if (!mana) return;
     const owed = normalizeManaCost(mana);
-    const pips = [
-        ...MANA_COLORS.flatMap((c) => Array<string>(owed[c] ?? 0).fill(c)),
-        ...normalizedHybridPips(owed).map(([first]) => first as string),
-        ...Array<string>(owed.X ?? 0).fill("C"),
-    ];
+    const pips = MANA_COLORS.flatMap((c) =>
+        Array<string>(owed[c] ?? 0).fill(c)
+    ).concat(
+        normalizedHybridPips(owed).map(([first]) => first as string),
+        Array<string>(owed.X ?? 0).fill("C")
+    );
     const pool = player.manaPool as Record<string, number>;
-    for (const pip of pips) {
+    for (let i = 0; i < pips.length; i++) {
+        const pip = pips[i];
         if (canPayMayPayCost(state, playerId, head.cost, head.manaRestriction))
             return;
         pool[pip] = (pool[pip] ?? 0) + 1;

@@ -688,8 +688,8 @@ function countFillerId(filter: {
  *  the same kind share one registration and two of different kinds can never
  *  collide — the `countFillerId` pattern, one object over. */
 function sourceCardId(source: SmokeSourceSpec): string {
-    const types = [...source.types];
-    const subtypes = [...(source.subtypes ?? [])];
+    const types = source.types.slice();
+    const subtypes = (source.subtypes ?? []).slice();
     // The two groups are separated by `|`, never by the same `-` that joins
     // within a group: `types:["Creature"] subtypes:["Wall","X"]` and
     // `types:["Creature","Wall"] subtypes:["X"]` are different kinds and must
@@ -820,7 +820,10 @@ function isEffectOp(node: unknown): node is EffectOp {
 function analyseOwnArguments(op: EffectOp, req: Requirements): void {
     const walk = (node: unknown, key: string | null): void => {
         if (Array.isArray(node)) {
-            for (const child of node) if (!isEffectOp(child)) walk(child, key);
+            for (let i = 0; i < node.length; i++) {
+                const child = node[i];
+                if (!isEffectOp(child)) walk(child, key);
+            }
             return;
         }
         if (node === null || typeof node !== "object") return;
@@ -870,10 +873,15 @@ function analyseOwnArguments(op: EffectOp, req: Requirements): void {
                 );
             return;
         }
-        for (const [child, value] of Object.entries(record))
+        const entries2 = Object.entries(record);
+        for (let i = 0; i < entries2.length; i++) {
+            const [child, value] = entries2[i];
             if (!isEffectOp(value)) walk(value, child);
+        }
     };
-    for (const [key, value] of Object.entries(op)) {
+    const entries2 = Object.entries(op);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, value] = entries2[i];
         if (key === "op" || isEffectOp(value)) continue;
         // CR 603.7: a delayed trigger's `capture` only records the objects its
         // future body refers to; nothing acts on them at resolution, so a
@@ -1489,7 +1497,9 @@ function eventSubjectFor(
     if (!("ref" in selector) || !selector.ref.startsWith("$event.")) return;
     if (req.host.site !== "ability") return;
     const field = selector.ref.slice("$event.".length);
-    for (const type of req.host.triggerEvents ?? []) {
+    const typeList = req.host.triggerEvents ?? [];
+    for (let i = 0; i < typeList.length; i++) {
+        const type = typeList[i];
         const build = EVENT_SUBJECT_BUILDERS[type]?.[field];
         const row = getEventFieldRow(type, field);
         if (build === undefined || row?.family !== "object") continue;
@@ -1548,7 +1558,9 @@ function eventAmountFor(
     if (!ref.startsWith("$event.")) return;
     if (req.host.site !== "ability") return;
     const field = ref.slice("$event.".length);
-    for (const type of req.host.triggerEvents ?? []) {
+    const typeList = req.host.triggerEvents ?? [];
+    for (let i = 0; i < typeList.length; i++) {
+        const type = typeList[i];
         const build = EVENT_AMOUNT_BUILDERS[type]?.[field];
         const row = getEventFieldRow(type, field);
         if (build === undefined || row?.family !== "number") continue;
@@ -2908,7 +2920,7 @@ function chooserHandTouchedElsewhere(
 function settleChoiceDiscards(req: Requirements): void {
     if (req.choiceDiscards.size === 0) return;
     const raised: SmokeSkip[][] = [];
-    for (const [bind, pick] of req.choiceDiscards) {
+    req.choiceDiscards.forEach((pick, bind) => {
         if (
             pick.modelled &&
             pick.discardedBy !== undefined &&
@@ -2917,20 +2929,18 @@ function settleChoiceDiscards(req: Requirements): void {
                 assertionPlayerId(pick.choice.player)
             )
         )
-            continue;
+            return;
         req.choiceDiscards.delete(bind);
-        if (!pick.modelled) continue;
-        raised[pick.skipAt] = [
-            ...(raised[pick.skipAt] ?? []),
+        if (!pick.modelled) return;
+        raised[pick.skipAt] = (raised[pick.skipAt] ?? []).concat([
             { ...CHOICE_SKIP, op: pick.choice },
-        ];
-        if (pick.discardedBy === undefined) continue;
+        ]);
+        if (pick.discardedBy === undefined) return;
         const at = pick.discardedBy.skipAt;
-        raised[at] = [
-            ...(raised[at] ?? []),
+        raised[at] = (raised[at] ?? []).concat([
             { ...DISCARD_SKIP, op: pick.discardedBy.op },
-        ];
-    }
+        ]);
+    });
     // Later positions first, so an earlier insertion point stays valid.
     for (let at = raised.length - 1; at >= 0; at--)
         if (raised[at] !== undefined) req.skips.splice(at, 0, ...raised[at]!);
@@ -2973,7 +2983,9 @@ function settleHandCounts(req: Requirements): void {
         handTouchedElsewhere(req, count.owner)
     );
     // Later positions first, so an earlier insertion point stays valid.
-    for (const count of raised.reverse())
+    const countList = raised.reverse();
+    for (let i = 0; i < countList.length; i++) {
+        const count = countList[i];
         req.skips.splice(
             count.skipAt,
             0,
@@ -2981,6 +2993,7 @@ function settleHandCounts(req: Requirements): void {
                 ? { ...HAND_COUNT_SKIP }
                 : { ...HAND_COUNT_SKIP, op: count.op }
         );
+    }
 }
 
 /** Whether another part of the script feeds the caster's graveyard, so a
@@ -3006,20 +3019,18 @@ function settleRandomPicks(req: Requirements): void {
     if (req.randomPicks.size === 0) return;
     const raised: SmokeSkip[][] = [];
     const fed = graveyardFedElsewhere(req);
-    for (const [bind, pick] of req.randomPicks) {
-        if (pick.movedBy !== undefined && !fed) continue;
+    req.randomPicks.forEach((pick, bind) => {
+        if (pick.movedBy !== undefined && !fed) return;
         req.randomPicks.delete(bind);
-        raised[pick.skipAt] = [
-            ...(raised[pick.skipAt] ?? []),
+        raised[pick.skipAt] = (raised[pick.skipAt] ?? []).concat([
             { ...SELECT_AT_RANDOM_SKIP, op: pick.op },
-        ];
-        if (pick.movedBy === undefined) continue;
+        ]);
+        if (pick.movedBy === undefined) return;
         const at = pick.movedBy.skipAt;
-        raised[at] = [
-            ...(raised[at] ?? []),
+        raised[at] = (raised[at] ?? []).concat([
             { ...MOVE_ZONE_SKIP, op: pick.movedBy.op },
-        ];
-    }
+        ]);
+    });
     // Later positions first, so an earlier insertion point stays valid.
     for (let at = raised.length - 1; at >= 0; at--)
         if (raised[at] !== undefined) req.skips.splice(at, 0, ...raised[at]!);
@@ -3193,8 +3204,12 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             analysePlayer(op.player ?? "controller", req, false);
             // A computed per-colour amount is analysed like any other numeric
             // position (the same skip reasons, the same seeded reads).
-            for (const amount of Object.values(op.mana)) {
-                analyseValue(amount, req);
+            {
+                const amountList = Object.values(op.mana);
+                for (let i = 0; i < amountList.length; i++) {
+                    const amount = amountList[i];
+                    analyseValue(amount, req);
+                }
             }
             return;
         case "drainManaPool": {
@@ -3765,7 +3780,7 @@ function seedRandomPools(
 ): Record<string, SeededRandomPool> | undefined {
     if (req.randomPicks.size === 0) return undefined;
     const pools: Record<string, SeededRandomPool> = {};
-    for (const [bind, pick] of req.randomPicks) {
+    req.randomPicks.forEach((pick, bind) => {
         const prefix = `gen-pick-${bind.replace(/^\$/, "")}`;
         const pool = spawnMatching(
             countFillerId(pick.filter),
@@ -3782,7 +3797,7 @@ function seedRandomPools(
             count: pick.count,
             ...(decoy === undefined ? {} : { decoyId: decoy.id }),
         };
-    }
+    });
     return pools;
 }
 
@@ -3871,6 +3886,7 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
     // A hand another Op of the same script also fills (a draw) holds more
     // than the seeded cards at the discard, and a redirected graveyard never
     // receives them: the predicted delta would be a guess.
+    // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
     for (const pid of req.discardingPlayers) {
         if (!req.drawingPlayers.has(pid) && !req.redirectedPlayers.has(pid))
             continue;
@@ -3889,7 +3905,7 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
     // random discard's: `settleChoiceDiscards` gave up the pick otherwise.
     const choiceAnswers: Record<string, SeededChoiceAnswer> = {};
     const answeredHands = new Map<string, CardInstanceState[]>();
-    for (const [bind, pick] of req.choiceDiscards) {
+    req.choiceDiscards.forEach((pick, bind) => {
         const pid = assertionPlayerId(pick.choice.player);
         const hand = spawnFiller(
             pid,
@@ -3903,7 +3919,7 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
             handIds: hand.map((card) => card.id),
             picks: hand.slice(1).map((card) => card.id),
         };
-    }
+    });
     const seededHand = (pid: string): CardInstanceState[] =>
         req.discardingPlayers.has(pid)
             ? spawnFiller(pid, "hand", SMOKE_HAND_SIZE, "gen-hand")
@@ -3921,15 +3937,17 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
 
     // Count sets: populate the requested zone for the requested controller so
     // the count is a fixed, known size (COUNT_SET_SIZE).
-    const p1Bf = [
-        ...oppBattlefield.filter((c) => c.controllerId === CASTER_ID),
-    ];
-    const p2Bf = [
-        ...oppBattlefield.filter((c) => c.controllerId === OPPONENT_ID),
-    ];
+    const p1Bf = oppBattlefield
+        .filter((c) => c.controllerId === CASTER_ID)
+        .slice();
+    const p2Bf = oppBattlefield
+        .filter((c) => c.controllerId === OPPONENT_ID)
+        .slice();
     const p1Gy: CardInstanceState[] = [];
     const p2Gy: CardInstanceState[] = [];
-    for (const spec of req.countSets) {
+    const specList = req.countSets;
+    for (let i = 0; i < specList.length; i++) {
+        const spec = specList[i];
         const owner =
             spec.controller === "controller" ? CASTER_ID : OPPONENT_ID;
         // Seed cards whose DEFINITION satisfies the filter, so the count is a
@@ -3984,6 +4002,7 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
     const source = seedableSource(req);
     // A count the same script changes before reading it would resolve to the
     // seed plus whatever the Op put on — the static prediction reads the seed.
+    // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
     for (const type of req.sourceCounterReads) {
         if (!req.sourceCounterWrites.has(type)) continue;
         return {
@@ -4008,7 +4027,9 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
         seedSweep(plan, index, p1Bf, p2Bf)
     );
     if (req.sourceSubject && source !== undefined) {
-        for (const spec of req.countSets) {
+        const specList2 = req.countSets;
+        for (let i = 0; i < specList2.length; i++) {
+            const spec = specList2[i];
             if (sourceContributesTo(source, spec) !== "undecidable") continue;
             return {
                 skip: [
@@ -4387,7 +4408,7 @@ function sweepFilterSpecs(filter: EffectCardFilter | undefined): {
         ...noTypes.map((t) => ({ ...base, types: [baseType, t] })),
         ...noSubtypes.map((s) => ({
             ...base,
-            subtypes: [...base.subtypes, s],
+            subtypes: base.subtypes.concat([s]),
         })),
     ];
     if (types.length > 0) {
@@ -4404,11 +4425,10 @@ function sweepFilterSpecs(filter: EffectCardFilter | undefined): {
         bystanders.push({ ...base, manaValue: ceiling + 1 });
 
     return {
-        members: [
-            base,
-            ...types.slice(1).map((t) => ({ ...base, types: [t] })),
-            ...subtypes.slice(1).map((s) => ({ ...base, subtypes: [s] })),
-        ],
+        members: [base].concat(
+            types.slice(1).map((t) => ({ ...base, types: [t] })),
+            subtypes.slice(1).map((s) => ({ ...base, subtypes: [s] }))
+        ),
         bystanders,
     };
 }
@@ -4506,13 +4526,18 @@ function sweepSeats(
     // spare it and the clause it violates would go unproven.
     const passingGuard = (spec: SweepCardSpec): SweepCardSpec =>
         passing === undefined ? spec : { ...spec, manaValue: passing };
-    for (const owner of seats) {
-        for (const spec of specs.members) {
+    const ownerList = seats;
+    for (let i = 0; i < ownerList.length; i++) {
+        const owner = ownerList[i];
+        const specList = specs.members;
+        for (let j = 0; j < specList.length; j++) {
+            const spec = specList[j];
             if (guard === null) {
                 seated.push({ spec, owner, role: "member" });
                 continue;
             }
-            for (const manaValue of manaValues)
+            for (let k = 0; k < manaValues.length; k++) {
+                const manaValue = manaValues[k];
                 seated.push({
                     spec: { ...spec, manaValue },
                     owner,
@@ -4520,22 +4545,29 @@ function sweepSeats(
                         ? "member"
                         : "bystander",
                 });
+            }
         }
-        for (const spec of specs.bystanders)
+        const specList2 = specs.bystanders;
+        for (let j = 0; j < specList2.length; j++) {
+            const spec = specList2[j];
             seated.push({
                 spec: passingGuard(spec),
                 owner,
                 role: "bystander",
             });
+        }
     }
     if (seats.length === 1) {
         const other = seats[0] === CASTER_ID ? OPPONENT_ID : CASTER_ID;
-        for (const spec of specs.members)
+        const specList3 = specs.members;
+        for (let i = 0; i < specList3.length; i++) {
+            const spec = specList3[i];
             seated.push({
                 spec: passingGuard(spec),
                 owner: other,
                 role: "bystander",
             });
+        }
     }
     return seated;
 }
@@ -4601,8 +4633,11 @@ function planSweep(
  *  has to withhold the card itself. */
 function bodySpeaksForItself(op: ForEachOp, host: SmokeHost): boolean {
     const body = emptyRequirements(SPELL_HOST);
-    for (const nested of [...op.effects, ...nestedOps(op.effects, host)])
+    const nestedList = op.effects.concat(nestedOps(op.effects, host));
+    for (let i = 0; i < nestedList.length; i++) {
+        const nested = nestedList[i];
         analyseOpFully(nested, body);
+    }
     settleChoiceDiscards(body);
     settleRandomPicks(body);
     settleHandCounts(body);
@@ -4714,8 +4749,8 @@ function sweepCardId(spec: SweepCardSpec): string {
         rarity: "common",
         // CR 202.2 — a card's colour is read off its mana cost.
         manaCost: { [spec.color ?? "C"]: manaValue },
-        types: [...spec.types],
-        subtypes: [...spec.subtypes],
+        types: spec.types.slice(),
+        subtypes: spec.subtypes.slice(),
         ...(spec.ability === undefined
             ? {}
             : { staticAbilities: [spec.ability] }),
@@ -4824,7 +4859,7 @@ function sweepCheckFor(
             // `excludeAbility`'s own clause).
             const seeded = sweepPermanent(pre, id)?.staticAbilities;
             if (seeded === undefined) return () => false;
-            const before = [...seeded];
+            const before = seeded.slice();
             return (post, hit) => {
                 const now = sweepPermanent(post, id)?.staticAbilities;
                 if (now === undefined) return false;
@@ -4876,12 +4911,11 @@ function sweepAssertion(
             },
         };
     }
-    const untouched = [
-        ...sweep.bystanderIds,
-        ...(sweep.excludesSource && scenario.sourcePermanentId !== undefined
+    const untouched = sweep.bystanderIds.concat(
+        sweep.excludesSource && scenario.sourcePermanentId !== undefined
             ? [scenario.sourcePermanentId]
-            : []),
-    ];
+            : []
+    );
     const hits = sweep.memberIds.map(
         (id) => [id, sweepCheckFor(outcome, id, pre, amount)] as const
     );
@@ -4891,10 +4925,10 @@ function sweepAssertion(
     return {
         label: `forEach ${outcome.kind} hits ${sweep.memberIds.length} member(s), spares ${untouched.length}`,
         check: (post) => {
-            const bad = [
-                ...hits.filter(([, holds]) => !holds(post, true)),
-                ...misses.filter(([, holds]) => !holds(post, false)),
-            ].map(([id]) => id);
+            const bad = hits
+                .filter(([, holds]) => !holds(post, true))
+                .concat(misses.filter(([, holds]) => !holds(post, false)))
+                .map(([id]) => id);
             return {
                 ok: bad.length === 0,
                 detail: `wrong outcome on [${bad.join(", ")}]`,
@@ -5151,8 +5185,8 @@ const OP_ASSERTORS: AssertorTable = {
                     ok:
                         inGraveyard === answer.picks.length &&
                         JSON.stringify(handIds) ===
-                            JSON.stringify([...kept].sort()),
-                    detail: `${inGraveyard} chosen card(s) in the graveyard, expected ${answer.picks.length}; hand [${handIds.join(", ")}], expected [${[...kept].sort().join(", ")}]`,
+                            JSON.stringify(kept.slice().sort()),
+                    detail: `${inGraveyard} chosen card(s) in the graveyard, expected ${answer.picks.length}; hand [${handIds.join(", ")}], expected [${kept.slice().sort().join(", ")}]`,
                 };
             },
         };
@@ -5579,7 +5613,9 @@ const OP_ASSERTORS: AssertorTable = {
                   );
         const preP = findPlayer(pre, pid);
         const added: [string, number][] = [];
-        for (const [color, value] of Object.entries(op.mana)) {
+        const entries2 = Object.entries(op.mana);
+        for (let i = 0; i < entries2.length; i++) {
+            const [color, value] = entries2[i];
             const n = predictAmount(value, scenario);
             if (n === null) return null;
             if (n > 0) added.push([color, n]);
@@ -5593,7 +5629,8 @@ const OP_ASSERTORS: AssertorTable = {
                 .join("")} to player ${pid}`,
             check: (post) => {
                 const postP = findPlayer(post, pid);
-                for (const [color, amount] of added) {
+                for (let i = 0; i < added.length; i++) {
+                    const [color, amount] = added[i];
                     const expected = (before[color] ?? 0) + amount;
                     const actual = balance(postP, color);
                     if (actual !== expected) {
@@ -6181,7 +6218,8 @@ const OP_ASSERTORS: AssertorTable = {
         return {
             label: `fight ${aId} (${aPT.power}) ↔ ${bId} (${bPT.power})`,
             check: (post) => {
-                for (const side of sides) {
+                for (let i = 0; i < sides.length; i++) {
+                    const side = sides[i];
                     const expected = side.before + side.dealt;
                     const perm = onBattlefield(post, side.id);
                     if (!perm) {
@@ -6476,7 +6514,9 @@ export const SKIPPED_OP_KINDS: readonly string[] = Object.keys(SCENARIO_SKIPS);
  *  test. */
 export function opCoverageGaps(): string[] {
     const gaps: string[] = [];
-    for (const row of EFFECT_OP_REGISTRY) {
+    const rowList = EFFECT_OP_REGISTRY;
+    for (let i = 0; i < rowList.length; i++) {
+        const row = rowList[i];
         if (!(row.op in OP_ASSERTORS) && !(row.op in SCENARIO_SKIPS)) {
             gaps.push(
                 `Op "${row.op}" has neither an assertor in OP_ASSERTORS nor a SCENARIO_SKIPS row in scenarioGenerator.ts`
@@ -6580,7 +6620,10 @@ function planWith(
             : flattenSacrificeGates(authored, sacrificed);
     const req = emptyRequirements(host);
     req.sourceSacrificeAdmitted = sacrificed !== null;
-    for (const op of effects) analyseOpFully(op, req);
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
+        analyseOpFully(op, req);
+    }
     analyseSweepCompanions(effects, req);
 
     const built = buildScenario(req);
@@ -6602,17 +6645,22 @@ function planWith(
         // the very fail-open this walk exists to close (ADR 0105 § 7.1).
         const nested = emptyRequirements(SPELL_HOST);
         nested.sweepsRun = false;
-        for (const op of nestedOps(effects, host)) analyseOpFully(op, nested);
+        const opList = nestedOps(effects, host);
+        for (let i = 0; i < opList.length; i++) {
+            const op = opList[i];
+            analyseOpFully(op, nested);
+        }
         settleChoiceDiscards(nested);
         settleRandomPicks(nested);
         settleHandCounts(nested);
-        return skipPlan([...built.skip, ...nested.skips]);
+        return skipPlan(built.skip.concat(nested.skips));
     }
 
     if (kickerPayments !== undefined && Object.keys(kickerPayments).length > 0)
         built.kickerPayments = kickerPayments;
     const assertions: Assertion[] = [];
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         // A skipped Op never reaches here (`buildScenario` returned its skip);
         // the guard only narrows the key to the analysed Ops.
         const assertor = isScenarioSkipped(op)
@@ -6686,7 +6734,10 @@ function nestedOps(effects: readonly EffectOp[], host?: SmokeHost): EffectOp[] {
         host !== undefined && isPlannedSweep(op, host);
     const walk = (node: unknown): void => {
         if (Array.isArray(node)) {
-            for (const child of node) walk(child);
+            for (let i = 0; i < node.length; i++) {
+                const child = node[i];
+                walk(child);
+            }
             return;
         }
         if (node === null || typeof node !== "object") return;
@@ -6694,11 +6745,20 @@ function nestedOps(effects: readonly EffectOp[], host?: SmokeHost): EffectOp[] {
             if (planned(node)) return;
             found.push(node);
         }
-        for (const value of Object.values(node)) walk(value);
+        const valueList = Object.values(node);
+        for (let i = 0; i < valueList.length; i++) {
+            const value = valueList[i];
+            walk(value);
+        }
     };
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         if (planned(op)) continue;
-        for (const value of Object.values(op)) walk(value);
+        const valueList2 = Object.values(op);
+        for (let j = 0; j < valueList2.length; j++) {
+            const value = valueList2[j];
+            walk(value);
+        }
     }
     return found;
 }
@@ -6754,7 +6814,8 @@ function isBranchPredicate(predicate: EffectPredicate): boolean {
  *  the legacy analysis skips. */
 function reachableIfs(effects: readonly EffectOp[]): IfOp[] {
     const found: IfOp[] = [];
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         if (op.op !== "if") continue;
         found.push(
             op,
@@ -6768,10 +6829,13 @@ function reachableIfs(effects: readonly EffectOp[]): IfOp[] {
 /** The kicker ids the predicates read — what a branch world pays. */
 function kickerIdsRead(ifs: readonly IfOp[]): string[] {
     const ids = new Set<string>();
-    for (const op of ifs) {
+    for (let i = 0; i < ifs.length; i++) {
+        const op = ifs[i];
         const p = op.predicate;
         if (!("left" in p && "right" in p)) continue;
-        for (const v of [p.left, p.right]) {
+        const vList = [p.left, p.right];
+        for (let j = 0; j < vList.length; j++) {
+            const v = vList[j];
             if (typeof v === "number") continue;
             if ("kickerCount" in v) ids.add(BRANCH_KICKER_ID);
             if ("additionalCostPaid" in v) ids.add(v.additionalCostPaid);
@@ -6784,7 +6848,10 @@ function kickerIdsRead(ifs: readonly IfOp[]): string[] {
  *  script can be cast in. */
 function branchWorlds(ids: readonly string[]): Record<string, number>[] {
     const worlds: Record<string, number>[] = [{}];
-    for (const id of ids) worlds.push({ [id]: 1 });
+    for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
+        worlds.push({ [id]: 1 });
+    }
     if (ids.length > 1)
         worlds.push(Object.fromEntries(ids.map((id) => [id, 1])));
     return worlds;
@@ -6887,10 +6954,13 @@ export function planSmokeBranches(
     // them: a count set / source counters / announced X exist before any
     // branch is chosen.
     const operandReq = emptyRequirements(host);
-    for (const op of ifs) {
+    for (let j = 0; j < ifs.length; j++) {
+        const op = ifs[j];
         const p = op.predicate;
         if (!("left" in p && "right" in p)) continue;
-        for (const v of [p.left, p.right]) {
+        const vList = [p.left, p.right];
+        for (let k = 0; k < vList.length; k++) {
+            const v = vList[k];
             if (typeof v === "number") continue;
             if ("kickerCount" in v || "additionalCostPaid" in v) continue;
             analyseValue(v, operandReq);
@@ -6904,7 +6974,9 @@ export function planSmokeBranches(
     const realised = new Map<IfOp, Set<boolean>>();
     const seenIfs = new Set<IfOp>();
 
-    for (const world of branchWorlds(kickerIdsRead(ifs))) {
+    const worldList = branchWorlds(kickerIdsRead(ifs));
+    for (let j = 0; j < worldList.length; j++) {
+        const world = worldList[j];
         let decisions = new Map<IfOp, boolean>(
             ifs.map((op) => [
                 op,
@@ -6918,7 +6990,10 @@ export function planSmokeBranches(
             const key = reached
                 .map((op) => `${ifs.indexOf(op)}:${decisions.get(op)}`)
                 .join(",");
-            for (const op of reached) seenIfs.add(op);
+            for (let k = 0; k < reached.length; k++) {
+                const op = reached[k];
+                seenIfs.add(op);
+            }
             if (flat.length === 0) {
                 // The taken branches hold no Op: nothing is declared to
                 // assert, so this outcome is reported, never counted covered.
@@ -6942,7 +7017,8 @@ export function planSmokeBranches(
             // in, so the predicates are re-read there.
             const next = new Map(decisions);
             let unreadable = false;
-            for (const op of reached) {
+            for (let k = 0; k < reached.length; k++) {
+                const op = reached[k];
                 const holds = branchPredicateHolds(
                     op.predicate,
                     plan.scenario,
@@ -6968,7 +7044,8 @@ export function planSmokeBranches(
                         branch: `[${key}]${worldLabel}`,
                     });
                 }
-                for (const op of reached) {
+                for (let k = 0; k < reached.length; k++) {
+                    const op = reached[k];
                     const set = realised.get(op) ?? new Set<boolean>();
                     set.add(decisions.get(op)!);
                     realised.set(op, set);
@@ -6989,8 +7066,10 @@ export function planSmokeBranches(
     const explained = new Set(
         [...skips.keys()].flatMap((key) => key.split(","))
     );
-    for (const op of seenIfs) {
-        for (const outcome of [true, false]) {
+    seenIfs.forEach((op) => {
+        const outcomeList = [true, false];
+        for (let i = 0; i < outcomeList.length; i++) {
+            const outcome = outcomeList[i];
             if (realised.get(op)?.has(outcome)) continue;
             if (explained.has(`${ifs.indexOf(op)}:${outcome}`)) continue;
             skipped.push({
@@ -6999,7 +7078,7 @@ export function planSmokeBranches(
                 op,
             });
         }
-    }
+    });
     if (run.size === 0) return { plans: [skipPlan(skipped)], skipped: [] };
     return { plans: [...run.values()], skipped };
 }

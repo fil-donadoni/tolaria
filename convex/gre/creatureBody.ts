@@ -179,10 +179,9 @@ export const PRICED_KEYWORD_SHAPES: {
     readonly patterns: readonly RegExp[];
 } = {
     exact: Object.keys(KEYWORD_BONUS),
-    patterns: [
-        ...KEYWORD_FAMILY_BONUS.map((f) => f.pattern),
+    patterns: KEYWORD_FAMILY_BONUS.map((f) => f.pattern).concat([
         VANISHING_KEYWORD,
-    ],
+    ]),
 };
 
 /** The flat `KEYWORD_BONUS` contribution one keyword occurrence makes at
@@ -199,7 +198,8 @@ export function keywordBonusFor(
 ): number {
     const exact = KEYWORD_BONUS[keyword];
     if (exact) return exact(power);
-    for (const family of KEYWORD_FAMILY_BONUS) {
+    for (let i = 0; i < KEYWORD_FAMILY_BONUS.length; i++) {
+        const family = KEYWORD_FAMILY_BONUS[i];
         const match = family.pattern.exec(keyword);
         if (match) return family.bonus(power, match);
     }
@@ -249,7 +249,8 @@ export function creatureAttackShareRaw(
     staticAbilities: readonly string[]
 ): number {
     let share = power * W_CR_POWER;
-    for (const keyword of staticAbilities) {
+    for (let i = 0; i < staticAbilities.length; i++) {
+        const keyword = staticAbilities[i];
         if (!ATTACK_SHARE_KEYWORDS.has(keyword)) continue;
         share += KEYWORD_BONUS[keyword]?.(power) ?? 0;
     }
@@ -264,7 +265,8 @@ export function creatureBlockShareRaw(
     staticAbilities: readonly string[]
 ): number {
     let share = toughness * W_CR_TOUGHNESS;
-    for (const keyword of staticAbilities) {
+    for (let i = 0; i < staticAbilities.length; i++) {
+        const keyword = staticAbilities[i];
         if (!BLOCK_SHARE_KEYWORDS.has(keyword)) continue;
         share += KEYWORD_BONUS[keyword]?.(0) ?? 0;
     }
@@ -289,8 +291,10 @@ export function creatureValueRaw(
         power * W_CR_POWER +
         toughness * W_CR_TOUGHNESS +
         mv * W_CR_MV;
-    for (const keyword of staticAbilities)
+    for (let i = 0; i < staticAbilities.length; i++) {
+        const keyword = staticAbilities[i];
         value += keywordBonusFor(keyword, power, counters);
+    }
     return value;
 }
 

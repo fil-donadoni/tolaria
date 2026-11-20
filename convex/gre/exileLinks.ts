@@ -49,8 +49,12 @@ export function getCardsExiledWith<C extends ExileLinkCandidate>(
     sourceInstanceId: string
 ): Array<{ card: C; ownerId: string }> {
     const out: Array<{ card: C; ownerId: string }> = [];
-    for (const player of state.players) {
-        for (const card of player.exile ?? []) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.exile ?? [];
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (card.exiledBySourceId !== sourceInstanceId) continue;
             out.push({ card, ownerId: player.id });
         }
@@ -68,8 +72,14 @@ export function countCardTypesExiledWith<C extends ExileLinkCandidate>(
     sourceInstanceId: string
 ): number {
     const seen = new Set<string>();
-    for (const { card } of getCardsExiledWith(state, sourceInstanceId)) {
-        for (const t of card.types ?? []) seen.add(t);
+    const entries = getCardsExiledWith(state, sourceInstanceId);
+    for (let i = 0; i < entries.length; i++) {
+        const { card } = entries[i];
+        const tList = card.types ?? [];
+        for (let j = 0; j < tList.length; j++) {
+            const t = tList[j];
+            seen.add(t);
+        }
     }
     return seen.size;
 }

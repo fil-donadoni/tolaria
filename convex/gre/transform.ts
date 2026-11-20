@@ -107,7 +107,9 @@ function registerBackFaceDefinition(backFace: CardBackFace): string {
     // the client's `maybeSynthesizeToken` rebuilds color from the encoded
     // id — a server/client color divergence (issue #1210 review).
     const manaCost: ManaCost = {};
-    for (const c of spec.colors ?? []) {
+    const cList = spec.colors ?? [];
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
         manaCost[c] = (manaCost[c] ?? 0) + 1;
     }
     const backFaceStaticEffects = resolveTokenStaticEffects(
@@ -121,9 +123,9 @@ function registerBackFaceDefinition(backFace: CardBackFace): string {
         // satisfies the required field (mirrors token synthesis).
         rarity: "common",
         manaCost,
-        types: [...spec.types],
-        ...(spec.subtypes ? { subtypes: [...spec.subtypes] } : {}),
-        ...(spec.supertypes ? { supertypes: [...spec.supertypes] } : {}),
+        types: spec.types.slice(),
+        ...(spec.subtypes ? { subtypes: spec.subtypes.slice() } : {}),
+        ...(spec.supertypes ? { supertypes: spec.supertypes.slice() } : {}),
         power: spec.power,
         toughness: spec.toughness,
         // CR 306.5b — read back off `spec` (never re-derived from `backFace`
@@ -139,27 +141,27 @@ function registerBackFaceDefinition(backFace: CardBackFace): string {
         ...(spec.copiableEntersWithCounters
             ? {
                   entersWith: {
-                      counters: [...spec.copiableEntersWithCounters],
+                      counters: spec.copiableEntersWithCounters.slice(),
                   },
               }
             : {}),
         ...(spec.staticAbilities
-            ? { staticAbilities: [...spec.staticAbilities] }
+            ? { staticAbilities: spec.staticAbilities.slice() }
             : {}),
         ...(spec.activatedAbilities
-            ? { activatedAbilities: [...spec.activatedAbilities] }
+            ? { activatedAbilities: spec.activatedAbilities.slice() }
             : {}),
         // CR 712.8e (issue #3249) — the back face's own triggered abilities,
         // closures intact (this registration runs in the process that holds
         // the printed card).
         ...(spec.triggeredAbilities
-            ? { triggeredAbilities: [...spec.triggeredAbilities] }
+            ? { triggeredAbilities: spec.triggeredAbilities.slice() }
             : {}),
         // CR 714.2 / 714.3a (issue #8338) — a Saga back face's chapters, off
         // `spec` like the rest: `expandChapterAbilities` derives the triggers
         // and the entry lore counter from this definition at `getDefinition`.
         ...(spec.chapterAbilities
-            ? { chapterAbilities: [...spec.chapterAbilities] }
+            ? { chapterAbilities: spec.chapterAbilities.slice() }
             : {}),
         // CR 611 — rebuilt from the spec's keys through the shared factory
         // table, the same call `maybeSynthesizeToken` makes decoding `id`.
@@ -224,12 +226,12 @@ export function stampBackFaceForEntry(
     card.transformedFrom = frontId;
     card.card = { id: backId };
     rebuildCopiableValuesAndReplayOverlays(state, card, {
-        types: [...backFace.types],
-        subtypes: backFace.subtypes ? [...backFace.subtypes] : [],
+        types: backFace.types.slice(),
+        subtypes: backFace.subtypes ? backFace.subtypes.slice() : [],
         power: backFace.power,
         toughness: backFace.toughness,
         staticAbilities: backFace.staticAbilities
-            ? [...backFace.staticAbilities]
+            ? backFace.staticAbilities.slice()
             : [],
     });
     card.transformed = true;
@@ -280,12 +282,12 @@ export function stampModalBackFace(
     card.transformedFrom = frontId;
     card.card = { id: backId };
     rebuildCopiableValuesAndReplayOverlays(state, card, {
-        types: [...backDef.types],
-        subtypes: backDef.subtypes ? [...backDef.subtypes] : [],
+        types: backDef.types.slice(),
+        subtypes: backDef.subtypes ? backDef.subtypes.slice() : [],
         power: backDef.power,
         toughness: backDef.toughness,
         staticAbilities: backDef.staticAbilities
-            ? [...backDef.staticAbilities]
+            ? backDef.staticAbilities.slice()
             : [],
     });
     card.transformed = true;
@@ -333,12 +335,12 @@ export function revertTransform(
     if (!frontDef) return false;
     card.card = { id: frontId };
     rebuildCopiableValuesAndReplayOverlays(state, card, {
-        types: [...frontDef.types],
-        subtypes: frontDef.subtypes ? [...frontDef.subtypes] : [],
+        types: frontDef.types.slice(),
+        subtypes: frontDef.subtypes ? frontDef.subtypes.slice() : [],
         power: frontDef.power,
         toughness: frontDef.toughness,
         staticAbilities: frontDef.staticAbilities
-            ? [...frontDef.staticAbilities]
+            ? frontDef.staticAbilities.slice()
             : [],
     });
     delete card.transformed;
@@ -391,12 +393,12 @@ export function transformPermanent(
         // needs a zone change), so only its copiable values change; the
         // permanent's own layers 2–7 are replayed on top (issue #1705).
         rebuildCopiableValuesAndReplayOverlays(state, card, {
-            types: [...backFace.types],
-            subtypes: backFace.subtypes ? [...backFace.subtypes] : [],
+            types: backFace.types.slice(),
+            subtypes: backFace.subtypes ? backFace.subtypes.slice() : [],
             power: backFace.power,
             toughness: backFace.toughness,
             staticAbilities: backFace.staticAbilities
-                ? [...backFace.staticAbilities]
+                ? backFace.staticAbilities.slice()
                 : [],
         });
         card.transformed = true;

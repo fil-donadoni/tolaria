@@ -184,7 +184,8 @@ export function manaFromPlan(
 ): ManaContribution {
     const byId = new Map(sources.map((s) => [s.cardId, s]));
     const total: ManaContribution = {};
-    for (const step of plan) {
+    for (let i = 0; i < plan.length; i++) {
+        const step = plan[i];
         const src = byId.get(step.cardId);
         if (!src) continue;
         const opt =
@@ -194,7 +195,9 @@ export function manaFromPlan(
                   )
                 : src.options[0];
         if (!opt) continue;
-        for (const color of MANA_COLORS) {
+        const colorList = MANA_COLORS;
+        for (let j = 0; j < colorList.length; j++) {
+            const color = colorList[j];
             const v = opt.mana[color];
             if (v) total[color] = (total[color] ?? 0) + v;
         }
@@ -220,7 +223,9 @@ function toContribution(cost: {
         | undefined;
 }): ManaContribution {
     const out: ManaContribution = {};
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         const v = cost[color];
         if (typeof v === "number" && v > 0) out[color] = v;
     }
@@ -237,7 +242,9 @@ function withTapBonus(
 ): ManaContribution {
     const extra = extraTapManaForOption(battlefield, card, base);
     const merged: ManaContribution = { ...base };
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         const v = extra[color];
         if (v) merged[color] = (merged[color] ?? 0) + v;
     }
@@ -314,7 +321,8 @@ export function buildAutoTapSources(
     sourceOptions?: AutoTapSourceOptions
 ): AutoTapSource[] {
     const sources: AutoTapSource[] = [];
-    for (const card of battlefield) {
+    for (let i = 0; i < battlefield.length; i++) {
+        const card = battlefield[i];
         if (card.isTapped) continue;
         const ability = getActivatedManaAbility(card);
         // CR 111.10a — the one sacrifice mana source a caller may opt into.
@@ -495,7 +503,9 @@ export type Demand = {
 /** Mana value of a Demand: the total of its normalized cost (CR 202.3). */
 export function demandManaValue(demand: Demand): number {
     let total = 0;
-    for (const value of Object.values(demand.cost)) {
+    const valueList = Object.values(demand.cost);
+    for (let i = 0; i < valueList.length; i++) {
+        const value = valueList[i];
         if (value > 0) total += value;
     }
     return total;
@@ -506,7 +516,9 @@ function addContribution(
     mana: ManaContribution
 ): Record<string, number> {
     const next = { ...pool };
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         const v = mana[color];
         if (v) next[color] = (next[color] ?? 0) + v;
     }
@@ -526,13 +538,16 @@ function poolAfterSpending(
     substitutions: ManaSubstitution[]
 ): Record<string, number> {
     const remaining = { ...pool };
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         let required = cost[color] ?? 0;
         if (required <= 0) continue;
         const direct = Math.min(remaining[color] ?? 0, required);
         remaining[color] = (remaining[color] ?? 0) - direct;
         required -= direct;
-        for (const sub of substitutions) {
+        for (let j = 0; j < substitutions.length; j++) {
+            const sub = substitutions[j];
             if (required <= 0) break;
             if (sub.to !== color) continue;
             const take = Math.min(remaining[sub.from] ?? 0, required);
@@ -541,7 +556,9 @@ function poolAfterSpending(
         }
     }
     let generic = cost.X ?? 0;
-    for (const color of MANA_COLORS) {
+    const colorList2 = MANA_COLORS;
+    for (let i = 0; i < colorList2.length; i++) {
+        const color = colorList2[i];
         if (generic <= 0) break;
         const take = Math.min(remaining[color] ?? 0, generic);
         remaining[color] = (remaining[color] ?? 0) - take;
@@ -584,7 +601,8 @@ export function planSoughtRiders(
 ): number {
     const byId = new Map(sources.map((src) => [src.cardId, src]));
     let count = 0;
-    for (const step of plan) {
+    for (let i = 0; i < plan.length; i++) {
+        const step = plan[i];
         const src = byId.get(step.cardId);
         if (!src) continue;
         const opt =
@@ -613,12 +631,15 @@ function helpsColoredNeed(
     const hybridPips = normalizedHybridPips(cost);
     if (hybridPips.length > 0) {
         const hybridColors = new Set<string>();
-        for (const pip of hybridPips) {
+        for (let i = 0; i < hybridPips.length; i++) {
+            const pip = hybridPips[i];
             hybridColors.add(pip[0]);
             hybridColors.add(pip[1]);
         }
         if (!isManaCostCovered(pool, cost, subs)) {
-            for (const color of MANA_COLORS) {
+            const colorList = MANA_COLORS;
+            for (let i = 0; i < colorList.length; i++) {
+                const color = colorList[i];
                 if (mana[color] && hybridColors.has(color)) return true;
             }
         }
@@ -678,7 +699,7 @@ export function solveAutoTap(
         limit: number
     ): AutoTapPlan | null {
         const src = sources[index];
-        const ordered = [...src.options].sort((a, b) => {
+        const ordered = src.options.slice().sort((a, b) => {
             const ha = helpsColoredNeed(trialPool, cost, substitutions, a.mana)
                 ? 1
                 : 0;
@@ -689,7 +710,8 @@ export function solveAutoTap(
         });
 
         // Prefer tapping this source (in option order) over skipping it.
-        for (const opt of ordered) {
+        for (let i = 0; i < ordered.length; i++) {
+            const opt = ordered[i];
             // CR 601.2g (issue #3384) — an option with its own mana leg is
             // tappable only once an EARLIER step floated what it costs.
             const nextPool = applyOption(trialPool, opt);
@@ -697,15 +719,14 @@ export function solveAutoTap(
             const result = dfs(
                 index + 1,
                 nextPool,
-                [
-                    ...chosen,
+                chosen.concat([
                     {
                         cardId: src.cardId,
                         ...(opt.manaChoiceIndex !== undefined
                             ? { manaChoiceIndex: opt.manaChoiceIndex }
                             : {}),
                     },
-                ],
+                ]),
                 limit
             );
             if (result) return result;
@@ -958,7 +979,9 @@ function enumerateKTapPlans(
         const src = sources[index];
         let found = false;
         // Tap this source (one branch per mana option), in index order.
-        for (const opt of src.options) {
+        const optList = src.options;
+        for (let i = 0; i < optList.length; i++) {
+            const opt = optList[i];
             if (overflow) return found;
             // CR 601.2g (issue #3384) — same ordering rule as `solveAutoTap`:
             // a costed option is unreachable until the plan has funded it.
@@ -967,15 +990,14 @@ function enumerateKTapPlans(
             const below = dfs(
                 index + 1,
                 nextPool,
-                [
-                    ...chosen,
+                chosen.concat([
                     {
                         cardId: src.cardId,
                         ...(opt.manaChoiceIndex !== undefined
                             ? { manaChoiceIndex: opt.manaChoiceIndex }
                             : {}),
                     },
-                ],
+                ]),
                 riders + (opt.soughtRider ? 1 : 0)
             );
             found = below || found;
@@ -1021,7 +1043,8 @@ export function floatingAfterPlan(
 ): Record<string, number> {
     const byId = new Map(sources.map((s) => [s.cardId, s]));
     let remaining = { ...pool };
-    for (const step of plan) {
+    for (let i = 0; i < plan.length; i++) {
+        const step = plan[i];
         const src = byId.get(step.cardId);
         if (!src) continue;
         const opt =
@@ -1079,7 +1102,11 @@ export function planSurplus(
         plan
     );
     let units = 0;
-    for (const color of MANA_COLORS) units += leftover[color] ?? 0;
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
+        units += leftover[color] ?? 0;
+    }
     return Math.min(units, SURPLUS_CAP);
 }
 
@@ -1120,7 +1147,8 @@ export function scorePreservedDemands(
         plan
     );
     let score = 0;
-    for (const demand of demands) {
+    for (let i = 0; i < demands.length; i++) {
+        const demand = demands[i];
         if (
             isDemandAffordable(
                 demand,
@@ -1147,8 +1175,12 @@ export function scorePreservedDemands(
  *  cost-aware, not just `applyOption` (issue #3384). */
 function sourceColorBreadth(source: AutoTapSource): number {
     const colors = new Set<Color>();
-    for (const opt of source.options) {
-        for (const color of MANA_COLORS) {
+    const optList = source.options;
+    for (let i = 0; i < optList.length; i++) {
+        const opt = optList[i];
+        const colorList = MANA_COLORS;
+        for (let j = 0; j < colorList.length; j++) {
+            const color = colorList[j];
             if ((opt.mana[color] ?? 0) > 0) colors.add(color);
         }
     }
@@ -1176,7 +1208,11 @@ export function remainingFlexibility(
 /** Lexicographic key of a plan's tapped cardIds (sorted), for the deterministic
  *  tertiary tie-break (ADR 0034 tie-break #3). */
 function planLexKey(plan: AutoTapPlan): string {
-    return [...plan.map((s) => s.cardId)].sort().join("\u0000");
+    return plan
+        .map((s) => s.cardId)
+        .slice()
+        .sort()
+        .join("\u0000");
 }
 
 /** Static score of the position a candidate plan leaves behind, higher = better
@@ -1389,7 +1425,10 @@ const UNTAP_PRICE_SUBSET_LIMIT = 8;
 function planUntapPrice(sources: AutoTapSource[], plan: AutoTapPlan): number {
     const byId = new Map(sources.map((src) => [src.cardId, src]));
     let total = 0;
-    for (const step of plan) total += byId.get(step.cardId)?.untapPrice ?? 0;
+    for (let i = 0; i < plan.length; i++) {
+        const step = plan[i];
+        total += byId.get(step.cardId)?.untapPrice ?? 0;
+    }
     return total;
 }
 
@@ -1421,11 +1460,13 @@ function preservedDemands(
  *  fewer sources, then by cardId). Prefixes only past
  *  {@link UNTAP_PRICE_SUBSET_LIMIT}, so the staging stays linear. */
 function pricedSubsetsByPrice(priced: AutoTapSource[]): AutoTapSource[][] {
-    const byPrice = [...priced].sort(
-        (a, b) =>
-            (a.untapPrice ?? 0) - (b.untapPrice ?? 0) ||
-            (a.cardId < b.cardId ? -1 : a.cardId > b.cardId ? 1 : 0)
-    );
+    const byPrice = priced
+        .slice()
+        .sort(
+            (a, b) =>
+                (a.untapPrice ?? 0) - (b.untapPrice ?? 0) ||
+                (a.cardId < b.cardId ? -1 : a.cardId > b.cardId ? 1 : 0)
+        );
     if (byPrice.length > UNTAP_PRICE_SUBSET_LIMIT) {
         return byPrice.map((_, i) => byPrice.slice(0, i + 1));
     }
@@ -1511,7 +1552,9 @@ function solveWithUntapPrices(
     );
     if (sparing === null) {
         // Rule 2 — nothing else pays: the cheapest priced set that covers it.
-        for (const subset of pricedSubsetsByPrice(priced)) {
+        const subsetList = pricedSubsetsByPrice(priced);
+        for (let i = 0; i < subsetList.length; i++) {
+            const subset = subsetList[i];
             const plan = solveSmartAutoTapCore(
                 pool,
                 cost,
@@ -1555,14 +1598,16 @@ function solveWithUntapPrices(
         if (!Number.isFinite(price)) return false;
         const tapped = new Set(plan.map((step) => step.cardId));
         let benefit = 0;
-        for (const demand of preservedDemands(
+        const demandList = preservedDemands(
             pool,
             cost,
             substitutions,
             sources,
             plan,
             liveDemands
-        )) {
+        );
+        for (let i = 0; i < demandList.length; i++) {
+            const demand = demandList[i];
             if (sparedIds.has(demand.id)) continue;
             if (demand.untapsSourceId && tapped.has(demand.untapsSourceId))
                 continue;
@@ -1724,7 +1769,8 @@ function solveSmartAutoTapCore(
                   .map(({ entry }) => entry)
             : ranked;
     let best: Ranked | null = null;
-    for (const entry of toScore) {
+    for (let i = 0; i < toScore.length; i++) {
+        const entry = toScore[i];
         const candidate: Ranked = {
             ...entry,
             position: entry.position(scorePlan ? scorePlan(entry.plan) : 0),
@@ -1749,13 +1795,16 @@ function remainingDeficit(
     let deficit = 0;
 
     // Colored/colorless pips: spend exact color first, then substitutes.
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         let required = cost[color] ?? 0;
         if (required <= 0) continue;
         const direct = Math.min(remaining[color] ?? 0, required);
         remaining[color] = (remaining[color] ?? 0) - direct;
         required -= direct;
-        for (const sub of substitutions) {
+        for (let j = 0; j < substitutions.length; j++) {
+            const sub = substitutions[j];
             if (required <= 0) break;
             if (sub.to !== color) continue;
             const take = Math.min(remaining[sub.from] ?? 0, required);
@@ -1769,7 +1818,11 @@ function remainingDeficit(
     const generic = cost.X ?? 0;
     if (generic > 0) {
         let available = 0;
-        for (const color of MANA_COLORS) available += remaining[color] ?? 0;
+        const colorList2 = MANA_COLORS;
+        for (let i = 0; i < colorList2.length; i++) {
+            const color = colorList2[i];
+            available += remaining[color] ?? 0;
+        }
         deficit += Math.max(0, generic - available);
     }
 
@@ -1804,7 +1857,7 @@ export function solveAutoTapPartial(
     let currentPool = { ...pool };
     // Sources are pre-sorted restricted-first; consume in order, skipping any
     // that can't help so flexible sources aren't spent on already-met needs.
-    const remaining = [...sources];
+    const remaining = sources.slice();
 
     let deficit = remainingDeficit(currentPool, cost, substitutions);
     let progressed = true;
@@ -1816,7 +1869,9 @@ export function solveAutoTapPartial(
             let bestOpt: AutoTapSource["options"][number] | undefined;
             let bestDeficit = deficit;
             let bestPool = currentPool;
-            for (const opt of src.options) {
+            const optList = src.options;
+            for (let j = 0; j < optList.length; j++) {
+                const opt = optList[j];
                 // CR 601.2g (issue #3384) — an unfunded costed option is not a
                 // candidate: the partial plan is EXECUTED, so a step the
                 // payment primitive would refuse must never enter it.

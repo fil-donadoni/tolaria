@@ -245,10 +245,14 @@ export function getExtraLandDrops(
     player: PlayerState
 ): number {
     let extra = 0;
-    for (const grant of state.extraLandDropsThisTurn ?? []) {
+    const grantList = state.extraLandDropsThisTurn ?? [];
+    for (let i = 0; i < grantList.length; i++) {
+        const grant = grantList[i];
         if (grant.playerId === player.id) extra += grant.count;
     }
-    for (const card of player.battlefield) {
+    const cardList = player.battlefield;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         const def = liveStaticDefinition(card);
         if (def) extra += extraLandDropsOf(def, card);
     }
@@ -277,7 +281,9 @@ export function getGraveyardPlayPermissions(
     player: PlayerState
 ): LiveGraveyardPlayPermission[] {
     const live: LiveGraveyardPlayPermission[] = [];
-    for (const card of player.battlefield) {
+    const cardList = player.battlefield;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         // CR 613.1f — a source that lost its abilities permits nothing.
         const permission = liveStaticDefinition(card)?.graveyardPlayPermission;
         if (!permission) continue;
@@ -298,7 +304,9 @@ export function getGraveyardPlayPermissions(
                 : {}),
         });
     }
-    for (const grant of state.graveyardPlayPermissionThisTurn ?? []) {
+    const grantList = state.graveyardPlayPermissionThisTurn ?? [];
+    for (let i = 0; i < grantList.length; i++) {
+        const grant = grantList[i];
         if (grant.playerId !== player.id) continue;
         live.push({
             actions: grant.actions,
@@ -416,7 +424,9 @@ export function canPlayLandsFromTopOfLibrary(
     _state: GameState,
     player: PlayerState
 ): boolean {
-    for (const card of player.battlefield) {
+    const cardList = player.battlefield;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         // CR 613.1f — a source that lost its abilities permits nothing.
         if (liveStaticDefinition(card)?.playsLandsFromTopOfLibrary) return true;
     }
@@ -478,7 +488,9 @@ type LibraryTopCastGrant = NonNullable<
  *  battlefield order. */
 function libraryTopCastGrants(player: PlayerState): LibraryTopCastGrant[] {
     const grants: LibraryTopCastGrant[] = [];
-    for (const card of player.battlefield) {
+    const cardList = player.battlefield;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         const grant = liveStaticDefinition(card)?.castsSpellsFromTopOfLibrary;
         if (grant) grants.push(grant);
     }
@@ -846,10 +858,9 @@ export function markGraveyardPlayPermissionUsed(
     if (isGraveyardPlayPermissionSpent(state, playerId, permission.sourceId)) {
         return;
     }
-    state.graveyardPlayPermissionUsesThisTurn = [
-        ...(state.graveyardPlayPermissionUsesThisTurn ?? []),
-        { playerId, sourceId: permission.sourceId },
-    ];
+    state.graveyardPlayPermissionUsesThisTurn = (
+        state.graveyardPlayPermissionUsesThisTurn ?? []
+    ).concat([{ playerId, sourceId: permission.sourceId }]);
 }
 
 /** Issue #1239 — stamps `permission`'s "if you do, it gains
@@ -864,10 +875,9 @@ export function stampGraveyardPermissionRider(
     permission: LiveGraveyardPlayPermission | undefined
 ): void {
     if (!permission?.rider) return;
-    card.entryGrantRiders = [
-        ...(card.entryGrantRiders ?? []),
+    card.entryGrantRiders = (card.entryGrantRiders ?? []).concat([
         { ...permission.rider },
-    ];
+    ]);
 }
 
 /** Selects the permission `player` uses to take `action` with `card` and
@@ -1075,7 +1085,9 @@ export function foldFlashSurchargeCost(
 ): void {
     if (!owed || !surcharge) return;
     const per = normalizeManaCost(surcharge);
-    for (const [sym, amt] of Object.entries(per)) {
+    const entries2 = Object.entries(per);
+    for (let i = 0; i < entries2.length; i++) {
+        const [sym, amt] = entries2[i];
         cost[sym] = (cost[sym] ?? 0) + amt;
     }
 }
@@ -1336,7 +1348,7 @@ export function getLegalActions(
     casterId: string = player.id
 ): CardAction[] {
     if (debugAllActions) {
-        return [...ALL_HAND_ACTIONS];
+        return ALL_HAND_ACTIONS.slice();
     }
 
     const actions: CardAction[] = [];
@@ -2133,12 +2145,11 @@ export function getLegalActions(
         // is one more such option: the half's own timing and targets, no mana
         // (`castPermissionAltCosts` offers it only for a card with no printed
         // cast, where the bare permission has nothing to apply to).
-        const independentAlts = [
-            ...independentCastOptionsFor(card),
-            ...(offersPrintedCast(cardDef)
+        const independentAlts = independentCastOptionsFor(card).concat(
+            offersPrintedCast(cardDef)
                 ? []
-                : castPermissionAltCosts(state, caster.id, card)),
-        ];
+                : castPermissionAltCosts(state, caster.id, card)
+        );
         const independentCastLegal = independentAlts.some(
             (alt) =>
                 castTimingBaseLegal(state, caster.id, card, "hand", alt.id) &&
@@ -2492,30 +2503,30 @@ function hasEnoughLegalTargets(
                 : def.targetRequirement;
         return (modes ?? [undefined]).map((mode) =>
             castAnnouncedTargetGroups(
-                [
-                    mode?.targetRequirement ?? primary,
-                    ...(mode?.additionalTargetRequirements ??
+                [mode?.targetRequirement ?? primary].concat(
+                    mode?.additionalTargetRequirements ??
                         def.additionalTargetRequirements ??
-                        []),
-                ],
+                        []
+                ),
                 wasKicked
             )
         );
     };
     const kickable =
         !!def.kickedTargetRequirement ||
-        [
-            def.targetRequirement,
-            ...(def.additionalTargetRequirements ?? []),
-            ...(modes ?? []).flatMap((m) => [
-                m.targetRequirement,
-                ...(m.additionalTargetRequirements ?? []),
-            ]),
-        ].some((g) => g?.announcedOnlyIfKicked);
-    const lists = [
-        ...variantGroups(false),
-        ...(kickable ? variantGroups(true) : []),
-    ];
+        [def.targetRequirement]
+            .concat(
+                def.additionalTargetRequirements ?? [],
+                (modes ?? []).flatMap((m) =>
+                    [m.targetRequirement].concat(
+                        m.additionalTargetRequirements ?? []
+                    )
+                )
+            )
+            .some((g) => g?.announcedOnlyIfKicked);
+    const lists = variantGroups(false).concat(
+        kickable ? variantGroups(true) : []
+    );
     return lists.some((groups) => {
         // A list with no group announces nothing: castable.
         if (groups.length === 0) return true;
@@ -2668,7 +2679,9 @@ export function getProducibleManaOptions(
     );
     const options = new Map<Color, number | undefined>();
     detailed.forEach((opt, index) => {
-        for (const c of MANA_COLORS) {
+        const cList = MANA_COLORS;
+        for (let i = 0; i < cList.length; i++) {
+            const c = cList[i];
             if ((opt.mana[c] ?? 0) > 0 && !options.has(c)) {
                 options.set(c, needIndex ? index : undefined);
             }
@@ -2886,7 +2899,9 @@ export function buildManaSourceUnits(
         ? manaConverterColors(opts.state, player)
         : (new Map() as ReadonlyMap<string, ReadonlySet<Color>>);
     if (!cantSpendMana) {
-        for (const c of MANA_COLORS) {
+        const cList = MANA_COLORS;
+        for (let k = 0; k < cList.length; k++) {
+            const c = cList[k];
             const n = player.manaPool[c] ?? 0;
             for (let i = 0; i < n; i++) sources.push(new Set<Color>([c]));
         }
@@ -2900,7 +2915,9 @@ export function buildManaSourceUnits(
         // dropped from getLegalActions and `assertLegalAction` rejects the cast
         // before payment. Mirrors `spendablePoolForSpell` at the payment site;
         // `card.id` is the instance id that instance-keyed mana is gated on.
-        for (const r of player.restrictedMana ?? []) {
+        const rList = player.restrictedMana ?? [];
+        for (let k = 0; k < rList.length; k++) {
+            const r = rList[k];
             if (
                 restrictedUnitAllowsSpell(
                     r,
@@ -2924,7 +2941,7 @@ export function buildManaSourceUnits(
         // Wild-Growth bonus units — now lives in `boardManaUnits`
         // (`manaAvailability.ts`), which is also where `getProducibleManaUnits`
         // moved to.
-        for (const unit of boardManaUnits(player.battlefield, {
+        const unitList = boardManaUnits(player.battlefield, {
             converters: converterColors,
             controllerId: boardControllerId,
             battlefields: boardBattlefields,
@@ -2935,7 +2952,9 @@ export function buildManaSourceUnits(
                 handDiscardFree: handDiscardCostsNothing(player, card.id),
             },
             replacements: opts.state,
-        })) {
+        });
+        for (let k = 0; k < unitList.length; k++) {
+            const unit = unitList[k];
             sources.push(unit);
         }
     }
@@ -2987,7 +3006,8 @@ export function buildManaSourceUnits(
                 // must not chain Forest → {B} → {R}), and `sources` may hold
                 // sets other code owns.
                 const widened = new Set(unit);
-                for (const sub of substitutions) {
+                for (let k = 0; k < substitutions.length; k++) {
+                    const sub = substitutions[k];
                     if (unit.has(sub.from as Color)) {
                         widened.add(sub.to as Color);
                     }
@@ -3058,7 +3078,9 @@ export function buildManaSourceUnits(
     // ability, CR 602.5a). Without this a convoke-only-payable spell (Hogaak
     // off can't-spend-mana) is judged unpayable and "cast" is hidden.
     if (includePayWith && spellHasConvoke(card)) {
-        for (const creature of convokeEligibleCreatures(player)) {
+        const creatureList = convokeEligibleCreatures(player);
+        for (let k = 0; k < creatureList.length; k++) {
+            const creature = creatureList[k];
             sources.push(creatureConvokeColors(creature));
         }
     }
@@ -3068,7 +3090,9 @@ export function buildManaSourceUnits(
     // only, and an upper bound by nature: whether they pay is their decision at
     // the cast's assist step. Without it a spell payable only with help is hidden.
     if (includePayWith && opts.state && spellHasAssist(card)) {
-        for (const other of opts.state.players) {
+        const otherList = opts.state.players;
+        for (let k = 0; k < otherList.length; k++) {
+            const other = otherList[k];
             if (other.id === player.id) continue;
             const units = buildManaSourceUnits(other, card, {
                 payWith: false,
@@ -3244,7 +3268,9 @@ export function solvePhyrexianSplit(
             // CR 119.4 — a life payment is legal only if life covers it.
             if (lifePips < 0 || lifePips > maxLifePips) return;
             const cost: Record<string, number> = { ...baseCost };
-            for (const [c, n] of Object.entries(manaAdditions)) {
+            const entries2 = Object.entries(manaAdditions);
+            for (let i = 0; i < entries2.length; i++) {
+                const [c, n] = entries2[i];
                 if (n && n > 0) cost[c] = (cost[c] ?? 0) + n;
             }
             if (!canPayNormalizedCost(player, card, cost, state)) return;
@@ -3340,7 +3366,9 @@ export function phyrexianLifePipOptions(
             const lifePips = totalPips - manaPips;
             if (lifePips < 0 || lifePips > maxLifePips) return;
             const cost: Record<string, number> = { ...baseCost };
-            for (const [c, n] of Object.entries(manaAdditions)) {
+            const entries2 = Object.entries(manaAdditions);
+            for (let i = 0; i < entries2.length; i++) {
+                const [c, n] = entries2[i];
                 if (n && n > 0) cost[c] = (cost[c] ?? 0) + n;
             }
             if (canPayNormalizedCost(player, card, cost, state)) {
@@ -3443,9 +3471,9 @@ function canPotentiallyPayCost(
     // CR 601.2f — an additional cost joins the total BEFORE increases and
     // reductions apply, exactly as `game.ts` folds it at the real payment step.
     if (opts.extraMana) {
-        for (const [sym, amt] of Object.entries(
-            normalizeManaCost(opts.extraMana)
-        )) {
+        const entries2 = Object.entries(normalizeManaCost(opts.extraMana));
+        for (let i = 0; i < entries2.length; i++) {
+            const [sym, amt] = entries2[i];
             cost[sym] = (cost[sym] ?? 0) + amt;
         }
     }
@@ -4150,8 +4178,12 @@ export function getLegalTargets(
             sourceIsSpell,
             siblingControllerId,
         };
-        for (const player of state.players) {
-            for (const card of player.graveyard) {
+        const playerList = state.players;
+        for (let k = 0; k < playerList.length; k++) {
+            const player = playerList[k];
+            const cardList = player.graveyard;
+            for (let m = 0; m < cardList.length; m++) {
+                const card = cardList[m];
                 if (
                     !wantsAnyCard &&
                     !cardTypes.some((t) => card.types.includes(t as never))
@@ -4217,7 +4249,9 @@ export function getLegalTargets(
     // battle — the four object types that can be damaged (CR 120.3).
     const battlefieldControllerFilter = requirement.controller ?? "any";
     if (wantsAny || wantsSpellOrPermanent || permanentTypes.length > 0) {
-        for (const player of state.players) {
+        const playerList2 = state.players;
+        for (let k = 0; k < playerList2.length; k++) {
+            const player = playerList2[k];
             // CR 109.3 / 102.1 — `controller` filter restricts legal
             // battlefield targets to the caster's / an opponent's / the active
             // player's permanents (Simulacrum "you", Nettling Imp "opponent",
@@ -4235,7 +4269,9 @@ export function getLegalTargets(
             ) {
                 continue;
             }
-            for (const card of player.battlefield) {
+            const cardList2 = player.battlefield;
+            for (let m = 0; m < cardList2.length; m++) {
+                const card = cardList2[m];
                 const matchesAny =
                     wantsAny &&
                     DAMAGEABLE_PERMANENT_TYPES.some((t) =>
@@ -4337,7 +4373,9 @@ export function getLegalTargets(
             activePlayerId: state.activePlayerId,
             sourceIsSpell,
         };
-        for (const player of state.players) {
+        const playerList3 = state.players;
+        for (let k = 0; k < playerList3.length; k++) {
+            const player = playerList3[k];
             if (
                 checkPlayerTargetFilters(playerFilterCtx, player, playerValues)
             ) {
@@ -4404,7 +4442,9 @@ export function getLegalTargets(
             activePlayerId: state.activePlayerId,
             sourceIsSpell,
         };
-        for (const item of state.stack) {
+        const itemList = state.stack;
+        for (let k = 0; k < itemList.length; k++) {
+            const item = itemList[k];
             if (checkSpellTargetFilters(spellFilterCtx, item, spellValues)) {
                 continue;
             }
@@ -4448,12 +4488,16 @@ export function getPendingTargetSourceColors(
         return [];
     }
     if (kind === "ability") {
-        for (const p of state.players) {
+        const pList = state.players;
+        for (let i = 0; i < pList.length; i++) {
+            const p = pList[i];
             const c = p.battlefield.find((x) => x.id === cardInstanceId);
             if (c) return STATIC_EFFECT_CTX.getColors(c);
         }
     } else {
-        for (const p of state.players) {
+        const pList2 = state.players;
+        for (let i = 0; i < pList2.length; i++) {
+            const p = pList2[i];
             const c = p.hand.find((x) => x.id === cardInstanceId);
             if (c) return STATIC_EFFECT_CTX.getColors(c);
         }
@@ -4475,17 +4519,21 @@ export function getPendingTargetSourceTypes(
 ): CardType[] {
     if (kind === "copy-retarget" || kind === "retarget" || kind === "trigger") {
         const si = state.stack.find((x) => x.id === cardInstanceId);
-        return si ? [...si.types] : [];
+        return si ? si.types.slice() : [];
     }
     if (kind === "ability") {
-        for (const p of state.players) {
+        const pList = state.players;
+        for (let i = 0; i < pList.length; i++) {
+            const p = pList[i];
             const c = p.battlefield.find((x) => x.id === cardInstanceId);
-            if (c) return [...c.types];
+            if (c) return c.types.slice();
         }
     } else {
-        for (const p of state.players) {
+        const pList2 = state.players;
+        for (let i = 0; i < pList2.length; i++) {
+            const p = pList2[i];
             const c = p.hand.find((x) => x.id === cardInstanceId);
-            if (c) return [...c.types];
+            if (c) return c.types.slice();
         }
     }
     return [];
@@ -4504,17 +4552,21 @@ export function getPendingTargetSourceSubtypes(
 ): string[] {
     if (kind === "copy-retarget" || kind === "retarget" || kind === "trigger") {
         const si = state.stack.find((x) => x.id === cardInstanceId);
-        return si ? [...si.subtypes] : [];
+        return si ? si.subtypes.slice() : [];
     }
     if (kind === "ability") {
-        for (const p of state.players) {
+        const pList = state.players;
+        for (let i = 0; i < pList.length; i++) {
+            const p = pList[i];
             const c = p.battlefield.find((x) => x.id === cardInstanceId);
-            if (c) return [...c.subtypes];
+            if (c) return c.subtypes.slice();
         }
     } else {
-        for (const p of state.players) {
+        const pList2 = state.players;
+        for (let i = 0; i < pList2.length; i++) {
+            const p = pList2[i];
             const c = p.hand.find((x) => x.id === cardInstanceId);
-            if (c) return [...c.subtypes];
+            if (c) return c.subtypes.slice();
         }
     }
     return [];
@@ -4540,7 +4592,7 @@ export function getPendingTargetSourceSupertypes(
                   .flatMap((p) => (kind === "ability" ? p.battlefield : p.hand))
                   .find((x) => x.id === cardInstanceId);
     return source
-        ? [...protectionSourceCharacteristics(source).supertypes]
+        ? protectionSourceCharacteristics(source).supertypes.slice()
         : [];
 }
 
@@ -4565,7 +4617,9 @@ export function getTriggerSourcePower(
     triggerSourceId: string | undefined
 ): number {
     if (!triggerSourceId) return 0;
-    for (const p of state.players) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
         const card = p.battlefield.find((c) => c.id === triggerSourceId);
         if (card) return getEffectivePower(state, card);
     }
@@ -4781,10 +4835,9 @@ export function applySourceDirectives(
     if (req.excludeSource) {
         out = {
             ...out,
-            excludeInstanceIds: [
-                ...(req.excludeInstanceIds ?? []),
+            excludeInstanceIds: (req.excludeInstanceIds ?? []).concat([
                 sourceInstanceId,
-            ],
+            ]),
         };
     }
     // CR 509.1g — "target creature blocking or blocked by {self}" (Cromat,
@@ -4994,10 +5047,9 @@ function triggerAnnouncedGroups(item: StackItem): {
         ? modes.find((m) => m.id === chosen[0])?.targetRequirement
         : ability.targetRequirement;
     return {
-        groups: [
-            ...(primary ? [primary] : []),
-            ...(ability.additionalTargetRequirements ?? []),
-        ],
+        groups: (primary ? [primary] : []).concat(
+            ability.additionalTargetRequirements ?? []
+        ),
     };
 }
 
@@ -5318,10 +5370,9 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
             // ability instead (a later group its picks left unfillable).
             state.pendingTarget = undefined;
             if (state.stack[i] === item) {
-                item.targets = [
-                    ...(pending.priorSelected ?? []),
-                    ...pending.selected,
-                ];
+                item.targets = (pending.priorSelected ?? []).concat(
+                    pending.selected
+                );
                 writeFinalModeSpans(item, pending);
                 emitBecameTargetEvents(
                     state,

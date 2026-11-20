@@ -21,7 +21,9 @@ export function exiledCardCounterCount(
     self: { id: string },
     type: string
 ): number | undefined {
-    for (const player of state?.players ?? []) {
+    const playerList = state?.players ?? [];
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const card = player.exile?.find((c) => c.id === self.id);
         if (card) return card.counters?.[type] ?? 0;
     }

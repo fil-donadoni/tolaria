@@ -42,8 +42,7 @@ export function applyEpicAbilities(state: GameState, spell: StackItem): void {
         (keyword) => keyword !== EPIC_KEYWORD
     );
     state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
-    state.delayedTriggers = [
-        ...(state.delayedTriggers ?? []),
+    state.delayedTriggers = (state.delayedTriggers ?? []).concat([
         {
             id: `delayed-${state.nextDelayedSeq}`,
             sourceCardId: (spell.card as { id?: string }).id ?? "",
@@ -54,7 +53,7 @@ export function applyEpicAbilities(state: GameState, spell: StackItem): void {
             payload: {},
             spellToCopy,
         },
-    ];
+    ]);
 }
 
 /** CR 702.50a — the stack item of one firing, resolved by the cast-copy path

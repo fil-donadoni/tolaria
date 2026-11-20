@@ -103,7 +103,8 @@ export function predictUnblockedThreat(
     );
     const usedBlocker = new Set<string>();
 
-    for (const atk of attackers) {
+    for (let i = 0; i < attackers.length; i++) {
+        const atk = attackers[i];
         // The defender spends a blocker on the biggest threats first; one legal,
         // unused blocker stops ALL of an attacker's damage (crude — toughness /
         // trades are not modelled, only damage prevented).
@@ -207,7 +208,8 @@ export function predictCombatOutcome(
         walkerDamage: {},
     };
 
-    for (const atk of declared) {
+    for (let i = 0; i < declared.length; i++) {
+        const atk = declared[i];
         const atkPT = ptOf(atk);
         const atkP = Math.max(0, atkPT.power + pumpP(atk));
         const atkT = Math.max(0, atkPT.toughness + pumpT(atk));

@@ -54,7 +54,9 @@ function enteredStats(
     if (event.departedAs) {
         return event.departedAs.isCreature ? event.departedAs : undefined;
     }
-    for (const player of state?.players ?? []) {
+    const playerList = state?.players ?? [];
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const live = player.battlefield.find((c) => c.id === event.instanceId);
         if (live) {
             return live.types.includes("Creature")

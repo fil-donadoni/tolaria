@@ -72,7 +72,7 @@ function keywordSubjectLabel(
 ): string {
     const id = item[KEYWORD_TRIGGER_MARKER[keyword]]!;
     const subject = state.players
-        .flatMap((p) => [...p.battlefield, ...p.exile])
+        .flatMap((p) => p.battlefield.concat(p.exile))
         .find((c) => c.id === id);
     const live = subject?.[KEYWORD_TRIGGER_SUBJECT_FLAG[keyword]] === true;
     return `${objectLabel(state, id, seatOf)}${live ? " {awaiting}" : ""}`;
@@ -175,7 +175,9 @@ function targetLabel(
         case "player":
             return `player:${seatOf(target.id) ?? "?"}`;
         case "permanent": {
-            for (const player of state.players) {
+            const playerList = state.players;
+            for (let i = 0; i < playerList.length; i++) {
+                const player = playerList[i];
                 const card = player.battlefield.find((c) => c.id === target.id);
                 if (card) {
                     return `permanent:${seatOf(player.id) ?? "?"} ${nameOf(card)}${facts(state, card)}`;
@@ -211,13 +213,17 @@ function objectLabel(
     instanceId: string,
     seatOf: SeatOf
 ): string {
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const seat = seatOf(player.id) ?? "?";
         const battlefield = player.battlefield.find((c) => c.id === instanceId);
         if (battlefield) {
             return `bf:${seat} ${nameOf(battlefield)}${facts(state, battlefield)}`;
         }
-        for (const zone of ["graveyard", "exile", "hand"] as const) {
+        const zoneList = ["graveyard", "exile", "hand"] as const;
+        for (let j = 0; j < zoneList.length; j++) {
+            const zone = zoneList[j];
             const card = player[zone].find((c) => c.id === instanceId);
             if (card) return `${zone}:${seat} ${nameOf(card)}`;
         }

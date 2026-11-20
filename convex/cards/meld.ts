@@ -101,24 +101,27 @@ export function meldedManaValueCost(
 ): ManaCost {
     const out: ManaCost = {};
     const numeric = ["X", "W", "U", "B", "R", "G", "C", "generic"] as const;
-    for (const cost of fronts) {
+    for (let i = 0; i < fronts.length; i++) {
+        const cost = fronts[i];
         if (!cost) continue;
-        for (const key of numeric) {
+        for (let j = 0; j < numeric.length; j++) {
+            const key = numeric[j];
             const v = cost[key];
             if (typeof v === "number")
                 out[key] = ((out[key] as number) ?? 0) + v;
         }
-        for (const [color, n] of Object.entries(cost.phyrexian ?? {})) {
+        const entries2 = Object.entries(cost.phyrexian ?? {});
+        for (let j = 0; j < entries2.length; j++) {
+            const [color, n] = entries2[j];
             out.phyrexian ??= {};
             const c = color as keyof NonNullable<ManaCost["phyrexian"]>;
             out.phyrexian[c] = (out.phyrexian[c] ?? 0) + (n ?? 0);
         }
-        if (cost.hybrid) out.hybrid = [...(out.hybrid ?? []), ...cost.hybrid];
+        if (cost.hybrid) out.hybrid = (out.hybrid ?? []).concat(cost.hybrid);
         if (cost.hybridGeneric) {
-            out.hybridGeneric = [
-                ...(out.hybridGeneric ?? []),
-                ...cost.hybridGeneric,
-            ];
+            out.hybridGeneric = (out.hybridGeneric ?? []).concat(
+                cost.hybridGeneric
+            );
         }
     }
     return out;

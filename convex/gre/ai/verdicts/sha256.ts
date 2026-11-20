@@ -131,6 +131,7 @@ export function sha256Hex(text: string): string {
         h[7] += hh;
     }
     let hex = "";
+    // eslint-disable-next-line no-restricted-syntax -- a typed array, off the search path (issue #10126)
     for (const word of h) hex += word.toString(16).padStart(8, "0");
     return hex;
 }

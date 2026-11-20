@@ -18,7 +18,7 @@ import type { CardInstanceState, GameState, PlayerState } from "./state";
  *  its instance as a record (`summonCompanion`), so it is NOT outside the game
  *  any more and is excluded. */
 export function outsideGamePool(player: PlayerState): CardInstanceState[] {
-    const pool = [...(player.outsideGame ?? [])];
+    const pool = (player.outsideGame ?? []).slice();
     if (player.companion && !player.companion.used) {
         pool.push(player.companion.instance);
     }

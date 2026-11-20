@@ -41,7 +41,9 @@ export function activationCostPrice(
     cost: ActivatedAbility["cost"],
     weights: LatentWeights
 ): number | undefined {
-    for (const [key, value] of Object.entries(cost)) {
+    const entries2 = Object.entries(cost);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, value] = entries2[i];
         if (value === undefined || value === false) continue;
         if (!PRICED_COST_KEYS.has(key)) return undefined;
     }

@@ -1497,7 +1497,10 @@ function filteredHandCounts(
     const found: { controller?: unknown }[] = [];
     const walk = (value: unknown): void => {
         if (Array.isArray(value)) {
-            for (const v of value) walk(v);
+            for (let i = 0; i < value.length; i++) {
+                const v = value[i];
+                walk(v);
+            }
             return;
         }
         if (typeof value !== "object" || value === null) return;
@@ -1509,12 +1512,16 @@ function filteredHandCounts(
                 found.push({ controller: c.controller });
             }
         }
-        for (const [k, v] of Object.entries(o)) {
+        const entries2 = Object.entries(o);
+        for (let i = 0; i < entries2.length; i++) {
+            const [k, v] = entries2[i];
             if (NESTED_SCRIPT_KEYS.has(k)) continue;
             walk(v);
         }
     };
-    for (const [k, v] of Object.entries(entry)) {
+    const entries2 = Object.entries(entry);
+    for (let i = 0; i < entries2.length; i++) {
+        const [k, v] = entries2[i];
         if (NESTED_SCRIPT_KEYS.has(k)) continue;
         walk(v);
     }
@@ -2420,7 +2427,7 @@ function sourcePickErrors(entry: Record<string, unknown>): string[] {
             'kind: "pick-source" and zone: "battlefield-or-stack" go together — the source pool (CR 609.7a) is that kind\'s and only that kind\'s',
         ];
     const errors: string[] = [];
-    for (const field of [
+    const fieldList = [
         "zoneOwnerId",
         "allControllers",
         "candidates",
@@ -2428,7 +2435,9 @@ function sourcePickErrors(entry: Record<string, unknown>): string[] {
         "superlative",
         "categories",
         "distinctBy",
-    ]) {
+    ];
+    for (let i = 0; i < fieldList.length; i++) {
+        const field = fieldList[i];
         if (entry[field] !== undefined) {
             errors.push(
                 `"${field}" is not valid with kind: "pick-source" — its pool is every permanent and every spell on the stack (CR 609.7a)`
@@ -2867,7 +2876,9 @@ function isRecipientShieldMatch(value: unknown): boolean {
         return false;
     }
     const m = value as Record<string, unknown>;
-    for (const key of Object.keys(m)) {
+    const keyList = Object.keys(m);
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         if (key !== "controller" && key !== "cardType") return false;
     }
     if (m.controller !== undefined && !isPlayerRef(m.controller)) return false;
@@ -2891,7 +2902,9 @@ function isSourceShieldMatch(value: unknown): boolean {
         return false;
     }
     const m = value as Record<string, unknown>;
-    for (const key of Object.keys(m)) {
+    const keyList = Object.keys(m);
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         if (key !== "colors" && key !== "cardType") return false;
     }
     if (m.colors !== undefined) {
@@ -3139,7 +3152,8 @@ function isEnchantRestrictionSpec(value: unknown): boolean {
     }
     const entries = Object.entries(value);
     if (entries.length === 0) return false;
-    for (const [key, v] of entries) {
+    for (let i = 0; i < entries.length; i++) {
+        const [key, v] = entries[i];
         if (key === "types") {
             if (!isStringArray(v, TOKEN_CARD_TYPES)) return false;
         } else if (key === "players") {
@@ -3257,7 +3271,9 @@ function isFixedGenericReduction(value: unknown): boolean {
     if (!isManaCost(value)) return false;
     const cost = value as Record<string, number | string | undefined>;
     if (typeof cost.X === "string") return false;
-    for (const color of ["W", "U", "B", "R", "G", "C"]) {
+    const colorList = ["W", "U", "B", "R", "G", "C"];
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         if ((cost[color] ?? 0) !== 0) return false;
     }
     const x = typeof cost.X === "number" ? cost.X : 0;
@@ -3327,7 +3343,9 @@ function isManaCost(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
-    for (const [k, v] of Object.entries(value)) {
+    const entries2 = Object.entries(value);
+    for (let i = 0; i < entries2.length; i++) {
+        const [k, v] = entries2[i];
         if (k === "X") {
             if (
                 v !== "X" &&
@@ -3373,7 +3391,9 @@ function isManaCostFilterValue(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
-    for (const [k, v] of Object.entries(value)) {
+    const entries2 = Object.entries(value);
+    for (let i = 0; i < entries2.length; i++) {
+        const [k, v] = entries2[i];
         if (k === "X") {
             if (
                 v !== "X" &&
@@ -3387,7 +3407,9 @@ function isManaCostFilterValue(value: unknown): boolean {
             if (typeof v !== "object" || v === null || Array.isArray(v)) {
                 return false;
             }
-            for (const [pk, pv] of Object.entries(v)) {
+            const entries3 = Object.entries(v);
+            for (let j = 0; j < entries3.length; j++) {
+                const [pk, pv] = entries3[j];
                 if (!TOKEN_COLORS.has(pk)) return false;
                 if (
                     !(typeof pv === "number" && Number.isInteger(pv) && pv >= 0)
@@ -3399,7 +3421,9 @@ function isManaCostFilterValue(value: unknown): boolean {
         }
         if (k === "hybrid") {
             if (!Array.isArray(v)) return false;
-            for (const pair of v) {
+            const pairList = v;
+            for (let j = 0; j < pairList.length; j++) {
+                const pair = pairList[j];
                 if (!Array.isArray(pair) || pair.length !== 2) return false;
                 if (
                     !pair.every(
@@ -3431,7 +3455,8 @@ function isManaPool(value: unknown): boolean {
     }
     const entries = Object.entries(value);
     if (entries.length === 0) return false;
-    for (const [k, v] of entries) {
+    for (let i = 0; i < entries.length; i++) {
+        const [k, v] = entries[i];
         if (!MANA_POOL_KEYS.has(k)) return false;
         if (!isEffectValue(v)) return false;
     }
@@ -3537,7 +3562,8 @@ function isMayPayCost(value: unknown): boolean {
             }
             const reqs = hand.requirements;
             if (!Array.isArray(reqs) || reqs.length === 0) return false;
-            for (const r of reqs) {
+            for (let i = 0; i < reqs.length; i++) {
+                const r = reqs[i];
                 if (typeof r !== "object" || r === null) return false;
                 const req = r as Record<string, unknown>;
                 if (!("filter" in req) || !isPositiveInt(req.count)) {
@@ -3924,7 +3950,9 @@ function isModeList(value: unknown): boolean {
         // picker redesign) tags a mode that IS a choice of color (CR 105.1) so
         // `PendingChoiceOptions` / `ModeRow` can draw the matching `ManaSymbol`
         // — never itself a new structural construct, just picker metadata.
-        for (const key of Object.keys(mode)) {
+        const keyList = Object.keys(mode);
+        for (let i = 0; i < keyList.length; i++) {
+            const key = keyList[i];
             if (
                 key !== "label" &&
                 key !== "effects" &&
@@ -3963,7 +3991,9 @@ function isCoinFlipBranch(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
-    for (const key of Object.keys(value)) {
+    const keyList = Object.keys(value);
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         if (key !== "consequence" && key !== "effects") return false;
     }
     const b = value as { consequence?: unknown; effects?: unknown };
@@ -4363,7 +4393,9 @@ const DELAYED_TIMINGS = new Set([
 function isWhenPreventedTrigger(value: unknown): boolean {
     if (value === null || typeof value !== "object") return false;
     const v = value as Record<string, unknown>;
-    for (const key of Object.keys(v)) {
+    const keyList = Object.keys(v);
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         if (key !== "oracleText" && key !== "effects" && key !== "sourceColors")
             return false;
     }
@@ -4964,13 +4996,15 @@ const OP_SCHEMAS: OpSchemaTable = {
                         'field "anyNumber" requires "card" to be a bare picks ref naming the set of cards'
                     );
                 }
-                for (const field of [
+                const fieldList = [
                     "includesLand",
                     "resultBind",
                     "alternativeCost",
                     "exilesOnResolve",
                     "exilesOnResolveForTypes",
-                ] as const) {
+                ] as const;
+                for (let i = 0; i < fieldList.length; i++) {
+                    const field = fieldList[i];
                     if (field in entry) {
                         errors.push(
                             `field "${field}" is not valid with "anyNumber"`
@@ -6144,7 +6178,9 @@ const OP_SCHEMAS: OpSchemaTable = {
                       ? LAND_SUBTYPES
                       : undefined;
             if (table !== undefined && Array.isArray(entry.subtypes)) {
-                for (const t of entry.subtypes as unknown[]) {
+                const tList = entry.subtypes as unknown[];
+                for (let j = 0; j < tList.length; j++) {
+                    const t = tList[j];
                     if (typeof t !== "string" || !table.has(t)) {
                         errors.push(
                             `"subtypes" member ${JSON.stringify(t)} is not a ${String(entry.family)} type (CR 205.3e)`
@@ -6573,14 +6609,15 @@ const OP_SCHEMAS: OpSchemaTable = {
                 fields: string[],
                 allowed: string[] = []
             ) => {
-                for (const f of fields) {
+                for (let i = 0; i < fields.length; i++) {
+                    const f = fields[i];
                     if (!has(f)) {
                         errors.push(
                             `mode "${String(entry.mode)}" requires field "${f}"`
                         );
                     }
                 }
-                for (const f of [
+                const fList = [
                     "to",
                     "amount",
                     "target",
@@ -6590,7 +6627,9 @@ const OP_SCHEMAS: OpSchemaTable = {
                     "combatOnly",
                     "total",
                     "whenPrevented",
-                ]) {
+                ];
+                for (let i = 0; i < fList.length; i++) {
+                    const f = fList[i];
                     if (!fields.includes(f) && !allowed.includes(f) && has(f)) {
                         errors.push(
                             `field "${f}" is not valid with mode "${String(entry.mode)}"`
@@ -7706,10 +7745,9 @@ function fieldKindOf(check: FieldCheck): TaggedFieldCheck | undefined {
 function schemaFieldsOf(op: string): readonly [string, FieldCheck][] {
     const schema = (OP_SCHEMAS as Record<string, OpSchema | undefined>)[op];
     if (schema === undefined) return [];
-    return [
-        ...Object.entries(schema.required),
-        ...Object.entries(schema.optional ?? {}),
-    ];
+    return Object.entries(schema.required).concat(
+        Object.entries(schema.optional ?? {})
+    );
 }
 
 /** The field names of Op `op`'s schema, in schema order. */
@@ -7726,7 +7764,7 @@ export const AMOUNT_KEYS: ReadonlySet<string> = new Set(
         schemaFieldsOf(op).flatMap(([field, check]) => {
             const kind = fieldKindOf(check);
             if (kind?.fieldKind === "amount")
-                return [field, ...(kind.innerAmounts ?? [])];
+                return [field].concat(kind.innerAmounts ?? []);
             if (kind?.fieldKind === "amountHost") return kind.innerAmounts;
             return [];
         })
@@ -7833,7 +7871,9 @@ function findImpurity(value: unknown, path: string): string | null {
     if (Object.getPrototypeOf(value) !== Object.prototype) {
         return `${path}: non-plain object (${Object.prototype.toString.call(value)})`;
     }
-    for (const [key, entry] of Object.entries(value)) {
+    const entries2 = Object.entries(value);
+    for (let j = 0; j < entries2.length; j++) {
+        const [key, entry] = entries2[j];
         if (entry === undefined) return `${path}.${key}: undefined value`;
         const err = findImpurity(entry, `${path}.${key}`);
         if (err) return err;
@@ -7902,7 +7942,10 @@ interface RefUse {
 function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
     if (typeof value !== "object" || value === null) return;
     if (Array.isArray(value)) {
-        for (const v of value) collectRefUses(v, keyHint, out);
+        for (let j = 0; j < value.length; j++) {
+            const v = value[j];
+            collectRefUses(v, keyHint, out);
+        }
         return;
     }
     const obj = value as Record<string, unknown>;
@@ -8236,7 +8279,11 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
         collectRefUses(obj.opponentOf, keyHint, out);
         return;
     }
-    for (const [k, v] of Object.entries(obj)) collectRefUses(v, k, out);
+    const entries2 = Object.entries(obj);
+    for (let j = 0; j < entries2.length; j++) {
+        const [k, v] = entries2[j];
+        collectRefUses(v, k, out);
+    }
 }
 
 /** Splits `"$binding.property"`; returns `null` when malformed. */
@@ -8310,9 +8357,9 @@ function declareOpBindings(
     errors: string[]
 ): ReadonlySet<string> {
     const added = new Set<string>();
-    for (const { field, binding, scopedTo } of bindingDeclarationsOf(
-        entry.op
-    )) {
+    const entries = bindingDeclarationsOf(entry.op);
+    for (let i = 0; i < entries.length; i++) {
+        const { field, binding, scopedTo } = entries[i];
         if (scopedTo !== undefined) continue;
         const name = entry[field];
         if (typeof name !== "string") continue;
@@ -8497,7 +8544,8 @@ function eventFieldRowAcross(
     | { readonly ok: true; readonly row: EventFieldRow }
     | { readonly ok: false; readonly reason: string } {
     let found: EventFieldRow | undefined;
-    for (const eventType of eventTypes) {
+    for (let i = 0; i < eventTypes.length; i++) {
+        const eventType = eventTypes[i];
         const row = getEventFieldRow(eventType, field);
         if (!row)
             return {
@@ -8828,7 +8876,9 @@ function countBindingRefs(value: unknown, name: string): number {
         return value.reduce<number>((n, v) => n + countBindingRefs(v, name), 0);
     if (typeof value !== "object" || value === null) return 0;
     let n = 0;
-    for (const [k, v] of Object.entries(value)) {
+    const entries2 = Object.entries(value);
+    for (let i = 0; i < entries2.length; i++) {
+        const [k, v] = entries2[i];
         if (
             k === "ref" &&
             typeof v === "string" &&
@@ -8863,7 +8913,9 @@ function checkGraveyardCardCaptureReads(
     ) {
         return;
     }
-    for (const [name, src] of Object.entries(capture)) {
+    const entries2 = Object.entries(capture);
+    for (let j = 0; j < entries2.length; j++) {
+        const [name, src] = entries2[j];
         const ref = (src as { ref?: unknown } | null)?.ref;
         if (typeof ref !== "string" || !ref.startsWith("$event.")) continue;
         const resolved = eventFieldRowAcross(
@@ -9131,10 +9183,15 @@ function collectTargetReads(
 ): void {
     if (typeof value !== "object" || value === null) return;
     if (Array.isArray(value)) {
-        for (const v of value) collectTargetReads(v, out);
+        for (let i = 0; i < value.length; i++) {
+            const v = value[i];
+            collectTargetReads(v, out);
+        }
         return;
     }
-    for (const [key, v] of Object.entries(value)) {
+    const entries2 = Object.entries(value);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, v] = entries2[i];
         if (NESTED_SCRIPT_KEYS.has(key)) continue;
         const read = TARGET_READS_BY_MEMBER.get(key);
         if (read) {
@@ -9161,7 +9218,8 @@ function checkRemovedTargetReads(
     if (removed.size === 0) return;
     const reads: { read: TargetInformationRead; slot: number }[] = [];
     collectTargetReads(entry, reads);
-    for (const { read, slot } of reads) {
+    for (let i = 0; i < reads.length; i++) {
+        const { read, slot } = reads[i];
         const removal = removed.get(slot);
         if (!removal) continue;
         const zones = read.zones.filter((z) => removal.zones.has(z));
@@ -9206,10 +9264,10 @@ function mergeNestedRemovals(
     outer: RemovedTargets,
     nested: RemovedTargets
 ): void {
-    for (const [slot, removal] of nested) {
-        if (outer.has(slot)) continue;
+    nested.forEach((removal, slot) => {
+        if (outer.has(slot)) return;
         outer.set(slot, { ...removal, onSomePaths: true });
-    }
+    });
 }
 
 /** Ordered ref pass (#802, extended #805 picks / #806 boolean + `if`): walks
@@ -9283,7 +9341,9 @@ function checkOpListRefs(
         const entry = raw as Record<string, unknown>;
         const at = label(i);
         const uses: RefUse[] = [];
-        for (const [k, v] of Object.entries(entry)) {
+        const entries2 = Object.entries(entry);
+        for (let i2 = 0; i2 < entries2.length; i2++) {
+            const [k, v] = entries2[i2];
             // `predicate`, `then`, `else` (if, #806) and `effects` (forEach /
             // delayedTrigger — the body is walked in its own scope below) are
             // handled explicitly; `select` (forEach) is walked below in the
@@ -9472,7 +9532,9 @@ function checkOpListRefs(
         if (entry.op === "delayedTrigger" || entry.op === "reflexiveTrigger") {
             const capture = entry.capture;
             if (capture && typeof capture === "object") {
-                for (const [name, src] of Object.entries(capture)) {
+                const entries3 = Object.entries(capture);
+                for (let i2 = 0; i2 < entries3.length; i2++) {
+                    const [name, src] = entries3[i2];
                     checkCaptureSource(
                         name,
                         src,
@@ -9493,8 +9555,10 @@ function checkOpListRefs(
             // ref, so collect it under an object-family key hint ("target").
             collectRefUses(entry.watch, "target", uses);
         }
-        for (const use of uses)
+        for (let i2 = 0; i2 < uses.length; i2++) {
+            const use = uses[i2];
             checkRefUse(use, declared, at, errors, eventScope);
+        }
         // CR 608.2h (issue #2988) — the Op's reads of an announced Target are
         // checked against the removals BEFORE it; its own removal is recorded
         // after its nested lists are walked, below.
@@ -9507,7 +9571,9 @@ function checkOpListRefs(
         // Recurse into branches with a CLONED scope (branch-local binds do not
         // escape the branch — CR: the branch may not execute).
         if (entry.op === "if") {
-            for (const key of ["then", "else"] as const) {
+            const keyList = ["then", "else"] as const;
+            for (let i2 = 0; i2 < keyList.length; i2++) {
+                const key = keyList[i2];
                 const branch = entry[key];
                 if (Array.isArray(branch)) {
                     const branchRemoved = new Map(removed);
@@ -9552,7 +9618,9 @@ function checkOpListRefs(
         // (only one branch runs — like an `if` branch / optionChoice mode,
         // CR 705).
         if (entry.op === "coinFlip") {
-            for (const key of ["win", "loss"] as const) {
+            const keyList2 = ["win", "loss"] as const;
+            for (let i2 = 0; i2 < keyList2.length; i2++) {
+                const key = keyList2[i2];
                 const branch = entry[key] as { effects?: unknown } | undefined;
                 if (branch && Array.isArray(branch.effects)) {
                     const branchRemoved = new Map(removed);
@@ -9624,11 +9692,11 @@ function checkOpListRefs(
             // … from among the nonland cards exiled this way" (Etali, Primal
             // Conqueror). Ids from many iterations are still one set of ids,
             // so it stays the `picks` family every picks position accepts.
-            for (const [name, family] of bodyScope) {
-                if (name === "$each" || declared.has(name)) continue;
+            bodyScope.forEach((family, name) => {
+                if (name === "$each" || declared.has(name)) return;
                 if (family === "snapshot") declared.set(name, "iterated");
                 if (family === "picks") declared.set(name, "picks");
-            }
+            });
         }
 
         // Recurse into the delayedTrigger body (ADR 0048) with a FRESH scope:
@@ -9651,7 +9719,9 @@ function checkOpListRefs(
                     typeof tp === "object" && tp !== null
                         ? tp.target
                         : undefined;
-                for (const [name, src] of Object.entries(capture)) {
+                const entries4 = Object.entries(capture);
+                for (let i2 = 0; i2 < entries4.length; i2++) {
+                    const [name, src] = entries4[i2];
                     const slot =
                         typeof src === "object" && src !== null
                             ? (src as { target?: unknown }).target
@@ -9730,7 +9800,9 @@ function checkOpListRefs(
             const bodyScope = new Map<string, BindingKind>();
             const capture = entry.capture;
             if (capture && typeof capture === "object") {
-                for (const [name, src] of Object.entries(capture)) {
+                const entries5 = Object.entries(capture);
+                for (let i2 = 0; i2 < entries5.length; i2++) {
+                    const [name, src] = entries5[i2];
                     bodyScope.set(
                         name,
                         reflexiveCaptureBindingKind(src, declared)
@@ -9785,9 +9857,9 @@ function checkOpListRefs(
         // chosen pile has no business reading `otherBind`. Which field
         // scopes to which branch, and its family, is the schema's tag
         // (`bindingDeclaration(kind, scopedTo)`, issue #4451).
-        for (const { field, binding, scopedTo } of bindingDeclarationsOf(
-            entry.op
-        )) {
+        const entries6 = bindingDeclarationsOf(entry.op);
+        for (let i2 = 0; i2 < entries6.length; i2++) {
+            const { field, binding, scopedTo } = entries6[i2];
             if (scopedTo === undefined) continue;
             const bindName = entry[field];
             const list = entry[scopedTo];
@@ -9812,8 +9884,10 @@ function checkOpListRefs(
             );
             nestedRemovals.push(listRemoved);
         }
-        for (const nested of nestedRemovals)
+        for (let i2 = 0; i2 < nestedRemovals.length; i2++) {
+            const nested = nestedRemovals[i2];
             mergeNestedRemovals(removed, nested);
+        }
         recordTargetRemoval(entry, at, removed);
 
         // A binding becomes visible only AFTER its Op (snapshot ordering) and
@@ -9906,7 +9980,9 @@ function checkOpListRefs(
         // the leak does not care which operand slot it hides in; the nested
         // Op-list keys are NOT walked here — each is re-entered by its own
         // `checkOpListRefs` call with a fresh, empty `revealedHands`.
-        for (const spec of filteredHandCounts(entry)) {
+        const specList = filteredHandCounts(entry);
+        for (let i2 = 0; i2 < specList.length; i2++) {
+            const spec = specList[i2];
             if (spec.controller === undefined) {
                 // An all-players scope (`acrossAllPlayers` /
                 // `smallestAcrossPlayers`) names no single hand, and `reveal`
@@ -9965,7 +10041,8 @@ function checkOpListRefs(
             const candidates = Array.isArray(entry.candidates)
                 ? entry.candidates
                 : [];
-            for (const selector of candidates) {
+            for (let i2 = 0; i2 < candidates.length; i2++) {
+                const selector = candidates[i2];
                 const ref =
                     typeof selector === "object" &&
                     selector !== null &&
@@ -10035,7 +10112,9 @@ function checkOpListRefs(
             (entry.zone === "graveyard" || entry.zone === "exile") &&
             Array.isArray(entry.candidates)
         ) {
-            for (const selector of entry.candidates) {
+            const selectorList = entry.candidates;
+            for (let i2 = 0; i2 < selectorList.length; i2++) {
+                const selector = selectorList[i2];
                 const ref =
                     typeof selector === "object" &&
                     selector !== null &&
@@ -10113,7 +10192,9 @@ function checkRefUses(
     triggerEventTypes: readonly string[] | undefined
 ): void {
     const declared = new Map<string, BindingKind>();
-    for (const name of implicit) declared.set(name, "snapshot");
+    implicit.forEach((name) => {
+        declared.set(name, "snapshot");
+    });
     checkOpListRefs(
         effects,
         (i) => `${label}: effects[${i}]`,
@@ -10189,7 +10270,9 @@ function validateOpSchema(
         return;
     }
     const optional = schema.optional ?? {};
-    for (const [field, check] of Object.entries(schema.required)) {
+    const entries2 = Object.entries(schema.required);
+    for (let i = 0; i < entries2.length; i++) {
+        const [field, check] = entries2[i];
         if (!(field in entry)) {
             errors.push(`${at}: Op "${entry.op}" missing field "${field}"`);
         } else if (!check(entry[field])) {
@@ -10198,14 +10281,18 @@ function validateOpSchema(
             );
         }
     }
-    for (const [field, check] of Object.entries(optional)) {
+    const entries3 = Object.entries(optional);
+    for (let i = 0; i < entries3.length; i++) {
+        const [field, check] = entries3[i];
         if (field in entry && !check(entry[field])) {
             errors.push(
                 `${at}: Op "${entry.op}" field "${field}" has invalid value ${JSON.stringify(entry[field])}`
             );
         }
     }
-    for (const field of Object.keys(entry)) {
+    const fieldList = Object.keys(entry);
+    for (let i = 0; i < fieldList.length; i++) {
+        const field = fieldList[i];
         if (
             field !== "op" &&
             !(field in schema.required) &&
@@ -10218,7 +10305,9 @@ function validateOpSchema(
     }
     // Cross-field rules (e.g. choice's filter ⇒ battlefield zone).
     if (schema.check) {
-        for (const err of schema.check(entry)) {
+        const errList = schema.check(entry);
+        for (let i = 0; i < errList.length; i++) {
+            const err = errList[i];
             errors.push(`${at}: Op "${entry.op}" ${err}`);
         }
     }
@@ -10227,7 +10316,9 @@ function validateOpSchema(
     // non-array branch was already reported above. `inForEach` is threaded so
     // a forEach nested inside an `if` inside a forEach is still rejected.
     if (entry.op === "if") {
-        for (const key of ["then", "else"] as const) {
+        const keyList = ["then", "else"] as const;
+        for (let i = 0; i < keyList.length; i++) {
+            const key = keyList[i];
             const branch = entry[key];
             if (Array.isArray(branch)) {
                 branch.forEach((op, j) => {
@@ -10265,7 +10356,9 @@ function validateOpSchema(
     // exactly like an optionChoice mode. `inForEach` / `inDelayed` thread
     // through so nesting bans still apply.
     if (entry.op === "coinFlip") {
-        for (const key of ["win", "loss"] as const) {
+        const keyList2 = ["win", "loss"] as const;
+        for (let i = 0; i < keyList2.length; i++) {
+            const key = keyList2[i];
             const branch = entry[key] as { effects?: unknown } | undefined;
             if (branch && Array.isArray(branch.effects)) {
                 branch.effects.forEach((op, j) => {
@@ -10347,7 +10440,9 @@ function validateOpSchema(
     // unexercised in practice, but the same nesting bans apply if a future
     // card does.
     if (entry.op === "divideIntoPiles") {
-        for (const key of ["chosenEffect", "otherEffect"] as const) {
+        const keyList3 = ["chosenEffect", "otherEffect"] as const;
+        for (let i = 0; i < keyList3.length; i++) {
+            const key = keyList3[i];
             const list = entry[key];
             if (Array.isArray(list)) {
                 list.forEach((op, j) => {
@@ -10383,12 +10478,19 @@ function findCreateTokenOps(
 ): void {
     if (value === null || typeof value !== "object") return;
     if (Array.isArray(value)) {
-        for (const v of value) findCreateTokenOps(v, out);
+        for (let i = 0; i < value.length; i++) {
+            const v = value[i];
+            findCreateTokenOps(v, out);
+        }
         return;
     }
     const obj = value as Record<string, unknown>;
     if (obj.op === "createToken") out.push(obj);
-    for (const v of Object.values(obj)) findCreateTokenOps(v, out);
+    const vList = Object.values(obj);
+    for (let i = 0; i < vList.length; i++) {
+        const v = vList[i];
+        findCreateTokenOps(v, out);
+    }
 }
 
 /** Deep-scans an arbitrary (already-parsed) Op subtree for every node whose
@@ -10404,12 +10506,19 @@ function findOpsWithNames(
 ): void {
     if (value === null || typeof value !== "object") return;
     if (Array.isArray(value)) {
-        for (const v of value) findOpsWithNames(v, names, out);
+        for (let i = 0; i < value.length; i++) {
+            const v = value[i];
+            findOpsWithNames(v, names, out);
+        }
         return;
     }
     const obj = value as Record<string, unknown>;
     if (typeof obj.op === "string" && names.has(obj.op)) out.push(obj);
-    for (const v of Object.values(obj)) findOpsWithNames(v, names, out);
+    const vList = Object.values(obj);
+    for (let i = 0; i < vList.length; i++) {
+        const v = vList[i];
+        findOpsWithNames(v, names, out);
+    }
 }
 
 /** The HIGHEST announced target slot (`{ target: n }`) referenced anywhere in
@@ -10434,7 +10543,9 @@ function maxAnnouncedTargetSlot(value: unknown): number {
     ) {
         max = obj.target;
     }
-    for (const v of Object.values(obj)) {
+    const vList = Object.values(obj);
+    for (let i = 0; i < vList.length; i++) {
+        const v = vList[i];
         max = Math.max(max, maxAnnouncedTargetSlot(v));
     }
     return max;
@@ -10522,7 +10633,8 @@ function validateEffectOpList(
     // is deliberately an error and not a tracked divergence marker.
     const forEachOps: Record<string, unknown>[] = [];
     findOpsWithNames(effects, FOR_EACH_OP, forEachOps);
-    for (const forEachOp of forEachOps) {
+    for (let k = 0; k < forEachOps.length; k++) {
+        const forEachOp = forEachOps[k];
         const nestedExplores: Record<string, unknown>[] = [];
         findOpsWithNames(forEachOp.effects, EXPLORE_OP, nestedExplores);
         if (nestedExplores.length > 0) {
@@ -10645,7 +10757,9 @@ export function validateEffectScript(def: EffectScriptHost): string[] {
 
     // CR 603.11 — an as-enters copy's linked trigger is an Effect Script too,
     // reading the copied card as `$copied` (`AsEntersChoice.whenCopied`).
-    for (const choice of def.entersWith?.asEnters ?? []) {
+    const choiceList = def.entersWith?.asEnters ?? [];
+    for (let i = 0; i < choiceList.length; i++) {
+        const choice = choiceList[i];
         if (choice.kind !== "copy" || !choice.whenCopied) continue;
         validateEffectOpList(
             choice.whenCopied.effects,
@@ -10660,12 +10774,14 @@ export function validateEffectScript(def: EffectScriptHost): string[] {
 
     // 3 — mutual exclusivity per effect site (ADR 0045: one authoring mode
     // per site; `modes` carries its own per-mode resolution sites).
-    for (const [field, present] of [
+    const entries = [
         ["resolve", !!def.resolve],
         ["resolveSteps", !!def.resolveSteps],
         ["effect", def.effect !== undefined],
         ["modes", !!def.modes],
-    ] as const) {
+    ] as const;
+    for (let i = 0; i < entries.length; i++) {
+        const [field, present] = entries[i];
         if (present) {
             errors.push(
                 `${label}: declares both effects[] and ${field} — one authoring mode per effect site`
@@ -10706,7 +10822,8 @@ export function validateEffectScript(def: EffectScriptHost): string[] {
     ) {
         const hits: Record<string, unknown>[] = [];
         findOpsWithNames(def.effects, SELF_REDIRECT_OPS, hits);
-        for (const hit of hits) {
+        for (let i = 0; i < hits.length; i++) {
+            const hit = hits[i];
             errors.push(
                 `${label}: declares "${String(hit.op)}" but is a permanent card (types: ${def.types!.join("/")}) — CR 608.2m's self-redirect (graveyard→exile/library) is only ever read by finalizeSpellResolution's NON-permanent branch; a permanent spell resolves onto the battlefield instead, so this flag is silently never consumed`
             );
@@ -10815,7 +10932,9 @@ function colorsSpentToCastSites(node: unknown): {
             return;
         }
         const obj = n as Record<string, unknown>;
-        for (const [key, value] of Object.entries(obj)) {
+        const entries2 = Object.entries(obj);
+        for (let i = 0; i < entries2.length; i++) {
+            const [key, value] = entries2[i];
             const abilityBody =
                 (obj.op === "createToken" && key === "token") ||
                 (obj.op === "delayedTrigger" && key === "effects") ||
@@ -10833,7 +10952,10 @@ function colorsSpentToCastSites(node: unknown): {
 
 function findTargetSlotRefs(node: unknown, out: unknown[]): void {
     if (Array.isArray(node)) {
-        for (const child of node) findTargetSlotRefs(child, out);
+        for (let i = 0; i < node.length; i++) {
+            const child = node[i];
+            findTargetSlotRefs(child, out);
+        }
         return;
     }
     if (node === null || typeof node !== "object") return;
@@ -10842,7 +10964,11 @@ function findTargetSlotRefs(node: unknown, out: unknown[]): void {
         out.push(obj);
         return;
     }
-    for (const value of Object.values(obj)) findTargetSlotRefs(value, out);
+    const valueList = Object.values(obj);
+    for (let i = 0; i < valueList.length; i++) {
+        const value = valueList[i];
+        findTargetSlotRefs(value, out);
+    }
 }
 
 /** No implicit bindings — a spell site provides no `$source` (its source is
@@ -10927,11 +11053,13 @@ export function validateAbilityEffectScript(
     // fire here. This closes the same gap for `ActivatedAbility.modes`, which
     // has been unguarded since #1341.
     if (ability.modes) {
-        for (const [field, present] of [
+        const entries = [
             ["effects", ability.effects !== undefined],
             ["resolve", !!ability.resolve],
             ["resolveSteps", !!ability.resolveSteps],
-        ] as const) {
+        ] as const;
+        for (let i = 0; i < entries.length; i++) {
+            const [field, present] = entries[i];
             if (present) {
                 errors.push(
                     `${label}: declares both modes[] and ${field} — a modal ability's body lives on its modes`
@@ -10944,9 +11072,9 @@ export function validateAbilityEffectScript(
     // early return: the restriction gates activation, whatever authoring mode
     // the ability's body uses.
     if (ability.activationCondition !== undefined) {
-        for (const e of activationConditionErrors(
-            ability.activationCondition
-        )) {
+        const eList = activationConditionErrors(ability.activationCondition);
+        for (let i = 0; i < eList.length; i++) {
+            const e = eList[i];
             errors.push(`${label}: ${e}`);
         }
         if (ability.useStack === false) {
@@ -11026,7 +11154,8 @@ function manaAbilityEffectsErrors(
         errors.push(`${site}: must be a non-empty EffectOp[]`);
         return;
     }
-    for (const [i, entry] of ops.entries()) {
+    for (let i = 0; i < ops.length; i++) {
+        const entry = ops[i];
         const op = (entry as { op?: unknown } | null)?.op;
         if (typeof op !== "string" || !isManaAbilityEffectOp(op)) {
             errors.push(

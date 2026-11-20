@@ -57,14 +57,17 @@ const asArray = <T>(v: T | readonly T[] | undefined): readonly T[] =>
 
 /** The card's own spell-target requirement, if it has one. */
 function spellRequirement(def: CardDefinition): TargetRequirement | undefined {
-    return [
-        ...(def.targetRequirement ? [def.targetRequirement] : []),
-        ...(def.modes ?? []).flatMap((m) =>
-            m.targetRequirement ? [m.targetRequirement] : []
-        ),
-    ].find((r) =>
-        asArray(r.type).some((t) => t === "spell" || t === "spell-or-permanent")
-    );
+    return (def.targetRequirement ? [def.targetRequirement] : [])
+        .concat(
+            (def.modes ?? []).flatMap((m) =>
+                m.targetRequirement ? [m.targetRequirement] : []
+            )
+        )
+        .find((r) =>
+            asArray(r.type).some(
+                (t) => t === "spell" || t === "spell-or-permanent"
+            )
+        );
 }
 
 /** Does the named spell's card type line satisfy the requirement's filters? */

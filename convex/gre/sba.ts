@@ -140,7 +140,9 @@ export function checkGameOverSBA(state: GameState): boolean {
     if (state.gameOver) return true;
 
     const losers: LossEntry[] = [];
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const reason = playerLossReason(state, player);
         if (reason) losers.push({ playerId: player.id, reason });
     }
@@ -194,8 +196,12 @@ export function checkGameOverSBA(state: GameState): boolean {
  */
 export function checkAuraAttachmentSBA(state: GameState): boolean {
     const toDetach: string[] = [];
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (!isAura(card)) continue;
             const hostId = card.attachedTo;
             if (!hostId) {
@@ -231,7 +237,8 @@ export function checkAuraAttachmentSBA(state: GameState): boolean {
     // Defer mutation so iteration isn't affected. removePermanentTo also
     // reverts any keyword grants this aura applied to its host (if still
     // present), keeping read-time lookups consistent.
-    for (const id of toDetach) {
+    for (let i = 0; i < toDetach.length; i++) {
+        const id = toDetach[i];
         // CR 702.103f — "If a bestowed Aura becomes unattached, it ceases to
         // be bestowed. If a bestowed Aura is attached to an illegal object or
         // player, it becomes unattached and ceases to be bestowed. This is an
@@ -317,8 +324,12 @@ export function checkAuraAttachmentSBA(state: GameState): boolean {
  */
 export function checkAttachmentSBA(state: GameState): boolean {
     const toDetach: string[] = [];
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (isAura(card)) continue; // handled by checkAuraAttachmentSBA
             if (!card.attachedTo) continue;
             if (card.subtypes.includes("Fortification")) continue;
@@ -346,7 +357,8 @@ export function checkAttachmentSBA(state: GameState): boolean {
             }
         }
     }
-    for (const id of toDetach) {
+    for (let i = 0; i < toDetach.length; i++) {
+        const id = toDetach[i];
         const found = findOnBattlefield(state, id);
         if (!found) continue;
         stopApplyingStaticEffects(state, found);
@@ -374,7 +386,9 @@ function findOnBattlefield(
     state: GameState,
     id: string
 ): CardInstanceState | null {
-    for (const p of state.players) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
         const found = p.battlefield.find((c) => c.id === id);
         if (found) return found;
     }
@@ -390,8 +404,12 @@ function findOnBattlefield(
  *  token in it is the rare case. */
 export function checkTokenExistenceSBA(state: GameState): boolean {
     let removed = false;
-    for (const player of state.players) {
-        for (const zone of ["graveyard", "exile", "hand", "library"] as const) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const zoneList = ["graveyard", "exile", "hand", "library"] as const;
+        for (let j = 0; j < zoneList.length; j++) {
+            const zone = zoneList[j];
             const list = player[zone];
             if (!list.some((c) => c.isToken)) continue;
             const kept = list.filter((c) => !c.isToken);
@@ -432,7 +450,9 @@ export function checkSagaSacrificeSBA(state: GameState): boolean {
     let sacrificedAny = false;
     for (;;) {
         let sacrificed = false;
-        for (const player of state.players) {
+        const playerList = state.players;
+        for (let i = 0; i < playerList.length; i++) {
+            const player = playerList[i];
             const victim = player.battlefield.find((card) => {
                 if (!isSaga(card)) return false;
                 const final = finalChapter(card);
@@ -471,8 +491,12 @@ export function checkSagaSacrificeSBA(state: GameState): boolean {
  *  removed. */
 export function checkCounterAnnihilationSBA(state: GameState): boolean {
     let changedAny = false;
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             const counters = card.counters;
             if (!counters) continue;
             const plus = counters["+1/+1"] ?? 0;
@@ -500,14 +524,19 @@ export function checkCounterAnnihilationSBA(state: GameState): boolean {
  *  Returns true if any counters were removed. */
 export function checkCounterLimitSBA(state: GameState): boolean {
     let changedAny = false;
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             const counters = card.counters;
             if (!counters) continue;
             const limits = liveStaticDefinition(card)?.counterLimits;
             if (!limits) continue;
             let next: Record<string, number> | null = null;
-            for (const { counter, max } of limits) {
+            for (let k = 0; k < limits.length; k++) {
+                const { counter, max } = limits[k];
                 if ((counters[counter] ?? 0) <= max) continue;
                 next ??= { ...counters };
                 if (max > 0) next[counter] = max;
@@ -532,7 +561,9 @@ export function checkZeroToughnessSBA(state: GameState): boolean {
         // "one death can drop another creature's toughness" case above), so
         // the restarted scan opens its own.
         const pass = beginLayer7Pass(state);
-        for (const player of state.players) {
+        const playerList = state.players;
+        for (let i = 0; i < playerList.length; i++) {
+            const player = playerList[i];
             const victim = player.battlefield.find(
                 (c) =>
                     c.types.includes("Creature") &&
@@ -564,7 +595,9 @@ export function checkZeroLoyaltySBA(state: GameState): boolean {
     let removedAny = false;
     for (;;) {
         let removed = false;
-        for (const player of state.players) {
+        const playerList = state.players;
+        for (let i = 0; i < playerList.length; i++) {
+            const player = playerList[i];
             const victim = player.battlefield.find(
                 (c) =>
                     isPlaneswalker(c) &&
@@ -598,7 +631,9 @@ export function checkLethalDamageSBA(state: GameState): boolean {
     const attempted = new Set<string>();
     for (;;) {
         let destroyed = false;
-        for (const player of state.players) {
+        const playerList = state.players;
+        for (let i = 0; i < playerList.length; i++) {
+            const player = playerList[i];
             const victim = player.battlefield.find((c) => {
                 if (!isCreature(c) || attempted.has(c.id)) return false;
                 const marked = c.damageMarked ?? 0;
@@ -638,7 +673,9 @@ export function checkDeathtouchDestroySBA(state: GameState): boolean {
     const attempted = new Set<string>();
     for (;;) {
         let destroyed = false;
-        for (const player of state.players) {
+        const playerList = state.players;
+        for (let i = 0; i < playerList.length; i++) {
+            const player = playerList[i];
             const victim = player.battlefield.find(
                 (c) =>
                     c.types.includes("Creature") &&
@@ -698,9 +735,13 @@ export function checkConditionalControlChanges(state: GameState): boolean {
     let revertedAny = false;
     for (;;) {
         let reverted = false;
-        for (const player of state.players) {
+        const playerList = state.players;
+        for (let i = 0; i < playerList.length; i++) {
+            const player = playerList[i];
             let hit: { hostId: string; sourceId: string } | null = null;
-            for (const card of player.battlefield) {
+            const cardList = player.battlefield;
+            for (let j = 0; j < cardList.length; j++) {
+                const card = cardList[j];
                 const entry = card.controlChanges?.find(
                     (e) => e.condition && !controlConditionHolds(state, card, e)
                 );
@@ -730,8 +771,12 @@ export function checkConditionalControlChanges(state: GameState): boolean {
  *  stored state from accumulating stale entries (and that frees a locked
  *  permanent to untap on its next untap step). */
 export function checkSourceTappedEffects(state: GameState): void {
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (card.sourceTappedPTMods?.length) {
                 const kept = card.sourceTappedPTMods.filter((m) =>
                     isSourceTappedLive(state, m.sourceId)
@@ -788,26 +833,33 @@ function legendName(card: CardInstanceState): string | undefined {
 export function checkLegendRuleSBA(state: GameState): boolean {
     // A pending choice already freezes the game; don't stack another.
     if ((state.pendingChoices?.length ?? 0) > 0) return false;
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         // CR 704.5j needs TWO legendary permanents under one controller: a
         // player with fewer has no group to form, so the grouping below is
         // never built for them (issue #10025 — the sweep runs this at every
         // check, and most boards hold at most one legend per side).
         let legends: CardInstanceState[] | null = null;
-        for (const card of player.battlefield) {
+        const cardList = player.battlefield;
+        for (let k = 0; k < cardList.length; k++) {
+            const card = cardList[k];
             if (!isLegendaryPermanent(card)) continue;
             (legends ??= []).push(card);
         }
         if (legends === null || legends.length < 2) continue;
         // Group this controller's legendary permanents by name.
         const byName = new Map<string, string[]>();
-        for (const card of legends) {
+        const cardList2 = legends;
+        for (let k = 0; k < cardList2.length; k++) {
+            const card = cardList2[k];
             const name = legendName(card);
             if (name === undefined) continue;
             const ids = byName.get(name) ?? [];
             ids.push(card.id);
             byName.set(name, ids);
         }
+        // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
         for (const [name, ids] of byName) {
             if (ids.length < 2) continue;
             // Found a violation — enqueue a keep-one prompt for this
@@ -860,7 +912,9 @@ export function finalizeLegendKeep(
     // CR 704.3 / 603.2c — one simultaneous move, one exile occurrence when a
     // CR 614 replacement redirects the duplicates.
     withCardsExiledBatch(state, () => {
-        for (const id of head.candidateIds ?? []) {
+        const idList = head.candidateIds ?? [];
+        for (let i = 0; i < idList.length; i++) {
+            const id = idList[i];
             if (id === kept) continue;
             removePermanentTo(state, id, "graveyard");
         }
@@ -939,8 +993,12 @@ function isWorldPermanent(card: CardInstanceState): boolean {
  *  world rule is global, unlike the per-controller legend rule). */
 function allWorldPermanents(state: GameState): CardInstanceState[] {
     const result: CardInstanceState[] = [];
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (isWorldPermanent(card)) result.push(card);
         }
     }
@@ -974,7 +1032,10 @@ export function checkWorldRuleSBA(state: GameState): boolean {
     const unstamped = worlds.filter((c) => c.worldSeq === undefined);
     if (unstamped.length > 0) {
         state.nextWorldSeq = (state.nextWorldSeq ?? 0) + 1;
-        for (const card of unstamped) card.worldSeq = state.nextWorldSeq;
+        for (let i = 0; i < unstamped.length; i++) {
+            const card = unstamped[i];
+            card.worldSeq = state.nextWorldSeq;
+        }
     }
     if (worlds.length < 2) return false;
     // Survivor(s): the permanent(s) with the maximum seq (shortest time).
@@ -993,7 +1054,8 @@ export function checkWorldRuleSBA(state: GameState): boolean {
     // issue #3242 (CR 603.2c) — one simultaneous SBA event: any of them a CR
     // 614 redirect into a library is still ONE library-entry event.
     withCardsPutIntoLibraryBatch(state, () => {
-        for (const card of doomed) {
+        for (let i = 0; i < doomed.length; i++) {
+            const card = doomed[i];
             removePermanentTo(state, card.id, "graveyard");
         }
     });
@@ -1026,11 +1088,11 @@ export function checkWorldRuleSBA(state: GameState): boolean {
 function removeNoncreaturesFromCombat(state: GameState): void {
     const combat = state.combat;
     if (!combat) return;
-    const combatants = [
-        ...combat.attackerIds,
-        ...Object.keys(combat.blockerAssignments),
-    ];
-    for (const id of combatants) {
+    const combatants = combat.attackerIds.concat(
+        Object.keys(combat.blockerAssignments)
+    );
+    for (let i = 0; i < combatants.length; i++) {
+        const id = combatants[i];
         const card = findPermanent(state, id);
         if (card && !card.types.includes("Creature")) {
             removePermanentFromCombat(state, id);

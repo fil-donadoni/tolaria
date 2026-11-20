@@ -64,7 +64,9 @@ function normalize(cost: MayPayCost): CostLegs {
  *  upkeep cost, so only numeric pips are scaled. */
 function scaleMana(mana: ManaCost, n: number): ManaCost {
     const out: ManaCost = {};
-    for (const [k, v] of Object.entries(mana)) {
+    const entries2 = Object.entries(mana);
+    for (let i = 0; i < entries2.length; i++) {
+        const [k, v] = entries2[i];
         if (k === "xFactor") continue;
         if (typeof v === "number" && v > 0) {
             (out as Record<string, number>)[k] = v * n;

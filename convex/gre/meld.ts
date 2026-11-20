@@ -38,11 +38,11 @@ const CARD_ZONES: readonly CardZone[] = [
  *  every zone but a melded permanent (CR 712.8a). */
 function frontValues(def: CardDefinition) {
     return {
-        types: [...def.types],
-        subtypes: def.subtypes ? [...def.subtypes] : [],
+        types: def.types.slice(),
+        subtypes: def.subtypes ? def.subtypes.slice() : [],
         power: def.power,
         toughness: def.toughness,
-        staticAbilities: def.staticAbilities ? [...def.staticAbilities] : [],
+        staticAbilities: def.staticAbilities ? def.staticAbilities.slice() : [],
     };
 }
 
@@ -141,8 +141,11 @@ function findCardInZones(
     state: Pick<GameState, "players">,
     id: string
 ): { card: CardInstanceState; zone: CardZone } | undefined {
-    for (const player of state.players) {
-        for (const zone of CARD_ZONES) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        for (let j = 0; j < CARD_ZONES.length; j++) {
+            const zone = CARD_ZONES[j];
             const card = player[zone].find((c) => c.id === id);
             if (card) return { card, zone };
         }
@@ -222,8 +225,9 @@ export function queueMeldArrangement(
     exilerId: string | undefined
 ): void {
     if (zone === "hand" || first.ownerId !== second.ownerId) return;
-    state.pendingMeldArrangements = [
-        ...(state.pendingMeldArrangements ?? []),
+    state.pendingMeldArrangements = (
+        state.pendingMeldArrangements ?? []
+    ).concat([
         {
             chooserId:
                 zone === "exile"
@@ -233,7 +237,7 @@ export function queueMeldArrangement(
             zone,
             cardIds: [first.id, second.id],
         },
-    ];
+    ]);
 }
 
 /** The SBA-sweep half of {@link queueMeldArrangement}: raise the front

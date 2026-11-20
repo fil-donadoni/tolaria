@@ -34,5 +34,5 @@ export function addPlayerRestriction(
 ): void {
     if (playerHasRestriction(state, playerId, kind)) return;
     const entry: PlayerRestriction = { playerId, kind };
-    state.playerRestrictions = [...(state.playerRestrictions ?? []), entry];
+    state.playerRestrictions = (state.playerRestrictions ?? []).concat([entry]);
 }

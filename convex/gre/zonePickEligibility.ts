@@ -68,10 +68,22 @@ export function anyTargetChoicePool<C extends { id: string }>(
     const add = (c: C) => {
         if (!byId.has(c.id)) byId.set(c.id, c);
     };
-    for (const p of zones.players) p.battlefield.forEach(add);
+    const pList = zones.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
+        p.battlefield.forEach(add);
+    }
     zones.stack.forEach(add);
-    for (const p of zones.players) p.graveyard.forEach(add);
-    for (const p of zones.players) p.exile.forEach(add);
+    const pList2 = zones.players;
+    for (let i = 0; i < pList2.length; i++) {
+        const p = pList2[i];
+        p.graveyard.forEach(add);
+    }
+    const pList3 = zones.players;
+    for (let i = 0; i < pList3.length; i++) {
+        const p = pList3[i];
+        p.exile.forEach(add);
+    }
     return candidateIds.flatMap((id) => {
         const c = byId.get(id);
         return c ? [c] : [];

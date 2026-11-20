@@ -104,13 +104,12 @@ export function expandShuffleFromAnywhere(
         // by hand must not end up replacing the event twice.
         replacementEffects: existing.some((r) => r.id === id)
             ? existing
-            : [
-                  ...existing,
+            : existing.concat([
                   shuffleFromAnywhereReplacement({
                       id,
                       oracleText: shuffleFromAnywhereOracleText(base.name),
                   }),
-              ],
+              ]),
     };
     delete expanded.shuffleFromAnywhere;
     return expanded;

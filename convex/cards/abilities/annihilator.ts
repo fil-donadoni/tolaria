@@ -149,7 +149,8 @@ function parseAnnihilator(
 ): number[] {
     if (!staticAbilities) return [];
     const out: number[] = [];
-    for (const s of staticAbilities) {
+    for (let i = 0; i < staticAbilities.length; i++) {
+        const s = staticAbilities[i];
         const m = ANNIHILATOR_PATTERN.exec(s.trim());
         if (!m) continue;
         const n = Number.parseInt(m[1], 10);
@@ -175,9 +176,8 @@ export function expandAnnihilator(def: CardDefinition): CardDefinition {
     }
     return {
         ...def,
-        triggeredAbilities: [
-            ...existing,
-            ...instances.map((n) => annihilatorTrigger(n)),
-        ],
+        triggeredAbilities: existing.concat(
+            instances.map((n) => annihilatorTrigger(n))
+        ),
     };
 }

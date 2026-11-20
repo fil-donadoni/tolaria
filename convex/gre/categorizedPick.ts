@@ -58,7 +58,9 @@ function trySeat(
     seatedBy: (number | undefined)[],
     visited: boolean[]
 ): boolean {
-    for (const category of adjacency[cardIndex]) {
+    const categoryList = adjacency[cardIndex];
+    for (let i = 0; i < categoryList.length; i++) {
+        const category = categoryList[i];
         if (visited[category]) continue;
         visited[category] = true;
         const holder = seatedBy[category];
@@ -82,7 +84,7 @@ function maximumMatching(
     const membership = categories.map((c) => new Set(c.cardIds));
     const adjacency = cards.map((id) =>
         membership.reduce<number[]>(
-            (acc, set, i) => (set.has(id) ? [...acc, i] : acc),
+            (acc, set, i) => (set.has(id) ? acc.concat([i]) : acc),
             []
         )
     );
@@ -113,8 +115,11 @@ export function categorizedEligibleIds(
 ): string[] {
     const seen = new Set<string>();
     const ids: string[] = [];
-    for (const category of categories) {
-        for (const id of category.cardIds) {
+    for (let i = 0; i < categories.length; i++) {
+        const category = categories[i];
+        const idList = category.cardIds;
+        for (let j = 0; j < idList.length; j++) {
+            const id = idList[j];
             if (seen.has(id)) continue;
             seen.add(id);
             ids.push(id);
@@ -155,7 +160,7 @@ export function canAddCategorizedPick(
     cardId: string
 ): boolean {
     if (picks.includes(cardId)) return false;
-    return isCategorizedPickLegal(categories, [...picks, cardId]);
+    return isCategorizedPickLegal(categories, picks.concat([cardId]));
 }
 
 // ---------------------------------------------------------------------------
@@ -240,7 +245,8 @@ export function minCategorizedCover(
     best[0] = 0;
     for (let covered = 0; covered <= full; covered++) {
         if (best[covered] === Number.POSITIVE_INFINITY) continue;
-        for (const mask of masks) {
+        for (let j = 0; j < masks.length; j++) {
+            const mask = masks[j];
             const next = covered | mask;
             if (best[covered] + 1 < best[next]) best[next] = best[covered] + 1;
         }

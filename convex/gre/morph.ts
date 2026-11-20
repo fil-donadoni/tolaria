@@ -180,7 +180,7 @@ export function turnFaceUpCosts(
 ): ManaCost[] {
     const morph = getMorphCost(card);
     const manifest = getManifestTurnUpCost(card);
-    return [...(morph ? [morph] : []), ...(manifest ? [manifest] : [])];
+    return (morph ? [morph] : []).concat(manifest ? [manifest] : []);
 }
 
 /** The cost `player` pays to turn `card` face up and the auto-tap plan that
@@ -199,10 +199,11 @@ export function turnFaceUpPayment(
     player: PlayerState,
     card: CardInstanceState
 ): { cost: ManaCost; plan: AutoTapPlan } | null {
-    const costs = [...turnFaceUpCosts(card)].sort(
-        (a, b) => manaValue(a) - manaValue(b)
-    );
-    for (const cost of costs) {
+    const costs = turnFaceUpCosts(card)
+        .slice()
+        .sort((a, b) => manaValue(a) - manaValue(b));
+    for (let i = 0; i < costs.length; i++) {
+        const cost = costs[i];
         // CR 106.6 (issue #3354) — the plan counts a bare-rider unit the payment
         // (`applyTurnPermanentFaceUp`) admits; see `specialActionPaymentPlan`.
         const plan = specialActionPaymentPlan(state, player, cost);

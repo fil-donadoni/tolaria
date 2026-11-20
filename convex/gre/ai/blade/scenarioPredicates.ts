@@ -61,17 +61,18 @@ export function enterTriggersThenAttack(
     entering: readonly string[],
     attackers: readonly string[]
 ): BladeSetupStep[] {
-    return [
-        ...entering.flatMap((card): BladeSetupStep[] => [
+    return entering
+        .flatMap((card): BladeSetupStep[] => [
             { kind: "etb-trigger", card, watcher },
             { kind: "resolve-top" },
-        ]),
-        {
-            kind: "declare-attackers",
-            cards: [...attackers],
-            haltForDefenderResponse: true,
-        },
-    ];
+        ])
+        .concat([
+            {
+                kind: "declare-attackers",
+                cards: attackers.slice(),
+                haltForDefenderResponse: true,
+            },
+        ]);
 }
 
 /** CR 702.34a — five untapped Mountains, exactly Firebolt's {4}{R} flashback
@@ -89,20 +90,19 @@ export const MOUNTAINS_5 = Array.from({ length: 5 }, () => ({
  *  rather than `landCount` for the same reason {@link MOUNTAINS_5} is: the cost
  *  is coloured, and a generic land count would leave the mana leg unpayable and
  *  the entry silently testing nothing. */
-export const NINJUTSU_LANDS_4 = [
-    ...Array.from({ length: 2 }, () => ({
-        name: "Island",
-        owner: "me" as const,
-        zone: "battlefield" as const,
-        tapped: false,
-    })),
-    ...Array.from({ length: 2 }, () => ({
+export const NINJUTSU_LANDS_4 = Array.from({ length: 2 }, () => ({
+    name: "Island",
+    owner: "me" as const,
+    zone: "battlefield" as const,
+    tapped: false,
+})).concat(
+    Array.from({ length: 2 }, () => ({
         name: "Swamp",
         owner: "me" as const,
         zone: "battlefield" as const,
         tapped: false,
-    })),
-];
+    }))
+);
 
 /** Issue #9975 — the free-attack pair's attackers: a 4/4 and a 2/3, neither
  *  vigilant nor carrying a `{T}` ability, both able to attack (CR 302.6). */
@@ -223,7 +223,7 @@ export function floodedLandEarnsNoDevelopmentBonus(
         (c) => manaValue(getInstanceManaCost(c)) === 6
     );
     if (wurmIndex === -1) return false;
-    p.hand = [...p.hand, p.library[wurmIndex]];
+    p.hand = p.hand.concat([p.library[wurmIndex]]);
     p.library = p.library.filter((_, i) => i !== wurmIndex);
 
     // Strictly greater FIRST: tying the delta to `manaDevWeight` alone would
@@ -378,7 +378,8 @@ export function activationCostPicksArePaid(
     );
     if (activations.length === 0) return false;
     const picked = new Set<string>();
-    for (const move of activations) {
+    for (let i = 0; i < activations.length; i++) {
+        const move = activations[i];
         if (move.kind !== "activate-ability") return false;
         const ids = move.costPicks?.discardIds;
         if (!ids || ids.length !== 1) return false;
@@ -432,7 +433,9 @@ function enumeratedSacrificeVictims(
     if (sources.length !== 1) return null;
     const source = sources[0];
     const victims: string[][] = [];
-    for (const move of enumerateMoves(state, player.id)) {
+    const moveList = enumerateMoves(state, player.id);
+    for (let i = 0; i < moveList.length; i++) {
+        const move = moveList[i];
         if (move.kind !== "activate-ability") continue;
         if (move.cardInstanceId !== source.id) continue;
         const ability = getCardByName(cardName).activatedAbilities?.find(
@@ -477,7 +480,7 @@ export function castsCardNamed(
 ): boolean {
     if (move === null || move.kind !== "cast-spell") return false;
     const card = state.players
-        .flatMap((p) => [...p.hand, ...p.graveyard, ...p.exile])
+        .flatMap((p) => p.hand.concat(p.graveyard, p.exile))
         .find((c) => c.id === move.cardInstanceId);
     const id = (card?.card as { id?: string } | undefined)?.id;
     return !!id && tryGetDefinition(id)?.name === name;

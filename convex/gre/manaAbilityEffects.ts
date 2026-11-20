@@ -46,7 +46,9 @@ const MANA_ABILITY_EFFECT_REVERSALS: {
 export function reverseManaAbilityEffectsOnUntap(
     card: CardInstanceState
 ): void {
-    for (const reverse of Object.values(MANA_ABILITY_EFFECT_REVERSALS)) {
+    const reverseList = Object.values(MANA_ABILITY_EFFECT_REVERSALS);
+    for (let i = 0; i < reverseList.length; i++) {
+        const reverse = reverseList[i];
         reverse(card);
     }
 }

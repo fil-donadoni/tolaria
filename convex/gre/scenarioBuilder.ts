@@ -241,7 +241,9 @@ function resolveScenarioActivations(
 ): Record<string, number> | undefined {
     if (!activations) return undefined;
     const out: Record<string, number> = {};
-    for (const [abilityId, count] of Object.entries(activations)) {
+    const entries2 = Object.entries(activations);
+    for (let i = 0; i < entries2.length; i++) {
+        const [abilityId, count] = entries2[i];
         if (count > 0) out[abilityId] = count;
     }
     return Object.keys(out).length > 0 ? out : undefined;
@@ -264,7 +266,9 @@ function seedAbilityResolutions(
     resolutions: Record<string, number> | undefined
 ): void {
     if (!resolutions) return;
-    for (const [abilityId, count] of Object.entries(resolutions)) {
+    const entries2 = Object.entries(resolutions);
+    for (let i = 0; i < entries2.length; i++) {
+        const [abilityId, count] = entries2[i];
         if (count <= 0) continue;
         const counts = (state.abilityResolutionCounts ??= {});
         counts[`${instanceId}:${abilityId}`] = count;
@@ -283,7 +287,9 @@ function lowerAbilityResolutions(
     if (!counts) return undefined;
     const prefix = `${instanceId}:`;
     const out: Record<string, number> = {};
-    for (const [key, count] of Object.entries(counts)) {
+    const entries2 = Object.entries(counts);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, count] = entries2[i];
         if (count > 0 && key.startsWith(prefix)) {
             out[key.slice(prefix.length)] = count;
         }
@@ -337,7 +343,8 @@ function placeScenarioTokens(
         )
     );
     const created = player.battlefield.filter((c) => ids.has(c.id));
-    for (const token of created) {
+    for (let i = 0; i < created.length; i++) {
+        const token = created[i];
         token.isTapped = entry.tapped ?? false;
         // CR 302.6 — `createTokenPermanents` marks every fresh token
         // summoning-sick (it just entered). A scenario stages an ALREADY-SET-UP
@@ -745,12 +752,16 @@ export function buildStateFromScenario(
     // cards are actually castable. A colourless/empty board falls back to
     // Plains (the historical behaviour).
     const colorsPresent = new Set<Color>();
-    for (const entry of spec.cards) {
+    const entryList = spec.cards;
+    for (let j = 0; j < entryList.length; j++) {
+        const entry = entryList[j];
         if (entry.token) {
             // A token has no printed mana cost; its colors are declared on the
             // spec (CR 110.5). An unknown token key contributes nothing — the
             // placement loop below is what surfaces the error.
-            for (const c of findTokenSpec(entry.name)?.colors ?? []) {
+            const cList = findTokenSpec(entry.name)?.colors ?? [];
+            for (let k = 0; k < cList.length; k++) {
+                const c = cList[k];
                 colorsPresent.add(c);
             }
             continue;
@@ -764,7 +775,11 @@ export function buildStateFromScenario(
         const def = backFaceUp ? getCardByName(entry.name) : placed;
         // The lands that CAST it: its cost's colours, which CR 702.114a devoid
         // leaves standing even though the card itself is colourless.
-        for (const c of getColorsFromCost(def.manaCost)) colorsPresent.add(c);
+        const cList2 = getColorsFromCost(def.manaCost);
+        for (let k = 0; k < cList2.length; k++) {
+            const c = cList2[k];
+            colorsPresent.add(c);
+        }
     }
     const basicLandCycle = basicLandsForColors(colorsPresent);
     const basicLandAt = (i: number) =>
@@ -868,7 +883,9 @@ export function buildStateFromScenario(
     const basePendingEvents = state.pendingEvents;
 
     // Place requested cards
-    for (const entry of spec.cards) {
+    const entryList2 = spec.cards;
+    for (let j = 0; j < entryList2.length; j++) {
+        const entry = entryList2[j];
         const player = entry.owner === "me" ? p1 : p2;
         const zone = entry.zone ?? "battlefield";
         const count = entry.count ?? 1;
@@ -877,7 +894,9 @@ export function buildStateFromScenario(
         // token primitive (which synthesizes + registers its CardDefinition,
         // resolves art and applies `entersWith` counters).
         if (entry.token) {
-            for (const token of placeScenarioTokens(state, entry, player)) {
+            const tokenList = placeScenarioTokens(state, entry, player);
+            for (let k = 0; k < tokenList.length; k++) {
+                const token = tokenList[k];
                 if (entry.attachedTo) {
                     pendingAttach.push({
                         aura: token,
@@ -1151,7 +1170,8 @@ export function buildStateFromScenario(
     // every permanent is on the battlefield. The host is matched by card id
     // (derived from the given name), searching the aura owner's battlefield
     // first and the opponent's second; the first match wins.
-    for (const { aura, hostName, ownerId } of pendingAttach) {
+    for (let j = 0; j < pendingAttach.length; j++) {
+        const { aura, hostName, ownerId } = pendingAttach[j];
         // The host may be a TOKEN (enchant a Saproling): a token's placed
         // instance carries the content-derived definition id of its shape, so
         // the same by-def-id match works once the name is resolved through the
@@ -1177,9 +1197,15 @@ export function buildStateFromScenario(
     // counters are staged by default above. Run once every id is final: the
     // copy links to its permanent's instance id. A face-down permanent has no
     // prepare spell (CR 708.2) and is skipped by `applyEntersPrepared` itself.
-    for (const pl of state.players)
-        for (const permanent of [...pl.battlefield])
+    const plList = state.players;
+    for (let j = 0; j < plList.length; j++) {
+        const pl = plList[j];
+        const permanentList = pl.battlefield.slice();
+        for (let k = 0; k < permanentList.length; k++) {
+            const permanent = permanentList[k];
             applyEntersPrepared(state, permanent);
+        }
+    }
 
     // CR 702.139c / ADR 0064 (issue #1392) — directly declare a companion
     // into the requested slot. Mirrors `buildCompanionInstance`'s shape
@@ -1213,12 +1239,13 @@ export function buildStateFromScenario(
     // instantiated as game init's `buildOutsideGameHolder` does: a real
     // instance id, the same nominal "exile" tag (outside the game is not a
     // zone, CR 400.11).
-    for (const entry of spec.outsideGame ?? []) {
+    const entryList3 = spec.outsideGame ?? [];
+    for (let j = 0; j < entryList3.length; j++) {
+        const entry = entryList3[j];
         const holderOwner = entry.owner === "opp" ? p2 : p1;
         // CR 712.8a — outside the game a double-faced card is its front face.
         const { def } = placedCard(entry.name, "exile");
-        holderOwner.outsideGame = [
-            ...(holderOwner.outsideGame ?? []),
+        holderOwner.outsideGame = (holderOwner.outsideGame ?? []).concat([
             {
                 id: allocInstanceId(state),
                 card: { id: def.id },
@@ -1232,7 +1259,7 @@ export function buildStateFromScenario(
                 zone: "exile" as const,
                 isTapped: false,
             },
-        ];
+        ]);
     }
 
     // Mark "me"'s last hand card as drawn this turn (Jandor's Ring's
@@ -1264,8 +1291,12 @@ export function buildStateFromScenario(
     // pass per source is enough: each call walks every permanent and
     // pushes matching grants — order-independent because the predicate is
     // a function of subtype/id, not of timestamp.
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let j = 0; j < playerList.length; j++) {
+        const player = playerList[j];
+        const sourceList = player.battlefield;
+        for (let k = 0; k < sourceList.length; k++) {
+            const source = sourceList[k];
             beginApplyingStaticEffects(state, source);
         }
     }
@@ -1292,7 +1323,8 @@ export function buildStateFromScenario(
     // pool; a third party's until-their-upkeep animation is the one shape this
     // cannot distinguish, and `specFromState` does not produce it (the lowering
     // resolves `player` against this same controller).
-    for (const { card, spec: animateSpec } of pendingAnimations) {
+    for (let j = 0; j < pendingAnimations.length; j++) {
+        const { card, spec: animateSpec } = pendingAnimations[j];
         animatePermanentAsCreature(state, card, animateSpec, card.controllerId);
     }
 
@@ -1320,9 +1352,15 @@ export function buildStateFromScenario(
     // entry rather than pretending it is rebuild behaviour
     // (`rebuiltByCounterReplay`), which is the honest shape until the counter
     // itself is lowered for every zone.
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
-            for (const [type, count] of Object.entries(card.counters ?? {})) {
+    const playerList2 = state.players;
+    for (let j = 0; j < playerList2.length; j++) {
+        const player = playerList2[j];
+        const cardList = player.battlefield;
+        for (let k = 0; k < cardList.length; k++) {
+            const card = cardList[k];
+            const entries3 = Object.entries(card.counters ?? {});
+            for (let m = 0; m < entries3.length; m++) {
+                const [type, count] = entries3[m];
                 if (count > 0) applyKeywordCounterGrant(state, card, type);
             }
         }
@@ -1336,8 +1374,12 @@ export function buildStateFromScenario(
     // opponent" (Cursed Rack, The Rack — #292) never resolved. Auto-pick
     // the controller's opponent so the scenario exercises the stored choice
     // (2-player: a single opponent, so no ambiguity).
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList3 = state.players;
+    for (let j = 0; j < playerList3.length; j++) {
+        const player = playerList3[j];
+        const sourceList2 = player.battlefield;
+        for (let k = 0; k < sourceList2.length; k++) {
+            const source = sourceList2[k];
             if (source.chosenPlayerId !== undefined) continue;
             const cardId = (source.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : undefined;
@@ -1538,7 +1580,9 @@ export function buildStateFromScenario(
         pool: Record<string, number> | undefined
     ) => {
         if (!pool) return;
-        for (const [color, amount] of Object.entries(pool)) {
+        const entries2 = Object.entries(pool);
+        for (let i = 0; i < entries2.length; i++) {
+            const [color, amount] = entries2[i];
             // CR 105.1 / 106.1b — a key outside the six mana types is mana no
             // payment path can ever spend (every one of them consults
             // `MANA_COLORS`), so seeding it would place a pool that reads as
@@ -1571,7 +1615,8 @@ export function buildStateFromScenario(
     ) => {
         if (!units) return;
         const placed: RestrictedMana[] = [];
-        for (const unit of units) {
+        for (let i = 0; i < units.length; i++) {
+            const unit = units[i];
             if (!(MANA_COLORS as readonly string[]).includes(unit.color)) {
                 throw new Error(
                     `Scenario restrictedMana.${seat}: "${unit.color}" is not a mana type the engine can spend (CR 105.1 — ${MANA_COLORS.join("/")}).`
@@ -1817,7 +1862,8 @@ function resolveCombatants(
     const taken = new Set<string>();
     return names.map((name) => {
         const defId = combatDefId(name);
-        for (const battlefield of battlefields) {
+        for (let i = 0; i < battlefields.length; i++) {
+            const battlefield = battlefields[i];
             const found = battlefield.find(
                 (card) =>
                     !taken.has(card.id) &&
@@ -1897,7 +1943,9 @@ function seedAttackerSlots(
 ): string[] {
     const total = attackers.length + (departed?.length ?? 0);
     const slots = new Array<string | undefined>(total).fill(undefined);
-    for (const entry of departed ?? []) {
+    const entryList = departed ?? [];
+    for (let i = 0; i < entryList.length; i++) {
+        const entry = entryList[i];
         if (
             !Number.isInteger(entry.slot) ||
             entry.slot < 0 ||
@@ -1987,7 +2035,10 @@ function seedDeclaredCombat(
             blockerAssignments: {},
             blockersConfirmed: false,
         };
-        for (const attacker of attackers) markAttacking(state, attacker);
+        for (let i = 0; i < attackers.length; i++) {
+            const attacker = attackers[i];
+            markAttacking(state, attacker);
+        }
         // CR 506.4 (issue #10120) — the record keeps the slot of an attacker
         // that left the battlefield, under a tombstone. Written straight into
         // `attackerIds` and deliberately NOT through `markAttacking`: no
@@ -2026,7 +2077,9 @@ function seedDeclaredCombat(
         // assignment under a tombstone, which is what keeps the attacker it
         // blocked BLOCKED below (`recordBlockedAttackers` reads the record,
         // not the battlefield).
-        for (const entry of combat.departed?.blockers ?? []) {
+        const entryList = combat.departed?.blockers ?? [];
+        for (let i = 0; i < entryList.length; i++) {
+            const entry = entryList[i];
             const tombstone = seedDepartedSlot(
                 state,
                 entry.now,
@@ -2093,19 +2146,24 @@ function seedDeclaredCombat(
             seat: "opp" as const,
         },
     ];
-    for (const { player, seat } of seats) {
-        for (const card of resolveCombatants(
+    for (let i = 0; i < seats.length; i++) {
+        const { player, seat } = seats[i];
+        const cardList = resolveCombatants(
             [player.battlefield],
             combat.attackedThisTurn?.[seat] ?? [],
             `${seat}'s, having attacked this turn`
-        )) {
+        );
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             recordAttackerDeclared(state, card);
         }
-        for (const card of resolveCombatants(
+        const cardList2 = resolveCombatants(
             [player.battlefield],
             combat.blockedThisTurn?.[seat] ?? [],
             `${seat}'s, having blocked this turn`
-        )) {
+        );
+        for (let j = 0; j < cardList2.length; j++) {
+            const card = cardList2[j];
             card.hasBlockedThisTurn = true;
         }
     }
@@ -2157,19 +2215,19 @@ function seedContinuousEffects(
     const p1 = state.players.find((p) => p.id === mySeatId)!;
     const p2 = state.players.find((p) => p.id !== mySeatId)!;
     let seededLayer6 = false;
-    for (const entry of entries) {
-        const affected: CardInstanceState[] = [
-            ...resolveCombatants(
-                [p1.battlefield],
-                entry.affected.me ?? [],
-                "a continuous effect's affected permanent (me)"
-            ),
-            ...resolveCombatants(
+    for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        const affected: CardInstanceState[] = resolveCombatants(
+            [p1.battlefield],
+            entry.affected.me ?? [],
+            "a continuous effect's affected permanent (me)"
+        ).concat(
+            resolveCombatants(
                 [p2.battlefield],
                 entry.affected.opp ?? [],
                 "a continuous effect's affected permanent (opp)"
-            ),
-        ];
+            )
+        );
         if (affected.length === 0) continue;
         const controllerId = entry.controller === "me" ? p1.id : p2.id;
         if (entry.layer === 6) {
@@ -2177,7 +2235,10 @@ function seedContinuousEffects(
             // entry exists, exactly as every live producer does: after the
             // push, `staticAbilities` is a COMPOSED multiset and a base
             // captured from it would freeze this grant into the base.
-            for (const card of affected) ensureLayer6Base(card);
+            for (let j = 0; j < affected.length; j++) {
+                const card = affected[j];
+                ensureLayer6Base(card);
+            }
             seededLayer6 = true;
         }
         const slot =
@@ -2889,8 +2950,8 @@ function sameStringList(a: string[], b: string[]): boolean {
 
 function sameStringSet(a: string[], b: string[]): boolean {
     if (a.length !== b.length) return false;
-    const sa = [...a].sort();
-    const sb = [...b].sort();
+    const sa = a.slice().sort();
+    const sb = b.slice().sort();
     return sa.every((v, i) => v === sb[i]);
 }
 
@@ -2930,21 +2991,23 @@ function reportCharacteristicDrift(
         toughness: animated ? animated.toughness : def.toughness,
         types: animated
             ? [
-                  ...new Set<CardType>([
-                      ...def.types,
-                      "Creature",
-                      ...(animated.additionalTypes ?? []),
-                  ]),
+                  ...new Set<CardType>(
+                      def.types.concat(
+                          ["Creature"],
+                          animated.additionalTypes ?? []
+                      )
+                  ),
               ]
             : def.types,
         subtypes: animated
             ? [
-                  ...new Set([
-                      ...(def.subtypes ?? []),
-                      ...(animated.subtype === undefined
-                          ? []
-                          : [animated.subtype]),
-                  ]),
+                  ...new Set(
+                      (def.subtypes ?? []).concat(
+                          animated.subtype === undefined
+                              ? []
+                              : [animated.subtype]
+                      )
+                  ),
               ]
             : (def.subtypes ?? []),
     };
@@ -3000,13 +3063,13 @@ function lowerAnimation(
     const lowered: AnimateSpecWithPT = { power, toughness };
     if (anim.addedSubtype !== undefined) lowered.subtype = anim.addedSubtype;
     if (anim.addedTypes && anim.addedTypes.length > 0) {
-        lowered.additionalTypes = [...anim.addedTypes];
+        lowered.additionalTypes = anim.addedTypes.slice();
     }
     if (anim.grantedAbilities && anim.grantedAbilities.length > 0) {
-        lowered.grantedAbilities = [...anim.grantedAbilities];
+        lowered.grantedAbilities = anim.grantedAbilities.slice();
     }
     if (anim.colors && anim.colors.length > 0) {
-        lowered.colors = [...anim.colors];
+        lowered.colors = anim.colors.slice();
     }
     // CR 611.2 / 611.2a — the stored `Duration` carries a RESOLVED `playerId`;
     // the spec carries the symbolic `player` the card printed, re-resolved at
@@ -3331,7 +3394,8 @@ function reportTemporaryGrantResidue(
         "grantedActivatedAbilities",
         "grantedTriggeredAbilities",
     ] as const;
-    for (const field of fields) {
+    for (let i = 0; i < fields.length; i++) {
+        const field = fields[i];
         const grants = card[field] as
             | { duration?: unknown; auraId?: string }[]
             | undefined;
@@ -3545,10 +3609,9 @@ function lowerCard(
         }
 
         if (card.attachedTo) {
-            const host = [
-                ...state.players[0].battlefield,
-                ...state.players[1].battlefield,
-            ].find((c) => c.id === card.attachedTo);
+            const host = state.players[0].battlefield
+                .concat(state.players[1].battlefield)
+                .find((c) => c.id === card.attachedTo);
             if (host?.faceDown) {
                 // CR 708.2 — the same refusal a face-down stack TARGET gets
                 // (`lowerStackTarget`): a reference resolves on the PRESENTED
@@ -3693,7 +3756,7 @@ function animationRebuildKeys(
     if (colors) {
         if (
             card.colorOverride &&
-            sameStringSet([...card.colorOverride], [...colors])
+            sameStringSet(card.colorOverride.slice(), colors.slice())
         ) {
             allowed.add("colorOverride");
             // CR 613.7 — the animate clause stamps its colour set with the
@@ -3706,7 +3769,7 @@ function animationRebuildKeys(
         const temporary = rows?.length === 1 ? rows[0] : undefined;
         if (
             temporary &&
-            sameStringSet([...temporary.colors], [...colors]) &&
+            sameStringSet(temporary.colors.slice(), colors.slice()) &&
             sameDuration(temporary.duration, card.animation?.duration)
         ) {
             allowed.add("temporaryColorOverrides");
@@ -3825,7 +3888,8 @@ function lowerCombat(
     ): string[] | null => {
         const taken = new Set<string>();
         const ids: string[] = [];
-        for (const name of names) {
+        for (let i = 0; i < names.length; i++) {
+            const name = names[i];
             const found = battlefields
                 .flat()
                 // A face-down permanent never matches: it presents the
@@ -3914,7 +3978,9 @@ function lowerCombat(
     };
 
     if (combat) {
-        for (const id of combat.attackerIds) {
+        const idList = combat.attackerIds;
+        for (let i = 0; i < idList.length; i++) {
+            const id = idList[i];
             const attacker = onBattlefield(id);
             if (!attacker && isDepartedCombatantId(id)) {
                 departedAttackers.push({
@@ -3950,9 +4016,9 @@ function lowerCombat(
         lowered.confirmed = combat.confirmed;
         lowered.blockers = [];
         const blockerIds: string[] = [];
-        for (const [blockerId, blockedIds] of Object.entries(
-            combat.blockerAssignments
-        )) {
+        const entries2 = Object.entries(combat.blockerAssignments);
+        for (let i = 0; i < entries2.length; i++) {
+            const [blockerId, blockedIds] = entries2[i];
             const blocker = onBattlefield(blockerId);
             // CR 506.4 (issue #10120) — a blocker that left the battlefield
             // keeps its assignment under a tombstone, and is lowered as the
@@ -4083,7 +4149,8 @@ function lowerCombat(
     // independently of the declaration for exactly that reason.
     const attackedThisTurn: { me?: string[]; opp?: string[] } = {};
     const blockedThisTurn: { me?: string[]; opp?: string[] } = {};
-    for (const [index, player] of seatOrder.entries()) {
+    for (let index = 0; index < seatOrder.length; index++) {
+        const player = seatOrder[index];
         const seat = index === 0 ? ("me" as const) : ("opp" as const);
         const attacked = player.battlefield.filter(
             (card) => card.hasAttackedThisTurn && !card.faceDown
@@ -4392,7 +4459,9 @@ function lowerStackTarget(
                 : undefined;
         }
         case "permanent": {
-            for (const player of state.players) {
+            const playerList = state.players;
+            for (let i = 0; i < playerList.length; i++) {
+                const player = playerList[i];
                 const card = player.battlefield.find((c) => c.id === target.id);
                 if (!card) continue;
                 // CR 708.2 — a FACE-DOWN permanent has no name, and the two
@@ -4497,13 +4566,12 @@ function lowerZoneObjectRef(
     instanceId: string,
     seatOf: (playerId: string) => "me" | "opp"
 ): ScenarioZoneObjectRef | undefined | "absent" {
-    for (const player of state.players) {
-        for (const zone of [
-            "battlefield",
-            "graveyard",
-            "exile",
-            "hand",
-        ] as const) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const zoneList = ["battlefield", "graveyard", "exile", "hand"] as const;
+        for (let j = 0; j < zoneList.length; j++) {
+            const zone = zoneList[j];
             const pool =
                 zone === "hand" ? player.hand : zoneCards(player, zone);
             const card = pool.find((c) => c.id === instanceId);
@@ -4657,13 +4725,15 @@ function lowerStack(
                   (!isClone && STACK_SPELL_ALLOWLIST.has(k)) ||
                   (isClone && STACK_ABILITY_CLONE_KEYS.has(k)) ||
                   (isTrigger && STACK_TRIGGER_ALLOWLIST.has(k));
-        for (const key of Object.keys(item)
+        const keyList = Object.keys(item)
             .filter(
                 (k) =>
                     !carried(k) &&
                     (item as Record<string, unknown>)[k] !== undefined
             )
-            .sort()) {
+            .sort();
+        for (let i = 0; i < keyList.length; i++) {
+            const key = keyList[i];
             refuse(index, label, key, `the spec has no field for "${key}"`);
         }
 
@@ -4722,7 +4792,9 @@ function lowerStack(
             // already in a graveyard, CR 603.10) leaves nothing to clone from,
             // and the spec describes both kinds BY their source.
             const sourceId = isAbility ? item.id : item.triggerSourceId;
-            for (const player of state.players) {
+            const playerList = state.players;
+            for (let i = 0; i < playerList.length; i++) {
+                const player = playerList[i];
                 const found = player.battlefield.find((c) => c.id === sourceId);
                 if (!found) continue;
                 source = found;
@@ -4756,11 +4828,8 @@ function lowerStack(
                 // `types` are safe because this engine keeps pumps and type
                 // changes in the LAYER system rather than mutating the
                 // instance.
-                for (const key of [
-                    ...new Set([
-                        ...Object.keys(item),
-                        ...Object.keys(snapshot),
-                    ]),
+                const keyList2 = [
+                    ...new Set(Object.keys(item).concat(Object.keys(snapshot))),
                 ]
                     .filter(
                         (k) =>
@@ -4783,7 +4852,9 @@ function lowerStack(
                                     )[k]
                                 )
                     )
-                    .sort()) {
+                    .sort();
+                for (let i = 0; i < keyList2.length; i++) {
+                    const key = keyList2[i];
                     refuse(
                         index,
                         label,
@@ -4795,7 +4866,9 @@ function lowerStack(
         }
 
         const targets: ScenarioStackTarget[] = [];
-        for (const [slot, target] of (item.targets ?? []).entries()) {
+        const targetList = item.targets ?? [];
+        for (let slot = 0; slot < targetList.length; slot++) {
+            const target = targetList[slot];
             const loweredTarget = lowerStackTarget(state, item, target, seatOf);
             if (!loweredTarget) {
                 refuse(
@@ -4849,7 +4922,9 @@ function lowerStack(
                 if (lowered.ok) {
                     event = lowered.event;
                 } else {
-                    for (const field of lowered.fields) {
+                    const fieldList = lowered.fields;
+                    for (let i = 0; i < fieldList.length; i++) {
+                        const field = fieldList[i];
                         refuse(
                             index,
                             label,
@@ -4912,7 +4987,9 @@ function lowerStack(
                 if (lowered.ok) {
                     resolution = lowered.checkpoint;
                 } else {
-                    for (const field of lowered.fields) {
+                    const fieldList2 = lowered.fields;
+                    for (let i = 0; i < fieldList2.length; i++) {
+                        const field = fieldList2[i];
                         refuse(
                             index,
                             label,
@@ -5477,12 +5554,11 @@ function describeContinuousEffect(
  *  `buildStateFromScenario` would place them. CR 122.1b's counters live in all
  *  four, so the counter replay and its lowering twin walk all four. */
 function lowerableZoneCards(player: PlayerState): CardInstanceState[] {
-    return [
-        ...player.battlefield,
-        ...player.hand,
-        ...player.graveyard,
-        ...player.exile,
-    ];
+    return player.battlefield.concat(
+        player.hand,
+        player.graveyard,
+        player.exile
+    );
 }
 
 /** One affected instance as a presented name plus its seat, for a `dropped[]`
@@ -5495,10 +5571,12 @@ function affectedLabel(
     me: PlayerState,
     opp: PlayerState
 ): string {
-    for (const [seat, player] of [
+    const entries = [
         ["me", me],
         ["opp", opp],
-    ] as const) {
+    ] as const;
+    for (let i = 0; i < entries.length; i++) {
+        const [seat, player] = entries[i];
         const found = lowerableZoneCards(player).find(
             (card) => card.id === instanceId
         );
@@ -5555,7 +5633,8 @@ function affectedNames(
     opp: PlayerState
 ): { me?: string[]; opp?: string[] } | string {
     const affected: { me?: string[]; opp?: string[] } = {};
-    for (const instanceId of instanceIds) {
+    for (let i = 0; i < instanceIds.length; i++) {
+        const instanceId = instanceIds[i];
         const seat = (["me", "opp"] as const).find((candidate) =>
             (candidate === "me" ? me : opp).battlefield.some(
                 (card) => card.id === instanceId
@@ -5569,12 +5648,15 @@ function affectedNames(
         if (card.faceDown) {
             return "it affects a FACE-DOWN permanent, which presents as the CR 708.2 sentinel and has no card name for the spec to reference";
         }
-        affected[seat] = [...(affected[seat] ?? []), presentedName(card)];
+        affected[seat] = (affected[seat] ?? []).concat([presentedName(card)]);
     }
-    for (const [seat, player] of [
+    const entries = [
         ["me", me],
         ["opp", opp],
-    ] as const) {
+    ] as const;
+    for (let i = 0; i < entries.length; i++) {
+        const [seat, player] = entries[i];
+        // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
         for (const name of new Set(affected[seat] ?? [])) {
             const named = (affected[seat] ?? []).filter((n) => n === name);
             const onBoard = player.battlefield.filter(
@@ -5621,7 +5703,8 @@ function lowerContinuousEffects(
         rebuiltByCounterReplay(state, candidate)
     );
     const lowered: ScenarioContinuousEffect[] = [];
-    for (const entry of entries) {
+    for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
         const label = describeContinuousEffect(entry, me, opp);
         const report = (why: string) =>
             dropped.push(`continuousEffects: ${label} — ${why}; not lowered`);
@@ -5885,8 +5968,12 @@ export function specFromState(
 
     // CR 722.3b — the builder stages every "enters prepared" card prepared,
     // so a spec cannot say one has already been unprepared.
-    for (const p of [me, opp])
-        for (const card of p.battlefield)
+    const pList = [me, opp];
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
+        const cardList = p.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (
                 card.prepared !== true &&
                 hasPrepareSpell(card) &&
@@ -5896,22 +5983,30 @@ export function specFromState(
                 dropped.push(
                     `an unprepared preparation card (${p === me ? "me" : "opp"}) — the builder stages it prepared, with its exiled copy (CR 722.3a/b); the unprepared state is not lowered`
                 );
+        }
+    }
 
-    for (const zone of ["battlefield", "graveyard", "exile"] as const) {
-        for (const card of nameableCards(
+    const zoneList = ["battlefield", "graveyard", "exile"] as const;
+    for (let i = 0; i < zoneList.length; i++) {
+        const zone = zoneList[i];
+        const cardList2 = nameableCards(
             zoneCards(me, zone),
             zone,
             "me",
             dropped
-        )) {
+        );
+        for (let j = 0; j < cardList2.length; j++) {
+            const card = cardList2[j];
             cards.push(lowerCard(state, me, card, zone, "me", dropped));
         }
-        for (const card of nameableCards(
+        const cardList3 = nameableCards(
             zoneCards(opp, zone),
             zone,
             "opp",
             dropped
-        )) {
+        );
+        for (let j = 0; j < cardList3.length; j++) {
+            const card = cardList3[j];
             cards.push(lowerCard(state, opp, card, zone, "opp", dropped));
         }
     }
@@ -5949,7 +6044,8 @@ export function specFromState(
         meHand.push(entry);
     }
     cards.push(...meHand);
-    for (const card of oppNamedHand) {
+    for (let i = 0; i < oppNamedHand.length; i++) {
+        const card = oppNamedHand[i];
         cards.push(lowerCard(state, opp, card, "hand", "opp", dropped));
     }
     if (
@@ -6130,7 +6226,9 @@ export function specFromState(
             owner: first.owner,
             used: first.used,
         };
-        for (const extra of rest) {
+        const extraList = rest;
+        for (let i = 0; i < extraList.length; i++) {
+            const extra = extraList[i];
             dropped.push(
                 `${extra.owner}'s companion — the scenario spec supports only ONE companion slot; not lowered`
             );
@@ -6272,13 +6370,12 @@ export function specFromState(
     // can see; these have nowhere to ride, and the allowlist entry for
     // `abilityResolutionCounts` would otherwise swallow them without a word.
     const loweredIds = new Set<string>();
-    for (const p of [me, opp]) {
-        for (const card of [
-            ...p.battlefield,
-            ...p.hand,
-            ...p.graveyard,
-            ...p.exile,
-        ]) {
+    const pList2 = [me, opp];
+    for (let i = 0; i < pList2.length; i++) {
+        const p = pList2[i];
+        const cardList4 = p.battlefield.concat(p.hand, p.graveyard, p.exile);
+        for (let j = 0; j < cardList4.length; j++) {
+            const card = cardList4[j];
             loweredIds.add(card.id);
         }
     }
@@ -6320,10 +6417,12 @@ export function specFromState(
     const window = lowerLookedAtWindow(state, opts.mySeatId, dropped);
     if (window) cards.push(...window.cards);
 
-    for (const [label, p] of [
+    const entries2 = [
         ["me", me],
         ["opp", opp],
-    ] as const) {
+    ] as const;
+    for (let i = 0; i < entries2.length; i++) {
+        const [label, p] = entries2[i];
         // CR 106.4 (issue #3460) — the floating pool, LOWERED since this
         // widening rather than reported: it decides what the seat can cast this
         // instant, so a rebuild that emptied it posed a different question than

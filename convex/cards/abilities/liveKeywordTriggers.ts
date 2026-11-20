@@ -67,9 +67,10 @@ export function liveKeywordTriggerInstances(
     // this runs per permanent per trigger scan, and SpiderMonkey pays
     // `flatMap` as a self-hosted `FlattenIntoArray`.
     const instances: TriggeredAbility[] = [];
-    for (const { keyword, ability, perPermanent } of LIVE_KEYWORD_TRIGGERS) {
-        for (const k of staticAbilities) {
-            if (k !== keyword) continue;
+    for (let i = 0; i < LIVE_KEYWORD_TRIGGERS.length; i++) {
+        const { keyword, ability, perPermanent } = LIVE_KEYWORD_TRIGGERS[i];
+        for (let j = 0; j < staticAbilities.length; j++) {
+            if (staticAbilities[j] !== keyword) continue;
             instances.push(ability);
             if (perPermanent) break;
         }

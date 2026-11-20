@@ -15,7 +15,8 @@ export function returnMarkedPermanentsToHand(
     // CR 603.2c — one turn-based return: an exileOnLeave redirect of several
     // of them is one exile occurrence.
     withCardsExiledBatch(state, () => {
-        for (const card of marked) {
+        for (let i = 0; i < marked.length; i++) {
+            const card = marked[i];
             card.returnToHandAtUntapOf = undefined;
             removePermanentTo(state, card.id, "hand");
         }

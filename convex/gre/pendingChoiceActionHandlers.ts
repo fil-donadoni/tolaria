@@ -200,10 +200,9 @@ export function damageTargetActions(
     head: PendingChoice,
     ctx: ChoiceActionContext
 ): LegalAction[] {
-    return [
-        ...(head.candidateIds ?? []),
-        ...(head.candidatePlayerIds ?? []),
-    ].map((id) => ctx.submit([id]));
+    return (head.candidateIds ?? [])
+        .concat(head.candidatePlayerIds ?? [])
+        .map((id) => ctx.submit([id]));
 }
 
 /** `graveyard-order` (CR 404.3, issue #9554): every permutation of the batch
@@ -216,7 +215,7 @@ export function graveyardOrderActions(
     head: PendingChoice,
     ctx: ChoiceActionContext
 ): LegalAction[] {
-    return [ctx.submit([...(head.candidateIds ?? [])])];
+    return [ctx.submit((head.candidateIds ?? []).slice())];
 }
 
 /** A kind whose answer no `ChoiceAction` variant carries: nothing to offer. */
@@ -240,7 +239,9 @@ export function zonePickActions(
     const max = Math.min(getPendingChoiceMax(head.count), ids.length);
     const actions: LegalAction[] = [];
     for (let size = min; size <= max; size++) {
-        for (const combo of combinations(ids, size)) {
+        const comboList = combinations(ids, size);
+        for (let i = 0; i < comboList.length; i++) {
+            const combo = comboList[i];
             actions.push(ctx.submit(combo));
             if (actions.length >= MAX_COMBINATIONS) return actions;
         }

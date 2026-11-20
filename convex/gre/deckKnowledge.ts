@@ -137,7 +137,8 @@ export function unseenRemainder(
     observerId: string
 ): string[] {
     const remaining = new Map<string, number>();
-    for (const id of deckCardIds) {
+    for (let i = 0; i < deckCardIds.length; i++) {
+        const id = deckCardIds[i];
         remaining.set(id, (remaining.get(id) ?? 0) + 1);
     }
 
@@ -151,16 +152,38 @@ export function unseenRemainder(
     // By OWNERSHIP across every battlefield, graveyard and exile — a stolen
     // permanent, or a card that died under the opponent, is still this seat's
     // copy and the observer can see it.
-    for (const seat of state.players) {
-        for (const c of seat.battlefield) account(c);
-        for (const c of seat.graveyard) account(c);
-        for (const c of seat.exile) account(c);
+    const seatList = state.players;
+    for (let i = 0; i < seatList.length; i++) {
+        const seat = seatList[i];
+        const cList = seat.battlefield;
+        for (let j = 0; j < cList.length; j++) {
+            const c = cList[j];
+            account(c);
+        }
+        const cList2 = seat.graveyard;
+        for (let j = 0; j < cList2.length; j++) {
+            const c = cList2[j];
+            account(c);
+        }
+        const cList3 = seat.exile;
+        for (let j = 0; j < cList3.length; j++) {
+            const c = cList3[j];
+            account(c);
+        }
     }
     // Phased-out permanents are off the battlefield array but still public.
-    for (const bundle of state.phasedOut ?? []) {
-        for (const c of bundle.cards) account(c);
+    const bundleList = state.phasedOut ?? [];
+    for (let i = 0; i < bundleList.length; i++) {
+        const bundle = bundleList[i];
+        const cList4 = bundle.cards;
+        for (let j = 0; j < cList4.length; j++) {
+            const c = cList4[j];
+            account(c);
+        }
     }
-    for (const item of state.stack) {
+    const itemList = state.stack;
+    for (let i = 0; i < itemList.length; i++) {
+        const item = itemList[i];
         if (item.ownerId !== player.id) continue;
         if (!isSpellStackItem(item)) continue;
         // A copy is not a card (CR 707.10) — it never left the library.
@@ -173,7 +196,8 @@ export function unseenRemainder(
     // every engine and every run.
     const seen = new Map<string, number>();
     const out: string[] = [];
-    for (const id of deckCardIds) {
+    for (let i = 0; i < deckCardIds.length; i++) {
+        const id = deckCardIds[i];
         const budget = remaining.get(id) ?? 0;
         const taken = seen.get(id) ?? 0;
         if (taken >= budget) continue;
@@ -250,10 +274,13 @@ export function deckColorEvidence(
     deckCardIds: readonly string[]
 ): DeckColorEvidence {
     const out: Record<string, number> = {};
-    for (const id of deckCardIds) {
+    for (let i = 0; i < deckCardIds.length; i++) {
+        const id = deckCardIds[i];
         const def = tryGetDefinition(id);
         if (!def) continue;
-        for (const color of getCardColors(def)) {
+        const colorList = getCardColors(def);
+        for (let j = 0; j < colorList.length; j++) {
+            const color = colorList[j];
             // Type narrowing, not a behaviour guard: `getCardColors` reads the
             // mana cost through `getColorsFromCost`, which already skips "C"
             // (CR 105.2a — colourless is not a colour). The branch exists
@@ -286,7 +313,9 @@ export function deckColorsForSearch(
     observerId: string
 ): DeckColorsBySeat | undefined {
     const out: DeckColorsBySeat = [];
-    for (const seat of deckKnowledge ?? []) {
+    const seatList = deckKnowledge ?? [];
+    for (let i = 0; i < seatList.length; i++) {
+        const seat = seatList[i];
         if (seat.playerId === observerId) continue;
         out.push({
             playerId: seat.playerId,

@@ -927,15 +927,15 @@ function modeCombinationLedger(combinationCount: number) {
             }
         ): void {
             if (!sink) return;
-            for (const row of counts.values()) {
-                if (row.dropped === 0) continue;
+            counts.forEach((row) => {
+                if (row.dropped === 0) return;
                 sink({
                     ...base,
                     chosenModeIds: row.ids,
                     emitted: row.emitted,
                     dropped: row.dropped,
                 });
-            }
+            });
         },
     };
 }
@@ -1022,7 +1022,11 @@ type PlanOption =
 function optionYieldTotal(opt: PlanOption): number {
     if (opt.via === "converter" || !opt.produces) return 1;
     let total = 0;
-    for (const c of MANA_COLORS) total += opt.produces[c] ?? 0;
+    const cList = MANA_COLORS;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
+        total += opt.produces[c] ?? 0;
+    }
     return total;
 }
 
@@ -1056,7 +1060,9 @@ function plainTapOption(
  *  in disguise, and this runs per option per permanent on the hot path. */
 function explicitYield(mana: ManaCost): ManaCost | undefined {
     let total = 0;
-    for (const c of MANA_COLORS) {
+    const cList = MANA_COLORS;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
         total += mana[c] ?? 0;
         if (total >= 2) return mana;
     }
@@ -1114,7 +1120,9 @@ const COSTED_TAP_PLANNABLE_COST_LEGS: ReadonlySet<string> = new Set([
 /** True when every leg of this `{T}` mana activation's cost is one the planner
  *  can pay — see {@link COSTED_TAP_PLANNABLE_COST_LEGS}. */
 function tapActivationCostIsPlannable(ability: ActivatedAbility): boolean {
-    for (const [leg, value] of Object.entries(ability.cost)) {
+    const entries2 = Object.entries(ability.cost);
+    for (let i = 0; i < entries2.length; i++) {
+        const [leg, value] = entries2[i];
         if (value === undefined || value === false) continue;
         if (!COSTED_TAP_PLANNABLE_COST_LEGS.has(leg)) return false;
     }
@@ -1148,7 +1156,9 @@ function tapActivationExecutesWholeCost(
     // `undefined` = an intrinsic basic-land-subtype option (CR 305.6): a bare
     // {T} with no riders at all.
     if (!ability) return true;
-    for (const [leg, value] of Object.entries(ability.cost)) {
+    const entries2 = Object.entries(ability.cost);
+    for (let i = 0; i < entries2.length; i++) {
+        const [leg, value] = entries2[i];
         if (value === undefined || value === false) continue;
         if (!TAP_YIELD_CREDITABLE_COST_LEGS.has(leg)) return false;
     }
@@ -1436,7 +1446,9 @@ function planManaPaymentPass(
      *  (issue #3027). Only ever used to reject early, so an over-estimate is
      *  safe and an under-estimate would drop payable plans. */
     let capacity = 0;
-    for (const c of MANA_COLORS) {
+    const cList = MANA_COLORS;
+    for (let j = 0; j < cList.length; j++) {
+        const c = cList[j];
         const n = player.manaPool[c] ?? 0;
         for (let i = 0; i < n; i++) {
             sources.push({ options: new Map([[c, { via: "tap" }]]) });
@@ -1457,7 +1469,9 @@ function planManaPaymentPass(
     // Genuinely restricted units are still excluded: their eligibility depends
     // on the cost being paid, and folding them in unconditionally would have
     // the bot enumerate casts the server then refuses.
-    for (const unit of unrestrictedFloatingMana(player)) {
+    const unitList = unrestrictedFloatingMana(player);
+    for (let j = 0; j < unitList.length; j++) {
+        const unit = unitList[j];
         if (!(MANA_COLORS as readonly string[]).includes(unit.color)) continue;
         const color = unit.color as Color;
         for (let i = 0; i < unit.amount; i++) {
@@ -1472,7 +1486,9 @@ function planManaPaymentPass(
     // when a cast is payable. Only a cast names a spell; an activation or morph
     // plan takes none.
     if (cast?.cardDef) {
-        for (const unit of player.restrictedMana ?? []) {
+        const unitList2 = player.restrictedMana ?? [];
+        for (let j = 0; j < unitList2.length; j++) {
+            const unit = unitList2[j];
             if (!(MANA_COLORS as readonly string[]).includes(unit.color))
                 continue;
             // Already a source via `unrestrictedFloatingMana` above.
@@ -1505,7 +1521,9 @@ function planManaPaymentPass(
     // on it has).
     const nonTapFlags: boolean[] = [];
     let anyNonTapManaAbility = false;
-    for (const perm of player.battlefield) {
+    const permList = player.battlefield;
+    for (let j = 0; j < permList.length; j++) {
+        const perm = permList[j];
         const flag = mayHaveNonTapManaAbility(perm);
         nonTapFlags.push(flag);
         if (flag) anyNonTapManaAbility = true;
@@ -1779,7 +1797,9 @@ function planManaPaymentPass(
                     };
                 }
                 let stored = false;
-                for (const c of MANA_COLORS) {
+                const cList2 = MANA_COLORS;
+                for (let j = 0; j < cList2.length; j++) {
+                    const c = cList2[j];
                     if ((opt.mana[c] ?? 0) <= 0) continue;
                     const held = options.get(c);
                     // A higher-yield `{T}` option of a colour already held waits
@@ -1822,12 +1842,16 @@ function planManaPaymentPass(
         // The converter widening (see `manaConverters.ts`): only for a colour
         // this permanent cannot already produce by itself — its own tap is
         // strictly cheaper than an extra activation for the same mana.
-        for (const leg of converterLegs.get(perm.id) ?? []) {
+        const legList = converterLegs.get(perm.id) ?? [];
+        for (let j = 0; j < legList.length; j++) {
+            const leg = legList[j];
             // Issue #3081's rule for the fodder a tapping converter reserves:
             // the cost being funded already taps it.
             if (leg.fodderId !== undefined && leg.fodderId === barredSourceId)
                 continue;
-            for (const c of leg.colors) {
+            const cList3 = leg.colors;
+            for (let k = 0; k < cList3.length; k++) {
+                const c = cList3[k];
                 if (options.has(c)) continue;
                 const choiceIndex = leg.choiceIndexByColor?.[c];
                 options.set(c, {
@@ -1885,7 +1909,8 @@ function planManaPaymentPass(
         : getAbilityManaSubstitutions(state, player.id, abilitySource);
     const remaining = sources.map((s) => {
         const options = new Map(s.options);
-        for (const sub of substitutions) {
+        for (let i = 0; i < substitutions.length; i++) {
+            const sub = substitutions[i];
             const via = s.options.get(sub.from as Color);
             if (via && !options.has(sub.to as Color)) {
                 options.set(sub.to as Color, via);
@@ -1952,7 +1977,9 @@ function planManaPaymentPass(
     const creditYield = (opt: PlanOption, color: Color): void => {
         const produces = opt.via === "converter" ? undefined : opt.produces;
         if (produces && (produces[color] ?? 0) > 0) {
-            for (const c of MANA_COLORS) {
+            const cList = MANA_COLORS;
+            for (let i = 0; i < cList.length; i++) {
+                const c = cList[i];
                 const n = produces[c] ?? 0;
                 if (n > 0) {
                     floating[c] = (floating[c] ?? 0) + n;
@@ -1965,7 +1992,9 @@ function planManaPaymentPass(
         if (produces) {
             let colours = 0;
             let only = 0;
-            for (const c of MANA_COLORS) {
+            const cList2 = MANA_COLORS;
+            for (let i = 0; i < cList2.length; i++) {
+                const c = cList2[i];
                 const n = produces[c] ?? 0;
                 if (n > 0) {
                     colours++;
@@ -1991,7 +2020,9 @@ function planManaPaymentPass(
      *  `MANA_COLORS` order so the choice is deterministic. */
     const spendFloatingAny = (): boolean => {
         if (floatingTotal <= 0) return false;
-        for (const c of MANA_COLORS) {
+        const cList = MANA_COLORS;
+        for (let i = 0; i < cList.length; i++) {
+            const c = cList[i];
             if ((floating[c] ?? 0) > 0) {
                 floating[c]!--;
                 floatingTotal--;
@@ -2063,11 +2094,15 @@ function planManaPaymentPass(
         // today only because `manaTapOptionRiderIsSought` (constants.ts)
         // happens to refuse a `cost.mana` whose values are not all numbers, and
         // a fail-closed property must not live in another module.
-        for (const key of Object.keys(leg)) {
+        const keyList = Object.keys(leg);
+        for (let j = 0; j < keyList.length; j++) {
+            const key = keyList[j];
             if (key === "X") continue;
             if (!(MANA_COLORS as readonly string[]).includes(key)) return false;
         }
-        for (const c of MANA_COLORS) {
+        const cList = MANA_COLORS;
+        for (let j = 0; j < cList.length; j++) {
+            const c = cList[j];
             let need = leg[c] ?? 0;
             while (need > 0) {
                 // Mana this plan already produced pays the leg before any
@@ -2215,7 +2250,7 @@ function planManaPaymentPass(
             const candidate = pickCandidate(excluded);
             if (!candidate) return false;
             const src = remaining[candidate.idx];
-            const remainingSnapshot = [...remaining];
+            const remainingSnapshot = remaining.slice();
             const tapsLen = taps.length;
             // Issue #3027 — the floating pool is part of the partial effect a
             // failed `consume()` can leave behind (`fundGenericFromPlain`
@@ -2237,7 +2272,11 @@ function planManaPaymentPass(
             remaining.push(...remainingSnapshot);
             taps.length = tapsLen;
             if (floatingSnapshot) {
-                for (const c of MANA_COLORS) floating[c] = floatingSnapshot[c];
+                const cList = MANA_COLORS;
+                for (let i = 0; i < cList.length; i++) {
+                    const c = cList[i];
+                    floating[c] = floatingSnapshot[c];
+                }
             }
             floatingTotal = floatingTotalSnapshot;
             excluded.add(src);
@@ -2262,7 +2301,8 @@ function planManaPaymentPass(
         for (let i = 0; i < remaining.length; i++) {
             const s = remaining[i];
             if (excluded.has(s)) continue;
-            for (const c of colors) {
+            for (let j = 0; j < colors.length; j++) {
+                const c = colors[j];
                 const opt = s.options.get(c);
                 if (!opt) continue;
                 // Issue #3530 — under `spend` a finite source outranks
@@ -2312,7 +2352,9 @@ function planManaPaymentPass(
     // produce that color (basic land before dual, etc.) — but never one that
     // has to burn a SECOND source to fund itself while a self-sufficient one
     // is available (`planOptionRank`, issue #2420).
-    for (const c of MANA_COLORS) {
+    const cList4 = MANA_COLORS;
+    for (let j = 0; j < cList4.length; j++) {
+        const c = cList4[j];
         let need = cost[c] ?? 0;
         while (need > 0) {
             // Issue #3027 — mana a previous activation already produced pays
@@ -2340,7 +2382,9 @@ function planManaPaymentPass(
     // colour pips (which are less flexible) and before the generic remainder:
     // each `"A/B"` key is paid by ONE mana of A or of B. Without this the
     // planner ignored the key — an empty plan for `{ "G/U": 2 }` on no lands.
-    for (const [first, second] of normalizedHybridPips(cost)) {
+    const entries = normalizedHybridPips(cost);
+    for (let j = 0; j < entries.length; j++) {
+        const [first, second] = entries[j];
         const pip: readonly Color[] = [first, second];
         const floated = pip.find((c) => spendFloating(c));
         if (floated !== undefined) continue;
@@ -2415,13 +2459,13 @@ function planManaPaymentPass(
                         : 1;
                 let rank = Infinity;
                 let color: Color | undefined;
-                for (const c of s.options.keys()) {
+                s.options.forEach((_v, c) => {
                     const r = planOptionRank(s, c);
                     if (r < rank) {
                         rank = r;
                         color = c;
                     }
-                }
+                });
                 if (color === undefined) continue;
                 // Same lexicographic (rank, colour-count, yield) tie-break as
                 // the coloured loop — see there (issue #3027).
@@ -2493,7 +2537,8 @@ function planSpendsFiniteUse(
     tapPlan: ManaTap[]
 ): boolean {
     let battlefields: ReturnType<typeof manaGateBattlefields> | undefined;
-    for (const tap of tapPlan) {
+    for (let i = 0; i < tapPlan.length; i++) {
+        const tap = tapPlan[i];
         // A converter entry activates ANOTHER permanent's ability and taps no
         // charge of its own (CR 602.1). Keyed on `abilityId` because that is
         // exactly how `applyTapPlanInSearch` (searchTapPlan.ts) decides which
@@ -2688,7 +2733,7 @@ export function combinations<T>(items: T[], k: number): T[][] {
     const pick = (start: number, acc: T[]) => {
         if (out.length >= MAX_COMBINATIONS) return;
         if (acc.length === k) {
-            out.push([...acc]);
+            out.push(acc.slice());
             return;
         }
         for (let i = start; i < items.length; i++) {
@@ -2704,12 +2749,14 @@ export function combinations<T>(items: T[], k: number): T[][] {
 /** Power set of `items`, capped at `MAX_COMBINATIONS`. */
 function powerSet<T>(items: T[]): T[][] {
     const out: T[][] = [[]];
-    for (const item of items) {
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
         const next: T[][] = [];
-        for (const subset of out) {
+        for (let j = 0; j < out.length; j++) {
+            const subset = out[j];
             next.push(subset);
             if (out.length + next.length <= MAX_COMBINATIONS) {
-                next.push([...subset, item]);
+                next.push(subset.concat([item]));
             }
         }
         out.length = 0;
@@ -2834,12 +2881,12 @@ function permutations<T>(items: T[]): T[][] {
     const walk = (acc: T[], rest: T[]) => {
         if (out.length >= MAX_COMBINATIONS) return;
         if (rest.length === 0) {
-            out.push([...acc]);
+            out.push(acc.slice());
             return;
         }
         for (let i = 0; i < rest.length; i++) {
             acc.push(rest[i]);
-            walk(acc, [...rest.slice(0, i), ...rest.slice(i + 1)]);
+            walk(acc, rest.slice(0, i).concat(rest.slice(i + 1)));
             acc.pop();
         }
     };
@@ -2867,7 +2914,8 @@ function orderedGroupFlags(
     const flags: boolean[] = [];
     let offset = 0;
     let ordered = false;
-    for (const req of groups) {
+    for (let i = 0; i < groups.length; i++) {
+        const req = groups[i];
         if (!req) {
             flags.push(false);
             continue;
@@ -2952,7 +3000,9 @@ function enumerateTargetTuples(
             tuples.push([]);
             continue;
         }
-        for (const combo of combinations(legal, size)) {
+        const comboList = combinations(legal, size);
+        for (let i = 0; i < comboList.length; i++) {
+            const combo = comboList[i];
             // CR 601.2c (issue #1104) — a `sameController`-constrained
             // requirement's per-candidate legality is unconstrained in
             // isolation (checked by `getLegalTargets` above, correctly:
@@ -2969,9 +3019,12 @@ function enumerateTargetTuples(
             // different announcements of the same spell, so each is its own
             // Move. `combo` is already the identity ordering, so a size-1
             // group (and the symmetric default) allocates nothing extra.
-            for (const arrangement of orderedSlots && combo.length > 1
-                ? permutations(combo)
-                : [combo]) {
+            const arrangementList =
+                orderedSlots && combo.length > 1
+                    ? permutations(combo)
+                    : [combo];
+            for (let j = 0; j < arrangementList.length; j++) {
+                const arrangement = arrangementList[j];
                 tuples.push(arrangement);
                 if (tuples.length >= MAX_COMBINATIONS) return tuples;
             }
@@ -3079,7 +3132,8 @@ function enumerateTargetGroupTuples(
                 : {}),
         },
     ];
-    for (const [g, req] of groups.entries()) {
+    for (let g = 0; g < groups.length; g++) {
+        const req = groups[g];
         const tuplesAfter = (prior: readonly TargetSelection[]) =>
             enumerateTargetTuples(
                 state,
@@ -3118,7 +3172,9 @@ function enumerateTargetGroupTuples(
         const groupMinSlots = req ? targetCount(req, chosenX).min : 0;
         const instance = groupInstances?.[g];
         const next: Tuple[] = [];
-        for (const prefix of acc) {
+        const prefixList = acc;
+        for (let i = 0; i < prefixList.length; i++) {
+            const prefix = prefixList[i];
             // The picks "another target" may exclude: every earlier pick, or
             // with mode instances only the trailing span this group's own
             // instance has filled so far (instances fill in printed order).
@@ -3129,7 +3185,9 @@ function enumerateTargetGroupTuples(
                               prefix.modeTargetCounts[instance]
                       )
                     : prefix.targets;
-            for (const tuple of sharedTuples ?? tuplesAfter(priorPicks)) {
+            const tupleList = sharedTuples ?? tuplesAfter(priorPicks);
+            for (let j = 0; j < tupleList.length; j++) {
+                const tuple = tupleList[j];
                 // CR 115.3 "another target" (issue #3236) — the group may not
                 // re-pick a permanent an earlier group chose; the engine lowers
                 // the same directive into `excludeInstanceIds` when the walk
@@ -3209,11 +3267,11 @@ function enumerateTargetGroupTuples(
                 }
                 let modeTargetCounts = prefix.modeTargetCounts;
                 if (modeTargetCounts && instance !== undefined) {
-                    modeTargetCounts = [...modeTargetCounts];
+                    modeTargetCounts = modeTargetCounts.slice();
                     modeTargetCounts[instance] += tuple.length;
                 }
                 next.push({
-                    targets: [...prefix.targets, ...tuple],
+                    targets: prefix.targets.concat(tuple),
                     lastGroupSize: tuple.length,
                     lastGroupPrior: priorPicks,
                     ...(modeTargetCounts ? { modeTargetCounts } : {}),
@@ -3248,7 +3306,8 @@ function comboSharesController(
 ): boolean {
     let controllerId: string | undefined;
     let graveyardOwnerId: string | undefined;
-    for (const t of combo) {
+    for (let i = 0; i < combo.length; i++) {
+        const t = combo[i];
         if (t.type === "graveyard-card") {
             const owner = state.players.find((p) =>
                 p.graveyard.some((c) => c.id === t.id)
@@ -3260,7 +3319,9 @@ function comboSharesController(
         }
         if (t.type !== "permanent") continue;
         let found: string | undefined;
-        for (const p of state.players) {
+        const pList = state.players;
+        for (let j = 0; j < pList.length; j++) {
+            const p = pList[j];
             const card = p.battlefield.find((c) => c.id === t.id);
             if (card) {
                 found = card.controllerId;
@@ -3311,10 +3372,9 @@ export function enumerateRaisedTargetMoves(
     );
     // CR 115.7d / 707.10c — a current target may stay even if illegal by now.
     const kept = keepableTargets(state, pt);
-    const legal = [
-        ...newlyLegal,
-        ...kept.filter((t) => !isAlreadySelectedTarget(t, newlyLegal)),
-    ];
+    const legal = newlyLegal.concat(
+        kept.filter((t) => !isAlreadySelectedTarget(t, newlyLegal))
+    );
     const isKept = (t: TargetSelection) => isAlreadySelectedTarget(t, kept);
 
     const minTotal = typeof pt.count === "number" ? pt.count : pt.count.min;
@@ -3353,7 +3413,9 @@ export function enumerateRaisedTargetMoves(
             }
             continue;
         }
-        for (const combo of combinations(legal, size)) {
+        const comboList = combinations(legal, size);
+        for (let i = 0; i < comboList.length; i++) {
+            const combo = comboList[i];
             // CR 601.2c (issue #1104) — `sameController` is a COMBINATORIAL
             // constraint `getLegalTargets` cannot see per-candidate; mirror the
             // post-filter `enumerateTargetTuples` applies for casts.
@@ -3523,7 +3585,7 @@ export function enumerateCastMoves(
                           : m
                   )
           );
-    const moves = [...printedMoves, ...ownAltMoves, ...permissionMoves];
+    const moves = printedMoves.concat(ownAltMoves, permissionMoves);
     if (castFromZone === "hand") return moves;
     // Stamp the zone once, here, rather than at each of the four `moves.push`
     // sites below (printed cost, bestow, morph, dash) — a new cast variant
@@ -3575,11 +3637,12 @@ function searchPayableOwnAlternativeCosts(
     // charge different cards. No shipped card carries both, so fail closed.
     if (def.additionalCosts !== undefined) return [];
     const ownIds = new Set(
-        [
-            ...(def.alternativeCosts ?? []),
-            ...(def.evoke ? [def.evoke] : []),
-            ...(def.emerge ? [def.emerge] : []),
-        ].map((a) => a.id)
+        (def.alternativeCosts ?? [])
+            .concat(
+                def.evoke ? [def.evoke] : [],
+                def.emerge ? [def.emerge] : []
+            )
+            .map((a) => a.id)
     );
     if (ownIds.size === 0) return [];
     return affordableAlternativeCosts(state, player, card).filter(
@@ -3903,7 +3966,7 @@ function enumerateCastMovesFromZone(
         // CR 702.47d — a splice reveal's target groups follow the spell's
         // own, from the SAME list `announceCast` appends (`splicedTargetGroups`).
         return castAnnouncedTargetGroups(
-            [primary, ...extra],
+            [primary].concat(extra),
             def ? kickedCountOfPayments(def, kickerPayments) > 0 : false
         ).concat(splicedTargetGroups(def ?? undefined, kickerPayments));
     };
@@ -4342,15 +4405,19 @@ function enumerateCastMovesFromZone(
     // offer a cast for the 709.4b summed cost that `announceCast` rejects —
     // the #2283/#2284 bot-freeze shape. `offersPrintedCast`
     // (`cards/splitCard.ts`) is the same predicate the human gate reads.
-    for (const {
-        chosenModeIds,
-        groupInstances,
-        groups,
-        additionalCostLegId,
-        kickerPayments,
-        buybackPaid,
-        slotRoleEffects,
-    } of offersPrintedCast(def ?? undefined) ? announceVariants : []) {
+    const entries2 = offersPrintedCast(def ?? undefined)
+        ? announceVariants
+        : [];
+    for (let j = 0; j < entries2.length; j++) {
+        const {
+            chosenModeIds,
+            groupInstances,
+            groups,
+            additionalCostLegId,
+            kickerPayments,
+            buybackPaid,
+            slotRoleEffects,
+        } = entries2[j];
         // CR 601.2c — the executor sends every announced target in ONE batched
         // `selectTargets` call and then AT MOST ONE trailing `confirmTargets`.
         // A fixed-count group auto-advances inside that batch
@@ -4426,7 +4493,8 @@ function enumerateCastMovesFromZone(
                       kickerPayments
                   )
                 : xValues;
-        for (const x of variantXValues) {
+        for (let k = 0; k < variantXValues.length; k++) {
+            const x = variantXValues[k];
             const normCost = normalizeManaCost(rawCost, { chosenX: x ?? 0 });
             // CR 107.3a / 601.2h (issue #4506) — this variant's caster-chosen
             // DISTINCT colours for X (Emblazoned Golem's Kicker), picked the
@@ -4536,7 +4604,9 @@ function enumerateCastMovesFromZone(
                     state
                 );
                 if (split === null) continue;
-                for (const [c, n] of Object.entries(split.manaAdditions)) {
+                const entries3 = Object.entries(split.manaAdditions);
+                for (let i2 = 0; i2 < entries3.length; i2++) {
+                    const [c, n] = entries3[i2];
                     if (n && n > 0) normCost[c] = (normCost[c] ?? 0) + n;
                 }
                 // `+=`, not `=` (issue #2398 review round 1, finding 5): the
@@ -4693,13 +4763,9 @@ function enumerateCastMovesFromZone(
             // the whole Effect Script, depends only on the script, the groups
             // and X, and `enumerateMoves` runs at every ISMCTS node.
             const ordered = orderedGroupFlags(slotRoleEffects, groups, x);
-            for (const tapPlan of tapPlans) {
-                for (const {
-                    targets,
-                    lastGroupSize,
-                    lastGroupPrior,
-                    modeTargetCounts,
-                } of enumerateTargetGroupTuples(
+            for (let i2 = 0; i2 < tapPlans.length; i2++) {
+                const tapPlan = tapPlans[i2];
+                const entries4 = enumerateTargetGroupTuples(
                     state,
                     player,
                     card,
@@ -4709,7 +4775,14 @@ function enumerateCastMovesFromZone(
                         ? { count: chosenModeIds.length, groupInstances }
                         : undefined,
                     ordered
-                )) {
+                );
+                for (let i3 = 0; i3 < entries4.length; i3++) {
+                    const {
+                        targets,
+                        lastGroupSize,
+                        lastGroupPrior,
+                        modeTargetCounts,
+                    } = entries4[i3];
                     if (
                         perModeCombination &&
                         chosenModeIds &&
@@ -4831,17 +4904,17 @@ function enumerateCastMovesFromZone(
         });
         if (bestowTapPlans.length > 0) {
             // Plan loop outside the target loop (PR #3566 review finding 5).
-            for (const bestowTapPlan of bestowTapPlans) {
-                for (const {
-                    targets,
-                    lastGroupSize,
-                } of enumerateTargetGroupTuples(
+            for (let j = 0; j < bestowTapPlans.length; j++) {
+                const bestowTapPlan = bestowTapPlans[j];
+                const entries5 = enumerateTargetGroupTuples(
                     state,
                     player,
                     card,
                     [BESTOW_TARGET_REQUIREMENT],
                     undefined
-                )) {
+                );
+                for (let k = 0; k < entries5.length; k++) {
+                    const { targets, lastGroupSize } = entries5[k];
                     moves.push({
                         kind: "cast-spell",
                         cardInstanceId: card.id,
@@ -4913,7 +4986,9 @@ function enumerateCastMovesFromZone(
             player.id
         );
         applyCostModifiers(morphCost, morphModifiers);
-        for (const morphTapPlan of castTapPlans(state, player, morphCost)) {
+        const morphTapPlanList = castTapPlans(state, player, morphCost);
+        for (let j = 0; j < morphTapPlanList.length; j++) {
+            const morphTapPlan = morphTapPlanList[j];
             moves.push({
                 kind: "cast-spell",
                 cardInstanceId: card.id,
@@ -4957,12 +5032,12 @@ function enumerateCastMovesFromZone(
     // alternative cost on a creature card, and what it changes (time counters,
     // "not a creature" while they last) is stamped by the cast-mode census
     // (`gre/castMode.ts`), so the search sees the two boards side by side.
-    const priceOnlyCosts = [
-        def?.dash,
-        ...(card.zone === "hand" ? [def?.warp] : []),
-        def?.impending,
-    ];
-    for (const priceOnlyCost of priceOnlyCosts) {
+    const priceOnlyCosts = [def?.dash].concat(
+        card.zone === "hand" ? [def?.warp] : [],
+        [def?.impending]
+    );
+    for (let j = 0; j < priceOnlyCosts.length; j++) {
+        const priceOnlyCost = priceOnlyCosts[j];
         if (
             priceOnlyCost &&
             lifeInsteadOfMana === undefined &&
@@ -4984,10 +5059,12 @@ function enumerateCastMovesFromZone(
                 player.id
             );
             applyCostModifiers(altCost, altModifiers);
-            for (const altTapPlan of castTapPlans(state, player, altCost, {
+            const altTapPlanList = castTapPlans(state, player, altCost, {
                 cardInstanceId: card.id,
                 cardDef: def,
-            })) {
+            });
+            for (let k = 0; k < altTapPlanList.length; k++) {
+                const altTapPlan = altTapPlanList[k];
                 moves.push({
                     kind: "cast-spell",
                     cardInstanceId: card.id,
@@ -5043,12 +5120,12 @@ function enumerateCastMovesFromZone(
             player.id
         );
         applyCostModifiers(overloadCost, overloadModifiers);
-        for (const overloadTapPlan of castTapPlans(
-            state,
-            player,
-            overloadCost,
-            { cardInstanceId: card.id, cardDef: def }
-        )) {
+        const overloadTapPlanList = castTapPlans(state, player, overloadCost, {
+            cardInstanceId: card.id,
+            cardDef: def,
+        });
+        for (let j = 0; j < overloadTapPlanList.length; j++) {
+            const overloadTapPlan = overloadTapPlanList[j];
             moves.push({
                 kind: "cast-spell",
                 cardInstanceId: card.id,
@@ -5079,32 +5156,35 @@ function enumerateCastMovesFromZone(
     // `independentCastOptionsFor` (not the per-mechanic builders) is what
     // withdraws the Adventure on a card exiled by its own Adventure
     // (CR 715.3d) and what a third such mode would join.
-    for (const alt of chosenAltCost === undefined
-        ? // CR 712.11c — a modal card's back face only where the licence this
-          // cast rides reaches it: the authority `getLegalActions` and
-          // `announceCast` ask.
-          independentCastOptionsFor(
-              card,
-              modalBackCastLicensed(
-                  state,
-                  player,
+    const altList =
+        chosenAltCost === undefined
+            ? // CR 712.11c — a modal card's back face only where the licence this
+              // cast rides reaches it: the authority `getLegalActions` and
+              // `announceCast` ask.
+              independentCastOptionsFor(
                   card,
-                  castFromZone,
-                  player.id
-              ),
-              castFromZone === "exile"
-                  ? { state, casterId: player.id }
-                  : undefined
-          )
-        : // CR 601.2b — "a player can't apply two alternative methods of
-          // casting or two alternative costs to a single spell": an Adventure
-          // never rides on a chosen alternative cost (issue #4900). A split
-          // card gets here with one only as a board permission's free cast of
-          // ONE half (CR 709.3), whose id names that half: choosing a half is
-          // no alternative cost, so it is the one option this pass walks.
-          isFaceChoiceCastId(def ?? undefined, chosenAltCost.id)
-          ? [chosenAltCost]
-          : []) {
+                  modalBackCastLicensed(
+                      state,
+                      player,
+                      card,
+                      castFromZone,
+                      player.id
+                  ),
+                  castFromZone === "exile"
+                      ? { state, casterId: player.id }
+                      : undefined
+              )
+            : // CR 601.2b — "a player can't apply two alternative methods of
+              // casting or two alternative costs to a single spell": an Adventure
+              // never rides on a chosen alternative cost (issue #4900). A split
+              // card gets here with one only as a board permission's free cast of
+              // ONE half (CR 709.3), whose id names that half: choosing a half is
+              // no alternative cost, so it is the one option this pass walks.
+              isFaceChoiceCastId(def ?? undefined, chosenAltCost.id)
+              ? [chosenAltCost]
+              : [];
+    for (let j = 0; j < altList.length; j++) {
+        const alt = altList[j];
         // CR 601.2b / 118.9a (PR review finding 1) — "a player can't apply two
         // alternative methods of casting … to a single spell", and a cast off
         // a permission that REPLACES the mana cost with life (Bolas's Citadel)
@@ -5215,8 +5295,7 @@ function enumerateCastMovesFromZone(
         // the right half's as an additional one.
         const altGroups: (TargetRequirement | undefined)[] = [
             subjectDef?.targetRequirement,
-            ...(subjectDef?.additionalTargetRequirements ?? []),
-        ];
+        ].concat(subjectDef?.additionalTargetRequirements ?? []);
         const altLastReq = altGroups[altGroups.length - 1];
         // CR 601.2c (issue #4193) — the SUBJECT's script, paired with the
         // SUBJECT's requirements above: an Adventure or split half is its own
@@ -5227,8 +5306,9 @@ function enumerateCastMovesFromZone(
             altGroups,
             undefined
         );
-        for (const altTapPlan of altTapPlans) {
-            for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
+        for (let k = 0; k < altTapPlans.length; k++) {
+            const altTapPlan = altTapPlans[k];
+            const entries6 = enumerateTargetGroupTuples(
                 state,
                 player,
                 subject,
@@ -5236,7 +5316,9 @@ function enumerateCastMovesFromZone(
                 undefined,
                 undefined,
                 altOrdered
-            )) {
+            );
+            for (let i2 = 0; i2 < entries6.length; i2++) {
+                const { targets, lastGroupSize } = entries6[i2];
                 moves.push({
                     kind: "cast-spell",
                     cardInstanceId: card.id,
@@ -5294,7 +5376,8 @@ function enumerateAbilityMoves(
     const fromGraveyard = opts?.zone === "graveyard";
     const fromHand = opts?.zone === "hand";
     const moves: Move[] = [];
-    for (const { ability } of effectiveAbilities) {
+    for (let j = 0; j < effectiveAbilities.length; j++) {
+        const { ability } = effectiveAbilities[j];
         // When scanning an opponent's permanent (CR 113.3c / 602.1), only "any
         // player may activate" and "only your opponents may activate" abilities
         // are legal for this player.
@@ -5646,7 +5729,9 @@ function enumerateAbilityMoves(
                           chosenX !== undefined ? { chosenX } : {}
                       )
                     : {};
-            for (const [sym, amt] of Object.entries(hostNorm ?? {})) {
+            const entries2 = Object.entries(hostNorm ?? {});
+            for (let i = 0; i < entries2.length; i++) {
+                const [sym, amt] = entries2[i];
                 manaCost[sym] = (manaCost[sym] ?? 0) + amt;
             }
             // Chromatic Armor (CR 601.2f) — "{X}: … X is the number of
@@ -5829,8 +5914,7 @@ function enumerateAbilityMoves(
                               chosenModeIds: ids,
                               groups: [
                                   selfExcluded(mode?.targetRequirement),
-                                  ...abilityExtraGroups,
-                              ],
+                              ].concat(abilityExtraGroups),
                               groupInstances: undefined,
                           };
                       }
@@ -5857,8 +5941,7 @@ function enumerateAbilityMoves(
                               selfExcluded(
                                   abilityTargetRequirement(ability, perm, state)
                               ),
-                              ...abilityExtraGroups,
-                          ],
+                          ].concat(abilityExtraGroups),
                           groupInstances: undefined,
                       },
                   ];
@@ -5881,18 +5964,20 @@ function enumerateAbilityMoves(
         );
         if (basePickVariants.length === 0) continue;
 
-        for (const { chosenX, funded, substitution } of fundingVariants) {
+        for (let k = 0; k < fundingVariants.length; k++) {
+            const { chosenX, funded, substitution } = fundingVariants[k];
             const tapPlan = funded.plan;
             const pickVariants = basePickVariants.map((picks) =>
                 substitution
                     ? { ...picks, tapOtherIds: substitution.tapOtherIds }
                     : picks
             );
-            for (const {
-                chosenModeIds,
-                groups: abilityGroups,
-                groupInstances,
-            } of abilityModeVariants) {
+            for (let i2 = 0; i2 < abilityModeVariants.length; i2++) {
+                const {
+                    chosenModeIds,
+                    groups: abilityGroups,
+                    groupInstances,
+                } = abilityModeVariants[i2];
                 // CR 601.2c via CR 602.2b — one enumerator for both shapes (issue
                 // #2870). The single-group case is `[req]`, which
                 // `enumerateTargetGroupTuples` handles identically to the old
@@ -5919,12 +6004,7 @@ function enumerateAbilityMoves(
                     continue;
                 }
                 const lastAbilityReq = abilityGroups[abilityGroups.length - 1];
-                for (const {
-                    targets,
-                    lastGroupSize,
-                    lastGroupPrior,
-                    modeTargetCounts,
-                } of enumerateTargetGroupTuples(
+                const entries3 = enumerateTargetGroupTuples(
                     state,
                     player,
                     perm,
@@ -5935,7 +6015,14 @@ function enumerateAbilityMoves(
                     chosenModeIds && groupInstances
                         ? { count: chosenModeIds.length, groupInstances }
                         : undefined
-                )) {
+                );
+                for (let i3 = 0; i3 < entries3.length; i3++) {
+                    const {
+                        targets,
+                        lastGroupSize,
+                        lastGroupPrior,
+                        modeTargetCounts,
+                    } = entries3[i3];
                     // CR 107.3 (issue #3117) — the derived-X price is PER TARGET,
                     // not per ability: a cheaper spell target can be affordable
                     // while a pricier one in the same tuple set is not.
@@ -5971,7 +6058,8 @@ function enumerateAbilityMoves(
                         tupleLifePips = tupleFunded.lifePips;
                     }
                     if (tupleTapPlan === null) continue;
-                    for (const costPicks of pickVariants) {
+                    for (let i4 = 0; i4 < pickVariants.length; i4++) {
+                        const costPicks = pickVariants[i4];
                         if (
                             abilityPerModeCombination &&
                             chosenModeIds &&
@@ -6089,7 +6177,7 @@ export function enumerateAttackerMoves(
     const subsets = requiredBases.flatMap((base) =>
         powerSet(optional)
             .filter((subset) => subset.length <= slack)
-            .map((subset) => [...base, ...subset.map((c) => c.id)])
+            .map((subset) => base.concat(subset.map((c) => c.id)))
             .filter(
                 (ids) =>
                     declaredAttackRestrictionViolation(
@@ -6166,24 +6254,29 @@ export function enumerateAttackerMoves(
             .map((c) => c.id)
     );
     const pwMoves: Move[] = [];
-    for (const pw of defenderPlaneswalkers) {
-        for (const attackerIds of subsets) {
+    for (let i = 0; i < defenderPlaneswalkers.length; i++) {
+        const pw = defenderPlaneswalkers[i];
+        for (let j = 0; j < subsets.length; j++) {
+            const attackerIds = subsets[j];
             const attackTargets: Record<string, string> = {};
-            for (const id of attackerIds) {
+            for (let k = 0; k < attackerIds.length; k++) {
+                const id = attackerIds[k];
                 if (!pinnedIds.has(id)) attackTargets[id] = pw.id;
             }
             // No attacker free to aim at the walker: the variant is the plain
             // declaration `baseMoves` already holds.
             if (Object.keys(attackTargets).length === 0) continue;
-            for (const variant of withExertVariants(attackerIds)) {
+            const variantList = withExertVariants(attackerIds);
+            for (let k = 0; k < variantList.length; k++) {
+                const variant = variantList[k];
                 if (pwMoves.length >= MAX_COMBINATIONS) break;
                 pwMoves.push({ ...variant, attackTargets });
             }
         }
     }
 
-    const declarations = [...baseMoves, ...pwMoves];
-    return [...declarations, ...enlistVariants(state, player, declarations)];
+    const declarations = baseMoves.concat(pwMoves);
+    return declarations.concat(enlistVariants(state, player, declarations));
 }
 
 /** How many partners an enlist offer considers, and how many paid declarations
@@ -6217,7 +6310,8 @@ function enlistVariants(
     const largestFirst = declarations
         .filter((m) => m.kind === "declare-attackers")
         .sort((a, b) => b.attackerIds.length - a.attackerIds.length);
-    for (const move of largestFirst) {
+    for (let i = 0; i < largestFirst.length; i++) {
+        const move = largestFirst[i];
         const slots = move.attackerIds.flatMap((id) =>
             Array.from(
                 {
@@ -6233,7 +6327,9 @@ function enlistVariants(
             .sort((a, b) => b.power - a.power)
             .slice(0, ENLIST_PARTNERS_PER_OFFER)
             .map((c) => c.id);
-        for (const enlists of enlistAssignments(slots, partners)) {
+        const enlistsList = enlistAssignments(slots, partners);
+        for (let j = 0; j < enlistsList.length; j++) {
+            const enlists = enlistsList[j];
             if (variants.length >= ENLIST_VARIANT_BUDGET) return variants;
             variants.push({ ...move, enlists });
         }
@@ -6262,7 +6358,9 @@ export function enumerateBlockerMoves(
         blocker: CardInstanceState;
         options: (string | null)[];
     }[] = [];
-    for (const blocker of player.battlefield) {
+    const blockerList = player.battlefield;
+    for (let i = 0; i < blockerList.length; i++) {
+        const blocker = blockerList[i];
         if (!blocker.types.includes("Creature")) continue;
         if (blocker.isTapped) continue;
         const legal = attackers.filter(
@@ -6289,14 +6387,21 @@ export function enumerateBlockerMoves(
 
     // Cartesian product of per-blocker choices, capped.
     let combos: { blockerId: string; attackerId: string }[][] = [[]];
-    for (const { blocker, options } of perBlocker) {
+    for (let i = 0; i < perBlocker.length; i++) {
+        const { blocker, options } = perBlocker[i];
         const next: { blockerId: string; attackerId: string }[][] = [];
-        for (const combo of combos) {
-            for (const opt of options) {
+        const comboList = combos;
+        for (let j = 0; j < comboList.length; j++) {
+            const combo = comboList[j];
+            const optList = options;
+            for (let k = 0; k < optList.length; k++) {
+                const opt = optList[k];
                 next.push(
                     opt === null
                         ? combo
-                        : [...combo, { blockerId: blocker.id, attackerId: opt }]
+                        : combo.concat([
+                              { blockerId: blocker.id, attackerId: opt },
+                          ])
                 );
                 if (next.length >= MAX_COMBINATIONS) break;
             }
@@ -6328,13 +6433,15 @@ export function enumerateBlockerMoves(
     // SAME `getMinimumBlockers`, so a new source can never desync them.
     const minLegal = capped.filter((assignments) => {
         const blockerCountByAttacker = new Map<string, number>();
-        for (const a of assignments) {
+        for (let i = 0; i < assignments.length; i++) {
+            const a = assignments[i];
             blockerCountByAttacker.set(
                 a.attackerId,
                 (blockerCountByAttacker.get(a.attackerId) ?? 0) + 1
             );
         }
-        for (const atk of attackers) {
+        for (let i = 0; i < attackers.length; i++) {
+            const atk = attackers[i];
             const blockedBy = blockerCountByAttacker.get(atk.id) ?? 0;
             if (blockedBy > 0 && blockedBy < getMinimumBlockers(atk)) {
                 return false;
@@ -6381,7 +6488,8 @@ function enumerateGrantedAbilityMoves(
     if (!grants || grants.length === 0) return [];
     const splitSecondLock = splitSecondSpellOnStack(state);
     const moves: Move[] = [];
-    for (const grant of grants) {
+    for (let i = 0; i < grants.length; i++) {
+        const grant = grants[i];
         const template = tryGetDefinition(
             grant.sourceCardId
         )?.activatedAbilities?.find((a) => a.id === grant.abilityId);
@@ -6649,22 +6757,30 @@ export function enumerateMoves(
     // gre/morph.ts) is the one the `turnPermanentFaceUp` mutation and the wire
     // affordance flag also read, so the Bot can never enumerate an action the
     // server would reject.
-    for (const faceDown of turnableFaceUpPermanents(state, player)) {
+    const faceDownList = turnableFaceUpPermanents(state, player);
+    for (let i = 0; i < faceDownList.length; i++) {
+        const faceDown = faceDownList[i];
         moves.push({ kind: "turn-face-up", cardInstanceId: faceDown.id });
     }
     // CR 116.2k / 702.170a — the plot special action, one Move per card in
     // hand with an affordable plot cost, gated by the same `canPlot` the
     // `plotCard` mutation and the hand card's wire affordance read.
-    for (const card of plottableHandCards(state, player)) {
+    const cardList = plottableHandCards(state, player);
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         moves.push({ kind: "plot", cardInstanceId: card.id });
     }
     // CR 116.2h / 702.143a — the foretell special action, one Move per card
     // in hand with foretell while {2} is affordable, gated by the same
     // `canForetell` the `foretellCard` mutation and the wire affordance read.
-    for (const card of foretellableHandCards(state, player)) {
+    const cardList2 = foretellableHandCards(state, player);
+    for (let i = 0; i < cardList2.length; i++) {
+        const card = cardList2[i];
         moves.push({ kind: "foretell", cardInstanceId: card.id });
     }
-    for (const card of player.hand) {
+    const cardList3 = player.hand;
+    for (let i = 0; i < cardList3.length; i++) {
+        const card = cardList3[i];
         const actions = getLegalActions(state, player, card);
         if (actions.includes("play")) {
             // CR 712.12 — one Move per FACE that is a land. An ordinary land
@@ -6695,7 +6811,9 @@ export function enumerateMoves(
     // NOT enumerated anywhere, a standing gap recorded in
     // docs/findings/2358-graveyard-cast-moves.md (the previous wording here
     // claimed they were "enumerated elsewhere"; there is no elsewhere).
-    for (const card of player.graveyard) {
+    const cardList4 = player.graveyard;
+    for (let i = 0; i < cardList4.length; i++) {
+        const card = cardList4[i];
         // CR 712.12 — the same face walk as the hand loop. The candidate
         // filter is `landPlayFaces` rather than `types.includes("Land")` for
         // the same reason `getLegalActions` reads it: a modal card in a
@@ -6722,7 +6840,9 @@ export function enumerateMoves(
     // permanent permissions) are equally missing from this enumerator, but that
     // is a pre-existing gap whose fix needs the sandbox executors to learn every
     // one of their stack flags — see docs/findings/2358-graveyard-cast-moves.md.
-    for (const card of player.graveyard) {
+    const cardList5 = player.graveyard;
+    for (let i = 0; i < cardList5.length; i++) {
+        const card = cardList5[i];
         if (!hasRetrace(state, card)) continue;
         if (!getLegalActions(state, player, card).includes("cast")) continue;
         moves.push(
@@ -6756,7 +6876,9 @@ export function enumerateMoves(
     // charged in both sandboxes, so the predicate is gone: the ONE remaining
     // fail-closed gate is `planCastCostPicks` returning `null` for a board that
     // cannot pay a leg, checked inside `enumerateCastMoves`.
-    for (const card of player.graveyard) {
+    const cardList6 = player.graveyard;
+    for (let i = 0; i < cardList6.length; i++) {
+        const card = cardList6[i];
         const mechanism = graveyardCastMechanism(
             state,
             player,
@@ -6800,8 +6922,12 @@ export function enumerateMoves(
     // cast (CR 305.9), and has its own enumeration
     // (`resolvePlayLandSourceZone`) — which is also what keeps a cast-only
     // grant on a land from being offered as either.
-    for (const zoneOwner of state.players) {
-        for (const card of zoneOwner.exile) {
+    const zoneOwnerList = state.players;
+    for (let i = 0; i < zoneOwnerList.length; i++) {
+        const zoneOwner = zoneOwnerList[i];
+        const cardList7 = zoneOwner.exile;
+        for (let j = 0; j < cardList7.length; j++) {
+            const card = cardList7[j];
             if (card.types.includes("Land")) continue;
             // CR 406.3 / 702.143a — a face-down card the viewer may not look
             // at (an opponent's foretold card, as the client Bot's wire view
@@ -6962,9 +7088,12 @@ export function enumerateMoves(
     // `getLegalActions` owns legality for a pool card (its outside-game
     // branches return before the zone-blind hand fallback); the Move's
     // `castFromZone` tells the executors where the card comes from.
-    for (const card of outsideGamePlaysRemaining(state, player.id) > 0
-        ? outsideGamePool(player)
-        : []) {
+    const cardList8 =
+        outsideGamePlaysRemaining(state, player.id) > 0
+            ? outsideGamePool(player)
+            : [];
+    for (let i = 0; i < cardList8.length; i++) {
+        const card = cardList8[i];
         const actions = getLegalActions(state, player, card);
         if (landPlayFaces(card).length > 0 && actions.includes("play")) {
             moves.push(...landPlayMoves(card));
@@ -6978,7 +7107,9 @@ export function enumerateMoves(
             );
         }
     }
-    for (const perm of player.battlefield) {
+    const permList = player.battlefield;
+    for (let i = 0; i < permList.length; i++) {
+        const perm = permList[i];
         moves.push(
             ...enumerateAbilityMoves(state, player, perm, { onTruncated })
         );
@@ -6989,7 +7120,9 @@ export function enumerateMoves(
     // opponent's graveyard is deliberately not scanned. Until this issue the
     // enumerator skipped these abilities outright, which meant the bot could
     // never see one at all.
-    for (const card of player.graveyard) {
+    const cardList9 = player.graveyard;
+    for (let i = 0; i < cardList9.length; i++) {
+        const card = cardList9[i];
         moves.push(
             ...enumerateAbilityMoves(state, player, card, {
                 zone: "graveyard",
@@ -7002,7 +7135,9 @@ export function enumerateMoves(
     // so only this player's hand is scanned. The mirror of the graveyard loop
     // above, and it closes the same class of blindness: without it the bot
     // never cycles and never ninjutsus, with no test anywhere going red.
-    for (const card of player.hand) {
+    const cardList10 = player.hand;
+    for (let i = 0; i < cardList10.length; i++) {
+        const card = cardList10[i];
         moves.push(
             ...enumerateAbilityMoves(state, player, card, {
                 zone: "hand",
@@ -7015,7 +7150,9 @@ export function enumerateMoves(
     // still pays from its own pool (planManaPayment reads `player`).
     const opponent = otherPlayer(state, player.id);
     if (opponent) {
-        for (const perm of opponent.battlefield) {
+        const permList2 = opponent.battlefield;
+        for (let i = 0; i < permList2.length; i++) {
+            const perm = permList2[i];
             moves.push(
                 ...enumerateAbilityMoves(state, player, perm, {
                     anyPlayerOnly: true,
@@ -7087,7 +7224,9 @@ export function enumerateMoves(
  *  one filter every zone's `enumerateAbilityMoves` scan applies before any
  *  other, so "none here" is "that scan yields nothing". */
 function hasStackAbility(card: CardInstanceState): boolean {
-    for (const { ability } of getEffectiveActivatedAbilities(card)) {
+    const entries = getEffectiveActivatedAbilities(card);
+    for (let i = 0; i < entries.length; i++) {
+        const { ability } = entries[i];
         if (ability.useStack) return true;
     }
     return false;
@@ -7147,13 +7286,17 @@ export function onlyPassIsLegal(state: GameState, playerId: string): boolean {
     // CR 702.143a — and foretelling a hand card.
     if (foretellableHandCards(state, player).length > 0) return false;
     // Hand: a land play, a cast, or a hand-source ability (Cycling).
-    for (const card of player.hand) {
+    const cardList = player.hand;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         if (getLegalActions(state, player, card).length > 0) return false;
         if (hasStackAbility(card)) return false;
     }
     // Graveyard: a land play, retrace, every other graveyard cast, and a
     // graveyard-source ability.
-    for (const card of player.graveyard) {
+    const cardList2 = player.graveyard;
+    for (let i = 0; i < cardList2.length; i++) {
+        const card = cardList2[i];
         if (
             landPlayFaces(card).length > 0 &&
             getLegalActions(state, player, card).includes("play")
@@ -7169,8 +7312,12 @@ export function onlyPassIsLegal(state: GameState, playerId: string): boolean {
         if (hasStackAbility(card)) return false;
     }
     // Exile, every player's: a cast under a permission this player holds.
-    for (const zoneOwner of state.players) {
-        for (const card of zoneOwner.exile) {
+    const zoneOwnerList = state.players;
+    for (let i = 0; i < zoneOwnerList.length; i++) {
+        const zoneOwner = zoneOwnerList[i];
+        const cardList3 = zoneOwner.exile;
+        for (let j = 0; j < cardList3.length; j++) {
+            const card = cardList3[j];
             if (card.types.includes("Land")) continue;
             if (exileCastPermitted(state, card, player.id)) return false;
         }
@@ -7194,14 +7341,20 @@ export function onlyPassIsLegal(state: GameState, playerId: string): boolean {
     // Outside the game: a pool card under an outside-game play permission
     // (CR 400.11b).
     if (outsideGamePlaysRemaining(state, player.id) > 0) {
-        for (const card of outsideGamePool(player)) {
+        const cardList4 = outsideGamePool(player);
+        for (let i = 0; i < cardList4.length; i++) {
+            const card = cardList4[i];
             if (getLegalActions(state, player, card).length > 0) return false;
         }
     }
     // Battlefield, every player's: this player's own abilities, and the "any
     // player may activate" ones on an opponent's permanent.
-    for (const controller of state.players) {
-        for (const perm of controller.battlefield) {
+    const controllerList = state.players;
+    for (let i = 0; i < controllerList.length; i++) {
+        const controller = controllerList[i];
+        const permList = controller.battlefield;
+        for (let j = 0; j < permList.length; j++) {
+            const perm = permList[j];
             if (hasStackAbility(perm)) return false;
         }
     }

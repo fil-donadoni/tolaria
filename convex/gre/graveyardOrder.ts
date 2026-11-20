@@ -73,12 +73,14 @@ function snapshotGraveyards(state: GameState): Map<string, Set<string>> {
  *  in turn order. */
 function apnapPlayers(state: GameState): PlayerState[] {
     const start = state.players.findIndex((p) => p.id === state.activePlayerId);
-    if (start <= 0) return [...state.players];
-    return [...state.players.slice(start), ...state.players.slice(0, start)];
+    if (start <= 0) return state.players.slice();
+    return state.players.slice(start).concat(state.players.slice(0, start));
 }
 
 function closeGraveyardBatch(state: GameState, batch: OpenBatch): void {
-    for (const player of apnapPlayers(state)) {
+    const playerList = apnapPlayers(state);
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const before = batch.before.get(player.id) ?? new Set<string>();
         const arrived = player.graveyard.filter((c) => !before.has(c.id));
         if (arrived.length < 2) continue;
@@ -157,7 +159,7 @@ function presentTopFirst(
  *  another pending choice. */
 export function raiseGraveyardArrangement(state: GameState): boolean {
     if ((state.pendingChoices?.length ?? 0) > 0) return false;
-    const queue = [...(state.pendingGraveyardArrangements ?? [])];
+    const queue = (state.pendingGraveyardArrangements ?? []).slice();
     while (queue.length > 0) {
         const next = queue[0];
         const cards = presentTopFirst(state, next);
@@ -198,7 +200,7 @@ export function randomGraveyardArrangement(
     state: GameState,
     candidateIds: readonly string[]
 ): string[] {
-    return seededShuffle(state, [...candidateIds]);
+    return seededShuffle(state, candidateIds.slice());
 }
 
 /** CR 404.3 — commit the head `graveyard-order` choice: `topmostFirst` is a
@@ -214,7 +216,8 @@ export function applyGraveyardArrangement(
     const owner = state.players.find(
         (p) => p.id === (head.zoneOwnerId ?? head.playerId)
     );
-    if (owner) permuteWithinSlots(owner.graveyard, [...topmostFirst].reverse());
+    if (owner)
+        permuteWithinSlots(owner.graveyard, topmostFirst.slice().reverse());
     const rest = (state.pendingGraveyardArrangements ?? []).slice(1);
     state.pendingGraveyardArrangements = rest.length > 0 ? rest : undefined;
     const queue = state.pendingChoices!.slice(1);

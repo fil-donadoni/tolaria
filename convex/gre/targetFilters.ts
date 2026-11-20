@@ -247,9 +247,13 @@ export function spellWouldDestroyLandControlledBy(
         def.effect === "destroy-target" ||
         def.effects?.some((op) => op.op === "destroy")
     ) {
-        for (const t of item.targets ?? []) {
+        const tList = item.targets ?? [];
+        for (let i = 0; i < tList.length; i++) {
+            const t = tList[i];
             if (t.type !== "permanent") continue;
-            for (const p of state.players) {
+            const pList = state.players;
+            for (let j = 0; j < pList.length; j++) {
+                const p = pList[j];
                 const perm = p.battlefield.find((c) => c.id === t.id);
                 if (perm && isLand(perm) && perm.controllerId === playerId) {
                     return true;
@@ -1189,7 +1193,9 @@ export function siblingControllerIdFor(
     }
     const sibling = selected.find((t) => t.type === "permanent");
     if (!sibling) return undefined;
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const card = player.battlefield.find((c) => c.id === sibling.id);
         if (card) return card.controllerId;
     }
@@ -1514,9 +1520,13 @@ const spellTargetsPermanentFilterDescriptor = defineFilter<{
     },
     checks: {
         spell: (item, value, ctx) => {
-            for (const t of item.targets ?? []) {
+            const tList = item.targets ?? [];
+            for (let i = 0; i < tList.length; i++) {
+                const t = tList[i];
                 if (t.type !== "permanent") continue;
-                for (const p of ctx.state.players) {
+                const pList = ctx.state.players;
+                for (let j = 0; j < pList.length; j++) {
+                    const p = pList[j];
                     const perm = p.battlefield.find((c) => c.id === t.id);
                     if (!perm) continue;
                     if (
@@ -1810,7 +1820,8 @@ export function checkPermanentTargetFilters(
     candidate: CardInstanceState,
     values: PermanentFilterValues
 ): string | null {
-    for (const key of PERMANENT_FILTER_KEYS) {
+    for (let i = 0; i < PERMANENT_FILTER_KEYS.length; i++) {
+        const key = PERMANENT_FILTER_KEYS[i];
         const value = values[key];
         if (value === undefined) continue;
         const check = REGISTRY[key].checks.permanent;
@@ -1837,7 +1848,8 @@ export function lowerPermanentFilters(
     sourcePower?: number
 ): PermanentFilterValues {
     const out: Record<string, unknown> = {};
-    for (const key of PERMANENT_FILTER_KEYS) {
+    for (let i = 0; i < PERMANENT_FILTER_KEYS.length; i++) {
+        const key = PERMANENT_FILTER_KEYS[i];
         const value = REGISTRY[key].lower(req, chosenX, sourcePower);
         if (value !== undefined) out[key] = value;
     }
@@ -1875,7 +1887,8 @@ export function permanentFilterValuesFromCarrier(
     carrier: Pick<PendingTarget, PermanentFilterKey>
 ): PermanentFilterValues {
     const out: Record<string, unknown> = {};
-    for (const key of PERMANENT_FILTER_KEYS) {
+    for (let i = 0; i < PERMANENT_FILTER_KEYS.length; i++) {
+        const key = PERMANENT_FILTER_KEYS[i];
         const value = carrier[key];
         if (value !== undefined) out[key] = value;
     }
@@ -1962,7 +1975,8 @@ export function checkSpellTargetFilters(
     candidate: StackItem,
     values: SpellFilterValues
 ): string | null {
-    for (const key of SPELL_FILTER_KEYS) {
+    for (let i = 0; i < SPELL_FILTER_KEYS.length; i++) {
+        const key = SPELL_FILTER_KEYS[i];
         const value = values[key];
         if (value === undefined) continue;
         const check = REGISTRY[key].checks.spell;
@@ -1995,7 +2009,8 @@ export function spellFilterValuesFromCarrier(
     carrier: Partial<Record<SpellFilterKey, unknown>>
 ): SpellFilterValues {
     const out: Record<string, unknown> = {};
-    for (const key of SPELL_FILTER_KEYS) {
+    for (let i = 0; i < SPELL_FILTER_KEYS.length; i++) {
+        const key = SPELL_FILTER_KEYS[i];
         const value = carrier[key];
         if (value !== undefined) out[key] = value;
     }
@@ -2035,7 +2050,8 @@ export function lowerSpellOnlyFilters(
     chosenX: number | undefined
 ): SpellFilterValues {
     const out: Record<string, unknown> = {};
-    for (const key of SPELL_ONLY_FILTER_KEYS) {
+    for (let i = 0; i < SPELL_ONLY_FILTER_KEYS.length; i++) {
+        const key = SPELL_ONLY_FILTER_KEYS[i];
         const value = REGISTRY[key].lower(req, chosenX);
         if (value !== undefined) out[key] = value;
     }
@@ -2055,7 +2071,8 @@ export function lowerSpellFilters(
     sourcePower?: number
 ): SpellFilterValues {
     const out: Record<string, unknown> = {};
-    for (const key of SPELL_FILTER_KEYS) {
+    for (let i = 0; i < SPELL_FILTER_KEYS.length; i++) {
+        const key = SPELL_FILTER_KEYS[i];
         const value = REGISTRY[key].lower(req, chosenX, sourcePower);
         if (value !== undefined) out[key] = value;
     }
@@ -2101,7 +2118,8 @@ export function checkPlayerTargetFilters(
     candidate: PlayerState,
     values: PlayerFilterValues
 ): string | null {
-    for (const key of PLAYER_FILTER_KEYS) {
+    for (let i = 0; i < PLAYER_FILTER_KEYS.length; i++) {
+        const key = PLAYER_FILTER_KEYS[i];
         const value = values[key];
         if (value === undefined) continue;
         const check = REGISTRY[key].checks.player;
@@ -2141,7 +2159,8 @@ export function playerFilterValuesFromCarrier(
     carrier: Pick<PendingTarget, PlayerFilterKey>
 ): PlayerFilterValues {
     const out: Record<string, unknown> = {};
-    for (const key of PLAYER_FILTER_KEYS) {
+    for (let i = 0; i < PLAYER_FILTER_KEYS.length; i++) {
+        const key = PLAYER_FILTER_KEYS[i];
         const value = carrier[key];
         if (value !== undefined) out[key] = value;
     }
@@ -2158,7 +2177,8 @@ export function lowerPlayerFilters(
     sourcePower?: number
 ): PlayerFilterValues {
     const out: Record<string, unknown> = {};
-    for (const key of PLAYER_FILTER_KEYS) {
+    for (let i = 0; i < PLAYER_FILTER_KEYS.length; i++) {
+        const key = PLAYER_FILTER_KEYS[i];
         const value = REGISTRY[key].lower(req, chosenX, sourcePower);
         if (value !== undefined) out[key] = value;
     }
@@ -2246,7 +2266,8 @@ export function pickCardFilterValues(
     pt: Partial<Record<CardFilterKey, unknown>>
 ): CardFilterValues {
     const out: Record<string, unknown> = {};
-    for (const key of CARD_FILTER_KEYS) {
+    for (let i = 0; i < CARD_FILTER_KEYS.length; i++) {
+        const key = CARD_FILTER_KEYS[i];
         const value = pt[key];
         if (value !== undefined) out[key] = value;
     }
@@ -2267,7 +2288,8 @@ export function checkCardTargetFilters(
     candidate: CardInstanceState,
     values: CardFilterValues
 ): string | null {
-    for (const key of CARD_FILTER_KEYS) {
+    for (let i = 0; i < CARD_FILTER_KEYS.length; i++) {
+        const key = CARD_FILTER_KEYS[i];
         const value = values[key];
         if (value === undefined) continue;
         const check = REGISTRY[key].checks.card;
@@ -2294,7 +2316,8 @@ export function lowerCardFilters(
     sourcePower?: number
 ): CardFilterValues {
     const out: Record<string, unknown> = {};
-    for (const key of CARD_FILTER_KEYS) {
+    for (let i = 0; i < CARD_FILTER_KEYS.length; i++) {
+        const key = CARD_FILTER_KEYS[i];
         const value = REGISTRY[key].lower(req, chosenX, sourcePower);
         if (value !== undefined) out[key] = value;
     }

@@ -49,7 +49,7 @@ export function withChangelingSubtypes(
     if (!hasChangeling(staticAbilities)) return subtypes;
     const printed = subtypes ?? [];
     const missing = [...CREATURE_SUBTYPES].filter((s) => !printed.includes(s));
-    return missing.length === 0 ? subtypes : [...printed, ...missing];
+    return missing.length === 0 ? subtypes : printed.concat(missing);
 }
 
 /** CR 702.73a — ADR 0054 expander: a definition (or its back face) declaring
@@ -86,10 +86,9 @@ export function expandChangeling(def: CardDefinition): CardDefinition {
  *  an effect has since turned into a Frog reads "Frog". */
 export function displaySubtypes(subtypes: readonly string[]): string[] {
     if (![...CREATURE_SUBTYPES].every((s) => subtypes.includes(s))) {
-        return [...subtypes];
+        return subtypes.slice();
     }
-    return [
-        "Every creature type",
-        ...subtypes.filter((s) => !CREATURE_SUBTYPES.has(s)),
-    ];
+    return ["Every creature type"].concat(
+        subtypes.filter((s) => !CREATURE_SUBTYPES.has(s))
+    );
 }

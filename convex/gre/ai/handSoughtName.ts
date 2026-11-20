@@ -45,7 +45,8 @@ function handSeekerOf(
     script: readonly EffectOp[],
     bind: string
 ): unknown | undefined {
-    for (const op of script) {
+    for (let i = 0; i < script.length; i++) {
+        const op = script[i];
         const record = op as unknown as {
             player?: unknown;
             filter?: { name?: unknown };
@@ -58,7 +59,9 @@ function handSeekerOf(
             name.ref === bind
         )
             return record.player;
-        for (const child of childOpArrays(op)) {
+        const childList = childOpArrays(op);
+        for (let j = 0; j < childList.length; j++) {
+            const child = childList[j];
             const found = handSeekerOf(child, bind);
             if (found !== undefined) return found;
         }

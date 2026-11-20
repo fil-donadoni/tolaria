@@ -166,7 +166,7 @@ function gradeFieldsOf(a: GradeFields): GradeFields {
         ...(a.grade === undefined ? {} : { grade: a.grade }),
         ...(a.acceptedIndexes === undefined
             ? {}
-            : { acceptedIndexes: [...a.acceptedIndexes] }),
+            : { acceptedIndexes: a.acceptedIndexes.slice() }),
     };
 }
 
@@ -210,7 +210,8 @@ function resolutionsByKey(
     resolutions: readonly VerdictResolution[]
 ): Map<string, IdentifiedResolution[]> {
     const byKey = new Map<string, Map<string, IdentifiedResolution>>();
-    for (const resolution of resolutions) {
+    for (let i = 0; i < resolutions.length; i++) {
+        const resolution = resolutions[i];
         const resolutionId = resolutionIdOf(resolution);
         const problems = resolutionProblems(resolution);
         if (problems.length > 0) {
@@ -257,7 +258,8 @@ export function quarantineContestedPositions<V extends VerdictJudgement>(
         string,
         { judgement: V; encoding: string; positionKey: string }
     >();
-    for (const verdict of verdicts) {
+    for (let i = 0; i < verdicts.length; i++) {
+        const verdict = verdicts[i];
         const verdictId = verdictIdOf(verdict);
         const encoding = canonicalJson(verdict);
         const earlier = distinct.get(verdictId);
@@ -279,7 +281,8 @@ export function quarantineContestedPositions<V extends VerdictJudgement>(
         "sourceAxis" | "grade" | "acceptedIndexes"
     >;
     const attested = new Map<string, Map<string, Attested>>();
-    for (const attestation of attestations) {
+    for (let i = 0; i < attestations.length; i++) {
+        const attestation = attestations[i];
         if (!distinct.has(attestation.verdictId)) {
             throw new Error(
                 `${attestation.verdictId}: attested by ${attestation.author}, but no such verdict was supplied`
@@ -319,7 +322,8 @@ export function quarantineContestedPositions<V extends VerdictJudgement>(
     const explicitByKey = new Map<string, AttestedVerdict<V>[]>();
     const implicitOnly: AttestedVerdict<V>[] = [];
     const unattested: AttestedVerdict<V>[] = [];
-    for (const verdict of all) {
+    for (let i = 0; i < all.length; i++) {
+        const verdict = all[i];
         if (verdict.attestations.length === 0) {
             unattested.push(verdict);
         } else if (!isExplicit(verdict)) {
@@ -335,7 +339,9 @@ export function quarantineContestedPositions<V extends VerdictJudgement>(
     const promotable: AttestedVerdict<V>[] = [];
     const contested: ContestedPosition<V>[] = [];
     const resolved: ResolvedPosition<V>[] = [];
-    for (const positionKey of [...explicitByKey.keys()].sort(byString)) {
+    const positionKeyList = [...explicitByKey.keys()].sort(byString);
+    for (let i = 0; i < positionKeyList.length; i++) {
+        const positionKey = positionKeyList[i];
         const group = explicitByKey.get(positionKey)!;
         if (group.length < 2) {
             promotable.push(group[0]);
@@ -380,9 +386,12 @@ export function quarantineContestedPositions<V extends VerdictJudgement>(
     const contestedKeys = new Set(contested.map((c) => c.positionKey));
     const resolvedKeys = new Set(resolved.map((r) => r.positionKey));
     const judgedByAuthor = new Map<string, Set<string>>();
-    for (const group of explicitByKey.values()) {
-        for (const verdict of group) {
-            for (const attestation of verdict.attestations) {
+    explicitByKey.forEach((group) => {
+        for (let i = 0; i < group.length; i++) {
+            const verdict = group[i];
+            const attestationList = verdict.attestations;
+            for (let j = 0; j < attestationList.length; j++) {
+                const attestation = attestationList[j];
                 if (attestation.sourceAxis !== "explicit") continue;
                 const keys =
                     judgedByAuthor.get(attestation.author) ?? new Set<string>();
@@ -390,7 +399,7 @@ export function quarantineContestedPositions<V extends VerdictJudgement>(
                 judgedByAuthor.set(attestation.author, keys);
             }
         }
-    }
+    });
     const byAuthor = [...judgedByAuthor.keys()].sort(byString).map((author) => {
         const keys = [...judgedByAuthor.get(author)!].sort(byString);
         return {
@@ -437,9 +446,13 @@ export function formatVerdictQuarantine(
         `implicit-only verdicts : ${quarantine.implicitOnly.length}`,
         `unattested verdicts    : ${quarantine.unattested.length}`,
     ];
-    for (const position of quarantine.contested) {
+    const positionList = quarantine.contested;
+    for (let i = 0; i < positionList.length; i++) {
+        const position = positionList[i];
         out.push(`  contested ${position.positionKey}`);
-        for (const verdict of position.verdicts) {
+        const verdictList = position.verdicts;
+        for (let j = 0; j < verdictList.length; j++) {
+            const verdict = verdictList[j];
             const authors = verdict.attestations
                 .filter((a) => a.sourceAxis === "explicit")
                 .map((a) => a.author)
@@ -447,25 +460,33 @@ export function formatVerdictQuarantine(
             out.push(`    ${verdict.verdictId}  by ${authors}`);
         }
     }
-    for (const position of quarantine.resolved) {
+    const positionList2 = quarantine.resolved;
+    for (let i = 0; i < positionList2.length; i++) {
+        const position = positionList2[i];
         out.push(
             `  resolved ${position.positionKey}  by ${position.applied.resolution.author}`
         );
         if (position.accepted !== null) {
             out.push(`    accepted ${position.accepted.verdictId}`);
         }
-        for (const { verdict, reason } of position.rejected) {
+        const entries = position.rejected;
+        for (let j = 0; j < entries.length; j++) {
+            const { verdict, reason } = entries[j];
             out.push(`    rejected ${verdict.verdictId}  (${reason})`);
         }
     }
     if (quarantine.byAuthor.length > 0) out.push("by author:");
-    for (const row of quarantine.byAuthor) {
+    const rowList = quarantine.byAuthor;
+    for (let i = 0; i < rowList.length; i++) {
+        const row = rowList[i];
         const resolvedCount = row.resolvedPositionKeys.length;
         out.push(
             `  ${row.author}: ${row.contestedPositionKeys.length} contested of ${row.judgedPositions} judged` +
                 (resolvedCount > 0 ? `, ${resolvedCount} resolved` : "")
         );
-        for (const key of row.contestedPositionKeys) {
+        const keyList = row.contestedPositionKeys;
+        for (let j = 0; j < keyList.length; j++) {
+            const key = keyList[j];
             out.push(`    ${key}`);
         }
     }

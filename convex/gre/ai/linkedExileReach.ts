@@ -78,7 +78,8 @@ function collectRetrievals(
     out: Retrieval[]
 ): void {
     if (!effects) return;
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         if (op.op === "moveZone") {
             const shape = op as {
                 to?: string;
@@ -98,7 +99,11 @@ function collectRetrievals(
                 });
             }
         }
-        for (const child of childOpArrays(op)) collectRetrievals(child, out);
+        const childList = childOpArrays(op);
+        for (let j = 0; j < childList.length; j++) {
+            const child = childList[j];
+            collectRetrievals(child, out);
+        }
     }
 }
 
@@ -122,13 +127,20 @@ function definitionRetrievals(def: CardDefinition): SourcedRetrieval[] {
     ): void => {
         const found: Retrieval[] = [];
         collectRetrievals(effects, found);
-        for (const r of found) out.push({ ...r, onCounterAdded });
+        for (let i = 0; i < found.length; i++) {
+            const r = found[i];
+            out.push({ ...r, onCounterAdded });
+        }
     };
-    for (const a of def.activatedAbilities ?? []) {
+    const aList = def.activatedAbilities ?? [];
+    for (let i = 0; i < aList.length; i++) {
+        const a = aList[i];
         push(a.effects, false);
         push(a.aiEffects, false);
     }
-    for (const a of def.triggeredAbilities ?? []) {
+    const aList2 = def.triggeredAbilities ?? [];
+    for (let i = 0; i < aList2.length; i++) {
+        const a = aList2[i];
         const onCounter = firesOnCounterAdded(a);
         push(a.effects, onCounter);
         push(a.aiEffects, onCounter);
@@ -189,7 +201,8 @@ function scriptPlacesSelfCounter(
     perm: CardInstanceState
 ): boolean {
     if (!effects) return false;
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         if (op.op === "counters") {
             const shape = op as { action?: string; target?: unknown };
             const target = shape.target as { ref?: unknown } | undefined;
@@ -211,7 +224,9 @@ function scriptPlacesSelfCounter(
             }
             continue;
         }
-        for (const child of childOpArrays(op)) {
+        const childList = childOpArrays(op);
+        for (let j = 0; j < childList.length; j++) {
+            const child = childList[j];
             if (scriptPlacesSelfCounter(child, perm)) return true;
         }
     }
@@ -255,8 +270,12 @@ export function retrievableLinkedExile(
     player: PlayerState
 ): CardInstanceState[] {
     const out: CardInstanceState[] = [];
-    for (const seat of state.players) {
-        for (const perm of seat.battlefield) {
+    const seatList = state.players;
+    for (let i = 0; i < seatList.length; i++) {
+        const seat = seatList[i];
+        const permList = seat.battlefield;
+        for (let j = 0; j < permList.length; j++) {
+            const perm = permList[j];
             if (perm.controllerId !== player.id) continue;
             const all = retrievalsOf(perm);
             if (all.length === 0) continue;
@@ -269,7 +288,8 @@ export function retrievableLinkedExile(
                 counterLive ??= canPlaceOwnCounter(perm);
                 return counterLive;
             });
-            for (const { card, ownerId } of linked) {
+            for (let k = 0; k < linked.length; k++) {
+                const { card, ownerId } = linked[k];
                 // CR 406.3 — a face-down sentinel on the client Bot's wire
                 // view is not a card whose worth this view can read.
                 if ((card.card as { id?: string }).id === FACE_DOWN_CARD_ID) {
@@ -292,14 +312,17 @@ export function retrievableLinkedExile(
  *  permanent", `moveZone … linkToSource`, CR 607.2a)? */
 function scriptLinksExile(effects: readonly EffectOp[] | undefined): boolean {
     if (!effects) return false;
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         if (
             op.op === "moveZone" &&
             (op as { linkToSource?: boolean }).linkToSource === true
         ) {
             return true;
         }
-        for (const child of childOpArrays(op)) {
+        const childList = childOpArrays(op);
+        for (let j = 0; j < childList.length; j++) {
+            const child = childList[j];
             if (scriptLinksExile(child)) return true;
         }
     }

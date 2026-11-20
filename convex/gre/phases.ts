@@ -178,11 +178,15 @@ function anyCombatantHasFirstOrDoubleStrike(state: GameState): boolean {
     const activePlayer = getPlayer(state, state.activePlayerId);
     const defenderId = getOpponentId(state, state.activePlayerId);
     const defender = getPlayer(state, defenderId);
-    for (const id of state.combat.attackerIds) {
+    const idList = state.combat.attackerIds;
+    for (let i = 0; i < idList.length; i++) {
+        const id = idList[i];
         const c = activePlayer.battlefield.find((x) => x.id === id);
         if (c && hasFirstOrDoubleStrike(c)) return true;
     }
-    for (const blockerId of Object.keys(state.combat.blockerAssignments)) {
+    const blockerIdList = Object.keys(state.combat.blockerAssignments);
+    for (let i = 0; i < blockerIdList.length; i++) {
+        const blockerId = blockerIdList[i];
         const c = defender.battlefield.find((x) => x.id === blockerId);
         if (c && hasFirstOrDoubleStrike(c)) return true;
     }
@@ -200,8 +204,12 @@ const FREYALISES_WINDS_ID = "b11cd2e0-9419-4267-807e-5b73915c748a";
 /** True if any player controls Freyalise's Winds (CR 614 — the wind-counter
  *  untap replacement exists only while the enchantment does). */
 function hasFreyalisesWindsInPlay(state: GameState): boolean {
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if ((card.card as { id?: string }).id === FREYALISES_WINDS_ID) {
                 return true;
             }
@@ -236,10 +244,12 @@ export function collectUntapRestrictions(state: GameState): {
     const opponentId = getOpponentId(state, state.activePlayerId);
     const opponent = getPlayer(state, opponentId);
     order.push(...activePlayer.battlefield, ...opponent.battlefield);
-    for (const card of order) {
+    for (let i = 0; i < order.length; i++) {
+        const card = order[i];
         const def = liveStaticDefinition(card);
         const effects = def?.staticEffects ?? [];
-        for (const effect of effects) {
+        for (let j = 0; j < effects.length; j++) {
+            const effect = effects[j];
             if (effect.kind === "untap-restriction") {
                 // CR 611.2c — a host-scoped restriction (FEM Merseine) gated on
                 // the source's live state. Evaluate the condition and resolve
@@ -296,7 +306,8 @@ export function collectUntapRestrictions(state: GameState): {
                 // `appliesToHost` branch produces.
                 if (effect.dynamicMatch) {
                     const ids: string[] = [];
-                    for (const candidate of order) {
+                    for (let k = 0; k < order.length; k++) {
+                        const candidate = order[k];
                         if (
                             !matchesPermanentFilter(
                                 effectivePermanentView(state, candidate),
@@ -397,7 +408,8 @@ export function finalizeUntapPick(
     const head = queue[0];
     if (!head || head.kind !== "untap-pick") return;
     const chooser = getPlayer(state, head.zoneOwnerId ?? head.playerId);
-    for (const id of selectedIds) {
+    for (let i = 0; i < selectedIds.length; i++) {
+        const id = selectedIds[i];
         const card = chooser.battlefield.find((c) => c.id === id);
         // CR 701.26b — emit "becomes untapped" on the transition (ADR 0028).
         if (card) untapPermanent(state, card);
@@ -530,11 +542,15 @@ export function untapStep(state: GameState): void {
         // untapped as the untap step begins, BEFORE any untapping happens.
         // Read by upkeep triggers phrased "if ~ started the turn untapped"
         // (Rasputin Dreamweaver, LEG).
-        for (const card of player.battlefield) {
+        const cardList = player.battlefield;
+        for (let k = 0; k < cardList.length; k++) {
+            const card = cardList[k];
             card.startedTurnUntapped = !card.isTapped;
         }
 
-        for (const card of player.battlefield) {
+        const cardList2 = player.battlefield;
+        for (let k = 0; k < cardList2.length; k++) {
+            const card = cardList2[k];
             if (stepSkipped) {
                 // CR 614.10a — the step is skipped as a whole: no untap, and
                 // no per-permanent hold below is consumed. Per-turn cleanup
@@ -904,7 +920,7 @@ function drawStep(state: GameState): void {
     if (idx !== -1) {
         const repl = armed[idx];
         // One-shot: consume the replacement now whether or not it finds cards.
-        const remaining = [...armed.slice(0, idx), ...armed.slice(idx + 1)];
+        const remaining = armed.slice(0, idx).concat(armed.slice(idx + 1));
         state.drawLookReplacements =
             remaining.length > 0 ? remaining : undefined;
 
@@ -1071,7 +1087,7 @@ export function finalizeDrawLookKeep(
     // ADR 0026 — a random order nobody witnessed, exactly like a shuffle.
     clearKnowledge(rest, null);
     const below = player.library.filter((c) => !lookedSet.has(c.id));
-    player.library = [...(kept ? [kept] : []), ...below, ...rest];
+    player.library = (kept ? [kept] : []).concat(below, rest);
 
     queue.shift();
     state.pendingChoices = queue.length > 0 ? queue : undefined;
@@ -1096,7 +1112,9 @@ export function finalizeDrawLookKeep(
 
 function hasDrawSkipReplacement(state: GameState, playerId: string): boolean {
     const player = getPlayer(state, playerId);
-    for (const card of player.battlefield) {
+    const cardList = player.battlefield;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         // CR 613.1f — a source that lost its abilities replaces nothing.
         if (liveStaticDefinition(card)?.drawStepReplacement) return true;
     }
@@ -1143,16 +1161,16 @@ export function getManualAssignmentSourceIds(
     const pass = beginLayer7Pass(state);
     const dealsAndHasPower = (c: CardInstanceState | undefined): boolean =>
         !!c && dealsDamageIn(c, kind) && getCardPower(state, c, pass) > 0;
-    for (const [attackerId, blockerIds] of Object.entries(
-        graph.blockersByAttacker
-    )) {
+    const entries2 = Object.entries(graph.blockersByAttacker);
+    for (let i = 0; i < entries2.length; i++) {
+        const [attackerId, blockerIds] = entries2[i];
         if (blockerIds.length < 2) continue;
         if (dealsAndHasPower(findPermanent(state, attackerId)))
             ids.push(attackerId);
     }
-    for (const [blockerId, attackerIds] of Object.entries(
-        graph.attackersByBlocker
-    )) {
+    const entries3 = Object.entries(graph.attackersByBlocker);
+    for (let i = 0; i < entries3.length; i++) {
+        const [blockerId, attackerIds] = entries3[i];
         if (attackerIds.length < 2) continue;
         if (dealsAndHasPower(findPermanent(state, blockerId)))
             ids.push(blockerId);
@@ -1172,7 +1190,9 @@ export function buildAutoDamageAssignments(
     const result: Record<string, Record<string, number>> = {};
     const pass = beginLayer7Pass(state);
 
-    for (const attackerId of state.combat!.attackerIds) {
+    const attackerIdList = state.combat!.attackerIds;
+    for (let i = 0; i < attackerIdList.length; i++) {
+        const attackerId = attackerIdList[i];
         const attacker = activePlayer.battlefield.find(
             (c) => c.id === attackerId
         );
@@ -1244,7 +1264,9 @@ export function buildDefaultDamageAssignments(
     const result: Record<string, Record<string, number>> = {};
     const pass = beginLayer7Pass(state);
 
-    for (const attackerId of state.combat!.attackerIds) {
+    const attackerIdList = state.combat!.attackerIds;
+    for (let j = 0; j < attackerIdList.length; j++) {
+        const attackerId = attackerIdList[j];
         const attacker = activePlayer.battlefield.find(
             (c) => c.id === attackerId
         );
@@ -1290,7 +1312,8 @@ export function buildDefaultDamageAssignments(
             if (hasTrample) {
                 // Default with trample: lethal to each in order, excess to defender
                 let remaining = getCardPower(state, attacker, pass);
-                for (const blockerId of blockers) {
+                for (let m = 0; m < blockers.length; m++) {
+                    const blockerId = blockers[m];
                     const blocker = defender.battlefield.find(
                         (c) => c.id === blockerId
                     );
@@ -1329,7 +1352,8 @@ export function buildDefaultDamageAssignments(
                 });
                 let remaining = getCardPower(state, attacker, pass);
                 let lastAssigned: string | undefined;
-                for (const blocker of liveBlockers) {
+                for (let i2 = 0; i2 < liveBlockers.length; i2++) {
+                    const blocker = liveBlockers[i2];
                     const lethal = lethalForBlocker(
                         state,
                         attacker,
@@ -1358,7 +1382,9 @@ export function buildDefaultDamageAssignments(
     // branch above: a dead band member can't receive the seeded power
     // (issue #2906).
     const { attackersByBlocker } = getEffectiveBlockGraph(state);
-    for (const [blockerId, attackerIds] of Object.entries(attackersByBlocker)) {
+    const entries2 = Object.entries(attackersByBlocker);
+    for (let j = 0; j < entries2.length; j++) {
+        const [blockerId, attackerIds] = entries2[j];
         if (attackerIds.length < 2) continue;
         const blocker = findPermanent(state, blockerId);
         if (!blocker || !dealsDamageIn(blocker, kind)) continue;
@@ -1549,7 +1575,9 @@ export function applyAllCombatDamage(
         // it re-enters this same helper and gets every gate above. The
         // splitting shield was decremented before it returned, so this
         // terminates.
-        for (const rest of repl.residuals ?? []) {
+        const restList = repl.residuals ?? [];
+        for (let j = 0; j < restList.length; j++) {
+            const rest = restList[j];
             // Only the two damageable selection types can be a residual (a
             // shield is built from damage recipients), but `TargetSelection`
             // spans five — narrow rather than cast.
@@ -1791,7 +1819,8 @@ export function applyAllCombatDamage(
                 watchers?.length &&
                 state.combat?.attackerIds.includes(source.id)
             ) {
-                for (const w of watchers) {
+                for (let j = 0; j < watchers.length; j++) {
+                    const w = watchers[j];
                     if (w.instanceId !== finalTarget.id) continue;
                     // Routed through the single life-gain choke point (CR
                     // 119.3) so this gain runs the CR 614 lifegain
@@ -1807,7 +1836,9 @@ export function applyAllCombatDamage(
     // --- Attacker damage (CR 510). Unblocked attackers hit the defender;
     // blocked attackers (including band members blocked only by association)
     // deal per their assignment among blockers / the defender on trample. ---
-    for (const attackerId of state.combat.attackerIds) {
+    const attackerIdList = state.combat.attackerIds;
+    for (let j = 0; j < attackerIdList.length; j++) {
+        const attackerId = attackerIdList[j];
         const attacker = activePlayer.battlefield.find(
             (c) => c.id === attackerId
         );
@@ -1927,10 +1958,9 @@ export function applyAllCombatDamage(
                         );
                         if (capIdx !== -1) {
                             damage = Math.min(damage, caps[capIdx].maxDamage);
-                            state.damageCapShields = [
-                                ...caps.slice(0, capIdx),
-                                ...caps.slice(capIdx + 1),
-                            ];
+                            state.damageCapShields = caps
+                                .slice(0, capIdx)
+                                .concat(caps.slice(capIdx + 1));
                             if (state.damageCapShields.length === 0) {
                                 state.damageCapShields = undefined;
                             }
@@ -1986,7 +2016,9 @@ export function applyAllCombatDamage(
                 attackerId,
                 defenderId
             );
-            for (const [targetId, damage] of Object.entries(assignments)) {
+            const entries2 = Object.entries(assignments);
+            for (let m = 0; m < entries2.length; m++) {
+                const [targetId, damage] = entries2[m];
                 if (damage <= 0) continue;
                 if (targetId === excessSink && !hasTrample) continue;
                 applyOneCombatDamage(
@@ -2004,9 +2036,9 @@ export function applyAllCombatDamage(
     // a single creature deals its full power to it; a blocker blocking a band
     // (CR 702.22k) splits its power among the members per the assignment the
     // attacking player chose (CR 702.22k). ---
-    for (const [blockerId, blockedAttackerIds] of Object.entries(
-        attackersByBlocker
-    )) {
+    const entries3 = Object.entries(attackersByBlocker);
+    for (let j = 0; j < entries3.length; j++) {
+        const [blockerId, blockedAttackerIds] = entries3[j];
         const blocker = defender.battlefield.find((c) => c.id === blockerId);
         if (!blocker) continue;
         if (!dealsDamageIn(blocker, kind)) continue;
@@ -2024,7 +2056,9 @@ export function applyAllCombatDamage(
             }
         } else {
             const assignments = damageAssignments[blockerId] ?? {};
-            for (const [targetId, damage] of Object.entries(assignments)) {
+            const entries4 = Object.entries(assignments);
+            for (let m = 0; m < entries4.length; m++) {
+                const [targetId, damage] = entries4[m];
                 if (damage <= 0) continue;
                 applyOneCombatDamage(
                     blocker,
@@ -2043,9 +2077,9 @@ export function applyAllCombatDamage(
     // loops, before the marked-damage/lethal scan below — cannot retroactively
     // shrink a blocker (or attacker) that already dealt its own damage. This
     // mirrors the `damageReceived` deferral for normal marked damage.
-    for (const [cardId, counters] of Object.entries(
-        pendingInfectWitherCounters
-    )) {
+    const entries5 = Object.entries(pendingInfectWitherCounters);
+    for (let j = 0; j < entries5.length; j++) {
+        const [cardId, counters] = entries5[j];
         const card =
             activePlayer.battlefield.find((c) => c.id === cardId) ??
             defender.battlefield.find((c) => c.id === cardId);
@@ -2056,24 +2090,26 @@ export function applyAllCombatDamage(
     // CR 120.3: record which sources dealt damage to each victim this turn.
     // Preserved through CLEANUP (CR 514.2) so post-death lookup triggers
     // (Sengir Vampire) can inspect the victim after it leaves the battlefield.
-    for (const ev of events) {
+    for (let j = 0; j < events.length; j++) {
+        const ev = events[j];
         if (ev.type !== "DAMAGE_DEALT") continue;
         if (ev.target.type !== "permanent") continue;
         const hit =
             activePlayer.battlefield.find((c) => c.id === ev.target.id) ??
             defender.battlefield.find((c) => c.id === ev.target.id);
         if (!hit) continue;
-        hit.damagedBySources = [
-            ...(hit.damagedBySources ?? []),
+        hit.damagedBySources = (hit.damagedBySources ?? []).concat([
             ev.sourceInstanceId,
-        ];
+        ]);
         recordSourceDamagedPermanent(state, ev.sourceInstanceId, hit.id);
     }
 
     // CR 120.3: accumulate combat damage onto the creature's marked damage,
     // then check CR 704.5g lethal against effective toughness (layer 7c).
     const deadIds = new Set<string>();
-    for (const [cardId, damage] of Object.entries(damageReceived)) {
+    const entries6 = Object.entries(damageReceived);
+    for (let j = 0; j < entries6.length; j++) {
+        const [cardId, damage] = entries6[j];
         const card =
             activePlayer.battlefield.find((c) => c.id === cardId) ??
             defender.battlefield.find((c) => c.id === cardId);
@@ -2099,20 +2135,20 @@ export function applyAllCombatDamage(
     // (CR 700.4) into `state.pendingEvents` from `removePermanentTo`; we
     // drain the queue below so the combat collectTriggers pass sees both
     // DAMAGE_DEALT and CREATURE_DIED in one go.
-    for (const cardId of deadIds) {
+    deadIds.forEach((cardId) => {
         const carrier =
             activePlayer.battlefield.find((c) => c.id === cardId) ??
             defender.battlefield.find((c) => c.id === cardId);
-        if (!carrier) continue;
+        if (!carrier) return;
         const wasDestroyed = destroyWithReplacements(state, cardId);
-        if (!wasDestroyed) continue;
+        if (!wasDestroyed) return;
         // The destroyed card has already been moved to its owner's graveyard
         // by removePermanentTo. Reset combat-only flags on the dead instance
         // for parity with the prior implementation.
         carrier.isAttacking = undefined;
         carrier.isBlocking = undefined;
         carrier.isTapped = false;
-    }
+    });
     // Drain CREATURE_DIED events queued by removePermanentTo so this step's
     // trigger scan sees them alongside DAMAGE_DEALT (CR 603.2).
     events.push(...flushPendingEvents(state));
@@ -2162,7 +2198,9 @@ export function fireDelayedTriggers(
     if (!state.delayedTriggers?.length) return;
     const firing: DelayedTriggerInstance[] = [];
     const remaining: DelayedTriggerInstance[] = [];
-    for (const t of state.delayedTriggers) {
+    const tList = state.delayedTriggers;
+    for (let i = 0; i < tList.length; i++) {
+        const t = tList[i];
         // A `next-draw-step` / `next-main-phase` instance fires only on its
         // target player's draw step / main phase (CR 504 / CR 505); the
         // global-boundary timings ignore `targetPlayerId`.
@@ -2179,7 +2217,8 @@ export function fireDelayedTriggers(
     }
     state.delayedTriggers = remaining.length > 0 ? remaining : undefined;
     if (firing.length === 0) return;
-    for (const t of firing) {
+    for (let i = 0; i < firing.length; i++) {
+        const t = firing[i];
         // CR 702.88a — Rebound's reflexive Cast/Decline trigger is NOT a
         // generic scheduled effect (casting a spell is not an Op): build the
         // dedicated reflexive StackItem instead of running `delayedEffects`.
@@ -2251,14 +2290,16 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
     // Track which attackers got at least one blocker so we can emit a
     // CR 509.1h "attacker remained unblocked" event for the rest.
     const blockedAttackerIds = new Set<string>();
-    for (const [blockerId, attackerIds] of Object.entries(
-        state.combat.blockerAssignments
-    )) {
+    const entries2 = Object.entries(state.combat.blockerAssignments);
+    for (let i = 0; i < entries2.length; i++) {
+        const [blockerId, attackerIds] = entries2[i];
         const blocker =
             defender.battlefield.find((c) => c.id === blockerId) ??
             activePlayer.battlefield.find((c) => c.id === blockerId);
         if (!blocker) continue;
-        for (const attackerId of attackerIds) {
+        const attackerIdList = attackerIds;
+        for (let j = 0; j < attackerIdList.length; j++) {
+            const attackerId = attackerIdList[j];
             const attacker =
                 activePlayer.battlefield.find((c) => c.id === attackerId) ??
                 defender.battlefield.find((c) => c.id === attackerId);
@@ -2299,7 +2340,9 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
     // dedupe lives here, at the one place that already holds the whole block
     // graph, rather than in every trigger that reads it. Emitted in the same
     // batch as the pair events, so both fire at the same point.
-    for (const blockerId of Object.keys(state.combat.blockerAssignments)) {
+    const blockerIdList = Object.keys(state.combat.blockerAssignments);
+    for (let i = 0; i < blockerIdList.length; i++) {
+        const blockerId = blockerIdList[i];
         if ((state.combat.blockerAssignments[blockerId] ?? []).length === 0)
             continue;
         const blocker =
@@ -2316,7 +2359,9 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
     }
     // CR 509.1h — one ATTACKER_UNBLOCKED event per attacker with no assigned
     // blocker (Murk Dwellers' "attacks and isn't blocked" pump).
-    for (const attackerId of state.combat.attackerIds) {
+    const attackerIdList2 = state.combat.attackerIds;
+    for (let i = 0; i < attackerIdList2.length; i++) {
+        const attackerId = attackerIdList2[i];
         if (blockedAttackerIds.has(attackerId)) continue;
         const attacker =
             activePlayer.battlefield.find((c) => c.id === attackerId) ??
@@ -2366,10 +2411,11 @@ export function emitAttackersDeclaredEvents(state: GameState): void {
     // Mana-ability taps (attack tax, CR 605) are excluded: they never use the
     // stack and are drained by `processPendingActionTriggers`. A creature tapped
     // to pay enlist taps in this same declaration, so it joins them.
-    const tappedByDeclaring = new Set([
-        ...state.combat.attackerIds,
-        ...(state.combat.enlists ?? []).map((pair) => pair.enlistedId),
-    ]);
+    const tappedByDeclaring = new Set(
+        state.combat.attackerIds.concat(
+            (state.combat.enlists ?? []).map((pair) => pair.enlistedId)
+        )
+    );
     const tapEvents = (state.pendingEvents ?? []).filter(
         (e) =>
             e.type === "PERMANENT_TAPPED" &&
@@ -2385,14 +2431,12 @@ export function emitAttackersDeclaredEvents(state: GameState): void {
     const event: GameEvent = {
         type: "ATTACKERS_DECLARED",
         attackingPlayerId: state.activePlayerId,
-        attackerIds: [...state.combat.attackerIds],
+        attackerIds: state.combat.attackerIds.slice(),
     };
-    const triggers = collectTriggers(state, [
-        ...tapEvents,
-        ...exertEvents,
-        ...enlistEvents,
-        event,
-    ]);
+    const triggers = collectTriggers(
+        state,
+        tapEvents.concat(exertEvents, enlistEvents, [event])
+    );
     // CR 603.3b (ADR 0058) — order same-controller simultaneous attack triggers.
     if (placeTriggersOnStack(state, triggers)) {
         state.priorityPlayerId = state.activePlayerId;
@@ -2489,7 +2533,8 @@ function performPhaseEntry(state: GameState): void {
                     // source. Normally the source's controller; banding shifts
                     // it to the controller of the banding creature(s) opposite.
                     const assignerIds: Record<string, string> = {};
-                    for (const sourceId of manualSources) {
+                    for (let i = 0; i < manualSources.length; i++) {
+                        const sourceId = manualSources[i];
                         const source = findPermanent(state, sourceId);
                         if (!source) continue;
                         const targets =
@@ -2685,9 +2730,13 @@ export function effectiveMaxHandSize(
 
     // Default-scoped overrides on the player's own permanents (Library of Leng,
     // Reliquary Tower) apply to their controller.
-    for (const card of player.battlefield) {
+    const cardList = player.battlefield;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         const def = liveStaticDefinition(card);
-        for (const effect of def?.staticEffects ?? []) {
+        const effectList = def?.staticEffects ?? [];
+        for (let j = 0; j < effectList.length; j++) {
+            const effect = effectList[j];
             if (effect.kind !== "hand-size-override") continue;
             // `chosen-player` overrides are read from every battlefield below;
             // skip them here so a Cursed Rack the player controls doesn't cap
@@ -2701,11 +2750,17 @@ export function effectiveMaxHandSize(
     // control; the override caps the instance's stored `chosenPlayerId`. Scan
     // every battlefield and apply only the ones aimed at this player.
     if (state) {
-        for (const owner of state.players) {
-            for (const card of owner.battlefield) {
+        const ownerList = state.players;
+        for (let i = 0; i < ownerList.length; i++) {
+            const owner = ownerList[i];
+            const cardList2 = owner.battlefield;
+            for (let j = 0; j < cardList2.length; j++) {
+                const card = cardList2[j];
                 if (card.chosenPlayerId !== player.id) continue;
                 const def = liveStaticDefinition(card);
-                for (const effect of def?.staticEffects ?? []) {
+                const effectList2 = def?.staticEffects ?? [];
+                for (let k = 0; k < effectList2.length; k++) {
+                    const effect = effectList2[k];
                     if (effect.kind !== "hand-size-override") continue;
                     if (effect.appliesTo !== "chosen-player") continue;
                     if (consider(effect.value)) return Infinity;
@@ -2721,10 +2776,14 @@ export function effectiveMaxHandSize(
     // shipped emblem uses the `chosen-player` shape, so only the default
     // scope is read here.
     if (state) {
-        for (const emblem of state.emblems ?? []) {
+        const emblemList = state.emblems ?? [];
+        for (let i = 0; i < emblemList.length; i++) {
+            const emblem = emblemList[i];
             if (emblem.ownerId !== player.id) continue;
             const def = tryGetEmblemDefinition(emblem.emblemId);
-            for (const effect of def?.staticEffects ?? []) {
+            const effectList3 = def?.staticEffects ?? [];
+            for (let j = 0; j < effectList3.length; j++) {
+                const effect = effectList3[j];
                 if (effect.kind !== "hand-size-override") continue;
                 if (effect.appliesTo === "chosen-player") continue;
                 if (consider(effect.value)) return Infinity;
@@ -2792,7 +2851,8 @@ export function finalizeCleanupDiscard(
     // issue #3242 (CR 603.2c) — the cleanup discard is one event: several cards
     // a discard replacement sends to the library are ONE library-entry event.
     withCardsPutIntoLibraryBatch(state, () => {
-        for (const cardInstanceId of selectedIds) {
+        for (let i = 0; i < selectedIds.length; i++) {
+            const cardInstanceId = selectedIds[i];
             // Defense-in-depth: a discard replacement (Library of Leng) earlier
             // in the loop could in principle have routed an id away from hand
             // before the loop reaches it. `findIndex === -1` makes the second
@@ -2911,8 +2971,12 @@ function revokeExilePlayGrant(card: CardInstanceState): void {
 function expireUntilYourNextUpkeepExileGrants(state: GameState): void {
     const active = state.players.find((p) => p.id === state.activePlayerId);
     if (!active) return;
-    for (const p of state.players) {
-        for (const card of p.exile) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
+        const cardList = p.exile;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (
                 card.castableFromExileUntilOwnUpkeep !== undefined &&
                 card.castableFromExileBy === active.id &&
@@ -2976,8 +3040,12 @@ export function finalizeCleanup(state: GameState): void {
     tickAllDurations(state);
     // CR 514.2 — marked damage is removed from all permanents, and
     // turn-scoped combat flags are cleared.
-    for (const p of state.players) {
-        for (const card of p.battlefield) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
+        const cardList = p.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             // CR 508.1 / 514.2 — roll the per-creature attack history forward
             // for the player whose turn is ENDING. `attackedDuringLastTurn`
             // becomes whether this creature attacked during this just-ending
@@ -3008,7 +3076,9 @@ export function finalizeCleanup(state: GameState): void {
     // CR 514.2 — "all damage marked on permanents (including phased-out
     // permanents) is removed". The rest of the row's `turn` scope ends with it:
     // nothing it holds outlives the turn, phased out or not.
-    for (const card of phasedOutPermanents(state)) {
+    const cardList2 = phasedOutPermanents(state);
+    for (let i = 0; i < cardList2.length; i++) {
+        const card = cardList2[i];
         clearCardFieldsAt(card, "turn");
     }
 
@@ -3035,7 +3105,9 @@ export function finalizeCleanup(state: GameState): void {
     // filters by an absolute turn number, so the extra cleanup step CR 514.3a
     // can start re-runs it as a fixpoint (see this function's doc).
     if (state.lastKnownCopiable) {
-        for (const [id, entry] of Object.entries(state.lastKnownCopiable)) {
+        const entries2 = Object.entries(state.lastKnownCopiable);
+        for (let i = 0; i < entries2.length; i++) {
+            const [id, entry] = entries2[i];
             if (entry.turn <= state.turn - 2) {
                 delete state.lastKnownCopiable[id];
             }
@@ -3050,8 +3122,12 @@ export function finalizeCleanup(state: GameState): void {
     // once the current turn has reached the marked expiry turn. Open-ended
     // grants (no `castableFromExileUntilTurn` — Ice Cauldron "as long as it
     // remains exiled"; Robber of the Rich while-source-lives) are untouched.
-    for (const p of state.players) {
-        for (const card of p.exile) {
+    const pList2 = state.players;
+    for (let i = 0; i < pList2.length; i++) {
+        const p = pList2[i];
+        const cardList3 = p.exile;
+        for (let j = 0; j < cardList3.length; j++) {
+            const card = cardList3[j];
             // CR 514.2 / 608.2g (issue #3235) — two upper bounds, one sweep.
             // The absolute one counts GLOBAL turns ("this turn", "until your
             // next end step"); the own-turn one counts the GRANTEE's own
@@ -3088,8 +3164,12 @@ export function finalizeCleanup(state: GameState): void {
     // `castableFromGraveyardUntilTurn`) are untouched — no shipped card uses
     // that shape yet, but the sweep already handles it correctly by symmetry
     // with the exile primitive.
-    for (const p of state.players) {
-        for (const card of p.graveyard) {
+    const pList3 = state.players;
+    for (let i = 0; i < pList3.length; i++) {
+        const p = pList3[i];
+        const cardList4 = p.graveyard;
+        for (let j = 0; j < cardList4.length; j++) {
+            const card = cardList4[j];
             if (
                 card.castableFromGraveyardUntilTurn !== undefined &&
                 state.turn >= card.castableFromGraveyardUntilTurn
@@ -3104,8 +3184,12 @@ export function finalizeCleanup(state: GameState): void {
     // CR 702.34 / 514.2 — an instance-level Flashback grant (Snapcaster Mage:
     // "gains flashback until end of turn") expires at the cleanup step. The
     // granted card stays in the graveyard but is no longer castable from there.
-    for (const p of state.players) {
-        for (const card of p.graveyard) {
+    const pList4 = state.players;
+    for (let i = 0; i < pList4.length; i++) {
+        const p = pList4[i];
+        const cardList5 = p.graveyard;
+        for (let j = 0; j < cardList5.length; j++) {
+            const card = cardList5[j];
             if (card.grantedFlashback !== undefined) {
                 delete card.grantedFlashback;
             }
@@ -3335,10 +3419,9 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
  *  effect may expire while it is out and no longer affect it once it is back.
  *  Re-read per loop: a layer recompute inside a purge can move permanents. */
 function permanentsForDurationTick(state: GameState): CardInstanceState[][] {
-    return [
-        ...state.players.map((p) => p.battlefield),
-        phasedOutPermanents(state),
-    ];
+    return state.players
+        .map((p) => p.battlefield)
+        .concat([phasedOutPermanents(state)]);
 }
 
 /** CR 611.2a / 514.2 / 511.3 — one phase-boundary tick over the Continuous
@@ -3362,7 +3445,8 @@ function tickContinuousEffectDurations(
     if (!entries?.length) return;
     let changed = false;
     const kept: ContinuousEffect[] = [];
-    for (const entry of entries) {
+    for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
         if (entry.expiry.kind !== "duration") {
             kept.push(entry);
             continue;
@@ -3414,13 +3498,18 @@ function tickAllDurations(state: GameState): void {
     // (CR 707.4 — a copy-to-copy change triggers nothing and leaves every
     // noncopy effect in place). First, because every later purge in this
     // function replays over layer 1.
-    for (const cards of permanentsForDurationTick(state)) {
-        for (const card of cards) {
+    const cardsList = permanentsForDurationTick(state);
+    for (let i = 0; i < cardsList.length; i++) {
+        const cards = cardsList[i];
+        for (let j = 0; j < cards.length; j++) {
+            const card = cards[j];
             const ledger = card.timedCopyEffects;
             if (!ledger) continue;
             const survivors: typeof ledger.effects = [];
             const expired: typeof ledger.effects = [];
-            for (const entry of ledger.effects) {
+            const entryList = ledger.effects;
+            for (let k = 0; k < entryList.length; k++) {
+                const entry = entryList[k];
                 const next = tickDuration(entry.duration, view);
                 if (next === null) expired.push(entry);
                 else survivors.push({ ...entry, duration: next });
@@ -3446,10 +3535,15 @@ function tickAllDurations(state: GameState): void {
         auraId: string;
         tapOnLoss: boolean;
     }> = [];
-    for (const cards of permanentsForDurationTick(state)) {
-        for (const card of cards) {
+    const cardsList2 = permanentsForDurationTick(state);
+    for (let i = 0; i < cardsList2.length; i++) {
+        const cards = cardsList2[i];
+        for (let j = 0; j < cards.length; j++) {
+            const card = cards[j];
             if (!card.controlChanges?.length) continue;
-            for (const entry of card.controlChanges) {
+            const entryList2 = card.controlChanges;
+            for (let k = 0; k < entryList2.length; k++) {
+                const entry = entryList2[k];
                 if (!entry.duration) continue;
                 const next = tickDuration(entry.duration, view);
                 if (next === null) {
@@ -3464,12 +3558,15 @@ function tickAllDurations(state: GameState): void {
             }
         }
     }
-    for (const r of controlReverts) {
+    for (let i = 0; i < controlReverts.length; i++) {
+        const r = controlReverts[i];
         revertControlChange(state, r.hostId, r.auraId);
         if (!r.tapOnLoss) continue;
         // CR 701.26a — tap the permanent now that control has reverted. It has
         // moved back into its owner's battlefield array; find it by id.
-        for (const p of state.players) {
+        const pList = state.players;
+        for (let j = 0; j < pList.length; j++) {
+            const p = pList[j];
             const host = p.battlefield.find((c) => c.id === r.hostId);
             if (host) {
                 tapPermanent(state, host);
@@ -3479,10 +3576,14 @@ function tickAllDurations(state: GameState): void {
     }
 
     // Player-granted activated abilities (e.g. Channel).
-    for (const p of state.players) {
+    const pList2 = state.players;
+    for (let i = 0; i < pList2.length; i++) {
+        const p = pList2[i];
         if (!p.grantedAbilities?.length) continue;
         const kept: typeof p.grantedAbilities = [];
-        for (const grant of p.grantedAbilities) {
+        const grantList = p.grantedAbilities;
+        for (let j = 0; j < grantList.length; j++) {
+            const grant = grantList[j];
             const next = tickDuration(grant.duration, view);
             if (next !== null) kept.push({ ...grant, duration: next });
         }
@@ -3501,11 +3602,16 @@ function tickAllDurations(state: GameState): void {
     // #1972 — "gains 'This creature attacks each combat if able' until end of
     // turn"). An indefinite grant carries no `duration` and passes through
     // unchanged; it ends only when the permanent leaves the battlefield.
-    for (const cards of permanentsForDurationTick(state)) {
-        for (const card of cards) {
+    const cardsList3 = permanentsForDurationTick(state);
+    for (let i = 0; i < cardsList3.length; i++) {
+        const cards = cardsList3[i];
+        for (let j = 0; j < cards.length; j++) {
+            const card = cards[j];
             if (!card.grantedAttackRequirements?.length) continue;
             const kept: typeof card.grantedAttackRequirements = [];
-            for (const grant of card.grantedAttackRequirements) {
+            const grantList2 = card.grantedAttackRequirements;
+            for (let k = 0; k < grantList2.length; k++) {
+                const grant = grantList2[k];
                 if (!grant.duration) {
                     kept.push(grant);
                     continue;
@@ -3521,11 +3627,16 @@ function tickAllDurations(state: GameState): void {
     // "gains rampage 2 until end of turn"). Aura-sourced grants carry an
     // `auraId` and no `duration`; they're managed by the aura's lifetime
     // (stopApplyingStaticEffects) and pass through this purge unchanged.
-    for (const cards of permanentsForDurationTick(state)) {
-        for (const card of cards) {
+    const cardsList4 = permanentsForDurationTick(state);
+    for (let i = 0; i < cardsList4.length; i++) {
+        const cards = cardsList4[i];
+        for (let j = 0; j < cards.length; j++) {
+            const card = cards[j];
             if (!card.grantedTriggeredAbilities?.length) continue;
             const kept: typeof card.grantedTriggeredAbilities = [];
-            for (const grant of card.grantedTriggeredAbilities) {
+            const grantList3 = card.grantedTriggeredAbilities;
+            for (let k = 0; k < grantList3.length; k++) {
+                const grant = grantList3[k];
                 if (!grant.duration) {
                     kept.push(grant);
                     continue;
@@ -3543,11 +3654,16 @@ function tickAllDurations(state: GameState): void {
     // managed by the aura's lifetime (stopApplyingStaticEffects) and pass
     // through this purge unchanged. Nothing to splice out of `staticAbilities`
     // — a granted activated ability lives only in `grantedActivatedAbilities`.
-    for (const cards of permanentsForDurationTick(state)) {
-        for (const card of cards) {
+    const cardsList5 = permanentsForDurationTick(state);
+    for (let i = 0; i < cardsList5.length; i++) {
+        const cards = cardsList5[i];
+        for (let j = 0; j < cards.length; j++) {
+            const card = cards[j];
             if (!card.grantedActivatedAbilities?.length) continue;
             const kept: typeof card.grantedActivatedAbilities = [];
-            for (const grant of card.grantedActivatedAbilities) {
+            const grantList4 = card.grantedActivatedAbilities;
+            for (let k = 0; k < grantList4.length; k++) {
+                const grant = grantList4[k];
                 if (!grant.duration) {
                     kept.push(grant);
                     continue;
@@ -3587,7 +3703,9 @@ function tickAllDurations(state: GameState): void {
     // wears off.
     if (state.preventionEffects?.length) {
         const kept: typeof state.preventionEffects = [];
-        for (const effect of state.preventionEffects) {
+        const effectList = state.preventionEffects;
+        for (let i = 0; i < effectList.length; i++) {
+            const effect = effectList[i];
             const next = tickDuration(effect.duration, view);
             if (next !== null) kept.push({ ...effect, duration: next });
         }
@@ -3598,7 +3716,9 @@ function tickAllDurations(state: GameState): void {
     // Unconsumed remainder wears off at the same boundary.
     if (state.targetPreventionShields?.length) {
         const kept: typeof state.targetPreventionShields = [];
-        for (const shield of state.targetPreventionShields) {
+        const shieldList = state.targetPreventionShields;
+        for (let i = 0; i < shieldList.length; i++) {
+            const shield = shieldList[i];
             const next = tickDuration(shield.duration, view);
             if (next !== null) kept.push({ ...shield, duration: next });
         }
@@ -3609,7 +3729,9 @@ function tickAllDurations(state: GameState): void {
     // Unconsumed remainder wears off at the same boundary (CR 514.2).
     if (state.playerDamagePrevention?.length) {
         const kept: typeof state.playerDamagePrevention = [];
-        for (const shield of state.playerDamagePrevention) {
+        const shieldList2 = state.playerDamagePrevention;
+        for (let i = 0; i < shieldList2.length; i++) {
+            const shield = shieldList2[i];
             const next = tickDuration(shield.duration, view);
             if (next !== null) kept.push({ ...shield, duration: next });
         }
@@ -3620,7 +3742,9 @@ function tickAllDurations(state: GameState): void {
     // Personal Incarnation {0}). Same wear-off semantics as prevention.
     if (state.damageRedirections?.length) {
         const kept: typeof state.damageRedirections = [];
-        for (const shield of state.damageRedirections) {
+        const shieldList3 = state.damageRedirections;
+        for (let i = 0; i < shieldList3.length; i++) {
+            const shield = shieldList3[i];
             const next = tickDuration(shield.duration, view);
             if (next === null) continue;
             kept.push({ ...shield, duration: next });
@@ -3632,7 +3756,9 @@ function tickAllDurations(state: GameState): void {
     // remainder wears off at the same boundary (ADR 0125).
     if (state.destroyReplacementShields?.length) {
         const kept: typeof state.destroyReplacementShields = [];
-        for (const shield of state.destroyReplacementShields) {
+        const shieldList4 = state.destroyReplacementShields;
+        for (let i = 0; i < shieldList4.length; i++) {
+            const shield = shieldList4[i];
             const next = tickDuration(shield.duration, view);
             if (next === null) continue;
             kept.push({ ...shield, duration: next });
@@ -3644,7 +3770,9 @@ function tickAllDurations(state: GameState): void {
     // the same boundary.
     if (state.combatDamageImmunity?.length) {
         const kept: typeof state.combatDamageImmunity = [];
-        for (const shield of state.combatDamageImmunity) {
+        const shieldList5 = state.combatDamageImmunity;
+        for (let i = 0; i < shieldList5.length; i++) {
+            const shield = shieldList5[i];
             const next = tickDuration(shield.duration, view);
             if (next === null) continue;
             kept.push({ ...shield, duration: next });
@@ -3656,7 +3784,9 @@ function tickAllDurations(state: GameState): void {
     // Life). Unfired remainder wears off at end of turn (CR 514.2).
     if (state.damageTriggeredLifegain?.length) {
         const kept: typeof state.damageTriggeredLifegain = [];
-        for (const effect of state.damageTriggeredLifegain) {
+        const effectList2 = state.damageTriggeredLifegain;
+        for (let i = 0; i < effectList2.length; i++) {
+            const effect = effectList2[i];
             const next = tickDuration(effect.duration, view);
             if (next !== null) kept.push({ ...effect, duration: next });
         }
@@ -3666,8 +3796,11 @@ function tickAllDurations(state: GameState): void {
     // "Becomes a creature" animations (e.g. Jade Statue). On expiry, splice
     // back out anything the animation added and restore the pre-animation
     // P/T so the permanent returns to its original shape.
-    for (const cards of permanentsForDurationTick(state)) {
-        for (const card of cards) {
+    const cardsList6 = permanentsForDurationTick(state);
+    for (let i = 0; i < cardsList6.length; i++) {
+        const cards = cardsList6[i];
+        for (let j = 0; j < cards.length; j++) {
+            const card = cards[j];
             if (!card.animation) continue;
             // CR 611.2a — an animation with no stored `duration` is INDEFINITE
             // (Earthbend N's "becomes a 0/0 creature ... that's still a land",
@@ -3687,8 +3820,11 @@ function tickAllDurations(state: GameState): void {
     // Timed subtype changes (CR 305.7 / 611.2 — Orcish Farmer "becomes a Swamp
     // until its controller's next untap step"). On expiry, restore the captured
     // printed subtypes so subtype-driven reads (intrinsic mana, landwalk) revert.
-    for (const cards of permanentsForDurationTick(state)) {
-        for (const card of cards) {
+    const cardsList7 = permanentsForDurationTick(state);
+    for (let i = 0; i < cardsList7.length; i++) {
+        const cards = cardsList7[i];
+        for (let j = 0; j < cards.length; j++) {
+            const card = cards[j];
             const change = card.temporarySubtypeChange;
             if (!change) continue;
             const next = tickDuration(change.duration, view);
@@ -3711,8 +3847,11 @@ function tickAllDurations(state: GameState): void {
     // "becomes the color of your choice until end of turn"). Each ledger row
     // ends at its own boundary (issue #2936, CR 613.7); what remains shows
     // through — mirrors the temporarySubtypeChange purge above.
-    for (const cards of permanentsForDurationTick(state)) {
-        for (const card of cards) {
+    const cardsList8 = permanentsForDurationTick(state);
+    for (let i = 0; i < cardsList8.length; i++) {
+        const cards = cardsList8[i];
+        for (let j = 0; j < cards.length; j++) {
+            const card = cards[j];
             tickColorOverrideLedger(card, (d) => tickDuration(d, view));
         }
     }
@@ -3732,7 +3871,8 @@ function tickAllDurations(state: GameState): void {
     // per-flag clears did, so a flag armed in that step's priority window
     // (an instant — Fog, High Tide) still cannot leak into the next turn.
     if (view.phase === "CLEANUP") {
-        for (const flag of TURN_SCOPED_GLOBAL_FLAGS) {
+        for (let i = 0; i < TURN_SCOPED_GLOBAL_FLAGS.length; i++) {
+            const flag = TURN_SCOPED_GLOBAL_FLAGS[i];
             if (state[flag] === undefined) continue;
             // Safe by construction: `OptionalGameStateKey` admits only keys
             // whose value type already includes `undefined`.
@@ -3743,7 +3883,11 @@ function tickAllDurations(state: GameState): void {
         // (CR 702.11c hexproof, 702.18a shroud) end with the turn's other
         // "until end of turn" effects. Player-carried rather than a global
         // flag so the public projection's `...player` spread delivers them.
-        for (const p of state.players) p.keywordsUntilEndOfTurn = undefined;
+        const pList3 = state.players;
+        for (let i = 0; i < pList3.length; i++) {
+            const p = pList3[i];
+            p.keywordsUntilEndOfTurn = undefined;
+        }
     }
 }
 
@@ -3811,25 +3955,53 @@ function advanceTurn(state: GameState): void {
     state.extraPhases = undefined;
     state.extraCombatsThisTurn = undefined;
     // CR 117.2c / 305.2: reset per-turn land drop count at the start of each turn.
-    for (const p of state.players) p.landsPlayedThisTurn = 0;
+    const pList = state.players;
+    for (let j = 0; j < pList.length; j++) {
+        const p = pList[j];
+        p.landsPlayedThisTurn = 0;
+    }
     // CR 601.2i (issue #1343): reset each player's per-turn spell-cast tally
     // at the start of each turn — the per-player counterpart of the global
     // `state.spellsCastThisTurn` reset below (connive/Ledger Shredder's
     // "second spell each turn" needs this scoped to the caster).
-    for (const p of state.players) p.spellsCastThisTurn = 0;
+    const pList2 = state.players;
+    for (let j = 0; j < pList2.length; j++) {
+        const p = pList2[j];
+        p.spellsCastThisTurn = 0;
+    }
     // CR 601.2i — the per-type split of that tally resets with it.
-    for (const p of state.players) p.spellTypesCastThisTurn = undefined;
+    const pList3 = state.players;
+    for (let j = 0; j < pList3.length; j++) {
+        const p = pList3[j];
+        p.spellTypesCastThisTurn = undefined;
+    }
     // CR 601.2i — so does the record of each spell's colours.
-    for (const p of state.players) p.spellColorsCastThisTurn = undefined;
+    const pList4 = state.players;
+    for (let j = 0; j < pList4.length; j++) {
+        const p = pList4[j];
+        p.spellColorsCastThisTurn = undefined;
+    }
     // CR 702.185c (issue #1268) — "a spell was warped THIS TURN": the tally
     // resets with its cast sibling above and for the same reason.
-    for (const p of state.players) p.spellsWarpedThisTurn = 0;
+    const pList5 = state.players;
+    for (let j = 0; j < pList5.length; j++) {
+        const p = pList5[j];
+        p.spellsWarpedThisTurn = 0;
+    }
     // "The last card you drew this turn" (Jandor's Ring) is turn-scoped —
     // clear the tracker so a draw on a prior turn can't pay this turn's cost.
-    for (const p of state.players) p.lastDrawnCardId = undefined;
+    const pList6 = state.players;
+    for (let j = 0; j < pList6.length; j++) {
+        const p = pList6[j];
+        p.lastDrawnCardId = undefined;
+    }
     // The full per-turn draw tally (Sylvan Library "cards drawn this turn") is
     // turn-scoped too — clear it so a prior turn's draws can't be chosen.
-    for (const p of state.players) p.drawnThisTurn = undefined;
+    const pList7 = state.players;
+    for (let j = 0; j < pList7.length; j++) {
+        const p = pList7[j];
+        p.drawnThisTurn = undefined;
+    }
     // CR 400.7 / 603.4 — the "a card left your graveyard this turn" tally
     // (Gau, Feral Youth) is turn-scoped. Cleared HERE, at the turn boundary,
     // and NOWHERE else. There is exactly one end step per turn (CR 500.1 /
@@ -3840,15 +4012,28 @@ function advanceTurn(state: GameState): void {
     // that single end step, once when the trigger would go on the stack and
     // again as it resolves, so a mid-turn clear would answer "no" on the
     // second check for a departure that really happened.
-    for (const p of state.players) p.leftGraveyardThisTurn = undefined;
+    const pList8 = state.players;
+    for (let j = 0; j < pList8.length; j++) {
+        const p = pList8[j];
+        p.leftGraveyardThisTurn = undefined;
+    }
     // Issue #7209 — "put there this turn" is a look-back within one turn, so
     // its per-card stamp ends at the same boundary.
-    for (const p of state.players) {
-        for (const card of p.graveyard) delete card.putIntoGraveyardThisTurn;
+    const pList9 = state.players;
+    for (let j = 0; j < pList9.length; j++) {
+        const p = pList9[j];
+        const cardList = p.graveyard;
+        for (let k = 0; k < cardList.length; k++) {
+            const card = cardList[k];
+            delete card.putIntoGraveyardThisTurn;
+        }
     }
     // CR 700.4 — turn-scoped like the global deaths tally below.
-    for (const p of state.players)
+    const pList10 = state.players;
+    for (let j = 0; j < pList10.length; j++) {
+        const p = pList10[j];
         p.nontokenCreaturesToGraveyardThisTurn = undefined;
+    }
     // CR 614 — Aladdin's Lamp's draw replacement is "this turn"; any entry not
     // consumed by a draw expires when the next turn begins.
     state.drawLookReplacements = undefined;
@@ -3873,8 +4058,12 @@ function advanceTurn(state: GameState): void {
     // CR 602.5 — `oncePerTurn` activation counts are per-source per-turn.
     // Clear them across every permanent at turn start so the next turn's
     // first activation isn't blocked by a stale tally.
-    for (const p of state.players) {
-        for (const c of p.battlefield) {
+    const pList11 = state.players;
+    for (let j = 0; j < pList11.length; j++) {
+        const p = pList11[j];
+        const cList = p.battlefield;
+        for (let k = 0; k < cList.length; k++) {
+            const c = cList[k];
             if (c.activationsThisTurn) c.activationsThisTurn = undefined;
             // CR 603.2 — the trigger twin: "this ability triggers only twice
             // each turn" (Nadu, Winged Wisdom) tallies per source object in
@@ -3892,8 +4081,11 @@ function advanceTurn(state: GameState): void {
     // Revolt, an ability word (CR 207.2c): reset the per-player
     // "a permanent you controlled
     // left the battlefield this turn" flag at the start of each turn.
-    for (const p of state.players)
+    const pList12 = state.players;
+    for (let j = 0; j < pList12.length; j++) {
+        const p = pList12[j];
         p.permanentYouControlledLeftThisTurn = undefined;
+    }
     // Island Sanctuary: clear protection when the protected player's turn starts
     if (
         state.playerAttackRequirements &&
@@ -3980,8 +4172,12 @@ function advanceTurn(state: GameState): void {
  *  call site, read before the transition. Only the CR 702.189a exception below
  *  consults it; every other unit empties regardless. */
 function emptyManaPools(state: GameState, leavingPhase: Phase): void {
-    for (const player of state.players) {
-        for (const color of Object.keys(player.manaPool)) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const colorList = Object.keys(player.manaPool);
+        for (let j = 0; j < colorList.length; j++) {
+            const color = colorList[j];
             player.manaPool[color] = 0;
         }
         // CR 106.6 / 500.5: restricted mana (e.g. Metamorphosis) empties with
@@ -3998,7 +4194,9 @@ function emptyManaPools(state: GameState, leavingPhase: Phase): void {
             manaPersistenceSurvives(unit.persistsUntil, leavingPhase)
         );
         player.restrictedMana = surviving.length > 0 ? surviving : undefined;
-        for (const card of player.battlefield) {
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (card.isTapped) {
                 card.manaCommitted = true;
             }
@@ -4012,7 +4210,9 @@ function defenderHasAnyLegalBlock(state: GameState): boolean {
     const activePlayer = getPlayer(state, state.activePlayerId);
     const defender = getPlayer(state, defenderId);
     const attackers: CardInstanceState[] = [];
-    for (const id of state.combat.attackerIds) {
+    const idList = state.combat.attackerIds;
+    for (let i = 0; i < idList.length; i++) {
+        const id = idList[i];
         const card = activePlayer.battlefield.find((c) => c.id === id);
         if (card) attackers.push(card);
     }
@@ -4029,11 +4229,15 @@ function endCombatStep(state: GameState): void {
         const activePlayer = getPlayer(state, state.activePlayerId);
         const defenderId = getOpponentId(state, state.activePlayerId);
         const defender = getPlayer(state, defenderId);
-        for (const card of activePlayer.battlefield) {
+        const cardList = activePlayer.battlefield;
+        for (let i = 0; i < cardList.length; i++) {
+            const card = cardList[i];
             card.isAttacking = undefined;
             card.pileLabel = undefined;
         }
-        for (const card of defender.battlefield) {
+        const cardList2 = defender.battlefield;
+        for (let i = 0; i < cardList2.length; i++) {
+            const card = cardList2[i];
             card.isBlocking = undefined;
             card.pileLabel = undefined;
         }
@@ -4042,8 +4246,12 @@ function endCombatStep(state: GameState): void {
     // CR 702.39a — Provoke's requirement lasts this combat, so it must not bind
     // in an extra combat phase of the same turn (CR 509.1c binds "this turn"
     // requirements in each one, which is why the two scopes are two fields).
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList3 = player.battlefield;
+        for (let j = 0; j < cardList3.length; j++) {
+            const card = cardList3[j];
             delete card.mustBlockAttackersThisCombat;
         }
     }
@@ -4465,7 +4673,9 @@ export function drainAutoPasses(state: GameState): void {
                 ),
                 getAttackerCapEffect(state)?.max
             );
-            for (const attackerId of state.combat.attackerIds) {
+            const attackerIdList = state.combat.attackerIds;
+            for (let j = 0; j < attackerIdList.length; j++) {
+                const attackerId = attackerIdList[j];
                 const card = activePlayer.battlefield.find(
                     (c) => c.id === attackerId
                 );

@@ -296,7 +296,9 @@ export function commitCast(
         };
         if (payment.notedManaSpent) {
             const merged: Record<string, number> = { ...notedManaSpent };
-            for (const [color, n] of Object.entries(payment.notedManaSpent)) {
+            const entries2 = Object.entries(payment.notedManaSpent);
+            for (let j = 0; j < entries2.length; j++) {
+                const [color, n] = entries2[j];
                 merged[color] = (merged[color] ?? 0) + n;
             }
             notedManaSpent = merged;
@@ -383,7 +385,8 @@ export function commitCast(
             exileSource.some((c) => c.id === id)
         );
         if (!stillThere) return null;
-        for (const id of exilePickIds) {
+        for (let j = 0; j < exilePickIds.length; j++) {
+            const id = exilePickIds[j];
             moveCard(caster, id, exileSourceZone, "exile", state);
         }
         castExiledCardIds.push(...exilePickIds);
@@ -398,7 +401,9 @@ export function commitCast(
             caster.battlefield.some((c) => c.id === id && !c.isTapped)
         );
         if (!stillThere) return null;
-        for (const id of convoke.pickedCreatureIds) {
+        const idList = convoke.pickedCreatureIds;
+        for (let j = 0; j < idList.length; j++) {
+            const id = idList[j];
             const creature = caster.battlefield.find((c) => c.id === id);
             if (creature) creature.isTapped = true;
         }
@@ -459,7 +464,7 @@ export function commitCast(
             cardInstanceId: exiled.id,
             mv: manaValue(getPermanentManaValueCost(exiled)),
             ...(exiled.subtypes && exiled.subtypes.length > 0
-                ? { subtypes: [...exiled.subtypes] }
+                ? { subtypes: exiled.subtypes.slice() }
                 : {}),
             ...costVictimTypeFields(exiled),
         };
@@ -660,6 +665,10 @@ export function commitCast(
  *  one, whatever colour or generic key it sits under. */
 function manaUnitsIn(cost: Record<string, number>): number {
     let units = 0;
-    for (const n of Object.values(cost)) if (n > 0) units += n;
+    const nList = Object.values(cost);
+    for (let i = 0; i < nList.length; i++) {
+        const n = nList[i];
+        if (n > 0) units += n;
+    }
     return units;
 }

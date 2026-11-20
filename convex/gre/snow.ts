@@ -45,8 +45,7 @@ export function applyIndefiniteSupertypeMutation(
      *  (which is the one holding the `GameState`). */
     seq: number
 ): void {
-    card.supertypeHolds = [
-        ...(card.supertypeHolds ?? []),
+    card.supertypeHolds = (card.supertypeHolds ?? []).concat([
         present ? { add: [supertype], seq } : { remove: [supertype], seq },
-    ];
+    ]);
 }

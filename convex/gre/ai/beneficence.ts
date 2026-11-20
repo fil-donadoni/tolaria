@@ -89,12 +89,17 @@ function mergeSign(a: Beneficence, b: Beneficence): Beneficence {
 function announcedSlotsIn(value: unknown, out: Set<number>): void {
     if (value === null || typeof value !== "object") return;
     if (Array.isArray(value)) {
-        for (const v of value) announcedSlotsIn(v, out);
+        for (let i = 0; i < value.length; i++) {
+            const v = value[i];
+            announcedSlotsIn(v, out);
+        }
         return;
     }
     const bag = value as Record<string, unknown>;
     if (typeof bag.target === "number") out.add(bag.target);
-    for (const [key, v] of Object.entries(bag)) {
+    const entries2 = Object.entries(bag);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, v] = entries2[i];
         // Nested Op LISTS are walked by `collectScriptSigns` (each nested Op
         // gets its OWN sign); descending into them here would attribute the
         // outer Op's sign to an inner Op's slots.
@@ -153,7 +158,8 @@ function collectScriptSigns(
     // margin reads. No sign, so flickering one's own permanent draws no
     // misdirection penalty.
     const blinked = blinkReturnedBindings(effects);
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         if (op.op === "exile" && op.bind && blinked.has(op.bind)) continue;
         // A script host carries no stake of its own; each nested Op is read
         // exactly like a top-level one (issue #4442 — a `divideIntoPiles`
@@ -164,21 +170,26 @@ function collectScriptSigns(
         if (isTriggerBodyHost(op)) continue;
         const children = childOpArrays(op);
         if (children.length > 0) {
-            for (const child of children) collectScriptSigns(child, signs);
+            for (let j = 0; j < children.length; j++) {
+                const child = children[j];
+                collectScriptSigns(child, signs);
+            }
             continue;
         }
         const split = SPLIT_SIGN_OPS[op.op];
         if (split !== undefined) {
             const bag = op as unknown as Record<string, unknown>;
-            for (const [field, fieldSign] of Object.entries(split)) {
+            const entries2 = Object.entries(split);
+            for (let j = 0; j < entries2.length; j++) {
+                const [field, fieldSign] = entries2[j];
                 const fieldSlots = new Set<number>();
                 announcedSlotsIn(bag[field], fieldSlots);
-                for (const slot of fieldSlots) {
+                fieldSlots.forEach((slot) => {
                     signs.set(
                         slot,
                         mergeSign(signs.get(slot) ?? "neutral", fieldSign)
                     );
-                }
+                });
             }
             continue;
         }
@@ -186,9 +197,9 @@ function collectScriptSigns(
         if (sign === "neutral") continue;
         const slots = new Set<number>();
         announcedSlotsIn(op, slots);
-        for (const slot of slots) {
+        slots.forEach((slot) => {
             signs.set(slot, mergeSign(signs.get(slot) ?? "neutral", sign));
-        }
+        });
     }
 }
 
@@ -203,11 +214,15 @@ function auraAttachmentSign(def: CardDefinition): Beneficence {
     // adds …". The `manaBonusForPotential` descriptor exists precisely because
     // this mana accrues to the HOST's controller (`appliesTo: "host"`), which
     // is exactly the fact the beneficence axis needs.
-    for (const trigger of def.triggeredAbilities ?? []) {
+    const triggerList = def.triggeredAbilities ?? [];
+    for (let i = 0; i < triggerList.length; i++) {
+        const trigger = triggerList[i];
         if (trigger.manaBonusForPotential) sign = mergeSign(sign, "beneficial");
     }
 
-    for (const effect of def.staticEffects ?? []) {
+    const effectList = def.staticEffects ?? [];
+    for (let i = 0; i < effectList.length; i++) {
+        const effect = effectList[i];
         switch (effect.kind) {
             case "pt-buff": {
                 // A `computeFor` magnitude has no static sign (it reads the
@@ -306,7 +321,9 @@ function recipientOf(
 ): string | undefined {
     if (target.type === "player") return target.id;
     if (target.type === "permanent") {
-        for (const p of state.players) {
+        const pList = state.players;
+        for (let i = 0; i < pList.length; i++) {
+            const p = pList[i];
             const perm = p.battlefield.find((c) => c.id === target.id);
             if (perm) return perm.controllerId ?? p.id;
         }
@@ -329,8 +346,12 @@ function definitionOfInstance(
     state: GameState,
     instanceId: string
 ): CardDefinition | undefined {
-    for (const p of state.players) {
-        for (const zone of [p.battlefield, p.graveyard, p.hand, p.exile]) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
+        const zoneList = [p.battlefield, p.graveyard, p.hand, p.exile];
+        for (let j = 0; j < zoneList.length; j++) {
+            const zone = zoneList[j];
             const found = zone.find((c) => c.id === instanceId);
             if (found) {
                 const id = (found.card as { id?: string } | undefined)?.id;
@@ -374,7 +395,8 @@ function slotSignerFor(
             if (!spans || spans.length !== chosen.length) return undefined;
             return (slot) => {
                 let offset = 0;
-                for (const [i, span] of spans.entries()) {
+                for (let i = 0; i < spans.length; i++) {
+                    const span = spans[i];
                     if (slot < offset + span) {
                         return targetSlotBeneficence(
                             def,
@@ -410,7 +432,8 @@ function slotSignerFor(
             if (!spans || spans.length !== chosenIds.length) return undefined;
             return (slot) => {
                 let offset = 0;
-                for (const [i, span] of spans.entries()) {
+                for (let i = 0; i < spans.length; i++) {
+                    const span = spans[i];
                     if (slot < offset + span) {
                         const mode = abilityModes.find(
                             (m) => m.id === chosenIds[i]

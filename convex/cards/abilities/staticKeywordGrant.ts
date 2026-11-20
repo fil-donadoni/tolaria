@@ -43,17 +43,15 @@ export function expandStaticKeywordGrants(
     }
     return {
         ...def,
-        staticEffects: [
-            ...(def.staticEffects ?? []),
-            ...grants.map((grant) => ({
+        staticEffects: (def.staticEffects ?? []).concat(
+            grants.map((grant) => ({
                 kind: "triggered-grant" as const,
                 applies: grant.applies,
                 abilityId: granted.id,
-            })),
-        ],
-        triggeredGrantTemplates: [
-            ...(def.triggeredGrantTemplates ?? []),
+            }))
+        ),
+        triggeredGrantTemplates: (def.triggeredGrantTemplates ?? []).concat([
             granted,
-        ],
+        ]),
     };
 }

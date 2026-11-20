@@ -117,8 +117,12 @@ export function personsOf(
         if (ra < rb) parent.set(rb, ra);
         else parent.set(ra, rb);
     };
+    // eslint-disable-next-line no-restricted-syntax -- an iterable or generator, not an array (issue #10126)
     for (const author of authors) find(author);
-    for (const { authors: pair } of aliases) join(pair[0], pair[1]);
+    for (let i = 0; i < aliases.length; i++) {
+        const { authors: pair } = aliases[i];
+        join(pair[0], pair[1]);
+    }
     return new Map([...parent.keys()].map((author) => [author, find(author)]));
 }
 
@@ -127,10 +131,20 @@ function explicitVerdicts(q: VerdictQuarantine): AttestedVerdict[] {
     const byId = new Map<string, AttestedVerdict>();
     const add = (v: AttestedVerdict) => byId.set(v.verdictId, v);
     q.promotable.forEach(add);
-    for (const c of q.contested) c.verdicts.forEach(add);
-    for (const r of q.resolved) {
+    const cList = q.contested;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
+        c.verdicts.forEach(add);
+    }
+    const rList = q.resolved;
+    for (let i = 0; i < rList.length; i++) {
+        const r = rList[i];
         if (r.accepted !== null) add(r.accepted);
-        for (const { verdict } of r.rejected) add(verdict);
+        const entries = r.rejected;
+        for (let j = 0; j < entries.length; j++) {
+            const { verdict } = entries[j];
+            add(verdict);
+        }
     }
     return [...byId.values()].sort((a, b) =>
         byString(a.verdictId, b.verdictId)
@@ -168,13 +182,13 @@ export function testerQualityOf(
 ): TesterQualityReport {
     const locked = new Set(fit?.lock.verdictIds ?? []);
     const unsatisfied = new Set(fit?.unsatisfiedVerdictIds ?? []);
-    for (const id of unsatisfied) {
+    unsatisfied.forEach((id) => {
         if (!locked.has(id)) {
             throw new Error(
                 `${id}: the fit report names it unsatisfied, but the lock does not name it — the report is not over this lock`
             );
         }
-    }
+    });
 
     const verdicts = explicitVerdicts(quarantine);
     const explicitOf = (v: AttestedVerdict) =>
@@ -189,47 +203,51 @@ export function testerQualityOf(
     const mine = new Map<string, Map<string, Set<string>>>();
     // person → verdict id → the grades the person's accounts gave it.
     const gradesOf = new Map<string, Map<string, VerdictGrade[]>>();
-    for (const v of verdicts) {
-        for (const a of explicitOf(v)) {
+    for (let i = 0; i < verdicts.length; i++) {
+        const v = verdicts[i];
+        const aList = explicitOf(v);
+        for (let j = 0; j < aList.length; j++) {
+            const a = aList[j];
             const person = persons.get(a.author)!;
             const byVerdict =
                 gradesOf.get(person) ?? new Map<string, VerdictGrade[]>();
             gradesOf.set(person, byVerdict);
-            byVerdict.set(v.verdictId, [
-                ...(byVerdict.get(v.verdictId) ?? []),
-                attestedGradeOf(a),
-            ]);
+            byVerdict.set(
+                v.verdictId,
+                (byVerdict.get(v.verdictId) ?? []).concat([attestedGradeOf(a)])
+            );
         }
     }
-    for (const v of verdicts) {
+    for (let i = 0; i < verdicts.length; i++) {
+        const v = verdicts[i];
         const atKey = givenAt.get(v.positionKey) ?? new Set<string>();
         givenAt.set(v.positionKey, atKey);
         atKey.add(v.verdictId);
         const who = new Set(
             explicitAuthorsOf(v).map((author) => persons.get(author)!)
         );
-        for (const person of who) {
+        who.forEach((person) => {
             const keys = mine.get(person) ?? new Map<string, Set<string>>();
             mine.set(person, keys);
             const ids = keys.get(v.positionKey) ?? new Set<string>();
             keys.set(v.positionKey, ids);
             ids.add(v.verdictId);
-        }
+        });
     }
 
     const contestedKeys = new Set(
         quarantine.contested.map((c) => c.positionKey)
     );
     const authorsOf = new Map<string, string[]>();
-    for (const [author, person] of persons) {
-        authorsOf.set(person, [...(authorsOf.get(person) ?? []), author]);
-    }
+    persons.forEach((person, author) => {
+        authorsOf.set(person, (authorsOf.get(person) ?? []).concat([author]));
+    });
 
     const testers = [...mine.keys()].sort(byString).map((person) => {
         const keys = mine.get(person)!;
         return {
             person,
-            authors: [...authorsOf.get(person)!].sort(byString),
+            authors: authorsOf.get(person)!.slice().sort(byString),
             given: positionsOf(keys, () => true),
             // Every explicit verdict has an explicit author, so one the person
             // did not give was given by someone else — while one person's two
@@ -288,9 +306,9 @@ function gradeCounts(
         preferred: 0,
         indifferent: 0,
     };
-    for (const grades of byVerdict?.values() ?? []) {
+    byVerdict?.forEach((grades) => {
         out[leastCommittalGrade(grades)]++;
-    }
+    });
     return out;
 }
 
@@ -309,11 +327,14 @@ export function formatTesterQuality(report: TesterQualityReport): string {
     const drill = (label: string, positions: TesterPosition[]) => {
         if (positions.length === 0) return;
         out.push(`    ${label}:`);
-        for (const p of positions) {
+        for (let i = 0; i < positions.length; i++) {
+            const p = positions[i];
             out.push(`      ${p.positionKey}  ${p.verdictIds.join(", ")}`);
         }
     };
-    for (const t of report.testers) {
+    const tList = report.testers;
+    for (let i = 0; i < tList.length; i++) {
+        const t = tList[i];
         const unsatisfied = report.fitRead
             ? `${t.unsatisfied.length} — ${UNSATISFIED_NOTE}`
             : "not measured";
@@ -336,7 +357,11 @@ export function formatTesterQuality(report: TesterQualityReport): string {
             "",
             `unsatisfied, attested by no one in the store: ${report.unattributedUnsatisfied.length}`
         );
-        for (const id of report.unattributedUnsatisfied) out.push(`  ${id}`);
+        const idList = report.unattributedUnsatisfied;
+        for (let i = 0; i < idList.length; i++) {
+            const id = idList[i];
+            out.push(`  ${id}`);
+        }
     }
     return out.join("\n");
 }

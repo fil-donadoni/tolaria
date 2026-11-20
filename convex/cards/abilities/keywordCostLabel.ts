@@ -8,7 +8,9 @@ export function keywordCostLabel(cost: ManaCost): string {
     const generic =
         (typeof cost.X === "number" ? cost.X : 0) + (cost.generic ?? 0);
     let out = generic > 0 ? `{${generic}}` : "";
-    for (const sym of ["W", "U", "B", "R", "G", "C"] as const) {
+    const symList = ["W", "U", "B", "R", "G", "C"] as const;
+    for (let i = 0; i < symList.length; i++) {
+        const sym = symList[i];
         const n = cost[sym];
         if (typeof n === "number") out += `{${sym}}`.repeat(n);
     }

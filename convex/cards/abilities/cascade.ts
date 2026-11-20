@@ -67,7 +67,8 @@ function countCascade(
 ): number {
     if (!staticAbilities) return 0;
     let n = 0;
-    for (const s of staticAbilities) {
+    for (let i = 0; i < staticAbilities.length; i++) {
+        const s = staticAbilities[i];
         if (s.trim().toLowerCase() === CASCADE_KEYWORD) n += 1;
     }
     return n;
@@ -86,9 +87,8 @@ export function expandCascade(def: CardDefinition): CardDefinition {
     if (existing.some((t) => CASCADE_TRIGGER_ID_PATTERN.test(t.id))) return def;
     return {
         ...def,
-        triggeredAbilities: [
-            ...existing,
-            ...Array.from({ length: instances }, (_, i) => cascadeTrigger(i)),
-        ],
+        triggeredAbilities: existing.concat(
+            Array.from({ length: instances }, (_, i) => cascadeTrigger(i))
+        ),
     };
 }

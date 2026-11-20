@@ -70,7 +70,8 @@ export function buildHandSpellDemands(
     isSorceryTiming: boolean
 ): Demand[] {
     const demands: Demand[] = [];
-    for (const card of hand) {
+    for (let i = 0; i < hand.length; i++) {
+        const card = hand[i];
         if (card.id === excludeInstanceId) continue;
         // Lands aren't cast (CR 305.1) — no mana cost to preserve for.
         if (card.types.includes("Land")) continue;
@@ -160,14 +161,17 @@ export function buildBoardAbilityDemands(
     timing: { phase: Phase; isControllersTurn: boolean }
 ): Demand[] {
     const demands: Demand[] = [];
-    for (const perm of battlefield) {
+    for (let i = 0; i < battlefield.length; i++) {
+        const perm = battlefield[i];
         // CR 613.1f — a permanent that has lost all abilities exposes none of
         // its printed activated abilities.
         if (abilitiesSuppressed(perm)) continue;
         // CR 113.1 / 611.2a (issue #1880) — POST-LAYER set: an ability GRANTED
         // to this permanent competes for mana exactly like a printed one, so
         // auto-tap must reserve for it too.
-        for (const { ability } of getEffectiveActivatedAbilities(perm)) {
+        const entries = getEffectiveActivatedAbilities(perm);
+        for (let j = 0; j < entries.length; j++) {
+            const { ability } = entries[j];
             // Mana abilities (CR 605.1a) PRODUCE mana — they're sources, not
             // Demands (handled by `buildAutoTapSources`).
             if (!ability.useStack && ability.manaProduced) continue;
@@ -242,7 +246,8 @@ function staticManaTotal(cost: unknown): number | undefined {
         return staticManaTotal(entries[0][1]);
     }
     let total = 0;
-    for (const [key, value] of entries) {
+    for (let i = 0; i < entries.length; i++) {
+        const [key, value] = entries[i];
         if (!UNTAP_PRICE_MANA_KEYS.has(key) || typeof value !== "number") {
             return undefined;
         }
@@ -256,7 +261,9 @@ function staticManaTotal(cost: unknown): number | undefined {
 export function scriptUntapsItsSource(
     effects: readonly EffectOp[] | undefined
 ): boolean {
-    for (const op of effects ?? []) {
+    const opList = effects ?? [];
+    for (let i = 0; i < opList.length; i++) {
+        const op = opList[i];
         if (
             op.op === "tapUntap" &&
             op.action === "untap" &&
@@ -281,7 +288,9 @@ function mayPayUntapPrice(
     effects: readonly EffectOp[] | undefined
 ): number | undefined {
     if (!scriptUntapsItsSource(effects)) return undefined;
-    for (const op of effects ?? []) {
+    const opList = effects ?? [];
+    for (let i = 0; i < opList.length; i++) {
+        const op = opList[i];
         if (op.op === "mayPay") return staticManaTotal(op.cost);
     }
     return undefined;
@@ -291,7 +300,9 @@ function mayPayUntapPrice(
  *  "it deals 1 damage to you"). */
 function damageToController(effects: readonly EffectOp[] | undefined): number {
     let total = 0;
-    for (const op of effects ?? []) {
+    const opList = effects ?? [];
+    for (let i = 0; i < opList.length; i++) {
+        const op = opList[i];
         if (
             op.op === "dealDamage" &&
             typeof op.amount === "number" &&
@@ -326,7 +337,9 @@ function damageToController(effects: readonly EffectOp[] | undefined): number {
 export function sourceUntapPrice(card: CardInstanceState): number | undefined {
     if (!card.staticAbilities.includes("does-not-untap")) return undefined;
     let cheapest = Number.POSITIVE_INFINITY;
-    for (const { ability } of getEffectiveActivatedAbilities(card)) {
+    const entries = getEffectiveActivatedAbilities(card);
+    for (let i = 0; i < entries.length; i++) {
+        const { ability } = entries[i];
         if (!scriptUntapsItsSource(ability.effects)) continue;
         const price = staticManaTotal(ability.cost);
         if (price !== undefined) cheapest = Math.min(cheapest, price);
@@ -337,7 +350,8 @@ export function sourceUntapPrice(card: CardInstanceState): number | undefined {
         const triggers = cardId
             ? (tryGetDefinition(cardId)?.triggeredAbilities ?? [])
             : [];
-        for (const trigger of triggers) {
+        for (let i = 0; i < triggers.length; i++) {
+            const trigger = triggers[i];
             const price = mayPayUntapPrice(trigger.effects);
             if (price !== undefined) cheapest = Math.min(cheapest, price);
             damage += damageToController(trigger.effects);

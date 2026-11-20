@@ -857,7 +857,9 @@ export function entryCounterPtDelta(
     def: Pick<CardDefinition, "entersWith"> | null | undefined
 ): { power: number; toughness: number } {
     const delta = { power: 0, toughness: 0 };
-    for (const { type, count } of def?.entersWith?.counters ?? []) {
+    const entries = def?.entersWith?.counters ?? [];
+    for (let i = 0; i < entries.length; i++) {
+        const { type, count } = entries[i];
         const pt = typeof count === "number" ? parsePtCounter(type) : null;
         if (!pt || typeof count !== "number") continue;
         delta.power += pt.power * count;

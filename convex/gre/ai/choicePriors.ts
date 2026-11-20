@@ -203,9 +203,15 @@ function colorModePrior(
  *  and it is public to both seats. */
 function permanentSubtypeCensus(state: GameState): Map<string, number> {
     const census = new Map<string, number>();
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
-            for (const subtype of card.subtypes ?? []) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
+            const subtypeList = card.subtypes ?? [];
+            for (let k = 0; k < subtypeList.length; k++) {
+                const subtype = subtypeList[k];
                 census.set(subtype, (census.get(subtype) ?? 0) + 1);
             }
         }
@@ -240,7 +246,9 @@ function subtypeModePrior(state: GameState, candidate: PriorCandidate): number {
     if (subtype === undefined) return NEUTRAL_PRIOR;
     const census = permanentSubtypeCensus(state);
     let total = 0;
-    for (const n of census.values()) total += n;
+    census.forEach((n) => {
+        total += n;
+    });
     if (total <= 0) return NEUTRAL_PRIOR;
     const share = (census.get(subtype) ?? 0) / total;
     return clampPrior(PRIOR_MIN + share * (PRIOR_MAX - PRIOR_MIN));
@@ -513,7 +521,9 @@ function biggestOpposingThreat(
         getOpponentId(state, perspectivePlayerId)
     );
     let best = 0;
-    for (const c of opponent.battlefield) {
+    const cList = opponent.battlefield;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
         if (!c.types.includes("Creature")) continue;
         best = Math.max(best, permanentWorth(state, c));
     }
@@ -600,7 +610,8 @@ function dslSearchLibraryPrior(
     // was rather than being half-corrected here on the way past.
     const buriedInGraveyard = destination === "graveyard";
     let worth = 0;
-    for (const id of ids) {
+    for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
         const card = zoneOwner.library.find((c) => c.id === id);
         if (!card) continue;
         worth += libraryTargetWorth(state, choice.playerId, card, ctx, pricing);

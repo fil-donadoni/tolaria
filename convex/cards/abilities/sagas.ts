@@ -44,7 +44,10 @@ export const SAGA_SUBTYPE = "Saga";
 /** Deterministic ability id for a chapter line, derived from its chapter
  *  numbers so it is stable across expansions and unique within the card. */
 export const chapterAbilityId = (chapters: readonly number[]): string =>
-    `saga-chapter-${[...chapters].sort((a, b) => a - b).join("-")}`;
+    `saga-chapter-${chapters
+        .slice()
+        .sort((a, b) => a - b)
+        .join("-")}`;
 
 /** CR 714.2b/714.2c — did this placement cross chapter N? "was less than N and
  *  became at least N", read off the event payload. */
@@ -54,7 +57,7 @@ const crosses = (total: number, added: number, chapter: number): boolean =>
 export function buildChapterTrigger(
     entry: ChapterAbilityDefinition
 ): TriggeredAbility {
-    const chapters = [...entry.chapters].sort((a, b) => a - b);
+    const chapters = entry.chapters.slice().sort((a, b) => a - b);
     const ability = counterAddedTrigger({
         id: chapterAbilityId(chapters),
         oracleText: entry.oracleText,
@@ -98,8 +101,8 @@ export function expandChapterAbilities(def: CardDefinition): CardDefinition {
             ...def.entersWith,
             counters: alreadyEntersWithLore
                 ? existingCounters
-                : [...existingCounters, { type: LORE_COUNTER, count: 1 }],
+                : existingCounters.concat([{ type: LORE_COUNTER, count: 1 }]),
         },
-        triggeredAbilities: [...existing, ...injected],
+        triggeredAbilities: existing.concat(injected),
     };
 }

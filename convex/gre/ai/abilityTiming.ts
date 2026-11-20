@@ -94,7 +94,8 @@ const WITHIN_TURN_DURATION_PHASES = new Set(["end-of-turn", "end-of-combat"]);
  *  empty script is not transient either — there is nothing to be transient. */
 function opsAllTransient(effects: readonly EffectOp[]): boolean {
     if (effects.length === 0) return false;
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         // A delayed / reflexive trigger body resolves as its OWN ability
         // later (CR 603.7 / 603.12) — an end-of-turn pump that lands next
         // turn is banked value, not this turn's window. Fail-closed: lasting.
@@ -657,7 +658,8 @@ function producesMana(ability: ActivatedAbility): boolean {
 }
 
 function opsAddMana(effects: readonly EffectOp[]): boolean {
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         if (op.op === "addMana") return true;
         // Mana a delayed / reflexive trigger adds arrives when THAT ability
         // resolves (CR 603.7 / 603.12), not as this activation's payoff — it

@@ -88,9 +88,12 @@ export function collectedAnswerFamilies(
 ): Map<string, BindingFamily | "ambiguous"> {
     const families = new Map<string, BindingFamily | "ambiguous">();
     const walk = (ops: readonly EffectOp[]): void => {
-        for (const op of ops) {
+        for (let i = 0; i < ops.length; i++) {
+            const op = ops[i];
             const record = op as unknown as Record<string, unknown>;
-            for (const declaration of bindingDeclarationsOf(op.op)) {
+            const declarationList = bindingDeclarationsOf(op.op);
+            for (let j = 0; j < declarationList.length; j++) {
+                const declaration = declarationList[j];
                 const name = record[declaration.field];
                 if (typeof name !== "string") continue;
                 const known = families.get(name);
@@ -101,7 +104,11 @@ export function collectedAnswerFamilies(
                         : "ambiguous"
                 );
             }
-            for (const child of childOpArrays(op)) walk(child);
+            const childList = childOpArrays(op);
+            for (let j = 0; j < childList.length; j++) {
+                const child = childList[j];
+                walk(child);
+            }
         }
     };
     if (script) walk(script);
@@ -130,9 +137,11 @@ export function lowerResolutionCheckpoint(
     const families = collectedAnswerFamilies(effectScriptOfStackItem(item));
     const collected: Record<string, ScenarioEventValue[]> = {};
     const fields: string[] = [];
-    for (const [key, values] of Object.entries(
-        item.collectedChoices ?? {}
-    ).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+    const entries2 = Object.entries(item.collectedChoices ?? {}).sort(
+        ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)
+    );
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, values] = entries2[i];
         const lowered = lowerAnswer(key, values, families, ports);
         if (lowered === undefined) fields.push(`collectedChoices:${key}`);
         else collected[key] = lowered;
@@ -176,7 +185,8 @@ function lowerAnswer(
     switch (family) {
         case "snapshot": {
             const out: ScenarioEventValue[] = [];
-            for (const [slot, value] of values.entries()) {
+            for (let slot = 0; slot < values.length; slot++) {
+                const value = values[slot];
                 const lowered = SNAPSHOT_PLAYER_SLOTS.has(slot)
                     ? player(value)
                     : slot === SNAPSHOT_ID_SLOT
@@ -189,7 +199,8 @@ function lowerAnswer(
         }
         case "picks": {
             const out: ScenarioEventValue[] = [];
-            for (const value of values) {
+            for (let i = 0; i < values.length; i++) {
+                const value = values[i];
                 const lowered = object(value);
                 if (lowered === undefined) return undefined;
                 out.push(lowered);
@@ -198,7 +209,8 @@ function lowerAnswer(
         }
         case "player": {
             const out: ScenarioEventValue[] = [];
-            for (const value of values) {
+            for (let i = 0; i < values.length; i++) {
+                const value = values[i];
                 const lowered = player(value);
                 if (lowered === undefined) return undefined;
                 out.push(lowered);
@@ -225,7 +237,9 @@ export function rebuildCollectedChoices(
 ): Record<string, string[]> | undefined {
     if (!declared.collected) return undefined;
     const out: Record<string, string[]> = {};
-    for (const [key, values] of Object.entries(declared.collected)) {
+    const entries2 = Object.entries(declared.collected);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, values] = entries2[i];
         out[key] = values.map((value) => {
             switch (value.kind) {
                 case "scalar":

@@ -139,7 +139,9 @@ export function loyaltyActivationAllowance(
     const def = tryGetDefinition(cardId);
     if (!def) return DEFAULT_LOYALTY_ACTIVATION_ALLOWANCE;
     let allowance = DEFAULT_LOYALTY_ACTIVATION_ALLOWANCE;
-    for (const effect of getEffectiveStaticEffects(def, card.chosenModeId)) {
+    const effectList = getEffectiveStaticEffects(def, card.chosenModeId);
+    for (let i = 0; i < effectList.length; i++) {
+        const effect = effectList[i];
         if (effect.kind !== "loyalty-activation-allowance") continue;
         allowance += effect.extra;
     }
@@ -196,7 +198,9 @@ export function loyaltyInstantTimingGranted(
     if (!cardId) return false;
     const def = tryGetDefinition(cardId);
     if (!def) return false;
-    for (const effect of getEffectiveStaticEffects(def, card.chosenModeId)) {
+    const effectList = getEffectiveStaticEffects(def, card.chosenModeId);
+    for (let i = 0; i < effectList.length; i++) {
+        const effect = effectList[i];
         if (effect.kind !== "loyalty-activation-timing") continue;
         if (effect.condition === undefined) return true;
         if (effect.condition === "entered-this-turn" && enteredThisTurn) {

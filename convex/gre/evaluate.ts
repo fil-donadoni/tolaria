@@ -676,7 +676,9 @@ function manaSourceTermFor(
     pass: Layer7Pass
 ): number {
     let total = 0;
-    for (const perm of player.battlefield) {
+    const permList = player.battlefield;
+    for (let i = 0; i < permList.length; i++) {
+        const perm = permList[i];
         if (!hasManaAbility(perm, undefined, player.battlefield)) continue;
         // CR 118.3 (issue #3530) — a FINITE source is priced by its remaining
         // charges instead, in `finiteManaUses`. Not as WELL as: this weight is
@@ -729,7 +731,9 @@ function finiteManaUsesTermFor(
     weights: EvalWeights
 ): number {
     let total = 0;
-    for (const perm of player.battlefield) {
+    const permList = player.battlefield;
+    for (let i = 0; i < permList.length; i++) {
+        const perm = permList[i];
         const uses = finiteManaUsesRemaining(perm);
         if (uses > 0) total += uses * weights.finiteManaUseWeight;
     }
@@ -823,7 +827,9 @@ function etbAbilitiesInFlight(
     pass: Layer7Pass
 ): number {
     let total = 0;
-    for (const item of state.stack) {
+    const itemList = state.stack;
+    for (let i = 0; i < itemList.length; i++) {
+        const item = itemList[i];
         if (!item.triggeredAbilityId) continue;
         if (item.castById !== player.id) continue;
         const ability = findTriggeredAbility(item, item.triggeredAbilityId);
@@ -886,7 +892,9 @@ function pendingReturnsWorth(
     pass: Layer7Pass
 ): { creatures: number; permanents: number } {
     const worth = { creatures: 0, permanents: 0 };
-    for (const { card, to, timing } of pendingBattlefieldReturns(state)) {
+    const entries = pendingBattlefieldReturns(state);
+    for (let i = 0; i < entries.length; i++) {
+        const { card, to, timing } = entries[i];
         if (to !== player.id) continue;
         // CR 702.26d — phasing in is not entering: no enters ability fires.
         const etb =
@@ -957,7 +965,9 @@ function returningManaSourcesTerm(
     weights: EvalWeights
 ): number {
     let total = 0;
-    for (const perm of restored.battlefield) {
+    const permList = restored.battlefield;
+    for (let i = 0; i < permList.length; i++) {
+        const perm = permList[i];
         if (!returningIds.has(perm.id)) continue;
         if (!hasManaAbility(perm, undefined, restored.battlefield)) continue;
         if (finiteManaUsesRemaining(perm) > 0) continue;
@@ -982,7 +992,9 @@ function returningManaSourcesTerm(
 const FLEX_FREE_COST_KEYS: ReadonlySet<string> = new Set(["mana", "tap"]);
 
 function isFreeToHoldCost(cost: ActivatedAbility["cost"]): boolean {
-    for (const [key, value] of Object.entries(cost)) {
+    const entries2 = Object.entries(cost);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, value] = entries2[i];
         if (value === undefined) continue;
         if (!FLEX_FREE_COST_KEYS.has(key)) return false;
     }
@@ -1004,7 +1016,9 @@ function activationsInFlight(
     perm: CardInstanceState
 ): ReadonlySet<string> {
     const out = new Set<string>();
-    for (const item of state.stack) {
+    const itemList = state.stack;
+    for (let i = 0; i < itemList.length; i++) {
+        const item = itemList[i];
         if (item.abilityId === undefined) continue;
         if (item.id !== perm.id) continue;
         if (item.castById !== player.id) continue;
@@ -1096,7 +1110,8 @@ function hasFlexibleActivation(
     if (!hasNonManaActivatedAbility(perm)) return false;
     const abilities = getEffectiveActivatedAbilities(perm);
     const inFlight = activationsInFlight(state, player, perm);
-    for (const { ability } of abilities) {
+    for (let i = 0; i < abilities.length; i++) {
+        const { ability } = abilities[i];
         if (!isDeferrableStackAbility(ability)) continue;
         if (ability.activateFromHand || ability.activateFromGraveyard) continue;
         // CR 602.1 — "Only your opponents may activate this ability" (Clergy of
@@ -1195,7 +1210,9 @@ function flexibilityTerm(
     weights: EvalWeights
 ): number {
     let castable = 0;
-    for (const card of player.hand) {
+    const cardList = player.hand;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         if (castable >= weights.flexCardCap) break;
         if (!hasInstantSpeed(card)) continue;
         if (
@@ -1210,7 +1227,9 @@ function flexibilityTerm(
     // CR 702.143a (issue #2096) — a FORETOLD instant whose window is open is
     // exactly a holdable response, just not in hand: castable at instant
     // speed for its foretell cost, in either player's turn.
-    for (const card of player.exile) {
+    const cardList2 = player.exile;
+    for (let i = 0; i < cardList2.length; i++) {
+        const card = cardList2[i];
         if (castable >= weights.flexCardCap) break;
         if (!hasInstantSpeed(card)) continue;
         if (!exileCastRoutes(state, card, player.id).includes("foretell")) {
@@ -1225,7 +1244,9 @@ function flexibilityTerm(
             continue;
         castable += 1;
     }
-    for (const perm of player.battlefield) {
+    const permList = player.battlefield;
+    for (let i = 0; i < permList.length; i++) {
+        const perm = permList[i];
         if (castable >= weights.flexCardCap) break;
         if (!hasFlexibleActivation(state, player, perm, units, player.life))
             continue;
@@ -1291,7 +1312,9 @@ function combatReserveTerm(
 ): number {
     let forfeited = 0;
     let gated: boolean | undefined;
-    for (const card of player.hand) {
+    const cardList = player.hand;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         if (forfeited >= weights.flexCardCap) break;
         if (!hasInstantSpeed(card)) continue;
         const cost = getInstanceManaCost(card);
@@ -1343,7 +1366,9 @@ function handNeedsEveryOpenMana(
     units: ManaUnits
 ): boolean {
     if (units.length === 0) return false;
-    for (const card of player.hand) {
+    const cardList = player.hand;
+    for (let k = 0; k < cardList.length; k++) {
+        const card = cardList[k];
         if (isLand(card)) continue;
         const cost = getInstanceManaCost(card);
         const opts = {
@@ -1425,7 +1450,10 @@ function quietDefensiveGrants(
  *  the two can never drift. */
 function flatBonusOf(keywords: readonly string[], power: number): number {
     let flat = 0;
-    for (const keyword of keywords) flat += keywordBonusFor(keyword, power);
+    for (let i = 0; i < keywords.length; i++) {
+        const keyword = keywords[i];
+        flat += keywordBonusFor(keyword, power);
+    }
     return flat;
 }
 
@@ -1566,7 +1594,9 @@ function manaDevelopmentTerm(
     // The BASE, tap state ignored — the same quantity the land count below is
     // about. Built once, then asked one colour question per hand card.
     const baseUnits = base;
-    for (const c of player.hand) {
+    const cList = player.hand;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
         const cost = getInstanceManaCost(c);
         if (
             !coversCostColors(baseUnits, cost, {
@@ -1588,7 +1618,9 @@ function manaDevelopmentTerm(
     // under one Underworld Breach. The mechanism is `graveyardCastMechanism`'s
     // (`castCost.ts`), the one authority the enumerator and `graveyardReach`
     // share.
-    for (const c of player.graveyard) {
+    const cList2 = player.graveyard;
+    for (let i = 0; i < cList2.length; i++) {
+        const c = cList2[i];
         // Issue #4931 — a spell that was CAST (instant/sorcery that came off the
         // stack) keeps raising the curve, unconditionally like a battlefield
         // permanent: the base paid for it once. A discarded or milled card has
@@ -1627,7 +1659,9 @@ function manaDevelopmentTerm(
     // "earning its keep"; beyond that the base is flooded and a further land
     // unlocks nothing.
     let lands = 0;
-    for (const c of player.battlefield) {
+    const cList3 = player.battlefield;
+    for (let i = 0; i < cList3.length; i++) {
+        const c = cList3[i];
         if (isLand(c)) lands += 1;
         // A TOKEN is not the other half of a cast — nobody paid its cost, and a
         // token COPY presents the copied card's printed cost (copy.ts drops
@@ -1719,7 +1753,9 @@ function graveyardEngineTerm(
     weights: EvalWeights
 ): number {
     let exileOtherCount: number | undefined;
-    for (const perm of player.battlefield) {
+    const permList = player.battlefield;
+    for (let j = 0; j < permList.length; j++) {
+        const perm = permList[j];
         // CR 613.1f — a suppressed granter is no engine to price.
         const grant = liveStaticDefinition(perm)?.grantsEscapeToOwnGraveyard;
         if (grant) {
@@ -1746,7 +1782,9 @@ function graveyardEngineTerm(
         flash: weights.latentFlashCreatureDiscount,
     };
     const worth: number[] = [];
-    for (const card of player.graveyard) {
+    const cardList = player.graveyard;
+    for (let j = 0; j < cardList.length; j++) {
+        const card = cardList[j];
         if (isLand(card)) continue;
         worth.push(
             latentGraveyardValue(card, weights.latent, creatureDiscounts)
@@ -1813,7 +1851,9 @@ function graveyardReachTerm(
     // insertion into a `cap`-sized best list is cheaper than an array the size
     // of the graveyard plus an O(n log n) sort of it.
     const best: number[] = [];
-    for (const card of player.graveyard) {
+    const cardList = player.graveyard;
+    for (let j = 0; j < cardList.length; j++) {
+        const card = cardList[j];
         if (!recursion && !isSelfReachableInGraveyard(state, player, card)) {
             continue;
         }
@@ -1831,7 +1871,10 @@ function graveyardReachTerm(
         best[i] = value;
     }
     let credited = 0;
-    for (const v of best) credited += v;
+    for (let j = 0; j < best.length; j++) {
+        const v = best[j];
+        credited += v;
+    }
     return credited * weights.graveyardReachFraction;
 }
 
@@ -2262,7 +2305,7 @@ function sweptAggregateNetLoss(
             return {
                 ...p,
                 battlefield: p.battlefield.filter((c) => !leaving.has(c.id)),
-                hand: [...p.hand, ...returned],
+                hand: p.hand.concat(returned),
             };
         }),
     };
@@ -2327,10 +2370,11 @@ function playerTerms(
         // the retrieval on an empty pile cost nothing.
         hand: [
             ...player.hand,
-            ...new Set([
-                ...playableExileCards(state, player),
-                ...retrievableLinkedExile(state, player),
-            ]),
+            ...new Set(
+                playableExileCards(state, player).concat(
+                    retrievableLinkedExile(state, player)
+                )
+            ),
         ].reduce(
             (sum, c) =>
                 sum +
@@ -2360,7 +2404,9 @@ function playerTerms(
         graveyardReach: graveyardReachTerm(state, player, weights),
     };
 
-    for (const perm of player.battlefield) {
+    const permList = player.battlefield;
+    for (let i = 0; i < permList.length; i++) {
+        const perm = permList[i];
         terms.permanents += weights.permanentWeight;
         // Issue #5154 — a restriction source's standing worth (see
         // `permanentRealisedValue`, which reads the same function). Under
@@ -2756,7 +2802,9 @@ function walkerDamagePrice(
     pass: Layer7Pass
 ): number {
     let price = 0;
-    for (const [walkerId, damage] of Object.entries(damageByWalker)) {
+    const entries2 = Object.entries(damageByWalker);
+    for (let i = 0; i < entries2.length; i++) {
+        const [walkerId, damage] = entries2[i];
         if (damage <= 0) continue;
         const walker = defender.battlefield.find((c) => c.id === walkerId);
         if (!walker || !isPlaneswalker(walker)) continue;
@@ -2791,12 +2839,14 @@ function blockersByAttacker(
     defender: PlayerState
 ): Map<string, CardInstanceState[]> {
     const out = new Map<string, CardInstanceState[]>();
-    for (const [blockerId, atkIds] of Object.entries(
-        combat.blockerAssignments
-    )) {
+    const entries2 = Object.entries(combat.blockerAssignments);
+    for (let i = 0; i < entries2.length; i++) {
+        const [blockerId, atkIds] = entries2[i];
         const blocker = defender.battlefield.find((c) => c.id === blockerId);
         if (!blocker) continue;
-        for (const atkId of atkIds) {
+        const atkIdList = atkIds;
+        for (let j = 0; j < atkIdList.length; j++) {
+            const atkId = atkIdList[j];
             const list = out.get(atkId) ?? [];
             list.push(blocker);
             out.set(atkId, list);
@@ -2863,7 +2913,9 @@ function declaredFaceDamage(
     const byAttacker = blockersByAttacker(combat, defender);
     let damage = 0;
     let poison = 0;
-    for (const atkId of combat.attackerIds) {
+    const atkIdList = combat.attackerIds;
+    for (let i = 0; i < atkIdList.length; i++) {
+        const atkId = atkIdList[i];
         // CR 508.1a — an attacker aimed at a planeswalker never reaches the
         // player's life (issue #1220).
         if (combat.attackTargets?.[atkId] !== undefined) continue;
@@ -3087,8 +3139,11 @@ function untappedSourceQuality(
         battlefield: p.battlefield,
     }));
     let bonus = 0;
-    for (const perm of me.battlefield)
+    const permList = me.battlefield;
+    for (let i = 0; i < permList.length; i++) {
+        const perm = permList[i];
         bonus += sourceQuality(perm, me.battlefield, battlefields, weights);
+    }
     return bonus;
 }
 
@@ -3252,7 +3307,9 @@ export function declaredBlockOutcome(
     const pass = beginLayer7Pass(state);
     const ptOf = (c: CardInstanceState) => getEffectivePT(state, c, { pass });
 
-    for (const atkId of combat.attackerIds) {
+    const atkIdList = combat.attackerIds;
+    for (let i = 0; i < atkIdList.length; i++) {
+        const atkId = atkIdList[i];
         const atk = attacker.battlefield.find((c) => c.id === atkId);
         if (!atk) continue;
         const blockers = byAttacker.get(atkId) ?? [];
@@ -3300,7 +3357,8 @@ export function declaredBlockOutcome(
         // so it kills nothing.
         const atkDeathtouch = atk.staticAbilities.includes("deathtouch");
         let remaining = atkPower;
-        for (const b of blockers) {
+        for (let j = 0; j < blockers.length; j++) {
+            const b = blockers[j];
             const bLethal = lethalDamageThreshold({
                 effectiveToughness: Math.max(0, ptOf(b).toughness),
                 damageMarked: b.damageMarked,
@@ -3470,10 +3528,10 @@ function cautiousBlockPenalty(
         getEffectivePT(state, c, { includeTemporary: false, pass });
     let worstSwing = 0;
 
-    for (const [atkId, blockers] of blockersByAttacker) {
-        if (blockers.length === 0) continue;
+    blockersByAttacker.forEach((blockers, atkId) => {
+        if (blockers.length === 0) return;
         const atk = attacker.battlefield.find((c) => c.id === atkId);
-        if (!atk) continue;
+        if (!atk) return;
         const atkPT = lastingPT(atk);
         const atkPower = Math.max(0, atkPT.power);
         const atkTough = Math.max(0, atkPT.toughness);
@@ -3484,7 +3542,7 @@ function cautiousBlockPenalty(
         // This block, with no trick, kills the attacker — the exchange the
         // defender is counting on. Only such a block is exposed to a flip.
         const blockKillsAttacker = blockPower >= atkTough;
-        if (!blockKillsAttacker) continue;
+        if (!blockKillsAttacker) return;
 
         // Held pump: attacker survives (toughness raised past the block power)
         // and its raised power now kills the blockers in listed order.
@@ -3493,7 +3551,8 @@ function cautiousBlockPenalty(
             if (survives) {
                 let remaining = atkPower + held.pump.power;
                 const lostBlockers: CardInstanceState[] = [];
-                for (const b of blockers) {
+                for (let i = 0; i < blockers.length; i++) {
+                    const b = blockers[i];
                     const bT = Math.max(0, lastingPT(b).toughness);
                     if (remaining >= bT) {
                         lostBlockers.push(b);
@@ -3512,9 +3571,9 @@ function cautiousBlockPenalty(
         // drops the block below lethal, the attacker lives and the removed
         // blocker is lost for nothing.
         if (held.removal) {
-            const biggest = [...blockers].sort(
-                (a, b) => lastingPT(b).power - lastingPT(a).power
-            )[0];
+            const biggest = blockers
+                .slice()
+                .sort((a, b) => lastingPT(b).power - lastingPT(a).power)[0];
             const remainingPower =
                 blockPower - Math.max(0, lastingPT(biggest).power);
             if (remainingPower < atkTough) {
@@ -3522,7 +3581,7 @@ function cautiousBlockPenalty(
                 if (swing > worstSwing) worstSwing = swing;
             }
         }
-    }
+    });
 
     return weights.blockCautionFraction * worstSwing;
 }
