@@ -24,13 +24,16 @@ import {
     grizzlyBears,
     savannahLions,
     mountain,
-    whiteKnight,
     warpArtifact,
 } from "../../cards/sets/lea/index.cards";
 import { guardianBeast } from "../../cards/sets/arn/index.cards";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 
+import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const whiteKnight = () => getDefinition("50abfba8-c9f9-4ebf-965a-4b425fe83129");
 // Retired hand-written twin (ADR 0114): the registry row carries the id.
 const BASALT_MONOLITH_ID = "66a74c89-6f86-4ec8-af17-391cd5026054";
 

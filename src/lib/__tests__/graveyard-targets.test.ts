@@ -14,7 +14,6 @@ import type {
 import { pendingTargetFiltersFromRequirement } from "@convex/gre/rules";
 import { lordOfTheUndead } from "@convex/cards/sets/pls/black.cards";
 import { dreamsOfTheDead } from "@convex/cards/sets/ice/blue.cards";
-import { kjeldoranWarrior } from "@convex/cards/sets/ice/white.cards";
 import { balduvianBears } from "@convex/cards/sets/ice/green.cards";
 import {
     checkCardTargetFilters,
@@ -22,6 +21,11 @@ import {
     type TargetFilterCtx,
 } from "@convex/gre/targetFilters";
 
+import { getDefinition } from "@convex/cards";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const kjeldoranWarrior = () =>
+    getDefinition("ce76f38f-566e-49ff-b197-510cfa1cb51c");
 function gyCard(
     id: string,
     ownerId: string,

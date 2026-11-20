@@ -20,7 +20,7 @@ import {
     hillGiant,
     monssGoblinRaiders,
 } from "@convex/cards/sets/lea/red.cards";
-import { grizzlyBears, warMammoth } from "@convex/cards/sets/lea/green.cards";
+import { grizzlyBears } from "@convex/cards/sets/lea/green.cards";
 import { savannahLions } from "@convex/cards/sets/lea/white.cards";
 import { setDamageAssignment, confirmDamage } from "@convex/game";
 import { projectPublicState } from "@convex/gameProjections";
@@ -34,6 +34,10 @@ import {
 import type { Id } from "@convex/_generated/dataModel";
 import { realiseBotAction, type RealisationContext } from "../realise";
 
+import { getDefinition } from "@convex/cards";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const warMammoth = () => getDefinition("c8d6081e-f686-4263-a0a2-21c0d9af5fdb");
 const GAME_ID = "game-1" as Id<"games">;
 
 function permanent(

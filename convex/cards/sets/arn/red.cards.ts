@@ -10,19 +10,6 @@ import { defineCard, type TargetSelection } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 
-export const birdMaiden = defineCard(() => ({
-    id: "5c1ba0b9-db01-447f-90cc-a2fc2c24146e",
-    rarity: "common",
-    name: "Bird Maiden",
-    oracleText: "Flying",
-    manaCost: { X: 2, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Bird"],
-    power: 1,
-    toughness: 2,
-    staticAbilities: ["flying"],
-}));
-
 const RUKH_EGG_ID = "b28f9e63-e5e4-44b5-a17e-8301ff17c623";
 
 export const rukhEgg = defineCard(() => ({

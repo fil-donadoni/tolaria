@@ -8,14 +8,15 @@
 
 import { describe, it, expect } from "vitest";
 import { globalAttackProhibitionReason } from "@convex/cards/attackRestrictions";
-import {
-    moat,
-    akronLegionnaire,
-    tundraWolves,
-    azureDrake,
-} from "@convex/cards/sets/leg/index.cards";
+import { moat, akronLegionnaire } from "@convex/cards/sets/leg/index.cards";
 import type { CardInstance, Player } from "~/types/game";
 
+import { getDefinition } from "@convex/cards";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const tundraWolves = () =>
+    getDefinition("8f649cb5-e19c-453f-b062-4fd452d92257");
+const azureDrake = () => getDefinition("fb5f13a2-0896-4230-8957-6ad1cb2b895b");
 const CLAY_STATUE_ID = "64975352-8d35-4d02-94ac-fa0c6ee12409"; // artifact creature
 
 function inst(

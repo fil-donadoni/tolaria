@@ -41,8 +41,6 @@ import {
 import {
     priestOfYawgmoth,
     gateToPhyrexia,
-    ornithopter,
-    yotianSoldier,
 } from "../../cards/sets/atq/index.cards";
 import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 import { legionExtruder } from "../../cards/sets/big/red.cards";
@@ -52,6 +50,11 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const ornithopter = () => getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
+const yotianSoldier = () =>
+    getDefinition("27cf53e3-76f6-4831-800e-1259394d779d");
 const fallenAngel = () => getDefinition("0f4174e4-0be8-49b5-8c52-22001790f6eb");
 
 // --- pre-sacrifice mana value (mirror of game.ts sacrificedManaValue) ------

@@ -8,19 +8,6 @@
 
 import { defineCard, type SpellContext } from "../../types";
 
-export const dancingScimitar = defineCard(() => ({
-    id: "1eb2e494-1414-4d1f-91d2-7cb20acdb128",
-    rarity: "rare",
-    name: "Dancing Scimitar",
-    oracleText: "Flying",
-    manaCost: { X: 4 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Spirit"],
-    power: 1,
-    toughness: 5,
-    staticAbilities: ["flying"],
-}));
-
 export const jandorsRing = defineCard(() => ({
     id: "71504078-a16f-4dc4-9626-0ecc42b1e93b",
     rarity: "rare",

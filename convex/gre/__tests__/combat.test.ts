@@ -24,7 +24,6 @@ import {
     jadeStatue,
     juggernaut,
     savannahLions,
-    wallOfSwords,
 } from "../../cards/sets/lea/index.cards";
 import { duelingGrounds as duelingGroundsDef } from "../../cards/sets/inv/multicolor.cards";
 import { cavernsOfDespair as cavernsOfDespairDef } from "../../cards/sets/leg/red.cards";
@@ -38,6 +37,9 @@ import { getEffectivePower } from "../layers";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../rules";
 import { getDefinition } from "../../cards/index";
 
+// Registry seam (ADR 0114): the hand-written module is retired.
+const wallOfSwords = () =>
+    getDefinition("99ec4723-b36c-4015-b361-736a6523e8f5");
 const mightstone = () => getDefinition("b28ba599-5299-4831-a118-1712ada10ef6");
 
 // ---------------------------------------------------------------------------

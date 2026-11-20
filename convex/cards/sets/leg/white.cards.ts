@@ -75,64 +75,6 @@ export const kismet = defineCard(() => ({
 
 // --- Vanilla / keyword creatures (CR 702 — pure data) ---------------------
 
-// Tundra Wolves — first strike (CR 702.7).
-export const tundraWolves = defineCard(() => ({
-    id: "8f649cb5-e19c-453f-b062-4fd452d92257",
-    rarity: "common",
-    name: "Tundra Wolves",
-    oracleText:
-        "First strike (This creature deals combat damage before creatures without first strike.)",
-    manaCost: { W: 1 },
-    types: ["Creature"],
-    subtypes: ["Wolf"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["first strike"],
-}));
-
-// Thunder Spirit — flying, first strike (CR 702.9, 702.7).
-export const thunderSpirit = defineCard(() => ({
-    id: "61a59775-b1cd-4ed0-8abf-c2b37f7be0d5",
-    rarity: "rare",
-    name: "Thunder Spirit",
-    oracleText: "Flying, first strike",
-    manaCost: { X: 1, W: 2 },
-    types: ["Creature"],
-    subtypes: ["Elemental", "Spirit"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["flying", "first strike"],
-}));
-
-// Wall of Light — Defender, protection from black (CR 702.3, 702.16).
-export const wallOfLight = defineCard(() => ({
-    id: "f5758e82-f901-42b7-b705-0e68ca7ba59e",
-    rarity: "uncommon",
-    name: "Wall of Light",
-    oracleText: "Defender (This creature can't attack.)\nProtection from black",
-    manaCost: { X: 2, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Wall"],
-    power: 1,
-    toughness: 5,
-    staticAbilities: ["defender", "protection from black"],
-}));
-
-// Righteous Avengers — plainswalk (CR 702.14 landwalk variant).
-export const righteousAvengers = defineCard(() => ({
-    id: "d96b463e-9579-4e7b-87c2-342527b91e7c",
-    rarity: "uncommon",
-    name: "Righteous Avengers",
-    oracleText:
-        "Plainswalk (This creature can't be blocked as long as defending player controls a Plains.)",
-    manaCost: { X: 4, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Soldier"],
-    power: 3,
-    toughness: 1,
-    staticAbilities: ["plainswalk"],
-}));
-
 // Great Wall — global plainswalk negation (CR 509.1b / 702.14). The
 // `landwalk-negation` static is scanned across the defending player's
 // battlefield by the keyword-evasion pass (`combatRegistry.ts`): a creature

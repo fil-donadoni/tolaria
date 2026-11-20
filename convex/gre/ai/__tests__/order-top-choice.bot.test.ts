@@ -51,12 +51,15 @@ import {
     hasChoiceCandidateGenerator,
     isSearchableChoiceNode,
 } from "../choiceCandidates";
-import { ornithopter } from "../../../cards/sets/atq/colorless.cards";
 import { crawWurm, grizzlyBears } from "../../../cards/sets/lea/green.cards";
 import { island } from "../../../cards/sets/lea/colorless.cards";
 import { preordain } from "../../../cards/sets/m11/blue.cards";
 import { consider } from "../../../cards/sets/mid/blue.cards";
 
+import { getDefinition } from "../../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const ornithopter = () => getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 // Definition ids, the vocabulary `makeInstance` and the partition helper speak.
 const ORNITHOPTER = ornithopter().id; // 0/2 for {0} — a near-worthless draw
 const CRAW_WURM = crawWurm().id; // 6/4 for {4}{G}{G} — a real threat

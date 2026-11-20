@@ -24,11 +24,7 @@ import {
 } from "@convex/cards/__tests__/setup.helper";
 import { resolveTopOfStack, type GameState } from "@convex/gre/state";
 import type { Id } from "@convex/_generated/dataModel";
-import {
-    forest,
-    grizzlyBears,
-    serraAngel,
-} from "@convex/cards/sets/lea/index.cards";
+import { forest, grizzlyBears } from "@convex/cards/sets/lea/index.cards";
 import {
     gameStateSeed,
     makeMutationCtx,
@@ -42,6 +38,10 @@ import {
 import { isGraveyardChoiceActive } from "../graveyard-choice";
 import { pendingChoiceSourceLabel } from "../pending-choice-labels";
 
+import { getDefinition } from "@convex/cards";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const serraAngel = () => getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 const GAME_ID = "game-1" as Id<"games">;
 
 type SubmitArgs = {

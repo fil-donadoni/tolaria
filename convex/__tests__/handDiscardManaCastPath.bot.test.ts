@@ -15,7 +15,6 @@ import { describe, expect, it } from "vitest";
 import { announceCast, tapForPayment } from "../game";
 
 import { plains } from "../cards/sets/lea/colorless.cards";
-import { serraAngel } from "../cards/sets/lea/white.cards";
 import { grizzlyBears } from "../cards/sets/lea/green.cards";
 import {
     makeInstance,
@@ -36,6 +35,9 @@ import {
     type Handler,
 } from "./gameMutationHarness.fixture";
 import { getDefinition } from "../cards";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const serraAngel = () => getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 const lionsEyeDiamond = getDefinition("63bacc32-d6ba-420c-9b49-299c08e5fb39");
 
 const GAME_ID = "game-1" as Id<"games">;

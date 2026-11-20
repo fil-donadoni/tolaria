@@ -30,19 +30,6 @@ import { untapRestriction } from "../../abilities/static/untapRestriction";
 import { makeLace } from "./white.cards";
 import { makeUpkeepPayOrElse } from "./white.cards";
 
-export const airElemental = defineCard(() => ({
-    id: "69c3b2a3-0daa-4d42-832d-fcdfda6555ea",
-    rarity: "uncommon",
-    name: "Air Elemental",
-    oracleText: "Flying",
-    manaCost: { X: 3, U: 2 },
-    types: ["Creature"],
-    subtypes: ["Elemental"],
-    power: 4,
-    toughness: 4,
-    staticAbilities: ["flying"],
-}));
-
 // Ancestral Recall — "Target player draws three cards." (CR 121.1)
 export const ancestralRecall = defineCard(() => ({
     id: "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b",
@@ -523,20 +510,6 @@ export const magicalHack = defineCard(() => ({
     modes: BASIC_LAND_SUBTYPES.map(magicalHackMode),
 }));
 
-export const mahamotiDjinn = defineCard(() => ({
-    id: "36204ddd-ddf7-4b44-ae3c-b4a5a41ac9cb",
-    rarity: "rare",
-    name: "Mahamoti Djinn",
-    oracleText:
-        "Flying (This creature can't be blocked except by creatures with flying or reach.)",
-    manaCost: { X: 4, U: 2 },
-    types: ["Creature"],
-    subtypes: ["Djinn"],
-    power: 5,
-    toughness: 6,
-    staticAbilities: ["flying"],
-}));
-
 export const merfolkOfThePearlTrident = defineCard(() => ({
     id: "2b871039-6a66-4ac3-95e7-24759c1f2f92",
     rarity: "common",
@@ -656,19 +629,6 @@ export const phantasmalTerrain = defineCard(() => ({
             ],
         },
     ],
-}));
-
-export const phantomMonster = defineCard(() => ({
-    id: "e46d2cf5-e8d0-4fb2-b950-252d52084b63",
-    rarity: "uncommon",
-    name: "Phantom Monster",
-    oracleText: "Flying",
-    manaCost: { X: 3, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Illusion"],
-    power: 3,
-    toughness: 3,
-    staticAbilities: ["flying"],
 }));
 
 // Pirate Ship — "Pirate Ship can't attack unless defender controls an Island.
@@ -1476,20 +1436,6 @@ export const volcanicEruption = defineCard(() => ({
             players: true,
         });
     },
-}));
-
-export const wallOfAir = defineCard(() => ({
-    id: "da56fdf3-6a8f-4833-a5c3-197650cc4889",
-    rarity: "uncommon",
-    name: "Wall of Air",
-    oracleText:
-        "Defender, flying (This creature can't attack, and it can block creatures with flying.)",
-    manaCost: { X: 1, U: 2 },
-    types: ["Creature"],
-    subtypes: ["Wall"],
-    power: 1,
-    toughness: 5,
-    staticAbilities: ["defender", "flying"],
 }));
 
 export const waterElemental = defineCard(() => ({
