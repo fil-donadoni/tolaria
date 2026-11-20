@@ -69,7 +69,10 @@ import type { DecisionTrace, Move } from "@convex/gre";
 import type { GameState } from "@convex/gre/state";
 import { judgementOfRow, type OutboxRow } from "@convex/verdictsOutbox";
 import type { GameOver, Player } from "~/types/game";
-import type { CapturedDecision } from "~/lib/ai/human-decision-capture";
+import type {
+    CapturedDecision,
+    PlanStatement,
+} from "~/lib/ai/human-decision-capture";
 import { proposeVerdicts, type BrainJudge } from "~/lib/ai/verdict-proposals";
 import {
     clearVerdictProposals,
@@ -150,7 +153,10 @@ const passingJudge: BrainJudge = async () => ({ kind: "pass" }) as Move;
 
 /** Game end: the captured decisions become the game's proposal list, landed in
  *  the store the way `useVerdictProposalCapture` lands it. */
-async function endGame(decisions: CapturedDecision[]) {
+async function endGame(
+    decisions: CapturedDecision[],
+    plans: PlanStatement[] = []
+) {
     const list = await proposeVerdicts(
         decisions,
         {
@@ -160,7 +166,9 @@ async function endGame(decisions: CapturedDecision[]) {
             iterations: 1,
             seed: 1,
         },
-        passingJudge
+        passingJudge,
+        undefined,
+        plans
     );
     setVerdictProposals(GAME, list);
     return list;
@@ -281,6 +289,30 @@ describe("the post-game review queue (issue #3986)", () => {
         expect(row.author).toBe("Tessa");
         // Answered: the queue moves past it.
         await screen.findByText("1 decision judged.");
+    });
+
+    it("submits the Plan in force and the player's words with the Attestation (issue #10088)", async () => {
+        const { decision, human } = landDrop(SEQ);
+        await endGame(
+            [
+                {
+                    ...decision,
+                    annotation: { kind: "comment", text: "land, then Bolt" },
+                },
+            ],
+            [{ seatId: human, text: "curve out", seq: SEQ - 1 }]
+        );
+        renderGameOver();
+        await openReview(1);
+        await findQuizQuestion();
+        fireEvent.click(
+            screen.getByRole("button", { name: "My move was right" })
+        );
+        await waitFor(() => expect(storedVerdicts()).toHaveLength(1));
+        const [row] = storedVerdicts();
+        expect(row.rationale).toBe("land, then Bolt");
+        expect(row.plan).toEqual({ text: "curve out", seq: SEQ - 1 });
+        expect(row.seq).toBe(SEQ);
     });
 
     it("stores the same Verdict the debug quiz stores for the same decision", async () => {

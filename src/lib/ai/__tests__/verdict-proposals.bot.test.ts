@@ -11,6 +11,11 @@
 //   - the per-class quotas come from config and an all-agreeing game stops at
 //     the agreeing quota;
 //   - nothing is written anywhere: an unanswered list just goes away.
+//
+// And the player's own words (issue #10088): a commented decision is always
+// proposed whatever the quota, survives the capture's reservoir, and every
+// proposal carries the Plan in force at its seq; a solo game captures both
+// seats.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -24,12 +29,17 @@ import type { ScenarioSpec } from "@convex/debugScenarioSpec";
 import type { GameState } from "@convex/gre/state";
 import type { Move } from "@convex/gre";
 import {
+    annotateHumanDecision,
     captureHumanDecision,
     clearHumanCapture,
+    humanCaptureView,
+    humanPlans,
     recordHumanCall,
+    stateHumanPlan,
     startHumanCapture,
     takeHumanDecisions,
     type CapturedDecision,
+    type PlanStatement,
 } from "../human-decision-capture";
 import { observeHumanWindow } from "../human-decision-start";
 import { foldDecisionCalls, identifyHumanMove } from "../human-move-match";
@@ -140,6 +150,15 @@ describe("issue #3984 — no Brain consult on the human seat during play", () =>
                 cardInstanceId: handCard(state, human, "Mountain").id,
             })
         );
+        // Stating a Plan and commenting the decision ask nothing of the
+        // Brain either (issue #10088): its pick is computed after the game.
+        expect(stateHumanPlan(GAME, human, 10, "Bolt their Bears")).toBe(true);
+        expect(
+            annotateHumanDecision(GAME, human, 10, {
+                kind: "comment",
+                text: "land first, keep Bolt up",
+            })
+        ).toBe(true);
         const decisions = takeHumanDecisions(GAME);
         expect(decisions).toHaveLength(1);
         expect(searches).toBe(0);
@@ -599,5 +618,227 @@ describe("issue #3984 — nothing is written; an unanswered list disappears", ()
             expect(source, file).not.toMatch(/api\.verdicts\b/);
             expect(source, file).not.toMatch(/convex\/verdicts/);
         }
+    });
+});
+
+/** `landDrops` with the decisions at `indexes` commented. */
+function commentedLandDrops(n: number, indexes: number[]): CapturedDecision[] {
+    return landDrops(n).map((d, i) =>
+        indexes.includes(i)
+            ? { ...d, annotation: { kind: "comment", text: `why ${i}` } }
+            : d
+    );
+}
+
+describe("issue #10088 — a commented decision is always proposed, whatever the quota says", () => {
+    it("every commented decision is judged and proposed, past the class quota and the agreeing share", async () => {
+        const { judge, consults } = fixedJudge("agree");
+        const list = await proposeVerdicts(
+            commentedLandDrops(6, [0, 2, 4, 5]),
+            CONFIG,
+            judge
+        );
+        // Four commented land drops, one class whose quota is three and
+        // whose agreeing share is two: all four, and nothing else.
+        expect(consults()).toBe(4);
+        expect(
+            list.proposals.map((p) => [p.source.state.seq, p.rationale])
+        ).toEqual([
+            [100, "why 0"],
+            [102, "why 2"],
+            [104, "why 4"],
+            [105, "why 5"],
+        ]);
+    });
+
+    it("sampling fills the rest of the class around the commented ones", async () => {
+        const { judge, consults } = fixedJudge("agree");
+        const list = await proposeVerdicts(
+            commentedLandDrops(6, [3]),
+            CONFIG,
+            judge
+        );
+        expect(consults()).toBe(CONFIG.perClassQuota);
+        expect(list.proposals).toHaveLength(CONFIG.agreeingPerClass);
+        expect(list.proposals.filter((p) => p.rationale)).toEqual([
+            expect.objectContaining({ rationale: "why 3" }),
+        ]);
+    });
+
+    it("an obvious mark is carried, but never bypasses the sample", async () => {
+        const { judge, consults } = fixedJudge("agree");
+        const obvious = landDrops(6).map(
+            (d): CapturedDecision => ({ ...d, annotation: { kind: "obvious" } })
+        );
+        const list = await proposeVerdicts(obvious, CONFIG, judge);
+        expect(consults()).toBe(CONFIG.perClassQuota);
+        expect(list.proposals).toHaveLength(CONFIG.agreeingPerClass);
+        expect(list.proposals.every((p) => p.obvious === true)).toBe(true);
+        expect(list.proposals.some((p) => p.rationale !== undefined)).toBe(
+            false
+        );
+    });
+
+    it("the capture's reservoir never drops a commented decision", () => {
+        const { state, human } = board();
+        startHumanCapture(GAME, human, { limit: 3, seed: 1 });
+        for (let seq = 1; seq <= 9; seq++) {
+            captureHumanDecision(GAME, {
+                state: projectPublicState(state, seq, human),
+                botId: human,
+            });
+            recordHumanCall(GAME, call("passPriority", human));
+            if (seq === 1 || seq === 2) {
+                annotateHumanDecision(GAME, human, seq, {
+                    kind: "comment",
+                    text: `seq ${seq}`,
+                });
+            }
+        }
+        const kept = takeHumanDecisions(GAME);
+        // Three from the reservoir, plus the two pinned by their comment.
+        expect(kept).toHaveLength(5);
+        expect(
+            kept
+                .filter((d) => d.annotation?.kind === "comment")
+                .map((d) => d.source.state.seq)
+        ).toEqual([1, 2]);
+    });
+
+    it("a comment made after the decision closed still pins it", () => {
+        const { state, human } = board();
+        startHumanCapture(GAME, human, { limit: 1, seed: 1 });
+        for (let seq = 1; seq <= 3; seq++) {
+            captureHumanDecision(GAME, {
+                state: projectPublicState(state, seq, human),
+                botId: human,
+            });
+            recordHumanCall(GAME, call("passPriority", human));
+        }
+        // On seq 3 now; seq 1 filled the one-slot reservoir — comment it.
+        expect(
+            annotateHumanDecision(GAME, human, 1, {
+                kind: "comment",
+                text: "the first one",
+            })
+        ).toBe(true);
+        expect(humanCaptureView(GAME, human).decision?.seq).toBe(3);
+        const seqs = takeHumanDecisions(GAME).map((d) => d.source.state.seq);
+        expect(seqs).toContain(1);
+    });
+});
+
+describe("issue #10088 — each proposal carries the Plan in force at its seq", () => {
+    it("a Plan stands until another is stated, and a mid-turn change governs only what follows it", async () => {
+        const decisions = landDrops(6);
+        const seat = decisions[0].source.botId;
+        const plans: PlanStatement[] = [
+            { seatId: seat, text: "A: develop", seq: 100 },
+            { seatId: "someone-else", text: "not mine", seq: 101 },
+            // Changed mid-turn, on the state of the fourth decision.
+            { seatId: seat, text: "B: hold up Bolt", seq: 103 },
+        ];
+        const { judge } = fixedJudge("disagree");
+        const list = await proposeVerdicts(
+            decisions,
+            { ...CONFIG, perClassQuota: 6, agreeingPerClass: 6 },
+            judge,
+            undefined,
+            plans
+        );
+        expect(
+            list.proposals.map((p) => [p.source.state.seq, p.plan?.text])
+        ).toEqual([
+            [100, "A: develop"],
+            [101, "A: develop"],
+            [102, "A: develop"],
+            [103, "B: hold up Bolt"],
+            [104, "B: hold up Bolt"],
+            [105, "B: hold up Bolt"],
+        ]);
+        expect(list.proposals[4].plan).toEqual({
+            text: "B: hold up Bolt",
+            seq: 103,
+        });
+    });
+
+    it("a decision before any Plan carries none", async () => {
+        const decisions = landDrops(2);
+        const seat = decisions[0].source.botId;
+        const { judge } = fixedJudge("disagree");
+        const list = await proposeVerdicts(
+            decisions,
+            CONFIG,
+            judge,
+            undefined,
+            [{ seatId: seat, text: "later", seq: 101 }]
+        );
+        expect(list.proposals.map((p) => p.plan?.text)).toEqual([
+            undefined,
+            "later",
+        ]);
+    });
+
+    it("the capture keeps every statement, refusing blank words and other seats", () => {
+        const { human, bot } = board();
+        startHumanCapture(GAME, human, { limit: 3, seed: 1 });
+        expect(stateHumanPlan(GAME, human, 4, "  race  ")).toBe(true);
+        expect(stateHumanPlan(GAME, human, 5, "   ")).toBe(false);
+        expect(stateHumanPlan(GAME, bot, 5, "the Bot's plan")).toBe(false);
+        expect(stateHumanPlan(GAME, human, 9, "stabilise")).toBe(true);
+        expect(humanPlans(GAME)).toEqual([
+            { seatId: human, text: "race", seq: 4 },
+            { seatId: human, text: "stabilise", seq: 9 },
+        ]);
+        expect(humanCaptureView(GAME, human).plan?.text).toBe("stabilise");
+    });
+});
+
+describe("issue #10088 — a solo game captures both seats", () => {
+    it("decisions of either seat are kept, each call attributed to its own seat's decision", () => {
+        const { state, human, bot } = board();
+        startHumanCapture(GAME, [human, bot], { limit: 10, seed: 1 });
+        expect(
+            captureHumanDecision(GAME, {
+                state: projectPublicState(state, 1, human),
+                botId: human,
+            })
+        ).toBe(true);
+        recordHumanCall(GAME, call("passPriority", human));
+        // The other seat's call while the first seat's decision is open
+        // belongs to no decision.
+        recordHumanCall(GAME, call("passPriority", bot));
+        expect(
+            captureHumanDecision(GAME, {
+                state: projectPublicState(state, 2, bot),
+                botId: bot,
+            })
+        ).toBe(true);
+        recordHumanCall(GAME, call("passPriority", bot));
+        expect(stateHumanPlan(GAME, bot, 2, "second seat plan")).toBe(true);
+        expect(
+            annotateHumanDecision(GAME, bot, 2, {
+                kind: "comment",
+                text: "second seat words",
+            })
+        ).toBe(true);
+        const kept = takeHumanDecisions(GAME);
+        expect(
+            kept.map((d) => [d.source.botId, d.calls.length, d.annotation])
+        ).toEqual([
+            [human, 1, undefined],
+            [bot, 1, { kind: "comment", text: "second seat words" }],
+        ]);
+    });
+
+    it("still refuses a seat the capture does not hold", () => {
+        const { state, human, bot } = board();
+        startHumanCapture(GAME, human, { limit: 10, seed: 1 });
+        expect(
+            captureHumanDecision(GAME, {
+                state: projectPublicState(state, 1, bot),
+                botId: bot,
+            })
+        ).toBe(false);
     });
 });
