@@ -14,7 +14,7 @@ iteration?
 
 **Verdict up front.** No. Node searched at **54–76 ms per iteration** (game
 p50s, a lower bound) where Chromium, in the same two games, spent **17.5 and
-23.2 ms**: two to four times slower. The backstop cut **27 of 36** Node
+23.2 ms**: three to four times slower. The backstop cut **27 of 36** Node
 searches (75%), worse than the default runtime's 40 of 100 a week earlier.
 ADR 0183 is not reopened.
 
