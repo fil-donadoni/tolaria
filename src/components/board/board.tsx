@@ -507,6 +507,17 @@ export default function Board({
     const botId = vsAi
         ? (allPlayers.find((p) => p.id !== playerId)?.id ?? null)
         : null;
+    // The seats the Verdict Proposal capture records (issue #10088): the
+    // human seat against the Bot; both seats in solo, where one person
+    // plays both. A fresh array per render is fine: the capture keys its
+    // effects on the seats' ids, never on this array's identity.
+    const captureSeats = vsAi
+        ? botId && viewerId !== botId
+            ? [viewerId]
+            : []
+        : solo
+          ? allPlayers.map((p) => p.id)
+          : [];
 
     // Opponent on top, local player on bottom
     const opponent = allPlayers.find((p) => p.id !== viewerId);
@@ -624,11 +635,12 @@ export default function Board({
                                                               )
                                                     }
                                                 />
-                                                {vsAi && (
+                                                {(vsAi || solo) && (
                                                     <VerdictProposalCapture
                                                         gameId={gameId}
-                                                        botId={botId}
-                                                        humanId={viewerId}
+                                                        seatIds={captureSeats}
+                                                        viewerId={viewerId}
+                                                        seq={state.seq}
                                                     />
                                                 )}
                                                 <BoardSurface

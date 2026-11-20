@@ -153,6 +153,8 @@ export default function AiDecisionVerdictQuiz({
                 botPickIndex: state.quiz.botPickIndex,
                 ...(gameId ? { gameId } : {}),
                 ...(subject.seq === undefined ? {} : { seq: subject.seq }),
+                // The Plan and words said during play (issue #10088).
+                ...(subject.reading ?? {}),
             });
             finish();
         } catch (cause: unknown) {
@@ -200,6 +202,7 @@ export default function AiDecisionVerdictQuiz({
                     wrongIndex={selected}
                     seq={subject.seq}
                     perspective={perspective}
+                    {...(subject.reading ? { reading: subject.reading } : {})}
                     {...(subject.gameId === undefined
                         ? {}
                         : { gameId: subject.gameId })}

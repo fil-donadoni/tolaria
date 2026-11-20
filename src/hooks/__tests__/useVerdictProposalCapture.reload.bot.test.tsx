@@ -13,9 +13,12 @@
 //   - a reload after the game ended but before the list was built builds it
 //     from the stored decisions;
 //   - storage that throws on read and write changes nothing;
-//   - a capture for another game drops the previous game's stored decisions.
+//   - a capture for another game drops the previous game's stored decisions;
+//   - Plan statements, comments and "obvious" marks made mid-game are there
+//     after a reload, and a commented decision reaches the game-end list with
+//     its words and the Plan in force.
 //
-// And where the game-end judge runs (issue #9528): through the server action,
+// And where the game-end judge runs: through the server action,
 // one call per sampled decision, never a Brain on this device — and a call the
 // server refuses or that fails costs that decision, not the game-end path.
 
@@ -92,9 +95,13 @@ import type { ScenarioSpec } from "@convex/debugScenarioSpec";
 import type { Id } from "@convex/_generated/dataModel";
 import { ConvexError } from "convex/values";
 import {
+    annotateHumanDecision,
     captureHumanDecision,
     clearHumanCapture,
     humanCaptureReady,
+    humanCaptureView,
+    humanPlans,
+    stateHumanPlan,
     recordHumanCall,
     startHumanCapture,
     takeHumanDecisions,
@@ -229,8 +236,9 @@ function renderGameOver(human: string, bot: string) {
         <>
             <VerdictProposalCapture
                 gameId={GAME as Id<"games">}
-                botId={bot}
-                humanId={human}
+                seatIds={human === bot ? [] : [human]}
+                viewerId={human}
+                seq={undefined}
             />
             <VerdictProposalOffer gameId={GAME} onOpen={() => {}} />
         </>
@@ -352,6 +360,67 @@ describe("issue #8889 — the capture resumes across a reload", () => {
         expect(getVerdictProposals(GAME)).toBe(list);
         clearVerdictProposals();
         await expect(loadVerdictProposals(GAME)).resolves.toBeNull();
+    });
+});
+
+describe("issue #10088 — the player's words survive a reload mid-game", () => {
+    it("Plan statements, comments and obvious marks are all there after a reload", async () => {
+        startHumanCapture(GAME, "me", { limit: 10, seed: 1 });
+        await humanCaptureReady(GAME);
+        stateHumanPlan(GAME, "me", 1, "race them");
+        decide("me", 1, 2);
+        annotateHumanDecision(GAME, "me", 1, { kind: "obvious" });
+        annotateHumanDecision(GAME, "me", 2, {
+            kind: "comment",
+            text: "kept Bolt for the blocker",
+        });
+        stateHumanPlan(GAME, "me", 2, "stabilise first");
+        reload();
+
+        startHumanCapture(GAME, "me", { limit: 10, seed: 1 });
+        await humanCaptureReady(GAME);
+        expect(humanPlans(GAME)).toEqual([
+            { seatId: "me", text: "race them", seq: 1 },
+            { seatId: "me", text: "stabilise first", seq: 2 },
+        ]);
+        // The open decision kept its comment.
+        expect(humanCaptureView(GAME, "me").decision).toEqual({
+            seq: 2,
+            annotation: { kind: "comment", text: "kept Bolt for the blocker" },
+        });
+        decide("me", 3, 3);
+        reload();
+
+        startHumanCapture(GAME, "me", { limit: 10, seed: 1 });
+        await humanCaptureReady(GAME);
+        expect(
+            takeHumanDecisions(GAME).map((d) => [
+                d.source.state.seq,
+                d.annotation,
+            ])
+        ).toEqual([
+            [1, { kind: "obvious" }],
+            [2, { kind: "comment", text: "kept Bolt for the blocker" }],
+            [3, undefined],
+        ]);
+    });
+
+    it("a commented decision reaches the game-end list with its words and its Plan, after a reload", async () => {
+        const { human, bot } = await captureLandDrop();
+        stateHumanPlan(GAME, human, 300, "ramp into Bears");
+        annotateHumanDecision(GAME, human, 314, {
+            kind: "comment",
+            text: "land before anything",
+        });
+        reload();
+
+        renderGameOver(human, bot);
+        await screen.findByRole("button", {
+            name: "Review your decisions (1)",
+        });
+        const [proposal] = getVerdictProposals(GAME)!.proposals;
+        expect(proposal.rationale).toBe("land before anything");
+        expect(proposal.plan).toEqual({ text: "ramp into Bears", seq: 300 });
     });
 });
 

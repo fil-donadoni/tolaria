@@ -32,7 +32,11 @@ import {
     withSpec,
 } from "~/lib/ai/verdict-pair";
 import type { RightHalfCheck } from "~/lib/ai/verdict-pair-build";
-import { QUIZ_SEAT, type VerdictQuiz } from "~/lib/ai/verdict-quiz";
+import {
+    QUIZ_SEAT,
+    type QuizSubject,
+    type VerdictQuiz,
+} from "~/lib/ai/verdict-quiz";
 import { getStoredSession } from "~/lib/session";
 import DebugButton from "./debug-button";
 import AiDecisionQuizDiscriminant, {
@@ -61,6 +65,7 @@ export default function AiDecisionQuizWrongMove({
     onBack,
     perspective = "bot",
     gameId: subjectGameId,
+    reading,
 }: {
     quiz: VerdictQuiz;
     /** The candidate ruled wrong. */
@@ -75,6 +80,9 @@ export default function AiDecisionQuizWrongMove({
     /** The game the decision was taken in, when the feed knows it; the
      *  session's game otherwise. */
     gameId?: string;
+    /** The decider's Plan and words said during play (issue #10088) —
+     *  attested with the anchor, the judgement of THIS position. */
+    reading?: QuizSubject["reading"];
 }) {
     const submitVerdict = useMutation(api.verdicts.submit);
     const [stage, setStage] = useState<Stage>({ name: "classify" });
@@ -113,6 +121,7 @@ export default function AiDecisionQuizWrongMove({
             classification,
             botPickIndex: quiz.botPickIndex,
             ...provenance(),
+            ...(reading ?? {}),
         });
         anchorStored.current = key;
         setAnchorLocked(true);

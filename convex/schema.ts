@@ -253,6 +253,9 @@ export default defineSchema({
         userId: v.id("users"),
         humanId: v.string(),
         botId: v.string(),
+        // A solo game (issue #10088): one person plays both seats, so both
+        // are judged — `humanId` / `botId` are then its first / second seat.
+        solo: v.optional(v.boolean()),
         positions: v.number(),
         updatedAt: v.number(),
     }).index("by_gameId", ["gameId"]),
