@@ -308,7 +308,14 @@ or contested.
 holding the writer's [key](#g-key):
 
 1. Every promotable verdict enters the lock: the verdicts already locked keep
-   their order, new ones are appended.
+   their order, new ones are appended. The lock also records the Verdict Grade
+   each one is read with (`readings`, issue #10087), taken from its
+   [attestations](#g-attestation): the Reference Judge's grade when they
+   attested it, otherwise the least committal grade present. A Clear verdict,
+   and every attestation with no grade, writes nothing, so an ungraded lock
+   keeps its bytes. The Reference Judge is a role:
+   `tolaria.config.json` § `referenceJudge.authors` lists the authors whose
+   person holds it.
 2. `verdictsPack:writePack` builds and stores the [pack](#g-pack) on the
    deployment. This machine checks the hash it reports and reads the
    [pack](#g-pack) back before believing it.
@@ -318,7 +325,12 @@ holding the writer's [key](#g-key):
 4. The blade `must` tier runs on the new weights.
 
 It prints the report the PR carries: new Eval Pairs, the pairs the fit could
-not satisfy, how far each weight moved, and the blade `must` result. Its last
+not satisfy, how far each weight moved, the grades the lock reads, and the
+blade `must` result. An Indifferent verdict is left out of the fit and of every
+agreement count, and each report says how many it left out. On a Preferred
+verdict, the Bot agrees when it plays the preferred move or any accepted
+alternative. A regrade alone is a promotion, because the fit reads the grade
+from the lock. Its last
 line says to run `bun run verdicts:pick-agreement` next (≈ 7 minutes, by
 hand, never part of `promote`): a promotion is when held-out pick agreement
 can change, and the block that run prints is the held-out receipt a strength
@@ -369,7 +381,8 @@ budget; `BLADE_VERDICT_SEARCH_OUT=<path>.json` writes the rows and the text.
 ## Per-tester quality
 
 `bun run verdicts:testers` prints four numbers per person (issue #3585, ADR
-0128). It is read-only and needs only the reader [key](#g-key):
+0128), and the grades they gave. It is read-only and needs only the reader
+[key](#g-key):
 
 - **given**: the positions the person judged.
 - **contradicted**: the positions where someone else gave a different answer,
@@ -377,6 +390,9 @@ budget; `BLADE_VERDICT_SEARCH_OUT=<path>.json` writes the rows and the text.
 - **quarantined**: the positions the person judged that are contested now.
 - **unsatisfied**: the positions where a verdict the person gave is in the
   Verdict Lock and the committed weights leave one of its pairs unsatisfied.
+- **grades**: how many of the person's judgements they graded clear, preferred
+  or indifferent. An attestation with no grade counts as clear. This line shows
+  a tester who grades everything Clear, or everything Indifferent.
 
 Under each number it lists the positions behind it, with the verdict ids to
 open at `/admin/verdicts`. The unsatisfied count is a list of positions worth
