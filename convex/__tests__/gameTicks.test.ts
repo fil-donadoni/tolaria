@@ -20,70 +20,7 @@ import {
     makePlayer,
     makeState,
 } from "../cards/__tests__/setup.helper";
-
-type Row = Record<string, unknown>;
-
-interface Stub {
-    ctx: MutationCtx;
-    doc: (id: string) => Row;
-    table: (name: string) => Row[];
-}
-
-/** Same in-memory stub `MutationCtx` as `seatOwnership.test.ts` — no
- *  convex-test harness in this repo. Generic over table name, so it needs no
- *  changes to support the new `gameTicks` table. */
-function makeCtx(userId: string, seeds: Row[]): Stub {
-    const docs = new Map<string, Row>();
-    for (const seed of seeds) docs.set(seed._id as string, { ...seed });
-    let nextIdBySeq = 0;
-
-    const ctx = {
-        auth: {
-            getUserIdentity: async () => ({ subject: `${userId}|session1` }),
-        },
-        db: {
-            get: async (id: string) => docs.get(id) ?? null,
-            insert: async (table: string, doc: Row) => {
-                const id = `${table}-new-${nextIdBySeq++}`;
-                docs.set(id, { ...doc, _id: id, __table: table });
-                return id;
-            },
-            patch: async (id: string, patch: Row) => {
-                docs.set(id, { ...docs.get(id), ...patch });
-            },
-            query: (table: string) => ({
-                withIndex: (_name: string, fn?: (q: unknown) => unknown) => {
-                    const eqs: [string, unknown][] = [];
-                    const builder = {
-                        eq: (field: string, value: unknown) => {
-                            eqs.push([field, value]);
-                            return builder;
-                        },
-                    };
-                    fn?.(builder);
-                    const rows = [...docs.values()].filter(
-                        (d) =>
-                            d.__table === table &&
-                            eqs.every(([f, v]) => d[f] === v)
-                    );
-                    const ordered = { first: async () => rows[0] ?? null };
-                    return {
-                        collect: async () => rows,
-                        first: async () => rows[0] ?? null,
-                        order: () => ordered,
-                    };
-                },
-            }),
-        },
-        scheduler: { runAfter: async () => undefined },
-    };
-
-    return {
-        ctx: ctx as unknown as MutationCtx,
-        doc: (id) => docs.get(id)!,
-        table: (name) => [...docs.values()].filter((d) => d.__table === name),
-    };
-}
+import { makeMutationCtx, type Row } from "./gameMutationHarness.fixture";
 
 // LEA Mountain — any real definition works; `mill` only moves it.
 const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";
@@ -144,7 +81,7 @@ const runGetGameTick = (ctx: QueryCtx, args: Row) =>
 
 describe("gameTicks — the cheap wake-up signal companion to gameStates (issue #1778)", () => {
     it("writes a gameTicks row alongside the gameStates row, with a matching seq", async () => {
-        const stub = makeCtx("alice", twoPlayerSeeds("alice", "bob"));
+        const stub = makeMutationCtx("alice", twoPlayerSeeds("alice", "bob"));
 
         await runMill(stub.ctx, {
             gameId: "game-1" as Id<"games">,
@@ -173,7 +110,7 @@ describe("gameTicks — the cheap wake-up signal companion to gameStates (issue 
     });
 
     it("patches the SAME row in place across repeated saves (one row per game)", async () => {
-        const stub = makeCtx("alice", twoPlayerSeeds("alice", "bob"));
+        const stub = makeMutationCtx("alice", twoPlayerSeeds("alice", "bob"));
 
         await runMill(stub.ctx, {
             gameId: "game-1" as Id<"games">,
@@ -191,7 +128,7 @@ describe("gameTicks — the cheap wake-up signal companion to gameStates (issue 
     });
 
     it("getGameTick returns the persisted row for the driver's cheap subscription", async () => {
-        const stub = makeCtx("alice", twoPlayerSeeds("alice", "bob"));
+        const stub = makeMutationCtx("alice", twoPlayerSeeds("alice", "bob"));
         await runMill(stub.ctx, {
             gameId: "game-1" as Id<"games">,
             playerId: "alice",
@@ -207,7 +144,7 @@ describe("gameTicks — the cheap wake-up signal companion to gameStates (issue 
     });
 
     it("getGameTick returns null before any save", async () => {
-        const stub = makeCtx("alice", [
+        const stub = makeMutationCtx("alice", [
             {
                 _id: "game-2",
                 __table: "games",

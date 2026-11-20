@@ -21,6 +21,7 @@ import { internal } from "./_generated/api";
 import { planBotDeadline, type BotDeadlineTick } from "./botDeadline";
 import { botSeatId } from "./matches";
 import { seedBotSkipPrefs } from "./gamePrefs";
+import { loadAutoOrderSeatIds } from "./autoOrderSeats";
 import {
     advanceClock,
     clockExpiresAt,
@@ -76,6 +77,18 @@ export async function getLatestGameState(
     ctx: ReadCtx,
     gameId: GenericId<"games">
 ): Promise<LoadedGameState | null> {
+    const loaded = await loadGameStateRows(ctx, gameId);
+    if (loaded) await hydrateAutoOrderSeats(ctx, gameId, loaded.state);
+    return loaded;
+}
+
+/** `getLatestGameState` without the preference hydration — the public view's
+ *  full read (ADR 0179), which never runs the engine and must not pay the
+ *  `userSettings` reads. */
+async function loadGameStateRows(
+    ctx: ReadCtx,
+    gameId: GenericId<"games">
+): Promise<LoadedGameState | null> {
     const doc = await readGameStateRow(ctx, gameId);
     if (!doc) return null;
     const stored = doc.state as Record<string, unknown>;
@@ -91,6 +104,22 @@ export async function getLatestGameState(
         state: expandState(stored, libraryRow.payload as CompactLibraries),
         libraryRow,
     };
+}
+
+/** Issue #9988 — hang the seats that opted into automatic trigger/graveyard
+ *  ordering on the loaded state (transient: `compactState` drops it). Absent
+ *  when no seat opted in, which is the default. */
+async function hydrateAutoOrderSeats(
+    ctx: ReadCtx,
+    gameId: GenericId<"games">,
+    state: GameState
+): Promise<void> {
+    const seats = await loadAutoOrderSeatIds(
+        ctx,
+        gameId,
+        state.players.map((p) => p.id)
+    );
+    if (seats.length > 0) state.autoOrderSeatIds = seats;
 }
 
 /** The position as the PUBLIC projection needs it (ADR 0179). When the writer
@@ -113,7 +142,7 @@ export async function getGameStateForPublicView(
             opaqueLibraries: true,
         };
     }
-    const full = await getLatestGameState(ctx, gameId);
+    const full = await loadGameStateRows(ctx, gameId);
     return full ? { ...full, opaqueLibraries: false } : null;
 }
 

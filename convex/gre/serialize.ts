@@ -1717,6 +1717,10 @@ export const TRANSIENT_KEYS = new Set<string>([
     // Phase Stop preferences (ADR 0077): hydrated from `gamePrefs` for one
     // mutation, so the row every save rewrites does not grow by them.
     "seatSkipPrefs",
+    // Auto-order preference (issue #9988): hydrated from `userSettings` by the
+    // loader (`gameStateStore.ts`), so the saved row never carries it and a
+    // settings change takes effect on the next load.
+    "autoOrderSeatIds",
 ]);
 
 /** Pack a GameState into the slim Convex-storage form. Always writes v2

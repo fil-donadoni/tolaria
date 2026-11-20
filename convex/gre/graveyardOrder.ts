@@ -93,6 +93,10 @@ function closeGraveyardBatch(state: GameState, batch: OpenBatch): void {
             continue;
         }
         if (!isArrangementMeaningful(arrived)) continue;
+        // Issue #9988 — the owner asked for the engine's order (CR 404.3
+        // lets them arrange; this one delegated): the batch keeps the order
+        // it arrived in, no prompt.
+        if (state.autoOrderSeatIds?.includes(player.id)) continue;
         state.pendingGraveyardArrangements = [
             ...(state.pendingGraveyardArrangements ?? []),
             { ownerId: player.id, cardIds: arrived.map((c) => c.id) },
