@@ -49,7 +49,7 @@ function makeMatch(status: string): PublicMatch {
 
 const leaveButton = () =>
     Array.from(document.querySelectorAll("button")).find((b) =>
-        b.textContent?.includes("Back to Lobby")
+        /Back to (Lobby|event)/.test(b.textContent ?? "")
     );
 
 beforeEach(() => cleanup());
@@ -108,6 +108,14 @@ describe("GameOverDialog — leaving an event Match", () => {
             configurable: true,
             value: originalLocation,
         });
+    });
+
+    it("labels the button by destination (issue #9990)", () => {
+        renderOver({ ...makeMatch("finished"), limitedEventId: "ev_1" });
+        expect(leaveButton()?.textContent).toBe("Back to event");
+        cleanup();
+        renderOver(makeMatch("finished"));
+        expect(leaveButton()?.textContent).toBe("Back to Lobby");
     });
 
     it("returns to the event lobby when the Match is event-bound", () => {

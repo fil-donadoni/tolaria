@@ -5,6 +5,7 @@ import TitleTreatment from "~/components/ui/title-treatment";
 import OrnamentalDivider from "~/components/ui/ornamental-divider";
 import { Button } from "~/components/ui/button";
 import { useLeaveToLobby } from "~/hooks/useLeaveToLobby";
+import { leaveLabelForMatch } from "~/lib/matchNavigation";
 import type { GameOver, Player } from "~/types/game";
 import SideboardingDialog from "./sideboarding-dialog";
 import VerdictProposalOffer from "./verdict-proposal-offer";
@@ -219,7 +220,7 @@ export default function GameOverDialog({
                     onClick={handleLeave}
                     className="mt-3 w-full"
                 >
-                    Back to Lobby
+                    {leaveLabelForMatch(match)}
                 </Button>
             </div>
         </GameDialog>
