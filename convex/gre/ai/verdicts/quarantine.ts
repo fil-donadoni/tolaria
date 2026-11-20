@@ -62,6 +62,7 @@ import {
     verdictIdOf,
     type VerdictJudgement,
 } from "./identity";
+import { attestedGradeOf, leastCommittalGrade } from "./grade";
 import {
     decidedVerdictIds,
     resolutionIdOf,
@@ -153,6 +154,43 @@ function mergedAxis(
     return a === "explicit" || b === "explicit" ? "explicit" : "implicit";
 }
 
+type GradeFields = Pick<
+    VerdictAttestation,
+    "sourceAxis" | "grade" | "acceptedIndexes"
+>;
+
+/** An attestation's axis and grade fields — an absent field stays absent. */
+function gradeFieldsOf(a: GradeFields): GradeFields {
+    return {
+        sourceAxis: a.sourceAxis,
+        ...(a.grade === undefined ? {} : { grade: a.grade }),
+        ...(a.acceptedIndexes === undefined
+            ? {}
+            : { acceptedIndexes: [...a.acceptedIndexes] }),
+    };
+}
+
+/** One author's two records of one attestation, merged: the stronger axis,
+ *  the least committal grade, and on `preferred` every alternative either
+ *  accepts. The same object read twice merges to itself. */
+function mergedAttested(a: GradeFields, b: GradeFields): GradeFields {
+    const grade = leastCommittalGrade([attestedGradeOf(a), attestedGradeOf(b)]);
+    const accepted = [
+        ...new Set(
+            [a, b]
+                .filter((x) => attestedGradeOf(x) === "preferred")
+                .flatMap((x) => x.acceptedIndexes ?? [])
+        ),
+    ].sort((x, y) => x - y);
+    return {
+        sourceAxis: mergedAxis(a.sourceAxis, b.sourceAxis),
+        ...(a.grade === undefined && b.grade === undefined ? {} : { grade }),
+        ...(grade === "preferred" && accepted.length > 0
+            ? { acceptedIndexes: accepted }
+            : {}),
+    };
+}
+
 function isExplicit(verdict: AttestedVerdict<VerdictJudgement>): boolean {
     return verdict.attestations.some((a) => a.sourceAxis === "explicit");
 }
@@ -234,7 +272,13 @@ export function quarantineContestedPositions<V extends VerdictJudgement>(
 
     // One attestation per (verdict, author): the store names the object by
     // both, so a second one in the input is the same object read twice.
-    const attested = new Map<string, Map<string, VerdictSourceAxis>>();
+    // The judge's grade rides along (`grade.ts` reads it); the rest of an
+    // attestation's provenance is not this classification's.
+    type Attested = Pick<
+        VerdictAttestation,
+        "sourceAxis" | "grade" | "acceptedIndexes"
+    >;
+    const attested = new Map<string, Map<string, Attested>>();
     for (const attestation of attestations) {
         if (!distinct.has(attestation.verdictId)) {
             throw new Error(
@@ -242,14 +286,13 @@ export function quarantineContestedPositions<V extends VerdictJudgement>(
             );
         }
         const authors =
-            attested.get(attestation.verdictId) ??
-            new Map<string, VerdictSourceAxis>();
+            attested.get(attestation.verdictId) ?? new Map<string, Attested>();
         const earlier = authors.get(attestation.author);
         authors.set(
             attestation.author,
             earlier === undefined
-                ? attestation.sourceAxis
-                : mergedAxis(earlier, attestation.sourceAxis)
+                ? gradeFieldsOf(attestation)
+                : mergedAttested(earlier, attestation)
         );
         attested.set(attestation.verdictId, authors);
     }
@@ -268,7 +311,7 @@ export function quarantineContestedPositions<V extends VerdictJudgement>(
                     .map((author) => ({
                         verdictId,
                         author,
-                        sourceAxis: authors.get(author)!,
+                        ...authors.get(author)!,
                     })),
             };
         });

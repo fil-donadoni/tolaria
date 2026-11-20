@@ -228,3 +228,17 @@ local backend (§ Consequences still forbids it).
 **Consequence.** The drain picks its way by credential. The write key uploads
 directly. Otherwise a forward token with the writer's URL forwards. With
 neither it still answers `skipped`, naming what is missing.
+
+## Amendment (issue #10087, 2026-11-20): the lock carries the Verdict Grade
+
+§2 says the lock plus the code re-derive the weights. A Verdict Grade (PRD
+issue #10083) changes the fit, since an Indifferent verdict is not fitted, but
+the grade lives on an attestation, and the fit never reads attestations. So
+a promotion reads the grade once and the lock records it beside the ids:
+`readings`, keyed by verdict id, written only for a non-clear grade. A lock
+no grade has reached keeps its exact bytes. When attestations disagree, the
+grade read is the Reference Judge's (`tolaria.config.json` § `referenceJudge`,
+a role, never a name in code); with none of theirs, the least committal grade
+present. Grades stay outside the verdict id (§3). A regrade is a lock change
+that the PR diff shows, never a silent one between two promotions.
+`convex/gre/ai/verdicts/grade.ts`.

@@ -91,6 +91,15 @@ export const VERDICT_GRADES = ["clear", "preferred", "indifferent"] as const;
 
 export type VerdictGrade = (typeof VERDICT_GRADES)[number];
 
+/** The grade a Verdict is READ with (`grade.ts`), and on `preferred` the
+ *  candidates the judge would also accept, by index. Derived from its
+ *  attestations at promotion and carried by the lock; never in the id. */
+export type VerdictReading = {
+    grade: VerdictGrade;
+    /** `preferred` only, ascending, never empty. */
+    acceptedIndexes?: number[];
+};
+
 /** A Plan statement as an attestation carries it: the player's words, and
  *  the `seq` of the state it was stated on, in the attestation's game. */
 export type AttestedPlan = { text: string; seq?: number };
@@ -261,6 +270,10 @@ export type Verdict = {
     origin?: { gameId?: string; seq?: number };
     /** Optional prose carried over from the source (a blade entry's `note`). */
     note?: string;
+    /** The Verdict Grade it is read with (`grade.ts`). Absent = Clear, which
+     *  is every registry and authored Verdict and every locked one the lock
+     *  writes no reading for. Not part of the judgement, so not of the id. */
+    reading?: VerdictReading;
 };
 
 /** Why a blade entry produced NO verdict — listed by the report, never
