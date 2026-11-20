@@ -1460,6 +1460,58 @@ describe("isDominatedNoOpMove — marked damage that cannot become lethal (CR 12
         expect(offered(state, "Unholy Heat", "Hill Giant")).toBe(false);
     });
 
+    it("reads a kicked cast as kicked: 4 damage at a 3/3 is kept, the plain 2 is pruned", () => {
+        // The probe resolves the plain announcement, so a kicked cast must
+        // never be judged by the damage its unkicked form would mark.
+        const state = build({
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                ...Array.from(
+                    { length: 5 },
+                    (): Extra => ({
+                        name: "Mountain",
+                        owner: "me",
+                        zone: "battlefield",
+                    })
+                ),
+                { name: "Burst Lightning", owner: "me", zone: "hand" },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        });
+        const atGiant = (pruned: boolean) =>
+            castsOf(state, "Burst Lightning", pruned).filter(
+                (m) =>
+                    m.kind === "cast-spell" &&
+                    m.targets.some(
+                        (t) => cardName(state, t.id) === "Hill Giant"
+                    )
+            );
+        const kicked = (m: Move) =>
+            m.kind === "cast-spell" && m.kickerPayments !== undefined;
+        expect(atGiant(false).some(kicked)).toBe(true);
+        expect(atGiant(false).some((m) => !kicked(m))).toBe(true);
+        expect(atGiant(true).some(kicked)).toBe(true);
+        expect(atGiant(true).some((m) => !kicked(m))).toBe(false);
+    });
+
+    it("keeps a spell that divides its damage: a move does not carry the split", () => {
+        // Arc Lightning's 3 at the 4/4 alone would read as the futile shape.
+        const state = heatPosition([
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+            { name: "Arc Lightning", owner: "me", zone: "hand" },
+        ]);
+        expect(offered(state, "Arc Lightning", "Serra Angel")).toBe(true);
+    });
+
     it("never prunes damage that kills", () => {
         const state = heatPosition([raiders]);
         expect(offered(state, "Unholy Heat", "Mons's Goblin Raiders")).toBe(
