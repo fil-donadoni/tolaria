@@ -544,6 +544,13 @@ export default function GreHandCard({
           ? `translate(0px, -${STAGED_LIFT_PX}px) scale(1.06)`
           : undefined;
 
+    // A click while a previous intent round-trips is refused by the commit
+    // guards (`hasPendingGameIntent()`), never queued. Say so on the card —
+    // "disable while pending": a waiting cursor + dimmed image on every card
+    // that has something to click, so the refused click is visibly refused
+    // instead of silently lost (issue #9981).
+    const intentBusy = intentInFlight && (optionCount > 0 || actionable);
+
     // Non-drag left click. With a menu, a desktop click falls through to the
     // ContextMenuTrigger (opens the menu) and a touch tap opens the action-sheet;
     // with a single option the click performs it directly (cycling-only card, or
@@ -563,6 +570,15 @@ export default function GreHandCard({
         // PHYSICALLY inside the card counts.
         if (!e.currentTarget.contains(e.target as Node)) return;
         if (useMenu) {
+            // Busy: no sheet to pick from — every entry would hit a refusing
+            // guard (issue #9981).
+            // Desktop: the ContextMenuTrigger opens its menu from this same
+            // click unless it is default-prevented.
+            if (intentBusy) {
+                e.preventDefault();
+                isTouchRef.current = false;
+                return;
+            }
             if (isTouchRef.current) {
                 isTouchRef.current = false;
                 e.preventDefault();
@@ -592,6 +608,8 @@ export default function GreHandCard({
             data-board-hand-card={card.id}
             data-drag-armed={state.armed ? "true" : undefined}
             data-tap-staged={tapStage.staged ? "true" : undefined}
+            data-intent-pending={intentBusy ? "true" : undefined}
+            aria-busy={intentBusy ? true : undefined}
             // `CARD_RING_TILE_CLASS` (issue #9681, the hand twin of #3426): the
             // hand OVERLAPS its cards, and this root forms no stacking context
             // at rest — the tilt engages only on hover, so never on touch — so
@@ -600,7 +618,11 @@ export default function GreHandCard({
             // lattice of playable rings across the mobile hand.
             className={
                 `${CARD_RING_TILE_CLASS} ` +
-                (optionCount > 0 || actionable ? "cursor-pointer " : "") +
+                (intentBusy
+                    ? "cursor-progress "
+                    : optionCount > 0 || actionable
+                      ? "cursor-pointer "
+                      : "") +
                 (allowHorizontalPan ? "touch-pan-x" : "touch-none")
             }
             onClick={onRootClick}
@@ -649,6 +671,7 @@ export default function GreHandCard({
                         "w-full h-full card-corner overflow-hidden ring-1 ring-black/40 " +
                         actionableRingClass(actionable) +
                         " " +
+                        (intentBusy ? "opacity-60 " : "") +
                         (state.dragging
                             ? "shadow-[0_18px_40px_rgba(0,0,0,0.6)]"
                             : "shadow-[0_6px_16px_rgba(0,0,0,0.55)]")
