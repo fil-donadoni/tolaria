@@ -9,9 +9,15 @@
 # (`lib/health-robustness-trigger.ts`) on the PR's diff — FULL (every `must`
 # entry), INCREMENTAL (the registry's added or changed entries) or NONE. NONE
 # runs no search and reports the check green, so the queue condition
-# `check-success=blade-robustness` (`.mergify.yml`) is uniform. The four
-# shards are the audit's own `robustness.shard-N.spec.ts` files (the partition
-# the `must` suite uses), the search the health step runs.
+# `check-success=blade-robustness` (`.mergify.yml`) is uniform.
+#
+# The audit is ~8.2M search iterations over 624 `must` entries (issue #10319):
+# four single-worker shards ran past a 60-minute timeout on every FULL PR. The
+# `audit` matrix is PARTS jobs; each runs all four `robustness.shard-N.spec.ts`
+# files (the partition the `must` suite and health use) on the runner's four
+# vCPUs, narrowed by `BLADE_ROBUSTNESS_PART=<part>/<PARTS>` to a cost-balanced
+# part of each shard (`costBalancedSlice`). The part count is the matrix
+# length (`strategy.job-total`), nowhere else.
 #
 # Mergify re-reads `queue_conditions` on its draft: the verdict job reports
 # green there at once — the audit was proven on the PR's own head, and the
@@ -44,54 +50,67 @@ jobs:
             mode: ${{ steps.plan.outputs.mode }}
             labels: ${{ steps.plan.outputs.labels }}
         steps:
-            # The merge ref (the PR merged into the base tip: what would land),
-            # two commits deep: `HEAD^1` is the base the diff is taken from.
+            # The merge ref (what would land), with the whole commit graph and
+            # no historical blobs (~14 MB): the PR's own change is
+            # `origin/<base>...<head>`, never the merge ref's `HEAD^1..HEAD` —
+            # GitHub can hand out a merge ref on a base tip older than the PR's
+            # fork point (issue #10319, PR #10295).
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
-                  fetch-depth: 2
+                  fetch-depth: 0
+                  filter: blob:none
                   persist-credentials: false
             - uses: ./.github/actions/job-setup
             - name: Plan
               id: plan
+              env:
+                  BASE_REF: ${{ github.base_ref }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
               shell: bash
               run: bun scripts/blade-robustness-plan.ts
 
     shard:
-        name: audit shard ${{ matrix.shard }}/4
+        name: audit part ${{ matrix.part }}
         needs: plan
         if: ${{ needs.plan.outputs.mode != 'none' }}
         runs-on: ubuntu-24.04
-        timeout-minutes: 60
+        timeout-minutes: 90
         strategy:
             fail-fast: false
             matrix:
-                shard: [0, 1, 2, 3]
+                part: [0, 1, 2, 3, 4, 5, 6, 7]
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
             - uses: ./.github/actions/job-setup
-            - name: blade:robustness shard
+            - name: blade:robustness part
               env:
-                  SHARD: ${{ matrix.shard }}
+                  PART: ${{ matrix.part }}
                   BLADE_ROBUSTNESS: "1"
                   BLADE_ROBUSTNESS_LABELS: ${{ needs.plan.outputs.labels }}
+                  BLADE_ROBUSTNESS_PART: ${{ matrix.part }}/${{ strategy.job-total }}
+                  # Four spec files, four vCPUs: one worker each.
+                  TOLARIA_VITEST_WORKERS: "4"
               shell: bash
               run: |
-                  log="$RUNNER_TEMP/robustness-$SHARD.log"
+                  log="$RUNNER_TEMP/robustness-$PART.log"
+                  start=$(date +%s)
                   set +e
-                  bunx vitest run --config vitest.blade.config.ts "robustness.shard-$SHARD" >"$log" 2>&1
+                  # `tee`: a part cut by the timeout still leaves its per-entry
+                  # rows in the job log.
+                  set -o pipefail
+                  bunx vitest run --config vitest.blade.config.ts "robustness.shard-" 2>&1 | tee "$log"
                   code=$?
                   set -e
                   # Which entry and which leg: the machine finding lines and the
                   # failed tests, into the run summary.
                   {
-                      echo "### shard $SHARD (exit $code)"
+                      echo "### part $BLADE_ROBUSTNESS_PART (exit $code, $(( $(date +%s) - start )) s)"
                       echo '```'
                       grep -E '^\[blade:robustness:finding\]|FAIL|✗|×' "$log" | head -60 || true
                       echo '```'
                   } >>"$GITHUB_STEP_SUMMARY"
-                  tail -n 5 "$log"
                   exit "$code"
 
     verdict:

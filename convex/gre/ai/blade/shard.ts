@@ -33,3 +33,58 @@ export function bladeShardSlice<T>(
         (_, index) => bladeShardOf(index, shards) === shard
     );
 }
+
+/**
+ * Bin `part` (0-based) of a cost-balanced split of `items` into `parts` bins
+ * (issue #10319), in the items' original order.
+ *
+ * Longest-processing-time greedy: heaviest item first onto the lightest bin,
+ * ties to the earlier item and the lower bin, so the split is deterministic
+ * and every caller computing bin `part` agrees on it. The robustness audit's
+ * CI parts use it: one entry costs from a few to ~70k search iterations, so an
+ * index-modulo split leaves one part far behind the others.
+ */
+export function costBalancedSlice<T>(
+    items: readonly T[],
+    part: number,
+    parts: number,
+    cost: (item: T) => number
+): T[] {
+    if (!Number.isInteger(parts) || parts < 1)
+        throw new Error(`costBalancedSlice: parts must be >= 1, got ${parts}`);
+    if (!Number.isInteger(part) || part < 0 || part >= parts)
+        throw new Error(
+            `costBalancedSlice: part must be in [0, ${parts}), got ${part}`
+        );
+    const order = items
+        .map((item, index) => ({ index, cost: cost(item) }))
+        .sort((a, b) => b.cost - a.cost || a.index - b.index);
+    const load = new Array<number>(parts).fill(0);
+    const binOf = new Array<number>(items.length);
+    for (const { index, cost: c } of order) {
+        let bin = 0;
+        for (let b = 1; b < parts; b++) if (load[b] < load[bin]) bin = b;
+        load[bin] += c;
+        binOf[index] = bin;
+    }
+    return items.filter((_, index) => binOf[index] === part);
+}
+
+/**
+ * `"i/N"` (0 <= i < N) → `{ part: i, parts: N }`; unset or empty → `null`.
+ * Anything else throws: a part selector must never quietly widen or narrow
+ * the audit (issue #10319).
+ */
+export function parseBladePart(
+    raw: string | undefined
+): { part: number; parts: number } | null {
+    if (raw === undefined || raw === "") return null;
+    const m = /^(\d+)\/(\d+)$/.exec(raw);
+    const part = m ? Number(m[1]) : NaN;
+    const parts = m ? Number(m[2]) : NaN;
+    if (!m || parts < 1 || part >= parts)
+        throw new Error(
+            `blade part must be "i/N" with 0 <= i < N, got "${raw}"`
+        );
+    return { part, parts };
+}

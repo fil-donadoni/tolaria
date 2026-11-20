@@ -22,6 +22,13 @@
  * requested label that names no `must` entry (a filter that audits nothing is
  * a silently dead audit).
  *
+ * `BLADE_ROBUSTNESS_PART` (`"i/N"`) narrows each shard further to part i of
+ * a cost-balanced N-way split of its slice (`costBalancedSlice`, cost = the
+ * entry's search iterations): the PR-side audit
+ * (`.github/workflows/blade-robustness.yml`, issue #10319) runs N part jobs,
+ * each running all four shard files on its runner's four workers. Unset (the
+ * health run) audits the whole slice.
+ *
  * By hand inside an issue worktree the heavy gate refuses (`gate.ts`'s
  * issue-worktree guard): `TOLARIA_ALLOW_FULL_SUITE=1 bun run blade:robustness`.
  */
@@ -42,7 +49,12 @@ import {
 import { bladeScenarioSeeds } from "../runner";
 import type { BladeScenario } from "../types";
 import { ROBUSTNESS_BASELINE } from "../robustnessBaseline";
-import { BLADE_SHARDS, bladeShardSlice } from "../shard";
+import {
+    BLADE_SHARDS,
+    bladeShardSlice,
+    costBalancedSlice,
+    parseBladePart,
+} from "../shard";
 
 /** Print each finding as its machine line, then red on any (issue #5016).
  *  `test` is the calling test's own name. */
@@ -82,20 +94,28 @@ const ENTRY_TIMEOUT_FLOOR_MS = 900_000;
  *  room for a loaded shared machine. */
 const MS_PER_ITERATION = 60;
 
-/** An entry's timeout: it runs its own seeds plus every vector over the wide
- *  seed list, each search at the entry's iterations budget — so the cost
- *  scales with the budget and a fixed cap eventually times out a heavy board
- *  with no finding. */
-export function entryTimeoutMs(
+/** An entry's audit cost in search iterations: it runs its own seeds plus
+ *  every vector over the wide seed list, each search at the entry's
+ *  iterations budget. */
+export function entrySearchIterations(
     scenario: BladeScenario,
     vectorCount: number
 ): number {
     const searches =
         bladeScenarioSeeds(scenario).length +
         vectorCount * ROBUSTNESS_SEEDS.length;
+    return searches * scenario.budget.iterations;
+}
+
+/** An entry's timeout: the cost scales with the budget, so a fixed cap would
+ *  eventually time out a heavy board with no finding. */
+export function entryTimeoutMs(
+    scenario: BladeScenario,
+    vectorCount: number
+): number {
     return Math.max(
         ENTRY_TIMEOUT_FLOOR_MS,
-        searches * scenario.budget.iterations * MS_PER_ITERATION
+        entrySearchIterations(scenario, vectorCount) * MS_PER_ITERATION
     );
 }
 
@@ -112,6 +132,7 @@ export function registerRobustnessShard(shard: number): void {
     const must = bladeScenariosForTier("must");
     const vectors = robustnessVectors();
     const only = labelFilter();
+    const part = parseBladePart(ENV.BLADE_ROBUSTNESS_PART);
 
     describe(title, () => {
         if (shard === 0) {
@@ -131,13 +152,18 @@ export function registerRobustnessShard(shard: number): void {
             }
         }
 
-        const audited = bladeShardSlice(must, shard).filter(
-            (s) => only === null || only.has(s.label)
-        );
-        // A filtered shard may own none of the entries; vitest reds a suite
-        // with no test in it.
+        const slice = bladeShardSlice(must, shard);
+        const audited = (
+            part === null
+                ? slice
+                : costBalancedSlice(slice, part.part, part.parts, (s) =>
+                      entrySearchIterations(s, vectors.length)
+                  )
+        ).filter((s) => only === null || only.has(s.label));
+        // A filtered shard or part may own none of the entries; vitest reds a
+        // suite with no test in it.
         if (shard !== 0 && audited.length === 0)
-            it.skip("no entry of the label filter in this shard", () => {});
+            it.skip("no entry of the filter in this shard", () => {});
 
         for (const scenario of audited) {
             it(
