@@ -932,6 +932,19 @@ export const thicketBasilisk = defineCard(() => ({
     delayedTriggers: [thicketBasiliskCombatKill.delayed],
 }));
 
+export const scrybSprites = defineCard(() => ({
+    id: "6d929c38-91e6-457c-937a-d1884f4bba44",
+    rarity: "common",
+    name: "Scryb Sprites",
+    oracleText: "Flying",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Faerie"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["flying"],
+}));
+
 export const tranquility = defineCard(() => ({
     id: "774cc5a6-3a69-4812-add4-eb5eb6389238",
     rarity: "common",
