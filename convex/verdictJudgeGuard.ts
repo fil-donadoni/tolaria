@@ -11,7 +11,9 @@
 //     on one;
 //   - the caller owns the HUMAN seat of a vs-AI game
 //     (`vsAiSeats`), and the seat searched is that human seat — the judge
-//     judges the player's own decisions, from the player's own view; every
+//     judges the player's own decisions, from the player's own view; or the
+//     caller owns BOTH seats of a solo game (issue #10088: one person plays
+//     both, so either seat's decisions are theirs to have judged); every
 //     seat `knowledge` names is one of the game's two seats;
 //   - the game is OVER: its `gameTicks` row says `gameOver`. That row is
 //     written by `saveGameState` (the sole writer) in the same transaction as
@@ -39,15 +41,41 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { getCurrentUserId, isTesterUser } from "./auth";
 import { DIFFICULTY_BUDGETS } from "./gre/difficulty";
 import { vsAiSeats, type VsAiSeats } from "./vsAiSeats";
+import { seatBelongsToUser } from "./gameLifecycle";
+
+/** The seats a judge consult may concern: a vs-AI game's two, or a solo
+ *  game's two with `solo` set — then both are the caller's to search. */
+type JudgedSeats = VsAiSeats & { solo?: true };
+
+/** A solo game's two seats when the caller owns both (issue #10088), else
+ *  the vs-AI seats — which throws for any other game. */
+function judgedSeats(game: Doc<"games">, userId: Id<"users">): JudgedSeats {
+    if (game.solo === true && game.vsAi !== true) {
+        const [first, second] = game.players;
+        if (!first || !second) {
+            throw new ConvexError("This game has no two seats.");
+        }
+        if (
+            !seatBelongsToUser(first.id, userId) ||
+            !seatBelongsToUser(second.id, userId)
+        ) {
+            throw new ConvexError("You are not the player of this game.");
+        }
+        return { humanId: first.id, botId: second.id, solo: true };
+    }
+    return vsAiSeats(game, userId);
+}
 
 /** How many positions one game may have judged.
  *
  *  One game end consults the judge at most `perClassQuota` times per Decision
- *  Class (`tolaria.config.json` § verdictProposals): 3 × 11 classes = 33. A
- *  reload while the list is being built can rebuild it from the stored
- *  decisions, so an honest game can spend that twice (66). 100 leaves room for
- *  both and a third partial build, and still caps a game at a fixed, small
- *  amount of server search. */
+ *  Class (`tolaria.config.json` § verdictProposals): 3 × 11 classes = 33 —
+ *  plus every decision the player commented beyond its class's quota (issue
+ *  #10088: a commented decision is always judged). A reload while the list
+ *  is being built can rebuild it from the stored decisions, so an honest game
+ *  can spend that twice (66). 100 leaves room for both and a third partial
+ *  build, and still caps a game at a fixed, small amount of server search; a
+ *  consult past it is refused and counted unjudged on the client. */
 export const VERDICT_JUDGE_POSITIONS_PER_GAME = 100;
 
 /** How many positions one user may have judged per
@@ -99,11 +127,11 @@ async function callerId(ctx: MutationCtx): Promise<Id<"users">> {
 /** The seat checks every claim makes, against seats resolved either from the
  *  `games` row (first claim) or from the counter row (later claims). */
 function assertSeats(
-    seats: VsAiSeats,
+    seats: JudgedSeats,
     seatId: string,
     knowledgeSeats: readonly string[]
 ): void {
-    if (seatId !== seats.humanId) {
+    if (seatId !== seats.humanId && !(seats.solo && seatId === seats.botId)) {
         throw new ConvexError("The judge searches the human seat only.");
     }
     if (knowledgeSeats.some((s) => s !== seats.humanId && s !== seats.botId)) {
@@ -120,16 +148,20 @@ async function authorizeGame(
     gameId: Id<"games">,
     userId: Id<"users">,
     row: Doc<"verdictJudgeBudgets"> | null
-): Promise<VsAiSeats> {
+): Promise<JudgedSeats> {
     if (row) {
         if (row.userId !== userId) {
             throw new ConvexError("You are not the player of this game.");
         }
-        return { humanId: row.humanId, botId: row.botId };
+        return {
+            humanId: row.humanId,
+            botId: row.botId,
+            ...(row.solo === true ? { solo: true as const } : {}),
+        };
     }
     const game = await ctx.db.get(gameId);
     if (!game) throw new ConvexError("Game not found.");
-    const seats = vsAiSeats(game, userId);
+    const seats = judgedSeats(game, userId);
     const tick = await ctx.db
         .query("gameTicks")
         .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
@@ -210,6 +242,7 @@ export const claimJudgeConsult = internalMutation({
                 userId,
                 humanId: seats.humanId,
                 botId: seats.botId,
+                ...(seats.solo ? { solo: true } : {}),
                 positions: 1,
                 updatedAt: now,
             });

@@ -214,8 +214,11 @@ describe("verdictJudgeGuard.claimJudgeConsult — rejections write nothing (issu
         expect(later.writes).toHaveLength(0);
     });
 
-    it("rejects a game that is not vs-AI", async () => {
-        const stub = makeMutationCtx(USER, seeds({ game: { vsAi: false } }));
+    it("rejects a game that is neither vs-AI nor solo", async () => {
+        const stub = makeMutationCtx(
+            USER,
+            seeds({ game: { vsAi: false, solo: false } })
+        );
         await expect(claim(stub.ctx)).rejects.toThrow(/no Bot seat/);
         expect(stub.writes).toHaveLength(0);
     });
@@ -304,6 +307,46 @@ describe("verdictJudgeGuard.claimJudgeConsult — rejections write nothing (issu
         await expect(claim(stub.ctx, { seed: 0.5 })).rejects.toThrow(
             /seed must be an integer/
         );
+        expect(stub.writes).toHaveLength(0);
+    });
+});
+
+describe("verdictJudgeGuard.claimJudgeConsult — a solo game (issue #10088)", () => {
+    const solo = { game: { vsAi: false, solo: true } };
+
+    it("accepts either seat of a solo game the caller plays both of, on the first claim and on a later one", async () => {
+        const first = makeMutationCtx(USER, seeds(solo));
+        await expect(
+            claim(first.ctx, { seatId: BOT, knowledgeSeats: [BOT] })
+        ).resolves.toEqual({ iterations: 400 });
+        const [row] = rowsOf(first, "verdictJudgeBudgets");
+        expect(row).toMatchObject({ humanId: HUMAN, botId: BOT, solo: true });
+
+        const later = makeMutationCtx(USER, [
+            ...seeds(solo),
+            { ...row, _id: "budget-1", __table: "verdictJudgeBudgets" },
+        ]);
+        await expect(claim(later.ctx, { seatId: HUMAN })).resolves.toEqual({
+            iterations: 400,
+        });
+        await expect(claim(later.ctx, { seatId: BOT })).resolves.toEqual({
+            iterations: 400,
+        });
+    });
+
+    it("rejects a solo game of another user", async () => {
+        const stub = makeMutationCtx("u2", seeds(solo));
+        await expect(claim(stub.ctx)).rejects.toThrow(
+            /You are not the player of this game/
+        );
+        expect(stub.writes).toHaveLength(0);
+    });
+
+    it("rejects a seat outside the solo game", async () => {
+        const stub = makeMutationCtx(USER, seeds(solo));
+        await expect(
+            claim(stub.ctx, { seatId: `${USER}-p3`, knowledgeSeats: [] })
+        ).rejects.toThrow(/human seat only/);
         expect(stub.writes).toHaveLength(0);
     });
 });

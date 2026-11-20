@@ -11,6 +11,7 @@
 // beside it as the detail, the dropped notes kept as a LIST rather than folded
 // into the middle of a sentence, and a plain-text report a tester can paste.
 
+import type { AttestedReading } from "@convex/gre/ai/verdicts/reading";
 import { projectedToGameState } from "./state-adapter";
 import {
     lowerDecision,
@@ -85,6 +86,9 @@ export type QuizSubject = {
      *  the position (a ring entry pushed without its board). STABLE across
      *  renders: the panel rebuilds whenever it changes. */
     feed: QuizFeed | null;
+    /** The decider's own reading, submitted with the Attestation (issue
+     *  #10088): the Plan in force and their words, said during play. */
+    reading?: Pick<AttestedReading, "plan" | "rationale">;
 };
 
 /** The post-game feed: proposal `index` of the game's list. */
@@ -98,7 +102,22 @@ export function proposalQuizSubject(
         seq: proposal.source.state.seq,
         gameId,
         feed: { kind: "proposal", proposal },
+        ...proposalReading(proposal),
     };
+}
+
+/** What a proposal's player said during play, as the Attestation takes it:
+ *  `{ reading }` when there is anything, `{}` when nothing was said. */
+function proposalReading(
+    proposal: VerdictProposal
+): Pick<QuizSubject, "reading"> {
+    const reading = {
+        ...(proposal.plan ? { plan: proposal.plan } : {}),
+        ...(proposal.rationale === undefined
+            ? {}
+            : { rationale: proposal.rationale }),
+    };
+    return Object.keys(reading).length > 0 ? { reading } : {};
 }
 
 /**
