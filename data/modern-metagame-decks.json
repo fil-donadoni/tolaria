@@ -2,7 +2,7 @@
     "source": {
         "supplier": "owner",
         "format": "MO",
-        "note": "The modern metagame (10 archetypes, owner's list, 2026-11-06): one 60 + 15 list per archetype, supplied by the owner (issue #8276, PRD #4602). Card names normalised to Scryfall oracle names (the combined `Front // Back` for a split/DFC card; `Troll of Khazad-dûm` with its diacritic). `Kavaero, Mind-Bitten` (1 copy, W-U-B-G Goryo's main, as first supplied) is `Superior Spider-Man` — the card's oracle name, owner correction 2026-11-15 (issue #8453); the basic Island that held its slot is gone."
+        "note": "The modern metagame (10 archetypes, owner's list, 2026-11-06): one 60 + 15 list per archetype, supplied by the owner (issue #8276, PRD #4602). Card names normalised to Scryfall oracle names (the combined `Front // Back` for a split/DFC card; `Troll of Khazad-dûm` with its diacritic). `Kavaero, Mind-Bitten` (1 copy, Esper Goryo main, as first supplied) is `Superior Spider-Man` — the card's oracle name, owner correction 2026-11-15 (issue #8453); the basic Island that held its slot is gone."
     },
     "decks": [
         {
@@ -1067,7 +1067,7 @@
         },
         {
             "slug": "w-u-b-g-goryo-s",
-            "name": "W-U-B-G Goryo's",
+            "name": "Esper Goryo",
             "main": [
                 {
                     "count": 4,
