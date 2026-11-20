@@ -5,6 +5,7 @@ import { roundsForSeatCount } from "@convex/limited/swiss";
 import { cn } from "~/lib/utils";
 import LimitedRoundAction from "./limited-round-action";
 import LimitedRoundDeadline from "./limited-round-deadline";
+import LimitedRoundPairingStatus from "./limited-round-pairing-status";
 
 /** How a decided pairing came to be decided, in words (PRD #1628 story 26 — a
  *  player must be able to tell a real win from an awarded one). */
@@ -109,12 +110,7 @@ export default function LimitedRoundPanel({
                             {pairing.opponentIsBot ? "Bot" : "Human"}
                         </span>
                         {pairing.outcome === null ? (
-                            <span
-                                className="text-text-muted"
-                                data-testid="round-pairing-status"
-                            >
-                                — not played yet
-                            </span>
+                            <LimitedRoundPairingStatus pairing={pairing} />
                         ) : (
                             <span
                                 className="flex items-baseline gap-2"
