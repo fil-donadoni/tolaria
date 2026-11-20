@@ -29,9 +29,7 @@ import {
 import {
     oasis,
     pyramids,
-    dancingScimitar,
     ifhBiffEfreet,
-    birdMaiden,
     jandorsRing,
     bazaarOfBaghdad,
 } from "../../cards/sets/arn/index.cards";
@@ -42,6 +40,10 @@ import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { untapStep } from "../phases";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 
+// Registry seam (ADR 0114): the hand-written module is retired.
+const dancingScimitar = () =>
+    getDefinition("1eb2e494-1414-4d1f-91d2-7cb20acdb128");
+const birdMaiden = () => getDefinition("5c1ba0b9-db01-447f-90cc-a2fc2c24146e");
 // ---------------------------------------------------------------------------
 // Simulated mutation handlers for the pendingActivation payment phase.
 // These mirror the production mutations in convex/game.ts (activateAbility,

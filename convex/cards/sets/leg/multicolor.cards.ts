@@ -206,21 +206,6 @@ export const torstenVonUrsus = defineCard(() => ({
     toughness: 5,
 }));
 
-// Ramirez DePietro — first strike (CR 702.7) legendary 4/3.
-export const ramirezDePietro = defineCard(() => ({
-    id: "e5c66c61-aadf-433b-9958-fc9b44b327b9",
-    rarity: "uncommon",
-    name: "Ramirez DePietro",
-    oracleText: "First strike",
-    manaCost: { X: 3, U: 1, B: 2 },
-    types: ["Creature"],
-    supertypes: ["Legendary"],
-    subtypes: ["Human", "Pirate"],
-    power: 4,
-    toughness: 3,
-    staticAbilities: ["first strike"],
-}));
-
 // Livonya Silone — first strike (CR 702.7) + legendary landwalk (CR 702.14).
 // "Legendary landwalk" is landwalk keyed on the land *supertype* Legendary
 // (CR 205.4) rather than a basic-land subtype: Livonya can't be blocked while

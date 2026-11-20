@@ -34,52 +34,6 @@ import { untapTrigger } from "../../abilities/triggers/untapTrigger";
 // Creature, affected by both artifact and creature rules)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Ornithopter — {0} Artifact Creature — Thopter, 0/2 with flying (CR 702.9).
-// The classic free flyer; a zero-cost evasive blocker/chump.
-export const ornithopter = defineCard(() => ({
-    id: "59cc9bdb-7cf2-4795-bac7-ffff605c9eb0",
-    rarity: "common",
-    name: "Ornithopter",
-    oracleText: "Flying",
-    manaCost: {},
-    types: ["Artifact", "Creature"],
-    subtypes: ["Thopter"],
-    power: 0,
-    toughness: 2,
-    staticAbilities: ["flying"],
-}));
-
-// Yotian Soldier — {3} Artifact Creature — Soldier, 1/4 with vigilance
-// (CR 702.20). A durable attacker that stays back to block.
-export const yotianSoldier = defineCard(() => ({
-    id: "27cf53e3-76f6-4831-800e-1259394d779d",
-    rarity: "common",
-    name: "Yotian Soldier",
-    oracleText: "Vigilance",
-    manaCost: { X: 3 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Soldier"],
-    power: 1,
-    toughness: 4,
-    staticAbilities: ["vigilance"],
-}));
-
-// Wall of Spears — {3} Artifact Creature — Wall, 2/3 with defender + first
-// strike (CR 702.3 defender — can't attack; CR 702.7 first strike — deals
-// combat damage in the first-strike step). Pure keyword mapping, no resolve().
-export const wallOfSpears = defineCard(() => ({
-    id: "b1dda179-c49a-4995-ba5a-db93ac43dbe7",
-    rarity: "uncommon",
-    name: "Wall of Spears",
-    oracleText: "Defender (This creature can't attack.)\nFirst strike",
-    manaCost: { X: 3 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Wall"],
-    power: 2,
-    toughness: 3,
-    staticAbilities: ["defender", "first strike"],
-}));
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Artifact creatures with activated abilities (CR 605 — activated abilities;
 // CR 611.1 temp P/T mods; CR 701.19 regeneration; CR 502.1 untap restriction)

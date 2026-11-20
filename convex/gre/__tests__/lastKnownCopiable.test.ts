@@ -39,10 +39,11 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
 import { grizzlyBears, savannahLions } from "../../cards/sets/lea/index.cards";
-import { serraAngel } from "../../cards/sets/lea/white.cards";
 import { NO_BOARD_LAYER_VIEW } from "../layers";
 import { getDefinition } from "../../cards/index";
 
+// Registry seam (ADR 0114): the hand-written module is retired.
+const serraAngel = () => getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 const crusade = () => getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
 
 /** A board with `battlefield` under p1 and a resolving spell to hang a

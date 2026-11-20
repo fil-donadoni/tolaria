@@ -47,11 +47,7 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
-import {
-    airElemental,
-    flight,
-    mahamotiDjinn,
-} from "../../cards/sets/lea/blue.cards";
+import { flight } from "../../cards/sets/lea/blue.cards";
 import { gravitySphere } from "../../cards/sets/leg/red.cards";
 import { NO_BOARD_LAYER_VIEW } from "../layers";
 import {
@@ -59,6 +55,13 @@ import {
     removedKeywordRows,
 } from "../../cards/__tests__/setup.helper";
 
+import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const airElemental = () =>
+    getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea");
+const mahamotiDjinn = () =>
+    getDefinition("36204ddd-ddf7-4b44-ae3c-b4a5a41ac9cb");
 const UNTIL_EOT = { phase: "end-of-turn" } as const;
 
 // ───────────────────────────────────────────────────────────────────────────

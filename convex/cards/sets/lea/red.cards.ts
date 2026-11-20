@@ -895,19 +895,6 @@ export const redElementalBlast = defineCard(() =>
     })
 );
 
-export const rocOfKherRidges = defineCard(() => ({
-    id: "731a4b86-c213-4d8e-bf01-0a0e8cff0ff1",
-    rarity: "rare",
-    name: "Roc of Kher Ridges",
-    oracleText: "Flying",
-    manaCost: { X: 3, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Bird"],
-    power: 3,
-    toughness: 3,
-    staticAbilities: ["flying"],
-}));
-
 export const rockHydra = defineCard(() => ({
     id: "410ac9e6-fbc1-4cc8-84db-84e2eb1bab97",
     rarity: "rare",
@@ -1203,19 +1190,6 @@ export const twoHeadedGiantOfForiys = defineCard(() => ({
     toughness: 4,
     staticAbilities: ["trample"],
     canBlockAdditional: 1,
-}));
-
-export const wallOfStone = defineCard(() => ({
-    id: "140e567c-6e4a-42b0-8084-d6c9695ae802",
-    rarity: "uncommon",
-    name: "Wall of Stone",
-    oracleText: "Defender (This creature can't attack.)",
-    manaCost: { X: 1, R: 2 },
-    types: ["Creature"],
-    subtypes: ["Wall"],
-    power: 0,
-    toughness: 8,
-    staticAbilities: ["defender"],
 }));
 
 // Wheel of Fortune — "Each player discards their hand, then draws seven

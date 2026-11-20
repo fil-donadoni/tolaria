@@ -21,9 +21,9 @@ import type { ReactNode } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import { urzaLordHighArtificer } from "@convex/cards/sets/mh1/blue.cards";
-import { ornithopter, millstone } from "@convex/cards/sets/atq/colorless.cards";
+import { millstone } from "@convex/cards/sets/atq/colorless.cards";
 import { grizzlyBears } from "@convex/cards/sets/lea/index.cards";
-import { getCardByName } from "@convex/cards";
+import { getCardByName, getDefinition } from "@convex/cards";
 
 type MutArgs = Record<string, unknown>;
 type MutFn = (args?: MutArgs) => Promise<void>;
@@ -85,6 +85,8 @@ vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
 // Import AFTER mocks are registered.
 import { useBattlefieldInteraction } from "../useBattlefieldInteraction";
 
+// Registry seam (ADR 0114): the hand-written module is retired.
+const ornithopter = () => getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 const MANA_ABILITY_ID = "urza-lha-mana";
 
 function urza(): CardInstance {

@@ -31,11 +31,7 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
 import { clone } from "../../cards/sets/lea/blue.cards";
-import {
-    forest,
-    grizzlyBears,
-    serraAngel,
-} from "../../cards/sets/lea/index.cards";
+import { forest, grizzlyBears } from "../../cards/sets/lea/index.cards";
 import {
     graveyardCopyProbe,
     legend,
@@ -44,6 +40,10 @@ import {
     PROBE_NAME,
 } from "./fixtures/graveyardCopyProbe.fixture";
 
+import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const serraAngel = () => getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 function inZone(
     defId: string,
     id: string,

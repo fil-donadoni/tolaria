@@ -124,7 +124,9 @@ const serverRows = unpackCorpus(packedServerCorpus!);
 
 /** A vacuity floor, not a target: every assertion here passes trivially on an
  *  empty merge, and this is the one that would not. */
-const RELOCATION_FLOOR = 800;
+// Lowered 800 -> 700 by issue #4037: each retirement (ADR 0114) moves a
+// hand-written row out of the relocated set (777 left after the keyword-line wave).
+const RELOCATION_FLOOR = 700;
 
 // On a queue draft the lane has just regenerated the derived files in the
 // tested tree (ADR 0157, issue #6246), so committed-bytes = regeneration is
@@ -399,15 +401,14 @@ describe("catalogue artifact — divergence is a RED (ADR 0114 §3)", () => {
     });
 
     it("every baseline row states its direction, and a card defect names its ticket", () => {
-        for (const row of CATALOGUE_DIVERGENCE_BASELINE) {
-            expect([row.card, row.why.length > 40]).toEqual([row.card, true]);
-            if (row.direction === "card-defect") {
-                expect([row.card, typeof row.issue]).toEqual([
-                    row.card,
-                    "number",
-                ]);
-            }
-        }
+        // An empty baseline (every twin retired, ADR 0114) is vacuously valid.
+        const malformed = CATALOGUE_DIVERGENCE_BASELINE.filter(
+            (row) =>
+                row.why.length <= 40 ||
+                (row.direction === "card-defect" &&
+                    typeof row.issue !== "number")
+        ).map((row) => row.card);
+        expect(malformed).toEqual([]);
     });
 });
 

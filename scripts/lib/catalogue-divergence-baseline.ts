@@ -45,20 +45,8 @@ export interface DivergenceBaselineRow {
     readonly why: string;
 }
 
-export const CATALOGUE_DIVERGENCE_BASELINE: readonly DivergenceBaselineRow[] = [
-    {
-        card: "Ancient Spider",
-        field: "staticAbilities",
-        direction: "undetermined",
-        why:
-            'The hand-written text is "First strike; reach" and the corpus prints ' +
-            '"Reach (…)\\nFirst strike", so the two keyword lists carry the same two ' +
-            "keywords in opposite order. `staticAbilities` is a set, not a sequence — " +
-            "no engine path reads its order — but sorting it would be a new " +
-            "normalisation axis over a field the layer system reads, which ADR 0114 §4 " +
-            "puts out of reach of this ticket. docs/findings/3052-keyword-order-divergence.md",
-    },
-] as const;
+export const CATALOGUE_DIVERGENCE_BASELINE: readonly DivergenceBaselineRow[] =
+    [] as const;
 
 /**
  * The size the baseline was born at. LOWER it when a card graduates; never
@@ -68,7 +56,9 @@ export const CATALOGUE_DIVERGENCE_BASELINE: readonly DivergenceBaselineRow[] = [
  */
 // Lowered 4 -> 2 by issues #3046 / #3073: Northern Paladin and Desert
 // Twister carry the permanent-type list their compiled twins emit.
-export const BASELINE_CEILING = 2;
+// Lowered 2 -> 0 by issue #4037: Ancient Spider was retired (ADR 0114), its
+// twin gone, the last baseline row with it.
+export const BASELINE_CEILING = 0;
 
 /** `card|field` — the key a divergence is matched on. */
 export const baselineKey = (row: {

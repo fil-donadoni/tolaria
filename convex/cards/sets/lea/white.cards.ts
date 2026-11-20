@@ -20,11 +20,7 @@ import type {
     TriggeredAbility,
 } from "../../types";
 import { defineCard, AURA_AFFECTS_HOST } from "../../types";
-import {
-    knightStaticAbilities,
-    makeCircleOfProtection,
-    pickDamageSource,
-} from "../../abilities";
+import { makeCircleOfProtection, pickDamageSource } from "../../abilities";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
@@ -287,23 +283,6 @@ function balanceEdictShadow(
         effects: give,
     };
 }
-
-// Benalish Hero — vanilla 1/1 with banding (CR 702.22). The keyword lives in
-// staticAbilities[]; the combat engine reads it to expand band-blocking and
-// shift combat-damage assignment authority (CR 702.22j-k).
-export const benalishHero = defineCard(() => ({
-    id: "11600105-56c6-4073-a4a6-8469030b39c9",
-    rarity: "common",
-    name: "Benalish Hero",
-    oracleText:
-        "Banding (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
-    manaCost: { W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Soldier"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["banding"],
-}));
 
 export const blackWard = defineCard(() =>
     makeColorWard({
@@ -885,23 +864,6 @@ export const lance = defineCard(() => ({
     ],
 }));
 
-// Mesa Pegasus — 1/1 with flying + banding. Both keywords coexist in
-// staticAbilities[]; flying governs evasion (CR 702.9) and banding governs
-// combat-damage assignment (CR 702.21).
-export const mesaPegasus = defineCard(() => ({
-    id: "eaac88da-d19e-4771-944c-3709963d04e7",
-    rarity: "common",
-    name: "Mesa Pegasus",
-    oracleText:
-        "Flying; banding (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
-    manaCost: { X: 1, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Pegasus"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["flying", "banding"],
-}));
-
 export const pearledUnicorn = defineCard(() => ({
     id: "6daf1aab-1e58-4a5a-bc66-cb3f7c86e0e8",
     rarity: "common",
@@ -1208,20 +1170,6 @@ export const savannahLions = defineCard(() => ({
     toughness: 1,
 }));
 
-export const serraAngel = defineCard(() => ({
-    id: "f8ac5006-91bd-4803-93da-f87cf196dd2f",
-    rarity: "uncommon",
-    name: "Serra Angel",
-    oracleText:
-        "Flying\nVigilance (Attacking doesn't cause this creature to tap.)",
-    manaCost: { X: 3, W: 2 },
-    types: ["Creature"],
-    subtypes: ["Angel"],
-    power: 4,
-    toughness: 4,
-    staticAbilities: ["flying", "vigilance"],
-}));
-
 // First DSL card exercising the bind + ref constructs (ADR 0045, issue #802).
 // The whole effect is a declarative Effect Script: `exile` snapshots the
 // creature's power and controller BEFORE it leaves the battlefield (CR 608.2h
@@ -1298,34 +1246,6 @@ export const veteranBodyguard = defineCard(() => ({
             },
         },
     ],
-}));
-
-export const wallOfSwords = defineCard(() => ({
-    id: "99ec4723-b36c-4015-b361-736a6523e8f5",
-    rarity: "uncommon",
-    name: "Wall of Swords",
-    oracleText: "Defender (This creature can't attack.)\nFlying",
-    manaCost: { X: 3, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Wall"],
-    power: 3,
-    toughness: 5,
-    staticAbilities: ["defender", "flying"],
-}));
-
-// White Knight — first strike + protection from black (CR 702.7, 702.16).
-export const whiteKnight = defineCard(() => ({
-    id: "50abfba8-c9f9-4ebf-965a-4b425fe83129",
-    rarity: "uncommon",
-    name: "White Knight",
-    oracleText:
-        "First strike (This creature deals combat damage before creatures without first strike.)\nProtection from black (This creature can't be blocked, targeted, dealt damage, or enchanted by anything black.)",
-    manaCost: { W: 2 },
-    types: ["Creature"],
-    subtypes: ["Human", "Knight"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: knightStaticAbilities("black"),
 }));
 
 export const whiteWard = defineCard(() =>

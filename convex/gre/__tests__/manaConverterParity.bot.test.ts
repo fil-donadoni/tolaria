@@ -71,11 +71,12 @@ import {
     lordOfAtlantis,
     plains,
 } from "../../cards/sets/lea/index.cards";
-import { ornithopter } from "../../cards/sets/atq/index.cards";
 import { farrelitePriest } from "../../cards/sets/fem/index.cards";
 import { urzaLordHighArtificer } from "../../cards/sets/mh1/index.cards";
 import { getDefinition } from "../../cards";
 
+// Registry seam (ADR 0114): the hand-written module is retired.
+const ornithopter = () => getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 const crusade = () => getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
 const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe");
 const moxJet = getDefinition("92bcd1ce-19b1-4d78-8b09-95242ca08d76");

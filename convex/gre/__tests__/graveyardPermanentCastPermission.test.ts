@@ -52,10 +52,13 @@ import {
     lightningBolt,
     mountain,
     savannahLions,
-    serraAngel,
 } from "../../cards/sets/lea/index.cards";
 import { lurrus } from "../../cards/sets/iko/multicolor.cards";
 
+import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const serraAngel = () => getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 function withLurrusOnBattlefield(
     overrides: Parameters<typeof makePlayer>[1] = {}
 ) {

@@ -20,19 +20,3 @@ export const scarwoodGoblins = defineCard(() => ({
     power: 2,
     toughness: 2,
 }));
-
-// Marsh Goblins — {B}{R} 1/1 Goblin with Swampwalk (CR 702.14 — can't be blocked
-// while the defending player controls a Swamp). Pure keyword static.
-export const marshGoblins = defineCard(() => ({
-    id: "8aabd80f-a18a-4bc1-9f05-4c3a63de77ce",
-    rarity: "common",
-    name: "Marsh Goblins",
-    oracleText:
-        "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)",
-    manaCost: { B: 1, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Goblin"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["swampwalk"],
-}));

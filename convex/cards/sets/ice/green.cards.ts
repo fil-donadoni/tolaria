@@ -1013,34 +1013,6 @@ export const naturesLore = defineCard(() => ({
         { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
 }));
-// Pale Bears — {2}{G} 2/2 with islandwalk (CR 702.14 landwalk evasion).
-export const paleBears = defineCard(() => ({
-    id: "7f19c2a3-6403-4a78-bf45-6e339578d673",
-    name: "Pale Bears",
-    rarity: "rare",
-    oracleText:
-        "Islandwalk (This creature can't be blocked as long as defending player controls an Island.)",
-    manaCost: { X: 2, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Bear"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["islandwalk"],
-}));
-// Pygmy Allosaurus — {2}{G} 2/2 with swampwalk (CR 702.14 landwalk evasion).
-export const pygmyAllosaurus = defineCard(() => ({
-    id: "88a68767-9822-4f15-895e-32164e2159be",
-    name: "Pygmy Allosaurus",
-    rarity: "rare",
-    oracleText:
-        "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)",
-    manaCost: { X: 2, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Dinosaur"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["swampwalk"],
-}));
 // Pyknite — {2}{G} 1/1 Ouphe. Self-ETB cantrip rider (CR 603.6a ETB trigger
 // arming the CR 502.2 / 603.7d next-upkeep delayed draw).
 export const pyknite = defineCard(() => ({

@@ -15,7 +15,6 @@
 
 import { describe, it, expect } from "vitest";
 import { stackTargetLines } from "../stack-target-line";
-import { mahamotiDjinn } from "@convex/cards/sets/lea/blue.cards";
 import { counterspell } from "@convex/cards/sets/lea/blue.cards";
 
 import { lightningBolt } from "@convex/cards/sets/lea/red.cards";
@@ -31,6 +30,10 @@ import {
 import type { Player, StackItem } from "~/types/game";
 import { NO_BOARD_LAYER_VIEW } from "../../../convex/gre/layers";
 import { getDefinition } from "@convex/cards";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const mahamotiDjinn = () =>
+    getDefinition("36204ddd-ddf7-4b44-ae3c-b4a5a41ac9cb");
 const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
 
 /** Project for `viewer` and resolve the lines of stack item `index`. */

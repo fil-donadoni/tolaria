@@ -25,10 +25,13 @@ import { tokenDefinitionId, tryGetDefinition } from "..";
 import { TOKEN_STATIC_EFFECT_FACTORIES } from "../tokenStaticEffects";
 import type { TokenSpec, TokenStaticEffectKey } from "../types";
 import { makeInstance, makePlayer, makeState } from "./setup.helper";
-import { ornithopter } from "../sets/atq/colorless.cards";
 import { getEffectivePower, getEffectiveToughness } from "../../gre/layers";
 import type { CardInstanceState } from "../../gre/state";
 
+import { getDefinition } from "../index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const ornithopter = () => getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 const KEYS = Object.keys(
     TOKEN_STATIC_EFFECT_FACTORIES
 ) as TokenStaticEffectKey[];
