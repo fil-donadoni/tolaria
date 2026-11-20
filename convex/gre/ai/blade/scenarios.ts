@@ -32055,12 +32055,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
-        beyondBudget: {
-            cause: "valuation",
-            sweptTo: { iterations: 4000 },
-            note: "Issue #9956. The 1-ply reading prefers holding the card (0.577 against 0.509) and the leaf scores it 154 against 18, but the rollout mean prefers the futile cast, and more search moves further toward it: material-tiebreak at 400 and 1200 iterations, mean-reward at 4000. Without the Bot's own creature on the board it holds. Missing knowledge: why the rollouts score a spent card with no effect above the card in hand.",
-        },
+        tier: "must",
         expect: {
             forbidden: [
                 {
@@ -32070,7 +32065,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #9696, CR 207.2c / 205.2a. Three card types in the graveyard: delirium is off, Unholy Heat deals 2. The Serra Angel has toughness 4, and the 2 damage plus the Goblin Raiders' 1 in a block still leaves it alive.",
+        note: "Issue #9696, CR 207.2c / 205.2a. Three card types in the graveyard: delirium is off, Unholy Heat deals 2. The Serra Angel has toughness 4, and the 2 damage plus the Goblin Raiders' 1 in a block still leaves it alive. Issue #9956: the cast is denied at the root by the dominance proof (marked damage that cannot become lethal before cleanup, `ai/transientDamage.ts`); before it all five seeds cast.",
     },
     {
         label: "delirium: Unholy Heat deals 6 at the biggest threat",
