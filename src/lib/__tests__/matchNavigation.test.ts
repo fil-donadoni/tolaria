@@ -3,7 +3,7 @@
 // player away from their pool, the other seats and the next opponent.
 import { describe, it, expect } from "vitest";
 import type { PublicMatch } from "@convex/matches";
-import { lobbyHrefForMatch } from "../matchNavigation";
+import { lobbyRouteForMatch } from "../matchNavigation";
 
 const match = (over: Partial<PublicMatch> = {}) =>
     ({
@@ -17,18 +17,19 @@ const match = (over: Partial<PublicMatch> = {}) =>
         ...over,
     }) as unknown as PublicMatch;
 
-describe("lobbyHrefForMatch", () => {
+describe("lobbyRouteForMatch", () => {
     it("returns the event lobby for an event-bound Match", () => {
-        expect(lobbyHrefForMatch(match({ limitedEventId: "ev_1" }))).toBe(
-            "/limited/ev_1"
-        );
+        expect(lobbyRouteForMatch(match({ limitedEventId: "ev_1" }))).toEqual({
+            to: "/limited/$eventId",
+            params: { eventId: "ev_1" },
+        });
     });
 
     it("returns the general lobby for an ordinary Match", () => {
-        expect(lobbyHrefForMatch(match())).toBe("/");
+        expect(lobbyRouteForMatch(match())).toEqual({ to: "/" });
     });
 
     it("returns the general lobby when the Match meta is still loading", () => {
-        expect(lobbyHrefForMatch(null)).toBe("/");
+        expect(lobbyRouteForMatch(null)).toEqual({ to: "/" });
     });
 });

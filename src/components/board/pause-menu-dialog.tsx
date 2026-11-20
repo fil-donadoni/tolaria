@@ -6,13 +6,12 @@ import type { PublicMatch } from "@convex/matches";
 import { GameContext } from "~/hooks/useGameContext";
 import GameDialog from "~/components/ui/game-dialog";
 import { Button } from "~/components/ui/button";
-import { clearSession } from "~/lib/session";
 import { requestBugReport } from "~/lib/bug-report-requests";
 import ClearYieldsButton from "./clear-yields-button";
 import ManageYieldsButton from "./manage-yields-button";
 import DecklistView from "./decklist-view";
 import BattlefieldGroupingOptions from "./battlefield-grouping-options";
-import { lobbyHrefForMatch } from "~/lib/matchNavigation";
+import { useLeaveToLobby } from "~/hooks/useLeaveToLobby";
 
 type Step = "menu" | "decklist" | "confirm-concede" | "confirm-forfeit";
 
@@ -40,6 +39,7 @@ export default function PauseMenuDialog({
     const [isBusy, setIsBusy] = useState(false);
     const concede = useMutation(api.game.concede);
     const forfeitMatch = useMutation(api.game.forfeitMatch);
+    const leaveToLobby = useLeaveToLobby();
     const manualConcede = useMutation(api.gameManual.manualConcedeMatch);
 
     // Issue #2353 — the Manual Board mounts this same dialog. The mode rides
@@ -106,10 +106,9 @@ export default function PauseMenuDialog({
             await forfeitMatch({ matchId: match.matchId, playerId });
             // Forfeiting ends the Match; drop the session and return to lobby so
             // no orphaned active Match is left behind (#396). An event Match
-            // returns to its OWN event lobby (`lobbyHrefForMatch`).
-            clearSession();
+            // returns to its OWN event lobby (`lobbyRouteForMatch`), in-app.
             handleOpenChange(false);
-            window.location.href = lobbyHrefForMatch(match);
+            leaveToLobby(match);
         } catch {
             setStep("menu");
         } finally {

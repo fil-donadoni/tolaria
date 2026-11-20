@@ -22,8 +22,8 @@ import GameDialog from "~/components/ui/game-dialog";
 import TitleTreatment from "~/components/ui/title-treatment";
 import OrnamentalDivider from "~/components/ui/ornamental-divider";
 import { Button } from "~/components/ui/button";
-import { clearSession, storeSession } from "~/lib/session";
-import { lobbyHrefForMatch } from "~/lib/matchNavigation";
+import { storeSession } from "~/lib/session";
+import { useLeaveToLobby } from "~/hooks/useLeaveToLobby";
 
 export default function ManualGameOverDialog({
     players,
@@ -72,10 +72,8 @@ export default function ManualGameOverDialog({
         }
     };
 
-    const handleLeave = () => {
-        clearSession();
-        window.location.href = lobbyHrefForMatch(match);
-    };
+    const leaveToLobby = useLeaveToLobby();
+    const handleLeave = () => leaveToLobby(match);
 
     return (
         <GameDialog

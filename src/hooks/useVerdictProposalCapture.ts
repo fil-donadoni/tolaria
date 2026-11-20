@@ -35,8 +35,10 @@ import {
 } from "~/lib/ai/human-decision-capture";
 import { observeHumanWindow } from "~/lib/ai/human-decision-start";
 import {
+    clearVerdictJudging,
     clearVerdictProposals,
     loadVerdictProposals,
+    setVerdictJudging,
     setVerdictProposals,
 } from "~/lib/ai/verdict-proposal-store";
 import { VERDICT_PROPOSAL_CONFIG } from "~/lib/ai/verdict-proposal-config";
@@ -52,10 +54,14 @@ import { seatKnowledge } from "~/lib/ai/seat-knowledge";
 export function useVerdictProposalCapture(
     gameId: Id<"games">,
     botId: string | null,
-    humanId: string | null
+    humanId: string | null,
+    /** Whether the viewer may give a Verdict (issue #10229): the capture and
+     *  the game-end judge run for testers and admins only — the review they
+     *  feed is offered to no one else, and the server refuses anyone else. */
+    mayJudge: boolean
 ): void {
     const convex = useConvex();
-    const active = !!botId && !!humanId && humanId !== botId;
+    const active = mayJudge && !!botId && !!humanId && humanId !== botId;
 
     // The same tick the driver gates on — Convex shares one subscription.
     const tick = useResilientQuery(
@@ -140,12 +146,25 @@ async function buildProposalsAtGameEnd(
     // never a Brain on this device, so nothing it does can stand between the
     // next game's Bot and its decisions. A failed call costs that decision.
     const { judge, tally, timings, close } = openVerdictJudge(convex, gameId);
+    // Shown in the game-over dialog until the list lands (issue #10229): a
+    // consult takes ~25 s, so a silent judge read as "no review".
+    setVerdictJudging(gameId, 0, null);
     try {
         const { proposeVerdicts } = await import("~/lib/ai/verdict-proposals");
         const list = await proposeVerdicts(
             decisions,
             VERDICT_PROPOSAL_CONFIG,
-            judge
+            // Leaving the game (the capture is dropped on unmount) sends no
+            // further consult: only the one in flight finishes, unread.
+            (source, budget, seed) =>
+                capturingGame() === gameId
+                    ? judge(source, budget, seed)
+                    : Promise.resolve(null),
+            (done, total) => {
+                if (capturingGame() === gameId) {
+                    setVerdictJudging(gameId, done, total);
+                }
+            }
         );
         // Why a game offers no review, or a shorter one than expected — to
         // Sentry as well as the console (issue #8732).
@@ -161,5 +180,6 @@ async function buildProposalsAtGameEnd(
         reportSampleFailed(gameId, cause);
     } finally {
         close();
+        clearVerdictJudging(gameId);
     }
 }

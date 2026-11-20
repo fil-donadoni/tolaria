@@ -22,7 +22,18 @@ import {
 
 type Entry = { gameId: string; list: VerdictProposalList };
 
+/** The game-end judge at work (issue #10229): `total` is the number of
+ *  sampled decisions the server judge is asked about, `null` while they are
+ *  still being identified; `done` counts the consults that came back. Memory
+ *  only — a reload rebuilds it. */
+export type VerdictJudging = {
+    gameId: string;
+    done: number;
+    total: number | null;
+};
+
 let entry: Entry | null = null;
+let judging: VerdictJudging | null = null;
 const listeners = new Set<() => void>();
 
 function emit(): void {
@@ -74,9 +85,32 @@ export function getVerdictProposals(
 }
 
 export function clearVerdictProposals(): void {
-    if (entry === null) return;
+    if (entry === null && judging === null) return;
     entry = null;
+    judging = null;
     emit();
+}
+
+/** Mark `gameId`'s judge as running, at `done` of `total` consults. */
+export function setVerdictJudging(
+    gameId: string,
+    done: number,
+    total: number | null
+): void {
+    judging = { gameId, done, total };
+    emit();
+}
+
+/** The judge finished (a list landed, or none will): nothing is running. */
+export function clearVerdictJudging(gameId: string): void {
+    if (judging?.gameId !== gameId) return;
+    judging = null;
+    emit();
+}
+
+/** `gameId`'s running judge, or `null` when none is running for it. */
+export function getVerdictJudging(gameId: string): VerdictJudging | null {
+    return judging && judging.gameId === gameId ? judging : null;
 }
 
 export function subscribeVerdictProposals(listener: () => void): () => void {

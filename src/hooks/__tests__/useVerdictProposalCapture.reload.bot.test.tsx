@@ -38,6 +38,8 @@ const h = vi.hoisted(() => ({
     brain: {} as Record<string, ReturnType<typeof vi.fn>>,
     /** Workers constructed: the judge must spawn none. */
     workers: 0,
+    /** The signed-in account — a tester unless a test says otherwise. */
+    user: { nickname: "Tessa", isTester: true } as Record<string, unknown>,
 }));
 
 vi.mock("convex/react", () => {
@@ -47,7 +49,7 @@ vi.mock("convex/react", () => {
     };
     return {
         useConvex: () => client,
-        useQuery: () => ({ nickname: "Tessa", isTester: true }),
+        useQuery: () => h.user,
     };
 });
 vi.mock("@convex/_generated/api", () => ({
@@ -99,6 +101,7 @@ import {
 } from "~/lib/ai/human-decision-capture";
 import {
     clearVerdictProposals,
+    getVerdictJudging,
     getVerdictProposals,
     loadVerdictProposals,
     setVerdictProposals,
@@ -248,6 +251,7 @@ beforeEach(() => {
     storage = memoryStorage();
     setProposalStorageForTest(storage);
     h.tick = { gameOver: true };
+    h.user = { nickname: "Tessa", isTester: true };
     h.action = vi.fn(async () => PASS_ANSWER);
     for (const fn of Object.values(h.brain)) fn.mockClear();
     h.workers = 0;
@@ -348,6 +352,64 @@ describe("issue #8889 — the capture resumes across a reload", () => {
         expect(getVerdictProposals(GAME)).toBe(list);
         clearVerdictProposals();
         await expect(loadVerdictProposals(GAME)).resolves.toBeNull();
+    });
+});
+
+describe("issue #10229 — the game-end judge: testers only, visible, never waited on", () => {
+    it("shows the judge running, then offers the review once the list lands", async () => {
+        let answer: (value: unknown) => void = () => {};
+        h.action = vi.fn(
+            () =>
+                new Promise((resolve) => {
+                    answer = resolve;
+                })
+        );
+        const { human, bot } = await captureLandDrop();
+        renderGameOver(human, bot);
+        const busy = await screen.findByRole("button", {
+            name: "Judging your decisions… (0/1)",
+        });
+        expect((busy as HTMLButtonElement).disabled).toBe(true);
+        answer(PASS_ANSWER);
+        await screen.findByRole("button", {
+            name: "Review your decisions (1)",
+        });
+        expect(
+            screen.queryByRole("button", { name: /Judging your decisions/ })
+        ).toBeNull();
+    });
+
+    it("never consults the judge for an account that may not give a Verdict", async () => {
+        h.user = { nickname: "Pat", isTester: false };
+        const { human, bot } = await captureLandDrop();
+        const info = vi.spyOn(console, "info").mockImplementation(() => {});
+        renderGameOver(human, bot);
+        // Give the game-end path every chance to run before asserting nothing did.
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(h.action).not.toHaveBeenCalled();
+        expect(countsLines(info)).toEqual([]);
+        expect(
+            screen.queryByRole("button", { name: /your decisions/ })
+        ).toBeNull();
+    });
+
+    it("leaving the game mid-judge drops the progress line and lands no list", async () => {
+        let answer: (value: unknown) => void = () => {};
+        h.action = vi.fn(
+            () =>
+                new Promise((resolve) => {
+                    answer = resolve;
+                })
+        );
+        const { human, bot } = await captureLandDrop();
+        const view = renderGameOver(human, bot);
+        await screen.findByRole("button", { name: /Judging your decisions/ });
+        view.unmount();
+        expect(getVerdictJudging(GAME)).toBeNull();
+        answer(PASS_ANSWER);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(getVerdictJudging(GAME)).toBeNull();
+        expect(getVerdictProposals(GAME)).toBeNull();
     });
 });
 

@@ -4,8 +4,7 @@ import GameDialog from "~/components/ui/game-dialog";
 import TitleTreatment from "~/components/ui/title-treatment";
 import OrnamentalDivider from "~/components/ui/ornamental-divider";
 import { Button } from "~/components/ui/button";
-import { clearSession } from "~/lib/session";
-import { lobbyHrefForMatch } from "~/lib/matchNavigation";
+import { useLeaveToLobby } from "~/hooks/useLeaveToLobby";
 import type { GameOver, Player } from "~/types/game";
 import SideboardingDialog from "./sideboarding-dialog";
 import VerdictProposalOffer from "./verdict-proposal-offer";
@@ -117,14 +116,12 @@ export default function GameOverDialog({
           ? `${matchWinner?.name ?? winner?.name ?? "?"} wins the match!`
           : `${winner?.name ?? "?"} wins!`;
 
-    const handleLeave = () => {
-        // Clear the session so the lobby is reachable (PRD #387 user story 32).
-        clearSession();
-        // A Match played INSIDE a Limited Event (a seat challenge or a "Play vs
-        // the Table" playtest) returns to that event's lobby, not the general
-        // one — the event page is where the next opponent is picked.
-        window.location.href = lobbyHrefForMatch(match);
-    };
+    // A Match played INSIDE a Limited Event (a seat challenge or a "Play vs
+    // the Table" playtest) returns to that event's lobby, not the general one
+    // — the event page is where the next opponent is picked. In-app
+    // navigation, never waiting on the game-end judge (issue #10229).
+    const leaveToLobby = useLeaveToLobby();
+    const handleLeave = () => leaveToLobby(match);
 
     // Bo3 interstitial → Sideboarding step. The dialog owns submitSideboard +
     // setReady; the next Game builds once readiness is satisfied (#395).
