@@ -3305,11 +3305,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // `counters` (issue #841) puts/removes counters (CR 122). The
             // generator can assert a FIXED-count ADD on an announced permanent
             // slot or a trigger's `$event` object (it seeds a filler creature
-            // there and reads the counter tally after resolution). A `$each`
-            // (or spell-site `$source`) target, a
-            // `ref`/`count` amount, or a `remove` (which needs pre-seeded
-            // counters the canned generator does not place) is not modelled —
-            // skip and let the card's own per-card test cover it.
+            // there and reads the counter tally after resolution). A
+            // non-literal count goes through `analyseValue` like every other
+            // amount (issue #5267): a chosen-cost X at an announcing host
+            // (CR 107.3a — "{X}{X}, {T}: Put X charge counters"), a seeded
+            // count set or event amount is predicted; anything else raises
+            // that value's own skip. A `$each` (or spell-site `$source`)
+            // target, or a `remove` (which needs pre-seeded counters the
+            // canned generator does not place) is not modelled — skip and let
+            // the card's own per-card test cover it.
             if (op.action !== "add") {
                 skipBecause(
                     req,
@@ -3326,14 +3330,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
                 return;
             }
-            if (typeof op.count !== "number") {
-                skipBecause(
-                    req,
-                    "runtime-amount",
-                    `Op "counters" uses a ref/count amount the canned generator does not model — covered by the card's own per-card test`
-                );
-                return;
-            }
+            analyseValue(op.count, req);
             recordSubject(req, op.target);
             if (isSourceRef(op.target)) req.sourceCounterWrites.add(op.counter);
             return;
@@ -5831,15 +5828,16 @@ const OP_ASSERTORS: AssertorTable = {
         if (op.action !== "add") return null;
         const permId = subjectPermanentId(scenario, op.target);
         if (permId === undefined) return null;
-        if (typeof op.count !== "number") return null;
+        const count = predictAmount(op.count, scenario);
+        if (count === null) return null;
         const permBefore = pre.players
             .flatMap((p) => p.battlefield)
             .find((c) => c.id === permId);
         if (!permBefore) return null;
         const before = permBefore.counters?.[op.counter] ?? 0;
-        const expected = before + op.count;
+        const expected = before + count;
         return {
-            label: `add ${op.count} ${op.counter} counter(s) to permanent ${permId} (${before}→${expected})`,
+            label: `add ${count} ${op.counter} counter(s) to permanent ${permId} (${before}→${expected})`,
             check: (post) => {
                 const perm = post.players
                     .flatMap((p) => p.battlefield)
