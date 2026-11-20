@@ -308,47 +308,6 @@ export const skyWeaver = defineCard(() => ({
     ],
 }));
 
-// Vodalian Merchant — {1}{U} Creature — Merfolk, 1/2. "When this creature
-// enters, draw a card, then discard a card." (CR 603.6a ETB + CR 121.1 draw +
-// CR 701.9 discard — the shipped looter template, atq/colorless.ts Jalum
-// Tome: draw, then a `choose-hand-card` pick, then discard the pick.)
-export const vodalianMerchant = defineCard(() => ({
-    id: "c1c0effa-a4b8-4166-a66a-90cf01c6ea0d",
-    name: "Vodalian Merchant",
-    rarity: "common",
-    oracleText: "When this creature enters, draw a card, then discard a card.",
-    manaCost: { X: 1, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Merfolk"],
-    power: 1,
-    toughness: 2,
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "vodalian-merchant-loot",
-            oracleText:
-                "When this creature enters, draw a card, then discard a card.",
-            scope: "self",
-            effects: [
-                { op: "draw", player: "controller", count: 1 },
-                {
-                    op: "choice",
-                    kind: "choose-hand-card",
-                    player: "controller",
-                    zone: "hand",
-                    count: 1,
-                    prompt: "Discard a card.",
-                    bind: "$discard",
-                },
-                {
-                    op: "discard",
-                    player: "controller",
-                    cards: { ref: "$discard" },
-                },
-            ],
-        }),
-    ],
-}));
-
 // Vodalian Serpent — {3}{U} Creature — Serpent, 2/2. Kicker {2}. "This
 // creature can't attack unless defending player controls an Island. If this
 // creature was kicked, it enters with four +1/+1 counters on it." (CR 508.1c

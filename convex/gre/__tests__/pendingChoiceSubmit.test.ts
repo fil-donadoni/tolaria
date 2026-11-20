@@ -33,7 +33,6 @@ import { jasmineBoreal, petraSphinx } from "../../cards/sets/leg/index.cards";
 import {
     bottleOfSuleiman,
     cuombajjWitches,
-    juzamDjinn,
     ydwenEfreet,
 } from "../../cards/sets/arn/index.cards";
 import {
@@ -44,6 +43,9 @@ import {
 } from "../../cards/__tests__/setup.helper";
 
 import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const juzamDjinn = () => getDefinition("31bf3f14-b5df-498b-a1bb-965885c82401");
 
 // Registry seam (ADR 0114): the hand-written module is retired.
 const illusionaryForces = () =>

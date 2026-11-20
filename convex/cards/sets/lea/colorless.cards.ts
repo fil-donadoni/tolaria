@@ -24,7 +24,7 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { diedTrigger } from "../../abilities/triggers/diedTrigger";
+
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 
@@ -230,42 +230,6 @@ export const conservator = defineCard(() => ({
                 },
             ],
         },
-    ],
-}));
-
-// Copper Tablet — "At the beginning of each player's upkeep, Copper Tablet
-// deals 1 damage to that player." (CR 603.6a phase trigger, 120.1 damage).
-// Symmetric ping at every upkeep — same shape as Karma but flat 1 damage,
-// not Swamp-scaled.
-export const copperTablet = defineCard(() => ({
-    id: "30935e4a-013e-4c46-ad05-304df8e5dfa4",
-    rarity: "uncommon",
-    name: "Copper Tablet",
-    oracleText:
-        "At the beginning of each player's upkeep, this artifact deals 1 damage to that player.",
-    manaCost: { X: 2 },
-    types: ["Artifact"],
-    triggeredAbilities: [
-        phaseTrigger({
-            id: "copper-tablet-upkeep",
-            oracleText:
-                "At the beginning of each player's upkeep, Copper Tablet deals 1 damage to that player.",
-            phase: "UPKEEP",
-            scope: "each",
-            // Migrated resolve()→effects[] (ADR 0045): `scope: "each"` reads
-            // the scoped (upkeep) player via the censused
-            // `{ ref: "$event.activePlayerId" }` event-field selector (ADR
-            // 0049, same pattern Howling Mine's draw trigger uses below)
-            // rather than `"controller"`, which would incorrectly read this
-            // artifact's own controller.
-            effects: [
-                {
-                    op: "dealDamage",
-                    amount: 1,
-                    to: { player: { ref: "$event.activePlayerId" } },
-                },
-            ],
-        }),
     ],
 }));
 
@@ -1054,46 +1018,6 @@ export const obsianusGolem = defineCard(() => ({
     subtypes: ["Golem"],
     power: 4,
     toughness: 6,
-}));
-
-// Soul Net — "Whenever a creature dies, you may pay {1}. If you do, you gain
-// 1 life." (CR 603.2 death trigger; CR 117.3a optional may-pay).
-export const soulNet = defineCard(() => ({
-    id: "2b814198-814b-4619-a158-327af675f8f2",
-    rarity: "uncommon",
-    name: "Soul Net",
-    oracleText:
-        "Whenever a creature dies, you may pay {1}. If you do, you gain 1 life.",
-    manaCost: { X: 1 },
-    types: ["Artifact"],
-    triggeredAbilities: [
-        diedTrigger({
-            id: "soul-net-life",
-            oracleText:
-                "Whenever a creature dies, you may pay {1}. If you do, you gain 1 life.",
-            scope: "any",
-            // Migrated resolve()→effects[] (ADR 0045): mayPay {1} (CR 117.3a)
-            // then gainLife 1 gated on the $paid outcome — same mayPay + if
-            // shape as Urza's Chalice (atq/colorless.cards.ts), riding the same
-            // Pending Choice pipeline `requestMayPay` used. The dead creature's
-            // LKI isn't read (the effect only touches the controller), so the
-            // effects[] site (which doesn't surface LKI) is a clean fit.
-            effects: [
-                {
-                    op: "mayPay",
-                    player: "controller",
-                    cost: { X: 1 },
-                    prompt: "Pay {1} to gain 1 life from Soul Net?",
-                    bind: "$paid",
-                },
-                {
-                    op: "if",
-                    predicate: { binding: "$paid" },
-                    then: [{ op: "gainLife", player: "controller", amount: 1 }],
-                },
-            ],
-        }),
-    ],
 }));
 
 // Sunglasses of Urza — "You may spend white mana as though it were red mana."

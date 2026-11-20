@@ -26,7 +26,6 @@ import {
 } from "../state";
 import { projectPublicState } from "../../gameProjections";
 
-import { soulNet } from "../../cards/sets/lea/index.cards";
 import { getCardByName } from "../../cards";
 import {
     makeInstance,
@@ -34,6 +33,9 @@ import {
     makeState,
 } from "../../cards/__tests__/setup.helper";
 import { getDefinition } from "../../cards";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const soulNet = () => getDefinition("2b814198-814b-4619-a158-327af675f8f2");
 const basalThrull = getDefinition("0c1d5d13-0160-48cb-8fac-dd86102569b4");
 
 const FOREST = getCardByName("Forest").id;

@@ -26,7 +26,7 @@ import {
     makePlayer,
     makeState,
 } from "../cards/__tests__/setup.helper";
-import { vodalianMerchant } from "../cards/sets/inv/blue.cards";
+
 import { grizzlyBears } from "../cards/sets/lea/green.cards";
 import {
     makeMutationCtx,
@@ -34,6 +34,11 @@ import {
     gameStateSeed,
     type Handler,
 } from "./gameMutationHarness.fixture";
+import { getDefinition } from "../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const vodalianMerchant = () =>
+    getDefinition("c1c0effa-a4b8-4166-a66a-90cf01c6ea0d");
 
 const GAME_ID = "game-1" as Id<"games">;
 

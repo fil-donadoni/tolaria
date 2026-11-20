@@ -9,60 +9,11 @@
 // of their mana cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type { EffectTokenSpec, SpellContext } from "../../types";
+import type { SpellContext } from "../../types";
 import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { payOrSacrificeUpkeepTrigger } from "../leg/index.cards";
-
-const BREEDING_PIT_ID = "a0d7e85f-eba5-4fc5-9fc0-109109d368aa"; // FEM 35
-
-// `EffectTokenSpec` (not `TokenSpec`): only ever used at a DSL `createToken`
-// Op site (`op.token`) below, never through `ctx.createToken` directly.
-const THRULL_TOKEN: EffectTokenSpec = {
-    name: "Thrull",
-    types: ["Creature"],
-    subtypes: ["Thrull"],
-    power: 0,
-    toughness: 1,
-    colors: ["B"],
-};
-
-export const breedingPit = defineCard(() => ({
-    id: BREEDING_PIT_ID,
-    rarity: "uncommon",
-    name: "Breeding Pit",
-    oracleText:
-        "At the beginning of your upkeep, sacrifice this enchantment unless you pay {B}{B}.\nAt the beginning of your end step, create a 0/1 black Thrull creature token.",
-    manaCost: { X: 3, B: 1 },
-    types: ["Enchantment"],
-    triggeredAbilities: [
-        payOrSacrificeUpkeepTrigger({
-            id: "breeding-pit-upkeep",
-            cardName: "Breeding Pit",
-            cost: { B: 2 },
-            costText: "{B}{B}",
-        }),
-        phaseTrigger({
-            id: "breeding-pit-end-step",
-            phase: "END_STEP",
-            scope: "your",
-            oracleText:
-                "At the beginning of your end step, create a 0/1 black Thrull creature token.",
-            // Migrated resolve()→effects[] (ADR 0045, #847): create one 0/1
-            // black Thrull token on the controller's battlefield (CR 111 /
-            // 707.1).
-            effects: [
-                {
-                    op: "createToken",
-                    token: THRULL_TOKEN,
-                    controller: "controller",
-                    count: 1,
-                },
-            ],
-        }),
-    ],
-}));
 
 export const derelor = defineCard(() => ({
     id: "9eb2b79f-f09a-49dc-8e0f-7d711ba78981", // FEM 36
