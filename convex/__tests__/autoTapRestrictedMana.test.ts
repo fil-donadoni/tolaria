@@ -27,6 +27,7 @@ import { autoTapForPayment } from "../game";
 import { getLegalActions } from "../gre/rules";
 import type { Id } from "../_generated/dataModel";
 import type { CardInstanceState, GameState } from "../gre/state";
+import type { Zone } from "../gre/types";
 import {
     gameStateSeed,
     makeMutationCtx,
@@ -113,7 +114,7 @@ const BEAST_ENGINE = def({
 
 preloadDefinitions([forest(), eldraziTemple(), mishrasWorkshop()]);
 
-const mine = (defId: string, id: string, zone = "battlefield") =>
+const mine = (defId: string, id: string, zone: Zone = "battlefield") =>
     makeInstance(defId, { id, controllerId: "p1", ownerId: "p1", zone });
 
 const forestsAndTemple = () => [
