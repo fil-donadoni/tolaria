@@ -32,6 +32,7 @@ import { tryGetDefinition } from "../../cards";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import { cloneGameState } from "../clone";
 import { isCreature, liveStaticDefinition } from "../constants";
+import { effectiveTriggeredAbilities } from "../copy";
 import { getEffectivePT } from "../layers";
 import { findCardInAnyZone } from "../lookup";
 import type { CardInstanceState, GameState } from "../state";
@@ -72,7 +73,9 @@ const INERT_SCRIPT_HOSTS: ReadonlySet<EffectOp["op"]> = new Set<EffectOp["op"]>(
 );
 
 /** Ops by which a TRIGGERED ability can finish a damaged creature, or raise
- *  what combat deals to it: damage, and every change to power or toughness.
+ *  what combat deals to it: damage and its redirection, every change to power,
+ *  toughness or abilities, a permanent arriving or changing sides, another
+ *  combat phase.
  *  A denylist, unlike the announcement reading: a trigger is not something the
  *  bot waits on, so only the ones that reach the sum matter. */
 const DAMAGE_OR_SIZE_OPS: ReadonlySet<EffectOp["op"]> = new Set<EffectOp["op"]>(
@@ -90,8 +93,21 @@ const DAMAGE_OR_SIZE_OPS: ReadonlySet<EffectOp["op"]> = new Set<EffectOp["op"]>(
         "transform",
         "exileAndReturnTransformed",
         "grantAbility",
+        "loseAbility",
+        "loseAllAbilities",
+        "loseAllAbilitiesWhileSourceRemains",
+        "setCardTypes",
+        "setLevel",
+        "monstrosity",
+        "explore",
+        "meld",
+        "attach",
         "createToken",
         "createTokenCopy",
+        "moveZone",
+        "gainControl",
+        "extraCombat",
+        "redirectDamage",
     ]
 );
 
@@ -273,11 +289,16 @@ function otherAnnouncementsAreInert(
     const windows = [settled];
     const later = laterSorceryWindow(settled, moverId);
     if (later) windows.push(later);
-    return windows.every((window) =>
-        enumerate(window, moverId).every((move) =>
-            isInertAnnouncement(window, move)
-        )
-    );
+    return windows.every((window) => {
+        const moves = enumerate(window, moverId);
+        // The enumerator answers with nothing when the mover does not hold
+        // priority (a trigger that landed during the probe hands it to the
+        // active player): an empty list is no reading, not an inert one.
+        return (
+            moves.some((move) => move.kind === "pass") &&
+            moves.every((move) => isInertAnnouncement(window, move))
+        );
+    });
 }
 
 /** Whether the combat phase can still deal damage this turn: the turn has not
@@ -339,8 +360,9 @@ function combatCannotFinish(
  *  creature or raise the combat bound: one whose script has a damage or size
  *  Op at any depth, or no script to read. */
 function carriesDamageTrigger(perm: CardInstanceState): boolean {
-    for (const trigger of liveStaticDefinition(perm)?.triggeredAbilities ??
-        []) {
+    // The list the engine's own trigger scan reads: printed, granted and
+    // keyword triggers alike.
+    for (const trigger of effectiveTriggeredAbilities(perm)) {
         const scripts = scriptsOf(trigger as ScriptSite);
         if (scripts === null) return true;
         const harmless = scripts.every((script) =>
@@ -358,8 +380,15 @@ function carriesDamageTrigger(perm: CardInstanceState): boolean {
 /** Condition 4 — no permanent, on either side, adds damage the bot does not
  *  announce: a triggered ability that deals damage or changes a size, or a
  *  replacement effect that rewrites damage (CR 614 — a doubler makes the
- *  combat bound wrong). */
+ *  combat bound wrong).
+ *
+ *  Narrowings, each unread rather than proved absent: a trigger that functions
+ *  from a graveyard or an emblem, and toughness that expires when combat ends
+ *  rather than at cleanup. */
 function boardCannotAddDamage(settled: GameState): boolean {
+    // A delayed trigger already scheduled (CR 603.7) is not read: none proves
+    // nothing.
+    if ((settled.delayedTriggers?.length ?? 0) > 0) return false;
     for (const player of settled.players) {
         for (const perm of player.battlefield) {
             if (carriesDamageTrigger(perm)) return false;

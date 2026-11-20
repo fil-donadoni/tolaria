@@ -1439,6 +1439,21 @@ describe("isDominatedNoOpMove — marked damage that cannot become lethal (CR 12
         expect(offered(state, "Unholy Heat", "Serra Angel")).toBe(true);
     });
 
+    it("keeps the cast while a triggered ability on the battlefield adds a combat phase", () => {
+        // Fear of Missing Out sits on the Angel's side, so it adds nothing to
+        // the combat bound: only its attack trigger keeps the cast.
+        const state = heatPosition([
+            raiders,
+            {
+                name: "Fear of Missing Out",
+                owner: "opp",
+                zone: "battlefield",
+                summoningSick: false,
+            },
+        ]);
+        expect(offered(state, "Unholy Heat", "Serra Angel")).toBe(true);
+    });
+
     it("prunes non-lethal damage at the mover's own creature on the same terms", () => {
         // The mover's Hill Giant keeps 1 toughness; nothing opposes it.
         const state = build({
