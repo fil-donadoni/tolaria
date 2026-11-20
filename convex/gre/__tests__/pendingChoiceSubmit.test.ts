@@ -12,10 +12,7 @@ import {
     applyNameCardSubmit,
     applyRandomRevealAck,
 } from "../pendingChoiceSubmit";
-import {
-    illusionaryForces,
-    polarKraken,
-} from "../../cards/sets/ice/index.cards";
+import { polarKraken } from "../../cards/sets/ice/index.cards";
 import { getCardByName } from "../../cards";
 import { checkStateBasedActions } from "../sba";
 import {
@@ -32,11 +29,7 @@ import {
     winterOrb,
     wordOfCommand,
 } from "../../cards/sets/lea/index.cards";
-import {
-    jasmineBoreal,
-    petraSphinx,
-    tundraWolves,
-} from "../../cards/sets/leg/index.cards";
+import { jasmineBoreal, petraSphinx } from "../../cards/sets/leg/index.cards";
 import {
     bottleOfSuleiman,
     cuombajjWitches,
@@ -50,6 +43,13 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
 
+import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const illusionaryForces = () =>
+    getDefinition("ab02268e-01cf-4729-95ca-5773afd40b56");
+const tundraWolves = () =>
+    getDefinition("8f649cb5-e19c-453f-b062-4fd452d92257");
 const STARTING_HAND_SIZE = 7;
 
 function setupCleanupDiscard(handSize: number): GameState {

@@ -48,19 +48,6 @@ function sacrificeSelfWhen(args: {
     };
 }
 
-export const flyingMen = defineCard(() => ({
-    id: "25ab9a2b-e248-4ae2-aac3-b49fdb3e260a",
-    rarity: "common",
-    name: "Flying Men",
-    oracleText: "Flying",
-    manaCost: { U: 1 },
-    types: ["Creature"],
-    subtypes: ["Human"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["flying"],
-}));
-
 export const serendibDjinn = defineCard(() => ({
     id: "0458b733-d689-4cb5-8970-3b675c67fc4d",
     rarity: "rare",

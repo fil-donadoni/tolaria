@@ -98,20 +98,6 @@ export const banshee = defineCard(() => ({
     ],
 }));
 
-// Bog Imp — vanilla flier (CR 702.9). Keyword on `staticAbilities[]`.
-export const bogImp = defineCard(() => ({
-    id: "e3bb7271-634a-4612-9073-7a5438e8c2b8",
-    rarity: "common",
-    name: "Bog Imp",
-    oracleText: "Flying",
-    manaCost: { X: 1, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Imp"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["flying"],
-}));
-
 // Bog Rats — "This creature can't be blocked by Walls." (CR 509.1b block
 // restriction, `side: "attacker"`: a candidate blocker that is a Wall is
 // rejected. CR 205.3 the Wall subtype.)

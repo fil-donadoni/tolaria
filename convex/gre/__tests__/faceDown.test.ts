@@ -15,7 +15,6 @@ import {
 import { effectiveTriggeredAbilities } from "../copy";
 import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
-import { mahamotiDjinn } from "../../cards/sets/lea/index.cards";
 import {
     makeInstance,
     makePlayer,
@@ -23,6 +22,11 @@ import {
 } from "../../cards/__tests__/setup.helper";
 import { NO_BOARD_LAYER_VIEW } from "../layers";
 
+import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const mahamotiDjinn = () =>
+    getDefinition("36204ddd-ddf7-4b44-ae3c-b4a5a41ac9cb");
 describe("face-down characteristics (CR 708.2)", () => {
     it("reads as a 2/2 colourless creature with no abilities on fat state", () => {
         // Mahamoti Djinn — a blue 5/6 flyer — turned face down.

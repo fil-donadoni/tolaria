@@ -13,7 +13,6 @@ import {
     AURA_AFFECTS_HOST,
     EFFECT_AFFECTS_SELF,
 } from "../../types";
-import { knightStaticAbilities } from "../../abilities";
 import { creatureCardsAboveInGraveyard } from "../../graveyardOrder";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
@@ -92,37 +91,6 @@ export const animateDead = defineCard(() => ({
             },
         }),
     ],
-}));
-
-// Black Knight — first strike + protection from white (CR 702.7, 702.16).
-export const blackKnight = defineCard(() => ({
-    id: "c1662949-0d69-49a3-8c69-daf10717ed4e",
-    rarity: "uncommon",
-    name: "Black Knight",
-    oracleText:
-        "First strike (This creature deals combat damage before creatures without first strike.)\nProtection from white (This creature can't be blocked, targeted, dealt damage, or enchanted by anything white.)",
-    manaCost: { B: 2 },
-    types: ["Creature"],
-    subtypes: ["Human", "Knight"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: knightStaticAbilities("white"),
-}));
-
-// Bog Wraith — swampwalk (landwalk keyword, CR 702.14b). Enforced at
-// blocker-assignment time by validateBlockerEligibility in gre/combat.ts.
-export const bogWraith = defineCard(() => ({
-    id: "6701874e-986e-4b81-9268-90b6171e6187",
-    rarity: "uncommon",
-    name: "Bog Wraith",
-    oracleText:
-        "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)",
-    manaCost: { X: 3, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Wraith"],
-    power: 3,
-    toughness: 3,
-    staticAbilities: ["swampwalk"],
 }));
 
 // Out of scope — see ADR 0010

@@ -122,50 +122,6 @@ export const ragingBull = defineCard(() => ({
     toughness: 2,
 }));
 
-// Mountain Yeti — mountainwalk (CR 702.19 landwalk variant) + protection from
-// white (CR 702.16).
-export const mountainYeti = defineCard(() => ({
-    id: "09242f08-3bfc-4082-b32f-703c7fed62a0",
-    rarity: "uncommon",
-    name: "Mountain Yeti",
-    oracleText:
-        "Mountainwalk (This creature can't be blocked as long as defending player controls a Mountain.)\nProtection from white",
-    manaCost: { X: 2, R: 2 },
-    types: ["Creature"],
-    subtypes: ["Yeti"],
-    power: 3,
-    toughness: 3,
-    staticAbilities: ["mountainwalk", "protection from white"],
-}));
-
-// Wall of Earth — Defender (CR 702.3).
-export const wallOfEarth = defineCard(() => ({
-    id: "c12e97c1-ca28-432a-8140-3f08bb4485a3",
-    rarity: "common",
-    name: "Wall of Earth",
-    oracleText: "Defender (This creature can't attack.)",
-    manaCost: { X: 1, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Wall"],
-    power: 0,
-    toughness: 6,
-    staticAbilities: ["defender"],
-}));
-
-// Wall of Heat — Defender (CR 702.3).
-export const wallOfHeat = defineCard(() => ({
-    id: "a38059a8-be69-4cc1-969b-951c610f2f11",
-    rarity: "common",
-    name: "Wall of Heat",
-    oracleText: "Defender (This creature can't attack.)",
-    manaCost: { X: 2, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Wall"],
-    power: 2,
-    toughness: 6,
-    staticAbilities: ["defender"],
-}));
-
 // --- Lord / anthem creatures (CR 611 layer 7c + keyword grant) ------------
 
 // Kobold Taskmaster — "Other Kobold creatures you control get +1/+0."

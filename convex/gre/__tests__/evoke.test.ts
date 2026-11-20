@@ -53,16 +53,16 @@ import type { CardDefinition } from "../../cards/types";
 import { grief } from "../../cards/sets/mh2/black.cards";
 import { solitude } from "../../cards/sets/mh2/white.cards";
 import { darkRitual } from "../../cards/sets/lea/black.cards";
-import {
-    forest,
-    grizzlyBears,
-    serraAngel,
-} from "../../cards/sets/lea/index.cards";
+import { forest, grizzlyBears } from "../../cards/sets/lea/index.cards";
 import { counterspell } from "../../cards/sets/lea/blue.cards";
 import { regrowth } from "../../cards/sets/lea/green.cards";
 import { vibrance } from "../../cards/sets/ecl/multicolor.cards";
 import { enteredTrigger } from "../../cards/abilities/triggers/enteredTrigger";
 
+import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const serraAngel = () => getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 function handCard(cardId: string, id: string, controllerId = "p1") {
     return makeInstance(cardId, {
         id,

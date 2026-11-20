@@ -58,7 +58,7 @@ describe("scenario draft ⇄ spec round-trip for a token row", () => {
     it("leaves an ordinary card row untouched (no `token` field)", () => {
         const card = draftToCard({
             ...emptyCardDraft(),
-            name: "Shivan Dragon",
+            name: "Goblin Kites",
             zone: "hand",
         });
 
@@ -74,7 +74,7 @@ describe("DebugScenarioCardFields — token row", () => {
         const patches: Partial<CardDraft>[] = [];
         render(
             <DebugScenarioCardFields
-                draft={{ ...draft, name: "Shivan Dragon", zone: "hand" }}
+                draft={{ ...draft, name: "Goblin Kites", zone: "hand" }}
                 index={0}
                 onPatch={(p) => patches.push(p)}
                 onRemove={() => {}}
@@ -125,7 +125,7 @@ describe("DebugCardNameField — token source", () => {
     it("still suggests card names by default", () => {
         render(
             <DebugCardNameField
-                value="Shivan"
+                value="Goblin Kit"
                 onChange={() => {}}
                 ariaLabel="Card name"
             />
@@ -134,7 +134,7 @@ describe("DebugCardNameField — token source", () => {
         fireEvent.focus(screen.getByLabelText("Card name"));
 
         expect(
-            screen.getByRole("button", { name: "Shivan Zombie" })
+            screen.getByRole("button", { name: "Goblin Kites" })
         ).toBeTruthy();
     });
 });

@@ -268,23 +268,6 @@ export const angelicShield = defineCard(() => ({
     ],
 }));
 
-// Galina's Knight — {W}{U} Creature — Merfolk Knight, 2/2. "Protection from
-// red." (CR 702.16 protection, `bindingPattern` in the Mechanics Registry.)
-// Pure data — a vanilla body with one printed keyword, no activated/
-// triggered abilities.
-export const galinasKnight = defineCard(() => ({
-    id: "11b492d6-5e28-4f4b-942c-080d03cb0e92",
-    rarity: "common",
-    name: "Galina's Knight",
-    oracleText: "Protection from red",
-    manaCost: { W: 1, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Merfolk", "Knight"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["protection from red"],
-}));
-
 // Hanna, Ship's Navigator — {1}{W}{U} Legendary Creature — Human Artificer,
 // 1/2. "{1}{W}{U}, {T}: Return target artifact or enchantment card from your
 // graveyard to your hand." (CR 605 activated ability, CR 400.7 zone change.)
@@ -681,22 +664,6 @@ export const sleepersRobe = defineCard(() => ({
     ],
 }));
 
-// Slinking Serpent — {2}{U}{B} Creature — Serpent, 2/3. "Forestwalk." (CR
-// 702.14b landwalk.) Pure data — a vanilla body with one printed keyword.
-export const slinkingSerpent = defineCard(() => ({
-    id: "070a7004-5a28-4ccb-8640-ad6b07b51ece",
-    rarity: "uncommon",
-    name: "Slinking Serpent",
-    oracleText:
-        "Forestwalk (This creature can't be blocked as long as defending player controls a Forest.)",
-    manaCost: { X: 2, U: 1, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Serpent"],
-    power: 2,
-    toughness: 3,
-    staticAbilities: ["forestwalk"],
-}));
-
 // Spinal Embrace — {3}{U}{U}{B} Instant. "Cast this spell only during
 // combat. Untap target creature you don't control and gain control of it.
 // It gains haste until end of turn. At the beginning of the next end step,
@@ -892,22 +859,6 @@ export const vileConsumption = defineCard(() => ({
             ],
         },
     ],
-}));
-
-// Vodalian Zombie — {U}{B} Creature — Merfolk Zombie, 2/2. "Protection from
-// green." (CR 702.16 protection.) Pure data — a vanilla body with one
-// printed keyword.
-export const vodalianZombie = defineCard(() => ({
-    id: "f30a5a06-32ce-4d71-b71f-e3e1d8d4511a",
-    rarity: "common",
-    name: "Vodalian Zombie",
-    oracleText: "Protection from green",
-    manaCost: { U: 1, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Merfolk", "Zombie"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["protection from green"],
 }));
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1172,22 +1123,6 @@ export const plagueSpores = defineCard(() => ({
         { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
         { op: "destroy", target: { target: 1 }, cantBeRegenerated: true },
     ],
-}));
-
-// Shivan Zombie — {B}{R} Creature — Phyrexian Barbarian Zombie, 2/2.
-// "Protection from white." (CR 702.16 protection.) Pure data — a vanilla
-// body with one printed keyword.
-export const shivanZombie = defineCard(() => ({
-    id: "f4c99269-f730-4d33-bbce-9e855e9ad0fc",
-    rarity: "common",
-    name: "Shivan Zombie",
-    oracleText: "Protection from white",
-    manaCost: { B: 1, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Phyrexian", "Barbarian", "Zombie"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["protection from white"],
 }));
 
 // Smoldering Tar — {2}{B}{R} Enchantment. "At the beginning of your
@@ -1601,21 +1536,6 @@ export const huntingKavu = defineCard(() => ({
     ],
 }));
 
-// Raging Kavu — {1}{R}{G} Creature — Kavu, 3/1. "Flash. Haste." (CR 702.8b
-// flash + CR 702.10b haste, pure printed-keyword data.)
-export const ragingKavu = defineCard(() => ({
-    id: "27573679-e9e5-4bfc-b5d5-85d4648b01b6",
-    rarity: "common",
-    name: "Raging Kavu",
-    oracleText: "Flash\nHaste",
-    manaCost: { X: 1, R: 1, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Kavu"],
-    power: 3,
-    toughness: 1,
-    staticAbilities: ["flash", "haste"],
-}));
-
 // Voracious Cobra — {2}{R}{G} Creature — Snake, 2/2. "First strike.
 // Whenever this creature deals combat damage to a creature, destroy that
 // creature." (CR 702.7 first strike + CR 510.4/603.2 combat-damage trigger
@@ -1657,22 +1577,6 @@ export const voraciousCobra = defineCard(() => ({
             ],
         },
     ],
-}));
-
-// Yavimaya Barbarian — {R}{G} Creature — Elf Barbarian, 2/2. "Protection
-// from blue." (CR 702.16 protection, pure printed-keyword data — the
-// `bindingPattern` census in the Mechanics Registry.)
-export const yavimayaBarbarian = defineCard(() => ({
-    id: "8e17377d-4dad-4144-b0ce-c849636096a2",
-    rarity: "common",
-    name: "Yavimaya Barbarian",
-    oracleText: "Protection from blue",
-    manaCost: { R: 1, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Elf", "Barbarian"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["protection from blue"],
 }));
 
 // Yavimaya Kavu — {2}{R}{G} Creature — Kavu, */*. "Yavimaya Kavu's power is
@@ -2212,43 +2116,6 @@ export const hornedCheetah = defineCard(() => ({
             },
         }),
     ],
-}));
-
-// Llanowar Knight — {G}{W} Creature — Elf Knight, 2/2. "Protection from
-// black." (CR 702.16 protection, `bindingPattern` in the Mechanics
-// Registry.) Pure data — a vanilla body with one printed keyword.
-export const llanowarKnight = defineCard(() => ({
-    id: "e6c75d89-e432-49aa-a407-555b223b7eff",
-    rarity: "common",
-    name: "Llanowar Knight",
-    oracleText: "Protection from black",
-    manaCost: { G: 1, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Elf", "Knight"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["protection from black"],
-}));
-
-// Sabertooth Nishoba — {4}{G}{W} Creature — Cat Beast Warrior, 5/5.
-// "Trample, protection from blue and from red" (CR 702.19 trample; CR
-// 702.16 protection — TWO independent "protection from <color>" strings in
-// the same `staticAbilities[]` array. `getProtectedColors`
-// (`gre/protection.ts`) iterates and collects EVERY matching entry, so two
-// distinct-color protections stack correctly (CR 702.16m — only literal
-// duplicates collapse) with zero engine change; the catalogue's first
-// double-protection creature, not a new capability.)
-export const sabertoothNishoba = defineCard(() => ({
-    id: "8338c296-cf3f-41d7-b380-3fb4237cb41c",
-    rarity: "rare",
-    name: "Sabertooth Nishoba",
-    oracleText: "Trample, protection from blue and from red",
-    manaCost: { X: 4, G: 1, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Cat", "Beast", "Warrior"],
-    power: 5,
-    toughness: 5,
-    staticAbilities: ["trample", "protection from blue", "protection from red"],
 }));
 
 // ─────────────────────────────────────────────────────────────────────────

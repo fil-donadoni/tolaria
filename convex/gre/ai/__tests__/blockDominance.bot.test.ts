@@ -17,7 +17,6 @@ import {
 import { hillGiant } from "../../../cards/sets/lea/red.cards";
 import {
     crawWurm,
-    giantSpider,
     grizzlyBears,
     ironrootTreefolk,
 } from "../../../cards/sets/lea/green.cards";
@@ -30,6 +29,10 @@ import { findPermanent } from "../../lookup";
 import { searchCombatDamageAssignments } from "../damageSplit";
 import { pruneDominatedBlocks } from "../blockDominance";
 
+import { getDefinition } from "../../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const giantSpider = () => getDefinition("77636b4c-faea-4bf5-b88c-dd5bb88dc930");
 function permanent(
     defId: string,
     id: string,

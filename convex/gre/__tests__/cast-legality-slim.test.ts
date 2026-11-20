@@ -16,7 +16,6 @@ import {
 import {
     ankhOfMishra,
     copyArtifact,
-    elvishArchers,
     forest,
     grizzlyBears,
     island,
@@ -26,7 +25,6 @@ import {
     mountain,
     plains,
     savannahLions,
-    serraAngel,
     swamp,
 } from "../../cards/sets/lea/index.cards";
 import { startingTown } from "../../cards/sets/fin/index.cards";
@@ -52,6 +50,10 @@ import type {
 } from "../state";
 import { getDefinition } from "../../cards";
 
+// Registry seam (ADR 0114): the hand-written module is retired.
+const elvishArchers = () =>
+    getDefinition("1cb9d405-f2b5-4e10-a405-feafd2a87d90");
+const serraAngel = () => getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f");
 const crusade = () => getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
 const planarGate = () => getDefinition("dd27f0fe-c032-4f61-9f3d-98a6d2e2c426");
 const moxJet = getDefinition("92bcd1ce-19b1-4d78-8b09-95242ca08d76");

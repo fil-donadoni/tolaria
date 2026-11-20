@@ -8,10 +8,14 @@ import {
     makePlayer,
     makeState,
 } from "../cards/__tests__/setup.helper";
-import { blackKnight, grizzlyBears } from "../cards/sets/lea/index.cards";
+import { grizzlyBears } from "../cards/sets/lea/index.cards";
 import type { CardDefinition } from "../cards/types";
 import type { GameState } from "../gre/state";
 
+import { getDefinition } from "../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const blackKnight = () => getDefinition("c1662949-0d69-49a3-8c69-daf10717ed4e");
 export const REAP_SPELL_ID = "reap-1";
 
 /** Reap's shape: the opponent is announced FIRST (slot 0) so the graveyard

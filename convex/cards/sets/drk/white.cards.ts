@@ -34,36 +34,6 @@ export const squire = defineCard(() => ({
 // rules tests exercise them generically, so a definition snapshot suffices).
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Knights of Thorn — Protection from red (CR 702.16) + banding (CR 702.22).
-// Both are plain keywords already shipped; the banding engine (block-as-a-group
-// + attacker damage division) was built for the LEG banding cycle.
-export const knightsOfThorn = defineCard(() => ({
-    id: "ae541c73-9903-49e6-997a-db4701135145",
-    rarity: "rare",
-    name: "Knights of Thorn",
-    oracleText: "Protection from red; banding",
-    manaCost: { X: 3, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Knight"],
-    power: 2,
-    toughness: 2,
-    staticAbilities: ["protection from red", "banding"],
-}));
-
-// Pikemen — First strike (CR 702.7) + banding (CR 702.22). Plain keywords.
-export const pikemen = defineCard(() => ({
-    id: "bf2f6936-b50c-4907-9b55-ebf8a3fba8f5",
-    rarity: "common",
-    name: "Pikemen",
-    oracleText: "First strike; banding",
-    manaCost: { X: 1, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Soldier"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["first strike", "banding"],
-}));
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Characteristic-defining P/T (CR 604.3, layer 7a) — Angry Mob
 // ─────────────────────────────────────────────────────────────────────────────

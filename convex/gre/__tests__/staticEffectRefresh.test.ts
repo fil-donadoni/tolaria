@@ -42,8 +42,13 @@ import { cyclopeanTomb } from "../../cards/sets/lea/colorless.cards";
 import { yavimayaCradleOfGrowth } from "../../cards/sets/mh2/colorless.cards";
 import { mishrasFactory } from "../../cards/sets/atq/colorless.cards";
 import { gravitySphere } from "../../cards/sets/leg/red.cards";
-import { flight, airElemental } from "../../cards/sets/lea/blue.cards";
+import { flight } from "../../cards/sets/lea/blue.cards";
 
+import { getDefinition } from "../../cards/index";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const airElemental = () =>
+    getDefinition("69c3b2a3-0daa-4d42-832d-fcdfda6555ea");
 /** Mishra's Factory — a nonbasic land with NO printed land types, so every
  *  subtype seen below comes from a layer-4 source and nothing else. */
 function makeBoard(

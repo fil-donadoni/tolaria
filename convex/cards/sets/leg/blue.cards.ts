@@ -193,34 +193,6 @@ export const recall = defineCard(() => ({
 
 // --- Vanilla / keyword creatures (CR 702 — pure data) ---------------------
 
-// Azure Drake — flying (CR 702.9).
-export const azureDrake = defineCard(() => ({
-    id: "fb5f13a2-0896-4230-8957-6ad1cb2b895b",
-    rarity: "uncommon",
-    name: "Azure Drake",
-    oracleText: "Flying",
-    manaCost: { X: 3, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Drake"],
-    power: 2,
-    toughness: 4,
-    staticAbilities: ["flying"],
-}));
-
-// Zephyr Falcon — flying, vigilance (CR 702.9, 702.20).
-export const zephyrFalcon = defineCard(() => ({
-    id: "25a173fd-e10c-45f8-a6e5-ad7a747a8050",
-    rarity: "common",
-    name: "Zephyr Falcon",
-    oracleText: "Flying, vigilance",
-    manaCost: { X: 1, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Bird"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["flying", "vigilance"],
-}));
-
 // Undertow — global islandwalk negation (CR 509.1b / 702.14). Twin of Great
 // Wall via the shared parametric `landwalk-negation` static, differing only in
 // the negated subtype (Island). Creatures with islandwalk can be blocked as
@@ -242,36 +214,6 @@ export const undertow = defineCard(() => ({
                 "Creatures with islandwalk can be blocked as though they didn't have islandwalk.",
         },
     ],
-}));
-
-// Devouring Deep — islandwalk (CR 702.14 landwalk variant).
-export const devouringDeep = defineCard(() => ({
-    id: "0855a5a8-8c40-4396-9ad1-8fa0fc6a0c59",
-    rarity: "common",
-    name: "Devouring Deep",
-    oracleText:
-        "Islandwalk (This creature can't be blocked as long as defending player controls an Island.)",
-    manaCost: { X: 2, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Fish"],
-    power: 1,
-    toughness: 2,
-    staticAbilities: ["islandwalk"],
-}));
-
-// Segovian Leviathan — islandwalk (CR 702.14).
-export const segovianLeviathan = defineCard(() => ({
-    id: "e5a814f1-7f8d-4c2c-b706-ee0ed5892f7b",
-    rarity: "uncommon",
-    name: "Segovian Leviathan",
-    oracleText:
-        "Islandwalk (This creature can't be blocked as long as defending player controls an Island.)",
-    manaCost: { X: 4, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Leviathan"],
-    power: 3,
-    toughness: 3,
-    staticAbilities: ["islandwalk"],
 }));
 
 // --- Activated-ability creatures (CR 605) ----------------------------------

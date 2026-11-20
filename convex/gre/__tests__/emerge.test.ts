@@ -46,11 +46,14 @@ import {
     juggernaut,
     swamp,
 } from "../../cards/sets/lea/index.cards";
-import { triskelion, ornithopter } from "../../cards/sets/atq/colorless.cards";
+import { triskelion } from "../../cards/sets/atq/colorless.cards";
 import { crawWurm } from "../../cards/sets/lea/green.cards";
 import { thaliaGuardianOfThraben } from "../../cards/sets/dka/white.cards";
 import { drought } from "../../cards/sets/ice/white.cards";
 import { getDefinition } from "../../cards";
+
+// Registry seam (ADR 0114): the hand-written module is retired.
+const ornithopter = () => getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 // Crabomination's numbers: printed {4}{B}{B}, "Emerge from artifact {5}{B}{B}".
