@@ -932,6 +932,7 @@ import type {
     PendingChoiceKind,
     ManaRestriction,
     RestrictionSubject,
+    ManaPaymentSubject,
     LibraryDestination,
     LookDistributeDestination,
     LookDistributeKeepTo,
@@ -951,6 +952,7 @@ export type {
     PendingChoiceKind,
     ManaRestriction,
     RestrictionSubject,
+    ManaPaymentSubject,
     LibraryDestination,
     LookDistributeDestination,
     LookDistributeKeepTo,
@@ -25452,6 +25454,35 @@ export function restrictionChosenCreatureType(
 ): string | undefined {
     if (restriction !== "chosen-type-creature-spell") return undefined;
     return source?.chosenSubtypes?.[0];
+}
+
+/** CR 106.6 (issue #9861) — may mana that `producer` makes under `restriction`
+ *  pay for `payingFor`? The single per-option judgement shared by the
+ *  castability census (`producibleManaUnitsWithDebt`) and the Auto-Tap source
+ *  builder (`buildAutoTapSources`), so the gate that offers a cast and the
+ *  planner that pays it can never disagree. A spell delegates to
+ *  {@link restrictionAllowsSpell} (with the producer's chosen creature type,
+ *  {@link restrictionChosenCreatureType}); an ability to
+ *  {@link restrictionAllowsAbility}. */
+export function restrictedManaMayPay(
+    restriction: ManaRestriction,
+    producer: Pick<CardInstanceState, "chosenSubtypes">,
+    payingFor: ManaPaymentSubject
+): boolean {
+    if (payingFor.kind === "ability") {
+        return restrictionAllowsAbility(
+            restriction,
+            payingFor.sourceTypes,
+            payingFor.sourceSubject
+        );
+    }
+    return restrictionAllowsSpell(
+        restriction,
+        payingFor.types,
+        payingFor.supertypes,
+        payingFor.subject,
+        restrictionChosenCreatureType(restriction, producer)
+    );
 }
 
 /** The subject of a spell being cast, read off its definition (a card in hand

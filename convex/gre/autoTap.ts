@@ -14,12 +14,17 @@ import {
     primaryManaTapOptions,
     normalizedHybridPips,
 } from "./constants";
-import type { ManaReplacementView, ManaTapPlanContext } from "./constants";
+import type {
+    ManaReplacementView,
+    ManaTapOptionSource,
+    ManaTapPlanContext,
+} from "./constants";
 import type { CardInstanceState, GameState } from "./state";
 import type { Phase } from "./types";
 import {
     isManaCostCovered,
     normalizeManaCost,
+    restrictedManaMayPay,
     type ManaSubstitution,
 } from "./state";
 import { sourceUntapPrice } from "./autoTapDemands";
@@ -239,6 +244,23 @@ function withTapBonus(
     return merged;
 }
 
+/** CR 106.6 (issue #9861) — may the plan spend this option's mana? Always
+ *  for an unrestricted option; for a restricted one only when the context
+ *  names what the payment is for and `restrictedManaMayPay` allows it. */
+function restrictedOptionMayPay(
+    card: CardInstanceState,
+    source: ManaTapOptionSource,
+    context: ManaTapPlanContext | undefined
+): boolean {
+    const restriction = getManaTapOptionRestriction(card, source);
+    if (restriction === null) return true;
+    const payingFor = context?.payingFor;
+    return (
+        payingFor !== undefined &&
+        restrictedManaMayPay(restriction, card, payingFor)
+    );
+}
+
 /** Build the solver's source list from a player's battlefield, excluding
  *  tapped sources, summoning-sick creature dorks (CR 302.1), sacrifice mana
  *  abilities, and anything that produces no known mana output.
@@ -348,55 +370,36 @@ export function buildAutoTapSources(
                 ability?.getManaChoices ||
                 ability?.manaColorSource
             );
-        // CR 106.6 — restricted mana (Mishra's Workshop; the SECOND, legendary-
-        // spell-only ability on Delighted Halfling) can pay only for certain
-        // spells; the solver reasons over the fungible pool and can't model
-        // that constraint, so it drops restricted OPTIONS from its candidate
-        // set — per-OPTION, not per-source (issue #1559 review), so a card
-        // mixing a free ability with a restricted one (Halfling's OTHER,
-        // unrestricted "{T}: Add {C}.") stays auto-tappable on its free
-        // option; only Mishra's-Workshop-style wholly-restricted sources end
-        // up excluded entirely (their only option is filtered out below).
-        // CR 122.6 (issue #2240 review, BLOCKING) — a `manaChoiceRemovesCounters`
-        // option (Mana Battery / storage lands) whose choice index is > 0
-        // spends the player's stored counters as PART OF the option's cost,
-        // exactly the same "stored resource the player must not have spent on
-        // their behalf" category as the `cost.sacrifice` skip above. Before
-        // #2240 threaded the board snapshot, the blanket `getManaChoices` skip
-        // kept these choosers manual as a side effect; now that they are real
-        // auto-tap candidates, `solveSmartAutoTap` (which minimizes tap COUNT)
-        // will always prefer a single counter-burning tap over two ordinary
-        // lands, silently draining every counter the ability can reach. Drop
-        // every counter-burning option (`getManaChoiceCounterCost(...).count >
-        // 0`) here, keeping only the free index-0 "remove 0 counters" pick —
-        // the battery stays auto-tappable for its base mana, never for a
-        // scaling tap the player didn't choose.
-        // CR 701.43a / 602.1 (issue #3214) — and the third exclusion of the same
-        // family: an option whose ability EXERTS its source, or charges mana of
-        // its own. `manaTapOptionSpendsUnplannedResource` carries the argument;
-        // in short, `solveSmartAutoTap` minimizes tap COUNT, so Arena of Glory's
-        // "{R}, {T}, Exert this land: Add {R}{R}" beats two ordinary lands for
-        // any cost of 2+ — and the plan then either pays an exert the player
-        // never chose or, with an empty pool, throws out of
-        // `applyManaAbilityManaCost` and rolls the whole mutation back.
-        // Indices are kept against the FULL unified `options` list — the same
-        // list `tapSourceIntoPayment` / `resolveManaTapChoice` resolve
-        // `manaChoiceIndex` against — so filtering never renumbers them.
-        // CR 106.6 (issue #3384) — `context` is what turns the third exclusion
-        // from unconditional into a statement about THIS plan: paying for a
-        // creature spell, Arena of Glory's exert option is the one the plan is
-        // reaching for, so it is admitted with its own mana leg attached.
-        // CR 605.3a (issue #3630) — the per-OPTION twin of the per-source
-        // `cost.sacrifice` skip above: a source whose FIRST mana ability is a
-        // plain `{T}` passes that skip, but the manual list now also carries its
-        // "{T}, Sacrifice this land: Add {G}{G}" behind it, and a solver that
-        // minimizes tap count would otherwise sacrifice the land to save a tap.
+        // Per-OPTION exclusions — indices stay against the FULL unified
+        // `options` list that `tapSourceIntoPayment` / `resolveManaTapChoice`
+        // resolve `manaChoiceIndex` against, so filtering never renumbers them,
+        // and a card mixing a free ability with an excluded one stays
+        // auto-tappable on the free one. `solveSmartAutoTap` minimizes tap
+        // COUNT, so any option that buys mana with something other than a tap
+        // would otherwise win over two ordinary lands:
+        // CR 106.6 — a spend-restricted option (Mishra's Workshop, Eldrazi
+        // Temple's {C}{C}) is a candidate only when `context.payingFor` names
+        // an object its restriction allows (`restrictedOptionMayPay`). Its
+        // mana is then fungible for THIS payment: the tap deposits it in
+        // `restrictedMana`, the commit drains it through
+        // `spendablePoolForSpell` / `spendablePoolForAbility`, and any unspent
+        // remainder keeps its restriction. No `payingFor` → excluded.
+        // CR 605.3a — a sacrifice alternative behind a plain `{T}` ability
+        // ("{T}, Sacrifice this land: Add {G}{G}"), unless the caller opted
+        // into Treasures (`admitSacrifice`).
+        // CR 122.1 — a `manaChoiceRemovesCounters` option (Mana Battery,
+        // storage lands) with index > 0 spends stored counters as part of its
+        // cost; only the free index-0 pick stays.
+        // CR 701.43a / 602.1 — an option that EXERTS its source or charges
+        // mana of its own (`manaTapOptionSpendsUnplannedResource`), unless the
+        // plan context is reaching for its rider (Arena of Glory's haste on a
+        // creature spell), when it is admitted with its mana leg attached.
         const usable = options
             .map((opt, index) => ({ opt, index }))
             .filter(
                 ({ opt }) =>
                     (!opt.sacrificesSource || admitSacrifice) &&
-                    getManaTapOptionRestriction(card, opt.source) === null &&
+                    restrictedOptionMayPay(card, opt.source, context) &&
                     getManaChoiceCounterCost(card, opt.source) === null &&
                     !manaTapOptionSpendsUnplannedResource(
                         card,
