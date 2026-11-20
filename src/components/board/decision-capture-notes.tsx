@@ -37,7 +37,16 @@ export default function DecisionCaptureNotes({
     const { plan, decision } = humanCaptureView(gameId, seatId);
     const [open, setOpen] = useState(false);
     const [planDraft, setPlanDraft] = useState("");
-    const [comment, setComment] = useState("");
+    // The draft belongs to the decision it was typed for: once that one
+    // closes (or, in solo, the view moves seat) it is no longer shown, so a
+    // comment meant for one decision never lands on the next.
+    const [draft, setDraft] = useState<{ key: string; text: string }>({
+        key: "",
+        text: "",
+    });
+    const decisionKey = decision ? `${seatId}:${decision.seq}` : "";
+    const comment = draft.key === decisionKey ? draft.text : "";
+    const setComment = (text: string) => setDraft({ key: decisionKey, text });
 
     const statePlan = () => {
         if (stateHumanPlan(gameId, seatId, seq, planDraft)) setPlanDraft("");

@@ -31,5 +31,13 @@ export default function VerdictProposalCapture({
     if (!mayJudge || seq === undefined || !seatIds.includes(viewerId)) {
         return null;
     }
-    return <DecisionCaptureNotes gameId={gameId} seatId={viewerId} seq={seq} />;
+    // Keyed by seat: a solo seat switch never carries the other seat's draft.
+    return (
+        <DecisionCaptureNotes
+            key={viewerId}
+            gameId={gameId}
+            seatId={viewerId}
+            seq={seq}
+        />
+    );
 }

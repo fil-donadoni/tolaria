@@ -586,34 +586,26 @@ export function stateHumanPlan(
     return true;
 }
 
-/** The decision of `seatId` an annotation made on the state at `seq` is
- *  about: the latest one opened on a state no later than `seq` — the open
- *  decision when it is that seat's, else the latest closed one still held. */
+/** The held decision of `seatId` opened on the state at `seq` — the open
+ *  one, or a closed one still held. An exact match: a decision the
+ *  reservoir dropped is never silently replaced by an older one. */
 function annotatedDecision(
     c: GameCapture,
     seatId: string,
     seq: number
 ): CapturedDecision | null {
-    const ofSeat = (d: CapturedDecision | null): d is CapturedDecision =>
-        !!d && d.source.botId === seatId && d.source.state.seq <= seq;
-    if (ofSeat(c.current)) return c.current;
-    let found: CapturedDecision | null = null;
-    for (const d of [...c.kept, ...c.pinned]) {
-        if (
-            ofSeat(d) &&
-            (!found || d.source.state.seq > found.source.state.seq)
-        )
-            found = d;
-    }
-    return found;
+    const opened = (d: CapturedDecision | null): d is CapturedDecision =>
+        !!d && d.source.botId === seatId && d.source.state.seq === seq;
+    if (opened(c.current)) return c.current;
+    return [...c.kept, ...c.pinned].find(opened) ?? null;
 }
 
 /**
- * Annotate the seat's decision on the state at `seq` (issue #10088): its
- * comment in the player's own words, or the "obvious" mark — the last gesture
- * wins. A comment pins the decision: it leaves the reservoir and is always
- * handed over at game end. Returns false when no held decision of that seat
- * was opened at or before `seq` (or the words are blank).
+ * Annotate the seat's decision opened on the state at `seq` (issue #10088):
+ * its comment in the player's own words, or the "obvious" mark — the last
+ * gesture wins. A comment pins the decision: it leaves the reservoir and is
+ * always handed over at game end. Returns false when no held decision of
+ * that seat was opened at `seq` (or the words are blank).
  */
 export function annotateHumanDecision(
     gameId: string,

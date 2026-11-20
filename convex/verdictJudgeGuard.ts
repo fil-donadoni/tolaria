@@ -69,11 +69,13 @@ function judgedSeats(game: Doc<"games">, userId: Id<"users">): JudgedSeats {
 /** How many positions one game may have judged.
  *
  *  One game end consults the judge at most `perClassQuota` times per Decision
- *  Class (`tolaria.config.json` § verdictProposals): 3 × 11 classes = 33. A
- *  reload while the list is being built can rebuild it from the stored
- *  decisions, so an honest game can spend that twice (66). 100 leaves room for
- *  both and a third partial build, and still caps a game at a fixed, small
- *  amount of server search. */
+ *  Class (`tolaria.config.json` § verdictProposals): 3 × 11 classes = 33 —
+ *  plus every decision the player commented beyond its class's quota (issue
+ *  #10088: a commented decision is always judged). A reload while the list
+ *  is being built can rebuild it from the stored decisions, so an honest game
+ *  can spend that twice (66). 100 leaves room for both and a third partial
+ *  build, and still caps a game at a fixed, small amount of server search; a
+ *  consult past it is refused and counted unjudged on the client. */
 export const VERDICT_JUDGE_POSITIONS_PER_GAME = 100;
 
 /** How many positions one user may have judged per
