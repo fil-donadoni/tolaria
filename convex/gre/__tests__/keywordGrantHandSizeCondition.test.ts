@@ -64,7 +64,10 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { beginApplyingStaticEffects } from "../state";
 import { checkStateBasedActions } from "../sba";
 import type { GameState, CardInstanceState } from "../state";
-import { expandSavedState } from "../../__tests__/gameMutationHarness.fixture";
+import {
+    makeMutationCtx,
+    type Row,
+} from "../../__tests__/gameMutationHarness.fixture";
 import { registerTokenDefinition } from "../../cards";
 import type {
     CardDefinition,
@@ -314,7 +317,6 @@ describe("hand-size-gated keyword-grant (CR 611.2c, issue #1379) — SBA-sweep p
 // the only thing that can keep the persisted menace grant correct is
 // `saveGameState`'s own sweep, exercised transitively through the real
 // mutation call.
-type Row = Record<string, unknown>;
 
 type MutationHandler<A, R> = {
     _handler: (ctx: MutationCtx, args: A) => Promise<R>;
@@ -322,64 +324,6 @@ type MutationHandler<A, R> = {
 
 const runAnnounceCast = (ctx: MutationCtx, args: Row) =>
     (announceCast as unknown as MutationHandler<Row, null>)._handler(ctx, args);
-
-/** Same in-memory stub `MutationCtx` shape as `gameTicks.test.ts` /
- *  `seatOwnership.test.ts`: generic over table name (`games` / `gameStates` /
- *  `gameTicks`), authenticated as `userId` via the `"<userId>|session1"`
- *  subject those two suites already established works against
- *  `assertCallerOwnsSeat`. */
-function makeCtx(userId: string, seeds: Row[]) {
-    const docs = new Map<string, Row>();
-    for (const seed of seeds) docs.set(seed._id as string, { ...seed });
-    let nextIdBySeq = 0;
-
-    const ctx = {
-        auth: {
-            getUserIdentity: async () => ({ subject: `${userId}|session1` }),
-        },
-        db: {
-            get: async (id: string) => docs.get(id) ?? null,
-            insert: async (table: string, doc: Row) => {
-                const id = `${table}-new-${nextIdBySeq++}`;
-                docs.set(id, { ...doc, _id: id, __table: table });
-                return id;
-            },
-            patch: async (id: string, patch: Row) => {
-                docs.set(id, { ...docs.get(id), ...patch });
-            },
-            query: (table: string) => ({
-                withIndex: (_name: string, fn?: (q: unknown) => unknown) => {
-                    const eqs: [string, unknown][] = [];
-                    const builder = {
-                        eq: (field: string, value: unknown) => {
-                            eqs.push([field, value]);
-                            return builder;
-                        },
-                    };
-                    fn?.(builder);
-                    const rows = [...docs.values()].filter(
-                        (d) =>
-                            d.__table === table &&
-                            eqs.every(([f, v]) => d[f] === v)
-                    );
-                    const ordered = { first: async () => rows[0] ?? null };
-                    return {
-                        collect: async () => rows,
-                        first: async () => rows[0] ?? null,
-                        order: () => ordered,
-                    };
-                },
-            }),
-        },
-        scheduler: { runAfter: async () => undefined },
-    };
-
-    return {
-        ctx: ctx as unknown as MutationCtx,
-        doc: (id: string) => docs.get(id)!,
-        state: () => expandSavedState(docs.values(), docs.get("gs-1")!),
-    };
-}
 
 describe("hand-size-gated menace survives the REAL cast path (issue #1379 review counterexample)", () => {
     it("announceCast shrinks a hand to 1 card hand→stack; saveGameState's own refresh is what keeps the PERSISTED menace correct — no explicit SBA call anywhere in this test", async () => {
@@ -408,7 +352,7 @@ describe("hand-size-gated menace survives the REAL cast path (issue #1379 review
         beginApplyingStaticEffects(state, creature);
         expect(creature.staticAbilities).not.toContain("menace");
 
-        const stub = makeCtx("p1", [
+        const stub = makeMutationCtx("p1", [
             {
                 _id: "game-1",
                 __table: "games",
