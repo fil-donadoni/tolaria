@@ -6248,6 +6248,13 @@ export type GameState = {
      *  live in the `gamePrefs` table, and a seat absent here is never
      *  skipped. */
     seatSkipPrefs?: Record<string, PhaseSkipPrefs>;
+    /** Seats whose owner turned on "Order my triggers and graveyard
+     *  automatically" (issue #9988), hung on the state by the loader
+     *  (`getLatestGameState`) from `userSettings`. For these seats the GRE
+     *  answers the CR 603.3b trigger-order and CR 404.3 graveyard-arrangement
+     *  prompts itself, with the engine's own order, and raises nothing. NEVER
+     *  persisted (`TRANSIENT_KEYS`); absent = every prompt stays. */
+    autoOrderSeatIds?: string[];
 };
 
 /** Authoritative discriminated union describing what input the game is

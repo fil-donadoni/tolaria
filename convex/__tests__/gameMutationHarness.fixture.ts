@@ -19,6 +19,9 @@ export interface MutationStub {
     ctx: MutationCtx;
     /** Read back a seeded/mutated document by id. */
     doc: (id: string) => Row;
+    /** Every persisted row of `name`, in insertion order — for a table whose
+     *  row ids the handler mints (`gameTicks`), where `doc(id)` cannot ask. */
+    table: (name: string) => Row[];
     /** Every `ctx.db.get(id)`, in order.
      *
      *  For assertions about the READ SET rather than the result: a handler
@@ -83,7 +86,9 @@ function savedRows(rows: Iterable<Row>, row: Row): Row[] {
 
 /** A stub `MutationCtx`, authenticated as `userId` (or unauthenticated when
  *  `userId` is `null`), over an in-memory document store seeded with
- *  `seeds`. Mirrors `seatOwnership.test.ts`'s `makeCtx`. */
+ *  `seeds`. The ONE stub the `game.ts` integration suites share: a private
+ *  copy drifts from the query surface the handlers use (issue #9988 —
+ *  four copies without `unique()` went red at once). */
 export function makeMutationCtx(
     userId: string | null,
     seeds: Row[]
@@ -201,6 +206,7 @@ export function makeMutationCtx(
     return {
         ctx: ctx as unknown as MutationCtx,
         doc: (id) => docs.get(id)!,
+        table: (name) => [...docs.values()].filter((d) => d.__table === name),
         gets,
         queried,
         writes,

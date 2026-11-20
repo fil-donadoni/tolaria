@@ -1387,6 +1387,10 @@ export function placeTriggersOnStack(
         // ADR 0003), or a slice with any engine-internal (delayed / Madness /
         // Storm) trigger — all pushed in collection order.
         if (!sliceNeedsOrdering(slice)) continue;
+        // Issue #9988 — the controller asked for the engine's order: the
+        // slice goes on in collection order, no prompt (CR 603.3b leaves the
+        // order to the controller, and this controller delegated it).
+        if (state.autoOrderSeatIds?.includes(playerId)) continue;
         choices.push({
             stackItemId: TRIGGER_BATCH_STACK_ID,
             step: 0,

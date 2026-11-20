@@ -41,64 +41,7 @@ import {
     makePlayer,
     makeState,
 } from "../cards/__tests__/setup.helper";
-
-type Row = Record<string, unknown>;
-
-interface Stub {
-    ctx: MutationCtx;
-    doc: (id: string) => Row;
-}
-
-/** A stub `MutationCtx` over an in-memory document store, authenticated as
- *  `userId`. Mirrors `limitedPairingMatch.test.ts`'s stub, trimmed to the
- *  `games` / `gameStates` reads `concede` performs. */
-function makeCtx(userId: string, seeds: Row[]): Stub {
-    const docs = new Map<string, Row>();
-    for (const seed of seeds) docs.set(seed._id as string, { ...seed });
-
-    const ctx = {
-        auth: {
-            getUserIdentity: async () => ({ subject: `${userId}|session1` }),
-        },
-        db: {
-            get: async (id: string) => docs.get(id) ?? null,
-            insert: async (table: string, doc: Row) => {
-                const id = `${table}-1`;
-                docs.set(id, { ...doc, _id: id, __table: table });
-                return id;
-            },
-            patch: async (id: string, patch: Row) => {
-                docs.set(id, { ...docs.get(id), ...patch });
-            },
-            query: (table: string) => ({
-                withIndex: (_name: string, fn?: (q: unknown) => unknown) => {
-                    const eqs: [string, unknown][] = [];
-                    const builder = {
-                        eq: (field: string, value: unknown) => {
-                            eqs.push([field, value]);
-                            return builder;
-                        },
-                    };
-                    fn?.(builder);
-                    const rows = [...docs.values()].filter(
-                        (d) =>
-                            d.__table === table &&
-                            eqs.every(([f, v]) => d[f] === v)
-                    );
-                    const ordered = { first: async () => rows[0] ?? null };
-                    return {
-                        collect: async () => rows,
-                        first: async () => rows[0] ?? null,
-                        order: () => ordered,
-                    };
-                },
-            }),
-        },
-        scheduler: { runAfter: async () => undefined },
-    };
-
-    return { ctx: ctx as unknown as MutationCtx, doc: (id) => docs.get(id)! };
-}
+import { makeMutationCtx, type Row } from "./gameMutationHarness.fixture";
 
 /** A live 2-player Game seated on two DIFFERENT users' ids, with a real
  *  `GameState` row so the mutation runs its whole body, not just its guards.
@@ -249,7 +192,7 @@ describe("seatBelongsToUser — the seat-level authority (issue #1645 review)", 
 
 describe("concede — the caller must own the seat they name (issue #1645 review)", () => {
     it("refuses to concede AS the opponent, leaving the Game untouched", async () => {
-        const stub = makeCtx("bob", twoPlayerSeeds("alice", "bob"));
+        const stub = makeMutationCtx("bob", twoPlayerSeeds("alice", "bob"));
 
         await expect(
             runConcede(stub.ctx, {
@@ -263,7 +206,7 @@ describe("concede — the caller must own the seat they name (issue #1645 review
     });
 
     it("refuses a seat in a Game the caller is not part of at all", async () => {
-        const stub = makeCtx("carol", [
+        const stub = makeMutationCtx("carol", [
             ...twoPlayerSeeds("alice", "bob"),
             { _id: "carol", __table: "users", nickname: "Carol" },
         ]);
@@ -279,7 +222,7 @@ describe("concede — the caller must own the seat they name (issue #1645 review
     });
 
     it("still lets a player concede their OWN seat", async () => {
-        const stub = makeCtx("alice", twoPlayerSeeds("alice", "bob"));
+        const stub = makeMutationCtx("alice", twoPlayerSeeds("alice", "bob"));
 
         await runConcede(stub.ctx, {
             gameId: "game-1" as Id<"games">,
@@ -295,7 +238,7 @@ describe("concede — the caller must own the seat they name (issue #1645 review
         // in games), so in a game bound to NO event — nothing to score, no
         // standings row — `-p2` must stay conceded-able by its own owner.
         const seeds = twoPlayerSeeds("alice-p1", "alice-p2");
-        const stub = makeCtx("alice", seeds);
+        const stub = makeMutationCtx("alice", seeds);
         expect(stub.doc("game-1").limitedPairing).toBeUndefined();
 
         await runConcede(stub.ctx, {
@@ -323,7 +266,7 @@ describe("concede on an already-finished Game (issue #9310)", () => {
     };
 
     it("resolves without throwing and leaves the stored state untouched", async () => {
-        const stub = makeCtx("bob", finishedSeeds());
+        const stub = makeMutationCtx("bob", finishedSeeds());
         const before = structuredClone(stub.doc("gs-1"));
         const gameBefore = structuredClone(stub.doc("game-1"));
 
@@ -338,7 +281,7 @@ describe("concede on an already-finished Game (issue #9310)", () => {
     });
 
     it("still refuses a caller who does not own the seat", async () => {
-        const stub = makeCtx("bob", finishedSeeds());
+        const stub = makeMutationCtx("bob", finishedSeeds());
 
         await expect(
             runConcede(stub.ctx, {
@@ -362,7 +305,7 @@ describe("concede on an already-finished Game (issue #9310)", () => {
 // only — never on ordinary gameplay, which the last test here pins down.
 describe("event-bound vs-AI pairing — the bot's seat cannot be resigned (issue #1645 review)", () => {
     it("refuses to concede the BOT's seat when the Game is bound to a round pairing", async () => {
-        const stub = makeCtx(
+        const stub = makeMutationCtx(
             "alice",
             twoPlayerSeeds("alice-p1", "alice-p2", EVENT_PAIRING)
         );
@@ -381,7 +324,7 @@ describe("event-bound vs-AI pairing — the bot's seat cannot be resigned (issue
     it("still lets the HUMAN concede their own seat in that same pairing", async () => {
         // The gate is aimed at the bot's handle only — a real resignation by
         // the human must still end the Game and score the pairing normally.
-        const stub = makeCtx(
+        const stub = makeMutationCtx(
             "alice",
             twoPlayerSeeds("alice-p1", "alice-p2", EVENT_PAIRING)
         );
@@ -401,7 +344,7 @@ describe("event-bound vs-AI pairing — the bot's seat cannot be resigned (issue
         // `assertCallerOwnsSeat` (which the human passes for their own `-p2`)
         // and must NOT carry the bot-seat gate — otherwise the bot cannot
         // move and the event pairing is unplayable.
-        const stub = makeCtx(
+        const stub = makeMutationCtx(
             "alice",
             twoPlayerSeeds("alice-p1", "alice-p2", EVENT_PAIRING)
         );
@@ -453,7 +396,7 @@ describe("Bo3 Game 2+ — the bot-seat gate survives the next Game (issue #1645 
     ];
 
     it("refuses to concede the BOT's seat in Game 2 even when the games row lost the pairing mirror", async () => {
-        const stub = makeCtx("alice", gameTwoSeeds());
+        const stub = makeMutationCtx("alice", gameTwoSeeds());
         // The precondition that made this exploitable: the Game row itself
         // carries no binding at all — only the Match does.
         expect(stub.doc("game-1").limitedPairing).toBeUndefined();
@@ -471,7 +414,7 @@ describe("Bo3 Game 2+ — the bot-seat gate survives the next Game (issue #1645 
     });
 
     it("still lets the HUMAN concede their own seat in that same Game 2", async () => {
-        const stub = makeCtx("alice", gameTwoSeeds());
+        const stub = makeMutationCtx("alice", gameTwoSeeds());
 
         await runConcede(stub.ctx, {
             gameId: "game-1" as Id<"games">,
@@ -486,7 +429,7 @@ describe("Bo3 Game 2+ — the bot-seat gate survives the next Game (issue #1645 
         // Drives the REAL next-Game builder (`buildNextGameForMatch`, via
         // `continueMatch`) rather than hand-writing the row, so the assertion
         // is on what the production writer actually persists.
-        const stub = makeCtx("alice", [
+        const stub = makeMutationCtx("alice", [
             { _id: "alice", __table: "users", nickname: "Alice" },
             eventPairingMatch("sideboarding"),
         ]);
@@ -518,7 +461,7 @@ describe("Bo3 Game 2+ — the bot-seat gate survives the next Game (issue #1645 
 // safety net. The criterion is "can a caller act AS another seat?".
 describe("mill — a seat-addressed mutation the caller must own (issue #1645 review)", () => {
     it("refuses to mill the OPPONENT's library, leaving both libraries intact", async () => {
-        const stub = makeCtx("bob", twoPlayerSeeds("alice", "bob"));
+        const stub = makeMutationCtx("bob", twoPlayerSeeds("alice", "bob"));
 
         await expect(
             runMill(stub.ctx, {
@@ -535,7 +478,7 @@ describe("mill — a seat-addressed mutation the caller must own (issue #1645 re
     });
 
     it("still lets a player mill their OWN library", async () => {
-        const stub = makeCtx("bob", twoPlayerSeeds("alice", "bob"));
+        const stub = makeMutationCtx("bob", twoPlayerSeeds("alice", "bob"));
 
         await runMill(stub.ctx, {
             gameId: "game-1" as Id<"games">,
@@ -570,7 +513,7 @@ describe("cancelAutoPass — a seat-addressed mutation the caller must own (issu
     };
 
     it("refuses to clear the OPPONENT's auto-pass, leaving the state untouched", async () => {
-        const stub = makeCtx("bob", autoPassSeeds("alice", "bob"));
+        const stub = makeMutationCtx("bob", autoPassSeeds("alice", "bob"));
 
         await expect(
             runCancelAutoPass(stub.ctx, {
@@ -585,7 +528,7 @@ describe("cancelAutoPass — a seat-addressed mutation the caller must own (issu
     });
 
     it("still clears the caller's OWN auto-pass without touching priority", async () => {
-        const stub = makeCtx("bob", autoPassSeeds("alice", "bob"));
+        const stub = makeMutationCtx("bob", autoPassSeeds("alice", "bob"));
 
         await runCancelAutoPass(stub.ctx, {
             gameId: "game-1" as Id<"games">,

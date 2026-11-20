@@ -28,6 +28,7 @@ export type UserSettingsPatch = {
     density?: DensityPreference;
     motion?: MotionPreference;
     previewPreference?: PreviewPreference;
+    autoOrderPrompts?: boolean;
 };
 
 const densityValidator = v.union(
@@ -45,6 +46,7 @@ const userSettingsValidator = v.object({
     density: v.optional(densityValidator),
     motion: v.optional(motionValidator),
     previewPreference: v.optional(previewPreferenceValidator),
+    autoOrderPrompts: v.optional(v.boolean()),
 });
 
 /** Strips `_id`/`_creationTime`/`userId` off a stored row down to the wire
@@ -58,6 +60,7 @@ export function projectUserSettings(
         density: row.density,
         motion: row.motion,
         previewPreference: row.previewPreference,
+        autoOrderPrompts: row.autoOrderPrompts,
     };
 }
 
@@ -94,6 +97,7 @@ export const updateUserSettings = mutation({
         density: v.optional(densityValidator),
         motion: v.optional(motionValidator),
         previewPreference: v.optional(previewPreferenceValidator),
+        autoOrderPrompts: v.optional(v.boolean()),
     },
     returns: v.null(),
     handler: async (ctx, args) => {

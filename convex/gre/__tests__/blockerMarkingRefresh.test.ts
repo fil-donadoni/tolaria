@@ -39,7 +39,10 @@ import { confirmBlockers } from "../../game";
 import { advancePhase } from "../phases";
 import { beginApplyingStaticEffects } from "../state";
 import type { CardInstanceState, GameState } from "../state";
-import { expandSavedState } from "../../__tests__/gameMutationHarness.fixture";
+import {
+    makeMutationCtx,
+    type Row,
+} from "../../__tests__/gameMutationHarness.fixture";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../rules";
 import {
     makeInstance,
@@ -155,7 +158,6 @@ function makeCombatState(): {
 // NOTHING here calls `checkStateBasedActions` or `recomputeContinuousEffects`:
 // the only thing that can make the grant visible to the CR 510.4 decision is
 // the mutation's own marking order.
-type Row = Record<string, unknown>;
 
 type MutationHandler<A, R> = {
     _handler: (ctx: MutationCtx, args: A) => Promise<R>;
@@ -167,59 +169,6 @@ const runConfirmBlockers = (ctx: MutationCtx, args: Row) =>
         args
     );
 
-function makeCtx(userId: string, seeds: Row[]) {
-    const docs = new Map<string, Row>();
-    for (const seed of seeds) docs.set(seed._id as string, { ...seed });
-    let nextIdBySeq = 0;
-
-    const ctx = {
-        auth: {
-            getUserIdentity: async () => ({ subject: `${userId}|session1` }),
-        },
-        db: {
-            get: async (id: string) => docs.get(id) ?? null,
-            insert: async (table: string, doc: Row) => {
-                const id = `${table}-new-${nextIdBySeq++}`;
-                docs.set(id, { ...doc, _id: id, __table: table });
-                return id;
-            },
-            patch: async (id: string, patch: Row) => {
-                docs.set(id, { ...docs.get(id), ...patch });
-            },
-            query: (table: string) => ({
-                withIndex: (_name: string, fn?: (q: unknown) => unknown) => {
-                    const eqs: [string, unknown][] = [];
-                    const builder = {
-                        eq: (field: string, value: unknown) => {
-                            eqs.push([field, value]);
-                            return builder;
-                        },
-                    };
-                    fn?.(builder);
-                    const rows = [...docs.values()].filter(
-                        (d) =>
-                            d.__table === table &&
-                            eqs.every(([f, v]) => d[f] === v)
-                    );
-                    const ordered = { first: async () => rows[0] ?? null };
-                    return {
-                        collect: async () => rows,
-                        first: async () => rows[0] ?? null,
-                        order: () => ordered,
-                    };
-                },
-            }),
-        },
-        scheduler: { runAfter: async () => undefined },
-    };
-
-    return {
-        ctx: ctx as unknown as MutationCtx,
-        doc: (id: string) => docs.get(id)!,
-        state: () => expandSavedState(docs.values(), docs.get("gs-1")!),
-    };
-}
-
 describe("confirmBlockers refreshes isBlocking-conditioned statics before draining auto-passes (CR 509.1a / 510.4, issue #1826)", () => {
     it("both seats auto-passing: the granted first strike survives the drain, so FIRST_STRIKE_DAMAGE is not skipped and the blocker lives", async () => {
         const { state } = makeCombatState();
@@ -229,7 +178,7 @@ describe("confirmBlockers refreshes isBlocking-conditioned statics before draini
         // (`autoPassPlayers` is written only by `endTurn` / `cancelAutoPass`).
         state.autoPassPlayers = ["p1", "p2"];
 
-        const stub = makeCtx("p2", [
+        const stub = makeMutationCtx("p2", [
             {
                 _id: "game-1",
                 __table: "games",
@@ -342,7 +291,7 @@ describe("confirmBlockers records hasBlockedThisTurn (CR 506.4, issue #1826)", (
         // nor blocked, so the assertion below cannot be vacuously true.
         expect(boltCanTarget(state)).toBe(false);
 
-        const stub = makeCtx("p2", [
+        const stub = makeMutationCtx("p2", [
             {
                 _id: "game-1",
                 __table: "games",
