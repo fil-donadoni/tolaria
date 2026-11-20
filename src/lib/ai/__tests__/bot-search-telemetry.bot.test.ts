@@ -505,6 +505,46 @@ describe("openBotSearchReport", () => {
         expect(log).toHaveBeenCalledTimes(1);
     });
 
+    it("forces the SDK's log buffer out right after the report (issue #10320)", () => {
+        const order: string[] = [];
+        vi.spyOn(botSearchSink, "log").mockImplementation(() => {
+            order.push("log");
+        });
+        const flush = vi
+            .spyOn(botSearchSink, "flush")
+            .mockImplementation(() => {
+                order.push("flush");
+                return Promise.resolve(true);
+            });
+        const report = openBotSearchReport("game1");
+        report.record(searched());
+        report.flush();
+        report.flush();
+
+        expect(flush).toHaveBeenCalledTimes(1);
+        expect(order).toEqual(["log", "flush"]);
+    });
+
+    it("swallows a throwing or rejecting flush", async () => {
+        vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
+        const flush = vi
+            .spyOn(botSearchSink, "flush")
+            .mockImplementation(() => {
+                throw new Error("transport is down");
+            });
+        const throwing = openBotSearchReport("game1");
+        throwing.record(searched());
+        expect(() => throwing.flush()).not.toThrow();
+
+        flush.mockImplementation(() => Promise.reject(new Error("offline")));
+        const rejecting = openBotSearchReport("game2");
+        rejecting.record(searched());
+        expect(() => rejecting.flush()).not.toThrow();
+        // A rejection left unhandled would fail the run on the next tick.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(flush).toHaveBeenCalledTimes(2);
+    });
+
     it("swallows a throwing sink", () => {
         vi.spyOn(botSearchSink, "log").mockImplementation(() => {
             throw new Error("monitoring is down");

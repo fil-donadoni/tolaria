@@ -28,6 +28,9 @@
 // derive the families and is never sent. No player, no card, no board state. `REPORT_KEYS` is the
 // allowlist; a test reds on a key outside it.
 //
+// The report is flushed out of the SDK's log buffer the moment it is logged:
+// a phone backgrounding the page gives no second chance.
+//
 // Monitoring is best-effort: a throwing sink never reaches the driver.
 
 import * as Sentry from "@sentry/react";
@@ -103,11 +106,25 @@ export type BotSearchReport = Partial<
     Record<BotSearchReportKey, string | number | boolean>
 >;
 
+/** How long the forced flush after a report may wait for the transport. The
+ *  request is ISSUED synchronously at the flush; this only bounds the wait. */
+export const BOT_SEARCH_FLUSH_TIMEOUT_MS = 2_000;
+
 /** Where a report goes. An object, so a test observes the routing by spying on
  *  it instead of mocking a module. */
 export const botSearchSink = {
     log(report: BotSearchReport): void {
         Sentry.logger.info("bot search", report);
+    },
+    /** Send the SDK's buffered logs NOW (issue #10320). The logger only
+     *  buffers; its buffer goes out on a 5 s timer or on the SDK's own
+     *  `visibilitychange` listener — registered at `Sentry.init`, so on page
+     *  hide it runs BEFORE ours and empties a buffer the report is not in yet.
+     *  A backgrounded iPhone suspends the timer and may kill the page, so the
+     *  report never left. Flushing here issues the request while the page
+     *  still runs, and the fetch transport sends it with `keepalive`. */
+    flush(): Promise<unknown> {
+        return Sentry.flush(BOT_SEARCH_FLUSH_TIMEOUT_MS);
     },
 };
 
@@ -377,6 +394,13 @@ export function openBotSearchReport(
                 );
             } catch {
                 // Monitoring never costs the game anything.
+                return;
+            }
+            try {
+                // One forced flush per game: the report is emitted once.
+                void Promise.resolve(botSearchSink.flush()).catch(() => {});
+            } catch {
+                // Neither a throwing nor a rejecting flush reaches the driver.
             }
         },
     };
