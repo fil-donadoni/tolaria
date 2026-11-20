@@ -9,8 +9,7 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
-import { getAllCards } from "../../cards";
-import type { CardDefinition } from "../../cards/types";
+import { getDefinition } from "../../cards/index";
 import { projectPublicState } from "../../gameProjections";
 import { validateBlockerEligibility } from "../combat";
 import {
@@ -49,9 +48,8 @@ function kavu(zone: "battlefield" | "graveyard" = "battlefield") {
 
 describe("Shoreline Raider is catalogued with a parseable subtype quality", () => {
     it("declares 'protection from kavu' and the parser names it", () => {
-        const def = (getAllCards() as CardDefinition[]).find(
-            (c) => c.id === SHORELINE_RAIDER
-        );
+        // Registry seam (ADR 0114): the hand-written module is retired.
+        const def = getDefinition(SHORELINE_RAIDER);
         expect(def?.staticAbilities).toEqual(["protection from kavu"]);
         expect(getProtectionQualities(raider())).toEqual([
             {
