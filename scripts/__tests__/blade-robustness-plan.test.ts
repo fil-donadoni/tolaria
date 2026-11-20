@@ -71,7 +71,7 @@ function staleMergeRefRepo(): {
     const root = mkdtempSync(join(tmpdir(), "robustness-plan-"));
     dirs.push(root);
     git(root, "init", "-q", "-b", "staging");
-    const stale = commitFiles(root, "stale base", { "README.md": "x" });
+    const stale = commitFiles(root, "stale base", { "tools/seed.txt": "x" });
     commitFiles(root, "base: Bot change", {
         "convex/gre/ai/evalWeights.ts": "export {}",
     });
