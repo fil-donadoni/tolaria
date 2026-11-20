@@ -40,6 +40,7 @@ import {
     greedyRootPick,
     searchWithTrace,
 } from "../../search";
+import { mandatoryOwnHandDiscardAnswer } from "../choiceCandidates";
 import { actedSeatFor, computeOwedActingPlayerIds } from "../../expectedInput";
 import type { DeckKnowledgeBySeat } from "../../deckKnowledge";
 import type { GameState } from "../../state";
@@ -474,6 +475,32 @@ export function bladeDeckKnowledge(
     }));
 }
 
+/** Issue #9957 — the answer a blade entry pins at a window the search never
+ *  opens: the seat under test owes the head `pendingChoices` entry, no
+ *  decision node is open (`decidingPlayer` is `null`), no announcement is
+ *  parked, and the choice is a mandatory own-hand discard, whose one answer
+ *  (`mandatoryOwnHandDiscardAnswer`) is what both the search's playout and the
+ *  live client submit. `null` everywhere else, so a mis-authored entry still
+ *  throws `BladeDeciderError`. */
+function forcedSeatAnswer(
+    state: GameState,
+    decider: string | null,
+    seatId: string
+): Move | null {
+    if (decider !== null) return null;
+    if (
+        state.pendingCast ||
+        state.pendingTarget ||
+        state.pendingActivation ||
+        state.pendingCompanionPay
+    ) {
+        return null;
+    }
+    const head = state.pendingChoices?.[0];
+    if (!head || head.playerId !== seatId) return null;
+    return mandatoryOwnHandDiscardAnswer(state, head);
+}
+
 function runBladeScenarioInner(
     scenario: BladeScenario,
     pick: BladePick
@@ -504,7 +531,11 @@ function runBladeScenarioInner(
         const seatId = actedSeatFor(state, botId) ?? botId;
         const controlling = seatId !== botId;
         const decider = decidingPlayer(state);
-        if (decider !== seatId) {
+        // Issue #9957 — a window no search runs on, but whose ONE answer the
+        // Bot shares across the search and the live client: that answer is
+        // what the entry pins.
+        const forced = forcedSeatAnswer(state, decider, seatId);
+        if (!forced && decider !== seatId) {
             throw new BladeDeciderError(
                 scenario.label,
                 scenario.bot,
@@ -513,7 +544,7 @@ function runBladeScenarioInner(
             );
         }
         const searched =
-            pick === "greedy" || controlling
+            forced || pick === "greedy" || controlling
                 ? null
                 : searchWithTrace(
                       state,
@@ -523,11 +554,13 @@ function runBladeScenarioInner(
                       bladeDeckKnowledge(state, scenario),
                       repetition
                   );
-        const move = searched
-            ? searched.move
-            : controlling
-              ? controlledSeatPick(state, seatId, botId, seed)
-              : greedyRootPick(state, botId, seed);
+        const move = forced
+            ? forced
+            : searched
+              ? searched.move
+              : controlling
+                ? controlledSeatPick(state, seatId, botId, seed)
+                : greedyRootPick(state, botId, seed);
         const reason = checkExpectation(scenario, state, move);
         seeds.push({
             seed,
