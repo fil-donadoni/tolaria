@@ -22,3 +22,11 @@ export function lobbyRouteForMatch(match: PublicMatch | null): LobbyRoute {
           }
         : { to: "/" };
 }
+
+/** The leave button's label follows its destination (issue #9990): a Match
+ *  inside a Limited Event lands on the event page, so it never says "Lobby". */
+export function leaveLabelForMatch(match: PublicMatch | null): string {
+    return lobbyRouteForMatch(match).to === "/"
+        ? "Back to Lobby"
+        : "Back to event";
+}
