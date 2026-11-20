@@ -1250,7 +1250,7 @@ describe("Vicious Kavu (CR 508.1 attacks trigger + 613.4c pump, issue #1077)", (
                 makePlayer("p2"),
             ],
         });
-        resolveTrigger(state, kavu, "vicious-kavu-attacks", {
+        resolveTrigger(state, kavu, "vicious-kavu-trigger", {
             type: "ATTACKERS_DECLARED",
             attackerIds: ["vk"],
         } as never);

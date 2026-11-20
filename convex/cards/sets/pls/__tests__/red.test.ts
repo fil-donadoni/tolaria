@@ -1044,7 +1044,7 @@ describe("Mogg Sentry (opponent-spell-cast trigger, pump targets $source, CR 603
             ...sentry,
             zone: "stack",
             castById: "p1",
-            triggeredAbilityId: "mogg-sentry-pump",
+            triggeredAbilityId: "mogg-sentry-trigger",
             triggerSourceId: sentry.id,
             triggerEvent: {
                 type: "SPELL_CAST",

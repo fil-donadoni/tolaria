@@ -1184,44 +1184,6 @@ export const smolderingTar = defineCard(() => ({
     ],
 }));
 
-// Vicious Kavu — {1}{B}{R} Creature — Kavu, 2/2. "Whenever this creature
-// attacks, it gets +2/+0 until end of turn." (CR 508.1 attack declaration +
-// CR 613.4c until-end-of-turn pump — the exact Rogue Kavu (`inv/red.ts`)
-// "attacks alone" shape, generalized to "attacks" by dropping the
-// single-attacker constraint.)
-export const viciousKavu = defineCard(() => ({
-    id: "31e9e629-7c25-4d45-aa35-9ba5f95b43cb",
-    rarity: "uncommon",
-    name: "Vicious Kavu",
-    oracleText:
-        "Whenever this creature attacks, it gets +2/+0 until end of turn.",
-    manaCost: { X: 1, B: 1, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Kavu"],
-    power: 2,
-    toughness: 2,
-    triggeredAbilities: [
-        {
-            id: "vicious-kavu-attacks",
-            oracleText:
-                "Whenever this creature attacks, it gets +2/+0 until end of turn.",
-            event: "ATTACKERS_DECLARED",
-            matches: (event, self) =>
-                event.type === "ATTACKERS_DECLARED" &&
-                event.attackerIds.includes(self.id),
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 2,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-}));
-
 // ─────────────────────────────────────────────────────────────────────────
 // BR tranche — deferred cards (issue #1077). Roll-up re-verified against
 // `main` @ 5ef6930c by the #1120 tracker audit (2026-08-04); #1120 itself is

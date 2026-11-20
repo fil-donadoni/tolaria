@@ -35,7 +35,7 @@ function resolveEtbTrigger(state: GameState, source: CardInstanceState): void {
         ...source,
         zone: "stack",
         castById: source.controllerId,
-        triggeredAbilityId: "ravenous-rats-etb",
+        triggeredAbilityId: "ravenous-rats-trigger",
         triggerSourceId: source.id,
         triggerEvent: {
             type: "PERMANENT_ENTERED",

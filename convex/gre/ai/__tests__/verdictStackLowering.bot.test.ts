@@ -630,7 +630,10 @@ function withTrigger(
     abilityId: string,
     rewrite: (ability: TriggeredAbility) => TriggeredAbility
 ): CardDefinition {
-    const def = getCardByName(name);
+    // The EXPANDED definition: a compiled card (ADR 0114) keeps its triggers as
+    // descriptors until `getDefinition` rebuilds them, so a variant spread from
+    // the raw row would lose the rewrite on its way back through the seam.
+    const def = getDefinition(getCardByName(name).id);
     return {
         ...def,
         triggeredAbilities: (def.triggeredAbilities ?? []).map((ability) =>
@@ -692,7 +695,7 @@ describe("a trigger that cannot read its event is declared without the fields th
         const state = soulNetTokenDeathPosition();
         const botId = state.players[0].id;
         expect(state.stack.map((item) => item.triggeredAbilityId)).toEqual([
-            "soul-net-life",
+            "soul-net-trigger",
         ]);
         expectJudgeable(state, botId);
 
@@ -1030,12 +1033,12 @@ describe("a trigger the spec cannot declare is refused by field (issue #3516)", 
      *  that is in no zone at all — and Soul Net's own script never reads it,
      *  so the refusal is asked of a variant that DOES (issue #9868): the
      *  shipped ability with an intervening-if in front of it (CR 603.4). */
-    it("names the event field — `me Soul Net trigger:soul-net-life: triggerEvent:creatureInstanceId`", () => {
+    it("names the event field — `me Soul Net trigger:soul-net-trigger: triggerEvent:creatureInstanceId`", () => {
         const state = soulNetTokenDeathPosition();
         const botId = state.players[0].id;
         expect(state.stack).toHaveLength(1);
         withTemporaryDefinition(
-            withTrigger("Soul Net", "soul-net-life", (ability) => ({
+            withTrigger("Soul Net", "soul-net-trigger", (ability) => ({
                 ...ability,
                 interveningIf: () => true,
             })),
@@ -1045,7 +1048,7 @@ describe("a trigger the spec cannot declare is refused by field (issue #3516)", 
                 if (outcome.ok) return;
                 expect(outcome.kind).toBe("stack-not-lowerable");
                 expect(outcome.error).toContain(
-                    "trigger:soul-net-life: triggerEvent:creatureInstanceId"
+                    "trigger:soul-net-trigger: triggerEvent:creatureInstanceId"
                 );
             }
         );

@@ -20,7 +20,7 @@ import {
 } from "../../types";
 import {} from "../../abilities";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
-import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
+
 import { damageTakenTrigger } from "../../abilities/triggers/damageTakenTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -990,48 +990,6 @@ export const tsunami = defineCard(() => ({
             },
             effects: [{ op: "destroy", target: { ref: "$each" } }],
         },
-    ],
-}));
-
-// Verduran Enchantress — "Whenever you cast an enchantment spell, you may
-// draw a card." (CR 603.2 spell-cast trigger; CR 117.3a optional). The
-// trigger goes on top of the casting spell and resolves before it.
-export const verduranEnchantress = defineCard(() => ({
-    id: "9f87178b-1221-4d7a-a7a5-20d7f01b8089",
-    rarity: "rare",
-    name: "Verduran Enchantress",
-    oracleText: "Whenever you cast an enchantment spell, you may draw a card.",
-    manaCost: { X: 1, G: 2 },
-    types: ["Creature"],
-    subtypes: ["Human", "Druid"],
-    power: 0,
-    toughness: 2,
-    triggeredAbilities: [
-        spellCastTrigger({
-            id: "verduran-enchantress-draw",
-            oracleText:
-                "Whenever you cast an enchantment spell, you may draw a card.",
-            scope: "you",
-            filter: { types: "Enchantment" },
-            // Migrated resolve()→effects[] (ADR 0045, closes #1264/#1250): a
-            // bare cost-free "you may" decision (`mayPay` with `cost`
-            // omitted, issue #680) gates the DSL `draw` Op — the interpreter's
-            // suspend-capable draw seam (ADR 0061) now also makes this an
-            // interactive-replacement-aware draw (Zur's Weirding).
-            effects: [
-                {
-                    op: "mayPay",
-                    player: "controller",
-                    prompt: "Draw a card?",
-                    bind: "$paid",
-                },
-                {
-                    op: "if",
-                    predicate: { binding: "$paid" },
-                    then: [{ op: "draw", player: "controller", count: 1 }],
-                },
-            ],
-        }),
     ],
 }));
 

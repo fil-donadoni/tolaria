@@ -47,7 +47,7 @@ function projectedSylvanPick(life = 20) {
         drawnThisTurn: ["h0"],
         life,
     });
-    resolveTrigger(state, sylvan, "sylvan-library-draw-step", drawStepEvent);
+    resolveTrigger(state, sylvan, "sylvan-library-trigger", drawStepEvent);
     answerChoice(state, ["yes"]); // "you may draw two additional cards"
     return projectPublicState(state, 1, "p1");
 }

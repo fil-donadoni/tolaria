@@ -17,7 +17,7 @@
 //     against the board after the other, through that same probe.
 
 import { describe, expect, it } from "vitest";
-import { getCardByName } from "../../../cards";
+import { getCardByName, getDefinition } from "../../../cards";
 import type { ScenarioSpec } from "../../../debugScenarioSpec";
 import type { GameState } from "../../state";
 import { cloneGameState } from "../../clone";
@@ -365,7 +365,7 @@ describe("an escaped permanent's sacrifice in flight is not charged (issue #4901
 
 describe("value model — latent vs realized faces (issue #4758)", () => {
     it("the realized reading leaves an ETB Ability out; the latent one counts it", () => {
-        const ftk = getCardByName("Flametongue Kavu");
+        const ftk = getDefinition(getCardByName("Flametongue Kavu").id);
         expect(dslRealizedAbilityScriptValue(ftk)).toBe(0);
         expect(dslAbilityScriptValue(ftk)).toBeGreaterThan(0);
     });

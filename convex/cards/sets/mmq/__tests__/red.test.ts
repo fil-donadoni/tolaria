@@ -46,7 +46,7 @@ describe("Squee, Goblin Nabob (CR 603.6e graveyard-zone upkeep trigger, CR 117.3
         const triggers = collectTriggers(state, [upkeep]);
         expect(triggers).toHaveLength(1);
         expect(triggers[0].triggeredAbilityId).toBe(
-            "squee-goblin-nabob-upkeep-return"
+            "squee-goblin-nabob-trigger"
         );
     });
 

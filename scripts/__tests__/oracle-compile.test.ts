@@ -491,10 +491,10 @@ describe("the committed lockfile", () => {
         // on their `data/card-index.json` row. Retirement (ADR 0114 §2) moves
         // a card's row to `source: "compiled"` without losing coverage, so
         // each migration wave shrinks the pool by design and lowers this
-        // floor (now 1095, issue #4037).
+        // floor (now 1067, issue #4034).
         const premodern = deriveFormats(lock!.cards, poolOracleIds()).premodern;
         expect(premodern.total).toBe(5375);
-        expect(premodern.pool).toBeGreaterThanOrEqual(1095);
+        expect(premodern.pool).toBeGreaterThanOrEqual(1067);
     });
 });
 

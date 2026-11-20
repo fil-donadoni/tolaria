@@ -90,12 +90,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 119.4)", () =
             libIds: ["l0", "l1", "l2"],
             drawnThisTurn: ["h0"],
         });
-        resolveTrigger(
-            state,
-            sylvan,
-            "sylvan-library-draw-step",
-            drawStepEvent
-        );
+        resolveTrigger(state, sylvan, "sylvan-library-trigger", drawStepEvent);
         // Step 0 — "you may draw two additional cards".
         answerChoice(state, ["yes"]);
         const p1 = () => state.players[0];
@@ -126,12 +121,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 119.4)", () =
             libIds: ["l0", "l1"],
             drawnThisTurn: ["h0"],
         });
-        resolveTrigger(
-            state,
-            sylvan,
-            "sylvan-library-draw-step",
-            drawStepEvent
-        );
+        resolveTrigger(state, sylvan, "sylvan-library-trigger", drawStepEvent);
         answerChoice(state, ["yes"]); // draw l0, l1 → N = 2
         answerChoice(state, ["h0", "l0"]); // topdeck both
         const p1 = state.players[0];
@@ -148,12 +138,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 119.4)", () =
             libIds: ["l0", "l1"],
             drawnThisTurn: ["h0"],
         });
-        resolveTrigger(
-            state,
-            sylvan,
-            "sylvan-library-draw-step",
-            drawStepEvent
-        );
+        resolveTrigger(state, sylvan, "sylvan-library-trigger", drawStepEvent);
         answerChoice(state, ["yes"]); // draw l0, l1 → N = 2
         answerChoice(state, ["h0", "l0"]); // topdeck both
         const lib = state.players[0].library;
@@ -179,12 +164,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 119.4)", () =
             libIds: ["l0", "l1"],
             drawnThisTurn: ["h0"],
         });
-        resolveTrigger(
-            state,
-            sylvan,
-            "sylvan-library-draw-step",
-            drawStepEvent
-        );
+        resolveTrigger(state, sylvan, "sylvan-library-trigger", drawStepEvent);
         answerChoice(state, ["yes"]); // N = 2
         answerChoice(state, []); // topdeck none — pay 4 × 2 = 8
         const p1 = state.players[0];
@@ -200,12 +180,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 119.4)", () =
             libIds: ["l0", "l1"],
             drawnThisTurn: ["h0"],
         });
-        resolveTrigger(
-            state,
-            sylvan,
-            "sylvan-library-draw-step",
-            drawStepEvent
-        );
+        resolveTrigger(state, sylvan, "sylvan-library-trigger", drawStepEvent);
         answerChoice(state, ["no"]);
         const p1 = state.players[0];
         expect(p1.hand.map((c) => c.id)).toEqual(["h0"]);
@@ -225,12 +200,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 119.4)", () =
             libIds: ["l0"], // only one card to draw → N capped by pool
             drawnThisTurn: ["h0"],
         });
-        resolveTrigger(
-            state,
-            sylvan,
-            "sylvan-library-draw-step",
-            drawStepEvent
-        );
+        resolveTrigger(state, sylvan, "sylvan-library-trigger", drawStepEvent);
         answerChoice(state, ["yes"]); // draws l0 only (lib had 1)
         const head = state.pendingChoices?.[0];
         // drawn-this-turn-in-hand = [h0, l0] → N = min(2, 2) = 2 here, but if
@@ -250,12 +220,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 119.4)", () =
             drawnThisTurn: ["h0"],
             life: 6,
         });
-        resolveTrigger(
-            state,
-            sylvan,
-            "sylvan-library-draw-step",
-            drawStepEvent
-        );
+        resolveTrigger(state, sylvan, "sylvan-library-trigger", drawStepEvent);
         answerChoice(state, ["yes"]); // N = 2
         const head = state.pendingChoices?.[0];
         expect(head?.count).toEqual({ min: 1, max: 2 });
@@ -274,12 +239,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 119.4)", () =
             drawnThisTurn: ["h0"],
             life: 3,
         });
-        resolveTrigger(
-            state,
-            sylvan,
-            "sylvan-library-draw-step",
-            drawStepEvent
-        );
+        resolveTrigger(state, sylvan, "sylvan-library-trigger", drawStepEvent);
         answerChoice(state, ["yes"]); // N = 2
         const head = state.pendingChoices?.[0];
         expect(head?.count).toEqual({ min: 2, max: 2 });
@@ -300,12 +260,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 119.4)", () =
             libIds: ["l0", "l1", "l2"],
             drawnThisTurn: ["h0"],
         });
-        resolveTrigger(
-            state,
-            sylvan,
-            "sylvan-library-draw-step",
-            drawStepEvent
-        );
+        resolveTrigger(state, sylvan, "sylvan-library-trigger", drawStepEvent);
         const submit = (ids: string[]) => {
             const head = state.pendingChoices![0];
             applyPendingChoiceSubmit(state, {
@@ -340,12 +295,7 @@ describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 119.4)", () =
             libIds: ["l0", "l1"],
             drawnThisTurn: ["h0"],
         });
-        resolveTrigger(
-            state,
-            sylvan,
-            "sylvan-library-draw-step",
-            drawStepEvent
-        );
+        resolveTrigger(state, sylvan, "sylvan-library-trigger", drawStepEvent);
         answerChoice(state, ["yes"]);
         answerChoice(state, ["l0"]); // topdeck l0; keep one of N → pay 4
         const projected = projectPublicState(state, 1, "p1");

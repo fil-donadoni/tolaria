@@ -398,7 +398,7 @@ describe("Murk Dwellers — attacks unblocked → +2/+0 (CR 509.1h ATTACKER_UNBL
         emitBlockersConfirmedEvents(state);
         // The unblocked-pump trigger is now on the stack.
         const trig = state.stack.find(
-            (s) => s.triggeredAbilityId === "murk-dwellers-unblocked-pump"
+            (s) => s.triggeredAbilityId === "murk-dwellers-trigger"
         );
         expect(trig).toBeDefined();
     });
@@ -423,7 +423,7 @@ describe("Murk Dwellers — attacks unblocked → +2/+0 (CR 509.1h ATTACKER_UNBL
             attackerTypes: ["Creature"],
             attackerSubtypes: ["Zombie"],
         } as StackItem["triggerEvent"];
-        resolveTrigger(state, dweller, "murk-dwellers-unblocked-pump", event);
+        resolveTrigger(state, dweller, "murk-dwellers-trigger", event);
         const pumped = state.players[0].battlefield.find(
             (c) => c.id === "dweller"
         )!;

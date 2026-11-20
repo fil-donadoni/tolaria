@@ -4,8 +4,7 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import { defineCard } from "../../types";
-import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
+
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 
@@ -35,83 +34,6 @@ export const lavaDart = defineCard(() => ({
     flashback: { sacrifice: { subtypes: "Mountain" } },
     targetRequirement: { type: "any", count: 1 },
     effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
-}));
-
-// Goblin Pyromancer — {3}{R} 2/2 Goblin Wizard. Two independent triggered
-// abilities, one Oracle line each (CR 603.2):
-//
-//   1. "When this creature enters, Goblin creatures get +3/+0 until end of
-//      turn." (CR 603.6a ETB, CR 613.4c layer 7c, CR 611.2 duration.) A
-//      `forEach` over every Goblin creature on the battlefield — the Oracle
-//      line names no controller, so the pump reaches the opponent's Goblins
-//      too — each one taking the same `pump`, the History of Benalia
-//      (`dom/white.cards.ts`) shape with the subtype swapped.
-//   2. "At the beginning of the end step, destroy all Goblins." (CR 603.6a
-//      phase trigger on EVERY end step, not just its controller's — hence
-//      `scope: "each"` — and CR 701.8's destroy over the same `forEach`
-//      sweep Tivadar's Crusade (`drk/white.cards.ts`) uses. Regeneration is NOT
-//      denied: the printed line has no "can't be regenerated" clause, so no
-//      `cantBeRegenerated` flag. The Pyromancer is itself a Goblin and dies
-//      to its own trigger.)
-export const goblinPyromancer = defineCard(() => ({
-    id: "bb4815b7-fc20-44a4-ad1c-66d92993557f", // ONS 206
-    rarity: "rare",
-    name: "Goblin Pyromancer",
-    oracleText:
-        "When this creature enters, Goblin creatures get +3/+0 until end of turn.\nAt the beginning of the end step, destroy all Goblins.",
-    manaCost: { X: 3, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Goblin", "Wizard"],
-    power: 2,
-    toughness: 2,
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "goblin-pyromancer-etb-pump",
-            oracleText:
-                "When this creature enters, Goblin creatures get +3/+0 until end of turn.",
-            scope: "self",
-            effects: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        filter: { type: "Creature", subtype: "Goblin" },
-                    },
-                    effects: [
-                        {
-                            op: "pump",
-                            target: { ref: "$each" },
-                            power: 3,
-                            toughness: 0,
-                            duration: { phase: "end-of-turn" },
-                        },
-                    ],
-                },
-            ],
-        }),
-        phaseTrigger({
-            id: "goblin-pyromancer-end-step-sweep",
-            oracleText:
-                "At the beginning of the end step, destroy all Goblins.",
-            phase: "END_STEP",
-            scope: "each",
-            effects: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        // "all GOBLINS", not "all Goblin creatures" — every
-                        // permanent with the subtype, so a Goblin that has
-                        // stopped being a creature (layer 4) still dies.
-                        filter: { subtype: "Goblin" },
-                    },
-                    effects: [{ op: "destroy", target: { ref: "$each" } }],
-                },
-            ],
-        }),
-    ],
 }));
 
 // Goblin Sharpshooter — {2}{R} 1/1 Goblin, three Oracle lines that compose

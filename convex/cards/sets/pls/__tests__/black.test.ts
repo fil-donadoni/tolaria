@@ -971,7 +971,7 @@ describe("Phyrexian Bloodstock (CR 603.10 leaves-the-battlefield trigger with a 
         // sole-legal-target precedent (`cn2/__tests__/white.test.ts`).
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].triggeredAbilityId).toBe(
-            "phyrexian-bloodstock-ltb"
+            "phyrexian-bloodstock-trigger"
         );
         resolveTopOfStack(state);
         expect(state.players[1].battlefield).toHaveLength(0);

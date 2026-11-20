@@ -1437,7 +1437,7 @@ describe("Verduran Enchantress (may draw on enchantment cast)", () => {
         expect(
             (top as StackItem & { triggeredAbilityId?: string })
                 .triggeredAbilityId
-        ).toBe("verduran-enchantress-draw");
+        ).toBe("verduran-enchantress-trigger");
 
         // Resolve the trigger: it suspends on the cost-free "you may" gate.
         expect(resolveTopOfStack(state)).toBeNull();
