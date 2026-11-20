@@ -28,8 +28,8 @@
 // derive the families and is never sent. No player, no card, no board state. `REPORT_KEYS` is the
 // allowlist; a test reds on a key outside it.
 //
-// The report is flushed out of the SDK's log buffer the moment it is logged
-// (issue #10320): a phone backgrounding the page gives no second chance.
+// The report is flushed out of the SDK's log buffer the moment it is logged:
+// a phone backgrounding the page gives no second chance.
 //
 // Monitoring is best-effort: a throwing sink never reaches the driver.
 
