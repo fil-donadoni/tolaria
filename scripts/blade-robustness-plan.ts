@@ -1,6 +1,6 @@
 /**
  * What the blade robustness audit owes a PR (issue #9361): the health trigger
- * (`lib/health-robustness-trigger.ts`, issue #5078) read on the PR's diff
+ * (`lib/health-robustness-trigger.ts`) read on the PR's diff
  * instead of a batch range.
  *
  *   bun scripts/blade-robustness-plan.ts

@@ -25,7 +25,7 @@
  * `BLADE_ROBUSTNESS_PART` (`"i/N"`) narrows each shard further to part i of
  * a cost-balanced N-way split of its slice (`costBalancedSlice`, cost = the
  * entry's search iterations): the PR-side audit
- * (`.github/workflows/blade-robustness.yml`, issue #10319) runs N part jobs,
+ * (`.github/workflows/blade-robustness.yml`) runs N part jobs,
  * each running all four shard files on its runner's four workers. Unset (the
  * health run) audits the whole slice.
  *
