@@ -8,7 +8,9 @@
  * permanent still staged, so casting Meddling Mage always read worse than
  * passing and the Bot never cast one. `advanceToDecision` now applies the
  * forced answer (`forcedChoiceAnswer`): one legal name, picked from the cards
- * the chooser can already see.
+ * the chooser can already see. Since issue #10225 a name LOCK's window is an
+ * in-tree node of that one branch (the chooser decides it), ranked by what the
+ * lock denies the opponent.
  */
 
 import { describe, expect, it } from "vitest";
@@ -22,7 +24,7 @@ import {
     applyMoveInSearch,
     decidingPlayer,
 } from "../../search";
-import { forcedChoiceAnswer } from "../choiceCandidates";
+import { forcedChoiceAnswer, settleAnswers } from "../choiceCandidates";
 import { buildPositionFromSpec } from "../blade/build";
 
 type SpecCard = ScenarioSpec["cards"][number];
@@ -96,15 +98,20 @@ function midCabalTherapy(): GameState {
 }
 
 describe("advanceToDecision — a name-card window is answered, not scored (issue #6676)", () => {
-    it("the position the walk used to stop at: the as-enters name, no decider", () => {
+    it("the position the walk used to stop at: the as-enters name, now the chooser's node (issue #10225)", () => {
         const mid = midMeddlingMage([]);
         expect(mid.pendingChoices?.[0]?.kind).toBe("name-card");
-        expect(decidingPlayer(mid)).toBeNull();
+        // A name LOCK's window is an in-tree node of one branch: the walk
+        // stops at a decision, never at a leaf with the spell spent.
+        expect(decidingPlayer(mid)).toBe(mid.activePlayerId);
         expect(battlefieldMage(mid)).toBeUndefined();
     });
 
     it("lands the permanent with a legal nonland name (CR 614.1c, CR 201.4a)", () => {
         const mid = midMeddlingMage([]);
+        const answers = settleAnswers(mid, mid.pendingChoices![0]!);
+        expect(answers).toHaveLength(1);
+        applyMoveInSearch(mid, mid.activePlayerId, answers[0]!);
         expect(advanceToDecision(mid)).toBe(mid.activePlayerId);
         expect(mid.pendingChoices ?? []).toHaveLength(0);
         // The only nonland name in sight is the Mage's own.

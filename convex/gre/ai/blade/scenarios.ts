@@ -16412,6 +16412,37 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #9551 — at `expert` the Bot knows the decklist, yet named a card absent from it: the name window was no search node, so the decklist the search samples hands from never reached the name. Proof of failure: `nameSoughtInHandOf` returning `undefined` makes the window no search node and the runner refuses the entry; the live fallback named the registry's first legal nonland name.",
     },
     {
+        label: "Name lock: Pithing Needle names the opponent's non-mana activated ability, never a basic land",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Pithing Needle", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Tormod's Crypt", owner: "opp", zone: "battlefield" },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "cast", card: "Pithing Needle" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) => namesOneOf(move, ["Tormod's Crypt"]),
+            describe:
+                "names Tormod's Crypt, the one opposing source whose activated ability the lock stops (CR 602.5, 605.1a)",
+        },
+        note: 'Issue #10225 — the Bot cast Pithing Needle and named "Plains": the as-enters name was no search node and both answers (the live default\'s "Plains" rung, the search\'s alphabetical public name) ignored what the lock denies. A basic land has only mana abilities, which the Needle exempts. Proof of failure: `nameLockIsSearchable` returning `false` makes the window no search node and the runner refuses the entry.',
+    },
+    {
         label: "Oracle combo: casts Thassa's Oracle before Demonic Consultation into a possible counterspell",
         classification: {
             kind: "conditional",

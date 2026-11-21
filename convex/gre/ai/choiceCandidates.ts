@@ -93,6 +93,11 @@ import {
 } from "./asEntersDiscard";
 import { isLegalNamedCard } from "../pendingChoiceSubmit";
 import { nameSoughtInHandOf, type NameSeekingBoard } from "./handSoughtName";
+import {
+    nameLockScopeForHead,
+    rankNameLockName,
+    type NameLockBoard,
+} from "./nameLockRanking";
 import { isFaceDownExile } from "../faceDown";
 import { eligibleZonePickCards } from "../zonePickEligibility";
 import { cardValueById } from "../cardValue";
@@ -1747,6 +1752,23 @@ function asEntersDiscardAnswer(state: GameState, choice: PendingChoice): Move {
  *  `applyNameCardSubmit` enforces. The live Brain answers the same window
  *  with its own default (`nameCardDefaultFor`, `src/lib/ai/bot-view.ts`). */
 function nameCardAnswer(state: GameState, choice: PendingChoice): Move | null {
+    // Issue #10225 — a name LOCK names what it denies the opponent most, by
+    // the ranking the live Brain's default reads too. The opponent's hand is
+    // read only where the chooser was shown it (`knownTo`, CR 701.20a): a
+    // determinized hand is a guess, not knowledge.
+    const scope = nameLockScopeForHead(state, choice);
+    const locked =
+        scope &&
+        rankNameLockName(
+            state,
+            choice,
+            scope,
+            (name) => isLegalNamedCard(state, choice, name),
+            (playerId, slot) =>
+                playerId === choice.playerId ||
+                (slot?.knownTo?.includes(choice.playerId) ?? false)
+        );
+    if (locked) return { kind: "name-card", cardName: locked };
     const seen: { card: Record<string, unknown> }[] = (
         state.stagedEntries ?? []
     )
@@ -1910,15 +1932,44 @@ function nameCardIsSearchable(
 ): boolean {
     return (
         librarySoughtNameIsSearchable(choice) ||
-        nameSoughtInHandOf(choice, state) !== undefined
+        nameSoughtInHandOf(choice, state) !== undefined ||
+        nameLockIsSearchable(choice, state)
     );
 }
 
-/** The `name-card` generator: one of the two sought-name shapes, else none. */
+/** Issue #10225 — an as-enters name whose entering card is a name LOCK
+ *  (CR 614.12a; `nameLockScopeOf`) is an in-tree node, so the decision is
+ *  the Bot's own and a blade entry can pin it. Reads only the staged entry,
+ *  present on the projected state too. */
+function nameLockIsSearchable(
+    choice: PendingChoice,
+    state: Pick<NameLockBoard, "stagedEntries"> | undefined
+): boolean {
+    return (
+        state !== undefined &&
+        isStacklessEntryPark(choice) &&
+        nameLockScopeForHead(state, choice) !== undefined
+    );
+}
+
+/** The name-lock node's ONE branch: `nameCardAnswer`'s ranked name (the
+ *  denied value is not a term the evaluation reads, so more branches would
+ *  tie and the pick would be rollout noise), else its legal fallback. */
+const nameLockCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    const answer = nameCardAnswer(state, choice);
+    return answer?.kind === "name-card"
+        ? [{ key: `name:${answer.cardName}`, move: answer }]
+        : [];
+};
+
+/** The `name-card` generator: one of the two sought-name shapes, the name
+ *  lock, else none. */
 const nameCardCandidates: ChoiceCandidateGenerator = (state, choice) =>
     librarySoughtNameIsSearchable(choice)
         ? librarySoughtNameCandidates(state, choice)
-        : handSoughtNameCandidates(state, choice);
+        : nameLockIsSearchable(choice, state)
+          ? nameLockCandidates(state, choice)
+          : handSoughtNameCandidates(state, choice);
 
 /** The answers a SETTLE weighs at `choice` (issue #4896): the in-tree
  *  candidates — whatever the search would open at that node — else the one
@@ -3301,7 +3352,9 @@ const chooseDamageTargetCandidates: ChoiceCandidateGenerator = (
 /** The board an applicability gate may read — a `GameState` or the projected
  *  public one: the battlefield for a graveyard-position reader, the stack for
  *  the script a name window resolves through. */
-export type CandidateGateBoard = ReaderBoard & NameSeekingBoard;
+export type CandidateGateBoard = ReaderBoard &
+    NameSeekingBoard &
+    Pick<NameLockBoard, "stagedEntries">;
 
 /** The applicability gate `graveyardOrderCandidates` declines on — ONE
  *  predicate for gate and generator. CR 404.3 (issue #9555): the arrangement

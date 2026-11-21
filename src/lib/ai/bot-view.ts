@@ -16,6 +16,10 @@ import type {
 } from "@convex/gameProjections";
 import { nonZoneChoiceCandidateIds } from "@convex/gre/ai/nonZoneChoiceCandidates";
 import { nameSoughtInHandOf } from "@convex/gre/ai/handSoughtName";
+import {
+    nameLockScopeForHead,
+    rankNameLockName,
+} from "@convex/gre/ai/nameLockRanking";
 import type { Move, PendingChoice } from "@convex/gre";
 import {
     getPendingChoiceMin,
@@ -1068,6 +1072,20 @@ function nameCardDefaultFor(
             : undefined;
     const knownInHand = knownHandNameFor(state, head, legal);
     if (knownInHand !== undefined) return knownInHand;
+    // Issue #10225 — an as-enters name LOCK names what it denies the
+    // opponent most, by the SAME ranking the search's forced answer reads.
+    // A projected hand slot is non-null only where the bot knows the card.
+    const scope = nameLockScopeForHead(state, head);
+    const locked =
+        scope &&
+        rankNameLockName(
+            state,
+            head,
+            scope,
+            (name) => legal(name) !== undefined,
+            () => true
+        );
+    if (locked) return locked;
     const owner = state.players.find((p) => p.id === head.playerId);
     // The projected library is sparse (ADR 0026): `{ count, known }` carrying
     // only cards the viewer knows, each at its top-relative `index`. The top
