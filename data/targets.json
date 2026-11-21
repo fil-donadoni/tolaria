@@ -68,6 +68,11 @@
             "source": "data/json/4ED.json"
         },
         {
+            "id": "set-blb",
+            "kind": "set",
+            "source": "data/json/BLB.json"
+        },
+        {
             "id": "set-apc",
             "kind": "set",
             "source": "data/json/APC.json",
