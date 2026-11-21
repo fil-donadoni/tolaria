@@ -7476,10 +7476,11 @@ function clearsBlockerBeforeOwnAttack(
             .filter((c) => isCreature(c) && !c.isTapped)
             .map((c) => c.id)
     );
-    for (const id of blockersOf(state, pid, attackerIds)) {
-        if (!standing.has(id)) return true;
-    }
-    return false;
+    let cleared = false;
+    blockersOf(state, pid, attackerIds).forEach((id) => {
+        if (!standing.has(id)) cleared = true;
+    });
+    return cleared;
 }
 
 /** The ids of the untapped creatures `pid`'s opponents control that may
@@ -7495,9 +7496,13 @@ function blockersOf(
         attackerIds.includes(c.id)
     );
     const ids = new Set<string>();
-    for (const opp of state.players) {
+    const oppList = state.players;
+    for (let i = 0; i < oppList.length; i++) {
+        const opp = oppList[i];
         if (opp.id === pid) continue;
-        for (const blocker of opp.battlefield) {
+        const blockerList = opp.battlefield;
+        for (let j = 0; j < blockerList.length; j++) {
+            const blocker = blockerList[j];
             if (!isCreature(blocker) || blocker.isTapped) continue;
             if (
                 attackers.some(
