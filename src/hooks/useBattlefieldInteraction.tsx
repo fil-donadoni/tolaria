@@ -450,21 +450,20 @@ export function useBattlefieldInteraction(player: Player) {
      *  inputs (`allPlayers`, the freshly-built `controlContinuity` literal)
      *  change on every render that matters, so a memo would buy nothing and
      *  only risk handing a stale board to the affordance gates. */
-    const abilityStateView = {
-        ...buildTriggerStateView(
-            allPlayers,
-            activePlayerId,
-            cannotActivateAbilitiesThisTurn,
-            lifeGainedThisTurn,
-            controlContinuity,
-            continuousEffects,
-            emblems
-        ),
-        // The sorcery-speed window (CR 307.5) needs an empty stack: the same
-        // list the server's gate reads, so Equip is not offered in your own
-        // main phase while a trigger waits on the stack (issue #10397).
-        stack: stackItems,
-    };
+    const abilityStateView = buildTriggerStateView(
+        allPlayers,
+        activePlayerId,
+        cannotActivateAbilitiesThisTurn,
+        lifeGainedThisTurn,
+        controlContinuity,
+        continuousEffects,
+        emblems,
+        // The sorcery window (CR 307.1) needs an empty stack and the priority
+        // holder: the same facts the server's gate reads, so Equip or a
+        // loyalty ability is not offered in your own main phase while a spell
+        // waits on the stack (issues #10397, #10318).
+        { stack: stackItems, priorityPlayerId }
+    );
 
     // CR 613.4 — every player with the board's layer input, so the mana helpers
     // below read the P/T the server's own option list reads.

@@ -60,10 +60,11 @@ import { ninjutsuReturnCandidateIds } from "@convex/gre/ninjutsu";
 import { activationPreconditionViolation } from "@convex/gre/activationPrecondition";
 import { maxSpeedGateOpen } from "@convex/gre/speed";
 import { activationRestrictionViolation } from "@convex/gre/activationRestrictions";
-// CR 606 (issue #2491) — the shared loyalty authority. The client reads the two
-// STATE-ONLY clauses from it; the timing clause stays a documented narrowing
-// (this view has no stack length / priority holder), with the server the gate,
-// escaped by the shared instant-timing grant (issue #2606).
+// CR 606 (issue #10318) — the shared loyalty authority. The client reads the
+// two STATE-ONLY clauses from it; the timing clause asks the engine's own
+// sorcery window (`isSorceryTimingFor`), escaped by the shared instant-timing
+// grant (`loyaltyInstantTimingGranted`).
+import { isSorceryTimingFor } from "@convex/gre/phases";
 import {
     isLoyaltyAbility,
     loyaltyActivationsExhausted,
@@ -2045,7 +2046,17 @@ export function buildTriggerStateView(
      *  `GameState.emblems`. An emblem anthem (Sorin's +1/+0) lifts a
      *  creature's effective power server-side; omitting this hid Crew N from a
      *  board the server would accept. */
-    emblems?: EmblemInstance[]
+    emblems?: EmblemInstance[],
+    /** CR 307.1 / 117.1a (issue #10318) — the wire `GameState.stack` items and
+     *  `priorityPlayerId`, the two halves of the sorcery window the phase
+     *  and active player do not answer. Omitted, the view carries neither and
+     *  the ability menu's sorcery gate fails open on them: a loyalty ability
+     *  or "activate only as a sorcery" one is then offered with a spell on the
+     *  stack, and the server rejects the click. */
+    turnWindow?: {
+        stack?: TriggerStateView["stack"];
+        priorityPlayerId?: string;
+    }
 ): TriggerStateView {
     // CR 613 — the board-wide layer state, built ONCE per call and shared by
     // every permanent's effective-P/T read below (issue #3190). The
@@ -2110,6 +2121,10 @@ export function buildTriggerStateView(
         activePlayerId,
         cannotActivateAbilitiesThisTurn,
         lifeGainedThisTurn,
+        ...(turnWindow?.stack !== undefined ? { stack: turnWindow.stack } : {}),
+        ...(turnWindow?.priorityPlayerId !== undefined
+            ? { priorityPlayerId: turnWindow.priorityPlayerId }
+            : {}),
     };
 }
 
@@ -2458,7 +2473,10 @@ export function isActivationTimingAllowed(
     classLevel?: number,
     /** Whether the stack is empty, for the sorcery-speed window (CR 307.5).
      *  Omit (unknown) fails OPEN, like `phase` / `activePlayerId`. */
-    stackIsEmpty?: boolean
+    stackIsEmpty?: boolean,
+    /** The player holding priority, the sorcery window's last half
+     *  (issue #10318). Omit (unknown) fails OPEN. */
+    priorityPlayerId?: string
 ): boolean {
     if (
         ability.activationPhaseRestriction &&
@@ -2469,22 +2487,20 @@ export function isActivationTimingAllowed(
     }
     // CR 307.5 / 602.5d (issue #10397) — "activate only as a sorcery" is the
     // server's WHOLE `isSorceryTimingFor` window, not just its phase half:
-    // a main phase of the ACTIVATOR's own turn with an empty stack. The
-    // phase-only narrowing offered Equip in the opponent's main phase (and in
-    // your own with a trigger on the stack), every click a server throw. The
-    // priority-holder half is the callers' `viewerHasPriority` gate.
-    if (ability.sorcerySpeedOnly) {
-        if (
-            phase !== undefined &&
-            phase !== "PRECOMBAT_MAIN" &&
-            phase !== "POSTCOMBAT_MAIN"
-        ) {
-            return false;
-        }
-        if (activePlayerId !== undefined && activePlayerId !== turnOwnerId) {
-            return false;
-        }
-        if (stackIsEmpty === false) return false;
+    // a main phase of the ACTIVATOR's own turn, empty stack, holding
+    // priority. The phase-only narrowing offered Equip in the opponent's main
+    // phase (and in your own with a trigger on the stack), every click a
+    // server throw. Asked through the server's own predicate (issue #10318).
+    if (
+        ability.sorcerySpeedOnly &&
+        !sorceryWindowOpenForHint(turnOwnerId, {
+            phase,
+            activePlayerId,
+            stackIsEmpty,
+            priorityPlayerId,
+        })
+    ) {
+        return false;
     }
     if (
         ability.controllerTurnOnly &&
@@ -2543,10 +2559,70 @@ export function isCardActivationTimingAllowed(
         card.activationsThisTurn,
         card.hasAttackedThisTurn,
         card.classLevel,
-        stateView?.stack === undefined
-            ? undefined
-            : stateView.stack.length === 0
+        stackIsEmptyInView(stateView),
+        stateView?.priorityPlayerId
     );
+}
+
+/** Whether the view's stack is empty; `undefined` when the view carries no
+ *  stack (a caller that built it without `turnWindow`). */
+function stackIsEmptyInView(
+    stateView: TriggerStateView | undefined
+): boolean | undefined {
+    return stateView?.stack === undefined
+        ? undefined
+        : stateView.stack.length === 0;
+}
+
+/** CR 307.1 — the sorcery window for `playerId`, asked of the SERVER's own
+ *  predicate (`isSorceryTimingFor`, `convex/gre/phases.ts`) rather than a
+ *  client copy of it (issue #10318). A fact the caller does not know is filled
+ *  with the value that passes, so each half fails OPEN on its own — the
+ *  discipline every gate here follows: an unknown must never hide a legal
+ *  ability; the server's throw is the authority. */
+export function sorceryWindowOpenForHint(
+    playerId: string,
+    known: {
+        phase?: Phase;
+        activePlayerId?: string;
+        stackIsEmpty?: boolean;
+        priorityPlayerId?: string;
+    }
+): boolean {
+    return isSorceryTimingFor(
+        {
+            phase: known.phase ?? "PRECOMBAT_MAIN",
+            stack: { length: known.stackIsEmpty === false ? 1 : 0 },
+            activePlayerId: known.activePlayerId ?? playerId,
+            priorityPlayerId: known.priorityPlayerId ?? playerId,
+        },
+        playerId
+    );
+}
+
+/** CR 117.1a — does `playerId` hold priority, per the view? Fails OPEN when
+ *  the view carries no priority holder. */
+function priorityHeldInView(
+    playerId: string,
+    stateView: TriggerStateView | undefined
+): boolean {
+    const holder = stateView?.priorityPlayerId;
+    return holder === undefined || holder === playerId;
+}
+
+/** {@link sorceryWindowOpenForHint} off a `TriggerStateView` (its active
+ *  player, stack and priority holder) plus the caller's `phase`. */
+export function sorceryWindowOpenInView(
+    playerId: string,
+    phase: Phase | undefined,
+    stateView: TriggerStateView | undefined
+): boolean {
+    return sorceryWindowOpenForHint(playerId, {
+        phase,
+        activePlayerId: stateView?.activePlayerId,
+        stackIsEmpty: stackIsEmptyInView(stateView),
+        priorityPlayerId: stateView?.priorityPlayerId,
+    });
 }
 
 /** CR 400.7 — did the permanent `instanceId` enter the battlefield this turn,
@@ -2869,10 +2945,9 @@ export function getStackAbilities(
         // The two STATE-ONLY clauses come from the shared engine authority
         // (`@convex/gre/loyalty`, issue #2491) — the same predicates the server
         // wrapper and the bot's enumerator read, so a change to either rule
-        // reaches this gate too. Only the TIMING clause stays local: this view
-        // carries no stack length and no priority holder, so
-        // `loyaltyActivationViolation`'s `isSorceryTimingFor` is unavailable
-        // here and the narrowing below is the closest safe approximation.
+        // reaches this gate too. The TIMING clause reads the same
+        // `isSorceryTimingFor` the server does, off the view's stack and
+        // priority holder (issue #10318).
         if (isLoyaltyAbility(a)) {
             // CR 606.3 — the permanent's loyalty-activation ALLOWANCE for the
             // turn (one, unless its own `loyalty-activation-allowance` static
@@ -2881,39 +2956,33 @@ export function getStackAbilities(
             // the allowance off the card definition this view already names by
             // id, so a second activation the rule permits stays offered here.
             if (loyaltyActivationsExhausted(card)) return false;
-            // CR 606.3 — sorcery-speed: the controller's own MAIN PHASE. Both
-            // halves matter, and only checking the turn left the abilities
-            // offered all through combat and the end step on your own turn,
-            // where `assertLoyaltyActivationLegal` rejects every one of them.
-            // Narrowed the same way `sorcerySpeedOnly` above is — to the
-            // main-phase half of `isSorceryTiming`, since this view carries no
-            // stack length or priority holder; the server stays authoritative.
+            // CR 606.3 — the sorcery window: the controller's own main phase,
+            // empty stack, holding priority. Asked of the server's own
+            // `isSorceryTimingFor` through `sorceryWindowOpenInView`, never a
+            // narrowed copy: the phase-and-turn copy offered the +1 and −2
+            // with the controller's own sorcery on the stack, every click a
+            // server rejection (issue #10318).
             //
             // The escape (issue #2606): a permanent whose own text grants
             // instant-timing loyalty activation (The Wandering Emperor, "as
-            // long as ~ entered this turn") skips this narrowing — its window
-            // is CR 117.1a's "any time they have priority", which this view
-            // cannot narrow further. Same shared predicate the server's timing
-            // clause reads (`loyaltyInstantTimingGranted`); "entered this
-            // turn" comes from the turn-scoped `TriggerStateView` row, absent
-            // (→ fails closed) when the caller built the view without
-            // `turnState`.
+            // long as ~ entered this turn") opens CR 117.1a's window instead —
+            // any time its controller holds priority. Same shared predicate
+            // the server's timing clause reads (`loyaltyInstantTimingGranted`);
+            // "entered this turn" comes from the turn-scoped `TriggerStateView`
+            // row, absent (→ fails closed) when the caller built the view
+            // without `turnState`.
             const instantTiming = loyaltyInstantTimingGranted(
                 card,
                 enteredThisTurnInView(stateView, card.id)
             );
             if (
-                !instantTiming &&
-                stateView?.activePlayerId !== undefined &&
-                stateView.activePlayerId !== card.controllerId
-            ) {
-                return false;
-            }
-            if (
-                !instantTiming &&
-                phase !== undefined &&
-                phase !== "PRECOMBAT_MAIN" &&
-                phase !== "POSTCOMBAT_MAIN"
+                instantTiming
+                    ? !priorityHeldInView(card.controllerId, stateView)
+                    : !sorceryWindowOpenInView(
+                          card.controllerId,
+                          phase,
+                          stateView
+                      )
             ) {
                 return false;
             }

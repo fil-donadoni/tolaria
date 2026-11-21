@@ -2000,11 +2000,13 @@ export function resolveActivatedAbility(
     );
 }
 
-/** Throws a descriptive Error if the activated ability's CR 602.5 timing
+/** Throws a descriptive `ConvexError` if the activated ability's CR 602.5 timing
  *  restrictions (controller-turn-only, once-per-turn cap, sorcery speed, and
  *  Boast's CR 702.142a attacked-this-turn precondition) are violated
  *  against the current state. Called by every activation entry point before
- *  cost lock so the rejection is surfaced before any mutation. Exported so an
+ *  cost lock so the rejection is surfaced before any mutation — a
+ *  `ConvexError`, so production keeps the reason instead of redacting it to
+ *  "Server Error" (issue #10318). Exported so an
  *  integration test can drive the real check (no convex-test harness in this
  *  repo — see `untapRefundsLife.test.ts`). */
 export function assertActivationTimingLegal(
@@ -2028,7 +2030,7 @@ export function assertActivationTimingLegal(
         ability.controllerTurnOnly &&
         state.activePlayerId !== card.controllerId
     ) {
-        throw new Error("Activate only during your turn");
+        throw new ConvexError("Activate only during your turn");
     }
     // CR 702.142a (Boast) — "Activate only if this creature attacked this
     // turn". `hasAttackedThisTurn` is stamped at declare-attackers
@@ -2040,7 +2042,9 @@ export function assertActivationTimingLegal(
     // engine only ever writes it `true` and `serialize.ts` round-trips it, so
     // there is no unknown state here to fail open on.
     if (ability.requiresAttackedThisTurn && card.hasAttackedThisTurn !== true) {
-        throw new Error("Activate only if this creature attacked this turn");
+        throw new ConvexError(
+            "Activate only if this creature attacked this turn"
+        );
     }
     // CR 716.2a (issue #3234) — the class level gates: a level bar activates
     // only at level N-1, and an ability printed in the level-N section only
@@ -2049,12 +2053,12 @@ export function assertActivationTimingLegal(
     // three can disagree about whether a level-up is legal.
     const classLevelViolation = classLevelActivationViolation(card, ability);
     if (classLevelViolation !== null) {
-        throw new Error(classLevelViolation);
+        throw new ConvexError(classLevelViolation);
     }
     if (ability.oncePerTurn) {
         const used = card.activationsThisTurn?.[ability.id] ?? 0;
         if (used >= 1) {
-            throw new Error("Activate only once each turn");
+            throw new ConvexError("Activate only once each turn");
         }
     }
     // CR 602.3b / 307.5 template — "activate only as a sorcery" follows the
@@ -2064,7 +2068,7 @@ export function assertActivationTimingLegal(
     // authority `assertLoyaltyActivationLegal` uses, so the window never
     // depends on a caller-side priority check.
     if (ability.sorcerySpeedOnly && !isSorceryTimingFor(state, activatorId)) {
-        throw new Error("Activate only as a sorcery");
+        throw new ConvexError("Activate only as a sorcery");
     }
 }
 
@@ -2102,7 +2106,7 @@ export function assertLoyaltyActivationLegal(
     ability: { cost: { loyalty?: number } }
 ): void {
     const violation = loyaltyActivationViolation(state, card, ability);
-    if (violation) throw new Error(LOYALTY_VIOLATION_MESSAGE[violation]);
+    if (violation) throw new ConvexError(LOYALTY_VIOLATION_MESSAGE[violation]);
 }
 
 /** Minimum number of targets required for a TargetRequirement.count value.
