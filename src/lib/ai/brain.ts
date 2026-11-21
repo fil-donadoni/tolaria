@@ -323,6 +323,12 @@ export type OwedChoice = {
      *  heuristic can protect scarce lands and rank spells by castability
      *  (issue #242). Undefined for every other choice kind. */
     manaSituation?: ManaSituation;
+    /** `discard-hand` only (issue #9957): the cards a MANDATORY own-hand
+     *  discard sheds, already answered by `mandatoryOwnHandDiscardAnswer`
+     *  (`convex/gre/ai/choiceCandidates.ts`), the answer the search's playout
+     *  submits for the same levy. Undefined for an as-enters discard, an
+     *  optional one, or a discard out of another player's hand. */
+    forcedDiscardIds?: string[];
     /** ADR 0100 D3 — which `AsEntersChoice` leg a CR 614.1c as-enters prompt is
      *  answering, verbatim off `PendingChoice.asEntersKind`. Undefined for every
      *  ordinary mid-resolution choice.
@@ -800,7 +806,12 @@ function thresholdSacrifice(
  *    (`landsInPlay <= LAND_LIGHT_LANDS_IN_PLAY`); it gets the LOWEST priority so
  *    the bot keeps it and sheds a spell instead (the reported 1-land case).
  *    Once the board is mana-developed, an EXCESS land (more than one land in
- *    hand, or already flooded) becomes a fair pitch and ranks high.
+ *    hand) becomes a fair pitch and ranks high.
+ *
+ *  A MANDATORY own-hand discard never reaches this ranking: it arrives
+ *  answered by the search's own shed order (`forcedDiscardIds`, issue #9957),
+ *  which prices a lone land on a developed board below a spell. What is left
+ *  here is the as-enters pitch order and a discard out of another hand.
  *  - A spell is ranked by how hard it is to cast against current mana: an
  *    uncastable spell (needs a color the lands in play can't produce) is shed
  *    first, then the most expensive spells (highest mana value) ahead of cheap
@@ -990,12 +1001,17 @@ export function chooseResolution(choice: OwedChoice): string[] {
                 .slice(0, min)
                 .map((c) => c.id);
 
-        // Discard the `min` cards the controller can least use (issue #242):
-        // keep scarce lands while land-light, shed uncastable / most-expensive
-        // spells first. Falls back to raw card worth when the mana situation is
-        // absent (it always accompanies a `discard-hand` choice from
-        // `buildBotView`, but the policy stays total over its input).
+        // Discard the `min` cards the controller can least use. A mandatory
+        // own-hand levy arrives already answered (`forcedDiscardIds`, issue
+        // #9957); otherwise (issue #242) keep scarce lands while land-light,
+        // shed uncastable / most-expensive spells first. Falls back to raw card
+        // worth when the mana situation is absent (it always accompanies a
+        // `discard-hand` choice from `buildBotView`, but the policy stays total
+        // over its input).
         case "discard-hand": {
+            // Issue #9957 — a mandatory own-hand levy sheds what the search's
+            // playout sheds, so the two never disagree on the card.
+            if (choice.forcedDiscardIds) return [...choice.forcedDiscardIds];
             const order = choice.manaSituation
                 ? discardOrder(candidates, choice.manaSituation)
                 : worstFirst(candidates);

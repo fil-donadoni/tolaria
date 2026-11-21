@@ -738,6 +738,11 @@
     ],
     "Lightning Bolt": [
         {
+            "label": "enter-trigger discard: Fear of Missing Out keeps the land drop while land-light",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
             "label": "escape: reaches for a Lightning Bolt Underworld Breach made escapable",
             "tier": "must",
             "needsSetup": false
@@ -896,6 +901,13 @@
     "Mother of Runes": [
         {
             "label": "activation payoff: Mother of Runes protects itself against removal on the stack",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
+    "Mountain": [
+        {
+            "label": "enter-trigger discard: Fear of Missing Out discards the surplus land",
             "tier": "must",
             "needsSetup": true
         }

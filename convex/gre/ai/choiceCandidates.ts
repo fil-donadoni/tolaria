@@ -1560,6 +1560,31 @@ export function forcedChoiceAnswer(
     };
 }
 
+/** Issue #9957 — the ONE answer to a MANDATORY `discard-hand` levy out of the
+ *  chooser's OWN hand (CR 701.9b: the discarding player chooses; the cleanup
+ *  discard, CR 514.1; an enter trigger's "discard a card"). It is
+ *  `forcedChoiceAnswer`'s, read by every surface that answers the levy: the
+ *  search's playout, the live client (`bot-view.ts` hands it to
+ *  `chooseResolution`) and the blade runner. Before, the client shed by its
+ *  own `discardOrder`, which ranked a lone land below every spell on any
+ *  board, so with five lands in play it binned a Lightning Bolt to keep a
+ *  sixth Mountain while the search's playout shed the Mountain.
+ *
+ *  `null` for every other choice: an as-enters discard is an optional cost
+ *  with its own answer (`asEntersDiscardAnswer`), a discard out of another
+ *  player's hand is not this chooser's keep, and an optional one is no levy. */
+export function mandatoryOwnHandDiscardAnswer(
+    state: GameState,
+    choice: PendingChoice
+): Move | null {
+    if (choice.kind !== "discard-hand" || choice.asEntersKind) return null;
+    if ((choice.zoneOwnerId ?? choice.playerId) !== choice.playerId) {
+        return null;
+    }
+    if (getPendingChoiceMin(choice.count) <= 0) return null;
+    return forcedChoiceAnswer(state, choice);
+}
+
 /** The order a mandatory discard sheds `owner`'s hand cards in, least
  *  valuable first, ties broken by identity.
  *
@@ -1573,9 +1598,11 @@ export function forcedChoiceAnswer(
  *  creatures, and any line that drew past seven cards — an "any number"
  *  look-and-keep — scored below the line that drew nothing (issue #9118).
  *
- *  One exception, the live Brain's (`discardPriority`, `brain.ts`): a land
- *  held while its owner has at most `LAND_LIGHT_LANDS_IN_PLAY` lands in play
- *  is the next land drop, and is shed after every other card. */
+ *  One exception: a land held while its owner has at most
+ *  `LAND_LIGHT_LANDS_IN_PLAY` lands in play is the next land drop, and is
+ *  shed after every other card. Past that a land is priced like any card, so
+ *  on a developed board the surplus land goes before a spell. The live client
+ *  sheds by this order too (`mandatoryOwnHandDiscardAnswer`, issue #9957). */
 function forcedDiscardShedOrder(
     state: GameState,
     owner: PlayerState,

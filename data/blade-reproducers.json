@@ -2210,6 +2210,8 @@
     },
     "energy: Galvanic Discharge pays exactly the energy that kills": null,
     "energy: Guide of Souls grows the attacker that stays": null,
+    "enter-trigger discard: Fear of Missing Out discards the surplus land": null,
+    "enter-trigger discard: Fear of Missing Out keeps the land drop while land-light": null,
     "entomb: buries the reanimation target, not one of eight lands": null,
     "entomb: buries the self-reachable card, not the bigger body": null,
     "entry counters: casts a creature priced by the body it enters with": {

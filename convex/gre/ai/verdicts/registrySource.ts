@@ -32,7 +32,7 @@ import { describeMove } from "../../describeMove";
 import type { GameState } from "../../state";
 import { decidingPlayer, moveKey } from "../../search";
 import { BLADE_SCENARIOS } from "../blade/registry";
-import { buildBladeState } from "../blade/runner";
+import { buildBladeState, forcedSeatAnswer } from "../blade/runner";
 import { matchesMove, seatPlayerId } from "../blade/matcher";
 import type { Move } from "../../moves";
 import type { BladeScenario, MoveMatcher } from "../blade/types";
@@ -116,7 +116,17 @@ export function verdictFromScenario(
     }
 
     const botId = seatPlayerId(state, scenario.bot);
-    if (decidingPlayer(state) !== botId) {
+    const decider = decidingPlayer(state);
+    // Issue #9957 — a window no search node opens on, answered by the one
+    // shed order the search's playout and the live client share: no weight
+    // moves that answer, so a verdict here would teach the fit nothing.
+    if (forcedSeatAnswer(state, decider, botId)) {
+        return gap(
+            "forced",
+            `seat "${scenario.bot}" owes a mandatory own-hand discard no search node opens on; its one answer is \`mandatoryOwnHandDiscardAnswer\``
+        );
+    }
+    if (decider !== botId) {
         return gap(
             "not-deciding",
             `seat "${scenario.bot}" owes no decision on the built position`

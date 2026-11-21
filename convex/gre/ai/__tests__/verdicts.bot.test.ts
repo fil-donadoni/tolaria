@@ -82,11 +82,15 @@ describe("verdictsFromRegistry (issue #3400)", () => {
         // The guard PRD #3397 asks for: the count of registry verdicts equals
         // the count of `moves` entries. Stated as a partition rather than a
         // bare number so a failure names WHICH entries fell out and why — and
-        // the only admissible way out is `unconstraining`, a position whose
-        // only legal line every decider already takes.
+        // the only admissible ways out are `unconstraining`, a position whose
+        // only legal line every decider already takes, and `forced` (issue
+        // #9957), a window answered by one shared rule no weight moves.
         expect(
             unlowered
-                .filter((g) => g.reason !== "unconstraining")
+                .filter(
+                    (g) =>
+                        g.reason !== "unconstraining" && g.reason !== "forced"
+                )
                 .map((g) => `${g.reason}: ${g.label} — ${g.detail}`)
         ).toEqual([]);
         expect(right.length + unlowered.length).toBe(movesEntries.length);

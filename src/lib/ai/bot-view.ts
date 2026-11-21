@@ -68,6 +68,7 @@ import { isSacrificeSelectionComplete } from "@convex/gre/sacrificeChoice";
 import type { GameState, ManaRestriction } from "@convex/gre/state";
 import { isLandDropOpen } from "@convex/gre/ai/asEntersDiscard";
 import { sacrificeRankWorths } from "@convex/gre/ai/candidateValue";
+import { mandatoryOwnHandDiscardAnswer } from "@convex/gre/ai/choiceCandidates";
 import { projectedToGameState } from "./state-adapter";
 import { owedInputFor } from "./owed-input";
 import type {
@@ -825,6 +826,25 @@ function withSacrificeRank(
     }));
 }
 
+/** Issue #9957 — the cards a MANDATORY own-hand `discard-hand` sheds, read
+ *  from `mandatoryOwnHandDiscardAnswer`, the answer the search's playout
+ *  submits for the same levy (`forcedChoiceAnswer`), so the live client and
+ *  the search shed the same card for the same hand. Undefined when that
+ *  authority has no answer (an as-enters discard, an optional one, a discard
+ *  out of another player's hand): the heuristic answers it as before. */
+function forcedDiscardIdsFor(
+    state: PublicGameState,
+    head: PendingChoice
+): string[] | undefined {
+    const move = mandatoryOwnHandDiscardAnswer(
+        projectedToGameState(state),
+        head
+    );
+    return move?.kind === "resolution-choice"
+        ? [...move.cardInstanceIds]
+        : undefined;
+}
+
 /** Project the active bot-owed `PendingChoice` into the {@link OwedChoice} the
  *  default policy reasons about. Skips `mulligan-bottom` (handled by the
  *  pre-game mulligan branch) and choices owed to another player. */
@@ -967,6 +987,12 @@ function buildOwedChoice(
         manaSituation:
             head.kind === "discard-hand"
                 ? buildManaSituation(state, botId)
+                : undefined,
+        // Issue #9957 — a mandatory own-hand discard is answered by the
+        // search's own shed order, not by the heuristic below it.
+        forcedDiscardIds:
+            head.kind === "discard-hand"
+                ? forcedDiscardIdsFor(state, head)
                 : undefined,
         // ADR 0100 D3 (#2389) — the as-enters leg, verbatim. Every as-enters
         // prompt reuses an existing `PendingChoiceKind` shape, so this is the
