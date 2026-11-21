@@ -757,7 +757,9 @@ function isHarmlessStackItem(
  *  P/T change can only kill through toughness 0 (CR 704.5f), which neither
  *  destroys nor damages — but a pump answers it, so the pump reading keeps
  *  every token. Neither taps a permanent, so both hold against a {T}-cost
- *  shield too. */
+ *  shield too. A token whose static strips abilities ("creatures lose all
+ *  abilities") would close the shield's later activation; no catalogue token
+ *  does today — a narrowing, revisit if one ships. */
 function isHarmlessToShieldsOnly(op: EffectOp): boolean {
     if (!("op" in op)) return false;
     if (op.op === "createToken") return true;
