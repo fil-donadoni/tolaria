@@ -4026,6 +4026,7 @@
             }
         ]
     },
+    "lethal reach: the full report board blocks every attacker into an on-board Pyrite Spellbomb": null,
     "life as mana: Bolas's Citadel plays the top card with life to spare": {
         "phase": "PRECOMBAT_MAIN",
         "turn": 5,
