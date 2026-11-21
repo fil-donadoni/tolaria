@@ -995,7 +995,7 @@ export function getManaCostMenuAbility(
         getEffectiveClientAbilities(card).find(
             (a) =>
                 !a.useStack &&
-                // CR 602.5b (issue #10397) — the SAME timing gate every other
+                // CR 602.5 (issue #10397) — the SAME timing gate every other
                 // listing runs: Vivi Ornitier's "Activate only during your
                 // turn and only once each turn" is a mana ability, and this
                 // path never asked, so it was offered on the opponent's turn.
@@ -2467,7 +2467,7 @@ export function isActivationTimingAllowed(
     ) {
         return false;
     }
-    // CR 307.5 / 602.3b (issue #10397) — "activate only as a sorcery" is the
+    // CR 307.5 / 602.5d (issue #10397) — "activate only as a sorcery" is the
     // server's WHOLE `isSorceryTimingFor` window, not just its phase half:
     // a main phase of the ACTIVATOR's own turn with an empty stack. The
     // phase-only narrowing offered Equip in the opponent's main phase (and in

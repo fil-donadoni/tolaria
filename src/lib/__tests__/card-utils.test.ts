@@ -1580,7 +1580,7 @@ describe("getStackAbilities", () => {
         expect(getStackAbilities(card, "POSTCOMBAT_MAIN")).toHaveLength(1);
     });
 
-    // CR 307.5 / 602.3b (issue #10397) — "activate only as a sorcery" is the
+    // CR 307.5 / 602.5d (issue #10397) — "activate only as a sorcery" is the
     // server's whole `isSorceryTimingFor` window: main phase of the
     // activator's OWN turn with an empty stack. The phase-only hint offered
     // Equip in the opponent's main phase. Views from the real reducer.
@@ -1673,7 +1673,7 @@ describe("getStackAbilities", () => {
     });
 
     // Vivi Ornitier's "{0}: Add X mana … Activate only during your turn and
-    // only once each turn." (CR 602.5b, issue #10397) — a NON-{T} mana
+    // only once each turn." (CR 602.5, issue #10397) — a NON-{T} mana
     // ability, offered through the explicit mana-menu entry, which never ran
     // the timing predicate: it was offered on the opponent's turn and
     // `activateManaAbility` threw "Activate only during your turn".
