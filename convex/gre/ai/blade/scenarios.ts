@@ -3610,7 +3610,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             libraryCount: 20,
         },
         bot: "me",
-        budget: { iterations: 400 },
+        budget: { iterations: 800 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
@@ -3618,7 +3618,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { kind: "cast-spell", card: "Terror", target: "Hill Giant" },
             ],
         },
-        note: "Issue #5153, half 1 of the poison-clock pair. No poison on the bot: Terror takes the bigger vanilla body, 5/5 seeds at 400 iterations, on the base and with the poison model alike. The anchor proves the 7-poison half below flips on the poison counters alone.",
+        note: "Issue #5153, half 1 of the poison-clock pair. No poison on the bot: Terror takes the bigger vanilla body (first measured 5/5 seeds at 400 iterations, on the base and with the poison model alike). The anchor proves the 7-poison half below flips on the poison counters alone, so it runs at the half's 800 iterations (issue #10335): the pair differs in the poison counters and nothing else. Robustness audit at 800: 10/10 under every vector (material-tiebreak).",
     },
     {
         // POISON CLOCK, HALF 2 of 2 (issue #5153) — the same board with the bot
@@ -3657,7 +3657,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             poison: { me: 7 },
         },
         bot: "me",
-        budget: { iterations: 400 },
+        budget: { iterations: 800 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
@@ -3665,7 +3665,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { kind: "cast-spell", card: "Terror", target: "Grizzly Bears" },
             ],
         },
-        note: "Issue #5153, half 2 of the poison-clock pair. At seven poison the infect 2/2 kills in two attacks, past the rollout's one-round horizon, so only the evaluation can see it. Measured 5/5 seeds at 400 iterations: Terror on Grizzly Bears with the poison model; on the base (no poison term, life-only danger clock) Terror on Hill Giant 5/5. Proof of failure: `poisonWeight` 0 → the bot passes 5/5; the danger clock's poison fraction removed → Hill Giant 5/5.",
+        note: "Issue #5153, half 2 of the poison-clock pair. At seven poison the infect 2/2 kills in two attacks, past the rollout's one-round horizon, so only the evaluation can see it. Measured 5/5 seeds at 400 iterations: Terror on Grizzly Bears with the poison model; on the base (no poison term, life-only danger clock) Terror on Hill Giant 5/5. Proof of failure: `poisonWeight` 0 → the bot passes 5/5; the danger clock's poison fraction removed → Hill Giant 5/5. Budget 800, not 400 (issue #10335): at 400 the two Terror targets sometimes land within `outcomeEps` on mean reward, and the announcement-variant tiebreak (`castVariantScore`, a static payoff) then takes the Hill Giant — the robustness audit read default 9/10, jitter− 8/10 wide seeds, every miss settled by that tiebreak. At 600, 800, 1000 and 1200 iterations every vector wins 10/10 on mean reward.",
     },
     {
         // RECIPIENT-KEYED SOURCE SHIELD (issue #5410) — charter scenario 4's
