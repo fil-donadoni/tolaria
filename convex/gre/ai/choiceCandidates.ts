@@ -1741,8 +1741,10 @@ function asEntersDiscardAnswer(state: GameState, choice: PendingChoice): Move {
  *  the spell spent and the permanent still staged — a Meddling Mage read as
  *  two lands tapped for nothing, so the Bot never cast one.
  *
- *  Not a decision node: WHICH name is worth naming is a valuation question
- *  (issue #2467). The candidates are the PUBLIC objects — the staged entries,
+ *  A name LOCK (`nameLockScopeOf`) names what it denies the opponent most
+ *  (`rankNameLockName`, issue #10225 — the ranking the live default reads
+ *  too); its window is a one-branch node (`nameLockCandidates`). Otherwise,
+ *  and when no name bites an opponent, the fallback: the candidates are the PUBLIC objects — the staged entries,
  *  the stack, every battlefield, graveyard and face-up exile (a face-down
  *  exiled card keeps its real id in raw state, CR 406.3) — so the answer reads
  *  no information the chooser lacks. The chooser's own hand is left out on

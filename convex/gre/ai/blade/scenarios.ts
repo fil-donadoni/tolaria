@@ -16440,7 +16440,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "names Tormod's Crypt, the one opposing source whose activated ability the lock stops (CR 602.5, 605.1a)",
         },
-        note: 'Issue #10225 — the Bot cast Pithing Needle and named "Plains": the as-enters name was no search node and both answers (the live default\'s "Plains" rung, the search\'s alphabetical public name) ignored what the lock denies. A basic land has only mana abilities, which the Needle exempts. Proof of failure: `nameLockIsSearchable` returning `false` makes the window no search node and the runner refuses the entry.',
+        note: 'Issue #10225 — the Bot cast Pithing Needle and named "Plains": the as-enters name was no search node and both answers (the live default\'s "Plains" rung, the search\'s alphabetical public name) ignored what the lock denies. A basic land has only mana abilities, which the Needle exempts. Proof of failure: `nameLockIsSearchable` returning `false` makes the window no search node and the runner refuses the entry; `rankNameLockName` returning `undefined` falls back to the alphabetical public name ("Island") on all five seeds.',
     },
     {
         label: "Oracle combo: casts Thassa's Oracle before Demonic Consultation into a possible counterspell",
