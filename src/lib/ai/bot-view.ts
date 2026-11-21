@@ -1004,7 +1004,7 @@ function buildOwedChoice(
         // discard cost (Mox Diamond) apart from an ordinary `discard-hand`
         // levy whose `min` it owes.
         asEntersKind: head.asEntersKind,
-        // CR 202.3 — name-a-card default (`nameCardDefaultFor`'s rungs: a
+        // CR 201.4 — name-a-card default (`nameCardDefaultFor`'s rungs: a
         // known hand card, a name lock's ranked name, the chooser's own top
         // library card, then a legal fallback). Validated server-side.
         nameCardDefault:
