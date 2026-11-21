@@ -3618,7 +3618,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { kind: "cast-spell", card: "Terror", target: "Hill Giant" },
             ],
         },
-        note: "Issue #5153, half 1 of the poison-clock pair. No poison on the bot: Terror takes the bigger vanilla body, 5/5 seeds at 400 iterations, on the base and with the poison model alike. The anchor proves the 7-poison half below flips on the poison counters alone, so it runs at the half's 800 iterations (issue #10335): the pair differs in the poison counters and nothing else. Robustness audit at 800: 10/10 under every vector (material-tiebreak).",
+        note: "Issue #5153, half 1 of the poison-clock pair. No poison on the bot: Terror takes the bigger vanilla body (first measured 5/5 seeds at 400 iterations, on the base and with the poison model alike). The anchor proves the 7-poison half below flips on the poison counters alone, so it runs at the half's 800 iterations (issue #10335): the pair differs in the poison counters and nothing else. Robustness audit at 800: 10/10 under every vector (material-tiebreak).",
     },
     {
         // POISON CLOCK, HALF 2 of 2 (issue #5153) — the same board with the bot
