@@ -25,9 +25,10 @@
 import type { RobustnessBaselineRow } from "./robustness";
 
 // The first FULL PR-side audit to finish (issue #10319, PR #10333) found
-// three, pre-existing: no full audit had completed since 2026-10-11. The
-// third, "self-harm: Fatal Push …" (issue #10337), audited robust on the
-// revert of PR #10340 and was deleted (shrink-only).
+// these three, pre-existing: no full audit had completed since 2026-10-11.
+// "self-harm: Fatal Push …" flips with the tree: robust on the revert of
+// PR #10340 (row deleted there), pinned again on the next base tip (row
+// restored) — issue #10337 owns it.
 export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
     {
         label: "poison clock: Terror takes the infect Grizzly Bears over the bigger Hill Giant at seven poison (issue #5153)",
@@ -36,5 +37,9 @@ export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
     {
         label: "Self-growing sacrifice outlet: casts the creature",
         issue: 10336,
+    },
+    {
+        label: "self-harm: Fatal Push still destroys the opponent's mana value 4 creature beside the Bot's own",
+        issue: 10337,
     },
 ];
