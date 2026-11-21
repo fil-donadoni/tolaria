@@ -3845,6 +3845,154 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Deep lethal-block charter (issue #1505): the LEAF companion to scenario 4. The bot's own-turn attack decision — swing the 3/3 flyer for a free 3, or hold it as the only blocker against a lethal crackback — is a `declare-attackers` root, so `blockDeltaOf` is inert; only the leaf `lethalUnblockedDelta` (via the rollout block policy) can tell the search the held-back line survives. Bite proof recorded in the block comment: at 900 iterations, WITH the leaf term the bot holds on all five seeds, WITHOUT it (0 * lethalUnblockedDelta in evaluate.ts, blockDeltaOf untouched) it swings on all five. Stretch/horizon because the crackback is beyond the 400 rollout horizon. A live-asserting regression guard for the same bite lives in `__tests__/deep-lethal-block.bot.test.ts`.",
     },
     {
+        // MUST. Issue #10422: the issue #10403 user-report board with only
+        // Candelabra of Tawnos removed (its {X} activations make the search
+        // ~7x dearer and no line here uses it) — Fastbond, the Blood token and
+        // Metamorphosis Fanatic in hand stay. The defender at 5 faces the 8/8
+        // Hero, Forensic Gadgeteer and Hullbreacher; the attacker holds an
+        // untapped Pyrite Spellbomb and red mana. The block that leaves
+        // Hullbreacher unblocked takes the defender to 2 and the Spellbomb's 2
+        // damage ends the game (CR 120.3a, 704.5a); Pyromancer on Hullbreacher,
+        // Ivora on the Hero and the Giant on the Gadgeteer takes nothing.
+        //
+        // MEASURED at 400 iterations, five seeds, the attacker's decklist
+        // known: before the fix seed 2 declared Ivora + Giant only (Hullbreacher
+        // unblocked) on `material-tiebreak` — the losing block sat inside
+        // `outcomeEps` of the safe one because each declaration got ~14 root
+        // visits and the opponent node under it averaged its untried replies,
+        // not the kill. With `activatedDamageReach` folded into
+        // `lethalUnblockedDelta` all five seeds block all three.
+        label: "lethal reach: the full report board blocks every attacker into an on-board Pyrite Spellbomb",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Mountain", owner: "me", tapped: true },
+                { name: "Swamp", owner: "me", tapped: true },
+                { name: "Blackcleave Cliffs", owner: "me" },
+                {
+                    name: "Seasoned Pyromancer",
+                    owner: "me",
+                    summoningSick: false,
+                },
+                { name: "Swamp", owner: "me", tapped: true },
+                {
+                    name: "Ivora, Insatiable Heir",
+                    owner: "me",
+                    summoningSick: false,
+                },
+                { name: "Mountain", owner: "me", tapped: true },
+                {
+                    name: "Bonecrusher Giant",
+                    owner: "me",
+                    summoningSick: false,
+                },
+                { name: "Swamp", owner: "me", tapped: true },
+                { name: "Spirebluff Canal", owner: "opp" },
+                { name: "Breeding Pool", owner: "opp" },
+                { name: "Mountain", owner: "opp", tapped: true },
+                { name: "Island", owner: "opp" },
+                { name: "Island", owner: "opp" },
+                { name: "Mountain", owner: "opp" },
+                { name: "Thundering Falls", owner: "opp" },
+                {
+                    name: "Astrologian's Planisphere",
+                    owner: "opp",
+                    attachedTo: "Hero",
+                },
+                {
+                    name: "Hero",
+                    owner: "opp",
+                    token: true,
+                    counters: { "+1/+1": 7 },
+                    summoningSick: false,
+                },
+                {
+                    name: "Forensic Gadgeteer",
+                    owner: "opp",
+                    summoningSick: false,
+                },
+                { name: "Hullbreacher", owner: "opp", summoningSick: false },
+                { name: "Pyrite Spellbomb", owner: "opp" },
+                { name: "Fastbond", owner: "opp" },
+                { name: "Island", owner: "opp", zone: "hand" },
+                { name: "Blood", owner: "me", token: true },
+                { name: "Metamorphosis Fanatic", owner: "me", zone: "hand" },
+            ],
+            turn: 18,
+            phase: "DECLARE_ATTACKERS",
+            life: { me: 5, opp: 14 },
+            activePlayer: "opp",
+            priority: "opp",
+            libraryCount: 16,
+            landCount: 0,
+        },
+        setup: [{ kind: "declare-attackers" }],
+        bot: "me",
+        // The attacker's 40 cards as the report's frozen state held them
+        // (library, hand and every public zone).
+        deckKnowledge: [
+            {
+                seat: "opp",
+                cards: [
+                    "Abrade",
+                    "Aether Spellbomb",
+                    "Astrologian's Planisphere",
+                    "Breeding Pool",
+                    "Candelabra of Tawnos",
+                    "Chain Lightning",
+                    "Chromatic Star",
+                    "Fastbond",
+                    "Flame Slash",
+                    "Forensic Gadgeteer",
+                    "Hullbreacher",
+                    "Island",
+                    "Island",
+                    "Island",
+                    "Island",
+                    "Island",
+                    "Karn, Scion of Urza",
+                    "Mana Leak",
+                    "Mishra's Bauble",
+                    "Mountain",
+                    "Mountain",
+                    "Mountain",
+                    "Mountain",
+                    "Preordain",
+                    "Pyrite Spellbomb",
+                    "Ragavan, Nimble Pilferer",
+                    "Skullclamp",
+                    "Spirebluff Canal",
+                    "Strip Mine",
+                    "Thundering Falls",
+                    "Tropical Island",
+                    "Wheel of Fortune",
+                    "Windswept Heath",
+                ],
+            },
+        ],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            // All three blockers, one of them on Hullbreacher: the matcher
+            // cannot also require the Hero to be blocked, but leaving the 8/8
+            // unblocked is lethal from combat damage alone (CR 510.1b,
+            // 704.5a), the shape `lethalUnblockedDelta` already prices.
+            moves: [
+                {
+                    kind: "declare-blockers",
+                    cards: [
+                        "Seasoned Pyromancer",
+                        "Ivora, Insatiable Heir",
+                        "Bonecrusher Giant",
+                    ],
+                    target: "Hullbreacher",
+                },
+            ],
+        },
+        note: "Issue #10422 — the issue #10403 report board with only Candelabra of Tawnos removed. Before the activated burn reach joined `lethalUnblockedDelta`, the block leaving Hullbreacher unblocked sat inside `outcomeEps` of the safe block and `material-tiebreak` picked it on seed 2 at 400 iterations; the reach makes that block a loss at the declare-blockers leaf and in `blockDeltaOf`.",
+    },
+    {
         // ZERO-OUTPUT MANA SOURCE (issue #1889). The root decision is a cast
         // the bot can exactly afford: Incinerate ({1}{R}) with two untapped
         // Mountains, against an opponent creature that must be answered.

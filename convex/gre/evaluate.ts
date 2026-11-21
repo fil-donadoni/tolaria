@@ -167,6 +167,7 @@ import {
     type LatentWeights,
 } from "./ai/evalWeights";
 import { libraryTerm } from "./ai/decking";
+import { activatedDamageReach } from "./ai/activatedDamageReach";
 import { retrievableLinkedExile } from "./ai/linkedExileReach";
 import { drawFromEmptyLibraryWins } from "./replacements";
 import { sourceQuality } from "./ai/sourceQuality";
@@ -2660,7 +2661,7 @@ function valueFromMargin(
             ? dangerClock(restored, playerId)
             : dangerClock(state, playerId, pass)) +
         declaredCombatDelta(state, me.id, weights, pass, memo) +
-        lethalUnblockedDelta(state, playerId, weights, pass) +
+        lethalUnblockedDelta(state, playerId, weights, pass, memo) +
         deckOutDelta(state, me, opp, weights)
     );
 }
@@ -3050,6 +3051,13 @@ function strikesFirst(c: CardInstanceState): boolean {
  * comment above for the measurement it was designed against, why the magnitude
  * has to be terminal-scale, and the deliberate under-reporting.
  *
+ * Issue #10422 — "lethal" counts the attacker's activated direct-damage reach
+ * on top of the combat damage (`activatedDamageReach`): a block that leaves
+ * the defender inside the reach of an untapped burn ability the attacker can
+ * pay for after combat is the same loss, one activation later (CR 120.3a,
+ * 704.5a). Read only when the combat damage alone is not lethal, so the
+ * common position pays one battlefield scan and nothing more.
+ *
  * Pure. Exported so the narrowness of its support is unit-testable in
  * isolation (ADR 0070 §5): pattern present → non-zero, pattern absent → 0.
  */
@@ -3058,7 +3066,9 @@ export function lethalUnblockedDelta(
     viewerId: string,
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
     /** Issue #4462 — see `evaluateCreature`. */
-    pass: Layer7Pass = beginLayer7Pass(state)
+    pass: Layer7Pass = beginLayer7Pass(state),
+    /** Issue #4461 — see `ManaCensusMemo`. */
+    memo?: ManaCensusMemo
 ): number {
     const declared = declaredFaceDamage(state, pass);
     if (!declared) return 0;
@@ -3088,7 +3098,12 @@ export function lethalUnblockedDelta(
     }
     // CR 704.5a — a player at 0 or less life loses. Damage already locked in
     // that takes the defender there is a loss, one SBA sweep early.
-    const lethalByLife = damage > 0 && damage >= defender.life;
+    // CR 120.3a (issue #10422) — so does combat damage that leaves the
+    // defender within the attacker's activated burn reach.
+    const lethalByLife =
+        (damage > 0 && damage >= defender.life) ||
+        damage + activatedDamageReach(state, attacker, defender, memo) >=
+            defender.life;
     // CR 704.5c (issue #5153) — so does infect damage that takes the
     // defender's poison counters to ten.
     const lethalByPoison =
