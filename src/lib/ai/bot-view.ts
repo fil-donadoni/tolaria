@@ -16,6 +16,10 @@ import type {
 } from "@convex/gameProjections";
 import { nonZoneChoiceCandidateIds } from "@convex/gre/ai/nonZoneChoiceCandidates";
 import { nameSoughtInHandOf } from "@convex/gre/ai/handSoughtName";
+import {
+    nameLockScopeForHead,
+    rankNameLockName,
+} from "@convex/gre/ai/nameLockRanking";
 import type { Move, PendingChoice } from "@convex/gre";
 import {
     getPendingChoiceMin,
@@ -1000,10 +1004,9 @@ function buildOwedChoice(
         // discard cost (Mox Diamond) apart from an ordinary `discard-hand`
         // levy whose `min` it owes.
         asEntersKind: head.asEntersKind,
-        // CR 202.3 — name-a-card default. Name the chooser's own top library
-        // card when the bot can see it (the bot is the chooser; Petra Sphinx
-        // names to dig the top into hand), else a guaranteed-registered
-        // fallback ("Plains"). Validated server-side against the registry.
+        // CR 201.4 — name-a-card default (`nameCardDefaultFor`'s rungs: a
+        // known hand card, a name lock's ranked name, the chooser's own top
+        // library card, then a legal fallback). Validated server-side.
         nameCardDefault:
             head.kind === "name-card"
                 ? nameCardDefaultFor(state, head)
@@ -1040,11 +1043,14 @@ function buildOwedChoice(
  *  `{ kind: "name", filter }` head (Meddling Mage, #2467) rejects anything the
  *  filter excludes.
  *
- *  Preference order, all four gated by the same predicate:
+ *  Preference order, all gated by the same predicate:
  *   0. when the resolving script discards the named cards from a hand
  *      (`nameSoughtInHandOf`, Cabal Therapy), the most valuable card the bot
  *      KNOWS is in that hand (a CR 701.20a reveal, ADR 0026 known slots), so
  *      the name strips a card instead of whiffing (issue #9551);
+ *   0b. when the entering card is a name LOCK, the name whose denial hurts
+ *      the opponent most (`rankNameLockName`), the ranking the
+ *      search's node reads too, so the two cannot disagree;
  *   1. the chooser's own top library card when it is visible to the bot in the
  *      projection (the bot is the chooser), so a self-targeted Petra Sphinx
  *      digs the top into hand;
@@ -1052,8 +1058,7 @@ function buildOwedChoice(
  *      the fallbacks so an unrestricted head keeps its exact pre-#2497 answer;
  *   3. the first registered card name that satisfies the head, in registry
  *      hydration (= catalogue load) order (deterministic). Correctness only:
- *      WHICH name is worth naming is a valuation question and belongs to
- *      #2467.
+ *      rungs 1–3 are the fallback when no lock name bites.
  *
  *  `undefined` means the registry holds no legal name at all — the caller
  *  surfaces that as an unanswered window rather than submitting a name the
@@ -1068,6 +1073,20 @@ function nameCardDefaultFor(
             : undefined;
     const knownInHand = knownHandNameFor(state, head, legal);
     if (knownInHand !== undefined) return knownInHand;
+    // Issue #10225 — an as-enters name LOCK names what it denies the
+    // opponent most, by the SAME ranking the search's forced answer reads.
+    // A projected hand slot is non-null only where the bot knows the card.
+    const scope = nameLockScopeForHead(state, head);
+    const locked =
+        scope &&
+        rankNameLockName(
+            state,
+            head,
+            scope,
+            (name) => legal(name) !== undefined,
+            () => true
+        );
+    if (locked) return locked;
     const owner = state.players.find((p) => p.id === head.playerId);
     // The projected library is sparse (ADR 0026): `{ count, known }` carrying
     // only cards the viewer knows, each at its top-relative `index`. The top

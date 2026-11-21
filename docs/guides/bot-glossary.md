@@ -309,8 +309,11 @@ decides what the effect does — sought in the chooser's own library
 (`nameSoughtIn`, issue #8709 — Demonic Consultation), or in a hand the
 resolving script discards the named cards from (`nameSoughtInHandOf`, issue
 #9551 — Cabal Therapy: the revealed hand and the decklist's unseen remainder
-are the candidates); every other name window keeps its one forced answer or
-stops.
+are the candidates), or chosen as an as-enters name LOCK enters
+(`nameLockScopeOf`, issue #10225 — Pithing Needle, Meddling Mage: one branch,
+the name whose denial hurts the opponent most, `rankNameLockName`, the ranking
+the live default reads too); every other name window keeps its one forced
+answer or stops.
 
 ## Scoring a position
 
