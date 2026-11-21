@@ -19,6 +19,7 @@
 import { describe, it, expect } from "vitest";
 import type { CardInstanceState, GameState } from "../state";
 import {
+    processPendingActionTriggers,
     putReanimatedSetOnBattlefield,
     removePermanentTo,
     resolveTopOfStack,
@@ -34,6 +35,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
 } from "../../cards/__tests__/setup.helper";
 import { collectTriggers } from "../triggers";
 import type { GameEvent } from "../../cards/types";
@@ -44,6 +46,11 @@ import type { CardDefinition } from "../../cards/types";
 import { getDefinition } from "../../cards";
 import { withTemporaryDefinition } from "../../cards/registry";
 import { lightningBolt } from "../../cards/sets/lea/red.cards";
+import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { holyStrength } from "../../cards/sets/lea/white.cards";
+import { ironManArmor } from "../../cards/sets/msh/colorless.cards";
+import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { projectPublicState } from "../../gameProjections";
 
 function build(spec: ScenarioSpec): GameState {
     return buildStateFromScenario(
@@ -502,5 +509,127 @@ describe("a blinked permanent inherits no per-object fact (CR 400.7)", () => {
         expect(kept.cantAttackThisTurn).toBe(true);
         expect(kept.mustAttackThisTurn).toBe(true);
         expect(kept.attackedDuringLastTurn).toBe(true);
+    });
+});
+
+// CR 400.7 (issue #10375) — an attachment pointer held by ANOTHER permanent is
+// the same class of outside reference: the returned object is not the host the
+// Aura or Equipment was attached to.
+describe("a blinked host sheds its attachments (CR 400.7 / 704.5m / 704.5n)", () => {
+    const ANIMATE_DEAD = "8fd7861d-925f-4b4c-a4ab-60be6f43d50b";
+
+    function enchantedBears(attachment: string): GameState {
+        const bears = makeInstance(grizzlyBears().id, { id: "bears" });
+        const aura = makeInstance(attachment, {
+            id: "attachment",
+            attachedTo: "bears",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bears, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    function onBattlefield(state: GameState, id: string) {
+        return state.players[0].battlefield.find((c) => c.id === id);
+    }
+
+    function inGraveyard(state: GameState, id: string): boolean {
+        return state.players[0].graveyard.some((c) => c.id === id);
+    }
+
+    it("an Aura on a blinked creature goes to its owner's graveyard (CR 704.5m)", () => {
+        const state = enchantedBears(holyStrength().id);
+        const bears = onBattlefield(state, "bears")!;
+        expect(getEffectiveToughness(state, bears)).toBe(4);
+        blink(state, "bears");
+        checkStateBasedActions(state);
+        expect(onBattlefield(state, "attachment")).toBeUndefined();
+        expect(inGraveyard(state, "attachment")).toBe(true);
+        const back = onBattlefield(state, "bears")!;
+        expect(getEffectivePower(state, back)).toBe(2);
+        expect(getEffectiveToughness(state, back)).toBe(2);
+    });
+
+    it("the board projection shows no attachment on the returned creature", () => {
+        const state = enchantedBears(holyStrength().id);
+        blink(state, "bears");
+        const seen = projectPublicState(state, 1, "p1").players[0].battlefield;
+        expect(seen.some((c) => c.attachedTo === "bears")).toBe(false);
+        checkStateBasedActions(state);
+        const after = projectPublicState(state, 1, "p1").players[0].battlefield;
+        expect(after.map((c) => c.id)).toEqual(["bears"]);
+    });
+
+    it("an Equipment on a blinked creature unattaches and stays (CR 704.5n)", () => {
+        const state = enchantedBears(ironManArmor().id);
+        const bears = onBattlefield(state, "bears")!;
+        expect(getEffectivePower(state, bears)).toBe(4);
+        blink(state, "bears");
+        checkStateBasedActions(state);
+        const armor = onBattlefield(state, "attachment");
+        expect(armor).toBeDefined();
+        expect(armor!.attachedTo).toBeUndefined();
+        const back = onBattlefield(state, "bears")!;
+        expect(getEffectivePower(state, back)).toBe(2);
+        expect(getEffectiveToughness(state, back)).toBe(2);
+    });
+
+    it("a delayed-return blink bins the Aura the same way", () => {
+        const state = enchantedBears(holyStrength().id);
+        const left = removePermanentTo(state, "bears", "exile");
+        expect(left).not.toBeNull();
+        checkStateBasedActions(state);
+        const idx = state.players[0].exile.findIndex((c) => c.id === "bears");
+        const [card] = state.players[0].exile.splice(idx, 1);
+        putReanimatedSetOnBattlefield(state, [{ card, controllerId: "p1" }]);
+        checkStateBasedActions(state);
+        expect(inGraveyard(state, "attachment")).toBe(true);
+        expect(onBattlefield(state, "bears")).toBeDefined();
+    });
+
+    it("an Aura whose host simply dies still goes to the graveyard", () => {
+        const state = enchantedBears(holyStrength().id);
+        removePermanentTo(state, "bears", "graveyard");
+        checkStateBasedActions(state);
+        expect(inGraveyard(state, "attachment")).toBe(true);
+        expect(inGraveyard(state, "bears")).toBe(true);
+    });
+
+    it("Animate Dead on a blinked reanimated creature: the Aura is binned, its leave trigger sacrifices nothing", () => {
+        const dead = makeInstance(grizzlyBears().id, {
+            id: "dead",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, ANIMATE_DEAD, "p1", [
+            { type: "graveyard-card", id: "dead", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        const aura = state.players[0].battlefield.find(
+            (c) => (c.card as { id?: string }).id === ANIMATE_DEAD
+        )!;
+        // Animate Dead's -1/-0 applies to the reanimated creature.
+        expect(getEffectivePower(state, onBattlefield(state, "dead")!)).toBe(1);
+        blink(state, "dead");
+        processPendingActionTriggers(state);
+        checkStateBasedActions(state);
+        expect(onBattlefield(state, aura.id)).toBeUndefined();
+        expect(inGraveyard(state, aura.id)).toBe(true);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        checkStateBasedActions(state);
+        const back = onBattlefield(state, "dead");
+        expect(back).toBeDefined();
+        expect(getEffectivePower(state, back!)).toBe(2);
+        expect(getEffectiveToughness(state, back!)).toBe(2);
     });
 });

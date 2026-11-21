@@ -8098,6 +8098,10 @@ export function removePermanentTo(
         stopApplyingStaticEffects(state, initial.card);
         unapplyAurasAttachedTo(state, cardId);
     }
+    // CR 400.7 (issue #10375) — the object that leaves here ceases to exist,
+    // so nothing stays attached to it, even if a card under the SAME instance
+    // id returns before state-based actions are checked (a blink).
+    unattachEverythingFrom(state, cardId);
     // Re-locate after unapply: a reversed control-change may have moved the
     // host between players' battlefield arrays, invalidating `initial.idx`.
     const found = findOnBattlefield(state, cardId);
@@ -10522,6 +10526,30 @@ function unapplyAurasAttachedTo(state: GameState, hostId: string): void {
             if (!isAura(card)) continue;
             unapplyAuraControlChange(state, card);
             stopApplyingStaticEffects(state, card);
+        }
+    }
+}
+
+/** CR 400.7 (issue #10375) — clears `attachedTo` on every permanent attached
+ *  to `hostId` as the host leaves the battlefield. The instance id is reused
+ *  across zone changes, so a pointer left dangling would read a same-id
+ *  return (a blink) as the original host and keep the attachment legal.
+ *  CR 704.5m — an Aura left attached to nothing is put into its owner's
+ *  graveyard by the next SBA check (`checkAuraAttachmentSBA`; its effects were
+ *  already stopped by `unapplyAurasAttachedTo`). CR 704.5n — an Equipment
+ *  (and every other non-Aura attachment, CR 704.5p) becomes unattached and
+ *  stays on the battlefield; its effects stop here, before the pointer is
+ *  cleared, exactly as `checkAttachmentSBA`'s detach path does. Phasing is
+ *  not a zone change (CR 702.26d) and never reaches this. */
+function unattachEverythingFrom(state: GameState, hostId: string): void {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const cardList = playerList[i].battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
+            if (card.id === hostId || card.attachedTo !== hostId) continue;
+            if (!isAura(card)) stopApplyingStaticEffects(state, card);
+            card.attachedTo = undefined;
         }
     }
 }
