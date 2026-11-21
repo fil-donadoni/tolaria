@@ -31,10 +31,6 @@ import type { RobustnessBaselineRow } from "./robustness";
 // restored) — issue #10337 owns it.
 export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
     {
-        label: "Self-growing sacrifice outlet: casts the creature",
-        issue: 10336,
-    },
-    {
         label: "self-harm: Fatal Push still destroys the opponent's mana value 4 creature beside the Bot's own",
         issue: 10337,
     },

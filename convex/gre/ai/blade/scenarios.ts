@@ -14951,6 +14951,15 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // below `pass`'s for a creature the static leaf ranks higher. The same
         // body without the ability was cast. Fixed by class, not by card:
         // `isSourceConfinedSacrificeConversion` (`search.ts`).
+        //
+        // POSTCOMBAT, not the sweep's precombat main (the Frostling entry's
+        // shape, below): there the rollout casts the Thrinax in the
+        // postcombat main after `pass`, and the robustness audit found the
+        // pick settled by the material tie-break on 25 of 30 wide-seed runs.
+        // Here `pass` forgoes the deploy for the turn: the cast wins on mean
+        // reward on 30 of 30 (seeds 0..9 under the committed weights and both
+        // ±1% jitter vectors). The sweep (`botReach.bot.test.ts`) still asks
+        // "ever played?" in either main phase.
         label: "Self-growing sacrifice outlet: casts the creature",
         classification: {
             kind: "conditional",
@@ -14976,15 +14985,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { name: "Castle", owner: "opp", zone: "battlefield" },
                 { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
             ],
-            phase: "PRECOMBAT_MAIN",
+            phase: "POSTCOMBAT_MAIN",
             turn: 3,
             libraryCount: 20,
         },
         bot: "me",
-        // The Bot-play sweep's own position, at four times its budget (its
-        // verdict needs ONE seed to cast; at 48 iterations one of its two
-        // seeds still passes, at 200 all of them cast, and the entry states
-        // the stronger claim). A REACHABILITY claim, so a PREDICATE, kept out
+        // The Bot-play sweep's board at four times its budget (its verdict
+        // needs ONE seed to cast; the entry states the stronger claim, every
+        // seed). A REACHABILITY claim, so a PREDICATE, kept out
         // of the weight fit for the reason the Nantuko Husk entry gives.
         budget: { iterations: 200 },
         seeds: [0xb07, 0x5eed, 1, 2, 3],
@@ -27949,8 +27957,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // as `forbidden`/`moves` verdicts the fit cannot close a ~70-point gap
         // through `combatReserveWeight` inside its trust region, so it closes
         // part of it through `latentCreatureDiscount` (0.620 → 0.641) — and
-        // that refit flips the `must` entry "Self-growing sacrifice outlet:
-        // casts the creature" to `pass` on seed 0x5eed. No `pairOf` (a
+        // that refit flipped the `must` entry "Self-growing sacrifice outlet:
+        // casts the creature" to `pass` on seed 0x5eed (its precombat form,
+        // before issue #10336 moved it postcombat). No `pairOf` (a
         // predicate lowers to no verdict); each note names its twin.
         label: "combat reserve pair: does NOT cast a creature precombat that taps out of the held trick",
         classification: { kind: "absolute" },
@@ -29784,7 +29793,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // `forbidden` verdict the fit chases this position and moves
         // `latentCreatureDiscount` 0.627 → 0.641, past the value that flips
         // the `must` entry "Self-growing sacrifice outlet: casts the
-        // creature". The search answers it (`isEvokeCast`), but the one-ply
+        // creature" (its precombat form, before issue #10336). The search answers it (`isEvokeCast`), but the one-ply
         // reading still puts the evoke 3.2 above `pass`, which is the reading
         // the fit would chase.
         expect: {
@@ -30831,7 +30840,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // A PREDICATE, kept out of the weight fit on purpose (measured): as a
         // `moves` verdict the fit moves `latentCreatureDiscount` 0.624 → 0.660,
         // past the value that flips the `must` entry "Self-growing sacrifice
-        // outlet: casts the creature". The committed weights already plot here.
+        // outlet: casts the creature" (its precombat form, before issue
+        // #10336). The committed weights already plot here.
         expect: {
             predicate: (move, state) =>
                 matchesMove(state, move, {
