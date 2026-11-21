@@ -60,6 +60,8 @@ export default function PlayerGraveyard({
         cannotActivateAbilitiesThisTurn,
         continuousEffects,
         emblems,
+        stackItems,
+        priorityPlayerId,
     } = useGameContext();
     const selectTarget = useMutation(api.game.selectTarget);
     // Issue #9326 — position numbers (and the targeting sources' thumbnails)
@@ -162,7 +164,10 @@ export default function PlayerGraveyard({
         undefined,
         undefined,
         continuousEffects,
-        emblems
+        emblems,
+        // CR 307.1 (issue #10318) — a sorcery-speed graveyard ability is not
+        // offered while the stack is non-empty or another player holds priority.
+        { stack: stackItems, priorityPlayerId }
     );
     const actionableIds =
         player.id === playerId && !isGraveyardChoice && !isGraveyardTarget

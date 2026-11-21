@@ -14182,10 +14182,17 @@ export type GameEvent =
  *  describes the fields cards may rely on. */
 export interface TriggerStateView {
     /** CR 702.61a — the stack, read by the split second lock in
-     *  `activationPreconditionViolation`. Absent on a client view
-     *  (`buildTriggerStateView`), whose hint is
-     *  `nonManaActivationLockedPlayers`. */
+     *  `activationPreconditionViolation` (the client's split second hint is
+     *  `nonManaActivationLockedPlayers`). On a client view
+     *  (`buildTriggerStateView`'s `turnWindow`) it carries the wire's stack
+     *  items, so the ability menu's sorcery window (CR 307.1) sees a non-empty
+     *  stack (issue #10318); absent there, that half fails open. */
     stack?: SplitSecondStackView["stack"];
+    /** CR 117.1a — the player holding priority. Mirrors
+     *  `GameState.priorityPlayerId`; forwarded by `buildTriggerStateView`'s
+     *  `turnWindow` so the ability menu's sorcery window (CR 307.1) matches the
+     *  server's `isSorceryTimingFor` (issue #10318). */
+    priorityPlayerId?: string;
     players: ReadonlyArray<{
         id: string;
         life: number;

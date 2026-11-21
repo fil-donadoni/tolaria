@@ -4799,6 +4799,16 @@ export function drainAutoPasses(state: GameState): void {
     }
 }
 
+/** The four `GameState` facts the CR 307.1 sorcery window reads: the phase,
+ *  the stack (only its length), the active player and the priority holder.
+ *  A full `GameState` satisfies it unchanged. */
+export type SorceryWindowView = {
+    readonly phase: Phase;
+    readonly stack: { readonly length: number };
+    readonly activePlayerId: string;
+    readonly priorityPlayerId: string;
+};
+
 /** CR 307.1 / 601.3a — the CASTER-AWARE sorcery window: `playerId` may take a
  *  sorcery-speed action only during one of THEIR OWN main phases, while the
  *  stack is empty and THEY hold priority.
@@ -4810,9 +4820,14 @@ export function drainAutoPasses(state: GameState): void {
  *  reporting a sorcery window to the non-active player throughout the
  *  opponent's main phases (issue #1690). Every per-player timing decision
  *  (`castTimingBaseLegal`) must use this form; `isSorceryTiming` is only its
- *  active-player specialisation. */
+ *  active-player specialisation.
+ *
+ *  Typed on {@link SorceryWindowView}, the four facts it reads, so the
+ *  client's ability-menu hint (`sorceryWindowOpenInView`,
+ *  `src/lib/card-utils.ts`) asks THIS predicate rather than a narrowed copy
+ *  (issue #10318). */
 export function isSorceryTimingFor(
-    state: GameState,
+    state: SorceryWindowView,
     playerId: string
 ): boolean {
     return (

@@ -22,10 +22,10 @@
  *     which is now nothing but this predicate plus a `throw`.
  *
  * The client's UI hint (`src/lib/card-utils.ts` `getStackAbilities`) reads the
- * two STATE-ONLY clauses from here as well; it cannot use the full predicate
- * because its `TriggerStateView` carries no stack length or priority holder,
- * so its timing check stays a documented narrowing (the server is the gate) —
- * escaped by the same `loyaltyInstantTimingGranted` the server reads.
+ * two STATE-ONLY clauses from here as well, and asks the timing clause of the
+ * same `isSorceryTimingFor` off its `TriggerStateView`'s stack and priority
+ * holder (issue #10318) — escaped by the same `loyaltyInstantTimingGranted`
+ * the server reads. The server stays the gate.
  *
  * PURE: `loyaltyActivationViolation` mutates nothing; `payLoyaltyCost` mutates
  * only the card instance it is handed.
