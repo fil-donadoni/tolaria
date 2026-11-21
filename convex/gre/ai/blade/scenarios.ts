@@ -19744,13 +19744,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             { kind: "pass", seat: "opp" },
         ],
         bot: "me",
-        budget: { iterations: 200 },
+        budget: { iterations: 40 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
             moves: [{ kind: "pass" }],
         },
-        note: "Issue #10220, position A. Urza's Saga's chapter II only grants the Saga an activated ability (CR 611.2c), which can act only through a later stack object the bot gets priority before (CR 117.3b), so a regeneration shield (CR 701.19a) has nothing to replace before it ends (CR 514.2). Paying Welding Jar's self-sacrifice (CR 701.21) for it is a pure loss. `isFutileThisTurnMove` (`gre/ai/futileShield.ts`) now admits a self-sacrifice cost whose payment registers nothing (`isSelfSacrificePaymentPureLoss`, `gre/ai/dominance.ts`) and no longer counts an ability grant as a threat.",
+        note: "Issue #10220, position A. Urza's Saga's chapter II only grants the Saga an activated ability (CR 611.2c), which can act only through a later stack object the bot gets priority before (CR 117.3b), so a regeneration shield (CR 701.19a) has nothing to replace before it ends (CR 514.2). Paying Welding Jar's self-sacrifice (CR 701.21) for it is a pure loss. `isFutileThisTurnMove` (`gre/ai/futileShield.ts`) now admits a self-sacrifice cost whose payment registers nothing (`isSelfSacrificePaymentPureLoss`, `gre/ai/dominance.ts`) and no longer counts an ability grant as a threat. Red without the sacrifice admission at 40 iterations: the Bot sacrifices the Jar on seeds 0xb1ade, 2 and 3 of five (9 of 16 seeds); at 200 the search happens to pass.",
     },
     {
         label: "regeneration shield: sacrifices to regenerate against a destroy-artifact spell",
