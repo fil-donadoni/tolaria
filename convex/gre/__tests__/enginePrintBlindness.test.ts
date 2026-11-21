@@ -169,6 +169,12 @@ const PRINT_READER_ALLOWLIST: readonly AllowlistEntry[] = [
         role: "cosmetic-key exclusion",
         reason: "drops both fields from the interchangeable-card descriptor, which otherwise compares every instance field — two copies on different printings stay ONE search option.",
     },
+    {
+        file: "ai/transientDamage.ts",
+        count: 1,
+        role: "cosmetic-key exclusion",
+        reason: "names the field in `INERT_SPELL_KEYS`, the definition keys an inert spell may set without carrying a clause the marked-damage proof cannot see — art never makes a burn spell's damage lethal.",
+    },
 ];
 
 /** Every `.ts` source file under `convex/gre/**`, excluding tests and test

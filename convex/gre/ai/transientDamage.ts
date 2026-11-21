@@ -160,7 +160,9 @@ function scriptsOf(site: ScriptSite): EffectOp[][] | null {
     }
     if (site.effects) return [site.effects];
     const scripts: EffectOp[][] = [];
-    for (const mode of site.modes ?? []) {
+    const modeList = site.modes ?? [];
+    for (let i = 0; i < modeList.length; i++) {
+        const mode = modeList[i];
         const modeScripts = scriptsOf(mode);
         if (modeScripts === null) return null;
         scripts.push(...modeScripts);
@@ -176,7 +178,8 @@ function everyOp(
     leaf: (op: EffectOp) => boolean,
     host: (op: EffectOp) => boolean
 ): boolean {
-    for (const op of script) {
+    for (let i = 0; i < script.length; i++) {
+        const op = script[i];
         const children = childOpArrays(op);
         const admitted = leaf(op) || (children.length > 0 && host(op));
         if (!admitted) return false;
@@ -205,7 +208,9 @@ function isInertSite(site: ScriptSite): boolean {
 /** Whether casting `def` can only do inert things: an instant or sorcery
  *  whose whole definition is an inert script. */
 function isInertSpell(def: CardDefinition): boolean {
-    for (const [key, value] of Object.entries(def)) {
+    const entryList = Object.entries(def);
+    for (let i = 0; i < entryList.length; i++) {
+        const [key, value] = entryList[i];
         if (value === undefined || INERT_SPELL_KEYS.has(key)) continue;
         if (Array.isArray(value) && value.length === 0) continue;
         return false;
@@ -323,7 +328,8 @@ function combatCannotFinish(
     damagedIds: readonly string[]
 ): boolean {
     const owed = combatDamageStillOwed(settled);
-    for (const id of damagedIds) {
+    for (let i = 0; i < damagedIds.length; i++) {
+        const id = damagedIds[i];
         const controller = settled.players.find((p) =>
             p.battlefield.some((c) => c.id === id)
         );
@@ -334,9 +340,13 @@ function combatCannotFinish(
             (damaged.damageMarked ?? 0);
         let bound = 0;
         if (owed) {
-            for (const player of settled.players) {
+            const playerList = settled.players;
+            for (let j = 0; j < playerList.length; j++) {
+                const player = playerList[j];
                 if (player.id === controller.id) continue;
-                for (const other of player.battlefield) {
+                const otherList = player.battlefield;
+                for (let k = 0; k < otherList.length; k++) {
+                    const other = otherList[k];
                     if (!isCreature(other)) continue;
                     if (other.staticAbilities.includes("deathtouch")) {
                         return false;
@@ -362,7 +372,9 @@ function combatCannotFinish(
 function carriesDamageTrigger(perm: CardInstanceState): boolean {
     // The list the engine's own trigger scan reads: printed, granted and
     // keyword triggers alike.
-    for (const trigger of effectiveTriggeredAbilities(perm)) {
+    const triggerList = effectiveTriggeredAbilities(perm);
+    for (let i = 0; i < triggerList.length; i++) {
+        const trigger = triggerList[i];
         const scripts = scriptsOf(trigger as ScriptSite);
         if (scripts === null) return true;
         const harmless = scripts.every((script) =>
@@ -389,8 +401,12 @@ function boardCannotAddDamage(settled: GameState): boolean {
     // A delayed trigger already scheduled (CR 603.7) is not read: none proves
     // nothing.
     if ((settled.delayedTriggers?.length ?? 0) > 0) return false;
-    for (const player of settled.players) {
-        for (const perm of player.battlefield) {
+    const playerList = settled.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const permList = player.battlefield;
+        for (let j = 0; j < permList.length; j++) {
+            const perm = permList[j];
             if (carriesDamageTrigger(perm)) return false;
             const replacements =
                 liveStaticDefinition(perm)?.replacementEffects ?? [];

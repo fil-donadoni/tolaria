@@ -1732,8 +1732,13 @@ function comparedPair(
     const basePlayer = a.players.find((p) => p.id === moverId);
     const probePlayer = b.players.find((p) => p.id === moverId);
     if (!basePlayer || !probePlayer) return null;
-    for (const c of basePlayer.battlefield) baseTapped.set(c.id, c.isTapped);
-    for (const c of probePlayer.battlefield) {
+    const baseList = basePlayer.battlefield;
+    for (let i = 0; i < baseList.length; i++) {
+        baseTapped.set(baseList[i].id, baseList[i].isTapped);
+    }
+    const cList = probePlayer.battlefield;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
         if (c.isTapped && baseTapped.get(c.id) === false) c.isTapped = false;
     }
     return { base: a, settled: b };
@@ -1765,9 +1770,13 @@ function forgiveMarkedDamage(
     spent: SpentCost
 ): string[] {
     const damaged: string[] = [];
-    for (const player of settled.players) {
+    const playerList = settled.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const basePlayer = base.players.find((p) => p.id === player.id);
-        for (const card of player.battlefield) {
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             const before = basePlayer?.battlefield.find(
                 (c) => c.id === card.id
             );
