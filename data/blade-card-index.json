@@ -1644,6 +1644,13 @@
             "needsSetup": false
         }
     ],
+    "Welding Jar": [
+        {
+            "label": "regeneration shield: sacrifices to regenerate against a destroy-artifact spell",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Wheel of Fortune": [
         {
             "label": "each-player one-shot: casts Wheel of Fortune holding nothing else against a seven-card hand",

@@ -5194,8 +5194,10 @@
         "turn": 6,
         "libraryCount": 20
     },
+    "regeneration shield: keeps its sacrifice-to-regenerate artifact against an ability grant": null,
     "regeneration shield: Nightscape Familiar regenerates against lethal burn": null,
     "regeneration shield: regenerates against a destroy spell on the stack": null,
+    "regeneration shield: sacrifices to regenerate against a destroy-artifact spell": null,
     "removal: Disenchant takes the artifact whose per-turn trigger outranks its floor (issue #5151)": {
         "cards": [
             {
