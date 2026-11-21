@@ -14952,8 +14952,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // body without the ability was cast. Fixed by class, not by card:
         // `isSourceConfinedSacrificeConversion` (`search.ts`).
         //
-        // POSTCOMBAT, not the sweep's precombat main (issue #10336, the shape
-        // of issue #4877): there the rollout casts the Thrinax in the
+        // POSTCOMBAT, not the sweep's precombat main (the Frostling entry's
+        // shape, below): there the rollout casts the Thrinax in the
         // postcombat main after `pass`, and the robustness audit found the
         // pick settled by the material tie-break on 25 of 30 wide-seed runs.
         // Here `pass` forgoes the deploy for the turn: the cast wins on mean
