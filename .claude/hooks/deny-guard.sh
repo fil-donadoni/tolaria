@@ -1059,4 +1059,58 @@ if seg_has "$RADIUS_EDIT_INVOKE" && ! seg_has "$RADIUS_HATCH" "$RADIUS_EDIT_INVO
     fi
 fi
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. A PR body carries every line it owes BEFORE the PR exists (issue #10394).
+#
+# The owed lines (`proof-receipt` / `proof: none owed (<why>)`, `Docs:`,
+# `## Preset scenario`, the `check:ui` line, …) were prose in `/next-ticket`
+# §5; `land:ready` refused the miss only after minutes of pre-queue work, and
+# one form was named nowhere but in its refusal (PR #10392). So:
+#   a. `gh pr create` must pass `--body-file` (or `-F`) with a LITERAL path —
+#      an inline, interactive, `--fill`, stdin (`-`) or `$VAR` body cannot be
+#      checked;
+#   b. that file, and the one of a `gh pr edit --body-file`, must pass
+#      `scripts/pr-body-check.ts`, run in the command's directory (the
+#      leading `cd`, else `.cwd`) against `origin/<base>...HEAD`.
+# Exit 2 = refuse; any other exit, infra included, fails open. One `bun`
+# start (~2–3 s), only on a matching segment. Owner hatch, same segment:
+# `TOLARIA_ALLOW_UNCHECKED_PR_BODY=1`.
+PR_CREATE_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)'
+PR_EDIT_BODY_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+pr[[:space:]]+edit[[:space:]].*[[:space:]](--body-file|-F)(=|[[:space:]])'
+PR_BODY_HATCH='TOLARIA_ALLOW_UNCHECKED_PR_BODY=1'
+pr_body_deny() {
+    deny "BLOCKED: $1
+Every PR body carries its owed lines before the PR exists (issue #10394). Check
+it yourself first, in the branch's worktree:
+  bun run pr:body-check --body-file <path>
+Owner hatch, same command: TOLARIA_ALLOW_UNCHECKED_PR_BODY=1 gh pr …"
+}
+pr_body_check() {
+    pb_seg=$(printf '%s\n' "$segments" | grep -E -e "$1" | head -1)
+    pb_file=$(printf '%s\n' "$pb_seg" | sed -nE 's/.*[[:space:]](--body-file|-F)(=|[[:space:]]+)["'"'"']?([^[:space:]"'"'"']+).*/\3/p' | head -1)
+    if [ -z "$pb_file" ]; then
+        pr_body_deny "\`gh pr create\` with no \`--body-file\` — an inline, interactive or \`--fill\` body cannot be checked. Write the body to a file and pass --body-file <path>."
+    fi
+    case "$pb_file" in
+    -)
+        pr_body_deny "\`--body-file -\` reads the body from stdin (a heredoc), which the hook cannot see. Write the body to a file and pass its path."
+        ;;
+    *'$'* | *'`'*)
+        pr_body_deny "\`--body-file $pb_file\` is not a literal path — the hook cannot expand it. Pass the file's absolute path."
+        ;;
+    /*) ;;
+    *) [ -n "$cwd" ] && pb_file="$cwd/$pb_file" ;;
+    esac
+    [ -f "$pb_file" ] || pr_body_deny "\`--body-file $pb_file\`: no such file — write the body first."
+    refusal=$(cd "${cwd:-.}" && bun "${CLAUDE_PROJECT_DIR:-.}/scripts/pr-body-check.ts" --body-file "$pb_file" 2>&1) && rc=0 || rc=$?
+    [ "$rc" -eq 2 ] && pr_body_deny "$refusal"
+    return 0
+}
+if seg_has "$PR_CREATE_INVOKE" && ! seg_has "$PR_BODY_HATCH" "$PR_CREATE_INVOKE"; then
+    pr_body_check "$PR_CREATE_INVOKE"
+fi
+if seg_has "$PR_EDIT_BODY_INVOKE" && ! seg_has "$PR_BODY_HATCH" "$PR_EDIT_BODY_INVOKE"; then
+    pr_body_check "$PR_EDIT_BODY_INVOKE"
+fi
+
 exit 0
