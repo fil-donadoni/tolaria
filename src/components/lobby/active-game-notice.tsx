@@ -5,6 +5,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { MatchStatus } from "@convex/matches";
 import { storeSession } from "~/lib/session";
+import { extractMutationErrorMessage } from "~/lib/mutation-error";
 import {
     activeGameBannerMessage,
     activeGameExit,
@@ -57,6 +58,10 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
     const manualConcede = useMutation(api.gameManual.manualConcedeMatch);
     const [isBusy, setIsBusy] = useState(false);
     const [confirmForfeit, setConfirmForfeit] = useState(false);
+    // Issue #10239 — a refused or timed-out concede (Convex's 10 s mutation
+    // limit) is shown in the confirm dialog, never left as an unhandled
+    // rejection behind a dialog that silently stays open.
+    const [forfeitError, setForfeitError] = useState<string | null>(null);
 
     const isManual = activeGame.mode === "manual";
     // Derived from what the SERVER accepts, never from a single `playing`
@@ -94,6 +99,7 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
     const handleForfeit = async () => {
         if (isBusy) return;
         setIsBusy(true);
+        setForfeitError(null);
         try {
             if (isManual) {
                 // #2400 review round 2 (blocking, round 3): `manualConcede`
@@ -115,9 +121,16 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
                 });
             }
             setConfirmForfeit(false);
+        } catch (err) {
+            setForfeitError(extractMutationErrorMessage(err));
         } finally {
             setIsBusy(false);
         }
+    };
+
+    const closeForfeitDialog = () => {
+        setConfirmForfeit(false);
+        setForfeitError(null);
     };
 
     return (
@@ -181,14 +194,19 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
             <GameDialog
                 open={confirmForfeit}
                 onOpenChange={(open) => {
-                    if (!open) setConfirmForfeit(false);
+                    if (!open) closeForfeitDialog();
                 }}
                 title="Concede match?"
                 subtitle="This ends the whole match as a loss and cannot be undone."
             >
+                {forfeitError && (
+                    <Banner tone="danger" role="alert" className="mt-4">
+                        {forfeitError}
+                    </Banner>
+                )}
                 <div className="flex justify-end gap-2 mt-4">
                     <ActionButton
-                        onClick={() => setConfirmForfeit(false)}
+                        onClick={closeForfeitDialog}
                         label="Cancel"
                         tone="secondary"
                         disabled={isBusy}
