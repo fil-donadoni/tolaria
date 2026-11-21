@@ -31967,6 +31967,129 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9696, CR 702.138a. Ornithopter, a land and an instant already cover four card types: the escape exiles three cards and leaves the rest of the graveyard to grow the Nethergoyf.",
     },
+    // Fear of Missing Out's enter trigger (issue #9957): a mandatory own-hand
+    // discard, CR 701.9b. No search node opens on it — the entry pins the one
+    // answer the search's playout and the live client share,
+    // `mandatoryOwnHandDiscardAnswer` (`forcedSeatAnswer`, `runner.ts`). The
+    // land-light entry is the opposite play, so "always shed the land" fails.
+    {
+        label: "enter-trigger discard: Fear of Missing Out discards the surplus land",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 0,
+            cards: [
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 5,
+                },
+                {
+                    name: "Fear of Missing Out",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Mountain", owner: "me", zone: "hand" },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "library", count: 20 },
+            ],
+        },
+        setup: [
+            { kind: "etb-trigger", card: "Fear of Missing Out" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", cards: ["Mountain"] }],
+        },
+        note: "Issue #9957, CR 701.9b. Five lands in play and one Mountain in hand beside a Lightning Bolt: the sixth land casts nothing the hand holds, the Bolt is a card. Before the change the live client's `discardOrder` ranked a lone land below every spell on any board and binned the Bolt, while the search's playout shed the Mountain.",
+    },
+    {
+        label: "enter-trigger discard: Fear of Missing Out never discards a spell over the surplus land",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 0,
+            cards: [
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 6,
+                },
+                {
+                    name: "Fear of Missing Out",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Mountain", owner: "me", zone: "hand" },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                { name: "Hill Giant", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "library", count: 20 },
+            ],
+        },
+        setup: [
+            { kind: "etb-trigger", card: "Fear of Missing Out" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "resolution-choice", card: "Lightning Bolt" },
+                { kind: "resolution-choice", card: "Hill Giant" },
+            ],
+        },
+        note: "Issue #9957, CR 701.9b. Six lands in play: the Mountain in hand is surplus, and neither the Bolt nor the castable Hill Giant goes before it.",
+    },
+    {
+        label: "enter-trigger discard: Fear of Missing Out keeps the land drop while land-light",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 0,
+            cards: [
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                {
+                    name: "Fear of Missing Out",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Mountain", owner: "me", zone: "hand" },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "library", count: 20 },
+            ],
+        },
+        setup: [
+            { kind: "etb-trigger", card: "Fear of Missing Out" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", cards: ["Lightning Bolt"] }],
+        },
+        note: "Issue #9957, CR 701.9b, CR 305.2. Two lands in play: the Mountain in hand is the next land drop and is shed after every other card (`LAND_LIGHT_LANDS_IN_PLAY`). The opposite play of the surplus-land entries.",
+    },
     {
         // MUST. An as-enters choice whose one branch is an attack-now lethal
         // (issue #10084). Riot (CR 702.136a) offers a +1/+1 counter or haste;

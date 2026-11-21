@@ -298,8 +298,12 @@ export type VerdictGap = {
      *  itself the right-hand half of a Minimal Pair (issue #4796) and the
      *  declaration is refused — a missing or unfit anchor, or positions that
      *  differ by more than the Discriminant — so the half is out of the
-     *  corpus: alone it would teach "always" (ADR 0148). */
+     *  corpus: alone it would teach "always" (ADR 0148). `forced`: the
+     *  declared seat owes a window no search node opens on, answered by one
+     *  shared rule (`forcedSeatAnswer`) — no weight moves it, so
+     *  like `unconstraining` it states no preference the fit could learn. */
     reason:
+        | "forced"
         | "pair"
         | "history"
         | "predicate"
