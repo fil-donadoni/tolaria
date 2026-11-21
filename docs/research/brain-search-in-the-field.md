@@ -5,6 +5,9 @@
 > (Rome), from the provider's pricing page read on 2026-11-16, or is derived
 > from those two in the open below. Slice 4 of PRD issue #9525; the decision it
 > feeds is ADR 0183.
+>
+> **Later reading:** 2026-11-21, after issues #10025 and #10026 shipped, with
+> the first phone report — `field-reading-after-engine-changes.md`.
 
 **Question.** The lab (`brain-search-off-the-dev-machine.md`, measured at
 `90996ede2`) said a slower device silently plays a shallower Bot. How shallow
