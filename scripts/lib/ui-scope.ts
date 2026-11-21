@@ -28,6 +28,10 @@
  *     imports, e.g. `scripts/lib/build-define.ts`) → `full`: it shapes the
  *     bundle every route is served from;
  *   - NON-DOM (tests, scripts, markdown) → contributes nothing;
+ *   - a RENDER-INERT module — every changed line, on both sides, a comment,
+ *     an event handler's body or an import only handlers read
+ *     (`ui-render-inert.ts`, issue #10393) → contributes nothing: no hunk of
+ *     it can move a pixel, so neither its closure nor any rule below applies;
  *   - reachable from the shell, the build or a surface ONLY through
  *     `import type` / `export type` statements → contributes nothing: the
  *     build erases those, so no code of it runs on any screen
@@ -97,6 +101,7 @@
  */
 import type { ImportGraph } from "./import-graph";
 import { additiveRegistrationsSinceBase } from "./ui-route-registration-edits";
+import { renderInertSinceBase, type RenderInert } from "./ui-render-inert";
 import { stylesheetOwnersSinceBase } from "./ui-stylesheet-scope";
 import type { SurfaceEdits } from "./ui-surface-edits";
 
@@ -288,6 +293,10 @@ export interface ComputeUiScopeInput {
      *  rules, each with the modules that own those classes (issue #9295).
      *  Absent: derived from git at the graph's root. */
     stylesheetOwners?: ReadonlyMap<string, readonly string[]>;
+    /** Changed modules whose every changed line is render-inert (issue
+     *  #10393, `ui-render-inert.ts`): they select no surface. Absent:
+     *  derived from git at the graph's root. */
+    renderInert?: ReadonlySet<string>;
 }
 
 /** A JS/TS module: what an `import` names, so what `tsc` resolves. */
@@ -346,6 +355,7 @@ export function computeUiScope({
     surfaceEdits = null,
     additiveRegistrations = additiveRegistrationsSinceBase(changed, graph.root),
     stylesheetOwners = stylesheetOwnersSinceBase(changed, graph.root),
+    renderInert = inertPaths(renderInertSinceBase(changed, graph.root)),
 }: ComputeUiScopeInput): UiScope {
     const shell = shellClosure(graph);
     const build = graph.closureOf(BUILD_CONFIG);
@@ -453,6 +463,9 @@ export function computeUiScope({
             };
         }
         if (isNonDomPath(path)) continue;
+        // Every changed line render-inert (issue #10393): neither its closure
+        // nor any rule below applies — nothing it changed can move a pixel.
+        if (renderInert.has(path)) continue;
         const owners = stylesheetOwners.get(path);
         if (owners !== undefined) {
             // A class-confined stylesheet diff (issue #9295): placed by the
@@ -511,6 +524,15 @@ export function computeUiScope({
         kind: "scoped",
         surfaces: surfaces.map((s) => s.id).filter((id) => selected.has(id)),
     };
+}
+
+/** The paths a `renderInertSinceBase` map clears. */
+export function inertPaths(
+    verdicts: ReadonlyMap<string, RenderInert>
+): Set<string> {
+    return new Set(
+        [...verdicts].filter(([, v]) => v.inert).map(([path]) => path)
+    );
 }
 
 /** Whether a module is a SECTION of a specimen page — a specimen section, or
@@ -693,12 +715,21 @@ export function renderUiScope(scope: UiScope, base: string): string {
  * statements — the build erases them, as the scope rule above already says —
  * and a DELETED module, which renders nowhere: a deletion something still
  * imports fails `check:ts`, not a walk. A deleted stylesheet or asset stays
- * owed by its path.
+ * owed by its path. HUNKS, NOT FILES (issue #10393): a module the hunk
+ * classifier (`ui-render-inert.ts`) clears — every changed line render-inert —
+ * owes nothing by PATH nor by CONTENT; a module it cannot clear keeps both
+ * rules, and the path rule's verdict names the hunk that reaches rendering.
  * `land` and `check:ui -- --scope-only` both call this.
  */
 export type WalkOwed =
     | { owed: true; rule: string; path: string }
-    | { owed: false; reason: string };
+    | {
+          owed: false;
+          reason: string;
+          /** The modules cleared as render-inert (issue #10393), each with
+           *  what placed its changed lines — the audit `--scope-only` prints. */
+          inert?: readonly { path: string; reason: string }[];
+      };
 
 const OVERLAY_NAME =
     /(?:dialog|modal|popover|overlay|portal|sheet|drawer|tooltip|dropdown|menu|toast)/i;
@@ -789,13 +820,17 @@ function isDataPath(path: string): boolean {
 
 /** `changedLines(path)` returns the path's added and removed lines (a new
  *  file's whole content), or `null` when the diff cannot be read;
- *  `deleted(path)` says the diff removes the path. */
+ *  `deleted(path)` says the diff removes the path; `renderInert(path)` is the
+ *  hunk classifier's verdict (`ui-render-inert.ts`, issue #10393), `null`
+ *  when it could not judge the path — which then stays owed as before. */
 export function uiWalkOwed(
     changed: readonly string[],
     changedLines: (path: string) => string | null,
-    deleted: (path: string) => boolean = () => false
+    deleted: (path: string) => boolean = () => false,
+    renderInert: (path: string) => RenderInert | null = () => null
 ): WalkOwed {
     const reachable = domReachablePaths([...changed].sort());
+    const inert: { path: string; reason: string }[] = [];
     for (const path of reachable) {
         if (isModulePath(path) && deleted(path)) continue;
         const byPath = owedByPath(path);
@@ -805,7 +840,20 @@ export function uiWalkOwed(
         if (isDataPath(path)) continue;
         const source = changedLines(path);
         if (source !== null && onlyTypeImports(source)) continue;
-        if (byPath) return { owed: true, rule: byPath, path };
+        // Every changed line render-inert: neither the name rule nor the
+        // content rules apply — no hunk of it can move a pixel.
+        const hunks = isModulePath(path) ? renderInert(path) : null;
+        if (hunks?.inert) {
+            inert.push({ path, reason: hunks.reason });
+            continue;
+        }
+        if (byPath) {
+            return {
+                owed: true,
+                rule: hunks ? `${byPath} — ${hunks.at}` : byPath,
+                path,
+            };
+        }
         if (source === null) {
             return {
                 owed: true,
@@ -821,15 +869,23 @@ export function uiWalkOwed(
         reason:
             reachable.length === 0
                 ? "no changed path can reach the DOM"
-                : "no stylesheet, shell, layout or overlay path, and no changed line adds or removes a z-index, positioning, scroll container or responsive rule",
+                : inert.length > 0
+                  ? "every other changed path is no stylesheet, shell, layout or overlay path and adds or removes no z-index, positioning, scroll container or responsive rule; the render-inert modules below change no line rendering reaches"
+                  : "no stylesheet, shell, layout or overlay path, and no changed line adds or removes a z-index, positioning, scroll container or responsive rule",
+        ...(inert.length > 0 ? { inert } : {}),
     };
 }
 
-/** `check:ui -- --scope-only`'s verdict line. */
+/** `check:ui -- --scope-only`'s verdict line, then one audit line per
+ *  module cleared as render-inert. */
 export function renderWalkOwed(result: WalkOwed): string {
-    return result.owed
-        ? `walk: owed — ${result.path}: ${result.rule}`
-        : `walk: not owed — ${result.reason}`;
+    if (result.owed) return `walk: owed — ${result.path}: ${result.rule}`;
+    return [
+        `walk: not owed — ${result.reason}`,
+        ...(result.inert ?? []).map(
+            (f) => `  · ${f.path}: render-inert — ${f.reason}`
+        ),
+    ].join("\n");
 }
 
 /**

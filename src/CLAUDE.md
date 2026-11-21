@@ -38,7 +38,15 @@ a `*layout*` component; `components/ui/`; a dialog/modal/popover/overlay/
 portal/sheet/drawer/tooltip/dropdown/menu/toast component; a viewport/
 responsive module; or a changed line adding/removing a `z-index`,
 scroll container or `@media`/`matchMedia`/`useViewport*`. Leaf
-components, copy, handlers, tests: not. Not owed → PR line
+components, copy, handlers, tests: not. **Hunks, not files** (issue #10393,
+`scripts/lib/ui-render-inert.ts`): a module whose EVERY changed line is
+render-inert — comment, event-handler body (an `on*` prop's function, or a
+binding only `on*` props and handlers reference) naming no setter / dispatch /
+navigate / class / style / DOM, or an import whose changed bindings only
+handlers read — owes nothing by name or content and selects no surface;
+anything else, an unparsable or new module included, behaves as above.
+`--scope-only` lists each cleared module's reason; an owed verdict names the
+hunk (`<path>:<line>: <construct>`). Not owed → PR line
 `check:ui: no walk owed (<reason>)` replaces the receipt; owed + no receipt →
 `land` refuses. `--all`: the full proof, by hand only (#6143).
 
