@@ -17,7 +17,7 @@ import { defineCard, type ActivatedAbilityContext } from "../../types";
 // follows the move with a reorder that brings the card to the top, leaving it a
 // public placement, here as one declarative Op.
 //
-// compiler-gap: {1}{B}, {T}: Put target creature card from your graveyard on top of your library. (#2693)
+// compiler-gap: {1}{B}, {T}: Put target creature card from your graveyard on top of your library. (#10351)
 export const volrathsStronghold = defineCard(() => ({
     id: "43bf015b-152e-4d67-b773-e75fb2487a32", // STH 143
     rarity: "rare",

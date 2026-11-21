@@ -47,7 +47,7 @@ import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 // dies-trigger fragment is the cycle's, quoted as printed for THIS card;
 // Enduring Innocence carries its own line in the
 // one-time baseline instead, which only ever shrinks.
-// compiler-gap: Whenever you gain life, target opponent loses that much life. (#2693)
+// compiler-gap: Whenever you gain life, target opponent loses that much life. (#10350)
 export const enduringTenacity = defineCard(() => ({
     id: "d5756d4b-3068-412c-8643-880d3459151e",
     name: "Enduring Tenacity",

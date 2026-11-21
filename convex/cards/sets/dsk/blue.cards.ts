@@ -42,7 +42,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // dies-trigger fragment is the cycle's, quoted as printed for THIS card;
 // Enduring Innocence carries its own line in the
 // one-time baseline instead, which only ever shrinks.
-// compiler-gap: Whenever a creature you control deals combat damage to a player, draw a card. (#2693)
+// compiler-gap: Whenever a creature you control deals combat damage to a player, draw a card. (#10366)
 export const enduringCuriosity = defineCard(() => ({
     id: "8616629e-08f9-41ad-bfec-f86c8096f1cb",
     name: "Enduring Curiosity",
