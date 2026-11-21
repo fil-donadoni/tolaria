@@ -30,7 +30,7 @@
  *   - NON-DOM (tests, scripts, markdown) → contributes nothing;
  *   - a RENDER-INERT module — every changed line, on both sides, a comment,
  *     an event handler's body or an import only handlers read
- *     (`ui-render-inert.ts`, issue #10393) → contributes nothing: no hunk of
+ *     (`ui-render-inert.ts`) → contributes nothing: no hunk of
  *     it can move a pixel, so neither its closure nor any rule below applies;
  *   - reachable from the shell, the build or a surface ONLY through
  *     `import type` / `export type` statements → contributes nothing: the
@@ -715,7 +715,7 @@ export function renderUiScope(scope: UiScope, base: string): string {
  * statements — the build erases them, as the scope rule above already says —
  * and a DELETED module, which renders nowhere: a deletion something still
  * imports fails `check:ts`, not a walk. A deleted stylesheet or asset stays
- * owed by its path. HUNKS, NOT FILES (issue #10393): a module the hunk
+ * owed by its path. HUNKS, NOT FILES: a module the hunk
  * classifier (`ui-render-inert.ts`) clears — every changed line render-inert —
  * owes nothing by PATH nor by CONTENT; a module it cannot clear keeps both
  * rules, and the path rule's verdict names the hunk that reaches rendering.
