@@ -219,7 +219,7 @@ describe("deny-guard — merging goes through the merge queue (#2537)", () => {
     });
 
     it.each([
-        "gh pr create --title x --body y",
+        "TOLARIA_ALLOW_UNCHECKED_PR_BODY=1 gh pr create --title x --body y",
         "gh pr view 123 --json state",
         "gh pr checks 123",
     ])("allows other `gh pr` commands from an issue worktree: %s", (cmd) => {
@@ -1588,7 +1588,7 @@ describe("deny-guard — the hand-off is land:ready, never a raw ready-to-land l
         "gh pr edit 6138 --remove-label=ready-to-land --add-label land-failed",
         "bun run land:ready 6138",
         "gh pr edit 6138 --add-label ready-to-land-later",
-        "gh pr create --title t --label bug",
+        "TOLARIA_ALLOW_UNCHECKED_PR_BODY=1 gh pr create --title t --label bug",
         "git commit -m 'never run gh pr edit N --add-label ready-to-land by hand'",
     ])(
         "allows unqueueing, the hand-off itself, and other labels: %s",
@@ -2271,5 +2271,81 @@ describe("deny-guard § 8 — no unknown blast radius is filed ready or claimed 
         expect(denied(r), `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(
             false
         );
+    });
+});
+
+describe("deny-guard § 9 — a PR body carries its owed lines before the PR exists (issue #10394)", () => {
+    // The decision is `scripts/pr-body-check.ts` (its own test); here a
+    // stand-in in a fixture project refuses a body containing MISSING
+    // (exit 2) and cannot decide on one containing INFRA (exit 1).
+    let bodies: string;
+    let stubDir: string;
+    const stub = () => ({ CLAUDE_PROJECT_DIR: stubDir });
+
+    beforeAll(() => {
+        bodies = fs.mkdtempSync(path.join(tmp, "pr-body-9-"));
+        fs.writeFileSync(path.join(bodies, "ok.md"), "Docs: none (x)\n");
+        fs.writeFileSync(path.join(bodies, "bad.md"), "MISSING\n");
+        fs.writeFileSync(path.join(bodies, "infra.md"), "INFRA\n");
+        stubDir = fs.mkdtempSync(path.join(tmp, "pr-body-9-stub-"));
+        fs.mkdirSync(path.join(stubDir, "scripts"));
+        fs.writeFileSync(
+            path.join(stubDir, "scripts", "pr-body-check.ts"),
+            [
+                'import { readFileSync } from "node:fs";',
+                'const body = readFileSync(process.argv[process.argv.indexOf("--body-file") + 1], "utf8");',
+                'if (body.includes("INFRA")) process.exit(1);',
+                'if (!body.includes("MISSING")) process.exit(0);',
+                'console.error("proof — owes a proof: none owed (<reason>) line");',
+                "process.exit(2);",
+                "",
+            ].join("\n")
+        );
+    });
+
+    const run = (cmd: string, cwd = bodies) =>
+        runHook(DENY_GUARD, bash(cmd, cwd), stub());
+
+    it.each([
+        ["gh pr create --title t --body-file bad.md", /proof: none owed/],
+        ["gh pr create --title t -F bad.md --base staging", /proof: none owed/],
+        ["gh pr edit 12 --body-file bad.md", /proof: none owed/],
+        ["gh pr create --title t --body x", /no `--body-file`/],
+        ["gh pr create --fill", /no `--body-file`/],
+        ["gh pr create --title t", /no `--body-file`/],
+        [
+            'gh pr create --title t --body-file "$S/body.md"',
+            /not a literal path/,
+        ],
+        ["gh pr create --title t --body-file -", /reads the body from stdin/],
+        ["gh pr create --title t --body-file nope.md", /no such file/],
+    ])("refuses: %s", (cmd, why) => {
+        const r = run(cmd);
+        expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+        expect(r.stderr).toMatch(why);
+        expect(r.stderr).toMatch(/bun run pr:body-check --body-file <path>/);
+    });
+
+    it.each([
+        "gh pr create --title t --body-file ok.md",
+        "gh pr create --title t -F ok.md",
+        "gh pr edit 12 --body-file ok.md",
+        "gh pr edit 12 --add-label bug",
+        "gh pr create --title t --body-file infra.md",
+        "TOLARIA_ALLOW_UNCHECKED_PR_BODY=1 gh pr create --title t --body x",
+    ])("allows: %s", (cmd) => {
+        const r = run(cmd);
+        expect(denied(r), `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(
+            false
+        );
+    });
+
+    it("resolves a relative body file against the leading `cd`", () => {
+        const r = run(
+            `cd ${bodies} && gh pr create --title t --body-file bad.md`,
+            tmp
+        );
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/proof: none owed/);
     });
 });

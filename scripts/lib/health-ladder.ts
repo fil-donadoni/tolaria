@@ -1078,6 +1078,7 @@ export const PIPELINE_TOOLING_TESTS: readonly string[] = [
     "lane-sentinels",
     "lane-sources-injected",
     "lane-verdict",
+    "pr-body-check",
     "pr-check-twin",
     "pr-checks",
     "pr-fixup",
