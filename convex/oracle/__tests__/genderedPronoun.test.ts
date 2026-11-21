@@ -137,7 +137,7 @@ describe("gendered pronoun — goldens (CR 608.2h)", () => {
                     {
                         id: "momo-rambunctious-rascal-trigger",
                         oracleText:
-                            "When {self} enters, he deals 4 damage to target tapped creature an opponent controls.",
+                            "When Momo enters, he deals 4 damage to target tapped creature an opponent controls.",
                         head: { kind: "entered", scope: "self" },
                         targetRequirement: TAPPED_OPPONENT_CREATURE,
                         effects: [
@@ -167,7 +167,7 @@ describe("gendered pronoun — goldens (CR 608.2h)", () => {
                     {
                         id: "the-wasp-janet-van-dyne-trigger",
                         oracleText:
-                            "When {self} enters, she deals 4 damage to target tapped creature an opponent controls.",
+                            "When The Wasp enters, she deals 4 damage to target tapped creature an opponent controls.",
                         head: { kind: "entered", scope: "self" },
                         targetRequirement: TAPPED_OPPONENT_CREATURE,
                         effects: [
@@ -198,7 +198,7 @@ describe("gendered pronoun — goldens (CR 608.2h)", () => {
                     {
                         id: "darwin-adaptive-mutant-ability",
                         oracleText:
-                            "Remove two +1/+1 counters from {self}: He gains indestructible until end of turn.",
+                            "Remove two +1/+1 counters from Darwin: He gains indestructible until end of turn.",
                         cost: { removeCounter: { type: "+1/+1", count: 2 } },
                         useStack: true,
                         effects: [
@@ -232,7 +232,7 @@ describe("gendered pronoun — goldens (CR 608.2h)", () => {
                     {
                         id: "mockingbird-bobbi-morse-trigger",
                         oracleText:
-                            "Whenever {self} is dealt damage, put a +1/+1 counter on her.",
+                            "Whenever Mockingbird is dealt damage, put a +1/+1 counter on her.",
                         head: { kind: "damage-taken", scope: "self" },
                         effects: [
                             {
@@ -266,7 +266,7 @@ describe("gendered pronoun — goldens (CR 608.2h)", () => {
                     {
                         id: "zuko-seeking-honor-trigger",
                         oracleText:
-                            "Whenever {self} deals combat damage to a player, put a +1/+1 counter on him.",
+                            "Whenever Zuko deals combat damage to a player, put a +1/+1 counter on him.",
                         head: { kind: "combat-damage-to-player" },
                         effects: [
                             {

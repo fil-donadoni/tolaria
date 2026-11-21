@@ -116,7 +116,7 @@ describe("copy target instant or sorcery spell you control (CR 707.10, CR 707.10
                 activatedAbilities: [
                     {
                         id: "rootha-mercurial-artist-ability",
-                        oracleText: `{2}, Return {self} to its owner's hand: ${COPY} ${OFFER}`,
+                        oracleText: `{2}, Return Rootha to its owner's hand: ${COPY} ${OFFER}`,
                         cost: { mana: { X: 2 }, returnThisToHand: true },
                         useStack: true,
                         effects: EFFECTS,

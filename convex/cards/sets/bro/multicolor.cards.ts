@@ -101,7 +101,7 @@ export const urzaLordProtector = defineCard(() => ({
         {
             id: "urza-lord-protector-ability",
             oracleText:
-                "{7}: If you both own and control {self} and an artifact named The Mightstone and Weakstone, exile them, then meld them into Urza, Planeswalker. Activate only as a sorcery.",
+                "{7}: If you both own and control Urza, Lord Protector and an artifact named The Mightstone and Weakstone, exile them, then meld them into Urza, Planeswalker. Activate only as a sorcery.",
             cost: {
                 mana: {
                     X: 7,
