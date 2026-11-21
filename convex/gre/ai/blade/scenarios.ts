@@ -30413,10 +30413,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // at 100 iterations). At the anchor's 100 iterations it stayed
         // noise-pinned (issue #10337): a seed whose `pass` out-means every
         // cast with every one-ply reward at the clipped floor, jitter+ seed 4
-        // of the robustness audit. 400 iterations clears every leg (200 does
-        // not; 300 and 800 measured robust too). The anchor keeps its starved
+        // of the robustness audit. 400 iterations cleared every leg on
+        // cc6f4016c (200 did not) but pinned again at jitter+ 9/10 on
+        // 258d11289; 800 clears every leg there. The anchor keeps its starved
         // 100: its discriminating seed is the point of it.
-        budget: { iterations: 400 },
+        budget: { iterations: 800 },
         seeds: [0xb1ade, 1, 2, 3, 4, 5, 6],
         tier: "must",
         // A PREDICATE, kept out of the weight fit on purpose: see the first
