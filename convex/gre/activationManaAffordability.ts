@@ -85,16 +85,21 @@ export function activationManaProbe(
         if (!manaCost) return true;
         // CR 602.1 / 302.1 — a source whose {T} is part of the cost can't also
         // tap for the mana that funds it (issue #3081's bar).
-        return (
-            planManaPayment(
-                state,
-                payer,
-                manaCost,
-                undefined,
-                source,
-                ability.cost.tap === true ? source.id : undefined
-            ) !== null
-        );
+        try {
+            return (
+                planManaPayment(
+                    state,
+                    payer,
+                    manaCost,
+                    undefined,
+                    source,
+                    ability.cost.tap === true ? source.id : undefined
+                ) !== null
+            );
+        } catch {
+            // An affordance probe must never take the whole projection down.
+            return true;
+        }
     };
 }
 
