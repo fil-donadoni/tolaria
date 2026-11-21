@@ -4,9 +4,10 @@
 > build, `vite build` + `vite preview`), against the local Convex backend on
 > the development MacBook (Apple M1 Pro, 8 cores) while it was also the
 > pipeline's runner: load average 14–52 during the window. Games played
-> 11:35–12:35 (Rome); field reports read over the same day. Every number
-> below is as of that commit and that day. Slice of PRD issue #10017; owner
-> ruling in issue #10027.
+> 11:35–12:35 (Rome); field reports read over the same day; the owner's
+> phone game (§ 5) reported at 14:53 from production. Every number below is
+> as of that commit and that day. Slice of PRD issue #10017; owner ruling in
+> issue #10027.
 
 **Question.** How does the Bot behave on a slow network and on a client with
 few resources: iterations per search, consults over the timeout, in-thread
@@ -38,7 +39,14 @@ first?
    iteration shorter than one of these. Filed as issue #10408.
 5. **Iterations per search against the 400 target (issue #10027):** every
    lab condition cleared it but one (277, the 4x game, played at load
-   average ~52); the Gecko field games did not come close (39–67).
+   average ~52); the Gecko field games did not come close (39–67), nor did
+   the phone (309) or a production Chromium desktop game (174).
+6. **The phone held up; the telemetry did not reach it.** An iPhone (WebKit,
+   3–4 cores) at `expert`: 9 searches, all stopped by time, 11.56 ms per
+   iteration, slowest consult 3,352 ms, no timeout, no in-thread fallback
+   (§ 5). But its first two games sent Sentry **nothing**: a content blocker
+   (AdLock) dropped every request to `*.ingest.sentry.io`, and Sentry holds
+   zero iOS events over 30 days. Filed as issue #10414.
 
 ## Method
 
@@ -162,6 +170,37 @@ timeout. Nothing timed out yet; the slowest consult had 254 ms to spare.
 Both Gecko games sent two reports each (the same game id, minutes apart);
 whether a page-hide flush followed by more play explains it was not checked.
 
+A production Chromium game on the same Mac, the same afternoon
+(`jh7cqv7g`, 14:34): 23 searches, **174** iterations per search, ratio
+0.131, 20.98 ms per iteration p50 — half the lab baseline's rate on the same
+engine and machine. Consults stayed on the cap (max 3,354 ms). Why production
+Chromium iterates slower than the lab build was not chased.
+
+## 5. The phone
+
+The owner's game on production, reported 14:53 (Rome).
+
+| game     | device                        | consults | searches | stopped by time | iterations / search | ratio | ms / iteration p50 | p90   | first | consult p50 | consult max | timeouts | in-thread |
+| -------- | ----------------------------- | -------- | -------- | --------------- | ------------------- | ----- | ------------------ | ----- | ----- | ----------- | ----------- | -------- | --------- |
+| jh79z3nx | iPhone, webkit/ios, 3–4 cores | 11       | 9        | 9               | **309**             | 0.234 | 11.56              | 29.72 | 6.07  | 3,325 ms    | 3,352 ms    | 0        | 0         |
+
+`device.mobile` reads true (issue #10022). The phone searches faster per
+iteration than the production Chromium desktop game above and every consult
+sat on the 3.3 s cap: nothing near the timeout. Below the 400 target all the
+same. One short game; the cold-cache first consult was not read (no page
+instrumentation on a phone).
+
+**The first two phone games reported nothing.** The phone runs AdLock, a
+content blocker. With AdLock on (the second game with the site allow-listed), two finished vs-Bot games sent Sentry no
+report; Sentry recorded no drop either (`find_dropped_events`, logs: zero),
+so the requests never left the phone. Allow-listing the site in AdLock was not
+enough; with AdLock switched off the third game reported at once. Sentry holds
+**zero** events from iOS over the last 30 days — no log, no error, no span.
+The SDK posts straight to `*.ingest.sentry.io` (`src/main.tsx`), a domain
+blocklists name, so the field numbers in this note and in
+`brain-search-in-the-field.md` come only from clients without a blocker.
+Filed as issue #10414 (a first-party `tunnel`).
+
 ## Not measured
 
 - **The search on a throttled CPU in a real browser.** DevTools' CPU
@@ -172,9 +211,8 @@ whether a page-hide flush followed by more play explains it was not checked.
   unsupported), or a genuinely slow device. The lab bench's synthetic
   slowdowns (`brain-search-off-the-dev-machine.md` § 2) remain the only
   numbers for a slow core.
-- **A phone.** Owed by the owner: a vs-Bot game at `expert` on a phone, read
-  from its `bot search` report (`device.mobile` now reads true on a phone
-  since issue #10022).
+- **More than one phone game, and an Android one.** § 5 is one short iPhone
+  game; no cold-cache first consult, no slow network on the phone.
 - **Memory pressure on a mobile tab** — not reproducible on a desktop
   browser.
 - **WebSocket under network emulation.** The game's Convex traffic is a
