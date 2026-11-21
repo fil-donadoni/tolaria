@@ -50,6 +50,7 @@ import {
     clearExileLinksToEnteringSource,
     dropDelayedCapturesOfEnteringObject,
     forgetDamageToEnteringObject,
+    unattachFromEnteringObject,
     stageAsEntersEntry,
     stagedEntryAnswers,
     restoreStagedEntryAnswers,
@@ -841,6 +842,7 @@ function settleEnteredLand(
         resolvingItemPopped: false,
     });
     forgetDamageToEnteringObject(state, card.id);
+    unattachFromEnteringObject(state, card.id);
 
     // CR 305.2 — track the land drop.
     if (card.types.includes("Land")) {
