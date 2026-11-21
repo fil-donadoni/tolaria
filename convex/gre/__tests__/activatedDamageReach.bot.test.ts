@@ -77,7 +77,7 @@ describe("lethalUnblockedDelta — activated burn reach (issue #10422, CR 120.3a
         expect(lethalUnblockedDelta(state, ATTACKER)).toBe(WIN_SCORE);
     });
 
-    it("a {T} creature pinger is the same class (CR 302.6: haste lifts sickness)", () => {
+    it("a {T} creature pinger is the same class (CR 702.10c: haste lifts sickness)", () => {
         const state = position(4, [
             own(HASTY_PINGER, { isSummoningSick: true }),
         ]);

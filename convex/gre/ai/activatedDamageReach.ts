@@ -135,8 +135,8 @@ function bestReachAbilityOf(
         if (Object.keys(cost).some((k) => cost[k] && !ALLOWED_COST_KEYS.has(k)))
             continue;
         if (ability.cost.tap) {
-            // CR 302.6 — a tapped permanent cannot pay {T} again, and a
-            // creature's {T} waits out summoning sickness.
+            // A tapped permanent cannot pay {T} again, and a creature's {T}
+            // waits out summoning sickness (CR 302.6) unless it has haste.
             if (source.isTapped || isTapLockedBySummoningSickness(source))
                 continue;
         }
