@@ -263,6 +263,27 @@ describe("classifyRenderInert — hunks that reach rendering stay owed (fail-clo
         });
     });
 
+    it("an <img onError> / onLoad body runs at rest: no handler (review, issue #10393)", () => {
+        const base = BASE.replace(
+            "            <span>{label}</span>\n",
+            "            <img\n                onError={(e) => {\n                    e.currentTarget.src = fallback;\n                }}\n                onLoad={() => {\n                    onImageLoaded?.();\n                }}\n            />\n"
+        );
+        expect(base).not.toBe(BASE);
+        const head = base
+            .replace("src = fallback;", "src = placeholder;")
+            .replace("onImageLoaded?.();", "onImageLoaded?.(true);");
+        expect(judge(head, base)).toMatchObject({ inert: false });
+    });
+
+    it("a custom component's at-rest callback (onReady) is no handler", () => {
+        const base = BASE.replace(
+            "            <span>{label}</span>\n",
+            "            <Preview\n                onReady={() => {\n                    reveal(1);\n                }}\n            />\n"
+        );
+        const head = base.replace("reveal(1);", "reveal(2);");
+        expect(judge(head, base)).toMatchObject({ inert: false });
+    });
+
     it("a side-effect import reaches rendering", () => {
         const head = `import "./next-game-dialog.css";\n${BASE}`;
         expect(judge(head)).toEqual({

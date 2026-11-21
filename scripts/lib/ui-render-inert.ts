@@ -34,7 +34,15 @@
  *     changes what a handler calls, never what renders. `import type`
  *     counts too: the build erases it.
  *
+ * Which `on*` props count: on an intrinsic element, only the DOM events user
+ * input fires (`USER_INPUT_EVENT`) — `onLoad`, `onError`, `onAnimationEnd`
+ * and kin fire at rest; on a custom component, any `on*` callback not named
+ * for a lifecycle or at-rest event (`AT_REST_CALLBACK`).
+ *
  * ACCEPTED RESIDUALS, recorded rather than closed (the issue's scope):
+ *   - a custom component that calls a user-action-named callback
+ *     (`onSwitchGame`) from an effect, at rest: the name is the only signal
+ *     this module reads;
  *   - only the CHANGED lines of a handler are read: an unchanged
  *     `setX(value)` below a changed line that computes `value` is not seen —
  *     the walk measures layout at rest, and never runs an event handler that
@@ -73,6 +81,20 @@ const NON_MODULE_SPECIFIER =
     /\.(?:css|scss|sass|less|svg|png|jpe?g|gif|webp|avif|ico|woff2?|ttf|json|html)$|\?/;
 
 const HANDLER_PROP = /^on[A-Z]/;
+
+/** On an intrinsic element (`<button>`, `<img>`), the DOM events only USER
+ *  INPUT fires. `onLoad`, `onError`, `onAnimationEnd`, `onTransitionEnd`,
+ *  `onFocus` (autofocus), `onScroll`… fire while the page sits at rest, so
+ *  their bodies run under the walk and stay owed. */
+const USER_INPUT_EVENT =
+    /^on(?:Click|DoubleClick|ContextMenu|Pointer(?:Down|Up|Cancel)|Mouse(?:Down|Up)|Key(?:Down|Up|Press)|Change|Input|BeforeInput|Submit|Reset|Drag\w*|Drop|Touch(?:Start|End|Cancel)|Wheel|Copy|Cut|Paste)(?:Capture)?$/;
+
+/** On a custom component, an `on*` prop is a callback the component decides
+ *  when to call. One named for a lifecycle or at-rest event (`onReady`,
+ *  `onImageLoaded`, `onMount`, `onAnimationEnd`, `onVisible`…) is likely
+ *  called from an effect, so its body runs at rest: stays owed. */
+const AT_REST_CALLBACK =
+    /Load|Error|Ready|Mount|Init|Render|Animation|Transition|Focus|Blur|Resize|Scroll|Measure|Layout|Visib|Intersect|Settle|Complete|Hydrat|Update|Change|Start|End|Success|Fail|Timeout|Tick|Frame|Idle/;
 
 type FunctionLike =
     | ts.ArrowFunction
@@ -134,12 +156,21 @@ function isHandlerPropValue(node: ts.Node): boolean {
     const expr = node.parent;
     if (!expr || !ts.isJsxExpression(expr)) return false;
     const attr = expr.parent;
-    return (
-        !!attr &&
-        ts.isJsxAttribute(attr) &&
-        ts.isIdentifier(attr.name) &&
-        HANDLER_PROP.test(attr.name.text)
-    );
+    if (
+        !attr ||
+        !ts.isJsxAttribute(attr) ||
+        !ts.isIdentifier(attr.name) ||
+        !HANDLER_PROP.test(attr.name.text)
+    ) {
+        return false;
+    }
+    const prop = attr.name.text;
+    const element = attr.parent.parent; // JsxAttributes → opening element
+    const tag = element.tagName;
+    const intrinsic = ts.isIdentifier(tag) && /^[a-z]/.test(tag.text);
+    return intrinsic
+        ? USER_INPUT_EVENT.test(prop)
+        : !AT_REST_CALLBACK.test(prop.slice(2));
 }
 
 /** The binding a function is declared under, when it is a non-exported
