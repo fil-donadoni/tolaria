@@ -25,8 +25,7 @@
 import type { RobustnessBaselineRow } from "./robustness";
 
 // The first FULL PR-side audit to finish (issue #10319, PR #10333) found
-// three, pre-existing: no full audit had completed since 2026-10-11. The
-// poison-clock entry was re-budgeted to robust (issue #10335).
+// three, pre-existing: no full audit had completed since 2026-10-11.
 // "self-harm: Fatal Push …" flips with the tree: robust on the revert of
 // PR #10340 (row deleted there), pinned again on the next base tip (row
 // restored) — issue #10337 owns it.
