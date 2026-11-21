@@ -20,5 +20,6 @@ describe("blocks out of on-board activated burn reach (issue #10422)", () => {
         const result = runBladeScenario(entry);
         expect(result.failureMessage).toBe("");
         expect(result.ok).toBe(true);
-    });
+        // Five seeds at 400 iterations: ~37 s alone, more beside a sibling.
+    }, 300_000);
 });
