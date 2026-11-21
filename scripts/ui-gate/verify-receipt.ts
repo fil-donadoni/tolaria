@@ -42,6 +42,7 @@ import { gh } from "../lib/gh.ts";
 import { ORIGIN_BASE } from "../lib/branches.ts";
 import { restoresParent } from "../lib/revert-restores.ts";
 import { createImportGraph } from "../lib/import-graph.ts";
+import { renderInertSinceBase } from "../lib/ui-render-inert.ts";
 import {
     computeUiScope,
     domReachablePaths,
@@ -158,6 +159,7 @@ export function landingWalkOwed(
         }
     };
     const mergeBase = git(["merge-base", base, "HEAD"])?.trim() || null;
+    const inert = renderInertSinceBase(changed, root, base);
     return uiWalkOwed(
         changed,
         (p) => {
@@ -190,7 +192,10 @@ export function landingWalkOwed(
         (p) =>
             mergeBase !== null &&
             !fs.existsSync(path.join(root, p)) &&
-            git(["cat-file", "-e", `${mergeBase}:${p}`]) !== null
+            git(["cat-file", "-e", `${mergeBase}:${p}`]) !== null,
+        // The hunk classifier (issue #10393): `landingDiffScope` reads the
+        // same function, so a cleared module is cleared by both decisions.
+        (p) => inert.get(p) ?? null
     );
 }
 
