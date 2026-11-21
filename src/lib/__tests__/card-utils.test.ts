@@ -9,6 +9,7 @@ import {
     wantsSpellTarget,
     canPayFilteredGiveUpCost,
     getStackAbilities,
+    getManaCostMenuAbility,
     getGraveyardStackAbilities,
     getHandStackAbilities,
     getAnyPlayerStackAbilities,
@@ -1579,6 +1580,59 @@ describe("getStackAbilities", () => {
         expect(getStackAbilities(card, "POSTCOMBAT_MAIN")).toHaveLength(1);
     });
 
+    // CR 307.5 / 602.5d (issue #10397) — "activate only as a sorcery" is the
+    // server's whole `isSorceryTimingFor` window: main phase of the
+    // activator's OWN turn with an empty stack. The phase-only hint offered
+    // Equip in the opponent's main phase. Views from the real reducer.
+    it("hides a sorcerySpeedOnly ability in the opponent's main phase (issue #10397)", () => {
+        const card = makeCardInstance({
+            card: { id: dauthiVoidwalker().id },
+            types: ["Creature"],
+            isTapped: false,
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        expect(
+            getStackAbilities(
+                card,
+                "PRECOMBAT_MAIN",
+                true,
+                buildTriggerStateView([], "p2")
+            )
+        ).toHaveLength(0);
+        expect(
+            getStackAbilities(
+                card,
+                "PRECOMBAT_MAIN",
+                true,
+                buildTriggerStateView([], "p1")
+            )
+        ).toHaveLength(1);
+    });
+
+    it("hides a sorcerySpeedOnly ability in your own main phase while the stack is not empty (issue #10397)", () => {
+        const card = makeCardInstance({
+            card: { id: dauthiVoidwalker().id },
+            types: ["Creature"],
+            isTapped: false,
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const ownTurn = buildTriggerStateView([], "p1");
+        expect(
+            getStackAbilities(card, "PRECOMBAT_MAIN", true, {
+                ...ownTurn,
+                stack: [{ triggeredAbilityId: "some-trigger" }],
+            })
+        ).toHaveLength(0);
+        expect(
+            getStackAbilities(card, "PRECOMBAT_MAIN", true, {
+                ...ownTurn,
+                stack: [],
+            })
+        ).toHaveLength(1);
+    });
+
     it("returns a sorcerySpeedOnly ability when `phase` is omitted (no filter applied)", () => {
         const card = makeCardInstance({
             card: { id: dauthiVoidwalker().id },
@@ -1616,6 +1670,39 @@ describe("getStackAbilities", () => {
         );
         expect(abilities).toHaveLength(1);
         expect(abilities[0].id).toBe("disrupting-scepter-discard");
+    });
+
+    // Vivi Ornitier's "{0}: Add X mana … Activate only during your turn and
+    // only once each turn." (CR 602.5, issue #10397) — a NON-{T} mana
+    // ability, offered through the explicit mana-menu entry, which never ran
+    // the timing predicate: it was offered on the opponent's turn and
+    // `activateManaAbility` threw "Activate only during your turn".
+    it("withholds Vivi Ornitier's mana-menu entry on the opponent's turn and after its once-per-turn use (issue #10397)", () => {
+        const vivi = makeCardInstance({
+            card: { id: viviOrnitier().id },
+            types: ["Creature"],
+            isTapped: false,
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        expect(
+            getManaCostMenuAbility(
+                vivi,
+                buildTriggerStateView([], "p2"),
+                "PRECOMBAT_MAIN"
+            )
+        ).toBeNull();
+        const ownTurn = buildTriggerStateView([], "p1");
+        expect(
+            getManaCostMenuAbility(vivi, ownTurn, "PRECOMBAT_MAIN")?.id
+        ).toBe("vivi-ornitier-mana");
+        expect(
+            getManaCostMenuAbility(
+                { ...vivi, activationsThisTurn: { "vivi-ornitier-mana": 1 } },
+                ownTurn,
+                "PRECOMBAT_MAIN"
+            )
+        ).toBeNull();
     });
 
     it("returns a controllerTurnOnly ability when `activePlayerId` is unknown (fail-open, matches the phase/sorcery-speed discipline)", () => {
