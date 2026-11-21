@@ -121,6 +121,7 @@ export default function GreHandCard({
         combat,
         continuousEffects,
         emblems,
+        stackItems,
     } = game;
     const activateAbility = useMutation(api.game.activateAbility);
     const activateManaAbility = useMutation(api.game.activateManaAbility);
@@ -218,7 +219,10 @@ export default function GreHandCard({
                   undefined,
                   undefined,
                   continuousEffects,
-                  emblems
+                  emblems,
+                  // CR 307.1 (issue #10318) — the sorcery window's stack and
+                  // priority halves, as the battlefield menu reads them.
+                  { stack: stackItems, priorityPlayerId }
               )
             : null;
     const stackAbilities =
