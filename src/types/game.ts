@@ -705,6 +705,13 @@ export interface CardInstance {
      *  requirement alike). Server-derived (`isRequiredAttacker`,
      *  `convex/gre/combat.ts`) — the client never re-derives it. */
     mustAttack?: true;
+    /** CR 602.2b / 601.2g (issue #10370) — this card's activated abilities
+     *  whose mana cost the viewer cannot fund right now. Server-derived
+     *  (`activationManaProbe`, `convex/gre/activationManaAffordability.ts`) on
+     *  the viewer's own hand and on battlefield permanents, so the ability menu
+     *  and the actionable ring never re-derive mana availability. Absent =
+     *  nothing unaffordable. */
+    unaffordableAbilityIds?: string[];
 }
 
 export interface Combat {

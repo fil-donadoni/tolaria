@@ -4976,6 +4976,8 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
         expect(ids).toContain("caribou-range-gain-life");
     });
 
+    const AMPLE_POOL = { W: 5, U: 5, B: 5, R: 5, G: 5, C: 5 };
+
     it('#2367 — "Sacrifice ANOTHER artifact" is HIDDEN when the source is the only artifact, and OFFERED once a second one exists (Legion Extruder, through projectPublicState + buildTriggerStateView)', () => {
         // The fail-OPEN direction this issue closes: before
         // `PermanentFilter.excludeSource`, `getStackAbilities`'
@@ -4991,7 +4993,12 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
         function offeredAbilityIds(battlefield: CardInstanceState[]): string[] {
             const state = makeState({
                 players: [
-                    makeServerPlayer("p1", { battlefield }),
+                    // Ample pool: the activation's mana leg is projected too
+                    // (issue #10370), and these tests pin the sacrifice leg.
+                    makeServerPlayer("p1", {
+                        battlefield,
+                        manaPool: AMPLE_POOL,
+                    }),
                     makeServerPlayer("p2"),
                 ],
             });
@@ -5043,7 +5050,12 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
         function offeredAbilityIds(battlefield: CardInstanceState[]): string[] {
             const state = makeState({
                 players: [
-                    makeServerPlayer("p1", { battlefield }),
+                    // Ample pool: the activation's mana leg is projected too
+                    // (issue #10370), and these tests pin the sacrifice leg.
+                    makeServerPlayer("p1", {
+                        battlefield,
+                        manaPool: AMPLE_POOL,
+                    }),
                     makeServerPlayer("p2"),
                 ],
             });

@@ -38,6 +38,8 @@ function board(withTotem: boolean): GameState {
     return makeState({
         players: [
             makePlayer("p1", {
+                // Ample pool: the mana leg is projected too (issue #10370).
+                manaPool: { W: 5, U: 5, B: 5, R: 5, G: 5, C: 5 },
                 battlefield: [
                     perm("Shivan Dragon", "dragon"),
                     perm("Llanowar Elves", "elves"),

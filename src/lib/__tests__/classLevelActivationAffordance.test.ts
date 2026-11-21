@@ -44,7 +44,11 @@ describe("Stormchaser's Talent — class level affordance over the wire (CR 716.
         });
         return makeState({
             players: [
-                makePlayer("p1", { battlefield: [talent] }),
+                // Ample pool: the mana leg is projected too (issue #10370).
+                makePlayer("p1", {
+                    battlefield: [talent],
+                    manaPool: { W: 5, U: 5, B: 5, R: 5, G: 5, C: 5 },
+                }),
                 makePlayer("p2"),
             ],
             activePlayerId: "p1",

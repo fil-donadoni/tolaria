@@ -2643,10 +2643,22 @@ export function enteredThisTurnInView(
     return false;
 }
 
+/** CR 602.2b / 601.2g (issue #10370) — whether the viewer can fund this
+ *  ability's mana cost right now. Read off the server-projected
+ *  `unaffordableAbilityIds` (`activationManaProbe`, the cast gate's own census
+ *  and greedy over the commit's own price), never re-derived here: the ring
+ *  and the menu both read the listing below, so they cannot disagree. */
+export function isAbilityManaAffordable(
+    card: Pick<CardInstance, "unaffordableAbilityIds">,
+    abilityId: string
+): boolean {
+    return !(card.unaffordableAbilityIds?.includes(abilityId) ?? false);
+}
+
 /** Returns stack-using activated abilities the player can currently announce.
- *  Only the non-mana availability is checked (source not already tapped when
- *  the ability has {T}); mana is deferred to a `pendingActivation` payment
- *  phase on the server, mirroring the spell cast flow. `phase` narrows to
+ *  The mana leg is the server's answer (`isAbilityManaAffordable`, issue
+ *  #10370); the payment itself still happens in the `pendingActivation`
+ *  phase, mirroring the spell cast flow. `phase` narrows to
  *  abilities whose `activationPhaseRestriction` (CR 602.5) allows the
  *  current phase — pass the current game phase to hide abilities like
  *  Jade Statue's animate outside of combat. */
@@ -3079,6 +3091,8 @@ export function getStackAbilities(
         ) {
             return false;
         }
+        // CR 602.2b / 601.2g (issue #10370) — an unfundable mana cost.
+        if (!isAbilityManaAffordable(card, a.id)) return false;
         return true;
     };
     // CR 611.2a / 613.1f (layer 6) — read the POST-LAYER effective set, not
@@ -3212,9 +3226,10 @@ export function getGraveyardStackAbilities(
  *  hand zone: only abilities that opt in via `activateFromHand` are eligible,
  *  gated as UI hints on the same predicates the server enforces (`activateAbility`
  *  in game.ts is authoritative regardless). Cycling's discard-this cost is always
- *  payable (the source is in hand) and its mana is deferred to the
- *  `pendingActivation` payment phase, so the only client-side gates are the
- *  standard phase / turn / precondition ones:
+ *  payable (the source is in hand); its mana is paid in the `pendingActivation`
+ *  phase, but an unfundable mana cost hides it (`isAbilityManaAffordable`,
+ *  issue #10370). The other client-side gates are the standard phase / turn /
+ *  precondition ones:
  *   - `activationPhaseRestriction` (CR 602.5) narrows to the current `phase`
  *     (Cycling is instant-speed and declares none, so this never hides it);
  *   - `controllerTurnOnly` — none of the Cycling cards use it, but honored for
@@ -3298,6 +3313,8 @@ export function getHandStackAbilities(
             ) {
                 return false;
             }
+            // CR 602.2b / 601.2g (issue #10370) — an unfundable mana cost.
+            if (!isAbilityManaAffordable(card, a.id)) return false;
             // CR 602.1b — the shared precondition authority (data condition
             // and closure alike), see `getStackAbilities`.
             if (
@@ -3415,6 +3432,7 @@ export function getAnyPlayerStackAbilities(
             (a) =>
                 a.activatableByOpponentsOnly &&
                 !seen.has(a.id) &&
+                isAbilityManaAffordable(card, a.id) &&
                 isCardActivationTimingAllowed(
                     a,
                     card,

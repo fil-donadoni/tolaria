@@ -32,6 +32,8 @@ function board(graveyardNames: string[]): GameState {
         priorityPlayerId: "p1",
         players: [
             makePlayer("p1", {
+                // Ample pool: the mana leg is projected too (issue #10370).
+                manaPool: { W: 5, U: 5, B: 5, R: 5, G: 5, C: 5 },
                 battlefield: [own(WOODLAND, "woodland")],
                 graveyard: graveyardNames.map((name, i) =>
                     own(getCardByName(name).id, `gy-${i}`)
