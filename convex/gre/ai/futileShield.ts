@@ -43,7 +43,7 @@
  *     own "tap enchanted creature" trigger, read through its `aiEffects`
  *     shadow script), and against a regeneration / prevention shield an
  *     object that only grants an activated or triggered ability or creates
- *     tokens (issue #10220 — a granted ability and a token's own triggers act
+ *     tokens (a granted ability and a token's own triggers act
  *     only through the stack later, case 1 again; a token's static P/T change
  *     neither destroys nor damages, CR 704.5f); a creature in combat counts as two (a first-strike step
  *     and a regular one, CR 510.4); any marked damage counts;
@@ -55,7 +55,7 @@
  *     imperative `resolve()` keeps the move;
  *   * only a tap / mana cost qualifies, plus the source's own sacrifice
  *     when paying it alone provably registers nothing but the cost
- *     (`isSelfSacrificePaymentPureLoss`, issue #10220 — no death or
+ *     (`isSelfSacrificePaymentPureLoss` — no death or
  *     leaves-the-battlefield trigger, the dominance probe's own standard). A
  *     shield whose source must die buys nothing a pass would not keep for
  *     free: the source, and its later activation, stay. Any other cost (a
