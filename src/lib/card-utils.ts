@@ -60,10 +60,10 @@ import { ninjutsuReturnCandidateIds } from "@convex/gre/ninjutsu";
 import { activationPreconditionViolation } from "@convex/gre/activationPrecondition";
 import { maxSpeedGateOpen } from "@convex/gre/speed";
 import { activationRestrictionViolation } from "@convex/gre/activationRestrictions";
-// CR 606 (issue #2491) — the shared loyalty authority. The client reads the two
-// STATE-ONLY clauses from it; the timing clause asks the engine's own sorcery
-// window (`isSorceryTimingFor`, issue #10318), escaped by the shared
-// instant-timing grant (issue #2606).
+// CR 606 (issue #10318) — the shared loyalty authority. The client reads the
+// two STATE-ONLY clauses from it; the timing clause asks the engine's own
+// sorcery window (`isSorceryTimingFor`), escaped by the shared instant-timing
+// grant (`loyaltyInstantTimingGranted`).
 import { isSorceryTimingFor } from "@convex/gre/phases";
 import {
     isLoyaltyAbility,
