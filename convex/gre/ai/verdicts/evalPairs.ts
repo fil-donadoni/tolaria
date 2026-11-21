@@ -69,7 +69,11 @@ import {
     type FeatureVector,
     type FittableWeightKey,
 } from "./features";
-import { buildVerdictState, candidateMoves } from "./position";
+import {
+    buildVerdictState,
+    candidateMoves,
+    unprunedCandidateMoves,
+} from "./position";
 import type { Verdict, VerdictCandidate } from "./types";
 import { CLASS_OF_MOVE_KIND } from "./coverage";
 
@@ -305,8 +309,7 @@ const RETIRED_ABILITY_IDS: Readonly<Record<string, string>> = {
 };
 
 /** The verdict's candidates as the moves `state` enumerates for `botId`, in
- *  the verdict's own order — or why one no longer resolves. Matched BY KEY,
- *  then by interchangeability (issue #3593, below). Exported for the search
+ *  the verdict's own order — or why one no longer resolves. Exported for the search
  *  agreement report (`verdicts:search`, issue #4764), which has to map the
  *  search's pick onto the SAME candidate a pair names. */
 export function resolveVerdictMoves(
@@ -314,7 +317,40 @@ export function resolveVerdictMoves(
     state: GameState,
     botId: string
 ): { moves: Move[] } | { error: string } {
-    const enumerated = candidateMoves(state, botId);
+    const offered = candidateResolver(state, candidateMoves(state, botId));
+    // A verdict recorded BEFORE a dominance proof existed may name a move the
+    // proof now denies: still legal, no longer offered. The judgement stands
+    // (the judge ranked it against the others on this very position), so it
+    // is read off the unpruned set instead of retiring the whole verdict —
+    // the rule the interchangeability collapse set below. Built only on a
+    // miss. A candidate neither set holds is stale.
+    let legal: ((key: string) => Move | undefined) | undefined;
+    const moves: Move[] = [];
+    for (const candidate of verdict.candidates) {
+        let move = offered(candidate.key);
+        if (!move) {
+            legal ??= candidateResolver(
+                state,
+                unprunedCandidateMoves(state, botId)
+            );
+            move = legal(candidate.key);
+        }
+        if (!move) {
+            return {
+                error: `candidate no longer enumerated on the rebuilt position: ${candidate.description}`,
+            };
+        }
+        moves.push(move);
+    }
+    return { moves };
+}
+
+/** A stored candidate key → the move of `enumerated` it names, matched BY
+ *  KEY, then by interchangeability (issue #3593, below). */
+function candidateResolver(
+    state: GameState,
+    enumerated: readonly Move[]
+): (key: string) => Move | undefined {
     const byKey = new Map<string, Move>();
     for (const move of enumerated) byKey.set(moveKey(move), move);
 
@@ -391,18 +427,7 @@ export function resolveVerdictMoves(
         // activation.
         return byPlanlessKey.get(planlessKey(stored));
     };
-
-    const moves: Move[] = [];
-    for (const candidate of verdict.candidates) {
-        const move = resolveCandidate(candidate.key);
-        if (!move) {
-            return {
-                error: `candidate no longer enumerated on the rebuilt position: ${candidate.description}`,
-            };
-        }
-        moves.push(move);
-    }
-    return { moves };
+    return resolveCandidate;
 }
 
 /** Is a pair a TIMING judgement (header)? Both directions, on the verdict's

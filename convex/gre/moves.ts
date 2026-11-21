@@ -7066,7 +7066,9 @@ export function enumerateMoves(
             return false;
         }
         if (!isProbeEligibleMove(state, playerId, m)) return true;
-        if (!isDominatedNoOpMove(state, playerId, m)) return true;
+        if (!isDominatedNoOpMove(state, playerId, m, enumerateMoves)) {
+            return true;
+        }
         options.onPruned?.(m);
         return false;
     });
