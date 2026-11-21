@@ -1733,7 +1733,7 @@ export function projectPublicState(
         c: CardInstanceState
     ): string[] | undefined => {
         if (!manaProbe) return undefined;
-        // CR 602.1 / 113.3c — the viewer activates its own permanents'
+        // CR 602.1a — the viewer activates its own permanents'
         // abilities, and on another player's only the ones open to it.
         const own = c.controllerId === viewerId;
         const abilities = getEffectiveActivatedAbilities(c)

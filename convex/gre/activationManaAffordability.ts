@@ -83,7 +83,7 @@ export function activationManaProbe(
             return true;
         }
         if (!manaCost) return true;
-        // CR 602.1 / 302.1 — a source whose {T} is part of the cost can't also
+        // CR 602.1 / 107.5 — a source whose {T} is part of the cost can't also
         // tap for the mana that funds it (issue #3081's bar).
         try {
             return (
