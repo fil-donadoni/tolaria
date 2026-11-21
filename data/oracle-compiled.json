@@ -4,7 +4,7 @@
         "grammarVersion": "v0",
         "compilerHash": "sha256:440d2fce0f492ea93032ab0013e9bf5ab3fe9f70dfe6524f03f4a8adfbe09846",
         "registryHash": "sha256:fa20dcdf1e2bc78f19b0a250ebdc2d499da951341baabba8c5bac189abc45a9e",
-        "botHash": "sha256:591d367522c3a52150d3af830f96360101e283ee4c32b661fadce3f622524084",
+        "botHash": "sha256:dff2004ae32f77c8215a7ff2e32dee16a5b5d5abbcdba15d7e3b9b5b3ed5ac82",
         "poolHash": "sha256:81d0b644ec8341d814d37ddb2f5974b9fbb163c201bfe27f77d1aa1c7510aa14",
         "corpus": {
             "source": "https://api.scryfall.com/bulk-data/oracle-cards",
@@ -29073,7 +29073,6 @@
         {"key":"never-chosen › Sorcery › destroy+forEach","outcome":"ignored","cards":3},
         {"key":"never-chosen › Creature › grantAbility","outcome":"ignored","cards":2},
         {"key":"never-chosen › Creature › regenerate","outcome":"ignored","cards":2},
-        {"key":"never-chosen › Instant target:spell › counter+draw","outcome":"ignored","cards":2},
         {"key":"never-chosen › Instant › forEach+tapUntap","outcome":"ignored","cards":2},
         {"key":"never-chosen › Sorcery target:player › choice+libraryLook+moveZone","outcome":"ignored","cards":2},
         {"key":"position-unmodelled › Enchantment target:Land","outcome":"ignored","cards":2},
@@ -29104,6 +29103,7 @@
         {"key":"never-chosen › Creature › if+mayPay+pump+sacrifice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › revealUntilMatch","outcome":"ignored","cards":1},
         {"key":"never-chosen › Enchantment › (no Ops)","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Instant target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:Creature › delayedTrigger+exile+moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:spell › counter","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:spell-or-permanent › setColor","outcome":"ignored","cards":1},
@@ -29123,7 +29123,6 @@
         {"key":"never-chosen › Sorcery target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › exile+moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Artifact|Creature › destroy+fight","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Creature › addMana+destroy","outcome":"ignored","cards":1},
-        {"key":"never-chosen › Sorcery target:Creature › moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Land › addMana+destroy","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:card › moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:player [conspire] › mill","outcome":"ignored","cards":1},
@@ -41008,7 +41007,7 @@
 
         {"oracleId":"2b947703-751a-4d95-b5de-e2d6b1fcb502","name":"Isengard Unleashed","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0d95471c8901"]},
 
-        {"oracleId":"2b9557df-7158-4ada-be77-5c346851a568","name":"Bind","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["counter","draw"],"definition":{"name":"Bind","types":["Instant"],"manaCost":{"X":1,"G":1},"oracleText":"Counter target activated ability. (Mana abilities can't be targeted.)\nDraw a card.","effects":[{"op":"counter","target":{"target":0}},{"op":"draw","player":"controller","count":1}],"targetRequirement":{"type":"spell","count":1,"spellStackKind":"activated-ability"}},"botReach":"ignored","botGap":"never-chosen › Instant target:spell › counter+draw"},
+        {"oracleId":"2b9557df-7158-4ada-be77-5c346851a568","name":"Bind","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["counter","draw"],"definition":{"name":"Bind","types":["Instant"],"manaCost":{"X":1,"G":1},"oracleText":"Counter target activated ability. (Mana abilities can't be targeted.)\nDraw a card.","effects":[{"op":"counter","target":{"target":0}},{"op":"draw","player":"controller","count":1}],"targetRequirement":{"type":"spell","count":1,"spellStackKind":"activated-ability"}},"botReach":"played"},
 
         {"oracleId":"2ba16e4d-2de7-4906-801a-4ba2b90b5050","name":"Ghost Council of Orzhova","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["18676549456f"]},
 
@@ -46936,7 +46935,7 @@
 
         {"oracleId":"4100e486-0d27-436c-8429-76bc2c1a26ab","name":"Goblin Ringleader","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["lookDistribute"],"definition":{"name":"Goblin Ringleader","types":["Creature"],"subtypes":["Goblin"],"manaCost":{"X":3,"R":1},"power":2,"toughness":2,"oracleText":"Haste (This creature can attack and {T} as soon as it comes under your control.)\nWhen this creature enters, reveal the top four cards of your library. Put all Goblin cards revealed this way into your hand and the rest on the bottom of your library in any order.","staticAbilities":["haste"],"compiledTriggeredAbilities":[{"id":"goblin-ringleader-trigger","oracleText":"When this creature enters, reveal the top four cards of your library. Put all Goblin cards revealed this way into your hand and the rest on the bottom of your library in any order.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"lookDistribute","player":"controller","look":4,"take":4,"keepTo":"hand","filter":{"subtype":"Goblin"},"optional":false,"reveal":"window"}]}]},"botReach":"played","retired":{"at":"2026-11-15","issue":4035}},
 
-        {"oracleId":"41011f09-ad8a-4eea-aa52-d20a219bc94c","name":"Captivating Gyre","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["moveZone"],"definition":{"name":"Captivating Gyre","types":["Sorcery"],"manaCost":{"X":4,"U":2},"oracleText":"Return up to three target creatures to their owners' hands.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"},{"op":"moveZone","target":{"target":1},"to":"hand"},{"op":"moveZone","target":{"target":2},"to":"hand"}],"targetRequirement":{"type":"Creature","count":{"min":0,"max":3}}},"botReach":"ignored","botGap":"never-chosen › Sorcery target:Creature › moveZone"},
+        {"oracleId":"41011f09-ad8a-4eea-aa52-d20a219bc94c","name":"Captivating Gyre","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["moveZone"],"definition":{"name":"Captivating Gyre","types":["Sorcery"],"manaCost":{"X":4,"U":2},"oracleText":"Return up to three target creatures to their owners' hands.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"},{"op":"moveZone","target":{"target":1},"to":"hand"},{"op":"moveZone","target":{"target":2},"to":"hand"}],"targetRequirement":{"type":"Creature","count":{"min":0,"max":3}}},"botReach":"played"},
 
         {"oracleId":"41026872-3c7b-40c7-8d0b-9d2f9b6c3e91","name":"Pavel Maliki","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["activated"],"opsUsed":["pump"],"definition":{"name":"Pavel Maliki","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Human"],"manaCost":{"X":4,"B":1,"R":1},"power":5,"toughness":3,"oracleText":"{B}{R}: Pavel Maliki gets +1/+0 until end of turn.","activatedAbilities":[{"id":"pavel-maliki-ability","oracleText":"{B}{R}: Pavel Maliki gets +1/+0 until end of turn.","cost":{"mana":{"B":1,"R":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":0,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played","retired":{"at":"2026-09-18","issue":4027}},
 
@@ -79958,7 +79957,7 @@
 
         {"oracleId":"b8f566ea-8283-4afa-9ac8-737e26419283","name":"Explore","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["draw","grantExtraLandDrops"],"definition":{"name":"Explore","types":["Sorcery"],"manaCost":{"X":1,"G":1},"oracleText":"You may play an additional land this turn.\nDraw a card.","effects":[{"op":"grantExtraLandDrops","player":"controller","count":1},{"op":"draw","player":"controller","count":1}]},"botReach":"played"},
 
-        {"oracleId":"b8fe20ee-d52d-4494-acf4-202808a2a22d","name":"Squelch","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["counter","draw"],"definition":{"name":"Squelch","types":["Instant"],"manaCost":{"X":1,"U":1},"oracleText":"Counter target activated ability. (Mana abilities can't be targeted.)\nDraw a card.","effects":[{"op":"counter","target":{"target":0}},{"op":"draw","player":"controller","count":1}],"targetRequirement":{"type":"spell","count":1,"spellStackKind":"activated-ability"}},"botReach":"ignored","botGap":"never-chosen › Instant target:spell › counter+draw"},
+        {"oracleId":"b8fe20ee-d52d-4494-acf4-202808a2a22d","name":"Squelch","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["counter","draw"],"definition":{"name":"Squelch","types":["Instant"],"manaCost":{"X":1,"U":1},"oracleText":"Counter target activated ability. (Mana abilities can't be targeted.)\nDraw a card.","effects":[{"op":"counter","target":{"target":0}},{"op":"draw","player":"controller","count":1}],"targetRequirement":{"type":"spell","count":1,"spellStackKind":"activated-ability"}},"botReach":"played"},
 
         {"oracleId":"b8ffd53b-5b10-4866-83fe-630eee58c514","name":"Sage's Knowledge","state":"ready","poolIn":["pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["moveZone"],"definition":{"name":"Sage's Knowledge","types":["Sorcery"],"manaCost":{"X":2,"U":1},"oracleText":"Return target sorcery card from your graveyard to your hand.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}],"targetRequirement":{"type":"Sorcery","count":1,"zone":"graveyard","controller":"you"}},"botReach":"played"},
 
@@ -95620,7 +95619,7 @@
 
         {"oracleId":"f0adab66-c3fe-4989-b7c8-ab7bdc7f0fd1","name":"Temporal Machinations","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["6835d8794470"]},
 
-        {"oracleId":"f0ae687a-7222-4521-a514-ba10373fed7e","name":"Rescue","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["moveZone"],"definition":{"name":"Rescue","types":["Instant"],"manaCost":{"U":1},"oracleText":"Return target permanent you control to its owner's hand.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}],"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1,"controller":"you"}},"botReach":"played"},
+        {"oracleId":"f0ae687a-7222-4521-a514-ba10373fed7e","name":"Rescue","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["moveZone"],"definition":{"name":"Rescue","types":["Instant"],"manaCost":{"U":1},"oracleText":"Return target permanent you control to its owner's hand.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}],"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1,"controller":"you"}},"botReach":"ignored","botGap":"never-chosen › Instant target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › moveZone"},
 
         {"oracleId":"f0b1dcdc-4fbb-4bcb-a4b0-1aa5928347f9","name":"Scepter of Fugue","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["choice","discard"],"definition":{"name":"Scepter of Fugue","types":["Artifact"],"manaCost":{"B":2},"oracleText":"{1}{B}, {T}: Target player discards a card. Activate only during your turn.","activatedAbilities":[{"id":"scepter-of-fugue-ability","oracleText":"{1}{B}, {T}: Target player discards a card. Activate only during your turn.","cost":{"mana":{"X":1,"B":1},"tap":true},"useStack":true,"effects":[{"op":"choice","kind":"discard-hand","player":{"target":0},"zone":"hand","count":1,"prompt":"Discard a card.","bind":"$discard1"},{"op":"discard","player":{"target":0},"cards":{"ref":"$discard1"}}],"targetRequirement":{"type":"player","count":1},"controllerTurnOnly":true}]},"botReach":"played"},
 
