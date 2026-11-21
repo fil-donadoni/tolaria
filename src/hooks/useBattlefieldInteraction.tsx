@@ -449,11 +449,7 @@ export function useBattlefieldInteraction(player: Player) {
      *  Eager like `manaGateView` above, and deliberately NOT a `useMemo`: the
      *  inputs (`allPlayers`, the freshly-built `controlContinuity` literal)
      *  change on every render that matters, so a memo would buy nothing and
-     *  only risk handing a stale board to the affordance gates.
-     *
-     *  `stack` (issue #10397) — the sorcery-speed window (CR 307.5) needs an
-     *  empty stack, the same list the server's gate reads, so Equip is not
-     *  offered in your own main phase while a trigger waits on the stack. */
+     *  only risk handing a stale board to the affordance gates. */
     const abilityStateView = {
         ...buildTriggerStateView(
             allPlayers,
@@ -464,6 +460,9 @@ export function useBattlefieldInteraction(player: Player) {
             continuousEffects,
             emblems
         ),
+        // The sorcery-speed window (CR 307.5) needs an empty stack: the same
+        // list the server's gate reads, so Equip is not offered in your own
+        // main phase while a trigger waits on the stack (issue #10397).
         stack: stackItems,
     };
 
