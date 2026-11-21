@@ -30128,13 +30128,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // the pick to `pass` on rollout noise (seeds 3, 14, 17 of 0–19 at 100
         // iterations). Seeds 0–19 now 19/20, the one miss a seed whose
         // `pass` out-means every cast by 0.08 with every one-ply reward at
-        // the clipped floor. Issue #10331 moved the rollout policy's
-        // held-instant reading, and with it which seeds land on that floor:
-        // seeds 0–59 pass 55/60 before it and 54/60 after (misses 17, 24, 41,
-        // 49, 52 before; 3, 11, 17, 24, 45, 52 after), the same rate on
-        // other seeds. Seed 3 became a miss, so seed 7 replaces it.
+        // the clipped floor.
         budget: { iterations: 100 },
-        seeds: [0xb1ade, 1, 2, 7, 4, 5, 6],
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6],
         tier: "must",
         // A PREDICATE, kept out of the weight fit on purpose: see the first
         // Esper Blink entry above.

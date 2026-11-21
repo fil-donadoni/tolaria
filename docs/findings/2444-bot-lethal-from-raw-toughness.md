@@ -14,10 +14,6 @@ Two bot-side combat predictors were not migrated and still treat a creature's
 claimed `setDamageAssignment` was "the only site" computing lethal from raw
 toughness; that sentence was inaccurate — these two survive.
 
-**Update (issue #10331).** `predictCombatOutcome` now reads toughness net of
-`damageMarked` (CR 120.6 / 704.5g), so damage marked earlier in the turn counts.
-Deathtouch and `cautiousBlockPenalty` below are still open.
-
 **Evidence.**
 
 - `convex/gre/dangerClock.ts:107` `predictCombatOutcome` — the free-removal and
