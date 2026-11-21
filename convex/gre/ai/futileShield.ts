@@ -41,7 +41,11 @@
  *     goes on the stack later, case 1 again) and an object whose whole script
  *     only taps, keeps from untapping, draws or gains life (Sleeping Potion's
  *     own "tap enchanted creature" trigger, read through its `aiEffects`
- *     shadow script); a creature in combat counts as two (a first-strike step
+ *     shadow script), and against a regeneration / prevention shield an
+ *     object that only grants an activated or triggered ability or creates
+ *     tokens (a granted ability and a token's own triggers act
+ *     only through the stack later, case 1 again; a token's static P/T change
+ *     neither destroys nor damages, CR 704.5f); a creature in combat counts as two (a first-strike step
  *     and a regular one, CR 510.4); any marked damage counts;
  *   * a tap / keep-from-untapping script is NOT harmless against a {T}-cost
  *     shield — tapping its source closes the window to activate it later.
@@ -49,8 +53,14 @@
  *   * only an ability whose WHOLE script is shield Ops on permanents
  *     qualifies — any other Op, a construct, a mode, a mana rider or an
  *     imperative `resolve()` keeps the move;
- *   * only a tap / mana cost qualifies — any other cost (a sacrifice, a
- *     discard, a life payment, a Drought tax) can itself be a payoff;
+ *   * only a tap / mana cost qualifies, plus the source's own sacrifice
+ *     when paying it alone provably registers nothing but the cost
+ *     (`isSelfSacrificePaymentPureLoss` — no death or
+ *     leaves-the-battlefield trigger, the dominance probe's own standard). A
+ *     shield whose source must die buys nothing a pass would not keep for
+ *     free: the source, and its later activation, stay. Any other cost (a
+ *     sacrificed victim, a discard, a life payment, a Drought tax) can itself
+ *     be a payoff and keeps the move;
  *   * an announced TARGET keeps the move while any permanent listens for
  *     `BECAME_TARGET` — targeting can be the payoff (Sleeping Potion's own
  *     "sacrifice Sleeping Potion" clause);
@@ -123,6 +133,7 @@ import {
 import { SOURCE_BINDING } from "../effects/interpreter";
 import { getEffectivePower } from "../layers";
 import { misdirectedTargetCount } from "./beneficence";
+import { isSelfSacrificePaymentPureLoss } from "./dominance";
 
 /** The cost legs whose payment is a pure loss (mana, tapping the source).
  *  Any other key on the cost object fails closed. */
@@ -150,7 +161,7 @@ function thisTurnEffectsOf(
         (a) => a.ability.id === move.abilityId
     )?.ability;
     if (!ability) return null;
-    if (!costIsLossOnly(state, source, ability)) return null;
+    if (!costIsLossOnly(state, source, ability, move)) return null;
     const shields = shieldsOf(
         ability,
         source.id,
@@ -193,16 +204,33 @@ export function isMisdirectedThisTurnMove(
     return misdirectedTargetCount(state, move, botId) > 0;
 }
 
+/** `selfSacrifice` — the activation whose own-source sacrifice leg may be
+ *  admitted when paying it is a pure loss (issue #10220); omitted, any
+ *  sacrifice fails closed. */
 function costIsLossOnly(
     state: GameState,
     source: CardInstanceState,
-    ability: ActivatedAbility
+    ability: ActivatedAbility,
+    selfSacrifice?: Move
 ): boolean {
     const entries2 = Object.entries(ability.cost);
     for (let i = 0; i < entries2.length; i++) {
         const [key, value] = entries2[i];
         if (value === undefined || value === false) continue;
-        if (!LOSS_ONLY_COST_KEYS.has(key)) return false;
+        if (LOSS_ONLY_COST_KEYS.has(key)) continue;
+        if (
+            key === "sacrifice" &&
+            value === true &&
+            selfSacrifice &&
+            isSelfSacrificePaymentPureLoss(
+                state,
+                source.controllerId,
+                selfSacrifice
+            )
+        ) {
+            continue;
+        }
+        return false;
     }
     // A Drought-style static tax (CR 118.8) adds a sacrifice to the payment.
     return (
@@ -624,10 +652,11 @@ function threatsTo(
     kind: ShieldKind
 ): number {
     let threats = 0;
+    const shieldOnly = kind === "regeneration" || kind === "prevention";
     const itemList = state.stack;
     for (let i = 0; i < itemList.length; i++) {
         const item = itemList[i];
-        if (!isHarmlessStackItem(item, tapCost)) threats++;
+        if (!isHarmlessStackItem(item, tapCost, shieldOnly)) threats++;
     }
     // A P/T change is consumed by the creature's own combat damage, so any
     // participation counts; a shield only by damage dealt TO it.
@@ -696,7 +725,11 @@ function combatDamageCanReach(
  *  nothing else; whatever it triggers goes on the stack and gives priority back
  *  (CR 117.3b). Any other object is harmless only when its whole script is
  *  provably harmless Ops; anything unreadable is presumed a threat. */
-function isHarmlessStackItem(item: StackItem, tapCost: boolean): boolean {
+function isHarmlessStackItem(
+    item: StackItem,
+    tapCost: boolean,
+    shieldOnly = false
+): boolean {
     if (
         isSpellStackItem(item) &&
         item.types.some((t) =>
@@ -708,7 +741,35 @@ function isHarmlessStackItem(item: StackItem, tapCost: boolean): boolean {
     const script = stackItemScript(item);
     if (!script || script.length === 0) return false;
     const harmless = tapCost ? NON_TAPPING_HARMLESS_OPS : HARMLESS_OPS;
-    return script.every((op) => isHarmlessOp(op, harmless));
+    return script.every(
+        (op) =>
+            isHarmlessOp(op, harmless) ||
+            (shieldOnly && isHarmlessToShieldsOnly(op))
+    );
+}
+
+/** Ops harmless to a regeneration / prevention shield's permanent but not to
+ *  a P/T change (issue #10220). A grant of an ACTIVATED or TRIGGERED ability
+ *  (CR 611.2c — Urza's Saga's chapters) acts only by later putting an object
+ *  on the stack, which gives the bot priority back first (CR 117.3b); a keyword
+ *  or attack-requirement grant is not read here (deathtouch, a static). A
+ *  created token's own triggers go on the stack the same way; a token's static
+ *  P/T change can only kill through toughness 0 (CR 704.5f), which neither
+ *  destroys nor damages — but a pump answers it, so the pump reading keeps
+ *  every token. Neither taps a permanent, so both hold against a {T}-cost
+ *  shield too. A token whose static strips abilities ("creatures lose all
+ *  abilities") would close the shield's later activation; no catalogue token
+ *  does today — a narrowing, revisit if one ships. */
+function isHarmlessToShieldsOnly(op: EffectOp): boolean {
+    if (!("op" in op)) return false;
+    if (op.op === "createToken") return true;
+    if (op.op !== "grantAbility") return false;
+    return (
+        op.ability === undefined &&
+        op.attackRequirement === undefined &&
+        (op.grantedActivatedId !== undefined ||
+            op.grantedTriggeredId !== undefined)
+    );
 }
 
 /** An `optionChoice` is harmless when every mode is (CR 608.2d — the mode is

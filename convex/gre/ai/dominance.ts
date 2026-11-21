@@ -324,6 +324,52 @@ export function isDominatedNoOpMove(
     }
 }
 
+/** Does paying `move`'s self-sacrifice leg ALONE change nothing but the cost?
+ *  (Issue #10220.)
+ *
+ *  The payment half of {@link isDominatedNoOpMove}'s self-sacrifice reading
+ *  (issue #3424), for a caller that has already proved the RESOLUTION buys
+ *  nothing by its own argument (`isFutileThisTurnMove`'s "no threat now").
+ *  The leg is paid exactly as `applyProbeActivation` pays it — through
+ *  `removePermanentTo`, triggers flushed (CR 603.3b), state-based actions
+ *  checked — and the result compared with `isNoOpDelta` under the same
+ *  {@link SpentCost} forgiveness: the source moving from the battlefield to
+ *  the graveyard is the cost, anything else is a payoff. A leaves-the-
+ *  battlefield or death trigger lands on the stack and registers as a delta;
+ *  a source a replacement sends elsewhere (exile) fails `normalize`.
+ *
+ *  Only a printed `sacrifice: true` leg on the mover's own source is read —
+ *  the cost shape `spentCostOf` forgives. The graveyard-filler and revolt
+ *  narrowings in the module header apply unchanged. Fail-closed: anything
+ *  unprovable, a re-entrant call or a throw answers `false`. */
+export function isSelfSacrificePaymentPureLoss(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    if (probing) return false;
+    if (move.kind !== "activate-ability" || state.gameOver) return false;
+    const source = findPermanent(state, move.cardInstanceId);
+    if (!source || source.controllerId !== pid) return false;
+    if (abilityOf(source, move.abilityId)?.cost.sacrifice !== true) {
+        return false;
+    }
+    const spent = spentCostOf(state, move);
+    if (spent.permanentId !== source.id) return false;
+    probing = true;
+    try {
+        const probe = cloneGameState(state);
+        removePermanentTo(probe, source.id, "graveyard", "sacrifice");
+        processPendingActionTriggers(probe);
+        checkStateBasedActions(probe);
+        return isNoOpDelta(state, probe, pid, spent);
+    } catch {
+        return false;
+    } finally {
+        probing = false;
+    }
+}
+
 /** Is `move` an announcement that can reach NOTHING but the mover's own side,
  *  and whose own "do nothing" answer is among the branches it may choose?
  *  (Issue #3194.)
