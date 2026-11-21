@@ -25,6 +25,14 @@ const TRANSIENT_PATTERNS = [
     // is enough, since a future wording change is more likely to keep one.
     "execution timed out",
     "maximum duration",
+    // The platform's OTHER execution ceiling, on system operations (database
+    // reads, scheduler calls) rather than wall time: "Your request timed out
+    // performing too many system operations." Seen on a loaded backend
+    // failing `getPublicState` and `cardPrints:populated` (issue #10116,
+    // `docs/research/bot-weak-line-weak-client.md` § 3) and in PRODUCTION
+    // under the same "timed out" wording (issue #10407). It matches neither
+    // pattern above, so the first one parked the vs-Bot driver for good.
+    "too many system operations",
     // Transport-level interruptions. The socket dropping mid-execution
     // surfaces here rather than through `useConvexConnectionState` when a
     // single query is in flight.
@@ -37,6 +45,19 @@ const TRANSIENT_PATTERNS = [
     "overloaded",
     "too many concurrent",
 ] as const;
+
+// What a PRODUCTION deployment hands the client (issue #10407, read off the
+// production Sentry events): Convex redacts a developer error to
+//   "[CONVEX M(userDecks:update)] [Request ID: …] Server Error\n  Called by client"
+// — the handler's own text is gone — but keeps a PLATFORM failure's text after
+// the same envelope:
+//   "[CONVEX M(game:forfeitMatch)] [Request ID: …] Server Error\n
+//    Function execution timed out (maximum duration: 1s)"
+//   "[Request ID: …] Server Error\nUncaught Error: Your request timed out
+//    performing too many system operations."
+// So the patterns above classify production and development alike, and a
+// bare "Server Error" is deliberately NOT a pattern: it is exactly the
+// redacted shape of a genuine function bug, which must still escalate.
 
 /** True when `error` is a failed EXECUTION worth running again, false when it
  *  is a defect that will fail identically on every retry. Unknown / non-Error
@@ -61,3 +82,12 @@ export function retryDelayMs(attempt: number): number {
  *  bursts observed in issue #3266 without leaving a genuinely dead
  *  subscription spinning forever. */
 export const MAX_TRANSIENT_RETRIES = 4;
+
+/** How long an ESCALATED driver subscription waits before re-subscribing on
+ *  its own (issue #10407). A transient failure that outlived the whole
+ *  backoff ladder is an overload longer than ~4s, not a defect: without this
+ *  the vs-Bot driver stayed parked until the player clicked Reconnect, and the
+ *  server backstop passed the Bot's decisions meanwhile. Slow on purpose —
+ *  one backoff ladder per window against a backend that is already
+ *  struggling (`useEscalationRecovery`). */
+export const ESCALATED_RETRY_MS = 15_000;

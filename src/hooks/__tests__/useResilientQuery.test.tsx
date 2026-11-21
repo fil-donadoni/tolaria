@@ -94,6 +94,25 @@ describe("useResilientQuery (issue #3266)", () => {
         expect(result.current.data).toEqual({ seq: 2 });
     });
 
+    it("rides out one system-operations timeout without surfacing an error (issue #10407)", () => {
+        h.result = { seq: 1 };
+        const { result, rerender } = mount();
+        h.result = new Error(
+            "[CONVEX Q(game:getPublicState)] [Request ID: 0f3c9a1b2d4e5f60] Server Error\n" +
+                "Your request timed out performing too many system operations."
+        );
+        act(() => rerender({ a: { gameId: "g1" } }));
+        expect(result.current.error).toBe(null);
+        expect(result.current.retrying).toBe(true);
+        expect(result.current.data).toEqual({ seq: 1 });
+
+        h.result = { seq: 2 };
+        act(() => vi.advanceTimersByTime(250));
+        expect(result.current.error).toBe(null);
+        expect(result.current.retrying).toBe(false);
+        expect(result.current.data).toEqual({ seq: 2 });
+    });
+
     it("escalates once the retry budget is spent", () => {
         h.result = { seq: 1 };
         const { result, rerender } = mount();

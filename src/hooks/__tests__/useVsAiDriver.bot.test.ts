@@ -384,6 +384,7 @@ const { getAiDecisions, clearAiDecisions } =
 // Resets the Brain's per-game Worker respawn budget between the issue #3040
 // cases below, which deliberately spend it.
 import { sequenceDurationMs } from "~/lib/random-reveal-pacing";
+import { ESCALATED_RETRY_MS } from "~/lib/transient-query-error";
 
 const { disposeBrain, MAX_BRAIN_WORKER_FAILURES } =
     await import("~/lib/ai/brain-client");
@@ -408,6 +409,15 @@ const { disposeBrain, MAX_BRAIN_WORKER_FAILURES } =
 const DRIVER_SETTLE_MS = 2000;
 async function settleDriver() {
     await vi.advanceTimersByTimeAsync(DRIVER_SETTLE_MS);
+}
+
+/** Advance fake time in short steps. A backoff rung's timer is armed by an
+ *  effect of the render the previous rung caused, which one long advance
+ *  never lets React commit in between (issue #10407). */
+async function stepTimers(totalMs: number) {
+    for (let t = 0; t < totalMs; t += 250) {
+        await vi.advanceTimersByTimeAsync(250);
+    }
 }
 
 const GAME = "game1" as Id<"games">;
@@ -1403,6 +1413,48 @@ describe("useVsAiDriver (issue #110)", () => {
         await settleDriver();
         expect(result.current.subscriptionError).toBe(null);
         expect(calls.map((c) => c.ref)).toContain("passPriority");
+    });
+
+    // Issue #10407 — a passing overload escalated the tick past its whole
+    // backoff ladder, and the Bot stayed parked until the player clicked
+    // Reconnect while the server backstop passed its decisions. The driver
+    // now re-subscribes on its own, slowly.
+    it("recovers an escalated transient subscription without a Reconnect click", async () => {
+        currentState = botState({ priorityPlayerId: BOT });
+        tickError = new Error(
+            "[CONVEX Q(gameReads:getGameTick)] [Request ID: 0f3c9a1b2d4e5f60] Server Error\n" +
+                "Your request timed out performing too many system operations."
+        );
+        const { result } = renderHook(() => useVsAiDriver(GAME, BOT));
+        // Walk the whole backoff ladder (~3.75s of backoff) to the escalation.
+        await stepTimers(8000);
+        expect(result.current.subscriptionError).toBeInstanceOf(Error);
+        expect(calls).toHaveLength(0);
+
+        // The overload passes; nobody clicks anything.
+        tickError = null;
+        await stepTimers(ESCALATED_RETRY_MS);
+        await settleDriver();
+        expect(result.current.subscriptionError).toBe(null);
+        expect(calls.map((c) => c.ref)).toContain("passPriority");
+    });
+
+    it("never puts a non-transient escalation on the recovery timer", async () => {
+        currentState = botState({ priorityPlayerId: BOT });
+        tickError = new Error(
+            "[CONVEX Q(gameReads:getGameTick)] [Request ID: e58f32e5cec5b301] Server Error\n" +
+                "  Called by client"
+        );
+        const { result } = renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+        expect(result.current.subscriptionError).toBeInstanceOf(Error);
+
+        // A genuine function bug: the timer would re-run it for nothing. Only
+        // a click (or the tab / network coming back) re-tries it.
+        tickError = null;
+        await stepTimers(ESCALATED_RETRY_MS * 2);
+        expect(result.current.subscriptionError).toBeInstanceOf(Error);
+        expect(calls).toHaveLength(0);
     });
 
     // Issue #1778 review finding 4 — a vs-AI game already in progress when
