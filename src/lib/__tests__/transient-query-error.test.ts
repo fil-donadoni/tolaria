@@ -65,6 +65,73 @@ describe("isTransientQueryError (issue #3266)", () => {
     });
 });
 
+// Issue #10407 — the real strings, verbatim from the local backend log
+// (issue #10116, `docs/research/bot-weak-line-weak-client.md` § 3) and from
+// PRODUCTION Sentry events, envelopes included.
+describe("isTransientQueryError on the observed server-side shapes (issue #10407)", () => {
+    it("classifies the system-operations ceiling as transient", () => {
+        expect(
+            isTransientQueryError(
+                new Error(
+                    "[CONVEX Q(game:getPublicState)] [Request ID: 0f3c9a1b2d4e5f60] Server Error\n" +
+                        "Your request timed out performing too many system operations."
+                )
+            )
+        ).toBe(true);
+        expect(
+            isTransientQueryError(
+                new Error(
+                    "[CONVEX Q(cardPrints:populated)] Your request timed out performing too many system operations."
+                )
+            )
+        ).toBe(true);
+    });
+
+    it("classifies the production envelopes of both ceilings as transient", () => {
+        // Production keeps a PLATFORM failure's text after "Server Error".
+        expect(
+            isTransientQueryError(
+                new Error(
+                    "[CONVEX M(game:forfeitMatch)] [Request ID: ce927eba6d02eca2] Server Error\n" +
+                        "Function execution timed out (maximum duration: 1s)\n\n" +
+                        "  Called by client"
+                )
+            )
+        ).toBe(true);
+        expect(
+            isTransientQueryError(
+                new Error(
+                    "[Request ID: 5d4948855795ddae] Server Error\n" +
+                        "Uncaught Error: Your request timed out performing too many system operations.\n" +
+                        "    at async signInImpl (signIn.ts:55:25)"
+                )
+            )
+        ).toBe(true);
+    });
+
+    it("does NOT classify the production-redacted developer error as transient", () => {
+        // A handler's own throw is redacted to a bare "Server Error" in
+        // production: that is a genuine function bug, and it must escalate
+        // rather than spin.
+        expect(
+            isTransientQueryError(
+                new Error(
+                    "[CONVEX M(userDecks:update)] [Request ID: e58f32e5cec5b301] Server Error\n" +
+                        "  Called by client"
+                )
+            )
+        ).toBe(false);
+        expect(
+            isTransientQueryError(
+                new Error(
+                    "[CONVEX Q(game:getPublicState)] [Request ID: abc123] Server Error\n" +
+                        "Uncaught Error: Cannot read properties of undefined (reading 'zones')"
+                )
+            )
+        ).toBe(false);
+    });
+});
+
 describe("retryDelayMs (issue #3266)", () => {
     it("backs off and then holds at the ceiling", () => {
         expect(retryDelayMs(0)).toBe(250);
