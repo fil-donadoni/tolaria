@@ -442,5 +442,53 @@ describe("PauseMenuDialog after the Game ended (issue #9310)", () => {
             expect(getByRole("button", { name: "Concede" })).toBeTruthy()
         );
         expect(concede).toHaveBeenCalledTimes(1);
+        // Issue #10239 — the refusal is said, not swallowed.
+        expect(getByRole("alert").textContent).toBe("Game is over");
+    });
+
+    it("a timed-out Forfeit Match returns to the menu with the reason, and closing clears it (issue #10239)", async () => {
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        navigate.mockClear();
+        clearSession.mockClear();
+        forfeitMatch.mockImplementationOnce(() =>
+            Promise.reject(
+                new Error(
+                    "[CONVEX M(game:forfeitMatch)] Function execution timed out (maximum duration: 10s)"
+                )
+            )
+        );
+        const onOpenChange = vi.fn();
+        const { getByRole, queryByRole, rerender } = render(
+            <PauseMenuDialog
+                open
+                onOpenChange={onOpenChange}
+                gameId={gameId}
+                playerId="me"
+                match={bo(3)}
+            />
+        );
+        fireEvent.click(getByRole("button", { name: "Concede Match" }));
+        fireEvent.click(getByRole("button", { name: "Yes" }));
+        await vi.waitFor(() =>
+            expect(getByRole("alert").textContent).toMatch(
+                /server took too long/
+            )
+        );
+        expect(getByRole("button", { name: "Concede Match" })).toBeTruthy();
+        expect(clearSession).not.toHaveBeenCalled();
+        expect(navigate).not.toHaveBeenCalled();
+
+        fireEvent.click(getByRole("button", { name: "✕" }));
+        expect(onOpenChange).toHaveBeenCalledWith(false);
+        rerender(
+            <PauseMenuDialog
+                open
+                onOpenChange={onOpenChange}
+                gameId={gameId}
+                playerId="me"
+                match={bo(3)}
+            />
+        );
+        expect(queryByRole("alert")).toBeNull();
     });
 });

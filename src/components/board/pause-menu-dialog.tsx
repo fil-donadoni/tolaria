@@ -6,6 +6,8 @@ import type { PublicMatch } from "@convex/matches";
 import { GameContext } from "~/hooks/useGameContext";
 import GameDialog from "~/components/ui/game-dialog";
 import { Button } from "~/components/ui/button";
+import { Banner } from "~/components/ui/banner";
+import { extractMutationErrorMessage } from "~/lib/mutation-error";
 import { requestBugReport } from "~/lib/bug-report-requests";
 import ClearYieldsButton from "./clear-yields-button";
 import ManageYieldsButton from "./manage-yields-button";
@@ -37,6 +39,10 @@ export default function PauseMenuDialog({
 }: PauseMenuDialogProps) {
     const [step, setStep] = useState<Step>("menu");
     const [isBusy, setIsBusy] = useState(false);
+    // Issue #10239 — why the last Concede/Forfeit was refused (a race with a
+    // finishing Game, Convex's 10 s mutation limit), shown on the menu root
+    // the failure returns to.
+    const [error, setError] = useState<string | null>(null);
     const concede = useMutation(api.game.concede);
     const forfeitMatch = useMutation(api.game.forfeitMatch);
     const leaveToLobby = useLeaveToLobby();
@@ -72,13 +78,17 @@ export default function PauseMenuDialog({
     const ownDeck = match?.players.find((p) => p.id === playerId)?.deck ?? null;
 
     const handleOpenChange = (nextOpen: boolean) => {
-        if (!nextOpen) setStep("menu");
+        if (!nextOpen) {
+            setStep("menu");
+            setError(null);
+        }
         onOpenChange(nextOpen);
     };
 
     const handleConcede = async () => {
         if (isBusy) return;
         setIsBusy(true);
+        setError(null);
         try {
             // A Manual Game has no `gameStates` row, so `api.game.concede`
             // throws "Game not found" there. `manualConcedeMatch` is the
@@ -90,9 +100,11 @@ export default function PauseMenuDialog({
             if (isManualGame) await manualConcede({ gameId, playerId });
             else await concede({ gameId, playerId });
             handleOpenChange(false);
-        } catch {
-            // The server refused (e.g. a race with a finishing Game). Nothing
-            // to retry: recover the dialog instead of an unhandled rejection.
+        } catch (err) {
+            // The server refused (e.g. a race with a finishing Game) or timed
+            // out: recover the dialog instead of an unhandled rejection, and
+            // say why.
+            setError(extractMutationErrorMessage(err));
             setStep("menu");
         } finally {
             setIsBusy(false);
@@ -102,6 +114,7 @@ export default function PauseMenuDialog({
     const handleForfeit = async () => {
         if (isBusy || !match) return;
         setIsBusy(true);
+        setError(null);
         try {
             await forfeitMatch({ matchId: match.matchId, playerId });
             // Forfeiting ends the Match; drop the session and return to lobby so
@@ -109,7 +122,8 @@ export default function PauseMenuDialog({
             // returns to its OWN event lobby (`lobbyRouteForMatch`), in-app.
             handleOpenChange(false);
             leaveToLobby(match);
-        } catch {
+        } catch (err) {
+            setError(extractMutationErrorMessage(err));
             setStep("menu");
         } finally {
             setIsBusy(false);
@@ -215,6 +229,11 @@ export default function PauseMenuDialog({
             dismissable
         >
             <div className="flex flex-col gap-3 mt-2">
+                {error && (
+                    <Banner tone="danger" role="alert">
+                        {error}
+                    </Banner>
+                )}
                 {/* Issue #3556 §5 — the **Yield** reset's second home, so it
                     stays reachable when the **Stack** panel is collapsed.
                     Renders nothing while the viewing seat holds no yields. */}

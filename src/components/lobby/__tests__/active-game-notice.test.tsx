@@ -199,3 +199,77 @@ describe("ActiveGameNotice concede seat derivation (issue #2400, review round 2)
         );
     });
 });
+
+/** Convex's envelope for a mutation that hit the 10 s limit (Sentry
+ *  TOLARIA-1D). */
+const TIMEOUT = new Error(
+    "[CONVEX M(game:forfeitMatch)] Function execution timed out (maximum duration: 10s)"
+);
+
+describe("ActiveGameNotice — a refused or timed-out concede (issue #10239)", () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        unhandled.length = 0;
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        process.on("unhandledRejection", onUnhandled);
+        return () => {
+            process.off("unhandledRejection", onUnhandled);
+        };
+    });
+
+    async function concedeAndFail(game: ActiveGame) {
+        render(<ActiveGameNotice activeGame={game} userId={USER_ID} />);
+        fireEvent.click(screen.getByText("Concede Match"));
+        await waitFor(() =>
+            expect(screen.getByText("Concede match?")).toBeTruthy()
+        );
+        fireEvent.click(screen.getAllByText("Concede Match")[1]);
+        await waitFor(() =>
+            expect(screen.getByRole("alert").textContent).toMatch(
+                /server took too long/
+            )
+        );
+        // Let any escaped rejection reach the process hook before asserting.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    function confirmButton(): HTMLButtonElement {
+        return screen
+            .getAllByText("Concede Match")[1]
+            .closest("button") as HTMLButtonElement;
+    }
+
+    it("forfeitMatch: shows the error, re-enables the controls, nothing unhandled", async () => {
+        forfeitMatch.mockRejectedValue(TIMEOUT);
+        await concedeAndFail(BETWEEN_GAMES);
+
+        expect(forfeitMatch).toHaveBeenCalledOnce();
+        expect(confirmButton().disabled).toBe(false);
+        expect(screen.getByText("Concede match?")).toBeTruthy();
+        expect(unhandled).toEqual([]);
+    });
+
+    it("manualConcedeMatch: shows the error, re-enables the controls, nothing unhandled", async () => {
+        manualConcedeMatch.mockRejectedValue(TIMEOUT);
+        await concedeAndFail(MANUAL_2P_GAME);
+
+        expect(manualConcedeMatch).toHaveBeenCalledOnce();
+        expect(confirmButton().disabled).toBe(false);
+        expect(unhandled).toEqual([]);
+    });
+
+    it("Cancel clears the error, so a reopened dialog starts clean", async () => {
+        forfeitMatch.mockRejectedValue(TIMEOUT);
+        await concedeAndFail(BETWEEN_GAMES);
+
+        fireEvent.click(screen.getByText("Cancel"));
+        fireEvent.click(screen.getByText("Concede Match"));
+        await waitFor(() =>
+            expect(screen.getByText("Concede match?")).toBeTruthy()
+        );
+        expect(screen.queryByRole("alert")).toBeNull();
+    });
+});
