@@ -4538,6 +4538,7 @@ function finalizeSpellResolution(
             resolvingItemPopped: true,
         });
         forgetDamageToEnteringObject(state, item.id);
+        unattachFromEnteringObject(state, item.id);
         // CR 113.6c — an ability that functions only OUTSIDE the battlefield
         // switches off here: Grist stops being a 1/1 Insect creature the
         // instant it resolves as a planeswalker. Before the layer-4 grants
@@ -7694,6 +7695,44 @@ export function forgetDamageToEnteringObject(
     state.stack.forEach((item) => scrub(item as CardInstanceState));
 }
 
+/** CR 400.7 (issue #10375) — the attachment twin of
+ *  `forgetDamageToEnteringObject`, called from the same three entry funnels.
+ *  The instance id is never reallocated across zone changes, so an Aura or
+ *  Equipment still naming this id would read the NEW object as the host it
+ *  was attached to (a blink returns it before state-based actions run) and
+ *  keep the attachment legal. Every permanent attached to the entering id is
+ *  unattached here, before anything can observe the link:
+ *  - CR 704.5m — an Aura not attached to an object is put into its owner's
+ *    graveyard by the next SBA check (`checkAuraAttachmentSBA`); its effects
+ *    already stopped when the host left (`unapplyAurasAttachedTo`).
+ *  - CR 704.5n — an Equipment becomes unattached and remains on the
+ *    battlefield (so does every other attachment, CR 704.5p); its effects stop
+ *    first, as on `checkAttachmentSBA`'s detach path.
+ *  Done at ENTRY, never at the departure: between the two, a trigger scanned
+ *  for the departure ("whenever enchanted creature dies / is dealt damage")
+ *  still reads the attachment's link as last known information (CR 603.10).
+ *  A batch entry stages non-Aura members before attaching its Auras
+ *  (`putReanimatedSetOnBattlefield`), so a sibling Aura's fresh link is never
+ *  seen here. Phasing in is not a zone change (CR 702.26d) and never calls
+ *  this. */
+export function unattachFromEnteringObject(
+    state: GameState,
+    instanceId: string
+): void {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const cardList = playerList[i].battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
+            if (card.id === instanceId || card.attachedTo !== instanceId) {
+                continue;
+            }
+            if (!isAura(card)) stopApplyingStaticEffects(state, card);
+            card.attachedTo = undefined;
+        }
+    }
+}
+
 /** CR 701.27f (issue #3249) — true when `item` is a fired delayed triggered
  *  ability of `card` itself and `card` has transformed since that delayed
  *  trigger was created, so its instruction to transform `card` is ignored. A
@@ -8073,7 +8112,7 @@ export function removePermanentTo(
     // never observe a dangling keyword. Auras additionally need their
     // control-change unapplied; non-aura hosts need any auras attached to
     // them reverted (orphan auras stay on the battlefield with stale
-    // `attachedTo` and are swept by `checkAuraAttachmentSBA`, CR 704.5n).
+    // `attachedTo` and are swept by `checkAuraAttachmentSBA`, CR 704.5m).
     // CR 611.3b/611.3d (issue #3726) — before the effects stop applying, freeze
     // the ones the card says CONTINUE past their source (Titania's Song). This
     // is the only departure funnel, and the snapshot must run while the source
@@ -10510,7 +10549,8 @@ export function flushPendingEvents(state: GameState): GameEvent[] {
  *  host leaves the battlefield so the host doesn't carry dangling grants
  *  into its destination zone (CR 611.2). The orphan auras are left on the
  *  battlefield with stale `attachedTo` and are cleaned up by
- *  `checkAuraAttachmentSBA` (CR 704.5n). */
+ *  `checkAuraAttachmentSBA` (CR 704.5m) — or unattached by
+ *  `unattachFromEnteringObject` if the same id returns first (CR 400.7). */
 function unapplyAurasAttachedTo(state: GameState, hostId: string): void {
     const playerList = state.players;
     for (let i = 0; i < playerList.length; i++) {
@@ -11721,6 +11761,7 @@ function stageReanimatedOnBattlefield(
         resolvingItemPopped: false,
     });
     forgetDamageToEnteringObject(state, card.id);
+    unattachFromEnteringObject(state, card.id);
     card.zone = "battlefield";
     // CR 113.6c — see the spell-resolution twin: the off-battlefield ability
     // switches off on arrival, before the entry path's layer-4 grants.
