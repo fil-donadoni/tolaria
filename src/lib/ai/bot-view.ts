@@ -1049,7 +1049,7 @@ function buildOwedChoice(
  *      KNOWS is in that hand (a CR 701.20a reveal, ADR 0026 known slots), so
  *      the name strips a card instead of whiffing (issue #9551);
  *   0b. when the entering card is a name LOCK, the name whose denial hurts
- *      the opponent most (`rankNameLockName`, issue #10225), the ranking the
+ *      the opponent most (`rankNameLockName`), the ranking the
  *      search's node reads too, so the two cannot disagree;
  *   1. the chooser's own top library card when it is visible to the bot in the
  *      projection (the bot is the chooser), so a self-targeted Petra Sphinx
