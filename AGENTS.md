@@ -401,9 +401,7 @@ shown it.** happy-dom has no layout: "the card is in the document" passes while
 the card sits in a 24px-tall container.
 
 **Owed only when the diff can move layout** (issue #5459; predicate in
-`src/CLAUDE.md`, whatever the lane; judged per HUNK — a module whose every
-changed line is render-inert, e.g. an event-handler body, owes nothing and
-selects no surface, issue #10393): `bun run check:ui -- --scope-only` says
+`src/CLAUDE.md`, whatever the lane): `bun run check:ui -- --scope-only` says
 `owed`/`not owed`; not owed → PR line `check:ui: no walk owed (<reason>)`
 replaces the receipt. Leaf components, copy, handlers, tests, non-`src/` diffs:
 say so in one line, move on.

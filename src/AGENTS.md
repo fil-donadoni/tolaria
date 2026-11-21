@@ -37,22 +37,14 @@ has shown it.** happy-dom has no layout engine (no viewport, paint or stacking;
 with the card in a 24px-tall container.
 
 **OWED predicate** (issue #5459, `uiWalkOwed`, `scripts/lib/ui-scope.ts`;
-`bun run check:ui -- --scope-only` prints `walk: owed — <path>: <rule>` /
-`walk: not owed — <reason>`). Owed iff the diff touches a stylesheet,
-`index.html`, public asset or design tokens; the shell / `components/chrome/`;
-a `*layout*` component; `components/ui/`; a dialog/modal/popover/overlay/
-portal/sheet/drawer/tooltip/dropdown/menu/toast component; a viewport/
-responsive module; or a changed line adding/removing a `z-index`,
-scroll container or `@media`/`matchMedia`/`useViewport*`. Leaf
-components, copy, handlers, tests: not. **Hunks, not files** (issue #10393,
-`scripts/lib/ui-render-inert.ts`): a module whose EVERY changed line is
-render-inert — comment, event-handler body (an `on*` prop's function, or a
-binding only `on*` props and handlers reference) naming no setter / dispatch /
-navigate / class / style / DOM, or an import whose changed bindings only
-handlers read — owes nothing by name or content and selects no surface;
-anything else, an unparsable or new module included, behaves as above.
-`--scope-only` lists each cleared module's reason; an owed verdict names the
-hunk (`<path>:<line>: <construct>`). Not owed → PR line
+`check:ui -- --scope-only` prints it). Owed iff the diff touches a
+stylesheet, `index.html`, public asset or design tokens; the shell /
+`components/chrome/`; a `*layout*`, `components/ui/`, overlay-family
+or viewport module; or a changed line adding/removing a
+`z-index`, scroll container or `@media`/`matchMedia`/`useViewport*`. Judged
+per HUNK (issue #10393, `ui-render-inert.ts`): a module whose every changed
+line is a comment, user-event handler body or handler-only import owes
+nothing. Leaf components, copy, tests: not. Not owed → PR line
 `check:ui: no walk owed (<reason>)` replaces the receipt; owed + no receipt →
 `land` refuses. `--all`: the full proof, by hand only (#6143).
 
