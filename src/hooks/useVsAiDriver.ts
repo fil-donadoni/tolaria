@@ -95,6 +95,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { useResilientQuery } from "~/hooks/useResilientQuery";
+import { useEscalationRecovery } from "~/hooks/useEscalationRecovery";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import {
@@ -486,6 +487,12 @@ export function useVsAiDriver(
         retryBotState();
         retryMatchDifficulty();
     }, [retryTick, retryBotState, retryMatchDifficulty]);
+    const driverSubscriptionError =
+        tickQuery.error ?? botStateQuery.error ?? matchDifficultyQuery.error;
+    // Issue #10407: an escalated subscription re-tries on its own (slow
+    // cadence for a transient one, tab-visible / back-online for any), so a
+    // passing overload does not cost the game its Bot until a Reconnect click.
+    useEscalationRecovery(driverSubscriptionError, retryDriverSubscriptions);
     const [thinking, setThinking] = useState(false);
     // When the Bot's random-reveal ack window was first seen (issue #5516).
     const revealWait = useRef<{ signature: string; startedAt: number } | null>(
@@ -1785,10 +1792,7 @@ export function useVsAiDriver(
         // Either query giving up is the same outcome for the player: the bot
         // stops moving. The tick is reported first because it is the one that
         // gates everything else.
-        subscriptionError:
-            tickQuery.error ??
-            botStateQuery.error ??
-            matchDifficultyQuery.error,
+        subscriptionError: driverSubscriptionError,
         retrySubscription: retryDriverSubscriptions,
     };
 }
