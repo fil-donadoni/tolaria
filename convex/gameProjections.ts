@@ -35,6 +35,11 @@ import { canTurnFaceUp } from "./gre/morph";
 import { canPlot } from "./gre/plot";
 import { canForetell } from "./gre/foretell";
 import { isRequiredAttacker } from "./gre/combat";
+import {
+    activationManaProbe,
+    unaffordableAbilityIds,
+} from "./gre/activationManaAffordability";
+import { getEffectiveActivatedAbilities } from "./gre/activatedAbilities";
 import { isFaceDownExile } from "./gre/faceDown";
 import {
     exileCastPermitted,
@@ -72,6 +77,10 @@ export type SlimCardInstance = Omit<CardInstanceState, "card"> & {
 export type SlimHandCard = SlimCardInstance & {
     legalActions: CardAction[];
     seenByOpponent?: boolean;
+    /** CR 602.2b / 601.2g (issue #10370) — this card's hand-activated
+     *  abilities whose mana cost the viewer cannot fund right now
+     *  (`activationManaProbe`). Absent when there are none. */
+    unaffordableAbilityIds?: string[];
     /** CR 107.4f — the affordable mana-vs-life split choices for a castable
      *  Phyrexian-mana card in the viewer's OWN hand, as the distinct `lifePips`
      *  values the caster could pay (0 = all pips with mana … totalPips = all with
@@ -421,6 +430,10 @@ export type SlimPhasedOutBundle = Omit<PhasedOutBundle, "cards"> & {
  *  the CR 708.2 vanilla 2/2, never the real card, even for the controller. */
 export type SlimBattlefieldCard = SlimCardInstance & {
     canTurnFaceUp?: boolean;
+    /** CR 602.2b / 601.2g (issue #10370) — the activated abilities on this
+     *  permanent the VIEWER may activate but cannot fund the mana cost of right
+     *  now (`activationManaProbe`). Absent when there are none. */
+    unaffordableAbilityIds?: string[];
     /** CR 508.1d (issue #1972) — during the declare-attackers step, this
      *  creature is required to attack and able to, so it cannot be left out of
      *  the declaration. Server-derived through `isRequiredAttacker`, the call
@@ -687,7 +700,10 @@ function projectBattlefieldCard(
     characteristics?: WireCharacteristics,
     /** CR 723.4 (ADR 0181) — the seats whose face-down permanents this viewer
      *  may look at: their own, plus a player's they control. */
-    knowers: readonly string[] = [viewerId]
+    knowers: readonly string[] = [viewerId],
+    /** Issue #10370 — `unaffordableAbilityIds` for this viewer, computed by
+     *  the caller's per-projection mana probe. */
+    unaffordable?: string[]
 ): SlimBattlefieldCard {
     // CR 116.2b / 702.37e (issue #2705) — the turn-face-up affordance. Derived
     // server-side and carried on the wire for the same reason the companion's
@@ -716,9 +732,11 @@ function projectBattlefieldCard(
         card.controllerId === state.activePlayerId &&
         isRequiredAttacker(card, state);
     const decorate = (slim: SlimBattlefieldCard): SlimBattlefieldCard => {
-        const out: SlimBattlefieldCard = requiredAttacker
+        let out: SlimBattlefieldCard = requiredAttacker
             ? { ...slim, mustAttack: true }
             : slim;
+        if (unaffordable)
+            out = { ...out, unaffordableAbilityIds: unaffordable };
         return turnUp && viewerId === card.controllerId
             ? { ...out, canTurnFaceUp: true }
             : out;
@@ -1705,6 +1723,31 @@ export function projectPublicState(
     // the reveal set. A player in both is simply revealed.
     const libraryTopLookedAtPlayers = computeLibraryTopLookedAtPlayers(state);
 
+    // CR 602.2b / 601.2g (issue #10370) — the viewer's activation mana probe,
+    // one lazy census for every ability this projection asks about.
+    const viewerPlayer = state.players.find((p) => p.id === viewerId);
+    const manaProbe = viewerPlayer
+        ? activationManaProbe(state, viewerPlayer)
+        : undefined;
+    const unaffordableOnBattlefield = (
+        c: CardInstanceState
+    ): string[] | undefined => {
+        if (!manaProbe) return undefined;
+        // CR 602.1a — the viewer activates its own permanents'
+        // abilities, and on another player's only the ones open to it.
+        const own = c.controllerId === viewerId;
+        const abilities = getEffectiveActivatedAbilities(c)
+            .map(({ ability }) => ability)
+            .filter(
+                (a) =>
+                    own ||
+                    a.activatableByAnyPlayer ||
+                    a.activatableByOpponentsOnly ||
+                    a.activatableByEnchantedController
+            );
+        return unaffordableAbilityIds(manaProbe, c, abilities);
+    };
+
     const players = state.players.map((player): PublicPlayer => {
         const librarySearch =
             player.id === searchZoneOwner
@@ -1783,7 +1826,8 @@ export function projectPublicState(
                     viewerId,
                     state,
                     characteristics.get(c.id),
-                    knowers
+                    knowers,
+                    unaffordableOnBattlefield(c)
                 )
             ),
             // ADR 0026 — sparse library: only cards the viewer knows
@@ -1888,9 +1932,25 @@ export function projectPublicState(
                               state
                           )
                         : [];
+                    // CR 602.2b (issue #10370) — the hand-activated
+                    // abilities (Cycling) whose mana the viewer can't fund.
+                    const handUnaffordable = manaProbe
+                        ? unaffordableAbilityIds(
+                              manaProbe,
+                              card,
+                              (
+                                  tryGetDefinition(
+                                      (card.card as { id?: string }).id ?? ""
+                                  )?.activatedAbilities ?? []
+                              ).filter((a) => a.activateFromHand)
+                          )
+                        : undefined;
                     return {
                         ...slimCard(card),
                         legalActions,
+                        ...(handUnaffordable
+                            ? { unaffordableAbilityIds: handUnaffordable }
+                            : {}),
                         // ADR 0026 — eye icon: any non-owner knows this card.
                         ...(hasNonOwnerKnower(card)
                             ? { seenByOpponent: true }
