@@ -108,11 +108,12 @@ describe("consultBrain always settles (issue #2284)", () => {
                 BRAIN_CONSULT_OVERRUN_MARGIN_MS +
                 BRAIN_CONSULT_TRANSPORT_MARGIN_MS
         );
-        // The search reads its clock BETWEEN iterations, so a consult runs the
-        // cap plus the iteration in flight. The field's worst overran a
-        // 3300 ms cap by 1358 ms (Gecko, ~1 s per iteration:
-        // `docs/research/expert-think-longer.md` § 2). The old 1000 ms
-        // headroom asserted here was already less than the field had used.
+        // The field's worst overran a 3300 ms cap by 1358 ms (Gecko, ~1 s per
+        // iteration: `docs/research/expert-think-longer.md` § 2), back when
+        // the search read its clock only between iterations. Since issue
+        // #10408 the rollout reads the cap each ply, so the overshoot is a
+        // ply (`brain-consult-overshoot.bot.test.ts`); the margin keeps its
+        // floor over that historical worst.
         const FIELD_WORST_OVERRUN_MS = 1358;
         expect(BRAIN_CONSULT_OVERRUN_MARGIN_MS).toBeGreaterThanOrEqual(
             FIELD_WORST_OVERRUN_MS
