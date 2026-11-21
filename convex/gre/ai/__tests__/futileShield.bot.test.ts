@@ -10,6 +10,8 @@ import type { BladeSetupStep } from "../blade/types";
 import { enumerateMoves, type Move } from "../../moves";
 import { findPermanent } from "../../lookup";
 import { getCardByName, tryGetDefinition } from "../../../cards";
+import { withTemporaryDefinition } from "../../../cards/registry";
+import type { CardDefinition } from "../../../cards/types";
 import type { ScenarioSpec } from "../../../debugScenarioSpec";
 import { resolveTopOfStack, type GameState } from "../../state";
 import { applyMoveInSearch } from "../../search";
@@ -981,5 +983,141 @@ describe("land-type change that unlocks a held cost (CR 305.6, CR 305.7, issue #
         expect(
             CHOICE_CANDIDATE_GENERATORS["option-pick"]!(state, choice)
         ).toHaveLength(choice.options!.length);
+    });
+});
+
+// Issue #10220 — a shield paid for with its own source's sacrifice (CR 701.21,
+// CR 118.1) is pruned under the same "no threat now" proof when paying it is a
+// pure loss; a harmless stack object (an ability grant, CR 611.2c) is not a
+// threat to a regeneration shield (CR 701.19a).
+describe("isFutileThisTurnMove — self-sacrifice regeneration (issue #10220)", () => {
+    const JAR_BOARD: ScenarioSpec = {
+        cards: [
+            { name: "Welding Jar", owner: "me", zone: "battlefield" },
+            { name: "Ornithopter", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        turn: 4,
+        landCount: 2,
+        libraryCount: 20,
+    };
+
+    /** The opponent's turn, Urza's Saga's chapter II grant on the stack
+     *  (CR 714.3c) with priority on the Bot's seat. */
+    const SAGA_GRANT_ON_STACK: ScenarioSpec = {
+        cards: [
+            ...JAR_BOARD.cards,
+            {
+                name: "Urza's Saga",
+                owner: "opp",
+                zone: "battlefield",
+                counters: { lore: 1 },
+            },
+            { name: "Shatter", owner: "opp", zone: "hand" },
+        ],
+        phase: "DRAW",
+        turn: 5,
+        activePlayer: "opp",
+        priority: "opp",
+        landCount: 2,
+        libraryCount: 20,
+    };
+    const TO_SAGA_TRIGGER: BladeSetupStep[] = [
+        { kind: "pass", seat: "opp" },
+        { kind: "pass", seat: "me" },
+        { kind: "pass", seat: "opp" },
+    ];
+
+    function jarAt(state: GameState, targetName: string) {
+        return activationsOf(state, 0, "Welding Jar").find((m) => {
+            const slot = m.targets[0];
+            return (
+                slot?.type === "permanent" &&
+                findPermanent(state, slot.id)?.card.id ===
+                    getCardByName(targetName).id
+            );
+        })!;
+    }
+
+    it("prunes the sacrifice with no stack, combat or marked damage", () => {
+        const state = position(JAR_BOARD);
+        const moves = activationsOf(state, 0, "Welding Jar");
+        expect(moves.length).toBeGreaterThan(0);
+        for (const move of moves) {
+            expect(isFutileThisTurnMove(state, move)).toBe(true);
+        }
+        const pruned = enumerateMoves(state, state.players[0].id, {
+            pruneDominatedNoOps: true,
+        });
+        expect(
+            pruned.some(
+                (m) =>
+                    m.kind === "activate-ability" &&
+                    findPermanent(state, m.cardInstanceId)?.card.id ===
+                        getCardByName("Welding Jar").id
+            )
+        ).toBe(false);
+    });
+
+    it("prunes the sacrifice against an opposing ability grant on the stack", () => {
+        const state = position(SAGA_GRANT_ON_STACK, TO_SAGA_TRIGGER);
+        expect(state.stack).toHaveLength(1);
+        expect(state.priorityPlayerId).toBe(state.players[0].id);
+        const move = jarAt(state, "Ornithopter");
+        expect(isFutileThisTurnMove(state, move)).toBe(true);
+    });
+
+    it("prunes the sacrifice against an opposing token-creation trigger", () => {
+        const state = position(
+            {
+                ...JAR_BOARD,
+                cards: [
+                    ...JAR_BOARD.cards,
+                    { name: "Elder Auntie", owner: "opp", zone: "battlefield" },
+                ],
+            },
+            [
+                {
+                    kind: "etb-trigger",
+                    card: "Elder Auntie",
+                    controller: "opp",
+                },
+                { kind: "pass", seat: "opp" },
+            ]
+        );
+        expect(state.stack).toHaveLength(1);
+        const move = jarAt(state, "Ornithopter");
+        expect(isFutileThisTurnMove(state, move)).toBe(true);
+    });
+
+    it("keeps the sacrifice against a destroy-artifact spell on the stack", () => {
+        const state = position(
+            { ...SAGA_GRANT_ON_STACK, phase: "PRECOMBAT_MAIN" },
+            [
+                {
+                    kind: "cast",
+                    card: "Shatter",
+                    by: "opp",
+                    target: "Ornithopter",
+                },
+            ]
+        );
+        const move = jarAt(state, "Ornithopter");
+        expect(isFutileThisTurnMove(state, move)).toBe(false);
+    });
+
+    it("keeps the sacrifice when it fires a leaves-the-battlefield payoff", () => {
+        const jar = getCardByName("Welding Jar");
+        const payoff = getCardByName("Implement of Examination");
+        const variant = {
+            ...jar,
+            compiledTriggeredAbilities: payoff.compiledTriggeredAbilities,
+        } as CardDefinition;
+        expect(variant.compiledTriggeredAbilities?.length).toBe(1);
+        withTemporaryDefinition(variant, () => {
+            const state = position(JAR_BOARD);
+            const move = jarAt(state, "Ornithopter");
+            expect(isFutileThisTurnMove(state, move)).toBe(false);
+        });
     });
 });
