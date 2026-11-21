@@ -19708,6 +19708,102 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #5493, position B — the discriminating twin of the entry above: the same board with Vindicate (destroy target permanent, regenerable) aimed at the Troll. The shield is the only answer that keeps the creature (CR 701.19a), so the prune must leave it standing and the search must take it.",
     },
     {
+        label: "regeneration shield: keeps its sacrifice-to-regenerate artifact against an ability grant",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "a destroy-artifact spell on the stack aimed at the other artifact",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Welding Jar", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                {
+                    name: "Urza's Saga",
+                    owner: "opp",
+                    zone: "battlefield",
+                    counters: { lore: 1 },
+                },
+                { name: "Shatter", owner: "opp", zone: "hand" },
+            ],
+            phase: "DRAW",
+            turn: 5,
+            activePlayer: "opp",
+            priority: "opp",
+            landCount: 2,
+            libraryCount: 20,
+        },
+        // Into the opponent's precombat main: the Saga's second lore counter
+        // puts chapter II (a granted activated ability) on the stack, and the
+        // active player passes it to the bot.
+        setup: [
+            { kind: "pass", seat: "opp" },
+            { kind: "pass", seat: "me" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "pass" }],
+        },
+        note: "Issue #10220, position A. Urza's Saga's chapter II only grants the Saga an activated ability (CR 611.2c), which can act only through a later stack object the bot gets priority before (CR 117.3b), so a regeneration shield (CR 701.19a) has nothing to replace before it ends (CR 514.2). Paying Welding Jar's self-sacrifice (CR 701.21) for it is a pure loss. `isFutileThisTurnMove` (`gre/ai/futileShield.ts`) now admits a self-sacrifice cost whose payment registers nothing (`isSelfSacrificePaymentPureLoss`, `gre/ai/dominance.ts`) and no longer counts an ability grant as a threat.",
+    },
+    {
+        label: "regeneration shield: sacrifices to regenerate against a destroy-artifact spell",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "stack",
+                detail: "only an ability grant on the stack",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Welding Jar", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                {
+                    name: "Urza's Saga",
+                    owner: "opp",
+                    zone: "battlefield",
+                    counters: { lore: 1 },
+                },
+                { name: "Shatter", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            activePlayer: "opp",
+            priority: "opp",
+            landCount: 2,
+            libraryCount: 20,
+        },
+        setup: [
+            {
+                kind: "cast",
+                card: "Shatter",
+                by: "opp",
+                target: "Ornithopter",
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Welding Jar",
+                    target: "Ornithopter",
+                },
+            ],
+        },
+        note: "Issue #10220, position B — the discriminating twin of the entry above: the opponent's Shatter (destroy target artifact) aims at the Ornithopter. The self-sacrifice shield is the only answer that keeps it (CR 701.19a), so the prune must leave it standing and the search must take it.",
+    },
+    {
         label: "prevention shield: casts Warning on the opponent's attacker that kills its blocker",
         classification: {
             kind: "conditional",
