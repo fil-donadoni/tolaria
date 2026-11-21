@@ -449,16 +449,23 @@ export function useBattlefieldInteraction(player: Player) {
      *  Eager like `manaGateView` above, and deliberately NOT a `useMemo`: the
      *  inputs (`allPlayers`, the freshly-built `controlContinuity` literal)
      *  change on every render that matters, so a memo would buy nothing and
-     *  only risk handing a stale board to the affordance gates. */
-    const abilityStateView = buildTriggerStateView(
-        allPlayers,
-        activePlayerId,
-        cannotActivateAbilitiesThisTurn,
-        lifeGainedThisTurn,
-        controlContinuity,
-        continuousEffects,
-        emblems
-    );
+     *  only risk handing a stale board to the affordance gates.
+     *
+     *  `stack` (issue #10397) — the sorcery-speed window (CR 307.5) needs an
+     *  empty stack, the same list the server's gate reads, so Equip is not
+     *  offered in your own main phase while a trigger waits on the stack. */
+    const abilityStateView = {
+        ...buildTriggerStateView(
+            allPlayers,
+            activePlayerId,
+            cannotActivateAbilitiesThisTurn,
+            lifeGainedThisTurn,
+            controlContinuity,
+            continuousEffects,
+            emblems
+        ),
+        stack: stackItems,
+    };
 
     // CR 613.4 — every player with the board's layer input, so the mana helpers
     // below read the P/T the server's own option list reads.
@@ -939,7 +946,11 @@ export function useBattlefieldInteraction(player: Player) {
                 // counter, Farrelite Priest's {1}) is not a tap toggle:
                 // `tapUntap` would tap the source for nothing or refuse. Route
                 // it through the mana-ability activation path.
-                const entry = getManaCostMenuAbility(card, abilityStateView);
+                const entry = getManaCostMenuAbility(
+                    card,
+                    abilityStateView,
+                    phase
+                );
                 const taplessCost = entry
                     ? getEffectiveClientAbilities(card).find(
                           (a) => a.id === entry.id
@@ -1022,7 +1033,7 @@ export function useBattlefieldInteraction(player: Player) {
             isManaPaymentChoiceWindow(pendingChoices?.[0], playerId)
         ) {
             if (card.controllerId !== playerId) return [];
-            const entry = getManaCostMenuAbility(card, abilityStateView);
+            const entry = getManaCostMenuAbility(card, abilityStateView, phase);
             return entry
                 ? [{ id: entry.id, oracleText: entry.oracleText }]
                 : [];
@@ -1143,7 +1154,7 @@ export function useBattlefieldInteraction(player: Player) {
         // 118.8 `tapOtherFilter` affordability gate — lives in
         // `getManaCostMenuAbility` (`lib/card-utils.ts`), where the catalogue
         // affordability sweep can reach it; see that helper's doc comment.
-        const manaCostAbility = getManaCostMenuAbility(card, stateView);
+        const manaCostAbility = getManaCostMenuAbility(card, stateView, phase);
         const manaCostEntry: ActivatableAbility[] = manaCostAbility
             ? [
                   {

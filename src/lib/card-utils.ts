@@ -985,13 +985,27 @@ export function getClickTapOtherTapManaAbility(
  *  gate on this path structurally unguarded. */
 export function getManaCostMenuAbility(
     card: CardInstance,
-    stateView?: TriggerStateView
+    stateView?: TriggerStateView,
+    /** The current phase, for a phase-scoped / sorcery-speed restriction.
+     *  Omit (unknown) fails open on the phase half only. */
+    phase?: Phase
 ): ActivatedAbility | null {
     if (isManaActivationRestricted(card, stateView)) return null;
     return (
         getEffectiveClientAbilities(card).find(
             (a) =>
                 !a.useStack &&
+                // CR 602.5b (issue #10397) — the SAME timing gate every other
+                // listing runs: Vivi Ornitier's "Activate only during your
+                // turn and only once each turn" is a mana ability, and this
+                // path never asked, so it was offered on the opponent's turn.
+                isCardActivationTimingAllowed(
+                    a,
+                    card,
+                    card.controllerId,
+                    phase,
+                    stateView
+                ) &&
                 // CR 113.6m — a hand-source mana ability (Elvish Spirit
                 // Guide) is offered on the hand card, never the permanent.
                 functionsOnBattlefield(a) &&
@@ -2379,9 +2393,9 @@ export function matchesHandCardFilter(
  *     your upkeep", "only during combat") — the current `phase` must be a
  *     member of the allow-list;
  *   - `sorcerySpeedOnly` (CR 602.3b / 307.5 — "Activate only as a sorcery") —
- *     narrowed client-side to the main-phase half of the server's
- *     `isSorceryTiming`; this view has no stack-length/priority-holder field
- *     to check the rest, so the mutation stays authoritative for that part;
+ *     the server's `isSorceryTimingFor` window: main phase, the turn
+ *     owner is the active player, and the stack is empty (issue #10397; the
+ *     priority-holder half is every caller's own `viewerHasPriority` gate);
  *   - `controllerTurnOnly` (CR 602.5b — "Activate only during your turn") —
  *     `turnOwnerId` (the permanent's controller while it's on the battlefield,
  *     its owner while it sits in hand/graveyard, since CR 602.5's "your"
@@ -2441,7 +2455,10 @@ export function isActivationTimingAllowed(
      *  level 1, and `slimCard` spreads the instance so the field reaches the
      *  client intact. Failing open would offer every bar of a Class at once,
      *  which is precisely the affordance CR 716.2a forbids. */
-    classLevel?: number
+    classLevel?: number,
+    /** Whether the stack is empty, for the sorcery-speed window (CR 307.5).
+     *  Omit (unknown) fails OPEN, like `phase` / `activePlayerId`. */
+    stackIsEmpty?: boolean
 ): boolean {
     if (
         ability.activationPhaseRestriction &&
@@ -2450,13 +2467,24 @@ export function isActivationTimingAllowed(
     ) {
         return false;
     }
-    if (
-        ability.sorcerySpeedOnly &&
-        phase !== undefined &&
-        phase !== "PRECOMBAT_MAIN" &&
-        phase !== "POSTCOMBAT_MAIN"
-    ) {
-        return false;
+    // CR 307.5 / 602.3b (issue #10397) — "activate only as a sorcery" is the
+    // server's WHOLE `isSorceryTimingFor` window, not just its phase half:
+    // a main phase of the ACTIVATOR's own turn with an empty stack. The
+    // phase-only narrowing offered Equip in the opponent's main phase (and in
+    // your own with a trigger on the stack), every click a server throw. The
+    // priority-holder half is the callers' `viewerHasPriority` gate.
+    if (ability.sorcerySpeedOnly) {
+        if (
+            phase !== undefined &&
+            phase !== "PRECOMBAT_MAIN" &&
+            phase !== "POSTCOMBAT_MAIN"
+        ) {
+            return false;
+        }
+        if (activePlayerId !== undefined && activePlayerId !== turnOwnerId) {
+            return false;
+        }
+        if (stackIsEmpty === false) return false;
     }
     if (
         ability.controllerTurnOnly &&
@@ -2487,6 +2515,38 @@ export function isActivationTimingAllowed(
         return false;
     }
     return true;
+}
+
+/** {@link isActivationTimingAllowed} for an ability printed on `card`, reading
+ *  the per-instance gates (`activationsThisTurn`, `hasAttackedThisTurn`,
+ *  `classLevel`) off the card and the turn/stack facts off `stateView`. The
+ *  ONE call every zone-listing helper makes (issue #10397), so no listing can
+ *  forget a gate again — the mana-menu path once skipped the predicate
+ *  entirely and offered Vivi Ornitier's "only during your turn" ability on
+ *  the opponent's turn. */
+export function isCardActivationTimingAllowed(
+    ability: Parameters<typeof isActivationTimingAllowed>[0],
+    card: {
+        activationsThisTurn?: Readonly<Record<string, number>>;
+        hasAttackedThisTurn?: boolean;
+        classLevel?: number;
+    },
+    turnOwnerId: string,
+    phase: Phase | undefined,
+    stateView: TriggerStateView | undefined
+): boolean {
+    return isActivationTimingAllowed(
+        ability,
+        turnOwnerId,
+        phase,
+        stateView?.activePlayerId,
+        card.activationsThisTurn,
+        card.hasAttackedThisTurn,
+        card.classLevel,
+        stateView?.stack === undefined
+            ? undefined
+            : stateView.stack.length === 0
+    );
 }
 
 /** CR 400.7 — did the permanent `instanceId` enter the battlefield this turn,
@@ -2710,17 +2770,12 @@ export function getStackAbilities(
         // The `activateAbility` mutation (`assertActivationTimingLegal`) is
         // authoritative regardless.
         if (
-            !isActivationTimingAllowed(
+            !isCardActivationTimingAllowed(
                 a,
+                card,
                 card.controllerId,
                 phase,
-                stateView?.activePlayerId,
-                card.activationsThisTurn,
-                // CR 702.142a — Boast's attacked-this-turn precondition, read
-                // off the source instance (it survives `slimCard`).
-                card.hasAttackedThisTurn,
-                // CR 716.2b — the Class's own level, same treatment.
-                card.classLevel
+                stateView
             )
         ) {
             return false;
@@ -3020,14 +3075,12 @@ export function getGraveyardStackAbilities(
             // the card is in the graveyard its controller is its owner, so
             // `card.ownerId` is the "your turn" identity CR 602.5 tracks.
             if (
-                !isActivationTimingAllowed(
+                !isCardActivationTimingAllowed(
                     a,
+                    card,
                     card.ownerId,
                     phase,
-                    stateView.activePlayerId,
-                    card.activationsThisTurn,
-                    card.hasAttackedThisTurn,
-                    card.classLevel
+                    stateView
                 )
             ) {
                 return false;
@@ -3143,14 +3196,12 @@ export function getHandStackAbilities(
             // card is in hand its controller is its owner, so `card.ownerId`
             // is the "your turn" identity CR 602.5 tracks.
             if (
-                !isActivationTimingAllowed(
+                !isCardActivationTimingAllowed(
                     a,
+                    card,
                     card.ownerId,
                     phase,
-                    stateView.activePlayerId,
-                    card.activationsThisTurn,
-                    card.hasAttackedThisTurn,
-                    card.classLevel
+                    stateView
                 )
             ) {
                 return false;
@@ -3213,14 +3264,12 @@ export function getHandManaAbilities(
                 a.activateFromHand &&
                 !a.useStack &&
                 !!a.oracleText &&
-                isActivationTimingAllowed(
+                isCardActivationTimingAllowed(
                     a,
+                    card,
                     card.ownerId,
                     phase,
-                    stateView.activePlayerId,
-                    card.activationsThisTurn,
-                    card.hasAttackedThisTurn,
-                    card.classLevel
+                    stateView
                 ) &&
                 activationPreconditionViolation(
                     stateView,
@@ -3297,14 +3346,12 @@ export function getAnyPlayerStackAbilities(
             (a) =>
                 a.activatableByOpponentsOnly &&
                 !seen.has(a.id) &&
-                isActivationTimingAllowed(
+                isCardActivationTimingAllowed(
                     a,
+                    card,
                     card.controllerId,
                     phase,
-                    stateView?.activePlayerId,
-                    card.activationsThisTurn,
-                    card.hasAttackedThisTurn,
-                    card.classLevel
+                    stateView
                 )
         )
         .map((a) => ({ id: a.id, oracleText: a.oracleText }));
