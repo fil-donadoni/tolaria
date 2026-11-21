@@ -186,7 +186,7 @@ describe("cast / phase / zone-change trigger heads — goldens", () => {
 
     it("Gert and Old Lace: 'when {self} enter' — the self enters head behind a plural name (CR 201.5, 603.6a)", () => {
         const trigger =
-            "When {self} enter, you may discard a card. If you do, search your library for a basic land card, reveal it, put it into your hand, then shuffle.";
+            "When Gert and Old Lace enter, you may discard a card. If you do, search your library for a basic land card, reveal it, put it into your hand, then shuffle.";
         expect(sortKeys(compiled(GERT_AND_OLD_LACE))).toEqual(
             sortKeys({
                 name: "Gert and Old Lace, Runaways",

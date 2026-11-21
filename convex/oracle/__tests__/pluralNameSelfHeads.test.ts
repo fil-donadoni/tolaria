@@ -26,7 +26,6 @@ const FORMS = [
         name: "The Neutrinos",
         line: "Whenever The Neutrinos attack, draw a card.",
         id: "the-neutrinos-trigger",
-        normalized: "Whenever {self} attack, draw a card.",
         singular: "Whenever {self} attacks, draw a card.",
         head: { kind: "attacks" },
     },
@@ -35,7 +34,6 @@ const FORMS = [
         name: "The Duras Sisters",
         line: "When The Duras Sisters die, draw a card.",
         id: "the-duras-sisters-trigger",
-        normalized: "When {self} die, draw a card.",
         singular: "When {self} dies, draw a card.",
         head: { kind: "died", scope: "self" },
     },
@@ -44,7 +42,6 @@ const FORMS = [
         name: "Aang and Katara",
         line: "Whenever Aang and Katara enter or attack, draw a card.",
         id: "aang-and-katara-trigger",
-        normalized: "Whenever {self} enter or attack, draw a card.",
         singular: "Whenever {self} enters or attacks, draw a card.",
         head: { kind: "enters-or-attacks" },
     },
@@ -53,8 +50,6 @@ const FORMS = [
         name: "Falcon and Redwing",
         line: "Whenever Falcon and Redwing deal combat damage to a player, draw a card.",
         id: "falcon-and-redwing-trigger",
-        normalized:
-            "Whenever {self} deal combat damage to a player, draw a card.",
         singular:
             "Whenever {self} deals combat damage to a player, draw a card.",
         head: { kind: "combat-damage-to-player" },
@@ -64,7 +59,6 @@ const FORMS = [
         name: "Tui and La, Moon and Ocean",
         line: "Whenever Tui and La become tapped, draw a card.",
         id: "tui-and-la-moon-and-ocean-trigger",
-        normalized: "Whenever {self} become tapped, draw a card.",
         singular: "Whenever {self} becomes tapped, draw a card.",
         head: { kind: "tapped", scope: "self" },
     },
@@ -91,7 +85,7 @@ describe("self trigger heads behind a plural name (CR 201.5, 603.2)", () => {
                     compiledTriggeredAbilities: [
                         {
                             id: row.id,
-                            oracleText: row.normalized,
+                            oracleText: row.line,
                             head: row.head,
                             effects: [
                                 { op: "draw", player: "controller", count: 1 },

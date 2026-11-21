@@ -14953,7 +14953,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                     head: { kind: "entered", scope: "self" },
                     id: "avarax-trigger",
                     oracleText:
-                        "When this creature enters, you may search your library for a card named {self}, reveal it, put it into your hand, then shuffle.",
+                        "When this creature enters, you may search your library for a card named Avarax, reveal it, put it into your hand, then shuffle.",
                 },
             ],
             manaCost: { R: 2, X: 3 },
@@ -15064,7 +15064,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                     head: { kind: "entered", scope: "self" },
                     id: "iname-death-aspect-trigger",
                     oracleText:
-                        "When {self} enters, you may search your library for any number of Spirit cards, put them into your graveyard, then shuffle.",
+                        "When Iname enters, you may search your library for any number of Spirit cards, put them into your graveyard, then shuffle.",
                 },
             ],
             manaCost: { B: 2, X: 4 },
@@ -15775,7 +15775,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                 {
                     id: "silas-renn-seeker-adept-trigger",
                     oracleText:
-                        "Whenever {self} deals combat damage to a player, choose target artifact card in your graveyard. You may cast that card this turn.",
+                        "Whenever Silas Renn deals combat damage to a player, choose target artifact card in your graveyard. You may cast that card this turn.",
                     head: {
                         kind: "combat-damage-to-player",
                     },
@@ -16240,7 +16240,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                     {
                         id: "revealing-eye-trigger",
                         oracleText:
-                            "When this creature transforms into {self}, target opponent reveals their hand. You may choose a nonland card from it. If you do, that player discards that card, then draws a card.",
+                            "When this creature transforms into Revealing Eye, target opponent reveals their hand. You may choose a nonland card from it. If you do, that player discards that card, then draws a card.",
                         head: { kind: "transforms" },
                         targetRequirement: {
                             type: "player",

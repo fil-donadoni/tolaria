@@ -48,7 +48,7 @@ describe("protection from everything frame — golden (CR 702.16j)", () => {
                     {
                         id: "the-stasis-coffin-ability",
                         oracleText:
-                            "{2}, {T}, Exile {self}: You gain protection from everything until your next turn.",
+                            "{2}, {T}, Exile The Stasis Coffin: You gain protection from everything until your next turn.",
                         cost: { mana: { X: 2 }, tap: true, exileThis: true },
                         useStack: true,
                         effects: [

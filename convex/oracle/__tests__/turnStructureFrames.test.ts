@@ -342,7 +342,7 @@ describe("player-control frame — golden fixtures (CR 723.1)", () => {
                     {
                         id: "mindslaver-ability",
                         oracleText:
-                            "{4}, {T}, Sacrifice {self}: You control target player during that player's next turn.",
+                            "{4}, {T}, Sacrifice Mindslaver: You control target player during that player's next turn.",
                         cost: { mana: { X: 4 }, tap: true, sacrifice: true },
                         useStack: true,
                         effects: [

@@ -31,7 +31,7 @@ import type {
     TargetRequirement,
     ChapterAbilityDefinition,
 } from "../cards/types";
-import { SELF_MARKER } from "./normalize";
+import { printedSelfName, SELF_MARKER } from "./normalize";
 import type { CompiledStaticEffect } from "../cards/compiledStatics";
 import type { CompiledReplacementEffect } from "../cards/compiledReplacements";
 import type {
@@ -670,12 +670,12 @@ function lowerLine(
                         : {}),
                 });
                 if (!body.ok) return body.reason;
-                // CR 201.5 — the picker shows the printed name, not the marker.
-                const printed = mode.text.split(SELF_MARKER).join(card.name);
+                // CR 201.5 — the marker in both display strings becomes the
+                // printed name in `restorePrintedSelf` (issue #10429).
                 modes.push({
                     id: `${id}-mode-${at + 1}`,
-                    label: printed,
-                    oracleText: `${printed}.`,
+                    label: mode.text,
+                    oracleText: `${mode.text}.`,
                     ...(body.ability.targetRequirement !== undefined
                         ? { targetRequirement: body.ability.targetRequirement }
                         : {}),
@@ -2034,12 +2034,51 @@ export function lowerCard(
             fragment: card.oracleText,
         };
 
+    restorePrintedSelf(definition, printedSelfName(card));
     return {
         ok: true,
         definition,
         plannedMechanics: acc.plannedMechanics,
         ungrantableKeywords: acc.ungrantableKeywords,
     };
+}
+
+/** Display strings a player reads: an ability's printed line and a mode's
+ *  picker row. Everything else is behaviour and keeps whatever it holds. */
+const SELF_DISPLAY_KEYS: ReadonlySet<string> = new Set(["oracleText", "label"]);
+
+/**
+ * CR 201.5 — `normalize.ts` replaced the card's own name with `SELF_MARKER`
+ * so the GRAMMAR could bind a referent; every display string the lowering
+ * copied from a parsed line still carries it (issue #10429: "Exile {self}:
+ * Destroy all creatures." on the stack, `{self}` drawn as a broken mana
+ * symbol). One pass over the finished definition puts the printed name back
+ * in every nested display string, so no ability kind can miss it. The card's
+ * own `oracleText` is the raw Oracle and never held the marker.
+ */
+function restorePrintedSelf(
+    definition: CompiledDefinition,
+    selfName: string
+): void {
+    const visit = (node: unknown): void => {
+        if (Array.isArray(node)) {
+            for (const item of node) visit(item);
+            return;
+        }
+        if (node === null || typeof node !== "object") return;
+        const record = node as Record<string, unknown>;
+        for (const [key, value] of Object.entries(record)) {
+            if (
+                typeof value === "string" &&
+                SELF_DISPLAY_KEYS.has(key) &&
+                value.includes(SELF_MARKER)
+            )
+                record[key] = value.split(SELF_MARKER).join(selfName);
+            else visit(value);
+        }
+    };
+    for (const [key, value] of Object.entries(definition))
+        if (key !== "oracleText") visit(value);
 }
 
 /**
