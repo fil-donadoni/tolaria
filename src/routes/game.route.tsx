@@ -23,7 +23,7 @@ import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import { useViewportMode } from "~/hooks/useViewportMode";
 import { canUseDebugSheet } from "~/lib/adminGating";
-import { clearSession, getStoredSession } from "~/lib/session";
+import { clearSession, getStoredSession, storeSession } from "~/lib/session";
 
 type GameStatus = NonNullable<
     FunctionReturnType<typeof api.gameReads.getGame>
@@ -94,7 +94,14 @@ export default function GameRoute() {
             });
     };
 
+    // The ONE authority for "the current game" (issue #9518): whatever moves
+    // the route onto another game persists it too, so every reader of
+    // `getStoredSession()` — the in-app bug report, a reload, the debug quizzes
+    // — names the game on screen. Callers (the Bo3 sideboarding hand-off, the
+    // manual "Next game" button) only ask for the switch; a caller left to
+    // persist on its own is how sideboarding stranded the session on Game 1.
     const handleSwitchGame = (gameId: Id<"games">, playerId: string) => {
+        storeSession(gameId, playerId);
         setSession({ gameId, playerId });
     };
 
