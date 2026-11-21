@@ -348,6 +348,13 @@
             "needsSetup": false
         }
     ],
+    "Engineered Explosives": [
+        {
+            "label": "sweep: Engineered Explosives clears three blockers before the Craw Wurm attacks",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Enraged Revolutionary": [
         {
             "label": "dethrone: swings for the lethal only the counter provides, tied for most life",

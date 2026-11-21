@@ -32167,4 +32167,100 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9977. Measured at 400 iterations: before, the bot attacked with the BARE Flying Men on every seed (`material-tiebreak`, the host's attack trailing it by ~40 margin). Cause: below the root, the Jitte's banked counters open three `-1/-1 to target creature` edges, two aimed at the bot's own creatures, and their visits dragged the mean of every line where the counters exist. Below the root, `withoutMisdirectedVariants` now prunes the misdirected variants of a counter-paced activation (`isCounterPacedActivation`: the whole cost is removing counters, so it is offered at every window); after, both Flying Men attack on every seed. Pruning EVERY misdirected variant below the root instead reds the Oko +1 / Chromatic Star entry (issue #8734): the sign table reads a transform on the bot's own artifact as harm.",
     },
+    {
+        label: "sweep: Engineered Explosives clears three blockers before the Craw Wurm attacks",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                {
+                    name: "Engineered Explosives",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { charge: 2 },
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 3,
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "activate-ability", card: "Engineered Explosives" },
+            ],
+        },
+        note: "Issue #9910. Precombat main, two charge counters: the sweep takes the opponent's three Grizzly Bears and the Bot's one, and the Craw Wurm attacks an empty board for 6. `hold-trick` deferred it as outcome-equal to its later window (`spendsStandingPermanent`), the attack it buys washed out at the horizon. The wrong half is `sweep: Engineered Explosives waits when no attacker is ready`.",
+    },
+    {
+        label: "sweep: Engineered Explosives waits when no attacker is ready",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+                {
+                    name: "Engineered Explosives",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { charge: 2 },
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 3,
+                    summoningSick: false,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "activate-ability", card: "Engineered Explosives" },
+            ],
+        },
+        note: "Issue #9910. The same board with the Craw Wurm summoning sick: nothing attacks this turn, so the sweep buys no combat and keeps its later window (the opponent's attack, with blocks known). The right half is `sweep: Engineered Explosives clears three blockers before the Craw Wurm attacks`.",
+    },
 ];
