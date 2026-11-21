@@ -974,6 +974,23 @@ Only a record whose command is exactly `check:lane` counts; the receipt says
 `lane: ran` or `lane: skipped (gated <sha> against <base>)`. A hand-run
 `check:lane` gates whatever HEAD is, stale or not.
 
+### The PR body is checked before the PR exists (issue #10394)
+
+What a PR body owes — a `proof-receipt` block or `proof: none owed (<why>)`
+on a code lane, the `Docs:` line, the `## Preset scenario` block, the
+`check:ui` line, the `pr-checks` body refusals — used to be prose in
+`/next-ticket` §5, and `land:ready` refused a miss only after its pre-queue
+steps. PR #10392 lost a full `land:ready` run to the `proof: none owed`
+form, which no prose named. `bun run pr:body-check --body-file <path>`
+(`scripts/pr-body-check.ts`) asks the body the same questions from the same
+code (`proofReceiptRefusal`, `runPrCheck`, `safeSkinReceiptInvalid`, the lane
+as `land:ready` plans it) in 2–3 s and names every missing line at once;
+`deny-guard.sh` § 9 runs it on `gh pr create` / `gh pr edit --body-file` and
+denies a body it cannot read (inline, stdin, `$VAR` path). An owed `check:ui`
+walk passes with a note: it is batched after the PR (`ui-owed`). Exit 2 =
+refuse, any other exit fails open; owner hatch
+`TOLARIA_ALLOW_UNCHECKED_PR_BODY=1`.
+
 ### `land`'s preflight — the deterministic failures, before the queue (issue #4967)
 
 **Retired by ADR 0154 §5 (issue #5457).** Every recent `land` log printed

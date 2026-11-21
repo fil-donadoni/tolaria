@@ -12,7 +12,8 @@ cd "$(bun run --silent wt:new <N>)"   # 1. worktree off origin/<base>   (--fix f
 …                                      # 2. implement; bunx vitest run <path> while iterating
 git add -A && git commit               # 3. commit
 git push -u origin feat/issue-<N>      # 4. no pre-PR gate (ADR 0136 §1)
-gh pr create                           # 5. base = the base branch (GitHub default), no --base
+bun run pr:body-check --body-file /abs/body.md   # 5. every owed body line, in seconds
+gh pr create --body-file /abs/body.md  #    base = the base branch (GitHub default), no --base
 bun run land:ready <PR#>               # 6. hand off: the merge queue rebases, gates, merges
 ```
 
@@ -97,10 +98,15 @@ receipt does not match.
 ### 5. The PR
 
 `gh pr create` targets the [base branch](#g-base-branch) because it is the
-repository's default branch — no `--base`. The body carries: the `check:ui` receipt
-when owed, a `## Preset scenario` fence for
-any `convex/{cards/sets,gre}` change (or "none owed"), the Bot reachability
-outcome, proof-of-failure receipts for new guarding tests.
+repository's default branch — no `--base`. The body is a file at a literal
+path: `bun run pr:body-check --body-file <path>` names every line it still
+owes, and `deny-guard.sh` § 9 re-runs that check on `gh pr create` and denies
+an inline, stdin or unchecked body (issue #10394). It carries: proof-of-failure
+receipts for new guarding tests or `proof: none owed (<reason>)` on a code lane,
+`Docs: <files>` / `Docs: none (<why>)`, a `## Preset scenario` fence for any
+`convex/{cards/sets,gre}` change (or "none owed"), the `check:ui` line (receipt,
+`check:ui: no walk owed (<reason>)`, or the `ui-owed` label when owed), the Bot
+reachability outcome.
 
 ### 6. `land:ready <PR#>` — the hand-off
 

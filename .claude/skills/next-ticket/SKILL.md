@@ -208,18 +208,15 @@ nor wait.
 
 - **No pre-PR gate** (ADR 0136 §1): targeted runs + §4 review, then commit,
   push, open the PR (base: the base branch).
-- PR body: what changed, tests + a `proof` receipt per guarding test for the
-  pushed head (`land:ready` refuses a code lane without); UI: `check:ui` walk
-  `owed` → receipt, `not owed` → `check:ui: no walk owed (<reason>)`.
-  `owed` → label `ui-owed`, no in-session walk (`quality-gates.md`, issue #9122).
-  `check:ui` exit 5 (undecided scope): `src/CLAUDE.md` says what each mode does.
-- Drafter/Auto-Build/profile/catalogue diff: paste the `draft:audit:` lines
-  (`quality-gates.md`, issue #8895).
-- `Docs: <files>` / `Docs: none (<why>)` (CLAUDE.md step 10).
-- **`## Preset scenario`** heading over a `json` fence holding
-  `{ "label", "spec" }` for any new card/gameplay feature (ADR 0044). `land`
-  refuses a diff under `convex/cards/sets/` or `convex/gre/` without the
-  heading; write "none owed" there when it is not. The runner seeds it.
+- PR body: a FILE at an absolute path; `bun run pr:body-check --body-file
+<path>` names every owed line missing, then `gh pr create --body-file
+<path>` (`deny-guard` § 9 re-checks and denies an unchecked body, issue
+  #10394). It asks for: a `proof-receipt` per guarding test or
+  `proof: none owed (<reason>)` (code lanes); `Docs: <files>` /
+  `Docs: none (<why>)`; `## Preset scenario` (a `json` fence `{ "label",
+"spec" }`, or "none owed" under it; ADR 0044); `check:ui: no walk owed
+(<reason>)` when not owed — `owed` → label `ui-owed`, no walk (issue
+  #9122), exit 5 → `src/CLAUDE.md`; `draft:audit:` lines (issue #8895).
 - Hand off: `bun run land:ready <PR#>` (step 0 = the preflight: behind →
   rebases for you, overlap → refuses) — PR labelled `ready-to-land`, claim
   `pr-open` (stands; released at merge).
