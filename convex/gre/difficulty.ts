@@ -72,17 +72,16 @@ export const DIFFICULTIES: readonly Difficulty[] = [
  *  preserving the monotonic-budget pattern the other presets already
  *  assert.
  *
- *  `expert.timeMs` 8300 (issue #10029) is sized to the owner's quality
- *  target — 400 iterations per search on every engine family (ruling in
- *  issue #10027, `docs/research/expert-think-longer.md` § 5) — from the
- *  field reading after the engine changes (issue #10028,
- *  `docs/research/field-reading-after-engine-changes.md` § 1), where 99% of
- *  searches stopped on the 3300 ms cap: Chromium 387 iterations per search
- *  (117/s), iPhone 309 (94/s), desktop WebKit 160 (48/s), Gecko 94 (28/s).
- *  400 on Gecko would take ~14 s; the owner ruled the compromise (2026-11-21)
- *  at the cap that brings desktop WebKit to 400 (400 / 48.5 per s ≈ 8.25 s),
- *  leaving Gecko at ~235 for the engine work to close. `iterations` stays
- *  1320 (≥ 400): a fast machine stops on the count, not the clock.
+ *  `expert.timeMs` 8300 is sized to the owner's quality target, 400
+ *  iterations per search on every engine family
+ *  (`docs/research/expert-think-longer.md` § 5), from the field rates after
+ *  the engine changes (`docs/research/field-reading-after-engine-changes.md`
+ *  § 1, where 99% of searches stopped on the 3300 ms cap): Chromium 117
+ *  iterations/s, iPhone 94, desktop WebKit 48, Gecko 28. 400 on Gecko would
+ *  take ~14 s; the owner ruled the compromise at the cap that brings desktop
+ *  WebKit to 400 (400 / 48.5 per s ≈ 8.25 s), leaving Gecko at ~235 for the
+ *  engine work to close. `iterations` stays 1320 (≥ 400): a fast machine
+ *  stops on the count, not the clock.
  *  `BRAIN_CONSULT_TIMEOUT_MS` and `BOT_WATCHDOG_MS` are DERIVED from
  *  {@link HARDEST_SEARCH_TIME_MS} (issue #10115), so raising a cap here
  *  carries the client's timeout chain with it. */
