@@ -5882,6 +5882,47 @@
     },
     "surveil: bins a dead land off the same board": null,
     "surveil: keeps a castable planeswalker on top": null,
+    "sweep: Engineered Explosives clears three blockers before the Craw Wurm attacks": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Engineered Explosives",
+                "owner": "me",
+                "zone": "battlefield",
+                "counters": {
+                    "charge": 2
+                }
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 3,
+                "summoningSick": false
+            }
+        ]
+    },
     "symmetric engine: Disenchant takes the Howling Mine that feeds the opponent's empty hand, not the 2-MV artifact (issue #5164)": {
         "cards": [
             {
