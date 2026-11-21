@@ -254,6 +254,38 @@ describe("computeUiScope — scoped", () => {
     });
 });
 
+describe("computeUiScope — render-inert modules select nothing (issue #10393)", () => {
+    const scopeWith = (renderInert: string[], ...changed: string[]) =>
+        computeUiScope({
+            changed,
+            surfaces: SURFACES,
+            graph: createImportGraph({ root }),
+            renderInert: new Set(renderInert),
+        });
+
+    it("a render-inert dialog contributes no surface, closure nor specimen", () => {
+        const pause = "src/components/dialogs/pause.tsx";
+        expect(scopeWith([], pause)).toEqual({
+            kind: "scoped",
+            surfaces: ["game-board", "game-debug", "census", "dlg-pause"],
+        });
+        expect(scopeWith([pause], pause)).toEqual({
+            kind: "scoped",
+            surfaces: [],
+        });
+    });
+
+    it("a mixed diff selects only the render-reaching module's surfaces", () => {
+        expect(
+            scopeWith(
+                ["src/components/dialogs/pause.tsx"],
+                "src/components/dialogs/pause.tsx",
+                "src/components/deck-shelf.tsx"
+            )
+        ).toEqual({ kind: "scoped", surfaces: ["lobby"] });
+    });
+});
+
 describe("computeUiScope — the catalogue gate (issue #5379)", () => {
     it("a set module only the gate loads selects the registry's readers — not full", () => {
         expect(scopeOf("convex/cards/sets/lea/index.cards.ts")).toEqual({
@@ -943,5 +975,72 @@ describe("uiWalkOwed — a diff owes a walk only when it can move layout (issue 
         expect(hasNoWalkOwedLine("see check:ui: no walk owed (x) here")).toBe(
             false
         );
+    });
+});
+
+describe("uiWalkOwed — the hunk classifier's verdict (issue #10393)", () => {
+    const DIALOG = "src/components/lobby/join-dialog.tsx";
+    const HANDLER_LINE = "        onJoin(id);\n";
+    const inert = {
+        inert: true as const,
+        reason: "the handleJoin handler's body",
+    };
+
+    it("a render-inert module owes nothing by name, and is listed for the audit", () => {
+        const r = uiWalkOwed(
+            [DIALOG],
+            () => HANDLER_LINE,
+            () => false,
+            () => inert
+        );
+        expect(r).toMatchObject({
+            owed: false,
+            inert: [{ path: DIALOG, reason: inert.reason }],
+        });
+        expect(renderWalkOwed(r).split("\n")[1]).toBe(
+            `  · ${DIALOG}: render-inert — the handleJoin handler's body`
+        );
+    });
+
+    it("a render-reaching module keeps its name rule and names the hunk", () => {
+        const at = `${DIALOG}:12: JSX`;
+        expect(
+            uiWalkOwed(
+                [DIALOG],
+                () => HANDLER_LINE,
+                () => false,
+                () => ({
+                    inert: false,
+                    at,
+                })
+            )
+        ).toEqual({
+            owed: true,
+            path: DIALOG,
+            rule: `an overlay / popover / dialog component — ${at}`,
+        });
+    });
+
+    it("no verdict (unreadable) keeps today's rule; a stylesheet is never asked", () => {
+        expect(
+            uiWalkOwed(
+                [DIALOG],
+                () => HANDLER_LINE,
+                () => false,
+                () => null
+            )
+        ).toEqual({
+            owed: true,
+            path: DIALOG,
+            rule: "an overlay / popover / dialog component",
+        });
+        expect(
+            uiWalkOwed(
+                ["src/index.css"],
+                () => ".a{}\n",
+                () => false,
+                () => inert
+            )
+        ).toMatchObject({ owed: true, rule: "a stylesheet" });
     });
 });
