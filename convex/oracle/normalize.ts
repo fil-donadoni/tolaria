@@ -194,6 +194,25 @@ export function substituteShortName(
 }
 
 /**
+ * The name `SELF_MARKER` stands for in this card's own text, for DISPLAY
+ * (issue #10429): the shortened name when the text refers to itself only by
+ * it (CR 201.5c — "Atraxa"), else the full name (CR 201.5). The marker is a
+ * grammar device; a player must never read it.
+ */
+export function printedSelfName(card: OracleCard): string {
+    const withFull = substituteSelf(
+        applyTypography(card.oracleText ?? ""),
+        card.name
+    );
+    if (withFull.includes(SELF_MARKER)) return card.name;
+    const short = shortNameOf(card.name, card.typeLine);
+    if (short === null) return card.name;
+    return substituteShortName(withFull, card.name, card.typeLine) !== withFull
+        ? short
+        : card.name;
+}
+
+/**
  * Full normalisation for one card.
  *
  * Empty lines are dropped AFTER reminder-stripping. That is the one removal

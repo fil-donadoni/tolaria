@@ -52,7 +52,7 @@ describe("graveyard cast grant — two sentences (CR 601.2, CR 400.7)", () => {
             {
                 id: "silas-renn-seeker-adept-trigger",
                 oracleText:
-                    "Whenever {self} deals combat damage to a player, choose target artifact card in your graveyard. You may cast that card this turn.",
+                    "Whenever Silas Renn deals combat damage to a player, choose target artifact card in your graveyard. You may cast that card this turn.",
                 head: { kind: "combat-damage-to-player" },
                 targetRequirement: {
                     type: "Artifact",

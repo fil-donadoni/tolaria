@@ -31,7 +31,6 @@ import type {
     TargetRequirement,
 } from "../cards/types";
 import type { CostAtomIR } from "./grammar/shared/cost";
-import { SELF_MARKER } from "./normalize";
 import type { FlashbackCostIR, KickerIR, SpellModeIR } from "./grammar/ir";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
 import {
@@ -297,16 +296,12 @@ export function lowerSpellModes(
                 ok: false,
                 reason: "a mode cannot announce a target only if kicked (CR 702.33g)",
             };
-        // CR 201.5 — `normalize.ts` replaced the card's own name with
-        // `SELF_MARKER` so the GRAMMAR could bind a REFERENT rather than a
-        // string. These two fields are the only compiler output a PLAYER ever
-        // reads (`ModeOption.label` is the mode picker's row, `oracleText` the
-        // stack-item display and the rule-trace line), so the marker has to
-        // come back out: "{self} deals 5 damage to target creature" is never
-        // valid output, and it shipped on 18 of 34 modal rows until the review
-        // of PR #3044 caught it — the gold harness structurally cannot, since
-        // both fields are display keys it excludes.
-        const printed = mode.text.split(SELF_MARKER).join(card.name);
+        // CR 201.5 — `label` and `oracleText` are the only compiler output
+        // a PLAYER reads here (the mode picker's row, the stack display);
+        // the `SELF_MARKER` in them becomes the printed name in `lower.ts`'s
+        // `restorePrintedSelf`, the one pass every display string goes
+        // through (issue #10429; PR #3044 first caught it on modes).
+        const printed = mode.text;
         const lowered: SpellMode = {
             id: `${card.slug}-mode-${index + 1}`,
             // Both are DISPLAY strings and both are the bullet as printed: the
