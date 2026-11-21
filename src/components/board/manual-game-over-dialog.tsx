@@ -22,7 +22,6 @@ import GameDialog from "~/components/ui/game-dialog";
 import TitleTreatment from "~/components/ui/title-treatment";
 import OrnamentalDivider from "~/components/ui/ornamental-divider";
 import { Button } from "~/components/ui/button";
-import { storeSession } from "~/lib/session";
 import { useLeaveToLobby } from "~/hooks/useLeaveToLobby";
 
 export default function ManualGameOverDialog({
@@ -63,10 +62,8 @@ export default function ManualGameOverDialog({
         setBusy(true);
         try {
             const next = await continueMatch({ matchId });
-            if (next) {
-                storeSession(next.gameId, viewerId);
-                onSwitchGame(next.gameId, viewerId);
-            }
+            // `onSwitchGame` persists the session itself (issue #9518).
+            if (next) onSwitchGame(next.gameId, viewerId);
         } finally {
             setBusy(false);
         }

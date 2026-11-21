@@ -112,7 +112,9 @@ describe("ManualGameOverDialog", () => {
         await waitFor(() =>
             expect(onSwitchGame).toHaveBeenCalledWith("game_2", "me")
         );
-        expect(storeSession).toHaveBeenCalledWith("game_2", "me");
+        // Persisting is the route's `onSwitchGame` (issue #9518): one
+        // authority for "the current game", so no caller writes it on its own.
+        expect(storeSession).not.toHaveBeenCalled();
     });
 
     it("still lets the player leave when the Match meta has not loaded", () => {
