@@ -43,7 +43,10 @@ function aimedAtTarget(player: unknown): boolean {
  *  nothing — every card passes it. */
 function targetHandPickFilters(node: unknown, out: EffectCardFilter[]): void {
     if (Array.isArray(node)) {
-        for (const child of node) targetHandPickFilters(child, out);
+        for (let i = 0; i < node.length; i++) {
+            const child = node[i];
+            targetHandPickFilters(child, out);
+        }
         return;
     }
     if (node === null || typeof node !== "object") return;
@@ -54,7 +57,11 @@ function targetHandPickFilters(node: unknown, out: EffectCardFilter[]): void {
             (rec.kind === "discard-hand" && aimedAtTarget(rec.player)));
     if (picksTargetHand && rec.filter !== undefined)
         out.push(rec.filter as EffectCardFilter);
-    for (const child of Object.values(rec)) targetHandPickFilters(child, out);
+    const childList = Object.values(rec);
+    for (let i = 0; i < childList.length; i++) {
+        const child = childList[i];
+        targetHandPickFilters(child, out);
+    }
 }
 
 /** The spell the opponent's library is seeded with for a target-aimed
@@ -67,7 +74,9 @@ export function targetDiscardSpell(
     fallback: string
 ): string {
     const filters: EffectCardFilter[] = [];
-    for (const script of [def, ...etbAbilityScripts(def)]) {
+    const scriptList = [def].concat(etbAbilityScripts(def));
+    for (let i = 0; i < scriptList.length; i++) {
+        const script = scriptList[i];
         targetHandPickFilters(script.effects, filters);
         targetHandPickFilters(script.modes, filters);
     }

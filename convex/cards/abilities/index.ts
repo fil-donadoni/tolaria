@@ -467,7 +467,9 @@ function formatActivationCost(cost: ManaCost): string {
     const parts: string[] = [];
     const generic = (typeof cost.X === "number" ? cost.X : 0) + (cost.C ?? 0);
     if (generic > 0) parts.push(`{${generic}}`);
-    for (const sym of ["W", "U", "B", "R", "G"] as const) {
+    const symList = ["W", "U", "B", "R", "G"] as const;
+    for (let j = 0; j < symList.length; j++) {
+        const sym = symList[j];
         const n = cost[sym] ?? 0;
         for (let i = 0; i < n; i++) parts.push(`{${sym}}`);
     }
@@ -530,14 +532,14 @@ export function makeCircleOfProtection(args: {
         source.kind === "artifact"
             ? { type: "Artifact" }
             : source.kind === "color-any"
-              ? { color: [...source.colors] }
+              ? { color: source.colors.slice() }
               : { color: source.color };
     // CR 609.7b — the same qualifier as the shield's recheck.
     const match: { colors?: Color[]; cardType?: "Artifact" } =
         source.kind === "artifact"
             ? { cardType: "Artifact" }
             : source.kind === "color-any"
-              ? { colors: [...source.colors] }
+              ? { colors: source.colors.slice() }
               : { colors: [source.color] };
     const activationCost: ManaCost = args.activationCost ?? { X: 1 };
     // CR 107 — render the activation cost as mana symbols for the ability's

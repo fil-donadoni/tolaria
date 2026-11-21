@@ -64,7 +64,8 @@ function libraryPutSearch(
     node: unknown
 ): { filter: EffectCardFilter | undefined; bind: string } | undefined {
     if (Array.isArray(node)) {
-        for (const child of node) {
+        for (let i = 0; i < node.length; i++) {
+            const child = node[i];
             const found = libraryPutSearch(child);
             if (found) return found;
         }
@@ -88,7 +89,9 @@ function libraryPutSearch(
             filter: rec.filter as EffectCardFilter | undefined,
             bind: rec.bind,
         };
-    for (const child of Object.values(rec)) {
+    const childList = Object.values(rec);
+    for (let i = 0; i < childList.length; i++) {
+        const child = childList[i];
         const found = libraryPutSearch(child);
         if (found) return found;
     }
@@ -121,11 +124,15 @@ function castableFrom(
 ): boolean {
     if (manaValue(card.manaCost) > lands.length - spent) return false;
     const byColor = new Map<Color, number>();
-    for (const land of lands)
-        for (const subtype of tryGetCardByName(land)?.subtypes ?? []) {
+    for (let i = 0; i < lands.length; i++) {
+        const land = lands[i];
+        const subtypeList = tryGetCardByName(land)?.subtypes ?? [];
+        for (let j = 0; j < subtypeList.length; j++) {
+            const subtype = subtypeList[j];
             const color = LAND_SUBTYPE_MANA[subtype];
             if (color) byColor.set(color, (byColor.get(color) ?? 0) + 1);
         }
+    }
     return getColorsFromCost(card.manaCost).every(
         (color) => (card.manaCost?.[color] ?? 0) <= (byColor.get(color) ?? 0)
     );
@@ -164,7 +171,8 @@ export function libraryPutPose(
         payment === undefined ? 0 : manaValue(payment)
     );
     const candidates = toHand ? HAND_CANDIDATES : LIBRARY_CANDIDATES;
-    for (const name of candidates) {
+    for (let i = 0; i < candidates.length; i++) {
+        const name = candidates[i];
         const candidate = tryGetCardByName(name);
         if (
             !candidate ||

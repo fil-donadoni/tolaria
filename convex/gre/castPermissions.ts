@@ -113,8 +113,12 @@ export function collectCastPermissions(
     if (castFromZone !== "hand") return [];
     const found: StaticCastPermission[] = [];
     const seen = new Set<string>();
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const sourceId = (source.card as { id?: string }).id;
             if (!sourceId) continue;
             // Derived-membership precheck (`cards/registry.ts`): almost no
@@ -125,7 +129,9 @@ export function collectCastPermissions(
             if (!declaresCastPermission(sourceId)) continue;
             const def = liveStaticDefinition(source);
             if (!def?.staticEffects) continue;
-            for (const effect of def.staticEffects) {
+            const effectList = def.staticEffects;
+            for (let k = 0; k < effectList.length; k++) {
+                const effect = effectList[k];
                 if (effect.kind !== "cast-permission") continue;
                 if (seen.has(effect.id)) continue;
                 // CR 601.3 — the permission is handed to a PLAYER. Aluren's
@@ -233,10 +239,9 @@ export function castOptionAlternativeCosts(
     card: CardInstanceState,
     castFromZone: CastFromZone = "hand"
 ): AlternativeCost[] {
-    return [
-        ...affordableAlternativeCosts(state, player, card),
-        ...castPermissionAltCosts(state, player.id, card, castFromZone),
-    ];
+    return affordableAlternativeCosts(state, player, card).concat(
+        castPermissionAltCosts(state, player.id, card, castFromZone)
+    );
 }
 
 /** Resolve an announced `alternativeCostId` against BOTH spaces: the card's own

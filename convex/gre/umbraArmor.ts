@@ -20,7 +20,9 @@ export function findUmbraArmorAura(
     state: GameState,
     enchantedId: string
 ): CardInstanceState | undefined {
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const aura = player.battlefield.find(
             (card) =>
                 card.attachedTo === enchantedId &&
@@ -42,5 +44,5 @@ export function attachmentsLast(
 ): string[] {
     const unattached = ids.filter((id) => hostOf(id) === undefined);
     const attached = ids.filter((id) => hostOf(id) !== undefined);
-    return [...unattached, ...attached];
+    return unattached.concat(attached);
 }

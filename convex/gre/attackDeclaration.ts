@@ -70,7 +70,10 @@ function dropAttackerChoices(
     if (droppedAttackers.length === 0) return;
     const dropped = new Set(droppedAttackers);
     if (combat.attackTargets) {
-        for (const id of droppedAttackers) delete combat.attackTargets[id];
+        for (let i = 0; i < droppedAttackers.length; i++) {
+            const id = droppedAttackers[i];
+            delete combat.attackTargets[id];
+        }
         if (Object.keys(combat.attackTargets).length === 0) {
             combat.attackTargets = undefined;
         }
@@ -198,13 +201,18 @@ export function declareNoAttackersOnState(
  *  Collective Restraint), which the caller reads as "no tax". */
 function aggregateManaCosts(costs: ManaCost[]): ManaCost {
     const total: Record<string, number> = {};
-    for (const c of costs) {
-        for (const [k, v] of Object.entries(normalizeManaCost(c))) {
+    for (let i = 0; i < costs.length; i++) {
+        const c = costs[i];
+        const entries2 = Object.entries(normalizeManaCost(c));
+        for (let j = 0; j < entries2.length; j++) {
+            const [k, v] = entries2[j];
             if (typeof v === "number" && v > 0) total[k] = (total[k] ?? 0) + v;
         }
     }
     const result: ManaCost = {};
-    for (const [k, v] of Object.entries(total)) {
+    const entries3 = Object.entries(total);
+    for (let i = 0; i < entries3.length; i++) {
+        const [k, v] = entries3[i];
         if (v <= 0) continue;
         // normalizeManaCost stores the whole generic total under key "X".
         if (k === "X") result.generic = (result.generic ?? 0) + v;
@@ -303,7 +311,9 @@ export function finalizeConfirmAttackers(state: GameState): void {
     const combat = state.combat;
     if (!combat) return;
     // Tap and mark each attacker (vigilance creatures don't tap)
-    for (const attackerId of combat.attackerIds) {
+    const attackerIdList = combat.attackerIds;
+    for (let i = 0; i < attackerIdList.length; i++) {
+        const attackerId = attackerIdList[i];
         const card = player.battlefield.find((c) => c.id === attackerId);
         if (card) {
             if (!card.staticAbilities.includes("vigilance")) {

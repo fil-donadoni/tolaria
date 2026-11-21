@@ -55,7 +55,11 @@ export function allocInstanceId(counter: { nextInstanceId?: number }): string {
 export function* allPermanents(
     state: GameState
 ): Generator<CardInstanceState, void, undefined> {
-    for (const player of state.players) yield* player.battlefield;
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        yield* player.battlefield;
+    }
 }
 
 /** Finds a permanent on any player's battlefield by instance id. */
@@ -63,7 +67,9 @@ export function findPermanent(
     state: GameState,
     cardId: string
 ): CardInstanceState | undefined {
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const found = player.battlefield.find((c) => c.id === cardId);
         if (found) return found;
     }
@@ -78,7 +84,9 @@ export function findOnBattlefield(
     state: GameState,
     cardId: string
 ): { card: CardInstanceState; player: PlayerState; idx: number } | null {
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const idx = player.battlefield.findIndex((c) => c.id === cardId);
         if (idx !== -1) return { card: player.battlefield[idx], player, idx };
     }
@@ -107,8 +115,12 @@ export function findCardInGraveyardOrExile(
     state: GameState,
     cardId: string
 ): CardInstanceState | undefined {
-    for (const player of state.players) {
-        for (const zone of [player.graveyard, player.exile]) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const zoneList = [player.graveyard, player.exile];
+        for (let j = 0; j < zoneList.length; j++) {
+            const zone = zoneList[j];
             const found = zone.find((c) => c.id === cardId);
             if (found) return found;
         }
@@ -134,14 +146,18 @@ export function findCardInAnyZone(
     state: GameState,
     cardId: string
 ): CardInstanceState | undefined {
-    for (const player of state.players) {
-        for (const zone of [
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const zoneList = [
             player.battlefield,
             player.graveyard,
             player.exile,
             player.hand,
             player.library,
-        ]) {
+        ];
+        for (let j = 0; j < zoneList.length; j++) {
+            const zone = zoneList[j];
             const found = zone.find((c) => c.id === cardId);
             if (found) return found;
         }
@@ -164,9 +180,15 @@ export function combatPartnerIds(state: GameState, id: string): string[] {
     if (!ba) return [];
     const partners = new Set<string>();
     // (b) `id` is a blocker → the attackers it is blocking are blocked by it.
-    for (const attackerId of ba[id] ?? []) partners.add(attackerId);
+    const attackerIdList = ba[id] ?? [];
+    for (let j = 0; j < attackerIdList.length; j++) {
+        const attackerId = attackerIdList[j];
+        partners.add(attackerId);
+    }
     // (a) some other creature is blocking `id` (i.e. `id` is an attacker).
-    for (const [blockerId, attackerIds] of Object.entries(ba)) {
+    const entries2 = Object.entries(ba);
+    for (let j = 0; j < entries2.length; j++) {
+        const [blockerId, attackerIds] = entries2[j];
         if (attackerIds.includes(id)) partners.add(blockerId);
     }
     partners.delete(id);

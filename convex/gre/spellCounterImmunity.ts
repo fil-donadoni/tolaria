@@ -39,15 +39,21 @@ export function spellCounterImmunitySource(
         subtypes: spell.subtypes,
         colors: getEffectiveColors(spell),
     };
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             if (abilitiesSuppressed(source)) continue;
             const cardId = (source.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : null;
-            for (const effect of getEffectiveStaticEffects(
+            const effectList = getEffectiveStaticEffects(
                 def,
                 source.chosenModeId
-            )) {
+            );
+            for (let k = 0; k < effectList.length; k++) {
+                const effect = effectList[k];
                 if (effect.kind !== "spell-counter-immunity") continue;
                 // CR 601.2a — the caster is the spell's controller.
                 if (

@@ -263,7 +263,9 @@ export function foretellInSearch(
     const plan = foretellPaymentPlan(state, player);
     if (plan) {
         const tapped = new Set(plan.map((step) => step.cardId));
-        for (const src of player.battlefield) {
+        const srcList = player.battlefield;
+        for (let i = 0; i < srcList.length; i++) {
+            const src = srcList[i];
             if (tapped.has(src.id)) src.isTapped = true;
         }
     }

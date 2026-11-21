@@ -56,8 +56,12 @@ export function effectiveChapterAbilities(
  *  for at least one chapter ability first. */
 export function finalChapter(card: CardInstanceState): number {
     let max = 0;
-    for (const ability of effectiveChapterAbilities(card)) {
-        for (const n of ability.chapterNumbers ?? []) {
+    const abilityList = effectiveChapterAbilities(card);
+    for (let i = 0; i < abilityList.length; i++) {
+        const ability = abilityList[i];
+        const nList = ability.chapterNumbers ?? [];
+        for (let j = 0; j < nList.length; j++) {
+            const n = nList[j];
             if (n > max) max = n;
         }
     }
@@ -118,6 +122,9 @@ export function advanceSagasAtPrecombatMain(state: GameState): string[] {
     const sagas = active.battlefield.filter(
         (c) => isSaga(c) && effectiveChapterAbilities(c).length > 0
     );
-    for (const saga of sagas) addCounterToCard(state, saga, LORE_COUNTER, 1);
+    for (let i = 0; i < sagas.length; i++) {
+        const saga = sagas[i];
+        addCounterToCard(state, saga, LORE_COUNTER, 1);
+    }
     return sagas.map((c) => c.id);
 }

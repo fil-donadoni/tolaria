@@ -451,7 +451,9 @@ function compactCard(
     compactCardField(card, out, "power", codecCtx);
     compactCardField(card, out, "toughness", codecCtx);
     if (card.isTapped) out.isTapped = true;
-    for (const key of CARD_FIELD_KEYS) {
+    const keyList = CARD_FIELD_KEYS;
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         if (key === "power" || key === "toughness") continue;
         compactCardField(card, out, key, codecCtx);
     }
@@ -473,13 +475,13 @@ function expandCard(
 
     const types =
         (compact.types as CardType[] | undefined) ??
-        (def?.types ? [...def.types] : []);
+        (def?.types ? def.types.slice() : []);
     const subtypes =
         (compact.subtypes as string[] | undefined) ??
-        (def?.subtypes ? [...def.subtypes] : []);
+        (def?.subtypes ? def.subtypes.slice() : []);
     const staticAbilities =
         (compact.staticAbilities as string[] | undefined) ??
-        (def?.staticAbilities ? [...def.staticAbilities] : []);
+        (def?.staticAbilities ? def.staticAbilities.slice() : []);
 
     const result: CardInstanceState = {
         id: compact.id as string,
@@ -487,15 +489,17 @@ function expandCard(
         controllerId,
         ownerId,
         zone: opts.zone,
-        types: [...types],
-        subtypes: [...subtypes],
-        staticAbilities: [...staticAbilities],
+        types: types.slice(),
+        subtypes: subtypes.slice(),
+        staticAbilities: staticAbilities.slice(),
         isTapped: Boolean(compact.isTapped),
     };
 
     // Table order matters here too: the `bestowed` pair re-clears the P/T the
     // `power` / `toughness` pairs restored, and the table lists them first.
-    for (const key of CARD_FIELD_KEYS) {
+    const keyList = CARD_FIELD_KEYS;
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         expandCardField(compact, result, key, codecCtx);
     }
     return result;
@@ -566,11 +570,11 @@ function expandLibrary(
             controllerId: ownerId,
             ownerId,
             zone: "library",
-            types: zoned?.types ?? (def?.types ? [...def.types] : []),
+            types: zoned?.types ?? (def?.types ? def.types.slice() : []),
             subtypes:
-                zoned?.subtypes ?? (def?.subtypes ? [...def.subtypes] : []),
+                zoned?.subtypes ?? (def?.subtypes ? def.subtypes.slice() : []),
             staticAbilities: def?.staticAbilities
-                ? [...def.staticAbilities]
+                ? def.staticAbilities.slice()
                 : [],
             isTapped: false,
         };
@@ -578,9 +582,9 @@ function expandLibrary(
         const toughness = zoned ? zoned.toughness : def?.toughness;
         if (power !== undefined) card.power = power;
         if (toughness !== undefined) card.toughness = toughness;
-        if (knownTo?.length) card.knownTo = [...knownTo];
+        if (knownTo?.length) card.knownTo = knownTo.slice();
         if (positionKnownTo?.length) {
-            card.libraryPositionKnownTo = [...positionKnownTo];
+            card.libraryPositionKnownTo = positionKnownTo.slice();
         }
         return card;
     });
@@ -588,11 +592,14 @@ function expandLibrary(
 
 function compactManaPool(pool: Record<string, number>): Record<string, number> {
     const out: Record<string, number> = {};
-    for (const k of MANA_KEYS) {
+    for (let i = 0; i < MANA_KEYS.length; i++) {
+        const k = MANA_KEYS[i];
         const v = pool[k] ?? 0;
         if (v !== 0) out[k] = v;
     }
-    for (const [k, v] of Object.entries(pool)) {
+    const entries2 = Object.entries(pool);
+    for (let i = 0; i < entries2.length; i++) {
+        const [k, v] = entries2[i];
         if (MANA_KEYS.includes(k as (typeof MANA_KEYS)[number])) continue;
         if (v !== 0) out[k] = v;
     }
@@ -601,7 +608,11 @@ function compactManaPool(pool: Record<string, number>): Record<string, number> {
 
 function expandManaPool(pool: Record<string, number>): Record<string, number> {
     const out: Record<string, number> = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
-    for (const [k, v] of Object.entries(pool)) out[k] = v;
+    const entries2 = Object.entries(pool);
+    for (let i = 0; i < entries2.length; i++) {
+        const [k, v] = entries2[i];
+        out[k] = v;
+    }
     return out;
 }
 
@@ -706,11 +717,11 @@ function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
     // player keywords: per-turn facts a save inside the turn must not erase.
     if (player.spellColorsCastThisTurn?.length) {
         out.spellColorsCastThisTurn = player.spellColorsCastThisTurn.map(
-            (colors) => [...colors]
+            (colors) => colors.slice()
         );
     }
     if (player.keywordsUntilEndOfTurn?.length) {
-        out.keywordsUntilEndOfTurn = [...player.keywordsUntilEndOfTurn];
+        out.keywordsUntilEndOfTurn = player.keywordsUntilEndOfTurn.slice();
     }
     if (player.spellsCastThisGame) {
         out.spellsCastThisGame = player.spellsCastThisGame;
@@ -838,11 +849,11 @@ function expandPlayer(
     }
     if (player.spellColorsCastThisTurn !== undefined) {
         result.spellColorsCastThisTurn = player.spellColorsCastThisTurn.map(
-            (colors) => [...colors]
+            (colors) => colors.slice()
         );
     }
     if (player.keywordsUntilEndOfTurn !== undefined) {
-        result.keywordsUntilEndOfTurn = [...player.keywordsUntilEndOfTurn];
+        result.keywordsUntilEndOfTurn = player.keywordsUntilEndOfTurn.slice();
     }
     if (player.spellsCastThisGame !== undefined) {
         result.spellsCastThisGame = player.spellsCastThisGame;
@@ -1742,7 +1753,8 @@ export function compactState(state: GameState): Record<string, unknown> {
         rngSeed: state.rngSeed,
         rngCounter: state.rngCounter,
     };
-    for (const k of PERSISTED_OPTIONAL_KEYS) {
+    for (let i = 0; i < PERSISTED_OPTIONAL_KEYS.length; i++) {
+        const k = PERSISTED_OPTIONAL_KEYS[i];
         const v = (state as Record<string, unknown>)[k];
         if (v === undefined || v === null) continue;
         if (isPlainEmpty(v)) continue;
@@ -1818,7 +1830,9 @@ export function compactState(state: GameState): Record<string, unknown> {
     // necessary for, is also the one that compacts best.
     if (state.lastKnownCopiable && !isPlainEmpty(state.lastKnownCopiable)) {
         const packed: Record<string, unknown> = {};
-        for (const [id, entry] of Object.entries(state.lastKnownCopiable)) {
+        const entries2 = Object.entries(state.lastKnownCopiable);
+        for (let i = 0; i < entries2.length; i++) {
+            const [id, entry] = entries2[i];
             packed[id] = {
                 d: internCardIdForCompact(ctx, entry.defId),
                 t: entry.turn,
@@ -1893,7 +1907,11 @@ export function splitCompactState(state: GameState): {
         ...state,
         players: state.players.map((p) => ({ ...p, library: [] })),
     });
-    for (const player of hot.players as CompactPlayer[]) delete player.library;
+    const playerList = hot.players as CompactPlayer[];
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        delete player.library;
+    }
     hot.libraryCounts = state.players.map((p) => p.library.length);
     const ctx: CompactCtx = {
         pool: makeCardPool(),
@@ -1982,7 +2000,8 @@ export function expandState(
         rngSeed: data.rngSeed as number,
         rngCounter: data.rngCounter as number,
     };
-    for (const k of PERSISTED_OPTIONAL_KEYS) {
+    for (let j = 0; j < PERSISTED_OPTIONAL_KEYS.length; j++) {
+        const k = PERSISTED_OPTIONAL_KEYS[j];
         const legacyKey = RENAMED_PERSISTED_KEYS[k];
         const v = data[k] ?? (legacyKey ? data[legacyKey] : undefined);
         if (v === undefined || v === null) continue;
@@ -2007,11 +2026,13 @@ export function expandState(
     // move to `chosenModeIds` carries its one mode under the singular key.
     // These three shapes only ever hold the ANNOUNCEMENT domain, so the
     // promotion is unconditional.
-    for (const pending of [
+    const pendingList = [
         result.pendingTarget,
         result.pendingCast,
         result.pendingActivation,
-    ]) {
+    ];
+    for (let j = 0; j < pendingList.length; j++) {
+        const pending = pendingList[j];
         const legacy = pending as
             | { chosenModeId?: unknown; chosenModeIds?: string[] }
             | undefined;
@@ -2038,7 +2059,9 @@ export function expandState(
         | undefined;
     if (compactLki) {
         const unpacked: NonNullable<GameState["lastKnownCopiable"]> = {};
-        for (const [id, entry] of Object.entries(compactLki)) {
+        const entries2 = Object.entries(compactLki);
+        for (let j = 0; j < entries2.length; j++) {
+            const [id, entry] = entries2[j];
             unpacked[id] = {
                 defId: resolveCardId(entry.d, ctx),
                 turn: entry.t,
@@ -2154,14 +2177,22 @@ function migrateLegacyBestowTypeLine(state: GameState): void {
         const def = cardId ? tryGetDefinition(cardId) : undefined;
         if (!def?.types.includes("Creature")) return;
         if (card.baseTypes?.includes("Creature")) return;
-        card.baseTypes = [...def.types];
-        card.baseSubtypes = [...(def.subtypes ?? [])];
+        card.baseTypes = def.types.slice();
+        card.baseSubtypes = (def.subtypes ?? []).slice();
         recomposeLayers2to5ForInstance(card, zone);
     };
-    for (const player of state.players) {
-        for (const card of player.battlefield) visit(card, "battlefield");
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
+            visit(card, "battlefield");
+        }
     }
-    for (const item of state.stack) {
+    const itemList = state.stack;
+    for (let i = 0; i < itemList.length; i++) {
+        const item = itemList[i];
         visit(item as unknown as CardInstanceState, "stack");
     }
 }
@@ -2197,7 +2228,9 @@ function migrateLegacyInstancePTLedgers(
     for (let index = 0; index < compactPlayers.length; index++) {
         const live = state.players[index];
         if (!live) continue;
-        for (const compact of compactPlayers[index].battlefield ?? []) {
+        const compactList = compactPlayers[index].battlefield ?? [];
+        for (let i = 0; i < compactList.length; i++) {
+            const compact = compactList[i];
             const legacy = compact as unknown as {
                 id?: string;
                 temporaryPTSet?: LegacySet[];
@@ -2214,7 +2247,9 @@ function migrateLegacyInstancePTLedgers(
             // 7b before 7c, mirroring the order the old read path pushed them
             // in — within a sublayer the relative order is what decides the
             // winner, and across sublayers CR 613.4 decides it regardless.
-            for (const entry of legacy.temporaryPTSet ?? []) {
+            const entryList = legacy.temporaryPTSet ?? [];
+            for (let j = 0; j < entryList.length; j++) {
+                const entry = entryList[j];
                 const payload: {
                     kind: "pt-set";
                     power?: number;
@@ -2241,7 +2276,9 @@ function migrateLegacyInstancePTLedgers(
                     characteristicDefining: false,
                 });
             }
-            for (const mod of legacy.temporaryPTMods ?? []) {
+            const modList = legacy.temporaryPTMods ?? [];
+            for (let j = 0; j < modList.length; j++) {
+                const mod = modList[j];
                 appendMigratedEffect(state, {
                     layer: 7,
                     sublayer: "7c",
@@ -2303,7 +2340,9 @@ function migrateLegacyInstanceKeywordLedgers(
     for (let index = 0; index < compactPlayers.length; index++) {
         const live = state.players[index];
         if (!live) continue;
-        for (const compact of compactPlayers[index].battlefield ?? []) {
+        const compactList = compactPlayers[index].battlefield ?? [];
+        for (let i = 0; i < compactList.length; i++) {
+            const compact = compactList[i];
             const legacy = compact as unknown as {
                 id?: string;
                 grantedStaticAbilities?: LegacyGrant[];
@@ -2353,12 +2392,17 @@ function migrateLegacyInstanceKeywordLedgers(
             // A state persisted after PRD #2064 S3 already carries
             // `baseStaticAbilities` and is left alone.
             if (card.baseStaticAbilities === undefined) {
-                const base = [...card.staticAbilities];
-                for (const removal of removals) base.push(removal.keyword);
-                for (const removal of derivedRemovals) {
+                const base = card.staticAbilities.slice();
+                for (let j = 0; j < removals.length; j++) {
+                    const removal = removals[j];
                     base.push(removal.keyword);
                 }
-                for (const grant of grants) {
+                for (let j = 0; j < derivedRemovals.length; j++) {
+                    const removal = derivedRemovals[j];
+                    base.push(removal.keyword);
+                }
+                for (let j = 0; j < grants.length; j++) {
+                    const grant = grants[j];
                     const at = base.indexOf(grant.ability);
                     if (at !== -1) base.splice(at, 1);
                 }
@@ -2376,7 +2420,8 @@ function migrateLegacyInstanceKeywordLedgers(
             // The `auraId` rows are dropped with the rest and re-derived from
             // the live board at the next `syncLayer6`, which is what they always
             // were.
-            for (const grant of grants) {
+            for (let j = 0; j < grants.length; j++) {
+                const grant = grants[j];
                 if (!grant.counterType) continue;
                 appendMigratedEffect(state, {
                     layer: 6,
@@ -2390,7 +2435,8 @@ function migrateLegacyInstanceKeywordLedgers(
                     characteristicDefining: false,
                 });
             }
-            for (const grant of grants) {
+            for (let j = 0; j < grants.length; j++) {
+                const grant = grants[j];
                 if (grant.counterType) continue;
                 appendMigratedEffect(state, {
                     layer: 6,
@@ -2409,7 +2455,8 @@ function migrateLegacyInstanceKeywordLedgers(
                     characteristicDefining: false,
                 });
             }
-            for (const removal of removals) {
+            for (let j = 0; j < removals.length; j++) {
+                const removal = removals[j];
                 appendMigratedEffect(state, {
                     layer: 6,
                     affected: { kind: "instances", instanceIds: [card.id] },
@@ -2439,18 +2486,18 @@ function appendMigratedEffect(
 ): void {
     const existing = state.continuousEffects ?? [];
     let max = 0;
-    for (const e of existing) {
+    for (let i = 0; i < existing.length; i++) {
+        const e = existing[i];
         const suffix = /^ce-(\d+)$/.exec(e.id);
         if (suffix) max = Math.max(max, Number(suffix[1]));
     }
-    state.continuousEffects = [
-        ...existing,
+    state.continuousEffects = existing.concat([
         {
             ...entry,
             id: `ce-${max + 1}`,
             timestamp: allocStaticTimestamp(state),
         } as ContinuousEffect,
-    ];
+    ]);
 }
 
 /** One-shot migration for a state persisted BEFORE PRD #2064 S6b-part-2, when
@@ -2505,17 +2552,53 @@ function migrateLegacyLayer2to5Ledgers(
     const sink = (seq: number | undefined) => {
         if (seq !== undefined && seq < floor) floor = seq;
     };
-    for (const entry of state.continuousEffects ?? []) sink(entry.timestamp);
-    for (const emblem of state.emblems ?? []) sink(emblem.staticSeq);
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const entryList = state.continuousEffects ?? [];
+    for (let i = 0; i < entryList.length; i++) {
+        const entry = entryList[i];
+        sink(entry.timestamp);
+    }
+    const emblemList = state.emblems ?? [];
+    for (let i = 0; i < emblemList.length; i++) {
+        const emblem = emblemList[i];
+        sink(emblem.staticSeq);
+    }
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             sink(card.staticSeq);
-            for (const h of card.textChangeHolds ?? []) sink(h.seq);
-            for (const h of card.typeLineHolds ?? []) sink(h.seq);
-            for (const h of card.subtypeAddHolds ?? []) sink(h.seq);
-            for (const h of card.supertypeHolds ?? []) sink(h.seq);
-            for (const h of card.abilityLossHolds ?? []) sink(h.seq);
-            for (const c of card.controlChanges ?? []) sink(c.seq);
+            const hList = card.textChangeHolds ?? [];
+            for (let k = 0; k < hList.length; k++) {
+                const h = hList[k];
+                sink(h.seq);
+            }
+            const hList2 = card.typeLineHolds ?? [];
+            for (let k = 0; k < hList2.length; k++) {
+                const h = hList2[k];
+                sink(h.seq);
+            }
+            const hList3 = card.subtypeAddHolds ?? [];
+            for (let k = 0; k < hList3.length; k++) {
+                const h = hList3[k];
+                sink(h.seq);
+            }
+            const hList4 = card.supertypeHolds ?? [];
+            for (let k = 0; k < hList4.length; k++) {
+                const h = hList4[k];
+                sink(h.seq);
+            }
+            const hList5 = card.abilityLossHolds ?? [];
+            for (let k = 0; k < hList5.length; k++) {
+                const h = hList5[k];
+                sink(h.seq);
+            }
+            const cList = card.controlChanges ?? [];
+            for (let k = 0; k < cList.length; k++) {
+                const c = cList[k];
+                sink(c.seq);
+            }
         }
     }
     // One descending run below the lowest stamp on the board. Strictly
@@ -2525,8 +2608,12 @@ function migrateLegacyLayer2to5Ledgers(
     let next = floor - 1;
     const mint = () => next--;
 
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList2 = state.players;
+    for (let i = 0; i < playerList2.length; i++) {
+        const player = playerList2[i];
+        const cardList2 = player.battlefield;
+        for (let j = 0; j < cardList2.length; j++) {
+            const card = cardList2[j];
             const row = compactById.get(card.id);
             // A document written by PRD #2064 S4 or later carries BOTH layer-4
             // bases — `ensureLayer4Base` writes them at the first derivation and
@@ -2573,14 +2660,18 @@ function migrateLegacyLayer2to5Ledgers(
                 const printedTypes = (printed?.types ?? []).map(
                     (t) => t as CardType
                 );
-                const base = [...card.types];
-                for (const g of legacy.grantedTypes) {
+                const base = card.types.slice();
+                const gList = legacy.grantedTypes;
+                for (let k = 0; k < gList.length; k++) {
+                    const g = gList[k];
                     const type = g.type as CardType;
                     if (printedTypes.includes(type)) continue;
                     const at = base.indexOf(type);
                     if (at !== -1) base.splice(at, 1);
                 }
-                for (const suppressed of legacy.suppressedTypes) {
+                const suppressedList = legacy.suppressedTypes;
+                for (let k = 0; k < suppressedList.length; k++) {
+                    const suppressed = suppressedList[k];
                     const type = suppressed.type as CardType;
                     if (!printedTypes.includes(type)) continue;
                     if (!base.includes(type)) base.push(type);
@@ -2593,13 +2684,10 @@ function migrateLegacyLayer2to5Ledgers(
                 // present because a live `subtype-add` put it there is EXCLUDED,
                 // or the add would survive its own source leaving play. One the
                 // card actually PRINTS is kept even when an add duplicates it.
-                const base = [...(legacy.printedSubtypes ?? card.subtypes)];
-                const adds = [
-                    ...legacy.grantedSubtypesAdd.map(
-                        (a) => a.subtype as string
-                    ),
-                    ...(card.subtypeAddHolds ?? []).map((a) => a.subtype),
-                ];
+                const base = (legacy.printedSubtypes ?? card.subtypes).slice();
+                const adds = legacy.grantedSubtypesAdd
+                    .map((a) => a.subtype as string)
+                    .concat((card.subtypeAddHolds ?? []).map((a) => a.subtype));
                 card.baseSubtypes =
                     adds.length === 0
                         ? base
@@ -2636,7 +2724,9 @@ function migrateLegacyLayer2to5Ledgers(
                         (s) => s.sourceId === INDEFINITE_SOURCE_ID
                     ))
             ) {
-                card.typeLineHolds = [{ types: [...card.types], seq: mint() }];
+                card.typeLineHolds = [
+                    { types: card.types.slice(), seq: mint() },
+                ];
             }
 
             // --- CR 205.4a layer 4: an indefinite supertype mutation -------
@@ -2693,9 +2783,15 @@ function migrateLegacyLayer2to5Ledgers(
     // slice but were written before their `seq` existed. The derivation skips a
     // row with no stamp (it has no position in its layer), so an undated one is
     // stamped here rather than silently dropped.
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
-            for (const change of card.controlChanges ?? []) {
+    const playerList3 = state.players;
+    for (let i = 0; i < playerList3.length; i++) {
+        const player = playerList3[i];
+        const cardList3 = player.battlefield;
+        for (let j = 0; j < cardList3.length; j++) {
+            const card = cardList3[j];
+            const changeList = card.controlChanges ?? [];
+            for (let k = 0; k < changeList.length; k++) {
+                const change = changeList[k];
                 if (change.seq === undefined) change.seq = mint();
             }
             if (card.animation && card.animation.seq === undefined) {
@@ -2720,7 +2816,9 @@ function migrateLegacyLayer2to5Ledgers(
     // zone. A document written before `createEmblem` minted one carries none,
     // and an unstamped source is skipped by both layer walks, so every
     // emblem-granted continuous effect would ship inert.
-    for (const emblem of state.emblems ?? []) {
+    const emblemList2 = state.emblems ?? [];
+    for (let i = 0; i < emblemList2.length; i++) {
+        const emblem = emblemList2[i];
         if (emblem.staticSeq === undefined) emblem.staticSeq = mint();
     }
 }
@@ -2741,8 +2839,12 @@ function migrateLegacyAbilityLossLedger(
 ): void {
     const compactById = compactBattlefieldRows(data);
     if (compactById.size === 0) return;
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             const row = compactById.get(card.id);
             // A document written after PRD #2064 S3 carries the layer-6 base,
             // and from that moment `abilitiesSuppressedBy` is derived output —
@@ -2902,8 +3004,12 @@ function backfillLegacyStaticSeq(
     // `migrateLegacyLayer2to5Ledgers`) run after this one and need the stamp.
     const compactById = compactBattlefieldRows(data);
     const legacy: CardInstanceState[] = [];
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let j = 0; j < playerList.length; j++) {
+        const player = playerList[j];
+        const cardList = player.battlefield;
+        for (let k = 0; k < cardList.length; k++) {
+            const card = cardList[k];
             if (card.staticSeq !== undefined) continue;
             const cardId = (card.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : null;
@@ -2934,10 +3040,15 @@ function backfillLegacyStaticSeq(
             inboundCount.set(v, (inboundCount.get(v) ?? 0) + 1);
         }
     };
-    for (const player of state.players) {
-        for (const target of player.battlefield) {
+    const playerList2 = state.players;
+    for (let j = 0; j < playerList2.length; j++) {
+        const player = playerList2[j];
+        const targetList = player.battlefield;
+        for (let k = 0; k < targetList.length; k++) {
+            const target = targetList[k];
             const row = compactById.get(target.id);
-            for (const spec of LEGACY_SEQ_RECORD_SPECS) {
+            for (let m = 0; m < LEGACY_SEQ_RECORD_SPECS.length; m++) {
+                const spec = LEGACY_SEQ_RECORD_SPECS[m];
                 const ids = legacySeqRecords(target, row, spec.field)
                     .map((entry) => entry[spec.idKey] as string | undefined)
                     .filter(
@@ -2962,6 +3073,7 @@ function backfillLegacyStaticSeq(
     while (ready.length > 0) {
         const id = ready.shift()!;
         order.push(id);
+        // eslint-disable-next-line no-restricted-syntax -- a Set or an empty array, with an early exit (issue #10126)
         for (const next of dependents.get(id) ?? []) {
             const remaining = (inboundCount.get(next) ?? 0) - 1;
             inboundCount.set(next, remaining);
@@ -2982,24 +3094,33 @@ function backfillLegacyStaticSeq(
     // order.
     if (order.length < legacy.length) {
         const placed = new Set(order);
-        for (const card of legacy) {
+        for (let j = 0; j < legacy.length; j++) {
+            const card = legacy[j];
             if (!placed.has(card.id)) order.push(card.id);
         }
     }
 
     const seqById = new Map<string, number>();
     order.forEach((id, i) => seqById.set(id, i - legacy.length));
-    for (const card of legacy) {
+    for (let j = 0; j < legacy.length; j++) {
+        const card = legacy[j];
         card.staticSeq = seqById.get(card.id)!;
     }
 
     // Stamp every record a legacy source owns on any target with that
     // source's freshly assigned seq — the actual fix (see doc comment).
-    for (const player of state.players) {
-        for (const target of player.battlefield) {
+    const playerList3 = state.players;
+    for (let j = 0; j < playerList3.length; j++) {
+        const player = playerList3[j];
+        const targetList2 = player.battlefield;
+        for (let k = 0; k < targetList2.length; k++) {
+            const target = targetList2[k];
             const row = compactById.get(target.id);
-            for (const spec of LEGACY_SEQ_RECORD_SPECS) {
-                for (const entry of legacySeqRecords(target, row, spec.field)) {
+            for (let m = 0; m < LEGACY_SEQ_RECORD_SPECS.length; m++) {
+                const spec = LEGACY_SEQ_RECORD_SPECS[m];
+                const entryList = legacySeqRecords(target, row, spec.field);
+                for (let i2 = 0; i2 < entryList.length; i2++) {
+                    const entry = entryList[i2];
                     if (entry.seq !== undefined) continue;
                     const id = entry[spec.idKey] as string | undefined;
                     if (id === undefined) continue;
@@ -3022,8 +3143,12 @@ function compactBattlefieldRows(
     data: Record<string, unknown>
 ): Map<string, Record<string, unknown>> {
     const rows = new Map<string, Record<string, unknown>>();
-    for (const player of (data.players as CompactPlayer[] | undefined) ?? []) {
-        for (const compact of player.battlefield ?? []) {
+    const playerList = (data.players as CompactPlayer[] | undefined) ?? [];
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const compactList = player.battlefield ?? [];
+        for (let j = 0; j < compactList.length; j++) {
+            const compact = compactList[j];
             const row = compact as unknown as Record<string, unknown>;
             const id = row.id;
             if (typeof id === "string") rows.set(id, row);

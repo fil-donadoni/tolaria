@@ -83,12 +83,15 @@ export function getEffectiveColors(card: PermanentView): Color[] {
         !(override && sameColors(override, layers.colorSet.colors))
             ? undefined
             : layers.colorSet;
-    if (!set && override) return [...override] as Color[];
-    const base = set ? ([...set.colors] as Color[]) : printedColors(card);
+    if (!set && override) return override.slice() as Color[];
+    const base = set ? (set.colors.slice() as Color[]) : printedColors(card);
     const granted = layers.grantedColors;
     if (!granted?.length) return base;
     const all = new Set<Color>(base);
-    for (const g of granted) all.add(g.color as Color);
+    for (let i = 0; i < granted.length; i++) {
+        const g = granted[i];
+        all.add(g.color as Color);
+    }
     return [...all];
 }
 

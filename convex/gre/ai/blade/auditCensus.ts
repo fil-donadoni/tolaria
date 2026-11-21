@@ -51,7 +51,8 @@ const ISSUE_REF = /issue #(\d+)/g;
 export function readPairs(scenarios: readonly CensusScenario[]): Pair[] {
     const pairs: Pair[] = [];
     const seen = new Set<string>();
-    for (const half of scenarios) {
+    for (let i = 0; i < scenarios.length; i++) {
+        const half = scenarios[i];
         const anchorLabel =
             half.pairOf?.anchor ?? PROSE_PARTNER.exec(half.note ?? "")?.[1];
         if (anchorLabel === undefined) continue;
@@ -78,7 +79,9 @@ export function auditCensus(
         themes.map((theme) => [theme, new Map()])
     );
     const pairs = new Map<AuditTheme, number>(themes.map((t) => [t, 0]));
-    for (const { half, anchorLabel } of readPairs(scenarios)) {
+    const entries = readPairs(scenarios);
+    for (let i = 0; i < entries.length; i++) {
+        const { half, anchorLabel } = entries[i];
         const anchor = byLabel.get(anchorLabel);
         if (anchor === undefined) continue;
         const theme = half.audit?.theme ?? anchor.audit?.theme;
@@ -91,10 +94,11 @@ export function auditCensus(
     return themes.map((theme) => {
         const all = [...(members.get(theme) ?? new Map()).values()];
         const refs = new Set(
-            all.flatMap((m) => [
-                ...issuesNamedBy(m.note),
-                ...issuesNamedBy(m.beyondBudget?.note),
-            ])
+            all.flatMap((m) =>
+                issuesNamedBy(m.note).concat(
+                    issuesNamedBy(m.beyondBudget?.note)
+                )
+            )
         );
         const red = all.filter((m) => m.tier === "stretch").length;
         return {
@@ -118,17 +122,20 @@ export function formatAuditCensus(rows: readonly AuditCensusRow[]): string {
         issues: string
     ) =>
         `${theme.padEnd(width)}  ${pairs.padStart(5)}  ${red.padStart(3)}  ${green.padStart(5)}  ${issues}`;
-    return [
-        line("theme", "pairs", "red", "green", "issues"),
-        ...rows.map((r) =>
-            line(
-                r.theme,
-                String(r.pairs),
-                String(r.red),
-                String(r.green),
-                r.issues.map((n) => `#${n}`).join(" ") || "-"
-            )
-        ),
-        `${rows.filter((r) => r.pairs === 0).length}/${rows.length} themes have no pair`,
-    ].join("\n");
+    return [line("theme", "pairs", "red", "green", "issues")]
+        .concat(
+            rows.map((r) =>
+                line(
+                    r.theme,
+                    String(r.pairs),
+                    String(r.red),
+                    String(r.green),
+                    r.issues.map((n) => `#${n}`).join(" ") || "-"
+                )
+            ),
+            [
+                `${rows.filter((r) => r.pairs === 0).length}/${rows.length} themes have no pair`,
+            ]
+        )
+        .join("\n");
 }

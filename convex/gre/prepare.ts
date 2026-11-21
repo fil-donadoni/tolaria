@@ -119,9 +119,9 @@ function createPreparedCopy(
         id: allocInstanceId(state),
         card: { id: twin.id },
         // Every array COPIED, never aliased to the registry definition's own.
-        types: [...twin.types],
-        subtypes: [...(twin.subtypes ?? [])],
-        staticAbilities: [...(twin.staticAbilities ?? [])],
+        types: twin.types.slice(),
+        subtypes: (twin.subtypes ?? []).slice(),
+        staticAbilities: (twin.staticAbilities ?? []).slice(),
         controllerId,
         ownerId: controllerId,
         zone: "exile",
@@ -163,7 +163,9 @@ function hasPreparedCopy(state: GameState, permanentId: string): boolean {
 
 /** Removes every exiled copy linked to `permanentId`. */
 function removePreparedCopies(state: GameState, permanentId: string): void {
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         if (player.exile.some((c) => c.preparedCopyOf === permanentId)) {
             player.exile = player.exile.filter(
                 (c) => c.preparedCopyOf !== permanentId
@@ -224,8 +226,12 @@ export function onPreparedCopyCast(state: GameState, item: StackItem): void {
  *  CR 704.3 fixpoint. Returns whether a copy ceased to exist. */
 export function checkPreparedCopySBA(state: GameState): boolean {
     let removed = false;
-    for (const player of state.players) {
-        for (const zone of ["graveyard", "exile", "hand", "library"] as const) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const zoneList = ["graveyard", "exile", "hand", "library"] as const;
+        for (let j = 0; j < zoneList.length; j++) {
+            const zone = zoneList[j];
             const list = player[zone];
             if (!list.some((c) => c.preparedCopyOf !== undefined)) continue;
             const kept = list.filter((c) => {

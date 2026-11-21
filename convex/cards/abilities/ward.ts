@@ -171,9 +171,8 @@ export function expandWard(def: CardDefinition): CardDefinition {
     if (existing.some((t) => t.id === WARD_TRIGGER_ID)) return def;
     return {
         ...def,
-        triggeredAbilities: [
-            ...existing,
-            ...wards.map((args, i) =>
+        triggeredAbilities: existing.concat(
+            wards.map((args, i) =>
                 wardAbility({
                     ...args,
                     id:
@@ -181,7 +180,7 @@ export function expandWard(def: CardDefinition): CardDefinition {
                             ? WARD_TRIGGER_ID
                             : `${WARD_TRIGGER_ID}-${i + 1}`,
                 })
-            ),
-        ],
+            )
+        ),
     };
 }

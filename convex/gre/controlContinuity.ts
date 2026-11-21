@@ -48,7 +48,7 @@ export function recordControlChangeThisTurn(
 ): void {
     const ledger = state.controlChangedThisTurn ?? [];
     if (ledger.includes(instanceId)) return;
-    state.controlChangedThisTurn = [...ledger, instanceId];
+    state.controlChangedThisTurn = ledger.concat([instanceId]);
 }
 
 /** Clears the ledger at a turn boundary (`advanceTurn`, phases.ts) — the

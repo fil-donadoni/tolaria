@@ -148,9 +148,11 @@ export function requirementFromPendingTarget(
         count: pt.count,
         ...(pt.zone ? { zone: pt.zone } : {}),
     };
-    for (const key of Object.keys(
+    const keyList = Object.keys(
         PENDING_TARGET_FILTER_KEYS
-    ) as PendingTargetFilterKey[]) {
+    ) as PendingTargetFilterKey[];
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         const value = pt[key];
         if (value !== undefined) out[key] = value;
     }
@@ -289,7 +291,8 @@ export function finalizeDivideAmounts(
     if (assigned) {
         let sum = 0;
         let complete = true;
-        for (const t of divided) {
+        for (let i = 0; i < divided.length; i++) {
+            const t = divided[i];
             const a = assigned[`${t.type}:${t.id}`] ?? 0;
             if (a < 1) complete = false;
             sum += a;
@@ -300,7 +303,8 @@ export function finalizeDivideAmounts(
     const n = divided.length;
     const base = Math.floor(total / n);
     let remainder = total - base * n;
-    for (const t of divided) {
+    for (let i = 0; i < divided.length; i++) {
+        const t = divided[i];
         const extra = remainder > 0 ? 1 : 0;
         if (remainder > 0) remainder -= 1;
         out[`${t.type}:${t.id}`] = base + extra;
@@ -464,7 +468,7 @@ export function applyRaisedTargetFinalization(
     // CR 601.2c — a multi-group selection locked earlier groups' picks into
     // `priorSelected`; concatenate in declaration order so the stack item's
     // `targets` are positionally indexable by the Effect Script.
-    const targets = [...(pt.priorSelected ?? []), ...pt.selected];
+    const targets = (pt.priorSelected ?? []).concat(pt.selected);
     const divideAmounts = divideAmountsForCommit(pt, targets);
     const cardInstanceId = pt.cardInstanceId;
     state.pendingTarget = undefined;

@@ -376,5 +376,9 @@ export function clearCardFieldsAt(
     card: CardInstanceState,
     scope: CardFieldResetScope
 ): void {
-    for (const key of RESET_KEYS[scope]) delete card[key];
+    const keyList = RESET_KEYS[scope];
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
+        delete card[key];
+    }
 }

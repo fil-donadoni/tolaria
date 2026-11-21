@@ -40,7 +40,8 @@ const PERMANENT_BY_COLOR: Readonly<Record<string, string>> = {
  *  at any depth of the requirement. */
 function countedColor(node: unknown): string | undefined {
     if (Array.isArray(node)) {
-        for (const child of node) {
+        for (let i = 0; i < node.length; i++) {
+            const child = node[i];
             const found = countedColor(child);
             if (found) return found;
         }
@@ -59,7 +60,9 @@ function countedColor(node: unknown): string | undefined {
         counted.filter.color in PERMANENT_BY_COLOR
     )
         return counted.filter.color;
-    for (const child of Object.values(rec)) {
+    const childList = Object.values(rec);
+    for (let i = 0; i < childList.length; i++) {
+        const child = childList[i];
         const found = countedColor(child);
         if (found) return found;
     }

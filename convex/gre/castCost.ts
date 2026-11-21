@@ -1156,7 +1156,9 @@ export function clearDeclinedExileRoute(
     state: GameState,
     cardInstanceId: string | undefined
 ): void {
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const card = player.exile.find((c) => c.id === cardInstanceId);
         if (card) delete card.castDeclinedExileRoute;
     }
@@ -1570,7 +1572,9 @@ export function findCastSourceCard(
 ): CardInstanceState | undefined {
     const zone = declaredZone ?? "hand";
     if (zone === "exile") {
-        for (const p of state.players) {
+        const pList = state.players;
+        for (let i = 0; i < pList.length; i++) {
+            const p = pList[i];
             const found = p.exile.find((c) => c.id === cardInstanceId);
             if (found) return found;
         }

@@ -117,7 +117,9 @@ function clip(label: string): string {
 function termsOf(c: CandidateTrace): BotReachTraceTerms | undefined {
     if (c.unavailable) return undefined;
     const terms: BotReachTraceTerms = {};
-    for (const key of Object.keys(c.eval.self) as (keyof EvalTerms)[]) {
+    const keyList = Object.keys(c.eval.self) as (keyof EvalTerms)[];
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         const self = round2(c.eval.self[key]);
         const opp = round2(c.eval.opp[key]);
         if (self !== 0 || opp !== 0) terms[key] = [self, opp];
@@ -174,7 +176,8 @@ export function projectBotReachTrace(
     const picked: BotReachTraceCandidate[] = [];
     if (chosen !== undefined) picked.push(project(chosen, "chosen"));
     if (card !== undefined) picked.push(project(card, "card"));
-    for (const c of all) {
+    for (let i = 0; i < all.length; i++) {
+        const c = all[i];
         if (picked.length >= BOT_REACH_TRACE_MAX_CANDIDATES) break;
         if (c === chosen || c === card) continue;
         picked.push(project(c, "alternative"));

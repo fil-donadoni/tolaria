@@ -40,7 +40,9 @@ function addedMana(node: unknown): { colors: Set<string>; total: number } {
         if (n === null || typeof n !== "object") return;
         const rec = n as Record<string, unknown>;
         if (rec.op === "addMana" && typeof rec.mana === "object" && rec.mana) {
-            for (const [color, count] of Object.entries(rec.mana)) {
+            const entries2 = Object.entries(rec.mana);
+            for (let i = 0; i < entries2.length; i++) {
+                const [color, count] = entries2[i];
                 if (typeof count !== "number" || count <= 0) continue;
                 found.colors.add(color);
                 found.total += count;
@@ -63,7 +65,9 @@ export function manaSinkPose(
     const { colors, total } = addedMana(def.effects);
     if (total <= manaValue(def.manaCost)) return [];
     const reach = landCount - manaValue(def.manaCost) + total;
-    for (const color of Object.keys(MANA_SINKS) as Exclude<Color, "C">[]) {
+    const colorList = Object.keys(MANA_SINKS) as Exclude<Color, "C">[];
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         if (!colors.has(color)) continue;
         const name = MANA_SINKS[color];
         const sink = tryGetCardByName(name);

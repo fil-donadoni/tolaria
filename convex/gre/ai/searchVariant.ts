@@ -221,7 +221,10 @@ export function resolveDisabledRootRules(
 ): ReadonlySet<RootDecisionMechanism> {
     const names = variant?.disabledRootRules;
     if (!names || names.length === 0) return EMPTY_DISABLED_RULES;
-    for (const name of names) assertDisableableRootRule(name);
+    for (let i = 0; i < names.length; i++) {
+        const name = names[i];
+        assertDisableableRootRule(name);
+    }
     return new Set(names);
 }
 
@@ -278,7 +281,10 @@ export function noRuleVariant(spec: string): SearchVariant {
             `BLADE_VARIANT "${spec}" names no rule — use ${NO_RULE_VARIANT_PREFIX}<mechanism>[,<mechanism>]`
         );
     }
-    for (const name of names) assertDisableableRootRule(name);
+    for (let i = 0; i < names.length; i++) {
+        const name = names[i];
+        assertDisableableRootRule(name);
+    }
     return {
         name: spec,
         disabledRootRules: names as RootDecisionMechanism[],

@@ -137,7 +137,9 @@ export function ownHandColorCoverage(
 ): number {
     let demanding = 0;
     let covered = 0;
-    for (const card of player.hand) {
+    const cardList = player.hand;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         if (!demandsColor(card, player.life)) continue;
         demanding += 1;
         if (
@@ -176,7 +178,9 @@ export function observedColorCoverage(
     if (demand.kind === "unknown") return UNKNOWN_COLOR_COVERAGE;
     let total = 0;
     let covered = 0;
-    for (const [color, mass] of Object.entries(demand.evidence)) {
+    const entries2 = Object.entries(demand.evidence);
+    for (let i = 0; i < entries2.length; i++) {
+        const [color, mass] = entries2[i];
         if (!mass || mass <= 0) continue;
         total += mass;
         if (base.some((unit) => unit.has(color as Color))) covered += mass;

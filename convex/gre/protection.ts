@@ -160,14 +160,16 @@ function pluralize(word: string): string {
 }
 
 const QUALITY_WORD_TO_CARD_TYPE = new Map<string, CardType>();
-for (const type of PROTECTION_CARD_TYPES) {
+for (let i = 0; i < PROTECTION_CARD_TYPES.length; i++) {
+    const type = PROTECTION_CARD_TYPES[i];
     const lower = type.toLowerCase();
     QUALITY_WORD_TO_CARD_TYPE.set(lower, type);
     QUALITY_WORD_TO_CARD_TYPE.set(pluralize(lower), type);
 }
 
 const QUALITY_WORD_TO_SUPERTYPE = new Map<string, CardSupertype>();
-for (const supertype of PROTECTION_SUPERTYPES) {
+for (let i = 0; i < PROTECTION_SUPERTYPES.length; i++) {
+    const supertype = PROTECTION_SUPERTYPES[i];
     // Supertypes read as adjectives in Oracle text ("legendary creatures"), so
     // only the singular form appears.
     QUALITY_WORD_TO_SUPERTYPE.set(supertype.toLowerCase(), supertype);
@@ -178,10 +180,10 @@ for (const supertype of PROTECTION_SUPERTYPES) {
  *  plural, so "Fish"/"Kavu"/"Merfolk" (same in the plural) resolve to
  *  themselves. Keys are lowercase; the value is the canonical subtype. */
 const QUALITY_WORD_TO_SUBTYPE = new Map<string, string>();
-for (const subtype of CREATURE_SUBTYPES) {
+CREATURE_SUBTYPES.forEach((subtype) => {
     QUALITY_WORD_TO_SUBTYPE.set(subtype.toLowerCase(), subtype);
-}
-for (const subtype of CREATURE_SUBTYPES) {
+});
+CREATURE_SUBTYPES.forEach((subtype) => {
     const lower = subtype.toLowerCase();
     const plurals = /(s|x|z|ch|sh)$/.test(lower)
         ? [`${lower}es`]
@@ -190,12 +192,13 @@ for (const subtype of CREATURE_SUBTYPES) {
           : /fe?$/.test(lower)
             ? [`${lower}s`, `${lower.replace(/fe?$/, "")}ves`]
             : [`${lower}s`];
-    for (const plural of plurals) {
+    for (let i = 0; i < plurals.length; i++) {
+        const plural = plurals[i];
         if (!QUALITY_WORD_TO_SUBTYPE.has(plural)) {
             QUALITY_WORD_TO_SUBTYPE.set(plural, subtype);
         }
     }
-}
+});
 
 /** A parsed CR 702.16 quality. The union is the ONE place a quality family is
  *  named — every consult site reads it through `isProtectedFrom`, so a family
@@ -353,7 +356,8 @@ function parseCharacteristicQuality(phrase: string): ProtectionQuality | null {
     const types: CardType[] = [];
     const supertypes: CardSupertype[] = [];
     const subtypes: string[] = [];
-    for (const word of words) {
+    for (let i = 0; i < words.length; i++) {
+        const word = words[i];
         const type = QUALITY_WORD_TO_CARD_TYPE.get(word);
         if (type) {
             if (!types.includes(type)) types.push(type);
@@ -436,7 +440,8 @@ export function parseProtectionQualities(
         .slice(PROTECTION_PREFIX.length)
         .split(PROTECTION_QUALITY_SEPARATOR);
     const qualities: ProtectionQuality[] = [];
-    for (const conjunct of conjuncts) {
+    for (let i = 0; i < conjuncts.length; i++) {
+        const conjunct = conjuncts[i];
         const quality = parseProtectionQuality(PROTECTION_PREFIX + conjunct);
         if (quality === null) return null;
         qualities.push(quality);
@@ -454,10 +459,14 @@ export function getProtectionQualities(
         TextChangeCarrier
 ): ProtectionQuality[] {
     const result: ProtectionQuality[] = [];
-    for (const ability of liveProtectionAbilities(card)) {
+    const abilityList = liveProtectionAbilities(card);
+    for (let i = 0; i < abilityList.length; i++) {
+        const ability = abilityList[i];
         // CR 702.16m — multiple instances of protection from the same quality
         // are redundant.
-        for (const quality of parseProtectionQualities(ability) ?? []) {
+        const qualityList = parseProtectionQualities(ability) ?? [];
+        for (let j = 0; j < qualityList.length; j++) {
+            const quality = qualityList[j];
             if (!result.some((q) => sameQuality(q, quality))) {
                 result.push(quality);
             }
@@ -493,7 +502,9 @@ export function getProtectedColors(
         TextChangeCarrier
 ): Color[] {
     const result: Color[] = [];
-    for (const quality of getProtectionQualities(card)) {
+    const qualityList = getProtectionQualities(card);
+    for (let i = 0; i < qualityList.length; i++) {
+        const quality = qualityList[i];
         if (quality.kind === "color" && !result.includes(quality.color)) {
             result.push(quality.color);
         }
@@ -515,7 +526,9 @@ export function isProtectedFrom(
         TextChangeCarrier,
     source: ProtectionSourceView
 ): boolean {
-    for (const quality of getProtectionQualities(target)) {
+    const qualityList = getProtectionQualities(target);
+    for (let i = 0; i < qualityList.length; i++) {
+        const quality = qualityList[i];
         switch (quality.kind) {
             case "color":
                 // CR 105.2c — a source with no colours at all is colourless,

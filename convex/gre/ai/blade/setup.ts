@@ -128,9 +128,13 @@ function battlefieldMatches(
     const wantedId =
         controller === undefined ? undefined : seatPlayerId(state, controller);
     const out: CardInstanceState[] = [];
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         if (wantedId !== undefined && player.id !== wantedId) continue;
-        for (const card of player.battlefield) {
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if ((card.card as { id?: string } | undefined)?.id === defId) {
                 out.push(card);
             }
@@ -143,9 +147,9 @@ function battlefieldMatches(
  *  CR 603.3b ordering choice) whose trigger source is `sourceId`. */
 function triggersFrom(state: GameState, sourceId: string): StackItem[] {
     const pending = state.pendingTriggerBatch ?? [];
-    return [...state.stack, ...pending].filter(
-        (item) => item.triggerSourceId === sourceId
-    );
+    return state.stack
+        .concat(pending)
+        .filter((item) => item.triggerSourceId === sourceId);
 }
 
 function applyEtbTrigger(
@@ -658,9 +662,13 @@ function handMatches(
     const wantedId =
         controller === undefined ? undefined : seatPlayerId(state, controller);
     const out: { card: CardInstanceState; ownerId: string }[] = [];
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         if (wantedId !== undefined && player.id !== wantedId) continue;
-        for (const card of player.hand) {
+        const cardList = player.hand;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if ((card.card as { id?: string } | undefined)?.id === defId) {
                 out.push({ card, ownerId: player.id });
             }
@@ -813,7 +821,7 @@ function applyCast(
     }
 
     if (step.kickers !== undefined) {
-        const wanted = [...step.kickers].sort().join(",");
+        const wanted = step.kickers.slice().sort().join(",");
         candidates = candidates.filter(
             (m) =>
                 Object.entries(m.kickerPayments ?? {})
@@ -951,7 +959,9 @@ function applyChoose(
     }
     const pool = eligibleZonePickCards(state, head);
     const ids: string[] = [];
-    for (const name of step.cards) {
+    const nameList = step.cards;
+    for (let i = 0; i < nameList.length; i++) {
+        const name = nameList[i];
         const defId = definitionIdForName(name);
         const card = pool.find(
             (c) =>
@@ -1014,7 +1024,9 @@ function applyOrderTriggers(
     const slice = head.candidateIds ?? [];
     const batch = state.pendingTriggerBatch ?? [];
     const ids: string[] = [];
-    for (const name of step.resolveFirst) {
+    const nameList = step.resolveFirst;
+    for (let i = 0; i < nameList.length; i++) {
+        const name = nameList[i];
         const defId = definitionIdForName(name);
         const item = batch.find(
             (it) =>
@@ -1261,7 +1273,9 @@ function applyBladeSetupSteps(
     state: GameState,
     scenario: Pick<BladeScenario, "label" | "setup">
 ): GameState {
-    for (const step of scenario.setup ?? []) {
+    const stepList = scenario.setup ?? [];
+    for (let i = 0; i < stepList.length; i++) {
+        const step = stepList[i];
         switch (step.kind) {
             case "etb-trigger":
                 applyEtbTrigger(state, scenario.label, step);

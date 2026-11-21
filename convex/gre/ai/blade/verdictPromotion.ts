@@ -314,17 +314,16 @@ function referenceJudgeIn(
     validation: StoreValidation,
     configured: readonly string[]
 ): (author: string) => boolean {
-    const authors = [
-        ...configured,
-        ...validation.quarantine.promotable.flatMap((v) =>
+    const authors = configured.concat(
+        validation.quarantine.promotable.flatMap((v) =>
             v.attestations.map((a) => a.author)
         ),
-        ...validation.quarantine.resolved.flatMap((r) =>
+        validation.quarantine.resolved.flatMap((r) =>
             r.accepted === null
                 ? []
                 : r.accepted.attestations.map((a) => a.author)
-        ),
-    ];
+        )
+    );
     const persons = personsOf(authors, decodeAliases(input).aliases);
     return referenceJudgeOf(configured, (a) => persons.get(a) ?? a);
 }
@@ -338,7 +337,9 @@ function decodeAliases(input: VerdictPromotionInput): {
 } {
     const aliases: VerdictAuthorAlias[] = [];
     const problems: string[] = [];
-    for (const { name, bytes } of decodeObjects(input.aliasObjects ?? [])) {
+    const entries = decodeObjects(input.aliasObjects ?? []);
+    for (let i = 0; i < entries.length; i++) {
+        const { name, bytes } = entries[i];
         try {
             aliases.push(decodeAliasObject(name, bytes));
         } catch (error) {
@@ -384,12 +385,13 @@ function admissionText(
         search: (verdictId, budget) =>
             searchVerdict(byId.get(verdictId)!, budget),
     });
-    return [
-        formatAdmissionProposal(proposal),
-        ...(problems.length > 0
-            ? ["", `alias problems: ${problems.length}`, ...problems]
-            : []),
-    ].join("\n");
+    return [formatAdmissionProposal(proposal)]
+        .concat(
+            problems.length > 0
+                ? ["", `alias problems: ${problems.length}`].concat(problems)
+                : []
+        )
+        .join("\n");
 }
 
 /** What `bun run verdicts:testers` prints (issue #3585). An alias that does
@@ -415,12 +417,12 @@ function testersText(
         `attestation problems: ${validation.attestationProblems.length}`,
         `resolution problems: ${validation.resolutionProblems.length}`,
     ];
-    return [
-        formatTesterQuality(report),
-        "",
-        ...unread,
-        ...(problems.length > 0
-            ? ["", `alias problems: ${problems.length}`, ...problems]
-            : []),
-    ].join("\n");
+    return [formatTesterQuality(report), ""]
+        .concat(
+            unread,
+            problems.length > 0
+                ? ["", `alias problems: ${problems.length}`].concat(problems)
+                : []
+        )
+        .join("\n");
 }

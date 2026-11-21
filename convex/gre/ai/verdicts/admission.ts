@@ -62,11 +62,13 @@ export function parseAdmissionConfig(raw: unknown): AdmissionConfig {
         throw new Error(`${where}: missing, or not an object`);
     }
     const r = raw as Record<string, unknown>;
-    for (const key of [
+    const keyList = [
         "minPersons",
         "minConsecutivePromotions",
         "iterations",
-    ] as const) {
+    ] as const;
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         if (!positiveInteger(r[key])) {
             throw new Error(
                 `${where}: "${key}" must be an integer >= 1, got ${JSON.stringify(r[key])}`
@@ -90,9 +92,9 @@ export function parseAdmissionConfig(raw: unknown): AdmissionConfig {
     }
     return {
         minPersons: r.minPersons as number,
-        ownerPersons: [...(r.ownerPersons as string[])],
+        ownerPersons: (r.ownerPersons as string[]).slice(),
         minConsecutivePromotions: r.minConsecutivePromotions as number,
-        seeds: [...(r.seeds as number[])],
+        seeds: (r.seeds as number[]).slice(),
         iterations: r.iterations as number,
     };
 }
@@ -173,15 +175,17 @@ function unitsOf(
         }))
     );
     const units: { ids: string[]; incomplete: boolean }[] = [];
-    for (const v of [...verdicts].sort((a, b) =>
-        byString(a.verdictId, b.verdictId)
-    )) {
+    const vList = verdicts
+        .slice()
+        .sort((a, b) => byString(a.verdictId, b.verdictId));
+    for (let i = 0; i < vList.length; i++) {
+        const v = vList[i];
         const standing = standings.get(v.verdictId);
         if (standing?.kind === "paired") {
             // A half travels with its anchor's unit.
             if (standing.role === "anchor") {
                 units.push({
-                    ids: [v.verdictId, ...standing.partnerIds],
+                    ids: [v.verdictId].concat(standing.partnerIds),
                     incomplete: false,
                 });
             }
@@ -210,13 +214,13 @@ export function proposeAdmissionCandidates(
             .filter((a) => a.sourceAxis === "explicit")
             .map((a) => a.author);
     const persons = personsOf(
-        [...input.verdicts.flatMap(explicitAuthors), ...config.ownerPersons],
+        input.verdicts.flatMap(explicitAuthors).concat(config.ownerPersons),
         input.aliases
     );
     const owners = new Set(config.ownerPersons.map((a) => persons.get(a)!));
     const budget: VerdictSearchBudget = {
         iterations: config.iterations,
-        seeds: [...config.seeds],
+        seeds: config.seeds.slice(),
     };
 
     const units: AdmissionUnit[] = unitsOf(input.verdicts).map(
@@ -251,7 +255,8 @@ export function proposeAdmissionCandidates(
                       ? "streak"
                       : null;
             if (refusal !== null) return { members, refusal };
-            for (const m of members) {
+            for (let i = 0; i < members.length; i++) {
+                const m = members[i];
                 m.search = input.search(m.verdictId, budget);
             }
             const allAgreed = members.every(
@@ -289,13 +294,20 @@ export function formatAdmissionProposal(proposal: AdmissionProposal): string {
         `  bar                    : >= ${c.minPersons} distinct persons (or one owner), satisfied >= ${c.minConsecutivePromotions} consecutive Promotions, never Contested, an allowed pick on every one of ${c.seeds.length} seeds at ${c.iterations} iterations (the committed Bot)`,
         `  streak ledger          : ${proposal.streakReset ?? "read over the committed lock"}`,
         `  locked units           : ${proposal.units.length} (a Minimal Pair is one unit)`,
-        ...REFUSALS.map((r) => `  refused — ${r.padEnd(16)}: ${count(r)}`),
-        `  candidates             : ${proposal.candidates.length}`,
-        `  the forced-loss check is the reviewer's: admit only a position whose wrong move loses something forced by the rules — a creature, the game — never "worse on average" (GLOSSARY.md § Admission)`,
-    ];
-    for (const unit of proposal.candidates) {
+    ].concat(
+        REFUSALS.map((r) => `  refused — ${r.padEnd(16)}: ${count(r)}`),
+        [
+            `  candidates             : ${proposal.candidates.length}`,
+            `  the forced-loss check is the reviewer's: admit only a position whose wrong move loses something forced by the rules — a creature, the game — never "worse on average" (GLOSSARY.md § Admission)`,
+        ]
+    );
+    const unitList = proposal.candidates;
+    for (let i = 0; i < unitList.length; i++) {
+        const unit = unitList[i];
         out.push("");
-        for (const m of unit.members) {
+        const mList = unit.members;
+        for (let j = 0; j < mList.length; j++) {
+            const m = mList[j];
             out.push(
                 `  ${m.verdictId}`,
                 `      persons  : ${m.persons.join(", ")}${m.owner ? "  (owner)" : ""}`,

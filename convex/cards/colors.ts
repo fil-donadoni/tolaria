@@ -19,13 +19,24 @@ export function getColorsFromCost(cost?: ManaCost): Color[] {
     // mana symbol, so a card with `{B/G}` is both black and green (issue #1338,
     // Hogaak). Collect every colour that appears in any hybrid pip.
     const hybridColors = new Set<Color>();
-    for (const pip of cost.hybrid ?? []) {
-        for (const c of pip) hybridColors.add(c);
+    const pipList = cost.hybrid ?? [];
+    for (let i = 0; i < pipList.length; i++) {
+        const pip = pipList[i];
+        for (let j = 0; j < pip.length; j++) {
+            const c = pip[j];
+            hybridColors.add(c);
+        }
     }
     // CR 105.2 — a monocolour hybrid pip `{2/W}` is a white mana symbol.
-    for (const pip of cost.hybridGeneric ?? []) hybridColors.add(pip.color);
+    const pipList2 = cost.hybridGeneric ?? [];
+    for (let i = 0; i < pipList2.length; i++) {
+        const pip = pipList2[i];
+        hybridColors.add(pip.color);
+    }
     const colors: Color[] = [];
-    for (const c of MANA_COLORS) {
+    const cList = MANA_COLORS;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
         if (c === "C") continue;
         // CR 105.2 — a Phyrexian mana symbol `{C/P}` is a coloured mana symbol,
         // so a card with `{U/P}` in its cost is blue even though it can be cast
@@ -71,7 +82,9 @@ export function getPipCountsFromCost(
 ): Partial<Record<Color, number>> {
     if (!cost) return {};
     const pips: Partial<Record<Color, number>> = {};
-    for (const c of MANA_COLORS) {
+    const cList = MANA_COLORS;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
         if (c === "C") continue;
         // CR 105.2 — a monocolour hybrid pip `{2/W}` counts once toward its
         // colour, like a Phyrexian pip.
@@ -153,19 +166,27 @@ export function getCardColorIdentity(def: CardDefinition): Color[] {
     if (def.manaCost) return getColorsFromCost(def.manaCost);
 
     const set = new Set<Color>();
-    for (const subtype of def.subtypes ?? []) {
+    const subtypeList = def.subtypes ?? [];
+    for (let i = 0; i < subtypeList.length; i++) {
+        const subtype = subtypeList[i];
         const c = LAND_SUBTYPE_MANA[subtype];
         if (c) set.add(c);
     }
-    for (const ability of def.activatedAbilities ?? []) {
+    const abilityList = def.activatedAbilities ?? [];
+    for (let i = 0; i < abilityList.length; i++) {
+        const ability = abilityList[i];
         if (ability.manaProduced) {
-            for (const c of COLORED) {
+            for (let j = 0; j < COLORED.length; j++) {
+                const c = COLORED[j];
                 if ((ability.manaProduced[c] ?? 0) > 0) set.add(c);
             }
         }
         if (ability.manaChoices) {
-            for (const choice of ability.manaChoices) {
-                for (const c of COLORED) {
+            const choiceList = ability.manaChoices;
+            for (let j = 0; j < choiceList.length; j++) {
+                const choice = choiceList[j];
+                for (let k = 0; k < COLORED.length; k++) {
+                    const c = COLORED[k];
                     if ((choice[c] ?? 0) > 0) set.add(c);
                 }
             }
@@ -173,7 +194,10 @@ export function getCardColorIdentity(def: CardDefinition): Color[] {
     }
 
     const out: Color[] = [];
-    for (const c of COLORED) if (set.has(c)) out.push(c);
+    for (let i = 0; i < COLORED.length; i++) {
+        const c = COLORED[i];
+        if (set.has(c)) out.push(c);
+    }
     return out;
 }
 
@@ -190,9 +214,14 @@ export function deckColorsOfNonlands(
     cards: Iterable<{ isLand: boolean; colors: readonly string[] }>
 ): string[] {
     const set = new Set<string>();
+    // eslint-disable-next-line no-restricted-syntax -- an iterable or generator, not an array (issue #10126)
     for (const card of cards) {
         if (card.isLand) continue;
-        for (const c of card.colors) set.add(c);
+        const cList = card.colors;
+        for (let i = 0; i < cList.length; i++) {
+            const c = cList[i];
+            set.add(c);
+        }
     }
     return WUBRG_ORDER.filter((c) => set.has(c));
 }

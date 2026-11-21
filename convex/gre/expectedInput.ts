@@ -169,7 +169,9 @@ export function computeOwedPlayerIds(state: GameState): string[] {
  *  chose reads `computeOwedPlayerIds` instead. */
 export function computeOwedActingPlayerIds(state: GameState): string[] {
     const acting: string[] = [];
-    for (const seatId of computeOwedPlayerIds(state)) {
+    const seatIdList = computeOwedPlayerIds(state);
+    for (let i = 0; i < seatIdList.length; i++) {
+        const seatId = seatIdList[i];
         const id = actingPlayerFor(state, seatId);
         if (!acting.includes(id)) acting.push(id);
     }

@@ -55,7 +55,9 @@ export function applyRequirementToPendingTarget(
     // forgotten here silently leaks the previous group's constraint into the
     // next one (Fumarole's creature-then-land walk), and ten permanent-kind
     // filters had already drifted out of it.
-    for (const key of Object.keys(PENDING_TARGET_FILTER_KEYS)) {
+    const keyList = Object.keys(PENDING_TARGET_FILTER_KEYS);
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         (pt as Record<string, unknown>)[key] = undefined;
     }
     pt.zone = undefined;
@@ -97,7 +99,7 @@ export function excludingPriorTargets(
     if (priorIds.length === 0) return req;
     return {
         ...req,
-        excludeInstanceIds: [...(req.excludeInstanceIds ?? []), ...priorIds],
+        excludeInstanceIds: (req.excludeInstanceIds ?? []).concat(priorIds),
     };
 }
 
@@ -148,7 +150,7 @@ export function advancePendingTargetGroup(
     const [next, ...rest] = remaining;
     // ADR 0094 — credit the finished group to its mode instance first.
     recordModeTargetGroup(pt, pt.selected.length);
-    pt.priorSelected = [...(pt.priorSelected ?? []), ...pt.selected];
+    pt.priorSelected = (pt.priorSelected ?? []).concat(pt.selected);
     pt.remainingRequirements = rest.length > 0 ? rest : undefined;
     // CR 115.7d — what the next group may leave unchanged.
     pt.keepableTargetGroups = pt.keepableTargetGroups?.slice(1);

@@ -10,8 +10,13 @@
  *  win: the normal case, not an edge case. */
 export function tallyVotes(votes: readonly string[]): string[] {
     const counts = new Map<string, number>();
-    for (const vote of votes) counts.set(vote, (counts.get(vote) ?? 0) + 1);
+    for (let i = 0; i < votes.length; i++) {
+        const vote = votes[i];
+        counts.set(vote, (counts.get(vote) ?? 0) + 1);
+    }
     let most = 0;
-    for (const count of counts.values()) most = Math.max(most, count);
+    counts.forEach((count) => {
+        most = Math.max(most, count);
+    });
     return [...counts].filter(([, count]) => count === most).map(([id]) => id);
 }

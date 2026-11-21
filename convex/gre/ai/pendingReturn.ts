@@ -56,7 +56,8 @@ function battlefieldReturnsIn(
     body: readonly EffectOp[]
 ): Map<string, ObjectMoveZoneOp> {
     const out = new Map<string, ObjectMoveZoneOp>();
-    for (const op of body) {
+    for (let i = 0; i < body.length; i++) {
+        const op = body[i];
         if (op.op !== "moveZone" || !("target" in op)) continue;
         if (op.to !== "battlefield") continue;
         const from = "from" in op ? op.from : undefined;
@@ -74,18 +75,22 @@ export function blinkReturnedBindings(
     effects: readonly EffectOp[]
 ): Set<string> {
     const returned = new Set<string>();
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         if (op.op !== "delayedTrigger") continue;
         if (!PHASE_BOUNDARY_TIMINGS.has(op.timing)) continue;
         const returns = battlefieldReturnsIn(op.effects);
-        for (const [bodyName, source] of Object.entries(op.capture ?? {})) {
+        const entries2 = Object.entries(op.capture ?? {});
+        for (let j = 0; j < entries2.length; j++) {
+            const [bodyName, source] = entries2[j];
             if (!returns.has(bodyName)) continue;
             if (typeof source !== "object" || !("ref" in source)) continue;
             returned.add(source.ref);
         }
     }
     const exiled = new Set<string>();
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         if (op.op === "exile" && op.bind && returned.has(op.bind)) {
             exiled.add(op.bind);
         }
@@ -118,15 +123,19 @@ export function pendingBattlefieldReturns(state: GameState): PendingReturn[] {
     const out: PendingReturn[] = [];
     // Two triggers naming one card return it once.
     const seen = new Set<string>();
-    for (const trigger of state.delayedTriggers ?? []) {
+    const triggerList = state.delayedTriggers ?? [];
+    for (let i = 0; i < triggerList.length; i++) {
+        const trigger = triggerList[i];
         if (!trigger.effects) continue;
         if (!PHASE_BOUNDARY_TIMINGS.has(trigger.timing)) continue;
-        for (const [ref, op] of battlefieldReturnsIn(trigger.effects)) {
+        battlefieldReturnsIn(trigger.effects).forEach((op, ref) => {
             // Payload keys are stored without the `$` sigil (Convex reserves
             // it), and re-bound with it at fire time.
             const id = trigger.payload[ref.slice(1)];
-            if (typeof id !== "string") continue;
-            for (const owner of state.players) {
+            if (typeof id !== "string") return;
+            const ownerList = state.players;
+            for (let i = 0; i < ownerList.length; i++) {
+                const owner = ownerList[i];
                 const card = owner.exile.find((c) => c.id === id);
                 if (!card || seen.has(card.id)) continue;
                 seen.add(card.id);
@@ -137,11 +146,15 @@ export function pendingBattlefieldReturns(state: GameState): PendingReturn[] {
                     out.push({ card, to: trigger.controller, timing });
                 }
             }
-        }
+        });
     }
-    for (const bundle of state.phasedOut ?? []) {
+    const bundleList = state.phasedOut ?? [];
+    for (let i = 0; i < bundleList.length; i++) {
+        const bundle = bundleList[i];
         if (bundle.returnOn.kind !== "untap-cycle") continue;
-        for (const card of bundle.cards) {
+        const cardList = bundle.cards;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             out.push({
                 card,
                 to: card.controllerId,
@@ -237,14 +250,13 @@ export function stateWithPendingReturns(
             if (mine.length === 0) return p;
             return {
                 ...p,
-                battlefield: [
-                    ...p.battlefield,
-                    ...mine.map((r) => ({
+                battlefield: p.battlefield.concat(
+                    mine.map((r) => ({
                         ...r.card,
                         controllerId: p.id,
                         isTapped: false,
-                    })),
-                ],
+                    }))
+                ),
             };
         }),
     };

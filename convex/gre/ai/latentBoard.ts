@@ -162,7 +162,9 @@ export function targetSlotRequirements(
     >
 ): TargetRequirement[] {
     const slots: TargetRequirement[] = [];
-    for (const req of targetRequirementGroups(def)) {
+    const reqList = targetRequirementGroups(def);
+    for (let j = 0; j < reqList.length; j++) {
+        const req = reqList[j];
         for (let i = 0; i < (authoredSlotCount(req) ?? 1); i++) slots.push(req);
     }
     return slots;
@@ -181,7 +183,9 @@ export function openEndedSlotRequirement(
     >
 ): TargetRequirement | undefined {
     let openEnded: TargetRequirement | undefined;
-    for (const req of targetRequirementGroups(def)) {
+    const reqList = targetRequirementGroups(def);
+    for (let i = 0; i < reqList.length; i++) {
+        const req = reqList[i];
         if (authoredSlotCount(req) === undefined) openEnded = req;
     }
     return openEnded;
@@ -196,7 +200,9 @@ function targetRequirementGroups(
 ): TargetRequirement[] {
     const groups: TargetRequirement[] = [];
     if (def.targetRequirement) groups.push(def.targetRequirement);
-    for (const extra of def.additionalTargetRequirements ?? []) {
+    const extraList = def.additionalTargetRequirements ?? [];
+    for (let i = 0; i < extraList.length; i++) {
+        const extra = extraList[i];
         groups.push(extra);
     }
     return groups;
@@ -253,7 +259,7 @@ export function withCardEntered(
                     ? {
                           ...p,
                           hand: p.hand.filter((c) => c.id !== card.id),
-                          battlefield: [...p.battlefield, perm],
+                          battlefield: p.battlefield.concat([perm]),
                       }
                     : p
             ),
@@ -356,8 +362,11 @@ export function makeLatentBoardLens(
             return undefined;
         }
         let best = 0;
-        for (const target of permanentSlots) {
-            for (const player of state.players) {
+        for (let i = 0; i < permanentSlots.length; i++) {
+            const target = permanentSlots[i];
+            const playerList = state.players;
+            for (let j = 0; j < playerList.length; j++) {
+                const player = playerList[j];
                 // The caster's OWN board is not a victim: destroying it is a
                 // cost the search will find on its own, never latent worth
                 // held in hand.
@@ -378,14 +387,18 @@ export function makeLatentBoardLens(
         if (!requirement) return undefined;
         const source = pendingTargetingSource(state, card.id, "cast");
         const found: { perm: CardInstanceState; ownerId: string }[] = [];
-        for (const target of getLegalTargets(
+        const targetList = getLegalTargets(
             state,
             requirement,
             source,
             casterId
-        )) {
+        );
+        for (let i = 0; i < targetList.length; i++) {
+            const target = targetList[i];
             if (target.type !== "permanent") continue;
-            for (const player of state.players) {
+            const playerList = state.players;
+            for (let j = 0; j < playerList.length; j++) {
+                const player = playerList[j];
                 const perm = player.battlefield.find((p) => p.id === target.id);
                 if (perm) found.push({ perm, ownerId: player.id });
             }
@@ -450,8 +463,10 @@ export function makeLatentBoardLens(
         const victims = legalCombatants(slots[otherSlot] ?? openEnded);
         if (!fighters || !victims) return undefined;
         let best: number | undefined;
-        for (const f of fighters) {
-            for (const v of victims) {
+        for (let i = 0; i < fighters.length; i++) {
+            const f = fighters[i];
+            for (let j = 0; j < victims.length; j++) {
+                const v = victims[j];
                 if (f.perm.id === v.perm.id) continue;
                 // A creature that dies is the caster's gain when an
                 // opponent's, its cost when the caster's own.
@@ -557,7 +572,9 @@ export function makeLatentBoardLens(
             };
             const boardDraw = () =>
                 boardLibraryMean(state, weights, returnedWorth);
-            for (const player of state.players) {
+            const playerList = state.players;
+            for (let i = 0; i < playerList.length; i++) {
+                const player = playerList[i];
                 const side = boardSide(
                     state,
                     player,
@@ -706,13 +723,21 @@ const EACH_STEP_PLAYER_TARGETS = new WeakMap<
  *  outright. */
 export function armedStepTargetGates(state: GameState): string[] | undefined {
     let armed: string[] | undefined;
-    for (const owner of state.players) {
-        for (const perm of owner.battlefield) {
+    const ownerList = state.players;
+    for (let i = 0; i < ownerList.length; i++) {
+        const owner = ownerList[i];
+        const permList = owner.battlefield;
+        for (let j = 0; j < permList.length; j++) {
+            const perm = permList[j];
             const def = tryGetDefinition(String(perm.card.id ?? ""));
             if (!def) continue;
-            for (const requirement of eachStepPlayerTargets(def)) {
+            const requirementList = eachStepPlayerTargets(def);
+            for (let k = 0; k < requirementList.length; k++) {
+                const requirement = requirementList[k];
                 armed ??= [];
-                for (const active of state.players) {
+                const activeList = state.players;
+                for (let m = 0; m < activeList.length; m++) {
+                    const active = activeList[m];
                     if (
                         stepTargetHolds(
                             requirement,
@@ -753,7 +778,9 @@ function boardSide(
         handWorth() {
             answered = true;
             let worth = 0;
-            for (const c of player.hand) {
+            const cList = player.hand;
+            for (let i = 0; i < cList.length; i++) {
+                const c = cList[i];
                 if (c.id !== valuedCardId) worth += returnedWorth(c);
             }
             return worth;
@@ -765,7 +792,11 @@ function boardSide(
                 .map((c) => returnedWorth(c))
                 .sort((a, b) => a - b);
             let worth = 0;
-            for (const w of worths.slice(0, count)) worth += w;
+            const wList = worths.slice(0, count);
+            for (let i = 0; i < wList.length; i++) {
+                const w = wList[i];
+                worth += w;
+            }
             return worth;
         },
         randomDiscardUnits(count) {
@@ -780,7 +811,10 @@ function boardSide(
             answered = true;
             if (hand.length === 0 || count <= 0) return 0;
             let sum = 0;
-            for (const w of hand) sum += w;
+            for (let i = 0; i < hand.length; i++) {
+                const w = hand[i];
+                sum += w;
+            }
             // CR 701.9b — a random discard: no chooser keeps its best.
             const discarded = Math.min(count, hand.length);
             return ((sum / hand.length) * discarded) / scale;
@@ -845,7 +879,7 @@ function boardSide(
             answered = true;
             const drawn = Math.min(count, library.size);
             if (drawn <= 0 || scale <= 0) return 0;
-            const withDraws = [...landing];
+            const withDraws = landing.slice();
             for (let i = 0; i < drawn; i++) withDraws.push(library.mean);
             // CR 514.1 / 402.2 — the cleanup discard keeps the player's best
             // cards up to the maximum hand size, read over the hands that
@@ -874,7 +908,9 @@ function boardSide(
             }
             answered = true;
             const losses: number[] = [];
-            for (const perm of player.battlefield) {
+            const permList = player.battlefield;
+            for (let i = 0; i < permList.length; i++) {
+                const perm = permList[i];
                 const view = effectivePermanentView(state, perm);
                 if (
                     filter !== undefined &&
@@ -888,7 +924,11 @@ function boardSide(
             }
             losses.sort((a, b) => a - b);
             let taken = 0;
-            for (const loss of losses.slice(0, count)) taken += loss;
+            const lossList = losses.slice(0, count);
+            for (let i = 0; i < lossList.length; i++) {
+                const loss = lossList[i];
+                taken += loss;
+            }
             return taken / denominator;
         },
         bounceUnits(effectFilter, count) {
@@ -900,7 +940,9 @@ function boardSide(
             answered = true;
             const lossOf = memberLoss(RETURNS, realisedLoss, returnedWorth);
             const nets: number[] = [];
-            for (const perm of player.battlefield) {
+            const permList = player.battlefield;
+            for (let i = 0; i < permList.length; i++) {
+                const perm = permList[i];
                 const view = effectivePermanentView(state, perm);
                 if (
                     filter !== undefined &&
@@ -920,7 +962,11 @@ function boardSide(
             }
             nets.sort((a, b) => a - b);
             let net = 0;
-            for (const n of nets.slice(0, count)) net += n;
+            const nList = nets.slice(0, count);
+            for (let i = 0; i < nList.length; i++) {
+                const n = nList[i];
+                net += n;
+            }
             return net / denominator;
         },
         manaUnits(mana) {
@@ -989,7 +1035,9 @@ function libraryMatchWorths(
         return hit.worths;
     }
     const worths: number[] = [];
-    for (const c of player.library) {
+    const cList = player.library;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
         const landed: CardInstanceState = {
             ...c,
             zone: "battlefield",
@@ -1036,7 +1084,9 @@ function spendableExtraMana(
 ): number {
     const base = boardCensusFor(state, player).base;
     const extra: ReadonlySet<Color>[] = [];
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let j = 0; j < colorList.length; j++) {
+        const color = colorList[j];
         // A computed amount (a `count`, a `ref`) is not grounded here: it reads
         // 0, the under-read this function declares as its safe direction.
         const pips = mana[color];
@@ -1046,7 +1096,9 @@ function spendableExtraMana(
     }
     const life = { life: player.life };
     let spent = 0;
-    for (const c of player.hand) {
+    const cList = player.hand;
+    for (let j = 0; j < cList.length; j++) {
+        const c = cList[j];
         if (c.id === valuedCardId) continue;
         const cost = getInstanceManaCost(c);
         if (canPayCost(base, cost, life)) continue;
@@ -1184,7 +1236,10 @@ function libraryMean(
     let mean: number | undefined;
     if (library.length > 0 && !library.some(isPlaceholder)) {
         let total = 0;
-        for (const c of library) total += worth(c);
+        for (let i = 0; i < library.length; i++) {
+            const c = library[i];
+            total += worth(c);
+        }
         mean = total / library.length;
     }
     LIBRARY_MEAN_MEMO.set(library, { weights, mean });
@@ -1207,7 +1262,9 @@ function boardLibraryMean(
 ): number | undefined {
     let total = 0;
     let readable = 0;
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         if (player.library.length === 0) continue;
         const mean = libraryMean(player.library, weights, worth);
         if (mean === undefined) return undefined;
@@ -1225,7 +1282,8 @@ function handValues(
     worth: RealisedLoss
 ): number[] | undefined {
     const values: number[] = [];
-    for (const c of hand) {
+    for (let i = 0; i < hand.length; i++) {
+        const c = hand[i];
         if (isPlaceholder(c)) return undefined;
         if (c.id !== valuedCardId) values.push(worth(c));
     }
@@ -1243,8 +1301,9 @@ function handAfter(
     before: readonly HandStep[],
     graveyard: readonly number[]
 ): number[] {
-    let current = [...hand];
-    for (const step of before) {
+    let current = hand.slice();
+    for (let j = 0; j < before.length; j++) {
+        const step = before[j];
         switch (step.kind) {
             case "leaves":
                 current = [];
@@ -1258,7 +1317,8 @@ function handAfter(
                 break;
             case "discards":
                 // The chooser keeps its best (`discardWorth`).
-                current = [...current]
+                current = current
+                    .slice()
                     .sort((a, b) => a - b)
                     .slice(Math.max(0, step.count));
                 break;
@@ -1292,7 +1352,7 @@ function isPlaceholder(c: CardInstanceState): boolean {
  *  hand of those cards holds after the cleanup discard (CR 514.1). */
 function keptWorth(values: readonly number[], cap: number): number {
     if (values.length <= cap) return values.reduce((a, b) => a + b, 0);
-    const best = [...values].sort((a, b) => b - a);
+    const best = values.slice().sort((a, b) => b - a);
     let kept = 0;
     for (let i = 0; i < cap; i++) kept += best[i];
     return kept;
@@ -1393,11 +1453,15 @@ function sweptNetLoss(
     // split the same way.
     const fixed = new SweepLedger();
     const recoverable = new SweepLedger();
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const own = player.id === casterId;
         if (controller === "controller" && !own) continue;
         if (controller === "opponent" && own) continue;
-        for (const perm of player.battlefield) {
+        const permList = player.battlefield;
+        for (let j = 0; j < permList.length; j++) {
+            const perm = permList[j];
             // The same live view the resolution's `getBattlefieldIds` matches
             // against (layer-5 colours, layer-7 toughness, live supertypes).
             const view = effectivePermanentView(state, perm);
@@ -1480,10 +1544,14 @@ function zoneChanges(
     ledgers: readonly SweepLedger[]
 ): Map<string, SweepZoneChange> {
     const changes = new Map<string, SweepZoneChange>();
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const leaving = new Set<string>();
         const returned: CardInstanceState[] = [];
-        for (const ledger of ledgers) {
+        for (let j = 0; j < ledgers.length; j++) {
+            const ledger = ledgers[j];
+            // eslint-disable-next-line no-restricted-syntax -- a Set or an empty array, with an early exit (issue #10126)
             for (const id of ledger.leaving.get(player.id) ?? []) {
                 leaving.add(id);
             }
@@ -1508,11 +1576,11 @@ export function asReturnedToHand(perm: CardInstanceState): CardInstanceState {
         ...perm,
         zone: "hand",
         isTapped: false,
-        types: [...(perm.baseTypes ?? perm.types)],
-        subtypes: [...(perm.baseSubtypes ?? perm.subtypes)],
-        staticAbilities: [
-            ...(perm.baseStaticAbilities ?? perm.staticAbilities),
-        ],
+        types: (perm.baseTypes ?? perm.types).slice(),
+        subtypes: (perm.baseSubtypes ?? perm.subtypes).slice(),
+        staticAbilities: (
+            perm.baseStaticAbilities ?? perm.staticAbilities
+        ).slice(),
     };
     clearCardFieldsAt(card, "zone-change");
     return card;

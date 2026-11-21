@@ -120,12 +120,16 @@ export function resolveZoneCharacteristics(
     if (!def || !spec || zone === "battlefield") return null;
     // CR 205.1b — "in addition to its other types": additive, and never a
     // duplicate entry (a card already printed as a Creature stays one type).
-    const types = [...def.types];
-    for (const t of spec.addTypes ?? []) {
+    const types = def.types.slice();
+    const tList = spec.addTypes ?? [];
+    for (let i = 0; i < tList.length; i++) {
+        const t = tList[i];
         if (!types.includes(t)) types.push(t);
     }
-    const subtypes = [...(def.subtypes ?? [])];
-    for (const s of spec.addSubtypes ?? []) {
+    const subtypes = (def.subtypes ?? []).slice();
+    const sList = spec.addSubtypes ?? [];
+    for (let i = 0; i < sList.length; i++) {
+        const s = sList[i];
         if (!subtypes.includes(s)) subtypes.push(s);
     }
     return {
@@ -214,8 +218,8 @@ export function clearZoneCharacteristics(card: CardInstanceState): void {
     if (!cardId || !declaresOffBattlefieldCharacteristics(cardId)) return;
     const def = tryGetDefinition(cardId);
     if (!def?.offBattlefieldCharacteristics) return;
-    card.types = [...def.types];
-    card.subtypes = [...(def.subtypes ?? [])];
+    card.types = def.types.slice();
+    card.subtypes = (def.subtypes ?? []).slice();
     card.power = def.power;
     card.toughness = def.toughness;
 }
@@ -256,10 +260,28 @@ export function clearZoneCharacteristics(card: CardInstanceState): void {
  *  cost removed, ~35ms → ~10ms per search. Do NOT reintroduce a per-card
  *  `getDefinition` here. */
 export function refreshOffBattlefieldCharacteristics(state: GameState): void {
-    for (const player of state.players) {
-        for (const card of player.hand) applyZoneCharacteristics(card);
-        for (const card of player.library) applyZoneCharacteristics(card);
-        for (const card of player.graveyard) applyZoneCharacteristics(card);
-        for (const card of player.exile) applyZoneCharacteristics(card);
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.hand;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
+            applyZoneCharacteristics(card);
+        }
+        const cardList2 = player.library;
+        for (let j = 0; j < cardList2.length; j++) {
+            const card = cardList2[j];
+            applyZoneCharacteristics(card);
+        }
+        const cardList3 = player.graveyard;
+        for (let j = 0; j < cardList3.length; j++) {
+            const card = cardList3[j];
+            applyZoneCharacteristics(card);
+        }
+        const cardList4 = player.exile;
+        for (let j = 0; j < cardList4.length; j++) {
+            const card = cardList4[j];
+            applyZoneCharacteristics(card);
+        }
     }
 }

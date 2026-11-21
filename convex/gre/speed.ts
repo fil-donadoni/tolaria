@@ -64,8 +64,12 @@ function hasStartYourEngines(card: CardInstanceState): boolean {
  *  whether anything changed, for the SBA fixpoint. */
 export function checkStartYourEnginesSBA(state: GameState): boolean {
     let changed = false;
-    for (const owner of state.players) {
-        for (const card of owner.battlefield) {
+    const ownerList = state.players;
+    for (let i = 0; i < ownerList.length; i++) {
+        const owner = ownerList[i];
+        const cardList = owner.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (!hasStartYourEngines(card)) continue;
             const controller = state.players.find(
                 (p) => p.id === card.controllerId

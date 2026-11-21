@@ -26,10 +26,9 @@ export function printingsWithHome(
         printId: definitionId,
         setCode: getDefinitionSetCode(definitionId),
     };
-    const all = [
-        home,
-        ...rows.map((row) => ({ printId: row.printId, setCode: row.set })),
-    ];
+    const all = [home].concat(
+        rows.map((row) => ({ printId: row.printId, setCode: row.set }))
+    );
     if (allowedSets === null) return all;
     const allowed = new Set(allowedSets);
     return all.filter((p) => allowed.has(p.setCode));
@@ -53,7 +52,8 @@ export function earliestLegalPrintId(
         definitionId,
         row ? [row] : []
     );
-    for (const printing of candidates) {
+    for (let j = 0; j < candidates.length; j++) {
+        const printing = candidates[j];
         const rank = order.get(printing.setCode);
         if (rank !== undefined && rank < bestRank) {
             bestRank = rank;

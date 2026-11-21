@@ -57,7 +57,8 @@ export function phasingTurnBasedAction(
     const bundlesBefore = state.phasedOut?.length ?? 0;
     phaseInUntapCycleBundles(state, activePlayerId);
     const phasedIn = (state.phasedOut?.length ?? 0) !== bundlesBefore;
-    for (const card of phasingOutDirectly) {
+    for (let i = 0; i < phasingOutDirectly.length; i++) {
+        const card = phasingOutDirectly[i];
         phaseOutPermanent(state, card.id, {
             returnOn: { kind: "untap-cycle" },
         });

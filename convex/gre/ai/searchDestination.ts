@@ -171,9 +171,14 @@ function chosenModeEffects(
 
 /** Every Op in `effects`, at any nesting depth, flattened. */
 function flattenOps(effects: readonly EffectOp[], out: EffectOp[]): EffectOp[] {
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         out.push(op);
-        for (const child of childOpArrays(op)) flattenOps(child, out);
+        const childList = childOpArrays(op);
+        for (let j = 0; j < childList.length; j++) {
+            const child = childList[j];
+            flattenOps(child, out);
+        }
     }
     return out;
 }
@@ -197,7 +202,8 @@ function choiceOpFor(
     // declares the authored name.
     const authored = unscopedBindingName(choiceId);
     let found: { op: EffectOp; bind: string } | undefined;
-    for (const op of ops) {
+    for (let i = 0; i < ops.length; i++) {
+        const op = ops[i];
         if (op.op !== "choice") continue;
         if ((op.id ?? op.bind) !== authored) continue;
         // The SAME Op seen twice is one choice: `chosenModeEffects` flattens a
@@ -243,7 +249,8 @@ function moveDestinationFor(
     bind: string
 ): SearchFindDestination | undefined {
     let destination: SearchFindDestination | undefined;
-    for (const op of ops) {
+    for (let i = 0; i < ops.length; i++) {
+        const op = ops[i];
         if (op.op !== "moveZone") continue;
         // Only the `cards`-shape consumes a picks binding; the announced-target
         // and whole-zone shapes carry no `cards` at all.

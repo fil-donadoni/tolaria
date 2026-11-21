@@ -90,7 +90,9 @@ function rewriteColorWordInString(s: string, from: string, to: string): string {
  *  (e.g. `"Forest"` → `"forestwalk"`). Built lazily from `LANDWALK_KEYWORDS`
  *  to avoid a module-init dependency in the constants ⇄ textChanges cycle. */
 function landwalkForSubtype(subtype: string): string | null {
-    for (const [keyword, sub] of Object.entries(LANDWALK_KEYWORDS)) {
+    const entries2 = Object.entries(LANDWALK_KEYWORDS);
+    for (let i = 0; i < entries2.length; i++) {
+        const [keyword, sub] = entries2[i];
         if (sub === subtype) return keyword;
     }
     return null;
@@ -146,7 +148,10 @@ export function textChangesOf(
     if (instance.textChanges) return instance.textChanges;
     const holds = instance.textChangeHolds;
     if (!holds || holds.length === 0) return [];
-    return [...holds].sort((a, b) => a.seq - b.seq).map((h) => h.change);
+    return holds
+        .slice()
+        .sort((a, b) => a.seq - b.seq)
+        .map((h) => h.change);
 }
 
 export function applySubstitution(
@@ -167,7 +172,8 @@ export function applySubstitution(
     let subtypes = instance.subtypes;
     let staticAbilities = instance.staticAbilities;
     // CR 612.6 — multiple text changes apply in timestamp (array) order.
-    for (const change of changes) {
+    for (let i = 0; i < changes.length; i++) {
+        const change = changes[i];
         switch (change.kind) {
             case "land-type": {
                 if (subtypes.includes(change.from)) {
@@ -221,11 +227,15 @@ export function landTypesPresent(
 ): string[] {
     const view = applySubstitution(instance);
     const present = new Set<string>();
-    for (const subtype of view.subtypes) {
+    const subtypeList = view.subtypes;
+    for (let i = 0; i < subtypeList.length; i++) {
+        const subtype = subtypeList[i];
         // A basic land subtype iff some landwalk keyword references it.
         if (landwalkForSubtype(subtype) !== null) present.add(subtype);
     }
-    for (const ability of view.staticAbilities) {
+    const abilityList = view.staticAbilities;
+    for (let i = 0; i < abilityList.length; i++) {
+        const ability = abilityList[i];
         const subtype = LANDWALK_KEYWORDS[ability];
         if (subtype) present.add(subtype);
     }
@@ -245,7 +255,8 @@ export function substituteColorFilter(
     let word = COLOR_CODE_TO_WORD[color];
     if (!word) return color; // colorless source — no color word to change
     // CR 612.6 — chained changes apply in timestamp (array) order.
-    for (const change of changes) {
+    for (let i = 0; i < changes.length; i++) {
+        const change = changes[i];
         if (change.kind === "color-word" && change.from === word) {
             word = change.to;
         }
@@ -269,12 +280,16 @@ export function colorWordsPresent(
 ): string[] {
     const view = applySubstitution(instance);
     const present = new Set<string>();
-    for (const ability of view.staticAbilities) {
-        for (const word of COLOR_WORDS) {
+    const abilityList = view.staticAbilities;
+    for (let i = 0; i < abilityList.length; i++) {
+        const ability = abilityList[i];
+        for (let j = 0; j < COLOR_WORDS.length; j++) {
+            const word = COLOR_WORDS[j];
             if (new RegExp(`\\b${word}\\b`).test(ability)) present.add(word);
         }
     }
-    for (const code of extraColorCodes) {
+    for (let i = 0; i < extraColorCodes.length; i++) {
+        const code = extraColorCodes[i];
         const word = colorWordForCode(substituteColorFilter(instance, code));
         if (word) present.add(word);
     }

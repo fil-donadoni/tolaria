@@ -81,4 +81,27 @@ export default defineConfig([
             ],
         },
     },
+    {
+        // Issue #10126 — the engine the Brain searches runs no `for…of`.
+        // SpiderMonkey pays the iterator protocol (its self-hosted `next`) on
+        // every one; V8 inlines it away. Measured at 4–8% of every Firefox
+        // search (`docs/research/gecko-search-gap.md` § 1). Arrays loop by
+        // index, a Map or Set with no early exit by `forEach`. A loop that
+        // needs the protocol (a generator, an early exit from a Map or Set)
+        // carries an `eslint-disable-next-line no-restricted-syntax` naming
+        // why. Array spread (`[...a]`) pays the same protocol but a lint rule
+        // cannot see the operand's type: `concat`/`slice` by convention.
+        files: ["convex/gre/**/*.ts", "convex/cards/**/*.ts"],
+        ignores: ["**/__tests__/**", "**/*.test.ts", "convex/cards/sets/**"],
+        rules: {
+            "no-restricted-syntax": [
+                "error",
+                {
+                    selector: "ForOfStatement",
+                    message:
+                        "No `for…of` in the engine: SpiderMonkey pays the iterator protocol on every one (issue #10126). Loop an array by index, a Map/Set by `forEach`.",
+                },
+            ],
+        },
+    },
 ]);

@@ -58,6 +58,7 @@ export function leastCommittalGrade(
     grades: Iterable<VerdictGrade>
 ): VerdictGrade {
     let out: VerdictGrade = "clear";
+    // eslint-disable-next-line no-restricted-syntax -- an iterable or generator, not an array (issue #10126)
     for (const grade of grades) {
         if (COMMITMENT[grade] > COMMITMENT[out]) out = grade;
     }
@@ -163,7 +164,7 @@ export const copyReading = (reading: VerdictReading): VerdictReading =>
         ? { grade: reading.grade }
         : {
               grade: reading.grade,
-              acceptedIndexes: [...reading.acceptedIndexes],
+              acceptedIndexes: reading.acceptedIndexes.slice(),
           };
 
 /** The Reference Judge's configured authors — `tolaria.config.json`
@@ -184,7 +185,7 @@ export function parseReferenceJudgeConfig(raw: unknown): string[] {
             'tolaria.config.json § referenceJudge: "authors" must list `${deployment}:${userId}` authors'
         );
     }
-    return [...authors];
+    return authors.slice();
 }
 
 /** Who holds the Reference Judge role: an author whose PERSON is one a

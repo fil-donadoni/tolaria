@@ -48,5 +48,5 @@ export function expandCipher(def: CardDefinition): CardDefinition {
     if (!def.staticAbilities?.includes(CIPHER_KEYWORD)) return def;
     const effects = def.effects ?? [];
     if (effects.includes(CIPHER_ENCODE_STEP)) return def;
-    return { ...def, effects: [...effects, CIPHER_ENCODE_STEP] };
+    return { ...def, effects: effects.concat([CIPHER_ENCODE_STEP]) };
 }

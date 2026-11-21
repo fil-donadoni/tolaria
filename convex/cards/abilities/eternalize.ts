@@ -72,7 +72,7 @@ export function eternalizeAbility(
     id = "eternalize"
 ): ActivatedAbility {
     const label = keywordCostLabel(cost);
-    const body = [ETERNALIZE_SUBTYPE, ...subtypes].join(" ");
+    const body = [ETERNALIZE_SUBTYPE].concat(subtypes).join(" ");
     return {
         id,
         oracleText:

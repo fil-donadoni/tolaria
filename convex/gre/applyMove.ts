@@ -333,7 +333,8 @@ export function applyDelveExileForSearch(
     // is observable (threshold, delirium, escape fodder, a graveyard-counting
     // CDA).
     const exiled = cheapestFirst(fuelCards).slice(0, delveCount);
-    for (const c of exiled) {
+    for (let i = 0; i < exiled.length; i++) {
+        const c = exiled[i];
         moveCard(player, c.id, fuel.zone, "exile", state);
     }
     // CR 607.2q — the exiled ids, stamped on the stack item as the cards
@@ -396,8 +397,10 @@ export function applyAdditionalCostLegForSearch(
         eligible.map((c) => c.id)
     );
     if (!picks) return;
-    for (const c of picks)
+    for (let i = 0; i < picks.length; i++) {
+        const c = picks[i];
         discardToGraveyard(state, playerId, c.id, { kind: "cost" });
+    }
 }
 
 /** CR 118.9 / 601.2h (issue #4900) — pay the HAND leg of the alternative
@@ -460,7 +463,10 @@ export function applyAlternativeCostGraveyardLegForSearch(
     const player = getPlayer(state, playerId);
     const cards = altCostGraveyardExileCards(player, alt, spell.id);
     if (!cards) return false;
-    for (const c of cards) moveCard(player, c.id, "graveyard", "exile", state);
+    for (let i = 0; i < cards.length; i++) {
+        const c = cards[i];
+        moveCard(player, c.id, "graveyard", "exile", state);
+    }
     return true;
 }
 
@@ -476,10 +482,9 @@ function applyPlannedCastSacrificesForSearch(
     picks: CastCostPicks | undefined
 ): boolean {
     const owner = getPlayer(state, playerId);
-    const picked = [
-        ...(picks?.announcedSacrificeIds ?? []),
-        ...(picks?.sacrificeIds ?? []),
-    ];
+    const picked = (picks?.announcedSacrificeIds ?? []).concat(
+        picks?.sacrificeIds ?? []
+    );
     if (!picked.every((id) => owner.battlefield.some((c) => c.id === id))) {
         return false;
     }
@@ -558,7 +563,9 @@ export function applyAlternativeCostPermanentLegForSearch(
     // a second victim — CR 702.119a's emerge, whose tap plan is not empty,
     // reaches exactly that).
     if ((picks?.sacrificeIds ?? []).length > 0) selection.picked = [];
-    for (const id of picks?.sacrificeIds ?? []) {
+    const idList = picks?.sacrificeIds ?? [];
+    for (let j = 0; j < idList.length; j++) {
+        const id = idList[j];
         if (!owner.battlefield.some((c) => c.id === id)) return false;
         if (!selection.picked.includes(id)) selection.picked.push(id);
     }
@@ -795,7 +802,7 @@ export function applyCastCostPicksForSearch(
                 cardInstanceId: exiled.id,
                 mv: manaValue(getPermanentManaValueCost(exiled)),
                 ...(exiled.subtypes && exiled.subtypes.length > 0
-                    ? { subtypes: [...exiled.subtypes] }
+                    ? { subtypes: exiled.subtypes.slice() }
                     : {}),
                 ...costVictimTypeFields(exiled),
             };
@@ -807,7 +814,8 @@ export function applyCastCostPicksForSearch(
     // once `selectCastExileCost` has recorded the same ids.
     if (exileIds.length > 0 && exileZone) {
         const source = exileZone === "hand" ? player.hand : player.graveyard;
-        for (const id of exileIds) {
+        for (let i = 0; i < exileIds.length; i++) {
+            const id = exileIds[i];
             // CR 608.2b — a stale Move naming a card that has since left the
             // zone charges nothing; `moveCard` THROWS on a miss, so the
             // presence check stays.
@@ -882,8 +890,11 @@ export function applyRetraceCastForSearch(
             handLeg,
             eligible.map((c) => c.id)
         );
-        for (const c of picks ?? [])
+        const cList = picks ?? [];
+        for (let i = 0; i < cList.length; i++) {
+            const c = cList[i];
             discardToGraveyard(state, playerId, c.id, { kind: "cost" });
+        }
     }
     return "graveyard";
 }
@@ -965,7 +976,9 @@ export function applyActivationCostsForSearch(
     // CR 113.3c — the source may be on another player's battlefield ("any
     // player may activate"), so search globally.
     let src: CardInstanceState | undefined;
-    for (const p of state.players) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
         src = p.battlefield.find((c) => c.id === move.cardInstanceId);
         if (src) break;
     }
@@ -1290,7 +1303,9 @@ export function applyActivationCostsForSearch(
         );
         return true;
     }
-    for (const id of picks.tapOtherIds ?? []) {
+    const idList = picks.tapOtherIds ?? [];
+    for (let i = 0; i < idList.length; i++) {
+        const id = idList[i];
         const perm = owner.battlefield.find((c) => c.id === id);
         if (perm) tapPermanent(state, perm);
     }
@@ -1341,7 +1356,9 @@ export function applyActivationCostsForSearch(
             );
     }
     // CR 118.3 — the discard leg (Survival of the Fittest, Iron-Shield Elf).
-    for (const id of picks.discardIds ?? []) {
+    const idList2 = picks.discardIds ?? [];
+    for (let i = 0; i < idList2.length; i++) {
+        const id = idList2[i];
         discardToGraveyard(state, owner.id, id, { kind: "cost" });
     }
     payExileTopOfLibraryInSearch(
@@ -1422,7 +1439,8 @@ function bestDefenderBlocks(
 
     let bestScore = Infinity;
     let best = replies[0].assignments;
-    for (const reply of replies) {
+    for (let i = 0; i < replies.length; i++) {
+        const reply = replies[i];
         const probe = cloneGameState(state);
         applyBlockAssignments(probe, reply.assignments);
         resolveCombatDamage(probe);
@@ -1441,7 +1459,8 @@ function applyBlockAssignments(
 ): void {
     if (!state.combat) return;
     const byBlocker: Record<string, string[]> = {};
-    for (const { blockerId, attackerId } of assignments) {
+    for (let i = 0; i < assignments.length; i++) {
+        const { blockerId, attackerId } = assignments[i];
         (byBlocker[blockerId] ??= []).push(attackerId);
     }
     state.combat.blockerAssignments = byBlocker;
@@ -1556,7 +1575,10 @@ export function commitCastInSearch(
             player.battlefield.find((c) => c.id === id && !c.isTapped)
         );
         if (artifacts.some((a) => a === undefined)) return null;
-        for (const artifact of artifacts) artifact!.isTapped = true;
+        for (let j = 0; j < artifacts.length; j++) {
+            const artifact = artifacts[j];
+            artifact!.isTapped = true;
+        }
     }
     applyTapPlanInSearch(state, playerId, move.tapPlan);
     // CR 609.4b / 118.14 (issue #2890) — a one-shot "for one spell this turn,
@@ -1782,8 +1804,10 @@ export function commitCastInSearch(
                 eligible.map((c) => c.id)
             );
             if (!picks) return null;
-            for (const c of picks)
+            for (let j = 0; j < picks.length; j++) {
+                const c = picks[j];
                 discardToGraveyard(state, playerId, c.id, { kind: "cost" });
+            }
         }
     }
     // CR 702.143c — read before the removal clears the designation, exactly
@@ -1977,7 +2001,8 @@ export function summonCompanionInSearch(
         )
     );
     if (plan) {
-        for (const step of plan) {
+        for (let i = 0; i < plan.length; i++) {
+            const step = plan[i];
             const src = player.battlefield.find((c) => c.id === step.cardId);
             if (src) src.isTapped = true;
         }
@@ -2004,7 +2029,9 @@ export function turnFaceUpInSearch(
     const plan = turnFaceUpPayment(state, player, permanent)?.plan;
     if (plan) {
         const tapped = new Set(plan.map((step) => step.cardId));
-        for (const src of player.battlefield) {
+        const srcList = player.battlefield;
+        for (let i = 0; i < srcList.length; i++) {
+            const src = srcList[i];
             if (tapped.has(src.id)) src.isTapped = true;
         }
     }
@@ -2048,9 +2075,11 @@ export function payGrantedAbilityInSearch(
             addMana: (amount) => {
                 // CR 614.1a (issue #3811) — the same colour replacement the
                 // mutation applies.
-                for (const [color, count] of Object.entries(
+                const entries2 = Object.entries(
                     replaceProducedManaColor(state, player.id, amount)
-                )) {
+                );
+                for (let i = 0; i < entries2.length; i++) {
+                    const [color, count] = entries2[i];
                     if (
                         color !== "X" &&
                         typeof count === "number" &&
@@ -2093,7 +2122,9 @@ export function declaredAttackTargets(
     const attackerBf =
         state.players.find((p) => p.id === playerId)?.battlefield ?? [];
     const filtered: Record<string, string> = {};
-    for (const [atkId, pwId] of Object.entries(move.attackTargets)) {
+    const entries2 = Object.entries(move.attackTargets);
+    for (let i = 0; i < entries2.length; i++) {
+        const [atkId, pwId] = entries2[i];
         // CR 508.1d (issue #3247) — an attacker pinned to attack THAT PLAYER
         // keeps attacking the player, as `declareAttackers` realises it.
         const attacker = attackerBf.find((c) => c.id === atkId);
@@ -2312,7 +2343,7 @@ export function applyMoveForSearch(
                 move.attackerIds.includes(id)
             );
             next.combat = {
-                attackerIds: [...move.attackerIds],
+                attackerIds: move.attackerIds.slice(),
                 ...(attackTargets ? { attackTargets } : {}),
                 ...(exertIds.length > 0 ? { exertedIds: exertIds } : {}),
                 // CR 508.1g / 702.154 — paid by the same call, which re-checks
@@ -2322,7 +2353,9 @@ export function applyMoveForSearch(
                 blockerAssignments: {},
                 blockersConfirmed: false,
             };
-            for (const id of move.attackerIds) {
+            const idList = move.attackerIds;
+            for (let j = 0; j < idList.length; j++) {
+                const id = idList[j];
                 const atk = findPermanent(next, id);
                 if (!atk) continue;
                 // Shared helper (`gre/combat.ts`, issue #1195) — sets BOTH

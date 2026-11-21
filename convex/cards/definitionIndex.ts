@@ -122,7 +122,9 @@ export function twinNameEntriesOf(def: CardDefinition): NameEntry[] {
         const twin = insetSpellTwinDefinition(def);
         if (twin) entries.push([inset.name.toLowerCase(), twin.id]);
     }
-    for (const side of SPLIT_HALF_SIDES) {
+    const sideList = SPLIT_HALF_SIDES;
+    for (let i = 0; i < sideList.length; i++) {
+        const side = sideList[i];
         const half = splitHalfTwinDefinition(def, side);
         if (half) entries.push([half.name.toLowerCase(), half.id]);
     }
@@ -159,7 +161,8 @@ export function buildIndexLookups(
     const twinNames: Record<string, NameEntry[]> = {};
     const chooseableNames: Record<string, string[]> = {};
     const backFaceTriggers: Record<string, string> = {};
-    for (const def of defs) {
+    for (let i = 0; i < defs.length; i++) {
+        const def = defs[i];
         const twins = twinNameEntriesOf(def);
         if (twins.length > 0) twinNames[def.id] = twins;
         const chooseable = chooseableDomainNamesOf(def);

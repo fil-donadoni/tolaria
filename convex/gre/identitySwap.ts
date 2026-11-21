@@ -81,22 +81,22 @@ export function copiableValuesOf(
     def: CardDefinition,
     except: CopyExcept | undefined
 ): CopiableValues {
-    const staticAbilities = [
-        ...(def.staticAbilities ?? []),
-        ...(except?.additionalStaticAbilities ?? []),
-    ];
+    const staticAbilities = (def.staticAbilities ?? []).concat(
+        except?.additionalStaticAbilities ?? []
+    );
     return {
         // De-duplicated: "a creature in addition to its other types" over a
         // copied artifact creature leaves it one Creature, not two.
-        types: [...new Set([...def.types, ...(except?.additionalTypes ?? [])])],
+        types: [...new Set(def.types.concat(except?.additionalTypes ?? []))],
         // CR 702.73a — "except it has changeling" (a copiable value, CR 707.9b)
         // makes the copy every creature type, as a printed one would be.
         subtypes: withChangelingSubtypes(
             [
-                ...new Set([
-                    ...(def.subtypes ?? []),
-                    ...(except?.additionalSubtypes ?? []),
-                ]),
+                ...new Set(
+                    (def.subtypes ?? []).concat(
+                        except?.additionalSubtypes ?? []
+                    )
+                ),
             ],
             staticAbilities
         ),
@@ -126,7 +126,7 @@ export function copyExceptOf(
     opts: CopyEffectOptions
 ): CopyExcept | undefined {
     const added = <T>(a: T[] | undefined, b: T[] | undefined) => {
-        const all = [...new Set([...(a ?? []), ...(b ?? [])])];
+        const all = [...new Set((a ?? []).concat(b ?? []))];
         return all.length > 0 ? all : undefined;
     };
     const merged: CopyExcept = {
@@ -175,7 +175,7 @@ function addedAbilities(
     b: CopyGainedActivatedAbility[] | undefined
 ): CopyGainedActivatedAbility[] | undefined {
     const seen = new Set<string>();
-    const all = [...(a ?? []), ...(b ?? [])].filter((r) => {
+    const all = (a ?? []).concat(b ?? []).filter((r) => {
         const key = `${r.sourceCardId}\u0000${r.abilityId}`;
         if (seen.has(key)) return false;
         seen.add(key);
@@ -209,8 +209,8 @@ function reseatLayer6Base(
     card: CardInstanceState,
     base: CopiableValues
 ): void {
-    card.staticAbilities = [...base.staticAbilities];
-    card.baseStaticAbilities = [...base.staticAbilities];
+    card.staticAbilities = base.staticAbilities.slice();
+    card.baseStaticAbilities = base.staticAbilities.slice();
     // Derived output of the OLD face: recomputed, never carried across.
     delete card.abilitiesSuppressedBy;
     recomposeLayer6ForInstance(state, card);
@@ -281,11 +281,11 @@ export function rebuildCopiableValuesAndReplayOverlays(
     const priorPower = card.power;
     const priorToughness = card.toughness;
 
-    card.types = [...base.types];
-    card.subtypes = [...base.subtypes];
+    card.types = base.types.slice();
+    card.subtypes = base.subtypes.slice();
     card.power = base.power;
     card.toughness = base.toughness;
-    card.staticAbilities = [...base.staticAbilities];
+    card.staticAbilities = base.staticAbilities.slice();
 
     reseatLayer6Base(state, card, base);
     // CR 613.1a vs 613.1d (PRD #2064 S4) — the layer-2-to-5 BASES are re-seated
@@ -293,8 +293,8 @@ export function rebuildCopiableValuesAndReplayOverlays(
     // type and subtype replays this used to perform are gone for the same
     // reason S3 deleted the layer-6 one: they were a SECOND implementation of
     // the CR 613.7 walk, kept in step with the apply path by hand.
-    card.baseTypes = [...base.types];
-    card.baseSubtypes = [...base.subtypes];
+    card.baseTypes = base.types.slice();
+    card.baseSubtypes = base.subtypes.slice();
     // Anchor re-derivation before the recompose, so the animation entry the
     // derivation reads describes what it adds to the NEW line.
     replayAnimation(card, base, priorPower, priorToughness);
@@ -304,13 +304,13 @@ export function rebuildCopiableValuesAndReplayOverlays(
     if (card.indefiniteSubtypeSet) {
         card.indefiniteSubtypeSet = {
             ...card.indefiniteSubtypeSet,
-            restoreSubtypes: [...base.subtypes],
+            restoreSubtypes: base.subtypes.slice(),
         };
     }
     if (card.temporarySubtypeChange) {
         card.temporarySubtypeChange = {
             ...card.temporarySubtypeChange,
-            restoreSubtypes: [...base.subtypes],
+            restoreSubtypes: base.subtypes.slice(),
         };
     }
     recomposeLayers2to5ForInstance(card);

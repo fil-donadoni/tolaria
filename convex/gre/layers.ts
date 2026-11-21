@@ -137,10 +137,14 @@ export function graveyardStaticSources(
     state: StaticEffectStateView
 ): PermanentView[] {
     const sources: PermanentView[] = [];
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         // A synthetic one-card board (`recomposeLayers2to5ForInstance`) may
         // carry no graveyard at all.
-        for (const card of player.graveyard ?? []) {
+        const cardList = player.graveyard ?? [];
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             // Cheapest test first: this walk runs on every P/T read made
             // outside a `Layer7Pass`, and almost no graveyard card is stamped.
             if (card.zoneStaticSeq === undefined) continue;
@@ -150,7 +154,7 @@ export function graveyardStaticSources(
             const ownerId = card.ownerId ?? player.id;
             sources.push({
                 ...(card as unknown as PermanentView),
-                subtypes: [...(card.subtypes ?? [])],
+                subtypes: (card.subtypes ?? []).slice(),
                 isTapped: false,
                 controllerId: ownerId,
                 ownerId,
@@ -196,7 +200,7 @@ function getStaticEffects(
     const modeEffects = mode?.staticEffects ?? [];
     if (modeEffects.length === 0) return cardEffects;
     if (cardEffects.length === 0) return modeEffects;
-    return [...cardEffects, ...modeEffects];
+    return cardEffects.concat(modeEffects);
 }
 
 /** Context passed to every static-effect predicate. Pure, state-free. */
@@ -250,7 +254,9 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
         const cost = getPermanentManaValueCost(card);
         if (!cost) return 0;
         let total = 0;
-        for (const [k, v] of Object.entries(cost)) {
+        const entries2 = Object.entries(cost);
+        for (let i = 0; i < entries2.length; i++) {
+            const [k, v] = entries2[i];
             // `xFactor` is an X-multiplier, not a mana amount — exclude it.
             if (k === "xFactor") continue;
             if (typeof v === "number") total += v;
@@ -300,17 +306,25 @@ export function countDevotion(
     color: Color
 ): number {
     let total = 0;
-    for (const player of state.players) {
-        for (const permanent of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const permanentList = player.battlefield;
+        for (let j = 0; j < permanentList.length; j++) {
+            const permanent = permanentList[j];
             if (permanent.controllerId !== controllerId) continue;
             const cost = getInstanceManaCost(permanent);
             if (!cost) continue;
             total += (cost[color] ?? 0) + (cost.phyrexian?.[color] ?? 0);
-            for (const pip of cost.hybrid ?? []) {
+            const pipList = cost.hybrid ?? [];
+            for (let k = 0; k < pipList.length; k++) {
+                const pip = pipList[k];
                 if (pip.includes(color)) total += 1;
             }
             // CR 700.5 — a `{2/W}` pip is one white mana symbol.
-            for (const pip of cost.hybridGeneric ?? []) {
+            const pipList2 = cost.hybridGeneric ?? [];
+            for (let k = 0; k < pipList2.length; k++) {
+                const pip = pipList2[k];
                 if (pip.color === color) total += 1;
             }
         }
@@ -350,7 +364,9 @@ export function isSourceTappedLive(
     state: LayerStateView,
     sourceId: string
 ): boolean {
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const src = player.battlefield.find((c) => c.id === sourceId);
         if (src) return Boolean((src as PermanentView).isTapped);
     }
@@ -569,8 +585,12 @@ function collectLayer7Sources(state: LayerStateView): Layer7SourcePlan {
             });
         }
     };
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             // PRD #2064 S7 — the registry-derived precheck, the twin of the
             // ones layers 2-5 and 6 run: almost no permanent declares a
             // `pt-buff`, `pt-set` or `pt-cda` at all. Fail-slow: a stale TRUE
@@ -584,11 +604,15 @@ function collectLayer7Sources(state: LayerStateView): Layer7SourcePlan {
     // CR 114 (issue #1221) — command-zone emblems contribute source-less,
     // owner-scoped statics (Sorin, Lord of Innistrad's "+1/+0" emblem). Same
     // predicate walk, with a synthetic source whose controller is the owner.
-    for (const emblem of state.emblems ?? []) {
+    const emblemList = state.emblems ?? [];
+    for (let i = 0; i < emblemList.length; i++) {
+        const emblem = emblemList[i];
         push(emblemAsStaticSource(emblem), getEmblemStaticEffects(emblem));
     }
     // CR 113.6b — static abilities that function from a graveyard.
-    for (const source of graveyardStaticSources(state)) {
+    const sourceList2 = graveyardStaticSources(state);
+    for (let i = 0; i < sourceList2.length; i++) {
+        const source = sourceList2[i];
         const cardId = (source.card as { id?: string }).id;
         if (!cardId || !declaresLayer7StaticEffect(cardId)) continue;
         push(source, getStaticEffects(source), "graveyard");
@@ -686,7 +710,9 @@ function layer7EffectsFor(
     // Everything below is the per-TARGET half, unchanged: the `applies`
     // predicate, the "as long as" gate and the entry itself are decided here,
     // against the live source, on every read.
-    for (const candidate of sources.candidates) {
+    const candidateList = sources.candidates;
+    for (let i = 0; i < candidateList.length; i++) {
+        const candidate = candidateList[i];
         const { source, effect, index } = candidate;
         // CR 613.7a — a continuous effect generated by a static ability has
         // the timestamp of the object the ability is on. PRD #2064
@@ -769,7 +795,9 @@ function layer7EffectsFor(
 
     // CR 613.4c layer 7c — counters. One entry per TYPE: CR 613.7c gives every
     // counter of a kind the same timestamp, so they cannot interleave.
-    for (const [counterType, count] of Object.entries(target.counters ?? {})) {
+    const entries2 = Object.entries(target.counters ?? {});
+    for (let i = 0; i < entries2.length; i++) {
+        const [counterType, count] = entries2[i];
         const contribution = COUNTER_PT_CONTRIBUTION[counterType];
         if (!contribution || count === 0) continue;
         entries.push({
@@ -796,7 +824,9 @@ function layer7EffectsFor(
     // condition IS the expiry, so a stale entry simply does not exist here:
     // the buff disappears the instant the source untaps, before the
     // `checkSourceTappedEffects` SBA splices the instance entry out.
-    for (const mod of target.sourceTappedPTMods ?? []) {
+    const modList = target.sourceTappedPTMods ?? [];
+    for (let i = 0; i < modList.length; i++) {
+        const mod = modList[i];
         if (!isSourceTappedLive(state, mod.sourceId)) continue;
         entries.push({
             id: `ce-tapped-${target.id}-${mod.sourceId}-${ordinal}`,
@@ -843,7 +873,9 @@ function layer7EffectsFor(
     //    producer that must thread the field through `toLayerState` and its
     //    `effectivePower` / `effectiveToughness` callers, or a stored +1/+1
     //    residue will be invisible on the board while the server counts it.
-    for (const stored of state.continuousEffects ?? []) {
+    const storedList = state.continuousEffects ?? [];
+    for (let i = 0; i < storedList.length; i++) {
+        const stored = storedList[i];
         if (stored.layer !== 7) continue;
         if (!layer7EntryApplies(stored, target)) continue;
         if (!layer7ExpiryLive(state, stored)) continue;
@@ -904,8 +936,12 @@ function findLayerPermanent(
     state: LayerStateView,
     id: string
 ): PermanentView | undefined {
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (card.id === id) return card;
         }
     }
@@ -1092,7 +1128,9 @@ function findPermanent(
     state: LayerStateView,
     id: string
 ): PermanentView | undefined {
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const found = player.battlefield.find((c) => c.id === id);
         if (found) return found;
     }
@@ -1121,7 +1159,9 @@ export function getStaticPTBuff(
     );
     let power = 0;
     let toughness = 0;
-    for (const entry of entries) {
+    const entryList = entries;
+    for (let i = 0; i < entryList.length; i++) {
+        const entry = entryList[i];
         if (entry.sublayer !== "7c") continue;
         if (entry.expiry.kind !== "source") continue;
         const value = resolveLayer7Payload(state, target, entry, templates);
@@ -1196,12 +1236,15 @@ export function getEffectivePT(
 
     let power = basePower;
     let toughness = baseToughness;
-    for (const sublayer of LAYER_7_SUBLAYERS) {
+    for (let i = 0; i < LAYER_7_SUBLAYERS.length; i++) {
+        const sublayer = LAYER_7_SUBLAYERS[i];
         // CR 613.4a — the latest CDA overwrites every earlier one outright, so
         // 7a resolves to a single delta applied to the printed base.
         let cdaPower: number | undefined;
         let cdaToughness: number | undefined;
-        for (const entry of entries) {
+        const entryList = entries;
+        for (let j = 0; j < entryList.length; j++) {
+            const entry = entryList[j];
             if (entry.sublayer !== sublayer) continue;
             if (!includeTemporary && entry.expiry.kind === "duration") {
                 continue;

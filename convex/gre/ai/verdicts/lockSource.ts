@@ -134,7 +134,9 @@ function checkVerdictLock(lock: VerdictLock): void {
     if (!isJsonObject(lock.readings)) {
         bad(VERDICT_LOCK_PATH, `"readings" must be an object`);
     }
-    for (const [id, reading] of Object.entries(lock.readings)) {
+    const entries2 = Object.entries(lock.readings);
+    for (let j = 0; j < entries2.length; j++) {
+        const [id, reading] = entries2[j];
         // A reading of a verdict the lock does not name grades nothing the
         // fit reads — a stale line, refused rather than carried.
         if (!seen.has(id)) {
@@ -183,7 +185,7 @@ export function parseVerdictLock(contents: string): VerdictLock {
     checkVerdictLock(lock);
     const readings = sortedReadings(lock.readings);
     return {
-        verdictIds: [...lock.verdictIds],
+        verdictIds: lock.verdictIds.slice(),
         packHash: lock.packHash,
         ...(readings === undefined ? {} : { readings }),
     };
@@ -339,7 +341,8 @@ export function verdictsFromLock(
 ): Verdict[] {
     checkVerdictLock(lock);
     const byId = new Map<string, unknown>();
-    for (const { verdictId, payload } of payloads) {
+    for (let i = 0; i < payloads.length; i++) {
+        const { verdictId, payload } = payloads[i];
         if (byId.has(verdictId)) {
             bad(verdictId, "supplied twice");
         }

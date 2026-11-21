@@ -171,7 +171,10 @@ export function executeMulliganRound(state: GameState): void {
  *  shuffled immediately after. */
 function shuffleHandIntoLibrary(state: GameState, player: PlayerState): void {
     const handIds = player.hand.map((c) => c.id);
-    for (const id of handIds) moveCard(player, id, "hand", "library");
+    for (let i = 0; i < handIds.length; i++) {
+        const id = handIds[i];
+        moveCard(player, id, "hand", "library");
+    }
     seededShuffle(state, player.library);
 }
 
@@ -245,7 +248,8 @@ export function applyMulliganBottomChoice(
     const player = state.players.find((p) => p.id === choice.playerId);
     if (!player) throw new Error(`Player not found: ${choice.playerId}`);
 
-    for (const cardId of selectedIds) {
+    for (let i = 0; i < selectedIds.length; i++) {
+        const cardId = selectedIds[i];
         // moveCard appends to library (push) — that's the bottom (CR 103.5),
         // since drawCard reads from index 0.
         moveCard(player, cardId, "hand", "library");
@@ -310,11 +314,10 @@ function revealOpeningHandCard(
     const definition = tryGetDefinition((card.card as { id: string }).id);
     const reveal = definition?.openingHandReveal;
     if (!window || !reveal) return;
-    window.revealed = [...(window.revealed ?? []), card.id];
+    window.revealed = (window.revealed ?? []).concat([card.id]);
     card.knownTo = state.players.map((p) => p.id);
     state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
-    state.delayedTriggers = [
-        ...(state.delayedTriggers ?? []),
+    state.delayedTriggers = (state.delayedTriggers ?? []).concat([
         {
             id: `delayed-${state.nextDelayedSeq}`,
             sourceCardId: definition.id,
@@ -327,7 +330,7 @@ function revealOpeningHandCard(
             effects: reveal.effects,
             oracleText: reveal.oracleText,
         },
-    ];
+    ]);
 }
 
 /** The player `turnOrderPosition` seats after the starting player — the
@@ -372,7 +375,7 @@ function advanceOpeningHandWindow(state: GameState): void {
             // the opponent sees the pause, never the cards it is about.
             privateToChooser: true,
         };
-        state.pendingChoices = [...(state.pendingChoices ?? []), choice];
+        state.pendingChoices = (state.pendingChoices ?? []).concat([choice]);
         state.priorityPlayerId = player.id;
         return;
     }
@@ -403,7 +406,8 @@ export function applyOpeningHandChoice(
     // the rest enter the battlefield one at a time (CR 103.6a).
     const actor = playerInTurnOrder(state, window.actorPosition);
     window.queued = [];
-    for (const id of selectedIds) {
+    for (let i = 0; i < selectedIds.length; i++) {
+        const id = selectedIds[i];
         const card = actor.hand.find((c) => c.id === id);
         if (!card) continue;
         const action = tryGetDefinition(
@@ -481,8 +485,7 @@ function raiseOpeningHandExileChoice(
     count: number
 ): void {
     const exactly = Math.min(count, actor.hand.length);
-    state.pendingChoices = [
-        ...(state.pendingChoices ?? []),
+    state.pendingChoices = (state.pendingChoices ?? []).concat([
         {
             stackItemId: OPENING_HAND_STACK_ITEM_ID,
             step: 0,
@@ -495,7 +498,7 @@ function raiseOpeningHandExileChoice(
             prompt: "Exile a card from your hand",
             privateToChooser: true,
         },
-    ];
+    ]);
 }
 
 /** Apply the exile-from-hand follow-up pick (CR 103.6a): the chosen cards go
@@ -512,7 +515,10 @@ export function applyOpeningHandExile(
     choices!.shift();
     state.pendingChoices = choices!.length > 0 ? choices : undefined;
     const actor = state.players.find((p) => p.id === choice.playerId)!;
-    for (const id of selectedIds) moveCard(actor, id, "hand", "exile");
+    for (let i = 0; i < selectedIds.length; i++) {
+        const id = selectedIds[i];
+        moveCard(actor, id, "hand", "exile");
+    }
     resumeOpeningHandWindow(state);
 }
 
@@ -522,8 +528,12 @@ export function startFirstTurn(state: GameState): void {
     // CR 103.6b — a card revealed from an opening hand "remains revealed until
     // the first turn begins".
     const revealed = state.mulligan?.openingHand?.revealed ?? [];
-    for (const player of state.players) {
-        for (const card of player.hand) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.hand;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (revealed.includes(card.id)) delete card.knownTo;
         }
     }
@@ -537,7 +547,9 @@ export function startFirstTurn(state: GameState): void {
     // never matches. A mulligan redraw appends nothing, so the tally would
     // also still name the shuffled-away hand. Cleared before `advancePhase`,
     // so an upkeep draw counts from zero.
-    for (const player of state.players) {
+    const playerList2 = state.players;
+    for (let i = 0; i < playerList2.length; i++) {
+        const player = playerList2[i];
         player.drawnThisTurn = undefined;
         player.lastDrawnCardId = undefined;
         // CR 103.6a — a card that began the game on the battlefield entered
@@ -546,7 +558,9 @@ export function startFirstTurn(state: GameState): void {
         // the turn number the game already reads; this walk never reaches the
         // turn boundary that would roll them over.
         player.qualifyingActionThisTurn = undefined;
-        for (const card of player.battlefield) {
+        const cardList2 = player.battlefield;
+        for (let j = 0; j < cardList2.length; j++) {
+            const card = cardList2[j];
             card.enteredOnTurn = undefined;
             // CR 302.6 — the starting player has controlled it continuously
             // since before their most recent turn (turn 1) began. Any other

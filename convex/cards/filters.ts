@@ -646,10 +646,9 @@ export function resolveExcludeSource(
     void _excludeSource;
     return {
         ...rest,
-        excludeInstanceIds: [
-            ...(filter.excludeInstanceIds ?? []),
+        excludeInstanceIds: (filter.excludeInstanceIds ?? []).concat([
             selfInstanceId,
-        ],
+        ]),
     };
 }
 

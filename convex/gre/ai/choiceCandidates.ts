@@ -190,7 +190,8 @@ export function stableCardIdentity(card: CardInstanceState): string {
  *  two determinizations that pick the same cards produce the same key. */
 export function stableSetIdentity(cards: CardInstanceState[]): string {
     const counts = new Map<string, number>();
-    for (const c of cards) {
+    for (let i = 0; i < cards.length; i++) {
+        const c = cards[i];
         const id = stableCardIdentity(c);
         counts.set(id, (counts.get(id) ?? 0) + 1);
     }
@@ -223,14 +224,17 @@ function thresholdPick(
     threshold: number,
     order: "fewest-bodies" | "cheapest"
 ): CardInstanceState[] | null {
-    const sorted = [...candidates].sort((a, b) =>
-        order === "fewest-bodies"
-            ? getEffectivePower(state, b) - getEffectivePower(state, a)
-            : permanentWorth(state, a) - permanentWorth(state, b)
-    );
+    const sorted = candidates
+        .slice()
+        .sort((a, b) =>
+            order === "fewest-bodies"
+                ? getEffectivePower(state, b) - getEffectivePower(state, a)
+                : permanentWorth(state, a) - permanentWorth(state, b)
+        );
     const picked: CardInstanceState[] = [];
     let total = 0;
-    for (const c of sorted) {
+    for (let i = 0; i < sorted.length; i++) {
+        const c = sorted[i];
         if (total >= threshold) break;
         picked.push(c);
         total += getEffectivePower(state, c);
@@ -305,7 +309,9 @@ const mayPayAnswers: ChoiceCandidateGenerator = (state, choice) => {
         const threshold = mayPaySacrificeThreshold(cost);
         if (threshold !== undefined) {
             // CR 118 threshold mode (Phyrexian Dreadnought): two policy picks.
-            for (const order of ["fewest-bodies", "cheapest"] as const) {
+            const orderList = ["fewest-bodies", "cheapest"] as const;
+            for (let i = 0; i < orderList.length; i++) {
+                const order = orderList[i];
                 const pick = thresholdPick(state, victims, threshold, order);
                 if (pick) sacrificeSets.push(pick);
             }
@@ -313,9 +319,12 @@ const mayPayAnswers: ChoiceCandidateGenerator = (state, choice) => {
             // Fixed cardinal: give up the least valuable permanents (brain.ts
             // picks worst-first for the same reason).
             const count = norm.permanent!.count as number;
-            const worstFirst = [...victims].sort(
-                (a, b) => permanentWorth(state, a) - permanentWorth(state, b)
-            );
+            const worstFirst = victims
+                .slice()
+                .sort(
+                    (a, b) =>
+                        permanentWorth(state, a) - permanentWorth(state, b)
+                );
             if (worstFirst.length >= count) {
                 sacrificeSets.push(worstFirst.slice(0, count));
             }
@@ -332,10 +341,13 @@ const mayPayAnswers: ChoiceCandidateGenerator = (state, choice) => {
             getMayPayDiscardCandidateIds(state, playerId, cost)
         );
         const count = mayPayHandLegCount(cost);
-        const worstFirst = [...cards].sort(
-            (a, b) =>
-                prospectiveCardWorth(state, a) - prospectiveCardWorth(state, b)
-        );
+        const worstFirst = cards
+            .slice()
+            .sort(
+                (a, b) =>
+                    prospectiveCardWorth(state, a) -
+                    prospectiveCardWorth(state, b)
+            );
         if (worstFirst.length < count) return out;
         // CR 118.9 — worst-first is a PREFERENCE, not the pick: the leg's
         // per-requirement filters decide what is legal, so route the ordering
@@ -362,12 +374,14 @@ const mayPayAnswers: ChoiceCandidateGenerator = (state, choice) => {
             getMayPayGraveyardCandidateIds(state, playerId, cost)
         );
         const sign = norm.graveyard.action === "return" ? 1 : -1;
-        const ranked = [...cards].sort(
-            (a, b) =>
-                sign *
-                (prospectiveCardWorth(state, b) -
-                    prospectiveCardWorth(state, a))
-        );
+        const ranked = cards
+            .slice()
+            .sort(
+                (a, b) =>
+                    sign *
+                    (prospectiveCardWorth(state, b) -
+                        prospectiveCardWorth(state, a))
+            );
         if (ranked.length < norm.graveyard.count) return out;
         graveyardSet = ranked.slice(0, norm.graveyard.count);
     }
@@ -398,7 +412,8 @@ const mayPayAnswers: ChoiceCandidateGenerator = (state, choice) => {
     }
 
     const seen = new Set<string>();
-    for (const set of sacrificeSets) {
+    for (let i = 0; i < sacrificeSets.length; i++) {
+        const set = sacrificeSets[i];
         const key = `may-pay:yes|sac=${stableSetIdentity(set)}${discardKey}`;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -490,11 +505,17 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *  bounds the search must respect as given. */
 function openNominationSearchCeiling(state: GameState): number {
     let highest = 0;
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             highest = Math.max(highest, instanceManaValue(card));
         }
-        for (const card of player.hand) {
+        const cardList2 = player.hand;
+        for (let j = 0; j < cardList2.length; j++) {
+            const card = cardList2[j];
             highest = Math.max(highest, instanceManaValue(card));
         }
     }
@@ -555,7 +576,9 @@ function makesIneligibleRestrictedMana(
     card: CardInstanceState,
     restriction: ManaRestriction | undefined
 ): boolean {
-    for (const entry of getEffectiveActivatedAbilities(card)) {
+    const entryList = getEffectiveActivatedAbilities(card);
+    for (let i = 0; i < entryList.length; i++) {
+        const entry = entryList[i];
         const declared = entry.ability.manaRestriction;
         if (
             declared !== undefined &&
@@ -652,7 +675,8 @@ const numberPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
         payer && choice.paysMana
             ? spendableManaTotal(payer, choice.manaRestriction)
             : Number.POSITIVE_INFINITY;
-    for (const amount of wanted) {
+    for (let i = 0; i < wanted.length; i++) {
+        const amount = wanted[i];
         if (amount < min || amount > max || seen.has(amount)) continue;
         seen.add(amount);
         // CR 608.2g — the taps that fund the shortfall, planned by the SAME
@@ -952,7 +976,7 @@ const optionPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
     const walk = (start: number, acc: string[]): void => {
         if (out.length >= OPTION_PICK_COMBO_CAP) return;
         if (acc.length === pick) {
-            out.push(toCandidate([...acc]));
+            out.push(toCandidate(acc.slice()));
             return;
         }
         for (let i = start; i < options.length; i++) {
@@ -1021,7 +1045,8 @@ const outsideGamePickCandidates: ChoiceCandidateGenerator = (state, choice) => {
                 (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
         );
     const seen = new Set<string>();
-    for (const { card, identity, worth } of ranked) {
+    for (let i = 0; i < ranked.length; i++) {
+        const { card, identity, worth } = ranked[i];
         if (out.length >= CHOICE_TOP_K) break;
         if (seen.has(identity)) continue;
         seen.add(identity);
@@ -1166,14 +1191,16 @@ const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
     const distinctKeys = choice.distinctKeys;
     const seenIdentities = new Set<string>();
     const seenKeys = new Set<string>();
-    for (const lead of ranked) {
+    for (let i = 0; i < ranked.length; i++) {
+        const lead = ranked[i];
         if (out.length >= CHOICE_TOP_K) break;
         if (distinctKeys && distinctKeys[lead.card.id] === undefined) continue;
         if (seenIdentities.has(lead.identity)) continue;
         seenIdentities.add(lead.identity);
         // "The best set LED BY this card": the lead, then the next-best cards.
         const picked = [lead];
-        for (const other of ranked) {
+        for (let j = 0; j < ranked.length; j++) {
+            const other = ranked[j];
             if (picked.length >= take) break;
             if (other.card.id === lead.card.id) continue;
             // CR 701.23a (issue #3808) — a CATEGORISED search ("a land card
@@ -1454,13 +1481,15 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
             ? ranked[0].worth * STRIP_WORTH_FLOOR
             : -Infinity;
     const seen = new Set<string>();
-    for (const lead of ranked) {
+    for (let i = 0; i < ranked.length; i++) {
+        const lead = ranked[i];
         if (out.length >= CHOICE_TOP_K) break;
         if (lead.worth < stripFloor) continue;
         if (seen.has(lead.identity)) continue;
         seen.add(lead.identity);
         const picked = [lead];
-        for (const other of ranked) {
+        for (let j = 0; j < ranked.length; j++) {
+            const other = ranked[j];
             if (picked.length >= max) break;
             if (other.card.id === lead.card.id) continue;
             picked.push(other);
@@ -1516,7 +1545,7 @@ export function forcedChoiceAnswer(
             stackItemId: choice.stackItemId,
             step: choice.step,
             choiceId: choice.choiceId,
-            cardInstanceIds: [...(choice.candidateIds ?? [])],
+            cardInstanceIds: (choice.candidateIds ?? []).slice(),
         };
     }
     // Only the as-enters name (CR 614.1c): a mid-resolution name sought in a
@@ -1691,15 +1720,19 @@ function asEntersDiscardAnswer(state: GameState, choice: PendingChoice): Move {
  *  `applyNameCardSubmit` enforces. The live Brain answers the same window
  *  with its own default (`nameCardDefaultFor`, `src/lib/ai/bot-view.ts`). */
 function nameCardAnswer(state: GameState, choice: PendingChoice): Move | null {
-    const seen: { card: Record<string, unknown> }[] = [
-        ...(state.stagedEntries ?? []).map((entry) => entry.card),
-        ...state.stack,
-        ...state.players.flatMap((p) => [
-            ...p.battlefield,
-            ...p.graveyard,
-            ...p.exile.filter((card) => !isFaceDownExile(card)),
-        ]),
-    ];
+    const seen: { card: Record<string, unknown> }[] = (
+        state.stagedEntries ?? []
+    )
+        .map((entry) => entry.card)
+        .concat(
+            state.stack,
+            state.players.flatMap((p) =>
+                p.battlefield.concat(
+                    p.graveyard,
+                    p.exile.filter((card) => !isFaceDownExile(card))
+                )
+            )
+        );
     const names = [
         ...new Set(
             seen.flatMap(({ card }) => {
@@ -1749,7 +1782,9 @@ const librarySoughtNameCandidates: ChoiceCandidateGenerator = (
     const nameOf = (card: CardInstanceState): string | undefined =>
         tryGetDefinition(String(card.card.id ?? ""))?.name;
     const inLibrary = new Map<string, number>();
-    for (const card of chooser.library) {
+    const cardList = chooser.library;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         const name = nameOf(card);
         if (name === undefined || inLibrary.has(name)) continue;
         inLibrary.set(name, cardValueById(String(card.card.id ?? "")));
@@ -1765,21 +1800,24 @@ const librarySoughtNameCandidates: ChoiceCandidateGenerator = (
         .map(([name]) => named(name));
     const absent = [
         ...new Set(
-            [
-                ...(state.stagedEntries ?? []).map((entry) => entry.card),
-                ...state.stack,
-                ...chooser.hand,
-                ...state.players.flatMap((p) => [
-                    ...p.battlefield,
-                    ...p.graveyard,
-                    ...p.exile.filter((card) => !isFaceDownExile(card)),
-                ]),
-            ].flatMap(({ card }) => {
-                const name = tryGetDefinition(
-                    (card as { id?: string }).id ?? ""
-                )?.name;
-                return name === undefined ? [] : [name];
-            })
+            (state.stagedEntries ?? [])
+                .map((entry) => entry.card)
+                .concat(
+                    state.stack,
+                    chooser.hand,
+                    state.players.flatMap((p) =>
+                        p.battlefield.concat(
+                            p.graveyard,
+                            p.exile.filter((card) => !isFaceDownExile(card))
+                        )
+                    )
+                )
+                .flatMap(({ card }) => {
+                    const name = tryGetDefinition(
+                        (card as { id?: string }).id ?? ""
+                    )?.name;
+                    return name === undefined ? [] : [name];
+                })
         ),
     ]
         .sort()
@@ -1787,7 +1825,7 @@ const librarySoughtNameCandidates: ChoiceCandidateGenerator = (
             (name) =>
                 !inLibrary.has(name) && isLegalNamedCard(state, choice, name)
         );
-    return absent === undefined ? present : [...present, named(absent)];
+    return absent === undefined ? present : present.concat([named(absent)]);
 };
 
 /** A `name-card` whose resolving script discards the named cards from a
@@ -1811,7 +1849,9 @@ const handSoughtNameCandidates: ChoiceCandidateGenerator = (state, choice) => {
     const owner = state.players.find((p) => p.id === ownerId);
     if (!owner) return [];
     const stripped = new Map<string, number>();
-    for (const card of owner.hand) {
+    const cardList = owner.hand;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         const id = String(card.card.id ?? "");
         const name = tryGetDefinition(id)?.name;
         if (name === undefined) continue;
@@ -1831,7 +1871,7 @@ const handSoughtNameCandidates: ChoiceCandidateGenerator = (state, choice) => {
     if (hits.length > 0 && ownerId !== choice.playerId) return hits;
     const miss = nameCardAnswer(state, choice);
     return miss?.kind === "name-card" && !stripped.has(miss.cardName)
-        ? [...hits, named(miss.cardName)]
+        ? hits.concat([named(miss.cardName)])
         : hits;
 };
 
@@ -1957,7 +1997,9 @@ function castWindowCandidates(
     // and mirrors the enumerator's own cross-player exile scan (issue #2971).
     let zoneOwner: PlayerState | undefined;
     let card: CardInstanceState | undefined;
-    for (const p of state.players) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
         const found = p.exile.find((c) => c.id === cardInstanceId);
         if (found) {
             zoneOwner = p;
@@ -1980,9 +2022,11 @@ function castWindowCandidates(
     }
 
     const seen = new Set<string>();
-    for (const move of enumerateCastMoves(state, caster, card, {
+    const moveList = enumerateCastMoves(state, caster, card, {
         castFromZone: "exile",
-    })) {
+    });
+    for (let i = 0; i < moveList.length; i++) {
+        const move = moveList[i];
         // Self-pruning (contract property 1), and here it is also what KEEPS
         // the decline (PR #2995 review finding 2). `choiceCandidates` slices
         // the node to `CHOICE_TOP_K` by prior, and every cast variant carries
@@ -2189,7 +2233,7 @@ const orderTopCandidates: ChoiceCandidateGenerator = (state, choice) => {
     // Highest chooser-value on top: the best card for your own library, the
     // worst for theirs. Ties break on the stable card identity so the ordering
     // — and therefore every emitted move — is deterministic across worlds.
-    const ranked = [...priced].sort((a, b) => {
+    const ranked = priced.slice().sort((a, b) => {
         const delta = chooserValue(b) - chooserValue(a);
         if (delta !== 0) return delta;
         const ka = stableCardIdentity(a.card);
@@ -2262,7 +2306,8 @@ const orderTopCandidates: ChoiceCandidateGenerator = (state, choice) => {
 
     const out: Omit<ChoiceCandidate, "prior">[] = [];
     const seen = new Set<string>();
-    for (const policy of policies) {
+    for (let i = 0; i < policies.length; i++) {
+        const policy = policies[i];
         if (!policy) continue;
         // `split(n)` and `split(n-1)` coincide at n = 1, as do `split(1)` and
         // `split(0)` — dedupe by the policy key so a one-card window opens
@@ -2281,7 +2326,8 @@ const orderTopCandidates: ChoiceCandidateGenerator = (state, choice) => {
         // blanks off a scry 2 promotes two draws, not one.
         let givenUp = 0;
         let gained = 0;
-        for (const p of bin) {
+        for (let j = 0; j < bin.length; j++) {
+            const p = bin[j];
             const delta = chooserValue(p) - replacement;
             if (delta > 0) givenUp += delta;
             else gained += -delta;
@@ -2390,12 +2436,14 @@ const lookDistributeCandidates: ChoiceCandidateGenerator = (state, choice) => {
     const categories = choice.categories;
     const seenIdentities = new Set<string>();
     const seenKeys = new Set<string>();
-    for (const lead of ranked) {
+    for (let i = 0; i < ranked.length; i++) {
+        const lead = ranked[i];
         if (out.length >= leadCap) break;
         if (seenIdentities.has(lead.identity)) continue;
         seenIdentities.add(lead.identity);
         const picked = [lead];
-        for (const other of ranked) {
+        for (let j = 0; j < ranked.length; j++) {
+            const other = ranked[j];
             if (picked.length >= take) break;
             if (other.card.id === lead.card.id) continue;
             // Issue #1364 (Atraxa) — a categorised keep admits only sets with
@@ -2420,7 +2468,7 @@ const lookDistributeCandidates: ChoiceCandidateGenerator = (state, choice) => {
         seenKeys.add(key);
         out.push({ key, move: submit(cards) });
     }
-    return [...out, ...none];
+    return out.concat(none);
 };
 
 // ---------------------------------------------------------------------------
@@ -2452,7 +2500,7 @@ const triggerOrderCandidates: ChoiceCandidateGenerator = (_state, choice) => [
             stackItemId: choice.stackItemId,
             step: choice.step,
             choiceId: choice.choiceId,
-            cardInstanceIds: [...(choice.candidateIds ?? [])],
+            cardInstanceIds: (choice.candidateIds ?? []).slice(),
         },
     },
 ];
@@ -2573,7 +2621,7 @@ const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (
     }
 
     const rank = sacrificeRankWorths(state, pool);
-    for (const given of cheapestPrefixSets(
+    const givenList = cheapestPrefixSets(
         state,
         pool,
         pick,
@@ -2587,7 +2635,9 @@ const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (
             // up the same cheapest bodies and no reward can choose to block.
             spare: (card) => isCreature(card) && !card.isTapped,
         }
-    )) {
+    );
+    for (let i = 0; i < givenList.length; i++) {
+        const given = givenList[i];
         out.push({
             key: `sacrifice-permanents:${given.setKey}`,
             move: submit(given.cards),
@@ -2667,8 +2717,9 @@ function cheapestPrefixSets(
      *  `goesFirst`, so the in-order fill keeps the set closed. */
     const fill = (seed: Ranked[], order: Ranked[]): Ranked[] | undefined => {
         if (seed.length > pick) return undefined;
-        const picked = [...seed];
-        for (const other of order) {
+        const picked = seed.slice();
+        for (let i = 0; i < order.length; i++) {
+            const other = order[i];
             if (picked.length >= pick) break;
             if (!picked.includes(other)) picked.push(other);
         }
@@ -2678,14 +2729,15 @@ function cheapestPrefixSets(
     const out: PrefixSet[] = [];
     const seen = new Set<string>();
     const seenSets = new Set<string>();
-    for (const lead of ranked) {
+    for (let i = 0; i < ranked.length; i++) {
+        const lead = ranked[i];
         if (out.length >= limit) break;
         if (seen.has(lead.identity)) continue;
         seen.add(lead.identity);
         const before = ranked.filter(
             (r) => r !== lead && goesFirst(r.card, lead.card)
         );
-        const picked = fill([lead, ...before], ranked);
+        const picked = fill([lead].concat(before), ranked);
         if (!picked) continue;
         const set = toSet(picked);
         if (seenSets.has(set.setKey)) continue;
@@ -2698,10 +2750,9 @@ function cheapestPrefixSets(
         // A stable partition keeps the ranking's order inside each half, and
         // moving the spared members later never breaks `goesFirst`: no spared
         // member is required BEFORE an unspared one by either shipped order.
-        const spareLast = [
-            ...ranked.filter((r) => !spare(r.card)),
-            ...ranked.filter((r) => spare(r.card)),
-        ];
+        const spareLast = ranked
+            .filter((r) => !spare(r.card))
+            .concat(ranked.filter((r) => spare(r.card)));
         const picked = fill([], spareLast);
         const set = picked && toSet(picked);
         if (set && !seenSets.has(set.setKey)) {
@@ -2947,7 +2998,8 @@ const choosePermanentsCandidates: ChoiceCandidateGenerator = (
         mineFirst: boolean,
         sidePrimary = false
     ): CardInstanceState[] =>
-        [...entries]
+        entries
+            .slice()
             .sort((a: Entry, b: Entry) => {
                 const byWorth =
                     direction === "ascending"
@@ -3100,13 +3152,13 @@ const graveyardExileCandidates: ChoiceCandidateGenerator = (state, choice) => {
 const pickSourceCandidates: ChoiceCandidateGenerator = (state, choice) => {
     const chooserId = choice.playerId;
     const pool = eligibleZonePickCards(state, choice);
-    const ordered = [
-        ...pool.filter((c) => c.controllerId !== chooserId),
-        ...pool.filter((c) => c.controllerId === chooserId),
-    ];
+    const ordered = pool
+        .filter((c) => c.controllerId !== chooserId)
+        .concat(pool.filter((c) => c.controllerId === chooserId));
     const out: Omit<ChoiceCandidate, "prior">[] = [];
     const seen = new Set<string>();
-    for (const card of ordered) {
+    for (let i = 0; i < ordered.length; i++) {
+        const card = ordered[i];
         if (out.length >= CHOICE_TOP_K) break;
         const stackIndex = state.stack.findIndex((s) => s.id === card.id);
         const identity =
@@ -3164,7 +3216,9 @@ const chooseDamageTargetCandidates: ChoiceCandidateGenerator = (
                 identity: `spell@${stackIndex} ${side(mine)}:${stableCardIdentity(card)}`,
             };
         }
-        for (const zone of ["graveyard", "exile"] as const) {
+        const zoneList = ["graveyard", "exile"] as const;
+        for (let i = 0; i < zoneList.length; i++) {
+            const zone = zoneList[i];
             const owner = state.players.find((p) =>
                 p[zone].some((c) => c.id === card.id)
             );
@@ -3189,15 +3243,17 @@ const chooseDamageTargetCandidates: ChoiceCandidateGenerator = (
         identity: `player:${side(id === chooserId)}`,
     }));
     const objects = eligibleZonePickCards(state, choice).map(objectAnswer);
-    const ordered = [
-        ...players.filter((a) => !a.mine),
-        ...objects.filter((a) => !a.mine),
-        ...players.filter((a) => a.mine),
-        ...objects.filter((a) => a.mine),
-    ];
+    const ordered = players
+        .filter((a) => !a.mine)
+        .concat(
+            objects.filter((a) => !a.mine),
+            players.filter((a) => a.mine),
+            objects.filter((a) => a.mine)
+        );
     const out: Omit<ChoiceCandidate, "prior">[] = [];
     const seen = new Set<string>();
-    for (const { id, identity } of ordered) {
+    for (let i = 0; i < ordered.length; i++) {
+        const { id, identity } = ordered[i];
         if (out.length >= CHOICE_TOP_K) break;
         if (seen.has(identity)) continue;
         seen.add(identity);
@@ -3255,7 +3311,7 @@ const graveyardOrderCandidates: ChoiceCandidateGenerator = (state, choice) => {
     const ownerId = choice.zoneOwnerId ?? choice.playerId;
     const readTypes = graveyardTopReadTypes(state, ownerId);
     const owner = state.players.find((p) => p.id === ownerId);
-    const engineOrder = [...(choice.candidateIds ?? [])];
+    const engineOrder = (choice.candidateIds ?? []).slice();
     const batch = engineOrder.flatMap((id) => {
         const card = owner?.graveyard.find((c) => c.id === id);
         return card ? [card] : [];
@@ -3301,12 +3357,13 @@ const graveyardOrderCandidates: ChoiceCandidateGenerator = (state, choice) => {
             ...(hint ? { hint } : {}),
         });
     };
-    for (const { card, identity, worth } of readable) {
+    for (let i = 0; i < readable.length; i++) {
+        const { card, identity, worth } = readable[i];
         if (out.length >= CHOICE_TOP_K - 1) break;
         if (seenIdentity.has(identity)) continue;
         seenIdentity.add(identity);
         emit(
-            [card.id, ...engineOrder.filter((id) => id !== card.id)],
+            [card.id].concat(engineOrder.filter((id) => id !== card.id)),
             `graveyard-order:top=${identity}`,
             { materialGained: worth }
         );
@@ -3469,7 +3526,8 @@ export function topKByPrior(
     candidates: ChoiceCandidate[],
     k: number = CHOICE_TOP_K
 ): ChoiceCandidate[] {
-    return [...candidates]
+    return candidates
+        .slice()
         .map((c, i) => ({ c, i }))
         .sort((a, b) => b.c.prior - a.c.prior || a.i - b.i)
         .slice(0, k)

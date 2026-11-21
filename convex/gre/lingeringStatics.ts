@@ -133,8 +133,12 @@ export function collectLingeringSnapshots(
         if (stamp === undefined) continue;
         const timestamp = stamp;
         const duration = resolveSpec(spec);
-        for (const player of state.players) {
-            for (const target of player.battlefield) {
+        const playerList = state.players;
+        for (let i = 0; i < playerList.length; i++) {
+            const player = playerList[i];
+            const targetList = player.battlefield;
+            for (let j = 0; j < targetList.length; j++) {
+                const target = targetList[j];
                 // The source itself is leaving; an effect that applied to it
                 // has no object left to apply to.
                 if (target.id === source.id) continue;
@@ -243,18 +247,21 @@ function inlinePayloadFor(
         // ── layer 4 (CR 613.1d) ──────────────────────────────────────────────
         case "type-add":
             return effect.applies(target, source, STATIC_EFFECT_CTX)
-                ? { kind: "type-change", add: [...effect.types] as CardType[] }
+                ? {
+                      kind: "type-change",
+                      add: effect.types.slice() as CardType[],
+                  }
                 : undefined;
         case "type-remove":
             return effect.applies(target, source, STATIC_EFFECT_CTX)
                 ? {
                       kind: "type-change",
-                      remove: [...effect.types] as CardType[],
+                      remove: effect.types.slice() as CardType[],
                   }
                 : undefined;
         case "subtype-add":
             return effect.applies(target, source, STATIC_EFFECT_CTX)
-                ? { kind: "subtype-change", add: [...effect.subtypes] }
+                ? { kind: "subtype-change", add: effect.subtypes.slice() }
                 : undefined;
         case "subtype-set": {
             // ADR 0050's two forms, resolved exactly as `layers2to5.ts` does:
@@ -267,7 +274,7 @@ function inlinePayloadFor(
             if (computed === null) return undefined;
             return {
                 kind: "subtype-change",
-                set: [...computed],
+                set: computed.slice(),
                 ...(effect.family ? { family: effect.family } : {}),
             };
         }
@@ -276,10 +283,10 @@ function inlinePayloadFor(
                 ? {
                       kind: "supertype-change",
                       ...(effect.add
-                          ? { add: [...effect.add] as CardSupertype[] }
+                          ? { add: effect.add.slice() as CardSupertype[] }
                           : {}),
                       ...(effect.remove
-                          ? { remove: [...effect.remove] as CardSupertype[] }
+                          ? { remove: effect.remove.slice() as CardSupertype[] }
                           : {}),
                   }
                 : undefined;
@@ -288,7 +295,7 @@ function inlinePayloadFor(
             return effect.applies(target, source, STATIC_EFFECT_CTX)
                 ? {
                       kind: "color-change",
-                      add: [...colorGrantColors(effect, source)] as Color[],
+                      add: colorGrantColors(effect, source).slice() as Color[],
                   }
                 : undefined;
         case "color-set": {
@@ -297,7 +304,7 @@ function inlinePayloadFor(
             }
             const colors = colorSetColors(effect, source);
             return colors.length > 0
-                ? { kind: "color-change", set: [...colors] }
+                ? { kind: "color-change", set: colors.slice() }
                 : undefined;
         }
         // ── layer 6 (CR 613.1f) ──────────────────────────────────────────────

@@ -34,7 +34,8 @@ const GRAVEYARD_CARD_BY_TYPE: Readonly<Record<string, string>> = {
  *  battlefield with a `moveZone`, at any depth of the script. */
 function returnedType(node: unknown): string | undefined {
     if (Array.isArray(node)) {
-        for (const child of node) {
+        for (let i = 0; i < node.length; i++) {
+            const child = node[i];
             const found = returnedType(child);
             if (found) return found;
         }
@@ -60,7 +61,9 @@ function returnedType(node: unknown): string | undefined {
         )
             return type;
     }
-    for (const child of Object.values(rec)) {
+    const childList = Object.values(rec);
+    for (let i = 0; i < childList.length; i++) {
+        const child = childList[i];
         const found = returnedType(child);
         if (found) return found;
     }

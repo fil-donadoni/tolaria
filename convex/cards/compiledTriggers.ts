@@ -639,8 +639,11 @@ function controlsMore(
     state: TriggerStateView
 ): boolean {
     const counts = new Map<string, number>();
-    for (const p of state.players)
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
         counts.set(p.id, countControlledMatching(p, condition.filter, self));
+    }
     const mine = counts.get(self.controllerId);
     if (mine === undefined) return false;
     const subject = condition.subject;
@@ -648,6 +651,7 @@ function controlsMore(
         const count = counts.get(id)!;
         if (condition.than === "you")
             return id !== self.controllerId && count > mine;
+        // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
         for (const [other, n] of counts)
             if (other !== id && n >= count) return false;
         return true;
@@ -759,7 +763,7 @@ function resolveCompiledTriggerHead(
                 // CR 700.2b — the chosen mode carries the body, so the
                 // ability-level script is dropped beside `modes`.
                 ...(descriptor.modes !== undefined
-                    ? { effects: undefined, modes: [...descriptor.modes] }
+                    ? { effects: undefined, modes: descriptor.modes.slice() }
                     : {}),
                 ...(descriptor.resolvesIfTargetsIllegal
                     ? { resolvesIfTargetsIllegal: true }
@@ -1085,10 +1089,9 @@ function expandBarTriggers(base: CardDefinition): CardDefinition {
             if (descriptors === undefined) return bar;
             return {
                 ...rest,
-                triggeredAbilities: [
-                    ...(bar.triggeredAbilities ?? []),
-                    ...descriptors.map(resolveCompiledTrigger),
-                ],
+                triggeredAbilities: (bar.triggeredAbilities ?? []).concat(
+                    descriptors.map(resolveCompiledTrigger)
+                ),
             };
         }),
     };
@@ -1105,10 +1108,9 @@ export function expandBackFaceTriggers(base: CardDefinition): CardDefinition {
         ...base,
         backFace: {
             ...face,
-            triggeredAbilities: [
-                ...(face.triggeredAbilities ?? []),
-                ...(descriptors ?? []).map(resolveCompiledTrigger),
-            ],
+            triggeredAbilities: (face.triggeredAbilities ?? []).concat(
+                (descriptors ?? []).map(resolveCompiledTrigger)
+            ),
         },
     };
 }
@@ -1134,10 +1136,9 @@ export function expandCompiledTriggers(raw: CardDefinition): CardDefinition {
         return base;
     const expanded: CardDefinition = { ...base };
     if (descriptors !== undefined && descriptors.length > 0) {
-        expanded.triggeredAbilities = [
-            ...(base.triggeredAbilities ?? []),
-            ...descriptors.map(resolveCompiledTrigger),
-        ];
+        expanded.triggeredAbilities = (base.triggeredAbilities ?? []).concat(
+            descriptors.map(resolveCompiledTrigger)
+        );
         delete expanded.compiledTriggeredAbilities;
     }
     // CR 614.1c — a kicked entry rider's granted trigger (Necravolver): the
@@ -1145,10 +1146,9 @@ export function expandCompiledTriggers(raw: CardDefinition): CardDefinition {
     // `triggeredGrantTemplates[]` twin like every other compiled field (see
     // {@link CardDefinition.compiledTriggeredGrantTemplates}).
     if (grantDescriptors !== undefined && grantDescriptors.length > 0) {
-        expanded.triggeredGrantTemplates = [
-            ...(base.triggeredGrantTemplates ?? []),
-            ...grantDescriptors.map(resolveCompiledTrigger),
-        ];
+        expanded.triggeredGrantTemplates = (
+            base.triggeredGrantTemplates ?? []
+        ).concat(grantDescriptors.map(resolveCompiledTrigger));
         delete expanded.compiledTriggeredGrantTemplates;
     }
     return expanded;
@@ -1161,7 +1161,8 @@ function fixedExtraMana(
 ): Partial<Record<Color, number>> | undefined {
     if (effects === undefined || effects.length === 0) return undefined;
     const total: Partial<Record<Color, number>> = {};
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         if (op.op !== "addMana") return undefined;
         // The models credit the TAPPED land's controller: any other
         // recipient gets no bonus.
@@ -1171,7 +1172,9 @@ function fixedExtraMana(
             op.player.ref !== "$event.controllerId"
         )
             return undefined;
-        for (const [color, amount] of Object.entries(op.mana)) {
+        const entries2 = Object.entries(op.mana);
+        for (let j = 0; j < entries2.length; j++) {
+            const [color, amount] = entries2[j];
             if (typeof amount !== "number") return undefined;
             total[color as Color] = (total[color as Color] ?? 0) + amount;
         }

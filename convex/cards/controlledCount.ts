@@ -21,7 +21,9 @@ export function countControlledMatching(
     cap = Infinity
 ): number {
     let matched = 0;
-    for (const permanent of player.battlefield) {
+    const permanentList = player.battlefield;
+    for (let i = 0; i < permanentList.length; i++) {
+        const permanent = permanentList[i];
         if (
             matchesPermanentFilter(
                 {

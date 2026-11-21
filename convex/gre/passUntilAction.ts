@@ -62,20 +62,18 @@ export function isPassingUntilAction(
 /** Arm the intent for a seat that holds priority. Re-arming refreshes the
  *  baseline to the current stack. */
 export function armPassUntilAction(state: GameState, playerId: string): void {
-    state.passUntilAction = [
-        ...(without(state.passUntilAction, playerId) ?? []),
-        newIntent(state, playerId),
-    ];
+    state.passUntilAction = (
+        without(state.passUntilAction, playerId) ?? []
+    ).concat([newIntent(state, playerId)]);
 }
 
 /** Record the intent for a seat WITHOUT priority. The baseline is the stack
  *  at press time, not at promotion: the object the opponent is putting on the
  *  stack while this seat waits is exactly what the press asks to stop on. */
 export function queuePassUntilAction(state: GameState, playerId: string): void {
-    state.queuedPassUntilAction = [
-        ...(without(state.queuedPassUntilAction, playerId) ?? []),
-        newIntent(state, playerId),
-    ];
+    state.queuedPassUntilAction = (
+        without(state.queuedPassUntilAction, playerId) ?? []
+    ).concat([newIntent(state, playerId)]);
 }
 
 /** Promote a queued intent into an armed one, keeping its press-time
@@ -90,10 +88,9 @@ export function promoteQueuedPassUntilAction(
         state.queuedPassUntilAction,
         playerId
     );
-    state.passUntilAction = [
-        ...(without(state.passUntilAction, playerId) ?? []),
-        queued,
-    ];
+    state.passUntilAction = (
+        without(state.passUntilAction, playerId) ?? []
+    ).concat([queued]);
 }
 
 /** Drop both the armed and the queued intent. Returns whether either existed. */
@@ -120,7 +117,9 @@ function baselineMask(
     intent: PassUntilActionIntent
 ): boolean[] {
     const remaining = new Map<string, number>();
-    for (const id of intent.ignoredStackIds) {
+    const idList = intent.ignoredStackIds;
+    for (let i = 0; i < idList.length; i++) {
+        const id = idList[i];
         remaining.set(id, (remaining.get(id) ?? 0) + 1);
     }
     return state.stack.map((item) => {

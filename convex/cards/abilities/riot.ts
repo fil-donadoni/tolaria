@@ -40,7 +40,7 @@ export function expandRiot(def: CardDefinition): CardDefinition {
         ...def,
         entersWith: {
             ...def.entersWith,
-            asEnters: [...asEnters, ...Array(missing).fill(RIOT_CLAUSE)],
+            asEnters: asEnters.concat(Array(missing).fill(RIOT_CLAUSE)),
         },
     };
 }
