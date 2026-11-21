@@ -69,7 +69,8 @@ function parseHideaway(
     staticAbilities: ReadonlyArray<string> | undefined
 ): number | undefined {
     if (!staticAbilities) return undefined;
-    for (const s of staticAbilities) {
+    for (let i = 0; i < staticAbilities.length; i++) {
+        const s = staticAbilities[i];
         const m = HIDEAWAY_PATTERN.exec(s.trim());
         if (m) {
             const n = Number.parseInt(m[1], 10);
@@ -102,6 +103,6 @@ export function expandHideaway(def: CardDefinition): CardDefinition {
     if (existing.some((t) => t.id === HIDEAWAY_TRIGGER_ID)) return def;
     return {
         ...def,
-        triggeredAbilities: [...existing, hideawayTrigger(n)],
+        triggeredAbilities: existing.concat([hideawayTrigger(n)]),
     };
 }

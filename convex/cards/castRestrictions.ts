@@ -68,7 +68,9 @@ export const CAST_RESTRICTION_CTX: StaticEffectContext = {
         const cost = getInstanceManaCost(card);
         if (!cost) return 0;
         let total = 0;
-        for (const [k, v] of Object.entries(cost)) {
+        const entries2 = Object.entries(cost);
+        for (let i = 0; i < entries2.length; i++) {
+            const [k, v] = entries2[i];
             if (k === "xFactor") continue;
             if (typeof v === "number") total += v;
         }
@@ -141,11 +143,17 @@ export function isCastTimingSorcerySpeedLocked(
     casterId: string,
     state: CastRestrictionStateView
 ): boolean {
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const def = liveDefinitionOf(source);
             if (!def?.staticEffects) continue;
-            for (const effect of def.staticEffects) {
+            const effectList = def.staticEffects;
+            for (let k = 0; k < effectList.length; k++) {
+                const effect = effectList[k];
                 if (effect.kind !== "cast-timing-lock") continue;
                 if (
                     effect.locks(
@@ -176,7 +184,8 @@ export function hasCastTimingFlashGrant(
     const grants = state.castTimingFlashGrants;
     if (!grants) return false;
     const printedTypes = CAST_RESTRICTION_CTX.getPrintedTypes(spell);
-    for (const g of grants) {
+    for (let i = 0; i < grants.length; i++) {
+        const g = grants[i];
         if (g.playerId !== casterId) continue;
         if (!g.cardTypes || g.cardTypes.some((t) => printedTypes.includes(t))) {
             return true;
@@ -287,8 +296,12 @@ function castConditionMet(
         case "control": {
             const need = Math.max(1, condition.minCount ?? 1);
             let found = 0;
-            for (const player of state.players) {
-                for (const perm of player.battlefield) {
+            const playerList = state.players;
+            for (let i = 0; i < playerList.length; i++) {
+                const player = playerList[i];
+                const permList = player.battlefield;
+                for (let j = 0; j < permList.length; j++) {
+                    const perm = permList[j];
                     if (perm.controllerId !== casterId) continue;
                     // No `supertypesOf` fallback is injected:
                     // `toMatchablePermanent` ALWAYS sets `supertypes` (live,
@@ -415,11 +428,17 @@ export function castProhibitionReason(
     if (playerHasRestriction(state, casterId, "cantCastSpells")) {
         return "That player can't cast spells for the rest of the game.";
     }
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const def = liveDefinitionOf(source);
             if (!def?.staticEffects) continue;
-            for (const effect of def.staticEffects) {
+            const effectList = def.staticEffects;
+            for (let k = 0; k < effectList.length; k++) {
+                const effect = effectList[k];
                 if (effect.kind !== "cast-restriction") continue;
                 if (
                     effect.forbids(

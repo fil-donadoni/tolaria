@@ -210,7 +210,9 @@ export function splicedTargetGroups(
     payments: KickerPayments | undefined
 ): TargetRequirement[] {
     const groups: TargetRequirement[] = [];
-    for (const cardId of splicedCardIdsOfPayments(def, payments) ?? []) {
+    const cardIdList = splicedCardIdsOfPayments(def, payments) ?? [];
+    for (let i = 0; i < cardIdList.length; i++) {
+        const cardId = cardIdList[i];
         const req = tryGetDefinition(cardId)?.targetRequirement;
         if (req) groups.push(req);
     }
@@ -252,7 +254,8 @@ export function enumerateSpliceOptions(
     castInstanceId: string
 ): SpliceOption[] {
     const options: SpliceOption[] = [];
-    for (const card of hand) {
+    for (let i = 0; i < hand.length; i++) {
+        const card = hand[i];
         if (!card || card.id === castInstanceId) continue;
         const cardId = (card.card as { id?: string } | undefined)?.id;
         if (!cardId) continue;
@@ -307,7 +310,7 @@ export function spliceAugmentedDefinition<
     if (options.length === 0) return def;
     return {
         ...def,
-        kickers: [...(def.kickers ?? []), ...options.map((o) => o.entry)],
+        kickers: (def.kickers ?? []).concat(options.map((o) => o.entry)),
     } as T;
 }
 
@@ -439,5 +442,5 @@ export function spliceMergedEffects(
         spliced.push(...renameBindings(effects as EffectOp[], rename));
     });
     if (spliced.length === 0) return undefined;
-    return [...(def.effects ?? []), ...spliced];
+    return (def.effects ?? []).concat(spliced);
 }

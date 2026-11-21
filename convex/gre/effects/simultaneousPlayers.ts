@@ -69,7 +69,8 @@ function isBindingPredicate(value: unknown): boolean {
 function leafSequence(ops: unknown): Leaf[] | undefined {
     if (!Array.isArray(ops)) return undefined;
     const out: Leaf[] = [];
-    for (const value of ops) {
+    for (let i = 0; i < ops.length; i++) {
+        const value = ops[i];
         if (typeof value !== "object" || value === null) return undefined;
         const op = value as Record<string, unknown>;
         if (op.op === "if") {
@@ -110,7 +111,8 @@ export function mayPayBodyPhase(
     phase: Leaf
 ): EffectOp[] {
     const out: EffectOp[] = [];
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         if (op.op === "if") {
             const then = mayPayBodyPhase(op.then, phase);
             const otherwise = op.else

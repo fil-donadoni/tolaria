@@ -53,7 +53,9 @@ export const ATTACK_RESTRICTION_CTX: StaticEffectContext = {
         const cost = getInstanceManaCost(card);
         if (!cost) return 0;
         let total = 0;
-        for (const [k, v] of Object.entries(cost)) {
+        const entries2 = Object.entries(cost);
+        for (let i = 0; i < entries2.length; i++) {
+            const [k, v] = entries2[i];
             // `xFactor` is an X-multiplier, not a mana amount — exclude it.
             if (k === "xFactor") continue;
             if (typeof v === "number") total += v;
@@ -99,11 +101,17 @@ export function globalAttackProhibitionReason(
     attacker: PermanentView,
     state: AttackRestrictionStateView
 ): string | undefined {
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const def = liveDefinitionOf(source);
             if (!def?.staticEffects) continue;
-            for (const effect of def.staticEffects) {
+            const effectList = def.staticEffects;
+            for (let k = 0; k < effectList.length; k++) {
+                const effect = effectList[k];
                 if (effect.kind !== "global-attack-restriction") continue;
                 if (
                     effect.forbids(
@@ -150,11 +158,17 @@ export function combatDeclarationCap(
     side: "attack" | "block"
 ): CombatDeclarationCap | undefined {
     let binding: CombatDeclarationCap | undefined;
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const def = liveDefinitionOf(source);
             if (!def?.staticEffects) continue;
-            for (const effect of def.staticEffects) {
+            const effectList = def.staticEffects;
+            for (let k = 0; k < effectList.length; k++) {
+                const effect = effectList[k];
                 if (effect.kind !== "combat-declaration-cap") continue;
                 if (effect.side !== side) continue;
                 if (binding === undefined || effect.max < binding.max) {

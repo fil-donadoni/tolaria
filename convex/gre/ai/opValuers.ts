@@ -297,7 +297,7 @@ type Valuer<K extends EffectOp["op"]> = (
 /** Attach `board-scaling` when a resolved amount grows with hidden/board state
  *  (so the caller knows the scalar is a floor). */
 function tagScaling(scaling: boolean, ...tags: ValueTag[]): ValueTag[] {
-    return scaling ? [...tags, "board-scaling"] : tags;
+    return scaling ? tags.concat(["board-scaling"]) : tags;
 }
 
 /** `{ target }` announced slot → the Op should carry a `targeted` prior
@@ -478,7 +478,11 @@ function eachPlayerDifferentialValue(
     const tags = new Set<ValueTag>(["board-scaling"]);
     const points = lens.eachPlayerDifferential((side) => {
         const v = valueEachPlayerSide(op.effects, ctx, side, scope);
-        for (const t of v.tags) tags.add(t);
+        const tList = v.tags;
+        for (let i = 0; i < tList.length; i++) {
+            const t = tList[i];
+            tags.add(t);
+        }
         return v.points;
     });
     if (points === undefined) return undefined;
@@ -511,7 +515,8 @@ function valueEachPlayerSide(
     const sideCtx = eachPlayerGrounding(ctx, side);
     const hand = new EachPlayerHand(side);
     let total = ZERO_OP_VALUE;
-    for (const op of body) {
+    for (let i = 0; i < body.length; i++) {
+        const op = body[i];
         if (op.op === "draw") {
             const count = hand.drawCount(op.count);
             total = addValues(
@@ -572,7 +577,9 @@ class EachPlayerHand {
             count: { zone: "hand", controller: { ref: "$each" } },
         });
         if (size === undefined) return undefined;
-        for (const step of this.steps) {
+        const stepList = this.steps;
+        for (let i = 0; i < stepList.length; i++) {
+            const step = stepList[i];
             if (step.kind === "draws") size += step.count;
             else if (step.kind === "discards") {
                 size = Math.max(0, size - step.count);
@@ -737,13 +744,18 @@ export function eachStepDifferentialValue(
         if (gate && !side.stepGateHolds(gate)) return 0;
         const sideCtx = eachPlayerGrounding(ctx, side, isStepPlayerRef);
         let total = ZERO_OP_VALUE;
-        for (const op of script) {
+        for (let i = 0; i < script.length; i++) {
+            const op = script[i];
             total = addValues(
                 total,
                 stepSideOpValue(op, script, side, sideCtx)
             );
         }
-        for (const t of total.tags) tags.add(t);
+        const tList = total.tags;
+        for (let i = 0; i < tList.length; i++) {
+            const t = tList[i];
+            tags.add(t);
+        }
         return total.points;
     });
     if (points === undefined) return undefined;
@@ -854,7 +866,8 @@ function stepSideMayArm(
     ctx: GroundingContext
 ): OpValue {
     let total = ZERO_OP_VALUE;
-    for (const op of arm) {
+    for (let i = 0; i < arm.length; i++) {
+        const op = arm[i];
         total = addValues(total, stepSideOpValue(op, arm, side, ctx));
     }
     const chosen = side.own
@@ -1236,7 +1249,8 @@ function handEdictChoiceFor(
 ): EachPlayerEdictChoice | undefined {
     const ref = op.cards;
     if (!ref || op.filter || !isEachPlayerRef(op.player)) return undefined;
-    for (const e of body) {
+    for (let i = 0; i < body.length; i++) {
+        const e = body[i];
         if (isEachPlayerHandEdictChoice(e) && e.bind === ref.ref) return e;
     }
     return undefined;
@@ -1250,7 +1264,8 @@ function edictChoiceFor(
 ): EachPlayerEdictChoice | undefined {
     const ref = op.permanents;
     if (!ref || op.target) return undefined;
-    for (const e of body) {
+    for (let i = 0; i < body.length; i++) {
+        const e = body[i];
         if (isEachPlayerEdictChoice(e, namesSide) && e.bind === ref.ref) {
             return e;
         }
@@ -1281,7 +1296,8 @@ function bounceChoiceFor(
     if (op.effects.length !== 1 || !isEachReturnedToHand(op.effects[0])) {
         return undefined;
     }
-    for (const e of script) {
+    for (let i = 0; i < script.length; i++) {
+        const e = script[i];
         if (isStepBounceChoice(e) && e.bind === select.ref) return e;
     }
     return undefined;
@@ -1322,7 +1338,9 @@ function withCapturedSourceAliases(
 ): GroundingContext {
     if (!capture) return ctx;
     const aliasNames = new Set<string>();
-    for (const [name, source] of Object.entries(capture)) {
+    const entries2 = Object.entries(capture);
+    for (let i = 0; i < entries2.length; i++) {
+        const [name, source] = entries2[i];
         if (
             typeof source === "object" &&
             source !== null &&
@@ -1602,7 +1620,9 @@ function withCapturedScopeAliases(
 ): ScriptScope {
     if (!capture) return EMPTY_SCRIPT_SCOPE;
     let seeded = EMPTY_SCRIPT_SCOPE;
-    for (const [name, source] of Object.entries(capture)) {
+    const entries2 = Object.entries(capture);
+    for (let i = 0; i < entries2.length; i++) {
+        const [name, source] = entries2[i];
         if (
             typeof source === "object" &&
             source !== null &&
@@ -1726,7 +1746,7 @@ const dealDamageDividedAsChosen: Valuer<"dealDamageDividedAsChosen"> = (
     // Divided burn among announced targets — removal + reach, always targeted.
     return {
         points: priced(ctx, "damage", total),
-        tags: [...tagScaling(scaling, "damage"), "targeted"],
+        tags: tagScaling(scaling, "damage").concat(["targeted"]),
     };
 };
 
@@ -1749,12 +1769,12 @@ const distributeCountersAsChosen: Valuer<"distributeCountersAsChosen"> = (
         const feature: Feature = net >= 0 ? "pump" : "boardRemoval";
         return {
             points: priced(ctx, "pump", Math.abs(net) * total),
-            tags: [...tagScaling(scaling, feature), "targeted"],
+            tags: tagScaling(scaling, feature).concat(["targeted"]),
         };
     }
     return {
         points: priced(ctx, "pump", total),
-        tags: [...tagScaling(scaling, "pump"), "targeted"],
+        tags: tagScaling(scaling, "pump").concat(["targeted"]),
     };
 };
 
@@ -2411,10 +2431,14 @@ const addMana: Valuer<"addMana"> = (op, ctx) => {
     // `ctx.value` like every other numeric position, never summed as zero.
     let total = 0;
     const tags: ValueTag[] = ["ramp"];
-    for (const entry of Object.values(op.mana)) {
+    const entryList = Object.values(op.mana);
+    for (let i = 0; i < entryList.length; i++) {
+        const entry = entryList[i];
         const { amount, scaling } = ctx.value(entry);
         total += Math.max(0, amount);
-        for (const tag of tagScaling(scaling, "ramp")) {
+        const tagList = tagScaling(scaling, "ramp");
+        for (let j = 0; j < tagList.length; j++) {
+            const tag = tagList[j];
             if (!tags.includes(tag)) tags.push(tag);
         }
     }
@@ -2692,11 +2716,9 @@ const divideIntoPiles: Valuer<"divideIntoPiles"> = (op, ctx, scope) => {
     // delayed/reflexive body, nothing here crosses a `capture` boundary.
     const chosen = valueEffectScript(op.chosenEffect, ctx, scope);
     const other = valueEffectScript(op.otherEffect, ctx, scope);
-    const tags = new Set<ValueTag>([
-        ...chosen.tags,
-        ...other.tags,
-        "disruption",
-    ]);
+    const tags = new Set<ValueTag>(
+        chosen.tags.concat(other.tags, ["disruption"])
+    );
     const chooserIsSelf = ctx.isSelf(op.chooser, "opponent");
     const points = chooserIsSelf
         ? Math.max(chosen.points, other.points)
@@ -3037,7 +3059,7 @@ const preventDamage: Valuer<"preventDamage"> = (op, ctx, scope) => {
         const total = op.total === "X+1" ? amount + 1 : amount;
         return {
             points: priced(ctx, "lifeSwing", total),
-            tags: [...tagScaling(scaling, "protection"), "targeted"],
+            tags: tagScaling(scaling, "protection").concat(["targeted"]),
         };
     }
     // "all-combat" (Fog) / "combat-to-and-by" (Maze of Ith) /
@@ -3085,7 +3107,7 @@ const redirectDamage: Valuer<"redirectDamage"> = (op, ctx) => {
     return {
         points:
             priced(ctx, "lifeSwing", amount) + priced(ctx, "damage", amount),
-        tags: [...tagScaling(scaling, "protection"), "targeted"],
+        tags: tagScaling(scaling, "protection").concat(["targeted"]),
     };
 };
 
@@ -3797,7 +3819,7 @@ export const STRUCTURAL_CONSTRUCTS = new Set<EffectOp["op"]>([
  *  announce-time mode COMBINATION valuation (`cardScriptValue.ts`, issue
  *  #2265), whose chosen instances all resolve and so compose. */
 export function addValues(a: OpValue, b: OpValue): OpValue {
-    const tags = new Set<ValueTag>([...a.tags, ...b.tags]);
+    const tags = new Set<ValueTag>(a.tags.concat(b.tags));
     return { points: a.points + b.points, tags: [...tags] };
 }
 
@@ -3854,14 +3876,16 @@ export function valueOp(
             const { amount, scaling } = ctx.forEachCount(op.select);
             const per = valueEffectScript(op.effects, ctx, scope);
             const tags = scaling
-                ? [...new Set<ValueTag>([...per.tags, "board-scaling"])]
+                ? [...new Set<ValueTag>(per.tags.concat(["board-scaling"]))]
                 : per.tags;
             return { points: per.points * amount, tags };
         }
         case "optionChoice": {
             // A modal spell is worth its BEST mode (the chooser picks it).
             let best = ZERO_OP_VALUE;
-            for (const mode of op.modes) {
+            const modeList = op.modes;
+            for (let i = 0; i < modeList.length; i++) {
+                const mode = modeList[i];
                 const v = valueEffectScript(mode.effects, ctx, scope);
                 if (v.points > best.points) best = v;
             }
@@ -3873,7 +3897,7 @@ export function valueOp(
             const loss = valueEffectScript(op.loss.effects, ctx, scope);
             return {
                 points: (win.points + loss.points) / 2,
-                tags: [...new Set<ValueTag>([...win.tags, ...loss.tags])],
+                tags: [...new Set<ValueTag>(win.tags.concat(loss.tags))],
             };
         }
         default: {
@@ -4629,7 +4653,8 @@ export function valueEffectScript(
     // order the interpreter itself resolves in: a `choice` records its picks,
     // then the Ops after it read the binding back.
     let walkScope = scope;
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         walkScope = withBindingsOf(walkScope, op, ctx);
         const value = valueOp(op, ctx, walkScope);
         const weight = contingentBindingWeight(op, walkScope);

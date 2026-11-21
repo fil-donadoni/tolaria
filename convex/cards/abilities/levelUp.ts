@@ -155,7 +155,8 @@ function assertWellFormedBands(bands: readonly LevelBand[]): void {
 export function levelBandStatics(bands: readonly LevelBand[]): StaticEffect[] {
     assertWellFormedBands(bands);
     const effects: StaticEffect[] = [];
-    for (const band of bands) {
+    for (let i = 0; i < bands.length; i++) {
+        const band = bands[i];
         const { min, max } = band;
         effects.push({
             kind: "pt-set",
@@ -171,7 +172,9 @@ export function levelBandStatics(bands: readonly LevelBand[]): StaticEffect[] {
             power: band.power,
             toughness: band.toughness,
         });
-        for (const ability of band.abilities ?? []) {
+        const abilityList = band.abilities ?? [];
+        for (let j = 0; j < abilityList.length; j++) {
+            const ability = abilityList[j];
             effects.push({
                 kind: "keyword-grant",
                 // CR 613.5 (issue #1711) — required, not optional: the

@@ -35,11 +35,17 @@ export function entersTappedByReplacement(
     entering: PermanentView,
     state: StaticEffectStateView
 ): boolean {
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const def = liveDefinitionOf(source);
             if (!def?.staticEffects) continue;
-            for (const effect of def.staticEffects) {
+            const effectList = def.staticEffects;
+            for (let k = 0; k < effectList.length; k++) {
+                const effect = effectList[k];
                 if (effect.kind !== "enters-tapped-restriction") continue;
                 if (
                     effect.forcesTapped(
@@ -79,11 +85,17 @@ export function entersUntappedByReplacement(
     entering: PermanentView,
     state: StaticEffectStateView
 ): boolean {
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const def = liveDefinitionOf(source);
             if (!def?.staticEffects) continue;
-            for (const effect of def.staticEffects) {
+            const effectList = def.staticEffects;
+            for (let k = 0; k < effectList.length; k++) {
+                const effect = effectList[k];
                 if (effect.kind !== "enters-untapped-replacement") continue;
                 if (
                     effect.forcesUntapped(

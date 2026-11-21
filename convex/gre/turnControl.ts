@@ -41,7 +41,9 @@ export function seatsActedBy(
 ): string[] {
     const seats: string[] = [];
     if (actingPlayerFor(view, playerId) === playerId) seats.push(playerId);
-    for (const c of view.turnControls ?? []) {
+    const cList = view.turnControls ?? [];
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
         if (!c.active || c.controllerId !== playerId) continue;
         if (!seats.includes(c.controlledId)) seats.push(c.controlledId);
     }
@@ -79,7 +81,7 @@ export function createTurnControl(
     const kept = (state.turnControls ?? []).filter(
         (c) => c.active || c.controlledId !== controlledId
     );
-    state.turnControls = [...kept, { controlledId, controllerId }];
+    state.turnControls = kept.concat([{ controlledId, controllerId }]);
 }
 
 /** CR 500.7 — schedule an extra turn for `playerId` directly after the next
@@ -90,7 +92,9 @@ export function scheduleExtraTurn(
     afterNextTurnOf: string
 ): void {
     const entry: ScheduledExtraTurn = { playerId, afterNextTurnOf };
-    state.scheduledExtraTurns = [...(state.scheduledExtraTurns ?? []), entry];
+    state.scheduledExtraTurns = (state.scheduledExtraTurns ?? []).concat([
+        entry,
+    ]);
 }
 
 /** The outgoing turn is over. CR 723.1: a Turn Control "doesn't end until the
@@ -106,10 +110,9 @@ export function endTurnScopedControl(state: GameState): void {
     if (state.scheduledExtraTurns) {
         const due = state.scheduledExtraTurns.filter((e) => e.armed);
         if (due.length > 0) {
-            state.extraTurns = [
-                ...(state.extraTurns ?? []),
-                ...due.map((e) => e.playerId),
-            ];
+            state.extraTurns = (state.extraTurns ?? []).concat(
+                due.map((e) => e.playerId)
+            );
         }
         const waiting = state.scheduledExtraTurns.filter((e) => !e.armed);
         state.scheduledExtraTurns = waiting.length > 0 ? waiting : undefined;

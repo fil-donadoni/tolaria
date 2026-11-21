@@ -103,7 +103,9 @@ export function largestHarmonizeCreature(
 ): CardInstanceState | undefined {
     let best: CardInstanceState | undefined;
     let bestReduction = 0;
-    for (const c of harmonizeEligibleCreatures(player)) {
+    const cList = harmonizeEligibleCreatures(player);
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
         const r = harmonizeReductionFor(state, c);
         if (r > bestReduction) {
             best = c;

@@ -81,7 +81,8 @@ export function isCombatDamagePreventedFromSource(
             ? { blockerAssignments: state.combat.blockerAssignments }
             : undefined,
     };
-    for (const effect of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const effect = effects[i];
         if (effect.kind !== "combat-damage-prevention") continue;
         if (effect.prevents(target, damageSource, view, STATIC_EFFECT_CTX)) {
             return true;
@@ -121,12 +122,17 @@ export function isCombatDamageUnpreventable(
     damageSource: CardInstanceState
 ): boolean {
     if (!anyCombatDamageUnpreventableStatic(state)) return false;
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const def = liveStaticDefinition(source);
             const effects = def?.staticEffects;
             if (!effects) continue;
-            for (const effect of effects) {
+            for (let k = 0; k < effects.length; k++) {
+                const effect = effects[k];
                 if (effect.kind !== "combat-damage-unpreventable") continue;
                 if (
                     effect.unpreventable(
@@ -156,12 +162,17 @@ export function isCombatDamageUnpreventable(
 export function anyCombatDamageUnpreventableStatic(
     state: Pick<UnpreventableStateView, "players">
 ): boolean {
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const def = liveStaticDefinition(source);
             const effects = def?.staticEffects;
             if (!effects) continue;
-            for (const effect of effects) {
+            for (let k = 0; k < effects.length; k++) {
+                const effect = effects[k];
                 if (effect.kind === "combat-damage-unpreventable") return true;
             }
         }

@@ -137,7 +137,7 @@ function parseDeckKnowledge(
                 `"deckKnowledge" entry ${i} needs a "seat" of "me" or "opp" and a "cards" list of names`
             );
         }
-        return { seat: row.seat, cards: [...(row.cards as string[])] };
+        return { seat: row.seat, cards: (row.cards as string[]).slice() };
     });
 }
 

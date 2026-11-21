@@ -134,6 +134,7 @@ function fold(profile) {
     );
     const tiers = new Map();
     const functions = new Map();
+    const nextCallers = new Map();
     const inclusive = new Map();
     let total = 0;
     for (const thread of threads) {
@@ -188,6 +189,19 @@ function fold(profile) {
                       strings[frames[script ?? stackFrames[0]][fs.location]]
                   );
             functions.set(leaf, (functions.get(leaf) ?? 0) + cpu);
+            // The iterator protocol's own frame (issue #10126): charge its
+            // self time to the script frame that called it — the `for…of`.
+            if (leaf === "next" && script !== undefined) {
+                const at = stackFrames.indexOf(script);
+                const caller = stackFrames
+                    .slice(at + 1)
+                    .find((f) => strings[frames[f][fs.location]].includes(" ("));
+                const name =
+                    caller === undefined
+                        ? "(none)"
+                        : functionName(strings[frames[caller][fs.location]]);
+                nextCallers.set(name, (nextCallers.get(name) ?? 0) + cpu);
+            }
             const impl =
                 script === undefined ? null : frames[script][fs.implementation];
             const tier = gc
@@ -225,6 +239,10 @@ function fold(profile) {
             .sort((a, b) => b[1] - a[1])
             .slice(0, 15)
             .map(([name, cpu]) => ({ name, share: share(cpu) })),
+        nextCallers: [...nextCallers.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 40)
+            .map(([name, cpu]) => ({ name, share: Number(((100 * cpu) / total).toFixed(2)) })),
     };
 }
 

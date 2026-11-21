@@ -66,10 +66,9 @@ export function expandExtort(def: CardDefinition): CardDefinition {
         printed
             ? {
                   ...def,
-                  triggeredAbilities: [
-                      ...(def.triggeredAbilities ?? []),
+                  triggeredAbilities: (def.triggeredAbilities ?? []).concat([
                       extortTrigger(EXTORT_TRIGGER_ID),
-                  ],
+                  ]),
               }
             : def,
         EXTORT_KEYWORD,

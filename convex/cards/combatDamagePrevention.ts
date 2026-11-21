@@ -19,8 +19,12 @@ export function isEnchantedByAura(
     creature: PermanentView,
     state: CombatPreventionStateView
 ): boolean {
-    for (const player of state.players) {
-        for (const p of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const pList = player.battlefield;
+        for (let j = 0; j < pList.length; j++) {
+            const p = pList[j];
             if (p.attachedTo === creature.id && p.subtypes.includes("Aura")) {
                 return true;
             }

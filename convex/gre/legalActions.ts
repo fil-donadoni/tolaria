@@ -366,13 +366,13 @@ function targetActions(
             : legal;
         // CR 115.7d / 707.10c — a current target may stay even if illegal by
         // now. The same authority `applyOneTargetSelection` accepts by.
-        const offered = [
-            ...newlyOffered,
-            ...keepableTargets(state, pt).filter(
+        const offered = newlyOffered.concat(
+            keepableTargets(state, pt).filter(
                 (t) => !isAlreadySelectedTarget(t, newlyOffered)
-            ),
-        ];
-        for (const target of offered) {
+            )
+        );
+        for (let i = 0; i < offered.length; i++) {
+            const target = offered[i];
             actions.push(
                 wrap({
                     kind: "select-target",

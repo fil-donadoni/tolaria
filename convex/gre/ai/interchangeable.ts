@@ -115,7 +115,9 @@ export function cardInterchangeabilityDescriptor(
     card: CardInstanceState
 ): string {
     const projected: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(card)) {
+    const entries2 = Object.entries(card);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, value] = entries2[i];
         if (DESCRIPTOR_PROJECTED_KEYS.has(key)) continue;
         projected[key] = value;
     }
@@ -375,15 +377,22 @@ function moveShape(move: Move): string {
  *  finding 1). One walk per collapse call, and a call is once per decision. */
 function cardReferenceCounts(state: GameState): Map<string, number> {
     const counts = new Map<string, number>();
-    for (const player of state.players) {
-        for (const zone of [
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const zoneList = [
             player.battlefield,
             player.hand,
             player.graveyard,
             player.exile,
             player.library,
-        ]) {
-            for (const card of zone) counts.set(card.id, 0);
+        ];
+        for (let j = 0; j < zoneList.length; j++) {
+            const zone = zoneList[j];
+            for (let k = 0; k < zone.length; k++) {
+                const card = zone[k];
+                counts.set(card.id, 0);
+            }
         }
     }
     const seen = new Set<unknown>();
@@ -399,16 +408,19 @@ function cardReferenceCounts(state: GameState): Map<string, number> {
         if (seen.has(value)) return;
         seen.add(value);
         if (Array.isArray(value)) {
-            for (const entry of value) walk(entry);
+            for (let i = 0; i < value.length; i++) {
+                const entry = value[i];
+                walk(entry);
+            }
             return;
         }
         // KEYS as well as values: a card id can name a `Record` entry and
         // appear nowhere in value position — `state.lastKnownCopiable`,
         // `combat.blockerAssignments`, `combat.damageAssignments` are all keyed
         // by card id (PR #3599 review finding 3).
-        for (const [key, entry] of Object.entries(
-            value as Record<string, unknown>
-        )) {
+        const entries2 = Object.entries(value as Record<string, unknown>);
+        for (let i = 0; i < entries2.length; i++) {
+            const [key, entry] = entries2[i];
             walk(key);
             walk(entry);
         }
@@ -490,11 +502,16 @@ export function makeInterchangeableKeyer(
         // rendering it SORTED is what makes "animate this Village, tapping it
         // and that one" and "animate that Village, tapping it and this one"
         // the single option they are.
-        for (const slot of slots) if (!slot.group) label(slot.id);
+        for (let i = 0; i < slots.length; i++) {
+            const slot = slots[i];
+            if (!slot.group) label(slot.id);
+        }
         const grouped = slots.filter((slot) => slot.group);
-        for (const id of [...new Set(grouped.map((slot) => slot.id))].sort(
+        const idList = [...new Set(grouped.map((slot) => slot.id))].sort(
             compareIds
-        )) {
+        );
+        for (let i = 0; i < idList.length; i++) {
+            const id = idList[i];
             label(id);
         }
         const ordered = slots
@@ -525,7 +542,7 @@ export function collapseInterchangeableMoves(
     moves: readonly Move[],
     onCollapsed?: (move: Move, representative: Move) => void
 ): Move[] {
-    if (moves.length < 2) return [...moves];
+    if (moves.length < 2) return moves.slice();
 
     // Pass 1 — bucket by shape. Two moves with different shapes can never
     // collapse, and a shape with one member needs no descriptor at all: this
@@ -541,17 +558,18 @@ export function collapseInterchangeableMoves(
 
     const keyOf = makeInterchangeableKeyer(state);
     const representativeOf = new Map<number, number>();
-    for (const bucket of byShape.values()) {
-        if (bucket.length < 2) continue;
+    byShape.forEach((bucket) => {
+        if (bucket.length < 2) return;
         const byGroup = new Map<string, number[]>();
-        for (const index of bucket) {
+        for (let j = 0; j < bucket.length; j++) {
+            const index = bucket[j];
             const key = keyOf(moves[index]);
             const group = byGroup.get(key);
             if (group) group.push(index);
             else byGroup.set(key, [index]);
         }
-        for (const group of byGroup.values()) {
-            if (group.length < 2) continue;
+        byGroup.forEach((group) => {
+            if (group.length < 2) return;
             const refsOf = new Map(
                 group.map((i) => [i, moveCardRefs(moves[i])] as const)
             );
@@ -560,10 +578,13 @@ export function collapseInterchangeableMoves(
                     ? b
                     : a
             );
-            for (const index of group) representativeOf.set(index, winner);
-        }
-    }
-    if (representativeOf.size === 0) return [...moves];
+            for (let j = 0; j < group.length; j++) {
+                const index = group[j];
+                representativeOf.set(index, winner);
+            }
+        });
+    });
+    if (representativeOf.size === 0) return moves.slice();
 
     const emitted = new Set<number>();
     const out: Move[] = [];

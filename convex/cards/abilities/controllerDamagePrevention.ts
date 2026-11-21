@@ -51,13 +51,12 @@ export function expandControllerDamagePrevention(
         ...base,
         replacementEffects: existing.some((r) => r.id === id)
             ? existing
-            : [
-                  ...existing,
+            : existing.concat([
                   controllerDamagePrevention({
                       id,
                       oracleText: CONTROLLER_DAMAGE_PREVENTION_ORACLE_TEXT,
                   }),
-              ],
+              ]),
     };
     delete expanded.preventsDamageToController;
     return expanded;

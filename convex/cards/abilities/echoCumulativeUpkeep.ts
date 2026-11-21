@@ -55,5 +55,5 @@ export function expandEchoCumulativeUpkeep(
         );
     }
     if (injected.length === 0) return def;
-    return { ...def, triggeredAbilities: [...existing, ...injected] };
+    return { ...def, triggeredAbilities: existing.concat(injected) };
 }

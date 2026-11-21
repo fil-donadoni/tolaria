@@ -682,7 +682,8 @@ export function clearKnowledge(
     cards: CardInstanceState[],
     selectorId: string | null
 ): void {
-    for (const card of cards) {
+    for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
         if (selectorId === null) {
             delete card.knownTo;
             delete card.libraryPositionKnownTo;
@@ -715,7 +716,7 @@ function narrowLibraryPosition(
         card.libraryPositionKnownTo ||
         knowers.some((id) => !witnesses.includes(id))
     ) {
-        card.libraryPositionKnownTo = [...witnesses];
+        card.libraryPositionKnownTo = witnesses.slice();
     }
 }
 
@@ -729,7 +730,9 @@ export function narrowLibraryPositionToChooser(
     chooserId: string
 ): void {
     const ids = new Set(cardInstanceIds);
-    for (const card of getPlayer(state, zoneOwnerId).library) {
+    const cardList = getPlayer(state, zoneOwnerId).library;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         if (ids.has(card.id)) narrowLibraryPosition(card, [chooserId]);
     }
 }
@@ -758,15 +761,17 @@ export function grantKnowledge(
 ): void {
     const owner = getPlayer(state, zoneOwnerId);
     const ids = new Set(cardInstanceIds);
-    for (const card of [...owner.library, ...owner.hand]) {
+    const cardList = owner.library.concat(owner.hand);
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         if (!ids.has(card.id)) continue;
         const known = card.knownTo ?? [];
-        if (!known.includes(knowerId)) card.knownTo = [...known, knowerId];
+        if (!known.includes(knowerId)) card.knownTo = known.concat([knowerId]);
         // Shown a card whose placement is on record: the viewer now sees it
         // where it is, like everyone the record already names.
         const placed = card.libraryPositionKnownTo;
         if (placed && !placed.includes(knowerId)) {
-            card.libraryPositionKnownTo = [...placed, knowerId];
+            card.libraryPositionKnownTo = placed.concat([knowerId]);
         }
     }
 }
@@ -783,7 +788,9 @@ export function grantKnowledgeToAll(
     zoneOwnerId: string,
     cardInstanceIds: string[]
 ): void {
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         grantKnowledge(state, zoneOwnerId, cardInstanceIds, player.id);
     }
 }
@@ -810,14 +817,20 @@ function publicRevealAudience(
     cardInstanceId: string
 ): string[] {
     const audience = new Set<string>();
-    for (const entry of state.pendingReveals ?? []) {
+    const entryList = state.pendingReveals ?? [];
+    for (let i = 0; i < entryList.length; i++) {
+        const entry = entryList[i];
         // A `retained` entry was raised outside this resolution (a revealing
         // graveyard redirect) and a shuffle has happened since: not this
         // resolution's reveal.
         if (entry.retained) continue;
         if (entry.kind !== "reveal") continue;
         if (!entry.cards.some((c) => c.instanceId === cardInstanceId)) continue;
-        for (const id of entry.audience) audience.add(id);
+        const idList = entry.audience;
+        for (let j = 0; j < idList.length; j++) {
+            const id = idList[j];
+            audience.add(id);
+        }
     }
     return [...audience];
 }
@@ -885,7 +898,7 @@ export function enqueuePublicRevealNotice(
         cards: args.cards,
         ...(args.retained ? { retained: true } : {}),
     };
-    state.pendingReveals = [...(state.pendingReveals ?? []), entry];
+    state.pendingReveals = (state.pendingReveals ?? []).concat([entry]);
 }
 
 /** Acting Player (ADR 0037 / CR 608): the player who answers a stack item's
@@ -1126,8 +1139,14 @@ export function spendableManaTotal(
     restriction?: ManaRestriction
 ): number {
     let total = 0;
-    for (const amount of Object.values(player.manaPool)) total += amount;
-    for (const r of player.restrictedMana ?? []) {
+    const amountList = Object.values(player.manaPool);
+    for (let i = 0; i < amountList.length; i++) {
+        const amount = amountList[i];
+        total += amount;
+    }
+    const rList = player.restrictedMana ?? [];
+    for (let i = 0; i < rList.length; i++) {
+        const r = rList[i];
         if (mayPayUnitIsEligible(r, restriction)) total += r.amount;
     }
     return total;
@@ -1147,7 +1166,7 @@ export function spendableManaForAssist(
     >
 ): number {
     let total = 0;
-    for (const amount of Object.values(
+    const amountList = Object.values(
         spendablePoolForSpell(
             player,
             spell.spellTypes,
@@ -1157,7 +1176,9 @@ export function spendableManaForAssist(
                 ? { colors: spell.spellColors, subtypes: spell.spellSubtypes }
                 : undefined
         )
-    )) {
+    );
+    for (let i = 0; i < amountList.length; i++) {
+        const amount = amountList[i];
         total += amount;
     }
     return total;
@@ -1258,7 +1279,8 @@ export function resolveChosenDivision(
 ): Map<string, number> {
     const result = new Map<string, number>();
     if (targetAmounts) {
-        for (const target of targets) {
+        for (let i = 0; i < targets.length; i++) {
+            const target = targets[i];
             const key = targetKey(target);
             result.set(key, targetAmounts[key] ?? 0);
         }
@@ -1269,7 +1291,8 @@ export function resolveChosenDivision(
     const n = targets.length;
     const base = Math.floor(totalAmount / n);
     let remainder = totalAmount - base * n;
-    for (const target of targets) {
+    for (let i = 0; i < targets.length; i++) {
+        const target = targets[i];
         const extra = remainder > 0 ? 1 : 0;
         if (remainder > 0) remainder -= 1;
         result.set(targetKey(target), base + extra);
@@ -1418,7 +1441,7 @@ function evaluateAnnouncedQuantity(
         ...source,
         zone: "stack",
         castById: controllerId,
-        targets: [...priorTargets],
+        targets: priorTargets.slice(),
         chosenX,
     } as StackItem);
     return Math.max(0, evaluateTargetCountQuantity(ctx, quantity));
@@ -1512,7 +1535,7 @@ export type PendingTargetFilterKey = keyof typeof PENDING_TARGET_FILTER_KEYS;
  *  from it. Pushed at the END: `advancePhase` pops from the end, so the most
  *  recently created extra phase occurs first. */
 export function queueExtraCombat(state: GameState): void {
-    state.extraPhases = [...(state.extraPhases ?? []), { kind: "combat" }];
+    state.extraPhases = (state.extraPhases ?? []).concat([{ kind: "combat" }]);
 }
 
 /** CR 609.7b (issue #5601) — does the damage source still have the property a
@@ -1631,7 +1654,9 @@ export function findSourcePreventionShield(
     let liveLoaded = false;
     const liveSource = (): PermanentView | undefined => {
         if (!liveLoaded) {
-            for (const player of state.players) {
+            const playerList = state.players;
+            for (let i = 0; i < playerList.length; i++) {
+                const player = playerList[i];
                 live = player.battlefield.find(
                     (c) => c.id === sourceInstanceId
                 );
@@ -1641,7 +1666,8 @@ export function findSourcePreventionShield(
         }
         return live;
     };
-    for (const shield of shields) {
+    for (let i = 0; i < shields.length; i++) {
+        const shield = shields[i];
         // CR 510 — a combat-only shield ignores non-combat damage entirely.
         if (shield.combatOnly && !isCombat) continue;
         // CR 615.12 — damage that can't be prevented ignores every PREVENTION
@@ -1745,7 +1771,9 @@ export function recipientPreventionShieldApplies(
     const liveTarget = (): PermanentView | undefined => {
         if (!liveLoaded) {
             if (target.type === "permanent") {
-                for (const player of state.players) {
+                const playerList = state.players;
+                for (let i = 0; i < playerList.length; i++) {
+                    const player = playerList[i];
                     live = player.battlefield.find((c) => c.id === target.id);
                     if (live) break;
                 }
@@ -1754,7 +1782,8 @@ export function recipientPreventionShieldApplies(
         }
         return live;
     };
-    for (const shield of shields) {
+    for (let i = 0; i < shields.length; i++) {
+        const shield = shields[i];
         // CR 510 — a combat-only shield ignores non-combat damage entirely.
         if (shield.combatOnly && !isCombat) continue;
         const match = shield.match;
@@ -1825,7 +1854,8 @@ export function applyTargetPrevention(
     const shields = state.targetPreventionShields;
     if (!shields || shields.length === 0) return amount;
     let remaining = amount;
-    for (const s of shields) {
+    for (let i = 0; i < shields.length; i++) {
+        const s = shields[i];
         if (remaining <= 0) break;
         if (s.targetType !== targetType) continue;
         if (s.targetId !== targetId) continue;
@@ -1875,7 +1905,8 @@ export function applyPlayerDamagePrevention(
     const shields = state.playerDamagePrevention;
     if (!shields || shields.length === 0) return amount;
     let remaining = amount;
-    for (const s of shields) {
+    for (let j = 0; j < shields.length; j++) {
+        const s = shields[j];
         if (remaining <= 0) break;
         if (s.remaining <= 0) continue;
         if (s.playerId !== playerId) continue;
@@ -2007,7 +2038,8 @@ export function processPendingActionTriggers(state: GameState): void {
     // CR 701.27f (issue #3537) — "since the ability was put onto the stack":
     // a reflexive trigger is put there NOW, so its source's transform count is
     // re-read here rather than kept from its creation mid-resolution.
-    for (const item of reflexive) {
+    for (let i = 0; i < reflexive.length; i++) {
+        const item = reflexive[i];
         const stamp = item.stackTransformStamp;
         if (!stamp) continue;
         const source = findOnBattlefield(state, stamp.sourceInstanceId);
@@ -2015,10 +2047,11 @@ export function processPendingActionTriggers(state: GameState): void {
     }
     const events = flushPendingEvents(state);
     if (events.length === 0 && reflexive.length === 0) return;
-    const triggers = [...reflexive, ...collectTriggers(state, events)];
+    const triggers = reflexive.concat(collectTriggers(state, events));
     if (triggers.length === 0) return;
     const stackTriggers: StackItem[] = [];
-    for (const trigger of triggers) {
+    for (let i = 0; i < triggers.length; i++) {
+        const trigger = triggers[i];
         if (isManaAbilityTriggerItem(trigger)) {
             // CR 605.4 — the cost-payment tap path may have already resolved
             // this tap's mana bonus off-stack (`realizeManaAbilityTapBonus`),
@@ -2074,7 +2107,8 @@ export function realizeManaAbilityTapBonus(state: GameState): void {
     const events = flushPendingEvents(state);
     if (events.length === 0) return;
     const triggers = collectTriggers(state, events);
-    for (const trigger of triggers) {
+    for (let i = 0; i < triggers.length; i++) {
+        const trigger = triggers[i];
         if (!isManaAbilityTriggerItem(trigger)) continue;
         const ev = trigger.triggerEvent;
         if (ev?.type !== "PERMANENT_TAPPED") continue;
@@ -2088,7 +2122,7 @@ export function realizeManaAbilityTapBonus(state: GameState): void {
     // Restore the (now-flagged) events so the tap's non-mana triggers still
     // fire at cast commit and an undo can still discard them. Any new events the
     // bonus resolution emitted go first (preserve their arrival order).
-    state.pendingEvents = [...(state.pendingEvents ?? []), ...events];
+    state.pendingEvents = (state.pendingEvents ?? []).concat(events);
 }
 
 /** CR 608.2b, spell-kind half — re-checks a still-on-the-stack SPELL target
@@ -2406,15 +2440,14 @@ function queueCreatureMentored(
     if (!ability.mentorResolution || !item.triggerSourceId) return;
     const target = item.targets?.[0];
     if (target?.type !== "permanent") return;
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         {
             type: "CREATURE_MENTORED",
             mentorId: item.triggerSourceId,
             mentoredId: target.id,
             controllerId: item.controllerId,
         },
-    ];
+    ]);
 }
 
 /** CR 608.2b — the power a resolving ability reads off its source: the
@@ -3379,10 +3412,9 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                         triggeredAbilityId: top.triggeredAbilityId,
                         reason: "intervening-if-false",
                     };
-                    state.pendingEvents = [
-                        ...(state.pendingEvents ?? []),
+                    state.pendingEvents = (state.pendingEvents ?? []).concat([
                         fizzleEvent,
-                    ];
+                    ]);
                     delete top.collectedChoices;
                     state.stack.pop();
                     return top;
@@ -3640,11 +3672,14 @@ export function cardsStillExiled(
 ): { types: string[] }[] | undefined {
     if (!ids || ids.length === 0) return undefined;
     const out: { types: string[] }[] = [];
-    for (const id of ids) {
-        for (const p of state.players) {
+    for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
+        const pList = state.players;
+        for (let j = 0; j < pList.length; j++) {
+            const p = pList[j];
             const card = p.exile.find((c) => c.id === id);
             if (card) {
-                out.push({ types: [...card.types] });
+                out.push({ types: card.types.slice() });
                 break;
             }
         }
@@ -3659,7 +3694,11 @@ function mergeEntryCounterDeltas(
     b: Record<string, number>
 ): Record<string, number> {
     const out = { ...a };
-    for (const [type, n] of Object.entries(b)) out[type] = (out[type] ?? 0) + n;
+    const entries2 = Object.entries(b);
+    for (let i = 0; i < entries2.length; i++) {
+        const [type, n] = entries2[i];
+        out[type] = (out[type] ?? 0) + n;
+    }
     return out;
 }
 
@@ -3755,9 +3794,9 @@ export function applyEntersWithCounters(
     // (`mayEnterWithCounters`) adds to whatever the definition declares, and
     // is an ability of the permanent like the rest: the CR 613.1f probe below
     // gates it too. Consumed even when gated, so it can never outlive the entry.
-    for (const [type, count] of Object.entries(
-        card.acceptedEntryCounters ?? {}
-    )) {
+    const entries2 = Object.entries(card.acceptedEntryCounters ?? {});
+    for (let j = 0; j < entries2.length; j++) {
+        const [type, count] = entries2[j];
         delta[type] = (delta[type] ?? 0) + count;
     }
     delete card.acceptedEntryCounters;
@@ -3791,13 +3830,14 @@ export function applyEntersWithCounters(
     // number. `state` is absent only on the pure-fixture probe path (see the
     // parameter's own doc) — with no board there is no replacement to find.
     if (state && !opts?.placement) {
-        for (const type of types) {
+        for (let j = 0; j < types.length; j++) {
+            const type = types[j];
             delta[type] = applyCounterPlacedReplacements(state, {
                 kind: "counter-placed",
                 cardInstanceId: card.id,
                 controllerId: card.controllerId,
-                types: [...card.types],
-                subtypes: [...card.subtypes],
+                types: card.types.slice(),
+                subtypes: card.subtypes.slice(),
                 counterType: type,
                 count: delta[type],
             }).count;
@@ -3811,8 +3851,10 @@ export function applyEntersWithCounters(
     if (remaining.length === 0) return {};
     const before = card.counters ?? {};
     const counters: Record<string, number> = { ...before };
-    for (const type of remaining)
+    for (let j = 0; j < remaining.length; j++) {
+        const type = remaining[j];
         counters[type] = (counters[type] ?? 0) + delta[type];
+    }
     card.counters = counters;
     if (state && !opts?.deferEvents) {
         emitEntersWithCounterEvents(state, card, delta);
@@ -3825,7 +3867,8 @@ export function applyEntersWithCounters(
     // LATER `addCounter` call happens to touch the same type). Only fires on
     // the 0 → present transition, one grant per type, mirroring `addCounter`'s
     // `wasZero` guard.
-    for (const type of remaining) {
+    for (let j = 0; j < remaining.length; j++) {
+        const type = remaining[j];
         if ((before[type] ?? 0) === 0 && counters[type] > 0) {
             // `state` is absent only on the ENTERS-WITH probe path (see the
             // parameter's own doc). The grant still derives from `counters`
@@ -3864,9 +3907,10 @@ export function emitEntersWithCounterEvents(
     card: CardInstanceState,
     delta: Record<string, number>
 ): void {
-    for (const type of Object.keys(delta)) {
-        state.pendingEvents = [
-            ...(state.pendingEvents ?? []),
+    const typeList = Object.keys(delta);
+    for (let i = 0; i < typeList.length; i++) {
+        const type = typeList[i];
+        state.pendingEvents = (state.pendingEvents ?? []).concat([
             {
                 type: "COUNTER_ADDED",
                 instanceId: card.id,
@@ -3874,10 +3918,10 @@ export function emitEntersWithCounterEvents(
                 counterType: type,
                 added: delta[type],
                 total: card.counters?.[type] ?? delta[type],
-                types: [...card.types],
-                subtypes: [...card.subtypes],
+                types: card.types.slice(),
+                subtypes: card.subtypes.slice(),
             },
-        ];
+        ]);
     }
 }
 
@@ -3987,7 +4031,9 @@ function exiledCounterHolder(
     target: TargetSelection
 ): CardInstanceState | undefined {
     if (target.type !== "graveyard-card") return undefined;
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const card = player.exile.find((c) => c.id === target.id);
         if (card) return card;
     }
@@ -4928,8 +4974,12 @@ function finalizeSpellResolution(
  *  instant the source leaves play, with no LTB cleanup. `refreshLandPlayLock`
  *  mirrors this into the serializable `state.landPlayLocked` cache. */
 export function landPlayLockActive(state: GameState): boolean {
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             // Registry precheck (issue #10097): a permanent whose definition
             // declares no lock is passed over without a definition lookup.
             const cardId = (card.card as { id?: string } | undefined)?.id;
@@ -4948,8 +4998,12 @@ export function battlefieldEntryBlockedFrom(
     state: GameState,
     card: Pick<CardInstanceState, "zone" | "types">
 ): boolean {
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const block =
                 liveStaticDefinition(source)?.blocksBattlefieldEntryFrom;
             if (
@@ -5067,7 +5121,7 @@ export function emitPermanentEntered(
             instanceId: card.id,
             controllerId: card.controllerId,
             cardId,
-            types: [...card.types],
+            types: card.types.slice(),
             ...(opts?.wasCast ? { wasCast: true } : {}),
             ...(opts?.wasPlayed ? { wasPlayed: true } : {}),
             ...(opts?.enteredFromGraveyard
@@ -5110,7 +5164,7 @@ export function getEffectiveStaticEffects(
     const modeEffects = mode?.staticEffects ?? [];
     if (modeEffects.length === 0) return cardEffects;
     if (cardEffects.length === 0) return modeEffects;
-    return [...cardEffects, ...modeEffects];
+    return cardEffects.concat(modeEffects);
 }
 
 /** Applies every `keyword-grant` static effect declared on `source`'s card
@@ -5256,7 +5310,8 @@ function nextContinuousEffectOrdinal(
     existing: readonly ContinuousEffect[]
 ): number {
     let max = 0;
-    for (const entry of existing) {
+    for (let i = 0; i < existing.length; i++) {
+        const entry = existing[i];
         const suffix = /^ce-(\d+)$/.exec(entry.id);
         if (!suffix) continue;
         const n = Number(suffix[1]);
@@ -5311,7 +5366,7 @@ export function pushContinuousEffect(
         id: `ce-${nextContinuousEffectOrdinal(existing)}`,
         timestamp: timestamp ?? allocStaticTimestamp(state),
     } as ContinuousEffect;
-    state.continuousEffects = [...existing, created];
+    state.continuousEffects = existing.concat([created]);
     return created;
 }
 
@@ -5367,7 +5422,8 @@ function applyDeclinedEntryKeywords(
     if (!keywords || !state || entryAbilitiesSuppressed(card, state as never)) {
         return;
     }
-    for (const keyword of keywords) {
+    for (let i = 0; i < keywords.length; i++) {
+        const keyword = keywords[i];
         // CR 702.10d — a second declined instance gains nothing more: multiple
         // instances of haste are redundant.
         if (hasIndefiniteKeywordGrant(state, card.id, keyword)) continue;
@@ -5444,7 +5500,9 @@ function stampSpellEntryGrant(
             r.abilityId === rider.abilityId
     );
     if (already) return;
-    spell.entryGrantRiders = [...(spell.entryGrantRiders ?? []), { ...rider }];
+    spell.entryGrantRiders = (spell.entryGrantRiders ?? []).concat([
+        { ...rider },
+    ]);
 }
 
 /** The next free CR 613.7 timestamp: one past every stamp on the board. The
@@ -5465,10 +5523,18 @@ function nextStaticTimestamp(state: GameState): number {
     // outranking it — the ordering bug this function exists to prevent. The
     // registry is empty until S2 (#3003), so this scan is a no-op today and a
     // precondition afterwards.
-    for (const entry of state.continuousEffects ?? []) bump(entry.timestamp);
+    const entryList = state.continuousEffects ?? [];
+    for (let i = 0; i < entryList.length; i++) {
+        const entry = entryList[i];
+        bump(entry.timestamp);
+    }
     // CR 613.7d — an emblem carries a minted stamp of its own since PRD #2064
     // S6b-part-2, and it is a sourceless record like every other shape above.
-    for (const emblem of state.emblems ?? []) bump(emblem.staticSeq);
+    const emblemList = state.emblems ?? [];
+    for (let i = 0; i < emblemList.length; i++) {
+        const emblem = emblemList[i];
+        bump(emblem.staticSeq);
+    }
     // CR 702.26b — a PHASED OUT permanent is treated as though it did not
     // exist, but it is still the same OBJECT: `phaseOutPermanent` splices it out
     // of the battlefield array with its `staticSeq` and every ledger row intact,
@@ -5478,20 +5544,47 @@ function nextStaticTimestamp(state: GameState): number {
     // the ordering bug this function exists to prevent, on a board where nobody
     // can see the colliding source (issue #3120 review).
     const stamped: CardInstanceState[] = [];
-    for (const player of state.players) stamped.push(...player.battlefield);
-    for (const bundle of state.phasedOut ?? []) stamped.push(...bundle.cards);
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        stamped.push(...player.battlefield);
+    }
+    const bundleList = state.phasedOut ?? [];
+    for (let i = 0; i < bundleList.length; i++) {
+        const bundle = bundleList[i];
+        stamped.push(...bundle.cards);
+    }
     // CR 613.7d — a graveyard object's own stamp (`zoneStaticSeq`, CR 113.6b)
     // is one more sourceless-of-the-battlefield record: unscanned, the next
     // mint would TIE an Incarnation's graveyard grant.
-    for (const player of state.players) {
-        for (const card of player.graveyard) bump(card.zoneStaticSeq);
+    const playerList2 = state.players;
+    for (let i = 0; i < playerList2.length; i++) {
+        const player = playerList2[i];
+        const cardList = player.graveyard;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
+            bump(card.zoneStaticSeq);
+        }
     }
     {
-        for (const card of stamped) {
+        for (let i = 0; i < stamped.length; i++) {
+            const card = stamped[i];
             bump(card.staticSeq);
-            for (const g of card.grantedActivatedAbilities ?? []) bump(g.seq);
-            for (const g of card.grantedTriggeredAbilities ?? []) bump(g.seq);
-            for (const s of card.abilityLossHolds ?? []) bump(s.seq);
+            const gList = card.grantedActivatedAbilities ?? [];
+            for (let j = 0; j < gList.length; j++) {
+                const g = gList[j];
+                bump(g.seq);
+            }
+            const gList2 = card.grantedTriggeredAbilities ?? [];
+            for (let j = 0; j < gList2.length; j++) {
+                const g = gList2[j];
+                bump(g.seq);
+            }
+            const sList = card.abilityLossHolds ?? [];
+            for (let j = 0; j < sList.length; j++) {
+                const s = sList[j];
+                bump(s.seq);
+            }
 
             // PRD #2064 S3 — two MORE sourceless record shapes, for the same
             // reason as the three documented above: a resolving ability's
@@ -5513,14 +5606,38 @@ function nextStaticTimestamp(state: GameState): number {
             // TIE with a live indefinite subtype add or a live text change —
             // the sourceless-record gap documented above, one layer down
             // (issue #1750).
-            for (const h of card.textChangeHolds ?? []) bump(h.seq);
-            for (const h of card.typeLineHolds ?? []) bump(h.seq);
-            for (const h of card.subtypeAddHolds ?? []) bump(h.seq);
-            for (const h of card.supertypeHolds ?? []) bump(h.seq);
-            for (const c of card.controlChanges ?? []) bump(c.seq);
+            const hList = card.textChangeHolds ?? [];
+            for (let j = 0; j < hList.length; j++) {
+                const h = hList[j];
+                bump(h.seq);
+            }
+            const hList2 = card.typeLineHolds ?? [];
+            for (let j = 0; j < hList2.length; j++) {
+                const h = hList2[j];
+                bump(h.seq);
+            }
+            const hList3 = card.subtypeAddHolds ?? [];
+            for (let j = 0; j < hList3.length; j++) {
+                const h = hList3[j];
+                bump(h.seq);
+            }
+            const hList4 = card.supertypeHolds ?? [];
+            for (let j = 0; j < hList4.length; j++) {
+                const h = hList4[j];
+                bump(h.seq);
+            }
+            const cList = card.controlChanges ?? [];
+            for (let j = 0; j < cList.length; j++) {
+                const c = cList[j];
+                bump(c.seq);
+            }
             bump(card.animation?.seq);
             bump(card.colorOverrideSeq);
-            for (const r of card.temporaryColorOverrides ?? []) bump(r.seq);
+            const rList = card.temporaryColorOverrides ?? [];
+            for (let j = 0; j < rList.length; j++) {
+                const r = rList[j];
+                bump(r.seq);
+            }
             bump(card.indefiniteSubtypeSet?.seq);
             bump(card.temporarySubtypeChange?.seq);
         }
@@ -5565,10 +5682,9 @@ export function applyAbilityLossHold(
         opts?.restamp !== true &&
         (target.abilityLossHolds ?? []).some((s) => s.sourceId === sourceId);
     if (already) return false;
-    target.abilityLossHolds = [
-        ...(target.abilityLossHolds ?? []),
+    target.abilityLossHolds = (target.abilityLossHolds ?? []).concat([
         { sourceId, seq },
-    ];
+    ]);
     return true;
 }
 
@@ -5723,7 +5839,8 @@ export function snapshotLingeringStaticEffects(
         effects,
         (spec) => resolveDuration(spec, source.controllerId, state)
     );
-    for (const snapshot of snapshots) {
+    for (let i = 0; i < snapshots.length; i++) {
+        const snapshot = snapshots[i];
         // CR 613.7a — the effect keeps the stamp it has been ordering by, so a
         // Song that dies cannot promote itself past an effect it used to lose
         // to. `pushContinuousEffect`'s caller-minted-stamp arm exists for
@@ -5741,8 +5858,12 @@ export function snapshotLingeringStaticEffects(
  *  derivation simply stops producing its entries, so there is no occupancy to
  *  hand back and nothing that can drift. */
 function releaseAbilityLossHolds(state: GameState, sourceId: string): void {
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             const holds = card.abilityLossHolds;
             if (holds && holds.length > 0) {
                 const kept = holds.filter((h) => h.sourceId !== sourceId);
@@ -5835,7 +5956,9 @@ export function stampGraveyardStaticSources(state: GameState): void {
     const start = active === -1 ? 0 : active;
     for (let i = 0; i < state.players.length; i++) {
         const player = state.players[(start + i) % state.players.length];
-        for (const card of player.graveyard) {
+        const cardList = player.graveyard;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (card.zoneStaticSeq !== undefined) continue;
             const cardId = (card.card as { id?: string }).id;
             if (!cardId || !declaresGraveyardStaticEffect(cardId)) continue;
@@ -5921,7 +6044,8 @@ export function resolveEnchantRestriction(
     const reqTypes = Array.isArray(req.type) ? req.type : [req.type];
     const types: CardType[] = [];
     let players = false;
-    for (const t of reqTypes) {
+    for (let i = 0; i < reqTypes.length; i++) {
+        const t = reqTypes[i];
         if (t === "player") {
             players = true;
             continue;
@@ -6080,8 +6204,12 @@ function findAllLegalAuraHosts(
     excludeId?: string
 ): AuraHostCandidate[] {
     const hosts: AuraHostCandidate[] = [];
-    for (const player of state.players) {
-        for (const host of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const hostList = player.battlefield;
+        for (let j = 0; j < hostList.length; j++) {
+            const host = hostList[j];
             if (host.id === excludeId) continue;
             // CR 303.4f — this candidate scan runs when the Aura enters NOT
             // as a cast spell, so the source is a PERMANENT (CR 112.1).
@@ -6091,7 +6219,9 @@ function findAllLegalAuraHosts(
         }
     }
     if (auraEnchantsPlayers(aura)) {
-        for (const player of state.players) {
+        const playerList2 = state.players;
+        for (let i = 0; i < playerList2.length; i++) {
+            const player = playerList2[i];
             hosts.push({ kind: "player", id: player.id });
         }
     }
@@ -6178,7 +6308,9 @@ export function removePermanentFromCombat(
         );
     }
     delete combat.blockerAssignments[cardId];
-    for (const blockerId of Object.keys(combat.blockerAssignments)) {
+    const blockerIdList = Object.keys(combat.blockerAssignments);
+    for (let i = 0; i < blockerIdList.length; i++) {
+        const blockerId = blockerIdList[i];
         combat.blockerAssignments[blockerId] = combat.blockerAssignments[
             blockerId
         ].filter((id) => id !== cardId);
@@ -6358,7 +6490,7 @@ export function recordSourceDamagedPermanent(
     if (!found) return;
     const history = found.card.damagedPermanentsThisGame ?? [];
     if (history.includes(recipientId)) return;
-    found.card.damagedPermanentsThisGame = [...history, recipientId];
+    found.card.damagedPermanentsThisGame = history.concat([recipientId]);
 }
 
 /** Increments the per-turn damage tally for `playerId` (CR 120.3). Called
@@ -6613,8 +6745,7 @@ function recipientKeyedSourceShieldPrevents(
     if (shield === undefined) return false;
     if (shield.preventionWatchId !== undefined && amount > 0) {
         const live = findOnBattlefield(state, sourceInstanceId)?.card;
-        state.pendingEvents = [
-            ...(state.pendingEvents ?? []),
+        state.pendingEvents = (state.pendingEvents ?? []).concat([
             {
                 type: "DAMAGE_PREVENTED",
                 sourceInstanceId,
@@ -6626,7 +6757,7 @@ function recipientKeyedSourceShieldPrevents(
                     : describeDamageSource(state, sourceInstanceId).colors,
                 preventionWatchId: shield.preventionWatchId,
             },
-        ];
+        ]);
     }
     return true;
 }
@@ -6724,7 +6855,9 @@ export function dealDamageFromPermanentToPlayer(
     if (replaced === null) return;
     // CR 614.9 (issue #3810) — remainders split off by a recipient-keyed
     // redirect, each dealt as its own event from the same permanent source.
-    for (const rest of replaced.residuals ?? []) {
+    const restList = replaced.residuals ?? [];
+    for (let i = 0; i < restList.length; i++) {
+        const rest = restList[i];
         if (rest.target.type === "player") {
             dealDamageFromPermanentToPlayer(
                 state,
@@ -6816,8 +6949,7 @@ export function dealDamageFromPermanentToPlayer(
     bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
     recordSourceDamagedOpponent(state, source.id, finalTarget.id);
     bumpArtifactDamageToPlayer(state, finalTarget.id, reduced, desc.types);
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         {
             type: "DAMAGE_DEALT",
             sourceInstanceId: source.id,
@@ -6830,7 +6962,7 @@ export function dealDamageFromPermanentToPlayer(
             sourceSubtypes: desc.subtypes,
             sourceStaticAbilities: desc.staticAbilities,
         },
-    ];
+    ]);
     // CR 702.15b — lifelink: the source's controller gains life equal to the
     // damage just dealt, simultaneously with it (CR 119.3).
     applyLifelinkLifeGain(
@@ -6907,7 +7039,9 @@ function markDamageFromPermanentSource(
     if (replaced === null) return;
     // CR 614.9 (issue #3810) — remainders split off by a recipient-keyed
     // redirect, dealt as their own events from the same permanent source.
-    for (const rest of replaced.residuals ?? []) {
+    const restList = replaced.residuals ?? [];
+    for (let j = 0; j < restList.length; j++) {
+        const rest = restList[j];
         if (rest.target.type === "permanent") {
             markDamageFromPermanentSource(
                 state,
@@ -6983,8 +7117,7 @@ function markDamageFromPermanentSource(
         bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
         recordSourceDamagedOpponent(state, source.id, finalTarget.id);
         bumpArtifactDamageToPlayer(state, finalTarget.id, reduced, desc.types);
-        state.pendingEvents = [
-            ...(state.pendingEvents ?? []),
+        state.pendingEvents = (state.pendingEvents ?? []).concat([
             {
                 type: "DAMAGE_DEALT",
                 sourceInstanceId: source.id,
@@ -6997,7 +7130,7 @@ function markDamageFromPermanentSource(
                 sourceSubtypes: desc.subtypes,
                 sourceStaticAbilities: desc.staticAbilities,
             },
-        ];
+        ]);
         // CR 702.15b — lifelink on the source (damage was redirected to a
         // player, but the source's lifelink still triggers on damage dealt).
         applyLifelinkLifeGain(
@@ -7052,13 +7185,11 @@ function markDamageFromPermanentSource(
     ) {
         found.card.damageMarked = (found.card.damageMarked ?? 0) + reduced;
     }
-    found.card.damagedBySources = [
-        ...(found.card.damagedBySources ?? []),
+    found.card.damagedBySources = (found.card.damagedBySources ?? []).concat([
         source.id,
-    ];
+    ]);
     recordSourceDamagedPermanent(state, source.id, finalTarget.id);
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         {
             type: "DAMAGE_DEALT",
             sourceInstanceId: source.id,
@@ -7071,7 +7202,7 @@ function markDamageFromPermanentSource(
             sourceSubtypes: desc.subtypes,
             sourceStaticAbilities: desc.staticAbilities,
         },
-    ];
+    ]);
     // CR 702.15b — lifelink: the source's controller gains life equal to the
     // damage marked on the permanent (CR 119.3, simultaneously with it).
     applyLifelinkLifeGain(
@@ -7424,8 +7555,12 @@ export function clearExileLinksToEnteringSource(
     state: GameState,
     sourceInstanceId: string
 ): void {
-    for (const player of state.players) {
-        for (const card of player.exile) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.exile;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (card.exiledBySourceId === sourceInstanceId) {
                 delete card.exiledBySourceId;
             }
@@ -7497,7 +7632,9 @@ export function dropDelayedCapturesOfEnteringObject(
     entry: { resolvingItemPopped: boolean }
 ): void {
     const scrub = (payload: Record<string, string | string[]>): void => {
-        for (const [key, value] of Object.entries(payload)) {
+        const entries2 = Object.entries(payload);
+        for (let i = 0; i < entries2.length; i++) {
+            const [key, value] = entries2[i];
             if (Array.isArray(value)) {
                 if (value.includes(instanceId)) {
                     payload[key] = value.filter((id) => id !== instanceId);
@@ -7507,11 +7644,17 @@ export function dropDelayedCapturesOfEnteringObject(
             }
         }
     };
-    for (const t of state.delayedTriggers ?? []) scrub(t.payload);
+    const tList = state.delayedTriggers ?? [];
+    for (let i = 0; i < tList.length; i++) {
+        const t = tList[i];
+        scrub(t.payload);
+    }
     const resolving = entry.resolvingItemPopped
         ? undefined
         : state.stack[state.stack.length - 1];
-    for (const item of state.stack) {
+    const itemList = state.stack;
+    for (let i = 0; i < itemList.length; i++) {
+        const item = itemList[i];
         if (item !== resolving && item.delayedPayload) {
             scrub(item.delayedPayload);
         }
@@ -7536,10 +7679,18 @@ export function forgetDamageToEnteringObject(
         if (kept.length > 0) card.damagedPermanentsThisGame = kept;
         else delete card.damagedPermanentsThisGame;
     };
-    for (const player of state.players) player.battlefield.forEach(scrub);
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        player.battlefield.forEach(scrub);
+    }
     // CR 702.26d — a phased-out source keeps its history, so it is scrubbed
     // too.
-    for (const bundle of state.phasedOut ?? []) bundle.cards.forEach(scrub);
+    const bundleList = state.phasedOut ?? [];
+    for (let i = 0; i < bundleList.length; i++) {
+        const bundle = bundleList[i];
+        bundle.cards.forEach(scrub);
+    }
     state.stack.forEach((item) => scrub(item as CardInstanceState));
 }
 
@@ -7599,7 +7750,9 @@ export function transformedSincePutOnStack(
  *  choice — a body that moved its own target before asking would move it
  *  twice, stamp or no stamp. */
 function stampDepartedTargets(state: GameState, cardId: string): void {
-    for (const item of state.stack) {
+    const itemList = state.stack;
+    for (let i = 0; i < itemList.length; i++) {
+        const item = itemList[i];
         if (!item.targets) continue;
         item.targets = item.targets.map((t) =>
             t.type === "permanent" && t.id === cardId && !t.departed
@@ -7618,7 +7771,9 @@ function stampDepartedEntrySubject(
     state: GameState,
     card: CardInstanceState
 ): void {
-    for (const item of state.stack) {
+    const itemList = state.stack;
+    for (let i = 0; i < itemList.length; i++) {
+        const item = itemList[i];
         const event = item.triggerEvent;
         if (
             event?.type !== "PERMANENT_ENTERED" ||
@@ -7884,24 +8039,28 @@ export function removePermanentTo(
     // instead. Collected across all battlefields: control-change effects can
     // put an Equipment and its host under different controllers.
     const lkiAttachments: string[] = [];
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (card.id !== cardId && card.attachedTo === cardId) {
                 lkiAttachments.push(card.id);
             }
         }
     }
-    const lkiTypes: ReadonlyArray<CardType> = [...initial.card.types];
+    const lkiTypes: ReadonlyArray<CardType> = initial.card.types.slice();
     // CR 205.3 (issue #1191) — snapshot subtypes alongside types so a
     // subtype-scoped LTB trigger ("whenever you sacrifice a Clue") can filter
     // the departure without re-reading the registry.
-    const lkiSubtypes: ReadonlyArray<string> = [...initial.card.subtypes];
+    const lkiSubtypes: ReadonlyArray<string> = initial.card.subtypes.slice();
     const lkiCardId = (initial.card.card as { id?: string }).id;
     const lkiWasAura = isAura(initial.card);
     const lkiOwnerId = initial.card.ownerId;
     // CR 603.10a / 613.1f — the keywords it had, before an Aura's or its own
     // effects stop applying and before the identity reverts recompose layer 6.
-    const lkiKeywords = [...initial.card.staticAbilities];
+    const lkiKeywords = initial.card.staticAbilities.slice();
     // CR 603.10a (issue #8730) — and, at the same instant, whether it had lost
     // its abilities and which triggered abilities it was granted: every
     // departure ends both on the card below (CR 400.7), so the look-back reads
@@ -7992,7 +8151,9 @@ export function removePermanentTo(
     // power at departure (other sources' effects folded in, as the CR 603.10
     // snapshot below), which the raw record cannot reproduce: "this creature deals damage equal to its
     // power" reads it (CR 608.2h).
-    for (const item of state.stack) {
+    const itemList = state.stack;
+    for (let i = 0; i < itemList.length; i++) {
+        const item = itemList[i];
         const abilitySourceId =
             item.triggerSourceId ?? (item.abilityId ? item.id : undefined);
         if (abilitySourceId === creature.id && !item.sourceLki) {
@@ -8286,10 +8447,12 @@ export function removePermanentTo(
     // Colossus), puts this card into a library from the battlefield. CR
     // 712.21e — a melded permanent is TWO cards put there.
     if (toZone === "library") {
-        emitCardsPutIntoLibrary(state, [
-            libraryEntry(creature, "battlefield"),
-            ...(meldPartner ? [libraryEntry(meldPartner, "battlefield")] : []),
-        ]);
+        emitCardsPutIntoLibrary(
+            state,
+            [libraryEntry(creature, "battlefield")].concat(
+                meldPartner ? [libraryEntry(meldPartner, "battlefield")] : []
+            )
+        );
     }
     // CR 113.6c — the battlefield-departure twin of the `moveCard` call: a
     // static ability that functions only OUTSIDE the battlefield switches on
@@ -8448,8 +8611,12 @@ function collectAttachedPermanents(
     const seen = new Set([hostId]);
     const frontier = [hostId];
     for (let id = frontier.pop(); id !== undefined; id = frontier.pop()) {
-        for (const player of state.players) {
-            for (const card of player.battlefield) {
+        const playerList = state.players;
+        for (let i = 0; i < playerList.length; i++) {
+            const player = playerList[i];
+            const cardList = player.battlefield;
+            for (let j = 0; j < cardList.length; j++) {
+                const card = cardList[j];
                 if (card.attachedTo !== id || seen.has(card.id)) continue;
                 seen.add(card.id);
                 attached.push(card);
@@ -8489,13 +8656,15 @@ export function phaseOutPermanent(
     // CR 702.26b — "A permanent that phases out is removed from combat", so it
     // cannot come back still flagged as attacking or blocking.
     removePermanentFromCombat(state, permanentId);
-    const phasing = [
-        host.card,
-        ...collectAttachedPermanents(state, permanentId),
-    ];
+    const phasing = [host.card].concat(
+        collectAttachedPermanents(state, permanentId)
+    );
     // Splice in place: a caller may hold the battlefield array.
-    for (const card of phasing) {
-        for (const player of state.players) {
+    for (let i = 0; i < phasing.length; i++) {
+        const card = phasing[i];
+        const playerList = state.players;
+        for (let j = 0; j < playerList.length; j++) {
+            const player = playerList[j];
             const idx = player.battlefield.indexOf(card);
             if (idx !== -1) player.battlefield.splice(idx, 1);
         }
@@ -8503,7 +8672,8 @@ export function phaseOutPermanent(
     // Off the battlefield first: a layer pass run while a bundled card still
     // stands there would move a host whose control change stops applying, and
     // it must stay under the player it phased out under (CR 702.26a, 702.26d).
-    for (const card of phasing) {
+    for (let i = 0; i < phasing.length; i++) {
+        const card = phasing[i];
         releaseAbilityLossHolds(state, card.id);
         endTrackedDurations(card);
     }
@@ -8517,7 +8687,7 @@ export function phaseOutPermanent(
         // so what just phased out does not phase straight back in.
         phasedOutTurn: state.turn,
     };
-    state.phasedOut = [...(state.phasedOut ?? []), bundle];
+    state.phasedOut = (state.phasedOut ?? []).concat([bundle]);
     // CR 702.26b — a permanent treated as though it doesn't exist can't affect
     // anything else: recompose without the whole bundle.
     recomputeContinuousEffects(state);
@@ -8548,7 +8718,9 @@ export function phaseInBundle(state: GameState, bundleId: string): boolean {
     if (idx === -1) return false;
     const [bundle] = bundles.splice(idx, 1);
     state.phasedOut = bundles.length > 0 ? bundles : undefined;
-    for (const card of bundle.cards) {
+    const cardList = bundle.cards;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         getPlayer(state, card.controllerId).battlefield.push(card);
         // CR 722.3c — a permanent that "phases in prepared" makes a new copy.
         onPhasedInPrepared(state, card);
@@ -8571,7 +8743,9 @@ export function phaseInUntapCycleBundles(
     state: GameState,
     controllerId: string
 ): void {
-    for (const bundle of [...(state.phasedOut ?? [])]) {
+    const bundleList = (state.phasedOut ?? []).slice();
+    for (let i = 0; i < bundleList.length; i++) {
+        const bundle = bundleList[i];
         if (
             bundle.returnOn.kind === "untap-cycle" &&
             bundle.cards[0]?.controllerId === controllerId &&
@@ -8586,7 +8760,9 @@ export function phaseInUntapCycleBundles(
 /** Phases in every bundle whose `source-leaves` return condition names
  *  `sourceId`. Called from `removePermanentTo` when any permanent leaves. */
 function phaseInBundlesForSource(state: GameState, sourceId: string): void {
-    for (const bundle of [...(state.phasedOut ?? [])]) {
+    const bundleList = (state.phasedOut ?? []).slice();
+    for (let i = 0; i < bundleList.length; i++) {
+        const bundle = bundleList[i];
         if (
             bundle.returnOn.kind === "source-leaves" &&
             bundle.returnOn.sourceId === sourceId
@@ -8740,8 +8916,12 @@ export function exileWithAttachments(
     // orphaned Auras fall to the graveyard via the SBA and Equipment detaches.
     const attached: { id: string; ownerId: string }[] = [];
     if (includeAttachments) {
-        for (const player of state.players) {
-            for (const card of player.battlefield) {
+        const playerList = state.players;
+        for (let i = 0; i < playerList.length; i++) {
+            const player = playerList[i];
+            const cardList = player.battlefield;
+            for (let j = 0; j < cardList.length; j++) {
+                const card = cardList[j];
                 if (card.id !== targetId && card.attachedTo === targetId) {
                     attached.push({ id: card.id, ownerId: card.ownerId });
                 }
@@ -8753,7 +8933,10 @@ export function exileWithAttachments(
     // The whole bundle (attachments + host) is ONE exile event (CR 603.2c):
     // one batched CARDS_EXILED, not one per removed card.
     const movedHost = withCardsExiledBatch(state, () => {
-        for (const a of attached) removePermanentTo(state, a.id, "exile");
+        for (let i = 0; i < attached.length; i++) {
+            const a = attached[i];
+            removePermanentTo(state, a.id, "exile");
+        }
         return removePermanentTo(state, targetId, "exile");
     });
     // CR 712.21 / 712.21e — a melded host is two cards exiled.
@@ -8778,7 +8961,7 @@ export function exileWithAttachments(
         counters,
         returnTapped: opts.returnTapped,
     };
-    state.exileHeld = [...(state.exileHeld ?? []), bundle];
+    state.exileHeld = (state.exileHeld ?? []).concat([bundle]);
     return bundle.id;
 }
 
@@ -8801,7 +8984,8 @@ export function returnExiledForSource(
     const remaining = held.filter((b) => b.sourceId !== sourceId);
     state.exileHeld = remaining.length > 0 ? remaining : undefined;
 
-    for (const bundle of mine) {
+    for (let j = 0; j < mine.length; j++) {
+        const bundle = mine[j];
         const ownerExile = getPlayer(state, bundle.hostOwnerId).exile;
         const idx = ownerExile.findIndex((c) => c.id === bundle.hostId);
         if (idx === -1) continue; // host left exile — the return fizzles
@@ -8816,7 +9000,9 @@ export function returnExiledForSource(
         );
         // CR 712.21c — the return finds both cards of a melded host; each
         // comes back under its owner's control as its own permanent.
-        for (const p of bundle.meldPartners ?? []) {
+        const pList = bundle.meldPartners ?? [];
+        for (let k = 0; k < pList.length; k++) {
+            const p = pList[k];
             const exile = getPlayer(state, p.ownerId).exile;
             const at = exile.findIndex((c) => c.id === p.id);
             if (at === -1) continue;
@@ -8846,13 +9032,17 @@ export function returnExiledForSource(
             const merged: Record<string, number> = {
                 ...(hostCard.counters ?? {}),
             };
-            for (const [type, n] of Object.entries(bundle.counters)) {
+            const entries2 = Object.entries(bundle.counters);
+            for (let k = 0; k < entries2.length; k++) {
+                const [type, n] = entries2[k];
                 merged[type] = (merged[type] ?? 0) + n;
             }
             hostCard.counters = merged;
         }
         // CR 303.4 — the exiled Auras return attached to the restored host.
-        for (const a of bundle.attached) {
+        const aList = bundle.attached;
+        for (let k = 0; k < aList.length; k++) {
+            const a = aList[k];
             const auraExile = getPlayer(state, a.ownerId).exile;
             const ax = auraExile.findIndex((c) => c.id === a.id);
             if (ax === -1) continue;
@@ -8897,7 +9087,8 @@ export function becomeMonarch(
     const watches = state.monarchReturnWatch;
     if (!watches?.length) return;
     const remaining: MonarchReturnWatch[] = [];
-    for (const w of watches) {
+    for (let i = 0; i < watches.length; i++) {
+        const w = watches[i];
         if (w.controllerId === playerId) {
             remaining.push(w);
         } else {
@@ -8935,10 +9126,9 @@ export function exileUntilMonarchChanges(
         },
     });
     if (bundleId === null) return;
-    state.monarchReturnWatch = [
-        ...(state.monarchReturnWatch ?? []),
+    state.monarchReturnWatch = (state.monarchReturnWatch ?? []).concat([
         { sourceId, controllerId },
-    ];
+    ]);
 }
 
 /** Emits a SPELL_CAST event for a freshly-pushed stack item (CR 601.2i).
@@ -9006,19 +9196,18 @@ export function emitSpellCastEvent(
     };
     if (caster) {
         const next = { ...casterSpellTypeCountsThisTurn };
-        for (const type of new Set(item.types)) {
+        new Set(item.types).forEach((type) => {
             next[type] = (next[type] ?? 0) + 1;
-        }
+        });
         caster.spellTypesCastThisTurn = next;
     }
     // CR 202.2 — and the spell's colours as it became cast (the layer-5
     // colours read above), one entry per spell, so "an opponent has cast a
     // blue or black spell this turn" can be asked later in the turn.
     if (caster) {
-        caster.spellColorsCastThisTurn = [
-            ...(caster.spellColorsCastThisTurn ?? []),
-            [...colors],
-        ];
+        caster.spellColorsCastThisTurn = (
+            caster.spellColorsCastThisTurn ?? []
+        ).concat([colors.slice()]);
     }
     // Lifetime per-player tally (issue #790) — same choke point, never reset.
     // Powers "the caster's first spell of the GAME" (Once Upon a Time), which
@@ -9067,11 +9256,10 @@ export function emitSpellCastEvent(
     const kickedEvents = def
         ? buildSpellKickedEvents(def, item, cardId, colors)
         : [];
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
-        event,
-        ...kickedEvents,
-    ];
+    state.pendingEvents = (state.pendingEvents ?? []).concat(
+        [event],
+        kickedEvents
+    );
     // CR 603.2b (issue #1265) — a cast spell's chosen targets are locked onto
     // its stack item here, so this doubles as the target-declaration choke for
     // "whenever ~ becomes the target of a spell" triggers (Leovold). A
@@ -9124,12 +9312,15 @@ export function emitBecameTargetEvents(
 ): void {
     if (!targets || targets.length === 0) return;
     const events: BecameTargetEvent[] = [];
-    for (const target of targets) {
+    for (let i = 0; i < targets.length; i++) {
+        const target = targets[i];
         let targetControllerId: string | undefined;
         if (target.type === "player") {
             targetControllerId = target.id;
         } else if (target.type === "permanent") {
-            for (const p of state.players) {
+            const pList = state.players;
+            for (let j = 0; j < pList.length; j++) {
+                const p = pList[j];
                 const perm = p.battlefield.find((c) => c.id === target.id);
                 if (perm) {
                     targetControllerId = perm.controllerId;
@@ -9151,7 +9342,7 @@ export function emitBecameTargetEvents(
         });
     }
     if (events.length > 0) {
-        state.pendingEvents = [...(state.pendingEvents ?? []), ...events];
+        state.pendingEvents = (state.pendingEvents ?? []).concat(events);
     }
 }
 
@@ -9224,7 +9415,9 @@ function collectCastTriggers(
             true
         );
     }
-    for (const entry of def?.kickers ?? []) {
+    const entryList = def?.kickers ?? [];
+    for (let j = 0; j < entryList.length; j++) {
+        const entry = entryList[j];
         const keyword = additionalCostKeywordOf(entry);
         if (!ADDITIONAL_COST_KEYWORDS[keyword].castCopyTrigger) continue;
         // CR 702.56b — each instance "triggers based on the payments made for
@@ -9318,7 +9511,8 @@ function collectSelfCastTriggers(
     const abilities = def?.triggeredAbilities;
     if (!abilities || abilities.length === 0) return;
     let pushed = false;
-    for (const ability of abilities) {
+    for (let i = 0; i < abilities.length; i++) {
+        const ability = abilities[i];
         if (ability.functionsFromStack !== true) continue;
         if (!triggerHandlesEventType(ability, event.type)) continue;
         if (!ability.matches(event, castSpell, state)) continue;
@@ -9424,7 +9618,7 @@ export function emitCardDrawn(
         // they draw in each of their draw steps".
         isTurnBasedDrawStepDraw: isTurnBasedDrawStepDraw && i === 0,
     }));
-    state.pendingEvents = [...(state.pendingEvents ?? []), ...perCard];
+    state.pendingEvents = (state.pendingEvents ?? []).concat(perCard);
 }
 
 /** Emits a CARD_DISCARDED event for a card that just moved hand → graveyard as
@@ -9468,8 +9662,7 @@ export function emitCardMilled(
     cardId?: string,
     types?: ReadonlyArray<CardType>
 ): void {
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         {
             type: "CARD_MILLED",
             ownerId,
@@ -9477,7 +9670,7 @@ export function emitCardMilled(
             ...(cardId ? { cardId } : {}),
             ...(types && types.length > 0 ? { types } : {}),
         },
-    ];
+    ]);
 }
 
 /** Emits a CARD_PUT_INTO_GRAVEYARD event for a card that a GENERAL zone move
@@ -9502,8 +9695,7 @@ export function emitCardPutIntoGraveyard(
     fromZone: MovableZone | "stack",
     types?: ReadonlyArray<CardType>
 ): void {
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         {
             type: "CARD_PUT_INTO_GRAVEYARD",
             ownerId,
@@ -9512,7 +9704,7 @@ export function emitCardPutIntoGraveyard(
             ...(cardId ? { cardId } : {}),
             ...(types && types.length > 0 ? { types } : {}),
         },
-    ];
+    ]);
 }
 
 /** Emits ONE CARDS_EXILED event for cards that just moved into exile
@@ -9537,10 +9729,9 @@ export function emitCardsExiled(
         open.push(...cards);
         return;
     }
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
-        { type: "CARDS_EXILED", cards: [...cards] },
-    ];
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
+        { type: "CARDS_EXILED", cards: cards.slice() },
+    ]);
 }
 
 /** One card of a `CARDS_EXILED` batch. */
@@ -9618,10 +9809,9 @@ export function emitCardsPutIntoLibrary(
         open.push(...cards);
         return;
     }
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
-        { type: "CARDS_PUT_INTO_LIBRARY", cards: [...cards] },
-    ];
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
+        { type: "CARDS_PUT_INTO_LIBRARY", cards: cards.slice() },
+    ]);
 }
 
 /** Runs `run` as ONE resolving instruction for the library-entry event (issue
@@ -9671,10 +9861,9 @@ export function emitLibrarySearchedEvent(
     playerId: string,
     libraryOwnerId: string
 ): void {
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         { type: "LIBRARY_SEARCHED", playerId, libraryOwnerId },
-    ];
+    ]);
 }
 
 /** Emits a CARDS_EXILED entry for a single card that just left the
@@ -9695,7 +9884,7 @@ export function emitCardsExiledFromBattlefield(
     // CR 712.21e — a melded permanent exiled is ONE object but TWO cards.
     emitCardsExiled(
         state,
-        [moved, ...meldGroupPartners(state, moved.id)].map((card) => ({
+        [moved].concat(meldGroupPartners(state, moved.id)).map((card) => ({
             cardInstanceId: card.id,
             cardId: (card.card as { id?: string }).id,
             fromZone: "battlefield" as const,
@@ -9737,15 +9926,14 @@ export function emitLifeLost(
 ): void {
     if (amount <= 0) return;
     recordLifeLost(state, playerId, amount);
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         {
             type: "LIFE_LOST",
             playerId,
             amount,
             fromDamage,
         },
-    ];
+    ]);
 }
 
 /** CR 119.3 / 119.4 per-turn life-LOSS tally (issue #3237) — the
@@ -9772,10 +9960,9 @@ export function recordLifeLost(
     const speedController = speedTriggerController(state, playerId);
     if (speedController !== undefined) {
         state.speedTriggeredOnTurn = state.turn;
-        state.pendingReflexiveTriggers = [
-            ...(state.pendingReflexiveTriggers ?? []),
-            buildSpeedIncreaseStackItem(state, speedController),
-        ];
+        state.pendingReflexiveTriggers = (
+            state.pendingReflexiveTriggers ?? []
+        ).concat([buildSpeedIncreaseStackItem(state, speedController)]);
     }
 }
 
@@ -9833,9 +10020,13 @@ export function declareWinner(state: GameState, playerId: string): void {
  *  face-down exile (Necropotence, hideaway) stays hidden. */
 export function revealForetoldCards(state: GameState): void {
     const everyone = state.players.map((p) => p.id);
-    for (const player of state.players) {
-        for (const card of player.exile) {
-            if (card.foretold) card.knownTo = [...everyone];
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.exile;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
+            if (card.foretold) card.knownTo = everyone.slice();
         }
     }
 }
@@ -9899,14 +10090,13 @@ export function emitLifeGained(
     amount: number
 ): void {
     if (amount <= 0) return;
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         {
             type: "LIFE_GAINED",
             playerId,
             amount,
         },
-    ];
+    ]);
 }
 
 /** Single choke point for a life GAIN (CR 119.3): the `gainLife` primitive and
@@ -10016,8 +10206,8 @@ export function addCounterToCard(
         kind: "counter-placed",
         cardInstanceId: card.id,
         controllerId: card.controllerId,
-        types: [...card.types],
-        subtypes: [...card.subtypes],
+        types: card.types.slice(),
+        subtypes: card.subtypes.slice(),
         counterType: type,
         count,
     }).count;
@@ -10032,8 +10222,7 @@ export function addCounterToCard(
     // target once and never recomputed; re-run the materialization now so the
     // untap step and `getEffectiveActivatedAbilities` see the new answer.
     recomputeContinuousEffects(state);
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         {
             type: "COUNTER_ADDED",
             instanceId: card.id,
@@ -10041,13 +10230,13 @@ export function addCounterToCard(
             counterType: type,
             added: placed,
             total: next[type],
-            types: [...card.types],
-            subtypes: [...card.subtypes],
+            types: card.types.slice(),
+            subtypes: card.subtypes.slice(),
             ...(byTriggeredAbilityId !== undefined
                 ? { byTriggeredAbilityId }
                 : {}),
         },
-    ];
+    ]);
     return placed;
 }
 
@@ -10081,18 +10270,17 @@ export function setClassLevelOnCard(
     if (level <= previousLevel) return;
     card.classLevel = level;
     recomputeContinuousEffects(state);
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         {
             type: "LEVEL_GAINED",
             instanceId: card.id,
             controllerId: card.controllerId,
             level,
             previousLevel,
-            types: [...card.types],
-            subtypes: [...card.subtypes],
+            types: card.types.slice(),
+            subtypes: card.subtypes.slice(),
         },
-    ];
+    ]);
 }
 
 /** CR 701.37a (issue #3217) — "Monstrosity N": if `card` isn't monstrous, put
@@ -10118,17 +10306,16 @@ export function becomeMonstrousOnCard(
     if (card.monstrous === true) return;
     addCounterToCard(state, card, "+1/+1", count);
     card.monstrous = true;
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         {
             type: "PERMANENT_BECAME_MONSTROUS",
             instanceId: card.id,
             controllerId: card.controllerId,
             count,
-            types: [...card.types],
-            subtypes: [...card.subtypes],
+            types: card.types.slice(),
+            subtypes: card.subtypes.slice(),
         },
-    ];
+    ]);
 }
 
 /** CR 702.171a — "This permanent becomes saddled until end of turn." The
@@ -10229,18 +10416,17 @@ export function emitPermanentTapped(
     forMana: boolean,
     manaProduced?: CardManaCost
 ): void {
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         {
             type: "PERMANENT_TAPPED",
             permanentId: card.id,
             controllerId: card.controllerId,
-            permanentTypes: [...card.types],
-            permanentSubtypes: [...card.subtypes],
+            permanentTypes: card.types.slice(),
+            permanentSubtypes: card.subtypes.slice(),
             forMana,
             ...(manaProduced ? { manaProduced } : {}),
         },
-    ];
+    ]);
 }
 
 /** Untaps `card` and, on a real tapped → untapped transition, emits a
@@ -10257,16 +10443,15 @@ export function untapPermanent(
     // CR 122.1d — a stun counter replaces the untap: remove one, stay tapped.
     if (applyUntapReplacements(state, card)) return false;
     card.isTapped = false;
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         {
             type: "PERMANENT_UNTAPPED",
             permanentId: card.id,
             controllerId: card.controllerId,
-            permanentTypes: [...card.types],
-            permanentSubtypes: [...card.subtypes],
+            permanentTypes: card.types.slice(),
+            permanentSubtypes: card.subtypes.slice(),
         },
-    ];
+    ]);
     return true;
 }
 
@@ -10283,17 +10468,16 @@ export function emitAbilityActivated(
     card: CardInstanceState,
     abilityId: string
 ): void {
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         {
             type: "ABILITY_ACTIVATED",
             permanentId: card.id,
             controllerId: card.controllerId,
-            permanentTypes: [...card.types],
-            permanentSubtypes: [...card.subtypes],
+            permanentTypes: card.types.slice(),
+            permanentSubtypes: card.subtypes.slice(),
             abilityId,
         },
-    ];
+    ]);
 }
 
 /** Removes any queued PERMANENT_TAPPED event for `permanentId`. Called by
@@ -10328,8 +10512,12 @@ export function flushPendingEvents(state: GameState): GameEvent[] {
  *  battlefield with stale `attachedTo` and are cleaned up by
  *  `checkAuraAttachmentSBA` (CR 704.5n). */
 function unapplyAurasAttachedTo(state: GameState, hostId: string): void {
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (card.attachedTo !== hostId) continue;
             if (!isAura(card)) continue;
             unapplyAuraControlChange(state, card);
@@ -10429,7 +10617,7 @@ export function applyColorOverrideToPermanent(
         // timed row beneath it is superseded: dropping the ledger is the same
         // as letting each row expire unseen.
         card.temporaryColorOverrides = undefined;
-        card.colorOverride = [...colors];
+        card.colorOverride = colors.slice();
         card.colorOverrideSeq = seq;
         return;
     }
@@ -10441,15 +10629,15 @@ export function applyColorOverrideToPermanent(
         : [];
     if (ledger.length === 0 && card.colorOverride) {
         ledger.push({
-            colors: [...card.colorOverride],
+            colors: card.colorOverride.slice(),
             ...(card.colorOverrideSeq !== undefined
                 ? { seq: card.colorOverrideSeq }
                 : {}),
         });
     }
-    ledger.push({ colors: [...colors], duration: resolved, seq });
+    ledger.push({ colors: colors.slice(), duration: resolved, seq });
     card.temporaryColorOverrides = ledger;
-    card.colorOverride = [...colors];
+    card.colorOverride = colors.slice();
     card.colorOverrideSeq = seq;
 }
 
@@ -10495,7 +10683,8 @@ export function tickColorOverrideLedger(
     }
     let expired = false;
     const kept: NonNullable<CardInstanceState["temporaryColorOverrides"]> = [];
-    for (const row of ledger) {
+    for (let i = 0; i < ledger.length; i++) {
+        const row = ledger[i];
         if (!row.duration) {
             kept.push(row);
             continue;
@@ -10509,7 +10698,7 @@ export function tickColorOverrideLedger(
         return;
     }
     const top = kept[kept.length - 1];
-    card.colorOverride = top ? [...top.colors] : undefined;
+    card.colorOverride = top ? top.colors.slice() : undefined;
     // CR 613.7 — the row showing through keeps the timestamp it was created at.
     card.colorOverrideSeq = top?.seq;
     // Only the indefinite base left: it IS `colorOverride`, nothing to track.
@@ -10608,9 +10797,9 @@ export function animatePermanentAsCreature(
             // application only — the grant block below still runs on a
             // second one (CR 611.2a), and those keywords belong to that
             // LATER ability, never to this record.
-            ...(spec.colors ? { colors: [...spec.colors] } : {}),
+            ...(spec.colors ? { colors: spec.colors.slice() } : {}),
             ...(spec.grantedAbilities
-                ? { grantedAbilities: [...spec.grantedAbilities] }
+                ? { grantedAbilities: spec.grantedAbilities.slice() }
                 : {}),
         };
         // PRD #2064 S4 — the type / subtype half is DERIVED from the
@@ -10687,7 +10876,9 @@ export function animatePermanentAsCreature(
         const grantDuration = spec.duration
             ? resolveDuration(spec.duration, controllerId, state)
             : undefined;
-        for (const ability of spec.grantedAbilities) {
+        const abilityList = spec.grantedAbilities;
+        for (let i = 0; i < abilityList.length; i++) {
+            const ability = abilityList[i];
             // CR 113.1 (issue #1706) — same own-record idempotence
             // gate as `grantStaticAbilityPermanent`: an `includes`
             // gate would silently share another source's occurrence
@@ -10795,26 +10986,24 @@ export function revertAnimation(card: CardInstanceState): void {
     if (anim.addedSubtype !== undefined) {
         const idx = card.subtypes.indexOf(anim.addedSubtype);
         if (idx !== -1) {
-            card.subtypes = [
-                ...card.subtypes.slice(0, idx),
-                ...card.subtypes.slice(idx + 1),
-            ];
+            card.subtypes = card.subtypes
+                .slice(0, idx)
+                .concat(card.subtypes.slice(idx + 1));
         }
     }
     // CR 208.2, 611.1: remove exactly the types the animation added — the
     // creature type and any `additionalTypes` (e.g. "Artifact" for Mishra's
     // Factory) — restoring the permanent's original type line.
-    const typesToRemove = [
-        ...(anim.addedCreatureType ? (["Creature"] as CardType[]) : []),
-        ...(anim.addedTypes ?? []),
-    ];
-    for (const t of typesToRemove) {
+    const typesToRemove = (
+        anim.addedCreatureType ? (["Creature"] as CardType[]) : []
+    ).concat(anim.addedTypes ?? []);
+    for (let i = 0; i < typesToRemove.length; i++) {
+        const t = typesToRemove[i];
         const idx = card.types.indexOf(t);
         if (idx !== -1) {
-            card.types = [
-                ...card.types.slice(0, idx),
-                ...card.types.slice(idx + 1),
-            ];
+            card.types = card.types
+                .slice(0, idx)
+                .concat(card.types.slice(idx + 1));
         }
     }
     card.power = anim.savedPower;
@@ -10858,7 +11047,7 @@ export function revertTypeProvenance(card: CardInstanceState): void {
     // reconstructed at load (`migrateLegacyLayer2to5Ledgers`,
     // `gre/serialize.ts`).
     if (!card.baseTypes) return;
-    card.types = [...card.baseTypes];
+    card.types = card.baseTypes.slice();
     delete card.typeLineHolds;
 }
 
@@ -10924,17 +11113,17 @@ export function applyIndefiniteSubtypeSet(
     ensureLayer4Base(card);
     if (!card.indefiniteSubtypeSet) {
         card.indefiniteSubtypeSet = {
-            restoreSubtypes: [...card.subtypes],
+            restoreSubtypes: card.subtypes.slice(),
             // Issue #1705 — the effect VALUE beside the anchor, so an identity
             // swap can replay the set over the new face.
-            subtypes: [...subtypes],
+            subtypes: subtypes.slice(),
         };
     } else {
         // A staged respec (Figure of Destiny) keeps the FIRST anchor but the
         // LATEST set value — that is what is live.
         card.indefiniteSubtypeSet = {
             ...card.indefiniteSubtypeSet,
-            subtypes: [...subtypes],
+            subtypes: subtypes.slice(),
         };
     }
     // PRD #2064 S4 — `subtypes` is `syncLayers2to5`'s derived output; the CR
@@ -11047,11 +11236,11 @@ export function discardEntryTypeLine(card: CardInstanceState): void {
  *  the way in is a no-op the second time. */
 export function revertTypeLine(card: CardInstanceState): void {
     if (card.indefiniteSubtypeSet) {
-        card.subtypes = [...card.indefiniteSubtypeSet.restoreSubtypes];
+        card.subtypes = card.indefiniteSubtypeSet.restoreSubtypes.slice();
         delete card.indefiniteSubtypeSet;
     }
     if (card.temporarySubtypeChange) {
-        card.subtypes = [...card.temporarySubtypeChange.restoreSubtypes];
+        card.subtypes = card.temporarySubtypeChange.restoreSubtypes.slice();
         delete card.temporarySubtypeChange;
     }
     // CR 613.1d — the captured base has the last word: `subtypes` is derived
@@ -11059,7 +11248,7 @@ export function revertTypeLine(card: CardInstanceState): void {
     // permanent's static had added) and only the base is what the card prints.
     // An add's ledger and every supertype change end the same way; the supertype
     // reads consult these fields, not a printed line, so clearing IS the revert.
-    if (card.baseSubtypes) card.subtypes = [...card.baseSubtypes];
+    if (card.baseSubtypes) card.subtypes = card.baseSubtypes.slice();
     delete card.subtypeAddHolds;
     delete card.supertypeHolds;
     delete card.grantedSupertypes;
@@ -11085,10 +11274,10 @@ export function revertTypeLine(card: CardInstanceState): void {
  *  the base from the new copiable values (`gre/identitySwap.ts`), which is the
  *  only thing CR 400.7 asks for here. */
 function resetLayer6ToBase(card: CardInstanceState): void {
-    card.staticAbilities = [
-        ...(card.baseStaticAbilities ?? card.staticAbilities),
-    ];
-    card.baseStaticAbilities = [...card.staticAbilities];
+    card.staticAbilities = (
+        card.baseStaticAbilities ?? card.staticAbilities
+    ).slice();
+    card.baseStaticAbilities = card.staticAbilities.slice();
 }
 
 /** CR 603.10a / 613.1f — the layer-6 state the look-back (`lookBackSelf`)
@@ -11120,12 +11309,18 @@ function dropMustBlockRequirementsNaming(
     state: GameState,
     attackerId: string
 ): void {
-    for (const player of state.players) {
-        for (const perm of player.battlefield) {
-            for (const field of [
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const permList = player.battlefield;
+        for (let j = 0; j < permList.length; j++) {
+            const perm = permList[j];
+            const fieldList = [
                 "mustBlockAttackersThisTurn",
                 "mustBlockAttackersThisCombat",
-            ] as const) {
+            ] as const;
+            for (let k = 0; k < fieldList.length; k++) {
+                const field = fieldList[k];
                 const named = perm[field];
                 if (!named?.includes(attackerId)) continue;
                 const rest = named.filter((id) => id !== attackerId);
@@ -11211,7 +11406,7 @@ export function resetBattlefieldTransientState(
     // add and a supertype mutation all end here. The bases and ledgers
     // themselves are `zone-change` rows of the lifecycle table, deleted by
     // the generic clear at the end — after this read.
-    card.types = [...(card.baseTypes ?? card.types)];
+    card.types = (card.baseTypes ?? card.types).slice();
     // CR 400.7 / 611.2a (issue #1746) — a subtype REPLACEMENT survives a phase
     // boundary when it is indefinite (and the timed form outlives a zone change
     // too, which is equally wrong), so it must be undone here or a bounced
@@ -11839,12 +12034,16 @@ export function meldPermanents(
     // CR 701.42a "exile them" is ONE simultaneous exile: one CARDS_EXILED
     // event naming both cards (issue #1558's one-event-per-occurrence rule).
     withCardsExiledBatch(state, () => {
-        for (const id of [holderId, partnerId]) {
+        const idList = [holderId, partnerId];
+        for (let i = 0; i < idList.length; i++) {
+            const id = idList[i];
             removePermanentTo(state, id, "exile", undefined, controllerId);
         }
     });
     const inExile = (id: string) => {
-        for (const p of state.players) {
+        const pList = state.players;
+        for (let i = 0; i < pList.length; i++) {
+            const p = pList[i];
             const card = p.exile.find((c) => c.id === id);
             if (card) return { player: p, card };
         }
@@ -11955,13 +12154,17 @@ export function putReanimatedSetOnBattlefield(
     // host has already been chosen) — otherwise the offer narrows by a clause
     // the CR 303.4c / 704.5m sweep can no longer see, and bins the Aura one
     // call after offering it a host.
-    for (const { card } of cards) clearGrantedEnchantRestriction(card);
+    for (let i = 0; i < cards.length; i++) {
+        const { card } = cards[i];
+        clearGrantedEnchantRestriction(card);
+    }
 
     const nonAuras = cards.filter((c) => !isAura(c.card));
     const auras = cards.filter((c) => isAura(c.card));
 
     const staged: CardInstanceState[] = [];
-    for (const { card, controllerId } of nonAuras) {
+    for (let i = 0; i < nonAuras.length; i++) {
+        const { card, controllerId } = nonAuras[i];
         if (
             stageReanimatedOnBattlefield(state, card, controllerId, {
                 enteredFromGraveyard,
@@ -11970,7 +12173,8 @@ export function putReanimatedSetOnBattlefield(
             staged.push(card);
         }
     }
-    for (const { card, controllerId, hostId } of auras) {
+    for (let i = 0; i < auras.length; i++) {
+        const { card, controllerId, hostId } = auras[i];
         // CR 303.4f — a host the effect names is the only candidate (no
         // prompt); otherwise the legal hosts among the fully-staged batch +
         // pre-existing permanents (exclude the Aura's own object).
@@ -12040,12 +12244,23 @@ export function putReanimatedSetOnBattlefield(
     // whole board from the registry — so each staged member needs only its
     // `staticSeq` minted, and one recompute settles every pair at once.
     // ETB simultaneity is preserved: all grants settle, THEN every ETB fires.
-    for (const card of staged) beginApplyingStaticEffects(state, card);
-    for (const card of staged) applyExistingGrantsTo(state, card);
+    for (let i = 0; i < staged.length; i++) {
+        const card = staged[i];
+        beginApplyingStaticEffects(state, card);
+    }
+    for (let i = 0; i < staged.length; i++) {
+        const card = staged[i];
+        applyExistingGrantsTo(state, card);
+    }
     // CR 722.3a — "enters prepared", for each member of the batch.
-    for (const card of staged) applyEntersPrepared(state, card);
-    for (const card of staged)
+    for (let i = 0; i < staged.length; i++) {
+        const card = staged[i];
+        applyEntersPrepared(state, card);
+    }
+    for (let i = 0; i < staged.length; i++) {
+        const card = staged[i];
         emitPermanentEntered(state, card, { enteredFromGraveyard });
+    }
     return staged.map((c) => c.id);
 }
 
@@ -12156,7 +12371,7 @@ export function stageAsEntersEntry(
         controllerId,
         origin,
         ...(parkedStackItemId !== undefined ? { parkedStackItemId } : {}),
-        owed: [...owed],
+        owed: owed.slice(),
         ...(presented ? { consultedDefIds: [presented] } : {}),
         ...(extra?.tokenEntry ? { tokenEntry: extra.tokenEntry } : {}),
         ...(extra?.playEntry ? { playEntry: extra.playEntry } : {}),
@@ -12171,7 +12386,7 @@ export function stageAsEntersEntry(
             ? { authoredEntry: { ...extra.authoredEntry } }
             : {}),
     };
-    state.stagedEntries = [...(state.stagedEntries ?? []), entry];
+    state.stagedEntries = (state.stagedEntries ?? []).concat([entry]);
     offerOrAutoAnswerAsEnters(state, entry);
 }
 
@@ -12497,7 +12712,7 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
         default:
             return assertNeverAsEnters(choice);
     }
-    state.pendingChoices = [...(state.pendingChoices ?? []), pending];
+    state.pendingChoices = (state.pendingChoices ?? []).concat([pending]);
     state.priorityPlayerId = entry.controllerId;
 }
 
@@ -12570,13 +12785,12 @@ function asEntersAttackTargetOptions(
     entry: StagedEntry
 ): { id: string; label: string }[] {
     const defender = getPlayer(state, getOpponentId(state, entry.controllerId));
-    return [
-        { id: defender.id, label: `Attack ${defender.name}` },
-        ...defender.battlefield.filter(isPlaneswalker).map((pw) => ({
+    return [{ id: defender.id, label: `Attack ${defender.name}` }].concat(
+        defender.battlefield.filter(isPlaneswalker).map((pw) => ({
             id: pw.id,
             label: `Attack ${tryGetDefinition(presentedDefId(pw))?.name ?? "planeswalker"}`,
-        })),
-    ];
+        }))
+    );
 }
 
 /** CR 707.5 / 614.12a — the permanents this staged entry may enter as a copy
@@ -12608,8 +12822,12 @@ function asEntersCopyCandidates(
         );
     }
     const candidateIds: string[] = [];
-    for (const p of state.players) {
-        for (const c of p.battlefield) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
+        const cList = p.battlefield;
+        for (let j = 0; j < cList.length; j++) {
+            const c = cList[j];
             if (c.id === card.id) continue;
             if (
                 choice.filter &&
@@ -12743,10 +12961,14 @@ function asEntersOpponentBoardCount(
     }
 ): number {
     let count = 0;
-    for (const p of state.players) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
         if (p.id === entry.controllerId) continue;
         if (spec.permanents) {
-            for (const c of p.battlefield) {
+            const cList = p.battlefield;
+            for (let j = 0; j < cList.length; j++) {
+                const c = cList[j];
                 if (
                     matchesPermanentFilter(
                         effectivePermanentView(state, c),
@@ -12758,7 +12980,9 @@ function asEntersOpponentBoardCount(
             }
         }
         if (spec.graveyardCards) {
-            for (const c of p.graveyard) {
+            const cList2 = p.graveyard;
+            for (let j = 0; j < cList2.length; j++) {
+                const c = cList2[j];
                 if (handCardMatchesFilter(c, spec.graveyardCards)) count++;
             }
         }
@@ -12931,7 +13155,7 @@ function applyAsEntersAnswer(
                     entry.copyLinkedTrigger = {
                         copiedCardId: source.id,
                         oracleText: choice.whenCopied.oracleText,
-                        effects: [...choice.whenCopied.effects],
+                        effects: choice.whenCopied.effects.slice(),
                     };
                 } else {
                     delete entry.copyLinkedTrigger;
@@ -12963,10 +13187,9 @@ function applyAsEntersAnswer(
                             0) + choice.count,
                 };
             } else if (choice.declinedKeyword) {
-                card.declinedEntryKeywords = [
-                    ...(card.declinedEntryKeywords ?? []),
-                    choice.declinedKeyword,
-                ];
+                card.declinedEntryKeywords = (
+                    card.declinedEntryKeywords ?? []
+                ).concat([choice.declinedKeyword]);
             }
             return {};
         }
@@ -12977,7 +13200,7 @@ function applyAsEntersAnswer(
             card.chosenName = selected[0];
             return {};
         case "subtypes":
-            card.chosenSubtypes = [...selected];
+            card.chosenSubtypes = selected.slice();
             return {};
         case "body": {
             const option = choice.options.find((o) => o.id === selected[0]);
@@ -12985,7 +13208,7 @@ function applyAsEntersAnswer(
                 card.power = option.power;
                 card.toughness = option.toughness;
                 if (option.subtypes) {
-                    card.subtypes = [...option.subtypes];
+                    card.subtypes = option.subtypes.slice();
                     // CR 614.12c (PRD #2064 S4) — a chosen BODY rewrites the
                     // object's own printed SUBTYPES, which is below layer 4.
                     // Drop the captured layer-2-to-5 bases so the next
@@ -12993,12 +13216,11 @@ function applyAsEntersAnswer(
                     clearLayers2to5Base(card);
                 }
                 if (option.staticAbilities) {
-                    card.staticAbilities = [
-                        ...card.staticAbilities,
-                        ...option.staticAbilities.filter(
+                    card.staticAbilities = card.staticAbilities.concat(
+                        option.staticAbilities.filter(
                             (a) => !card.staticAbilities.includes(a)
-                        ),
-                    ];
+                        )
+                    );
                     // CR 614.12c (PRD #2064 S3) — this rewrites the object's
                     // own printed keywords, which is BELOW layer 6, so the base
                     // is re-seated from the new list. SET rather than deleted
@@ -13006,7 +13228,7 @@ function applyAsEntersAnswer(
                     // `captureLayer6Base` down a formula that is exact only over
                     // a COMPOSED multiset, and what this just wrote is the
                     // uncomposed one.
-                    card.baseStaticAbilities = [...card.staticAbilities];
+                    card.baseStaticAbilities = card.staticAbilities.slice();
                 }
             }
             return {};
@@ -13014,15 +13236,19 @@ function applyAsEntersAnswer(
         case "anchor": {
             // CR 614.12c — the permanent enters with the chosen ability.
             const option = choice.options.find((o) => o.id === selected[0]);
-            for (const ability of option?.staticAbilities ?? []) {
+            const abilityList = option?.staticAbilities ?? [];
+            for (let i = 0; i < abilityList.length; i++) {
+                const ability = abilityList[i];
                 if (!card.staticAbilities.includes(ability)) {
                     // Replaced, never pushed: the search's clone shares this
                     // list across worlds (`clone.ts` § SHARED_KEYS).
-                    card.staticAbilities = [...card.staticAbilities, ability];
+                    card.staticAbilities = card.staticAbilities.concat([
+                        ability,
+                    ]);
                     // CR 614.12c (PRD #2064 S3/S6b-part-2) — see `setSelfBody`
                     // above: the base is re-seated from the new list, never
                     // deleted.
-                    card.baseStaticAbilities = [...card.staticAbilities];
+                    card.baseStaticAbilities = card.staticAbilities.slice();
                 }
             }
             return {};
@@ -13070,7 +13296,8 @@ function applyAsEntersAnswer(
             );
             const player = getPlayer(state, entry.controllerId);
             const exiled: Parameters<typeof emitCardsExiled>[1][number][] = [];
-            for (const id of selected) {
+            for (let i = 0; i < selected.length; i++) {
+                const id = selected[i];
                 if (!legal.has(id)) continue;
                 if (!exileCardFromGraveyard(state, player, id)) continue;
                 const moved = player.exile.find((c) => c.id === id);
@@ -13183,7 +13410,7 @@ function refreshOwedAsEnters(entry: StagedEntry): void {
     if (!defId) return;
     const consulted = entry.consultedDefIds ?? [];
     if (consulted.includes(defId)) return;
-    entry.consultedDefIds = [...consulted, defId];
+    entry.consultedDefIds = consulted.concat([defId]);
     const discovered = tryGetDefinition(defId)?.entersWith?.asEnters;
     if (discovered && discovered.length > 0) entry.owed.push(...discovered);
 }
@@ -13220,7 +13447,7 @@ function copyAnswerCarry(card: CardInstanceState): {
     if (card.copiedFrom === undefined) return {};
     return {
         ...(card.colorOverride
-            ? { colorOverride: [...card.colorOverride] }
+            ? { colorOverride: card.colorOverride.slice() }
             : {}),
         ...(card.grantedTriggeredAbilities
             ? {
@@ -13239,7 +13466,7 @@ function restoreCopyAnswer(
     card: CardInstanceState,
     carry: ReturnType<typeof copyAnswerCarry>
 ): void {
-    if (carry.colorOverride) card.colorOverride = [...carry.colorOverride];
+    if (carry.colorOverride) card.colorOverride = carry.colorOverride.slice();
     if (carry.grantedTriggeredAbilities) {
         card.grantedTriggeredAbilities = carry.grantedTriggeredAbilities;
     }
@@ -13260,7 +13487,7 @@ export function stagedEntryAnswers(
             ? { acceptedEntryCounters: { ...card.acceptedEntryCounters } }
             : {}),
         ...(card.declinedEntryKeywords !== undefined
-            ? { declinedEntryKeywords: [...card.declinedEntryKeywords] }
+            ? { declinedEntryKeywords: card.declinedEntryKeywords.slice() }
             : {}),
         ...(card.attachedTo !== undefined
             ? { attachedTo: card.attachedTo }
@@ -13269,7 +13496,7 @@ export function stagedEntryAnswers(
             ? { chosenName: card.chosenName }
             : {}),
         ...(card.chosenSubtypes !== undefined
-            ? { chosenSubtypes: [...card.chosenSubtypes] }
+            ? { chosenSubtypes: card.chosenSubtypes.slice() }
             : {}),
         ...(card.chosenPlayerId !== undefined
             ? { chosenPlayerId: card.chosenPlayerId }
@@ -13288,12 +13515,12 @@ export function restoreStagedEntryAnswers(
         card.acceptedEntryCounters = { ...answers.acceptedEntryCounters };
     }
     if (answers.declinedEntryKeywords !== undefined) {
-        card.declinedEntryKeywords = [...answers.declinedEntryKeywords];
+        card.declinedEntryKeywords = answers.declinedEntryKeywords.slice();
     }
     if (answers.attachedTo !== undefined) card.attachedTo = answers.attachedTo;
     if (answers.chosenName !== undefined) card.chosenName = answers.chosenName;
     if (answers.chosenSubtypes !== undefined) {
-        card.chosenSubtypes = [...answers.chosenSubtypes];
+        card.chosenSubtypes = answers.chosenSubtypes.slice();
     }
     if (answers.chosenPlayerId !== undefined) {
         card.chosenPlayerId = answers.chosenPlayerId;
@@ -13404,7 +13631,7 @@ function buildReflexiveStackItem(
         isTapped: false,
         castById: trigger.controllerId,
         delayedTriggerId: INLINE_DELAYED_TRIGGER_ID,
-        delayedEffects: [...trigger.effects],
+        delayedEffects: trigger.effects.slice(),
         delayedOracleText: trigger.oracleText,
         reflexiveTrigger: true,
         ...(source
@@ -13485,7 +13712,8 @@ function renarrowSiblingCostChoices(
 ): void {
     const queued = state.pendingChoices;
     if (!queued || queued.length === 0) return;
-    for (const pending of queued) {
+    for (let i = 0; i < queued.length; i++) {
+        const pending = queued[i];
         // CR 614.1c — a sibling's queued graveyard-exile prompt was offered
         // against a graveyard the answered entry may just have exiled from;
         // shrink its allow-list (and its `max`) to what is still there.
@@ -13587,7 +13815,7 @@ function declaredAsEntersFor(card: CardInstanceState): AsEntersChoice[] {
     const declared = defId
         ? tryGetDefinition(defId)?.entersWith?.asEnters
         : undefined;
-    return declared ? [...declared] : [];
+    return declared ? declared.slice() : [];
 }
 
 /** CR 611.2 / 613.1b / 603.6 — finish an Aura's entry once its host is set:
@@ -13758,7 +13986,7 @@ function emitSpellCopiedEvent(
         spellColors: getEffectiveColors(copy as unknown as PermanentView),
         fromCastCopyTrigger: creator.castCopiesRemaining !== undefined,
     };
-    state.pendingEvents = [...(state.pendingEvents ?? []), event];
+    state.pendingEvents = (state.pendingEvents ?? []).concat([event]);
 }
 
 /** An in-place retarget of an ORIGINAL spell: who chooses, and whether the
@@ -13884,7 +14112,7 @@ export function requestCopyRetargetOn(
         // target"; held counts leave the spell's own spans as they are.
         ...(instances
             ? {
-                  chosenModeIds: [...(copy.chosenModeIds ?? [])],
+                  chosenModeIds: (copy.chosenModeIds ?? []).slice(),
                   groupModeInstances: instances.slice(first),
                   modeTargetCounts: (copy.chosenModeIds ?? []).map(() => 0),
               }
@@ -13974,14 +14202,13 @@ function ownTargetGroups(spell: StackItem): {
             : undefined;
     return {
         requirements: castAnnouncedTargetGroups(
-            [
-                mode?.targetRequirement ?? def.targetRequirement,
-                ...(chosen.length > 1
+            [mode?.targetRequirement ?? def.targetRequirement].concat(
+                chosen.length > 1
                     ? []
                     : (mode?.additionalTargetRequirements ??
-                      def.additionalTargetRequirements ??
-                      [])),
-            ],
+                          def.additionalTargetRequirements ??
+                          [])
+            ),
             kicked
         ),
     };
@@ -14552,8 +14779,10 @@ export function buildSpellContext(
             // duplicating (an idempotent re-application leaves the array
             // unchanged).
             if (spec.addSubtypes?.length) {
-                const next = [...recipient.subtypes];
-                for (const s of spec.addSubtypes) {
+                const next = recipient.subtypes.slice();
+                const sList = spec.addSubtypes;
+                for (let i = 0; i < sList.length; i++) {
+                    const s = sList[i];
                     if (!next.includes(s)) next.push(s);
                 }
                 recipient.subtypes = next;
@@ -14562,8 +14791,10 @@ export function buildSpellContext(
                 clearLayers2to5Base(recipient);
             }
             if (spec.addKeywords?.length) {
-                const next = [...recipient.staticAbilities];
-                for (const k of spec.addKeywords) {
+                const next = recipient.staticAbilities.slice();
+                const kList = spec.addKeywords;
+                for (let i = 0; i < kList.length; i++) {
+                    const k = kList[i];
                     if (!next.includes(k)) next.push(k);
                 }
                 recipient.staticAbilities = next;
@@ -14573,12 +14804,17 @@ export function buildSpellContext(
                 // invisible the moment any grant recomputes (PRD #2064 S3,
                 // `gre/layer6.ts`). SET rather than deleted since PRD #2064
                 // S6b-part-2 — see `captureLayer6Base`.
-                recipient.baseStaticAbilities = [...recipient.staticAbilities];
+                recipient.baseStaticAbilities =
+                    recipient.staticAbilities.slice();
             }
         },
 
         forEachPlayer(fn: (playerId: string) => void) {
-            for (const p of state.players) fn(p.id);
+            const pList = state.players;
+            for (let i = 0; i < pList.length; i++) {
+                const p = pList[i];
+                fn(p.id);
+            }
         },
 
         flipCoin(): boolean {
@@ -14641,7 +14877,9 @@ export function buildSpellContext(
             // gets the whole CR 615 → CR 702.16e → application pipeline the
             // redirected half below gets. The splitting shield was decremented
             // by the moved points before it returned, so this terminates.
-            for (const rest of replaced.residuals ?? []) {
+            const restList = replaced.residuals ?? [];
+            for (let j = 0; j < restList.length; j++) {
+                const rest = restList[j];
                 buildSpellContext(state, item).dealDamage(
                     rest.target,
                     rest.amount,
@@ -14716,8 +14954,7 @@ export function buildSpellContext(
                     reduced,
                     desc.types
                 );
-                state.pendingEvents = [
-                    ...(state.pendingEvents ?? []),
+                state.pendingEvents = (state.pendingEvents ?? []).concat([
                     {
                         type: "DAMAGE_DEALT",
                         sourceInstanceId: item.id,
@@ -14730,7 +14967,7 @@ export function buildSpellContext(
                         sourceSubtypes: desc.subtypes,
                         sourceStaticAbilities: desc.staticAbilities,
                     },
-                ];
+                ]);
                 // CR 702.15b — lifelink: if the resolving source (a permanent's
                 // activated/triggered ability, LKI-snapshotted in `desc`) has
                 // lifelink, its controller gains life equal to the damage dealt.
@@ -14802,10 +15039,9 @@ export function buildSpellContext(
                     found.card.damageMarked =
                         (found.card.damageMarked ?? 0) + reduced;
                 }
-                found.card.damagedBySources = [
-                    ...(found.card.damagedBySources ?? []),
-                    item.id,
-                ];
+                found.card.damagedBySources = (
+                    found.card.damagedBySources ?? []
+                ).concat([item.id]);
                 // CR 608.2h — "this creature deals damage": an ability's
                 // damage is its source permanent's (a spell is on no
                 // battlefield, so it records nothing).
@@ -14816,8 +15052,7 @@ export function buildSpellContext(
                         found.card.id
                     );
                 }
-                state.pendingEvents = [
-                    ...(state.pendingEvents ?? []),
+                state.pendingEvents = (state.pendingEvents ?? []).concat([
                     {
                         type: "DAMAGE_DEALT",
                         sourceInstanceId: item.id,
@@ -14830,7 +15065,7 @@ export function buildSpellContext(
                         sourceSubtypes: desc.subtypes,
                         sourceStaticAbilities: desc.staticAbilities,
                     },
-                ];
+                ]);
                 // CR 702.15b — lifelink: the resolving source's controller
                 // gains life equal to the damage marked on the permanent.
                 applyLifelinkLifeGain(
@@ -14959,15 +15194,14 @@ export function buildSpellContext(
             // replacement effect and consumed by the first matching damage
             // event. `duration` scopes the unconsumed remainder; `match`
             // is the CR 609.7b recheck (`consumePreventionIfAny`).
-            state.preventionEffects = [
-                ...(state.preventionEffects ?? []),
+            state.preventionEffects = (state.preventionEffects ?? []).concat([
                 {
                     sourceInstanceId,
                     playerId,
                     duration: resolveDuration(duration, item.castById, state),
                     ...(match === undefined ? {} : { match }),
                 },
-            ];
+            ]);
         },
         getDamageSourceChoiceIds(filter?: DamageSourceFilter): string[] {
             // CR 609.7a — the `pick-source` pool, read from its one authority.
@@ -15021,10 +15255,9 @@ export function buildSpellContext(
                     };
                     break;
             }
-            state.damageRedirections = [
-                ...(state.damageRedirections ?? []),
+            state.damageRedirections = (state.damageRedirections ?? []).concat([
                 entry,
-            ];
+            ]);
         },
         addDestroyReplacementShield(
             target: TargetSelection,
@@ -15034,14 +15267,15 @@ export function buildSpellContext(
             // this turn" save. One-shot, target-keyed transient replacement.
             if (target.type !== "permanent") return;
             if (!findOnBattlefield(state, target.id)) return;
-            state.destroyReplacementShields = [
-                ...(state.destroyReplacementShields ?? []),
+            state.destroyReplacementShields = (
+                state.destroyReplacementShields ?? []
+            ).concat([
                 {
                     targetInstanceId: target.id,
                     remaining: 1,
                     duration: resolveDuration(duration, item.castById, state),
                 },
-            ];
+            ]);
         },
         preventAllCombatDamageToAndBy(
             target: TargetSelection,
@@ -15052,13 +15286,14 @@ export function buildSpellContext(
             // combat damage step (both as source and as target).
             if (target.type !== "permanent") return;
             if (!findOnBattlefield(state, target.id)) return;
-            state.combatDamageImmunity = [
-                ...(state.combatDamageImmunity ?? []),
+            state.combatDamageImmunity = (
+                state.combatDamageImmunity ?? []
+            ).concat([
                 {
                     instanceId: target.id,
                     duration: resolveDuration(duration, item.castById, state),
                 },
-            ];
+            ]);
         },
         gainLifeWhenDamagedByAttacker(
             target: TargetSelection,
@@ -15070,14 +15305,15 @@ export function buildSpellContext(
             // is the effect's controller (CR 113.7 — the spell's caster).
             if (target.type !== "permanent") return;
             if (!findOnBattlefield(state, target.id)) return;
-            state.damageTriggeredLifegain = [
-                ...(state.damageTriggeredLifegain ?? []),
+            state.damageTriggeredLifegain = (
+                state.damageTriggeredLifegain ?? []
+            ).concat([
                 {
                     instanceId: target.id,
                     controllerId: item.castById,
                     duration: resolveDuration(duration, item.castById, state),
                 },
-            ];
+            ]);
         },
         addPlayerDamagePreventionShield(
             playerId: string,
@@ -15093,8 +15329,9 @@ export function buildSpellContext(
             // shield (Dark Sphere: half from a chosen source, once; Scarecrow:
             // all from flying sources this turn). Consumed/reduced by
             // `applyPlayerDamagePrevention` on every player-damage event.
-            state.playerDamagePrevention = [
-                ...(state.playerDamagePrevention ?? []),
+            state.playerDamagePrevention = (
+                state.playerDamagePrevention ?? []
+            ).concat([
                 {
                     playerId,
                     match,
@@ -15102,7 +15339,7 @@ export function buildSpellContext(
                     remaining,
                     duration: resolveDuration(duration, item.castById, state),
                 },
-            ];
+            ]);
         },
         preventNextNDamageToTarget(
             target: TargetSelection,
@@ -15123,8 +15360,9 @@ export function buildSpellContext(
             } else {
                 return;
             }
-            state.targetPreventionShields = [
-                ...(state.targetPreventionShields ?? []),
+            state.targetPreventionShields = (
+                state.targetPreventionShields ?? []
+            ).concat([
                 {
                     targetType: target.type,
                     targetId: target.id,
@@ -15133,7 +15371,7 @@ export function buildSpellContext(
                     duration: resolveDuration(duration, item.castById, state),
                     ...(tallyId !== undefined ? { tallyId } : {}),
                 },
-            ];
+            ]);
         },
         consumePreventionTally(tallyId: string): number {
             // CR 615.1 readback — returns the total damage a tagged prevention
@@ -15263,10 +15501,9 @@ export function buildSpellContext(
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
             const sourceId = item.triggerSourceId ?? item.id;
-            found.card.sourceTappedPTMods = [
-                ...(found.card.sourceTappedPTMods ?? []),
-                { power, toughness, sourceId },
-            ];
+            found.card.sourceTappedPTMods = (
+                found.card.sourceTappedPTMods ?? []
+            ).concat([{ power, toughness, sourceId }]);
         },
         // CR 611.2 (ATQ Phyrexian Gremlins): untap-lock tied to the source
         // staying tapped. Recorded on the target; the untap step skips a
@@ -15279,7 +15516,7 @@ export function buildSpellContext(
             const sourceId = item.triggerSourceId ?? item.id;
             const existing = found.card.untapLockedBy ?? [];
             if (existing.includes(sourceId)) return;
-            found.card.untapLockedBy = [...existing, sourceId];
+            found.card.untapLockedBy = existing.concat([sourceId]);
         },
         // CR 302.6 / 502.1 (Barl's Cage, The Dark): one-shot "doesn't untap
         // during its controller's next untap step." Records a self-clearing
@@ -15494,8 +15731,7 @@ export function buildSpellContext(
             // Drained by `processPendingActionTriggers` after the current
             // resolution completes, exactly like PERMANENT_ENTERED.
             if (removed > 0) {
-                state.pendingEvents = [
-                    ...(state.pendingEvents ?? []),
+                state.pendingEvents = (state.pendingEvents ?? []).concat([
                     {
                         type: "COUNTER_REMOVED",
                         instanceId: found.card.id,
@@ -15504,7 +15740,7 @@ export function buildSpellContext(
                         removed,
                         remaining,
                     },
-                ];
+                ]);
             }
             return removed;
         },
@@ -15557,8 +15793,8 @@ export function buildSpellContext(
             // stamp, so a live `subtype-set` aura stamped earlier would win the
             // CR 613.7 race against an effect that resolved later.
             found.card.temporarySubtypeChange = {
-                subtypes: [...subtypes],
-                restoreSubtypes: [...restoreSubtypes],
+                subtypes: subtypes.slice(),
+                restoreSubtypes: restoreSubtypes.slice(),
                 duration: resolveDuration(
                     duration,
                     found.card.controllerId,
@@ -15632,10 +15868,9 @@ export function buildSpellContext(
             // subtype-add resolving AFTER a subtype-set aura is already live
             // must still show up on top of it).
             ensureLayers2to5Base(card);
-            card.subtypeAddHolds = [
-                ...holds,
+            card.subtypeAddHolds = holds.concat([
                 { subtype, seq: allocStaticTimestamp(state) },
-            ];
+            ]);
             // PRD #2064 S4 — `subtypes` and `grantedSubtypesAdd` are
             // `syncLayers2to5`'s derived output; this writes only the ledger.
             syncLayers2to5(state);
@@ -15924,7 +16159,9 @@ export function buildSpellContext(
             // other card goes to the same position of ITS owner's library,
             // directly below the first when they share one (the owner then
             // arranges the pair, CR 712.21a).
-            for (const partner of meldGroupPartners(state, moved.id)) {
+            const partnerList = meldGroupPartners(state, moved.id);
+            for (let i = 0; i < partnerList.length; i++) {
+                const partner = partnerList[i];
                 const partnerOwner = getPlayer(state, partner.ownerId);
                 const at = partnerOwner.library.findIndex(
                     (c) => c.id === partner.id
@@ -15998,8 +16235,8 @@ export function buildSpellContext(
             // the type line has to ride the instance to reach the resumed tail.
             if (opts?.entersAs) {
                 card.entersAsTypeLine = {
-                    types: [...opts.entersAs.types],
-                    subtypes: [...opts.entersAs.subtypes],
+                    types: opts.entersAs.types.slice(),
+                    subtypes: opts.entersAs.subtypes.slice(),
                 };
             }
             // CR 400.7 / 800.4a — owner stays the source pile's owner; the new
@@ -16066,7 +16303,8 @@ export function buildSpellContext(
                 [];
             const departed: { player: PlayerState; card: CardInstanceState }[] =
                 [];
-            for (const { playerId, cardInstanceId } of entries) {
+            for (let i = 0; i < entries.length; i++) {
+                const { playerId, cardInstanceId } = entries[i];
                 const player = getPlayer(state, playerId);
                 const pile =
                     fromZone === "graveyard" ? player.graveyard : player.exile;
@@ -16088,7 +16326,8 @@ export function buildSpellContext(
             // was on the battlefield when the others left, and a
             // leaves-a-graveyard ability looks back to that moment.
             const cohort = departed.map((d) => d.card.id);
-            for (const { player, card } of departed) {
+            for (let i = 0; i < departed.length; i++) {
+                const { player, card } = departed[i];
                 noteGraveyardDeparture(
                     state,
                     player,
@@ -16317,14 +16556,13 @@ export function buildSpellContext(
                 recomputeContinuousEffects(state);
                 // CR 701.27e — queued after the flip, so the face now up is
                 // the one whose "transforms into" ability is collected.
-                state.pendingEvents = [
-                    ...(state.pendingEvents ?? []),
+                state.pendingEvents = (state.pendingEvents ?? []).concat([
                     {
                         type: "PERMANENT_TRANSFORMED",
                         permanentId: found.card.id,
                         controllerId: found.card.controllerId,
                     },
-                ];
+                ]);
             }
         },
         // CR 712 / 400.7 (issue #2380) — "exile it, then return it to the
@@ -16469,8 +16707,12 @@ export function buildSpellContext(
         ): void {
             const normalized = normalizeDestroyAllFilter(filter);
             const ids: string[] = [];
-            for (const player of state.players) {
-                for (const card of player.battlefield) {
+            const playerList = state.players;
+            for (let i = 0; i < playerList.length; i++) {
+                const player = playerList[i];
+                const cardList = player.battlefield;
+                for (let j = 0; j < cardList.length; j++) {
+                    const card = cardList[j];
                     if (matchesPermanentFilter(card, normalized)) {
                         ids.push(card.id);
                     }
@@ -16482,7 +16724,9 @@ export function buildSpellContext(
             // CR 603.2c — the same one event is one exile occurrence when a
             // CR 614 replacement (Rest in Peace) redirects the victims.
             withCardsExiledBatch(state, () => {
-                for (const id of attachmentsLast(ids, hostOf)) {
+                const idList = attachmentsLast(ids, hostOf);
+                for (let i = 0; i < idList.length; i++) {
+                    const id = idList[i];
                     // Each victim independently gets a chance to consume a destroy
                     // replacement (CR 614, ADR 0125) or a regeneration shield
                     // (CR 614.5, 701.19a) — unless the caller opts out via
@@ -16578,7 +16822,7 @@ export function buildSpellContext(
             if (routed.actingPlayerId) {
                 entry.actingPlayerId = routed.actingPlayerId;
             }
-            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            state.pendingChoices = (state.pendingChoices ?? []).concat([entry]);
             return undefined;
         },
         revealForMiracle(playerId, cardInstanceId): void {
@@ -16698,10 +16942,9 @@ export function buildSpellContext(
         // continuous effect) — it rides `state.graveyardBoundRedirectThisTurn`
         // instead, cleared at CLEANUP (CR 514.2).
         armGraveyardRedirectThisTurn(ownerId: string): void {
-            state.graveyardBoundRedirectThisTurn = [
-                ...(state.graveyardBoundRedirectThisTurn ?? []),
-                { ownerId },
-            ];
+            state.graveyardBoundRedirectThisTurn = (
+                state.graveyardBoundRedirectThisTurn ?? []
+            ).concat([{ ownerId }]);
         },
         // CR 400.7: general zone-change primitive. Iterates over a snapshot
         // of source ids so moveCard's splice doesn't perturb iteration.
@@ -16725,7 +16968,8 @@ export function buildSpellContext(
             }[] = [];
             // issue #3242 — the same dump is ONE library-entry occurrence.
             withCardsPutIntoLibraryBatch(state, () => {
-                for (const id of ids) {
+                for (let i = 0; i < ids.length; i++) {
+                    const id = ids[i];
                     const moved = moveCardWithGraveyardReplacement(
                         state,
                         player,
@@ -16774,7 +17018,8 @@ export function buildSpellContext(
             }[] = [];
             // issue #3242 — and ONE library-entry occurrence, by the same rule.
             withCardsPutIntoLibraryBatch(state, () => {
-                for (const cardInstanceId of cardInstanceIds) {
+                for (let i = 0; i < cardInstanceIds.length; i++) {
+                    const cardInstanceId = cardInstanceIds[i];
                     const exists = (
                         player[fromField] as CardInstanceState[]
                     ).some((c) => c.id === cardInstanceId);
@@ -16861,7 +17106,9 @@ export function buildSpellContext(
         // the existing CR 122.2 strip on leaving exile applies unchanged. No-op
         // when the card is in no exile (CR 608.2b).
         stampCardCounters(cardInstanceId, counters) {
-            for (const p of state.players) {
+            const pList = state.players;
+            for (let i = 0; i < pList.length; i++) {
+                const p = pList[i];
                 const card = p.exile.find((c) => c.id === cardInstanceId);
                 if (!card) continue;
                 applyGraveyardRedirectCounters(card, counters);
@@ -16966,7 +17213,8 @@ export function buildSpellContext(
             seededShuffle(state, moving);
             // issue #3242 — one instruction, one library-entry event.
             withCardsPutIntoLibraryBatch(state, () => {
-                for (const id of moving) {
+                for (let i = 0; i < moving.length; i++) {
+                    const id = moving[i];
                     ctx.moveCardById(playerId, id, from, "library");
                 }
             });
@@ -17248,7 +17496,9 @@ export function buildSpellContext(
                 item.castById,
                 cost
             );
-            for (const [color, amount] of Object.entries(produced)) {
+            const entries2 = Object.entries(produced);
+            for (let i = 0; i < entries2.length; i++) {
+                const [color, amount] = entries2[i];
                 if (
                     color === "X" ||
                     color === "xFactor" ||
@@ -17270,7 +17520,9 @@ export function buildSpellContext(
                 item.castById,
                 cost
             );
-            for (const [color, amount] of Object.entries(produced)) {
+            const entries2 = Object.entries(produced);
+            for (let i = 0; i < entries2.length; i++) {
+                const [color, amount] = entries2[i];
                 if (
                     color === "X" ||
                     color === "xFactor" ||
@@ -17311,7 +17563,9 @@ export function buildSpellContext(
                 item.castById,
                 cost
             );
-            for (const [color, amount] of Object.entries(produced)) {
+            const entries2 = Object.entries(produced);
+            for (let i = 0; i < entries2.length; i++) {
+                const [color, amount] = entries2[i];
                 if (
                     color === "X" ||
                     color === "xFactor" ||
@@ -17344,7 +17598,9 @@ export function buildSpellContext(
             const found = findOnBattlefield(state, cardInstanceId);
             if (!found) return;
             const mana: Record<string, number> = {};
-            for (const [color, amount] of Object.entries(note.mana)) {
+            const entries2 = Object.entries(note.mana);
+            for (let i = 0; i < entries2.length; i++) {
+                const [color, amount] = entries2[i];
                 if (amount > 0) mana[color] = amount;
             }
             const noted: NonNullable<CardInstanceState["notedMana"]> = { mana };
@@ -17368,7 +17624,9 @@ export function buildSpellContext(
                 item.castById,
                 noted.mana as CardManaCost
             );
-            for (const [color, amount] of Object.entries(produced)) {
+            const entries2 = Object.entries(produced);
+            for (let i = 0; i < entries2.length; i++) {
+                const [color, amount] = entries2[i];
                 if (typeof amount !== "number" || amount <= 0) continue;
                 if (noted.castableCardId !== undefined) {
                     addRestrictedManaToPool(
@@ -17967,7 +18225,8 @@ export function buildSpellContext(
             if (targets.length === 0 || totalAmount <= 0) return;
             const per = Math.floor(totalAmount / targets.length);
             if (per <= 0) return;
-            for (const target of targets) {
+            for (let i = 0; i < targets.length; i++) {
+                const target = targets[i];
                 this.dealDamage(target, per);
             }
         },
@@ -17987,7 +18246,8 @@ export function buildSpellContext(
                 targets,
                 totalAmount
             );
-            for (const target of targets) {
+            for (let i = 0; i < targets.length; i++) {
+                const target = targets[i];
                 const amount = split.get(targetKey(target)) ?? 0;
                 if (amount > 0) this.dealDamage(target, amount);
             }
@@ -18010,7 +18270,8 @@ export function buildSpellContext(
                 targets,
                 totalAmount
             );
-            for (const target of targets) {
+            for (let i = 0; i < targets.length; i++) {
+                const target = targets[i];
                 if (target.type !== "permanent") continue;
                 const amount = split.get(targetKey(target)) ?? 0;
                 if (amount <= 0) continue;
@@ -18038,7 +18299,8 @@ export function buildSpellContext(
                 targets,
                 totalAmount
             );
-            for (const target of targets) {
+            for (let i = 0; i < targets.length; i++) {
+                const target = targets[i];
                 const amount = split.get(targetKey(target)) ?? 0;
                 if (amount > 0) {
                     this.preventNextNDamageToTarget(target, amount, duration);
@@ -18071,8 +18333,12 @@ export function buildSpellContext(
                     selfInstanceId: item.id,
                     selfControllerId: item.controllerId,
                 };
-                for (const player of state.players) {
-                    for (const card of player.battlefield) {
+                const playerList = state.players;
+                for (let i = 0; i < playerList.length; i++) {
+                    const player = playerList[i];
+                    const cardList = player.battlefield;
+                    for (let j = 0; j < cardList.length; j++) {
+                        const card = cardList[j];
                         if (!isDamageablePermanent(card)) continue;
                         if (matchesPermanentFilter(card, spec, matchCtx)) {
                             recipients.push({
@@ -18084,14 +18350,17 @@ export function buildSpellContext(
                 }
             }
             if (filter.players) {
-                for (const player of state.players) {
+                const playerList2 = state.players;
+                for (let i = 0; i < playerList2.length; i++) {
+                    const player = playerList2[i];
                     const isYou = player.id === item.controllerId;
                     if (filter.players === "you" && !isYou) continue;
                     if (filter.players === "opponents" && isYou) continue;
                     recipients.push({ type: "player", id: player.id });
                 }
             }
-            for (const target of recipients) {
+            for (let i = 0; i < recipients.length; i++) {
+                const target = recipients[i];
                 this.dealDamage(target, amount);
             }
         },
@@ -18113,10 +18382,9 @@ export function buildSpellContext(
                 grantedAtTurn: state.turn,
             };
             const player = getPlayer(state, playerId);
-            player.grantedAbilities = [
-                ...(player.grantedAbilities ?? []),
+            player.grantedAbilities = (player.grantedAbilities ?? []).concat([
                 instance,
-            ];
+            ]);
         },
         // CR 500.7: extra turns are taken after the current turn. Multiple
         // extra turns created on the same turn stack LIFO — the last created
@@ -18124,7 +18392,7 @@ export function buildSpellContext(
         takeExtraTurn(playerId: string): void {
             // Validate the target player exists (throws if not).
             getPlayer(state, playerId);
-            state.extraTurns = [...(state.extraTurns ?? []), playerId];
+            state.extraTurns = (state.extraTurns ?? []).concat([playerId]);
         },
         // CR 500.7: an extra turn is added directly after the SPECIFIED turn —
         // here the next turn `afterNextTurnOf` actually takes.
@@ -18255,7 +18523,7 @@ export function buildSpellContext(
             };
             // CR 114.4 — emblems can't be removed and persist the rest of the
             // game, so the list only ever grows.
-            state.emblems = [...(state.emblems ?? []), emblem];
+            state.emblems = (state.emblems ?? []).concat([emblem]);
             return id;
         },
         createTokenCopyOf(
@@ -18722,7 +18990,8 @@ export function buildSpellContext(
             // tie-break, which exists so a grant sharing a stripper's stamp
             // survives it.
             const seq = allocStaticTimestamp(state);
-            for (const keyword of removedNow) {
+            for (let i = 0; i < removedNow.length; i++) {
+                const keyword = removedNow[i];
                 pushContinuousEffect(
                     state,
                     {
@@ -18784,9 +19053,11 @@ export function buildSpellContext(
                     ? { scheduledOnTurn: state.turn }
                     : {}),
                 ...(watchInstanceId ? { watchInstanceId } : {}),
-                ...(blockerColors ? { blockerColors: [...blockerColors] } : {}),
+                ...(blockerColors
+                    ? { blockerColors: blockerColors.slice() }
+                    : {}),
                 ...(preventedSourceColors
-                    ? { preventedSourceColors: [...preventedSourceColors] }
+                    ? { preventedSourceColors: preventedSourceColors.slice() }
                     : {}),
                 ...(inline
                     ? {
@@ -18795,10 +19066,9 @@ export function buildSpellContext(
                       }
                     : {}),
             };
-            state.delayedTriggers = [
-                ...(state.delayedTriggers ?? []),
+            state.delayedTriggers = (state.delayedTriggers ?? []).concat([
                 instance,
-            ];
+            ]);
             return instance.id;
         },
         // CR 603.12 — queue a REFLEXIVE triggered ability created by this
@@ -18818,8 +19088,9 @@ export function buildSpellContext(
             // CR 701.27f (issue #3537) — a reflexive trigger is a triggered
             // ability of the resolving ability's source permanent (none for a
             // spell: its id is on no battlefield).
-            state.pendingReflexiveTriggers = [
-                ...(state.pendingReflexiveTriggers ?? []),
+            state.pendingReflexiveTriggers = (
+                state.pendingReflexiveTriggers ?? []
+            ).concat([
                 buildReflexiveStackItem(state, {
                     sourceInstanceId: item.triggerSourceId ?? item.id,
                     sourceCardId,
@@ -18829,7 +19100,7 @@ export function buildSpellContext(
                     payload,
                     targetRequirement,
                 }),
-            ];
+            ]);
         },
         hasAttackedThisTurn(target: TargetSelection): boolean {
             if (target.type !== "permanent") return false;
@@ -18871,7 +19142,7 @@ export function buildSpellContext(
         getStaticAbilities(target: TargetSelection): string[] {
             if (target.type !== "permanent") return [];
             const found = findOnBattlefield(state, target.id);
-            return found ? [...found.card.staticAbilities] : [];
+            return found ? found.card.staticAbilities.slice() : [];
         },
 
         preventAllCombatDamage(): void {
@@ -18912,10 +19183,9 @@ export function buildSpellContext(
             );
             if (cardTypes === undefined && excludeCardTypes === undefined) {
                 // A blanket (all-spells) lock always wins over a narrower one.
-                state.cannotCastSpellsThisTurn = [
-                    ...list.filter((e) => e.playerId !== playerId),
-                    { playerId },
-                ];
+                state.cannotCastSpellsThisTurn = list
+                    .filter((e) => e.playerId !== playerId)
+                    .concat([{ playerId }]);
                 return;
             }
             const dup = list.some(
@@ -19005,12 +19275,12 @@ export function buildSpellContext(
                 list.push({
                     playerId,
                     sourceId,
-                    actions: [...actions],
+                    actions: actions.slice(),
                     maxManaValue,
                 });
             } else {
                 existing.actions = Array.from(
-                    new Set([...existing.actions, ...actions])
+                    new Set(existing.actions.concat(actions))
                 );
                 if (maxManaValue === undefined) {
                     existing.maxManaValue = undefined;
@@ -19083,8 +19353,7 @@ export function buildSpellContext(
             if (amount <= 0) return;
             if (from.type !== "permanent" && from.type !== "player") return;
             if (to.type !== "permanent" && to.type !== "player") return;
-            state.damageRedirections = [
-                ...(state.damageRedirections ?? []),
+            state.damageRedirections = (state.damageRedirections ?? []).concat([
                 {
                     kind: "next-n-to-recipient-redirect",
                     from: { type: from.type, id: from.id },
@@ -19092,7 +19361,7 @@ export function buildSpellContext(
                     remaining: amount,
                     duration: resolveDuration(duration, item.castById, state),
                 },
-            ];
+            ]);
         },
 
         redirectUnblockedCombatDamage(
@@ -19187,7 +19456,7 @@ export function buildSpellContext(
             if (!player) return;
             const list = player.keywordsUntilEndOfTurn ?? [];
             if (!list.includes(keyword)) {
-                player.keywordsUntilEndOfTurn = [...list, keyword];
+                player.keywordsUntilEndOfTurn = list.concat([keyword]);
             }
         },
 
@@ -19197,7 +19466,7 @@ export function buildSpellContext(
             // CLEANUP (CR 514.2).
             const list = state.spellCounterImmunityThisTurn ?? [];
             if (!list.includes(playerId)) {
-                state.spellCounterImmunityThisTurn = [...list, playerId];
+                state.spellCounterImmunityThisTurn = list.concat([playerId]);
             }
         },
 
@@ -19267,7 +19536,7 @@ export function buildSpellContext(
             // spells; the payment seam pops one when it was actually needed.
             // Cleared at CLEANUP (CR 514.2).
             const grants = state.spellManaSubstitutionGrants ?? {};
-            grants[playerId] = [...(grants[playerId] ?? []), breadth];
+            grants[playerId] = (grants[playerId] ?? []).concat([breadth]);
             state.spellManaSubstitutionGrants = grants;
         },
 
@@ -19280,7 +19549,9 @@ export function buildSpellContext(
             // it were mana of any color" (False Dawn). Every cost, never
             // consumed; cleared at CLEANUP (CR 514.2).
             const grants = state.manaSubstitutionGrantsThisTurn ?? {};
-            grants[playerId] = [...(grants[playerId] ?? []), { from, breadth }];
+            grants[playerId] = (grants[playerId] ?? []).concat([
+                { from, breadth },
+            ]);
             state.manaSubstitutionGrantsThisTurn = grants;
         },
 
@@ -19295,10 +19566,9 @@ export function buildSpellContext(
         },
 
         addDamageCapShield(playerId: string, maxDamage: number): void {
-            state.damageCapShields = [
-                ...(state.damageCapShields ?? []),
+            state.damageCapShields = (state.damageCapShields ?? []).concat([
                 { playerId, maxDamage },
-            ];
+            ]);
         },
 
         setExileOnDeath(target: TargetSelection): void {
@@ -19394,7 +19664,9 @@ export function buildSpellContext(
                     );
             }
             const ba = state.combat.blockerAssignments;
-            for (const blockerId of Object.keys(ba)) {
+            const blockerIdList = Object.keys(ba);
+            for (let i = 0; i < blockerIdList.length; i++) {
+                const blockerId = blockerIdList[i];
                 const filtered = ba[blockerId].filter(
                     (id) => id !== attackerId
                 );
@@ -19471,8 +19743,8 @@ export function buildSpellContext(
             this.removeFromCombat({ type: "permanent", id: blockerAId });
             this.removeFromCombat({ type: "permanent", id: blockerBId });
 
-            combat.blockerAssignments[blockerAId] = [...setB];
-            combat.blockerAssignments[blockerBId] = [...setA];
+            combat.blockerAssignments[blockerAId] = setB.slice();
+            combat.blockerAssignments[blockerBId] = setA.slice();
             // CR 509.1a — re-marking goes through the one chokepoint so the
             // `isBlocking`-reading statics are re-materialized after the
             // `removeFromCombat` pair cleared the flags (issue #1826).
@@ -19508,7 +19780,9 @@ export function buildSpellContext(
             const ba = combat.blockerAssignments;
             const blockersOfX: string[] = [];
             const blockersOfY: string[] = [];
-            for (const [blockerId, atkIds] of Object.entries(ba)) {
+            const entries2 = Object.entries(ba);
+            for (let i = 0; i < entries2.length; i++) {
+                const [blockerId, atkIds] = entries2[i];
                 if (atkIds.includes(attackerXId)) blockersOfX.push(blockerId);
                 if (atkIds.includes(attackerYId)) blockersOfY.push(blockerId);
             }
@@ -19546,7 +19820,9 @@ export function buildSpellContext(
             // is preserved. `Object.entries` snapshots the keys, so mutating
             // during the loop is safe. `blockedAttackerIds` is untouched — both
             // attackers remain blocked throughout.
-            for (const [blockerId, atkIds] of Object.entries(ba)) {
+            const entries3 = Object.entries(ba);
+            for (let i = 0; i < entries3.length; i++) {
+                const [blockerId, atkIds] = entries3[i];
                 const hasX = atkIds.includes(attackerXId);
                 const hasY = atkIds.includes(attackerYId);
                 if (hasX === hasY) continue;
@@ -19590,7 +19866,7 @@ export function buildSpellContext(
                     : "mustBlockAttackersThisTurn";
             const existing = found.card[field] ?? [];
             if (existing.includes(attacker.id)) return;
-            found.card[field] = [...existing, attacker.id];
+            found.card[field] = existing.concat([attacker.id]);
         },
 
         setCantBlockThisTurn(target: TargetSelection): void {
@@ -19654,7 +19930,9 @@ export function buildSpellContext(
             const existing = found.card.cantBeBlockedExceptByThisTurn ?? [];
             const key = JSON.stringify(filter);
             if (existing.some((f) => JSON.stringify(f) === key)) return;
-            found.card.cantBeBlockedExceptByThisTurn = [...existing, filter];
+            found.card.cantBeBlockedExceptByThisTurn = existing.concat([
+                filter,
+            ]);
         },
 
         setCantBeBlockedBySubtypeThisTurn(
@@ -19670,7 +19948,9 @@ export function buildSpellContext(
             if (!found) return;
             const existing = found.card.cantBeBlockedBySubtypesThisTurn ?? [];
             if (existing.includes(subtype)) return;
-            found.card.cantBeBlockedBySubtypesThisTurn = [...existing, subtype];
+            found.card.cantBeBlockedBySubtypesThisTurn = existing.concat([
+                subtype,
+            ]);
         },
 
         setColorOverride(
@@ -19710,10 +19990,9 @@ export function buildSpellContext(
                 // PRD #2064 S4 — the change goes on the layer-3 LEDGER;
                 // `textChanges` is `syncLayers2to5`'s derived output, replayed
                 // from the ledger in CR 612.6 timestamp order.
-                found.card.textChangeHolds = [
-                    ...(found.card.textChangeHolds ?? []),
-                    { change, seq: allocStaticTimestamp(state) },
-                ];
+                found.card.textChangeHolds = (
+                    found.card.textChangeHolds ?? []
+                ).concat([{ change, seq: allocStaticTimestamp(state) }]);
                 syncLayers2to5(state);
             } else if (target.type === "spell") {
                 const si = state.stack.find((s) => s.id === target.id);
@@ -19721,10 +20000,9 @@ export function buildSpellContext(
                 // CR 612 — a spell on the stack carries the same LEDGER a
                 // permanent does; `applySubstitution` reads either shape
                 // (`textChangesOf`, `gre/textChanges.ts`).
-                si.textChangeHolds = [
-                    ...(si.textChangeHolds ?? []),
+                si.textChangeHolds = (si.textChangeHolds ?? []).concat([
                     { change, seq: allocStaticTimestamp(state) },
-                ];
+                ]);
             }
         },
 
@@ -19758,14 +20036,21 @@ export function buildSpellContext(
                 if (req?.colorFilter) extraColorCodes.push(req.colorFilter);
             };
             collect(def?.targetRequirement);
-            for (const mode of def?.modes ?? [])
+            const modeList = def?.modes ?? [];
+            for (let i = 0; i < modeList.length; i++) {
+                const mode = modeList[i];
                 collect(mode.targetRequirement);
-            for (const ability of def?.activatedAbilities ?? []) {
+            }
+            const abilityList = def?.activatedAbilities ?? [];
+            for (let i = 0; i < abilityList.length; i++) {
+                const ability = abilityList[i];
                 collect(ability.targetRequirement);
                 // CR 609.7a (issue #5601) — "a <color> source of your choice"
                 // is a resolution-time `pick-source` choice, its colour word
                 // the choice filter's literal colour (Circle of Protection).
-                for (const op of ability.effects ?? []) {
+                const opList = ability.effects ?? [];
+                for (let j = 0; j < opList.length; j++) {
+                    const op = opList[j];
                     if (op.op !== "choice" || op.kind !== "pick-source")
                         continue;
                     const color = op.filter?.color;
@@ -19794,10 +20079,9 @@ export function buildSpellContext(
             const existing = (state.combatBlockRestrictions ?? []).filter(
                 (r) => r.attackerId !== attackerId
             );
-            state.combatBlockRestrictions = [
-                ...existing,
+            state.combatBlockRestrictions = existing.concat([
                 { attackerId, allowedPileLabel },
-            ];
+            ]);
         },
 
         // Camouflage (CR 509 variant — the random twin of Raging River,
@@ -19823,9 +20107,10 @@ export function buildSpellContext(
             // reorders a copy of the attacker ids; pile i is then assigned to
             // shuffled[i]. Piles beyond the attacker count have no attacker to
             // block and are dropped (the defender can declare at most N piles).
-            const shuffledAttackers = seededShuffle(state, [
-                ...combat.attackerIds,
-            ]);
+            const shuffledAttackers = seededShuffle(
+                state,
+                combat.attackerIds.slice()
+            );
 
             // CR 509.1a — the battlefield-wide declared-blocker cap is a
             // RESTRICTION on the declaration itself (Caverns of Despair,
@@ -19847,7 +20132,9 @@ export function buildSpellContext(
                     (c) => c.id === attackerId
                 );
                 if (!attacker) continue;
-                for (const blockerId of piles[i]) {
+                const blockerIdList = piles[i];
+                for (let j = 0; j < blockerIdList.length; j++) {
+                    const blockerId = blockerIdList[j];
                     if (
                         blockerCap !== undefined &&
                         distinctBlockers() >= blockerCap.max
@@ -20129,7 +20416,7 @@ export function buildSpellContext(
             if (req.pickPolarity) entry.pickPolarity = req.pickPolarity;
             if (req.putOnTop) entry.putOnTop = true;
             if (req.isSearch) entry.isSearch = true;
-            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            state.pendingChoices = (state.pendingChoices ?? []).concat([entry]);
             return undefined;
         },
         requestOutsideGameCard(req): string[] | undefined {
@@ -20163,7 +20450,7 @@ export function buildSpellContext(
             ) {
                 entry.actingPlayerId = routed.actingPlayerId;
             }
-            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            state.pendingChoices = (state.pendingChoices ?? []).concat([entry]);
             return undefined;
         },
         bringFromOutsideGameToHand(playerId, instanceId): boolean {
@@ -20293,7 +20580,7 @@ export function buildSpellContext(
                     req.cost
                 );
             }
-            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            state.pendingChoices = (state.pendingChoices ?? []).concat([entry]);
             return undefined;
         },
         requestNumberChoice(req): number | undefined {
@@ -20333,17 +20620,17 @@ export function buildSpellContext(
             if (routed.actingPlayerId) {
                 entry.actingPlayerId = routed.actingPlayerId;
             }
-            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            state.pendingChoices = (state.pendingChoices ?? []).concat([entry]);
             return undefined;
         },
         noteMassRiderTargets(playerIds: string[]): void {
             // CR 608.2 — persist the per-permanent billing list on the stack
             // item so it survives the irreversible mass effect (step 0) and any
             // suspension on a later may-pay (step 1). Stench of Evil.
-            item.massRiderTargets = [...playerIds];
+            item.massRiderTargets = playerIds.slice();
         },
         getMassRiderTargets(): string[] {
-            return item.massRiderTargets ? [...item.massRiderTargets] : [];
+            return item.massRiderTargets ? item.massRiderTargets.slice() : [];
         },
         requestOptionChoice(req): string | undefined {
             // CR 614.12 / 701.x "as it enters, choose …" — pick exactly one
@@ -20383,7 +20670,7 @@ export function buildSpellContext(
             if (req.subjectCardId !== undefined) {
                 entry.subjectCardId = req.subjectCardId;
             }
-            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            state.pendingChoices = (state.pendingChoices ?? []).concat([entry]);
             return undefined;
         },
         requestPickPile(req): "A" | "B" | undefined {
@@ -20414,7 +20701,7 @@ export function buildSpellContext(
             if (actingPlayerId && actingPlayerId !== entry.playerId) {
                 entry.actingPlayerId = actingPlayerId;
             }
-            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            state.pendingChoices = (state.pendingChoices ?? []).concat([entry]);
             return undefined;
         },
         requestNameCard(req): string | undefined {
@@ -20451,21 +20738,25 @@ export function buildSpellContext(
             };
             if (routed.actingPlayerId)
                 entry.actingPlayerId = routed.actingPlayerId;
-            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            state.pendingChoices = (state.pendingChoices ?? []).concat([entry]);
             return undefined;
         },
         getCardName(cardInstanceId): string | undefined {
             // CR 108.1 / 201.1 — resolve any instance (any zone) to its printed
             // name via the registry. Used to compare a revealed card against a
             // named card (Petra Sphinx).
-            for (const p of state.players) {
-                for (const zone of [
+            const pList = state.players;
+            for (let i = 0; i < pList.length; i++) {
+                const p = pList[i];
+                const zoneList = [
                     p.library,
                     p.hand,
                     p.graveyard,
                     p.exile,
                     p.battlefield,
-                ]) {
+                ];
+                for (let j = 0; j < zoneList.length; j++) {
+                    const zone = zoneList[j];
                     const found = zone.find((c) => c.id === cardInstanceId);
                     if (found) {
                         const id = (found.card as { id?: string }).id;
@@ -20602,12 +20893,14 @@ export function buildSpellContext(
                 entry.oracleExcerpt = oracleExcerpt;
             if (routed.actingPlayerId)
                 entry.actingPlayerId = routed.actingPlayerId;
-            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            state.pendingChoices = (state.pendingChoices ?? []).concat([entry]);
             return undefined;
         },
         apNapOrder(): string[] {
             const order = [state.activePlayerId];
-            for (const p of state.players) {
+            const pList = state.players;
+            for (let i = 0; i < pList.length; i++) {
+                const p = pList[i];
                 if (p.id !== state.activePlayerId) order.push(p.id);
             }
             return order;
@@ -20713,7 +21006,7 @@ export function buildSpellContext(
             return getPlayer(state, playerId).hand.map((c) => c.id);
         },
         getDrawnThisTurnIds(playerId: string): string[] {
-            return [...(getPlayer(state, playerId).drawnThisTurn ?? [])];
+            return (getPlayer(state, playerId).drawnThisTurn ?? []).slice();
         },
         moveHandCardToLibraryTop(
             playerId: string,
@@ -20730,7 +21023,9 @@ export function buildSpellContext(
             // entry matching this choiceId (keys are `${step}:${choiceId}`).
             const cc = item.collectedChoices;
             if (!cc) return undefined;
-            for (const key of Object.keys(cc)) {
+            const keyList = Object.keys(cc);
+            for (let i = 0; i < keyList.length; i++) {
+                const key = keyList[i];
                 if (key.endsWith(`:${choiceId}`)) return cc[key];
             }
             return undefined;
@@ -20766,7 +21061,7 @@ export function buildSpellContext(
             if (!card) return;
             card.capturedBindings = {
                 ...(card.capturedBindings ?? {}),
-                [name]: [...values],
+                [name]: values.slice(),
             };
         },
         getPermanentsDamagedBySource(): string[] {
@@ -20785,7 +21080,7 @@ export function buildSpellContext(
             const history = live?.length
                 ? live
                 : (item as CardInstanceState).damagedPermanentsThisGame;
-            return [...(history ?? [])];
+            return (history ?? []).slice();
         },
         recallCapturedBinding(name: string): string[] | undefined {
             // CR 608.2h — "the effect uses the CURRENT information of that
@@ -20805,7 +21100,7 @@ export function buildSpellContext(
                 item.triggerSourceId ?? item.id
             );
             const row = card?.capturedBindings?.[name];
-            if (row) return [...row];
+            if (row) return row.slice();
             // LAST KNOWN INFORMATION second, and this leg is load-bearing: the
             // source may have RE-ENTERED the battlefield while this ability was
             // still on the stack (Skyclave Apparition dies, its leave-trigger
@@ -20821,7 +21116,7 @@ export function buildSpellContext(
             // — the clear replaces the property on the CARD, it never mutates
             // the object the snapshot points at.
             const frozen = (item as CardInstanceState).capturedBindings?.[name];
-            return frozen ? [...frozen] : undefined;
+            return frozen ? frozen.slice() : undefined;
         },
         // --- Effect Script interpreter plumbing (ADR 0045, issue #805) ---
         // The interpreter checkpoints the CURRENT Op index in the stack
@@ -21042,8 +21337,8 @@ export function buildSpellContext(
                 // characteristics stand (the ~100% case).
                 const zoned = resolveZoneCharacteristics(def, zone);
                 return {
-                    types: [...(zoned?.types ?? def.types)],
-                    subtypes: [...(zoned?.subtypes ?? def.subtypes ?? [])],
+                    types: (zoned?.types ?? def.types).slice(),
+                    subtypes: (zoned?.subtypes ?? def.subtypes ?? []).slice(),
                     name: def.name,
                 };
             };
@@ -21053,8 +21348,8 @@ export function buildSpellContext(
                 const cardId = (found.card.card as { id?: string }).id;
                 const def = cardId ? tryGetDefinition(cardId) : undefined;
                 return {
-                    types: [...found.card.types],
-                    subtypes: [...found.card.subtypes],
+                    types: found.card.types.slice(),
+                    subtypes: found.card.subtypes.slice(),
                     name: copyExceptName(found.card) ?? def?.name ?? "",
                 };
             }
@@ -21085,7 +21380,9 @@ export function buildSpellContext(
         // CR 701.26a: tap all lands controlled by playerId. Used by Drain Power.
         tapAllLands(playerId: string): void {
             const player = getPlayer(state, playerId);
-            for (const card of player.battlefield) {
+            const cardList = player.battlefield;
+            for (let i = 0; i < cardList.length; i++) {
+                const card = cardList[i];
                 if (card.types.includes("Land") && !card.isTapped) {
                     card.isTapped = true;
                 }
@@ -21095,7 +21392,9 @@ export function buildSpellContext(
         drainManaPool(playerId: string): CardManaCost {
             const player = getPlayer(state, playerId);
             const drained: CardManaCost = {};
-            for (const color of Object.keys(player.manaPool)) {
+            const colorList = Object.keys(player.manaPool);
+            for (let i = 0; i < colorList.length; i++) {
+                const color = colorList[i];
                 const amount = player.manaPool[color];
                 if (amount > 0) {
                     drained[color as Color] = amount;
@@ -21180,7 +21479,8 @@ export function buildSpellContext(
         putLibraryCardsOnTop(playerId: string, orderedIds: string[]): void {
             const player = getPlayer(state, playerId);
             const moved: CardInstanceState[] = [];
-            for (const id of orderedIds) {
+            for (let i = 0; i < orderedIds.length; i++) {
+                const id = orderedIds[i];
                 const idx = player.library.findIndex((c) => c.id === id);
                 if (idx === -1) continue;
                 const [card] = player.library.splice(idx, 1);
@@ -21188,13 +21488,15 @@ export function buildSpellContext(
             }
             if (moved.length === 0) return;
             player.library.unshift(...moved);
-            for (const card of moved) {
+            for (let i = 0; i < moved.length; i++) {
+                const card = moved[i];
                 const audience = publicRevealAudience(state, card.id);
                 grantKnowledge(state, playerId, [card.id], playerId);
-                for (const knowerId of audience) {
+                for (let j = 0; j < audience.length; j++) {
+                    const knowerId = audience[j];
                     grantKnowledge(state, playerId, [card.id], knowerId);
                 }
-                narrowLibraryPosition(card, [playerId, ...audience]);
+                narrowLibraryPosition(card, [playerId].concat(audience));
             }
         },
         // CR 701.22 Scry / 701.25 Surveil / "put them back in any order" (Ponder,
@@ -21258,7 +21560,9 @@ export function buildSpellContext(
                         opts.prompt ??
                         DEFAULT_ORDER_TOP_PROMPT[opts.destination],
                 };
-                state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+                state.pendingChoices = (state.pendingChoices ?? []).concat([
+                    entry,
+                ]);
                 return false;
             }
             // Resume — `storedTop` is the kept order (topmost first), the un-kept
@@ -21285,7 +21589,8 @@ export function buildSpellContext(
                 // replacement (Yawgmoth's Will / Dauthi Voidwalker) can
                 // redirect it to exile, or (issue #2106, Blightsteel Colossus)
                 // shuffle it back into the library instead.
-                for (const id of second) {
+                for (let i = 0; i < second.length; i++) {
+                    const id = second[i];
                     const card = player.library.find((c) => c.id === id);
                     const ownerId = card?.ownerId ?? playerId;
                     const { destination, tagCounters } =
@@ -21298,7 +21603,8 @@ export function buildSpellContext(
                     }
                 }
             } else if (opts.destination === "library-bottom") {
-                for (const id of second) {
+                for (let i = 0; i < second.length; i++) {
+                    const id = second[i];
                     const idx = player.library.findIndex((c) => c.id === id);
                     if (idx !== -1) {
                         const [c] = player.library.splice(idx, 1);
@@ -21395,15 +21701,20 @@ export function buildSpellContext(
             if (audience.length === 0 || cardInstanceIds.length === 0) return;
             const wanted = new Set(cardInstanceIds);
             const found = new Map<string, string>();
-            for (const p of state.players) {
-                for (const zone of [
+            const pList = state.players;
+            for (let i = 0; i < pList.length; i++) {
+                const p = pList[i];
+                const zoneList = [
                     p.library,
                     p.hand,
                     p.graveyard,
                     p.exile,
                     p.battlefield,
-                ]) {
-                    for (const c of zone) {
+                ];
+                for (let j = 0; j < zoneList.length; j++) {
+                    const zone = zoneList[j];
+                    for (let k = 0; k < zone.length; k++) {
+                        const c = zone[k];
                         if (!wanted.has(c.id)) continue;
                         const cid = (c.card as { id?: string }).id;
                         if (cid) found.set(c.id, cid);
@@ -21428,7 +21739,7 @@ export function buildSpellContext(
                 kind,
                 cards,
             };
-            state.pendingReveals = [...(state.pendingReveals ?? []), entry];
+            state.pendingReveals = (state.pendingReveals ?? []).concat([entry]);
         },
         // CR 406.3 / ADR 0026 (PRD #338 slice 6) — exile a card FACE DOWN,
         // for `knowerId` alone to look at. Reuses `knownTo` (NOT a new
@@ -21654,7 +21965,9 @@ export function buildSpellContext(
         // undefined. Powers the interpreter's graveyard-source `$source`
         // resolution (Ashen Ghoul self-reanimation).
         getGraveyardCardOwner(id: string): string | undefined {
-            for (const p of state.players) {
+            const pList = state.players;
+            for (let i = 0; i < pList.length; i++) {
+                const p = pList[i];
                 if (p.graveyard.some((c) => c.id === id)) return p.id;
             }
             return undefined;
@@ -21707,7 +22020,9 @@ export function buildSpellContext(
         // CR 400.7 (issue #1156) — which exile holds `id` (owner playerId), or
         // undefined. Mirrors `getGraveyardCardOwner`.
         getExileCardOwner(id: string): string | undefined {
-            for (const p of state.players) {
+            const pList = state.players;
+            for (let i = 0; i < pList.length; i++) {
+                const p = pList[i];
                 if (p.exile.some((c) => c.id === id)) return p.id;
             }
             return undefined;
@@ -21741,7 +22056,9 @@ export function buildSpellContext(
             ) {
                 return;
             }
-            for (const p of state.players) {
+            const pList = state.players;
+            for (let i = 0; i < pList.length; i++) {
+                const p = pList[i];
                 const card = p.exile.find((c) => c.id === cardInstanceId);
                 if (card) {
                     card.exiledBySourceId = sourceInstanceId;
@@ -21780,10 +22097,9 @@ export function buildSpellContext(
             // for the same pile, so the resolving-ability reading and the
             // continuous-effect reading cannot drift. What stays here is the
             // characteristic SNAPSHOT the DSL consumers expect.
-            for (const { card: c, ownerId } of getCardsExiledWithLink(
-                state,
-                sourceInstanceId
-            )) {
+            const entries = getCardsExiledWithLink(state, sourceInstanceId);
+            for (let i = 0; i < entries.length; i++) {
+                const { card: c, ownerId } = entries[i];
                 const cardId = (c.card as { id?: string }).id;
                 const def = cardId ? tryGetDefinition(cardId) : undefined;
                 // CR 113.6c — see `getHandCards` above.
@@ -21819,8 +22135,12 @@ export function buildSpellContext(
             sourceInstanceId: string
         ): { id: string; ownerId: string } | undefined {
             const pool: { id: string; ownerId: string }[] = [];
-            for (const p of state.players) {
-                for (const c of p.exile) {
+            const pList = state.players;
+            for (let i = 0; i < pList.length; i++) {
+                const p = pList[i];
+                const cList = p.exile;
+                for (let j = 0; j < cList.length; j++) {
+                    const c = cList[j];
                     if (c.exiledBySourceId === sourceInstanceId) {
                         pool.push({ id: c.id, ownerId: p.id });
                     }
@@ -21979,7 +22299,9 @@ export function buildSpellContext(
                     (c) => c.id === target.id
                 );
             } else {
-                for (const p of state.players) {
+                const pList = state.players;
+                for (let i = 0; i < pList.length; i++) {
+                    const p = pList[i];
                     const found = p.graveyard.find((c) => c.id === target.id);
                     if (found) {
                         card = found;
@@ -22161,12 +22483,12 @@ export function buildSpellContext(
         },
         getCastFaceTypes(playerId, cardInstanceId, _sourceZone, faceId) {
             // CR 709.3a / 712.11c / 715.3a — the announced face's own types.
-            return [
-                ...(castSubjectDefinition(
+            return (
+                castSubjectDefinition(
                     getHandCardDef(state, playerId, cardInstanceId),
                     faceId
-                )?.types ?? []),
-            ];
+                )?.types ?? []
+            ).slice();
         },
         getCastFaceOptions(playerId, cardInstanceId, sourceZone, opts) {
             // CR 709.3 / 712.11b / 715.3 — the faces a cast during resolution
@@ -22278,7 +22600,7 @@ export function buildSpellContext(
                 playerId: req.chooserId,
                 choiceId: req.choiceId,
                 actingPlayerId: req.chooserId,
-                options: printed ? [printedRow, ...faces] : faces,
+                options: printed ? [printedRow].concat(faces) : faces,
                 prompt: "Choose which face of the card to cast.",
             });
             if (picked === undefined) return undefined;
@@ -22496,12 +22818,11 @@ export function buildSpellContext(
                     ? def.modes?.find((m) => m.id === query.modeId)
                     : undefined;
             const base = castAnnouncedTargetGroups(
-                [
-                    mode?.targetRequirement ?? def.targetRequirement,
-                    ...(mode?.additionalTargetRequirements ??
+                [mode?.targetRequirement ?? def.targetRequirement].concat(
+                    mode?.additionalTargetRequirements ??
                         def.additionalTargetRequirements ??
-                        []),
-                ],
+                        []
+                ),
                 false
             )[query.groupIndex];
             if (!base) return undefined;
@@ -22663,7 +22984,8 @@ export function buildSpellContext(
             const sacrificed: CardInstanceState[] = [];
             if (sacrificeFilter) {
                 const seen = new Set<string>();
-                for (const id of additionalSacrificeIds) {
+                for (let i = 0; i < additionalSacrificeIds.length; i++) {
+                    const id = additionalSacrificeIds[i];
                     if (seen.has(id)) {
                         return false; // one permanent cannot pay twice
                     }
@@ -22715,7 +23037,9 @@ export function buildSpellContext(
                 // `manaFromPlan` totals the planned output so the pool covers
                 // the cost.
                 const tappedIds = new Set(plan.map((step) => step.cardId));
-                for (const src of owner.battlefield) {
+                const srcList = owner.battlefield;
+                for (let i = 0; i < srcList.length; i++) {
+                    const src = srcList[i];
                     if (tappedIds.has(src.id)) src.isTapped = true;
                 }
                 // CR 614.1a (issue #3811) — the lands' controller (the
@@ -22725,7 +23049,9 @@ export function buildSpellContext(
                     owner.id,
                     manaFromPlan(sources, plan)
                 );
-                for (const color of MANA_COLORS) {
+                const colorList = MANA_COLORS;
+                for (let i = 0; i < colorList.length; i++) {
+                    const color = colorList[i];
                     const v = produced[color];
                     if (typeof v === "number" && v > 0) {
                         owner.manaPool[color] =
@@ -22916,7 +23242,8 @@ function findOwnedCastSource(
 ):
     | { card: CardInstanceState; zone: "hand" | "graveyard" | "exile" }
     | undefined {
-    for (const zone of CAST_SOURCE_ZONES) {
+    for (let i = 0; i < CAST_SOURCE_ZONES.length; i++) {
+        const zone = CAST_SOURCE_ZONES[i];
         const found = owner[zone].find((c) => c.id === cardInstanceId);
         if (found) return { card: found, zone };
     }
@@ -22956,7 +23283,7 @@ export function drawCard(player: PlayerState): CardInstanceState | null {
     player.lastDrawnCardId = drawn.id;
     // Full per-turn draw tally (CR 121.1) — Sylvan Library "cards drawn this
     // turn". Reset alongside lastDrawnCardId at turn start.
-    player.drawnThisTurn = [...(player.drawnThisTurn ?? []), drawn.id];
+    player.drawnThisTurn = (player.drawnThisTurn ?? []).concat([drawn.id]);
     return drawn;
 }
 
@@ -23099,8 +23426,8 @@ export function createTokenPermanents(
             kind: "token-created",
             controllerId,
             tokenName: spec.name,
-            types: [...spec.types],
-            subtypes: [...tokenSubtypes],
+            types: spec.types.slice(),
+            subtypes: tokenSubtypes.slice(),
             isCopy: opts?.copyOf !== undefined,
             count: effectiveCount,
         }).count;
@@ -23110,7 +23437,9 @@ export function createTokenPermanents(
     // synthetic one (`maybeSynthesizeToken` decodes the same choice).
     const manaCost: CardManaCost = spec.manaCost ? { ...spec.manaCost } : {};
     if (!spec.manaCost) {
-        for (const c of spec.colors ?? []) {
+        const cList = spec.colors ?? [];
+        for (let j = 0; j < cList.length; j++) {
+            const c = cList[j];
             manaCost[c] = (manaCost[c] ?? 0) + 1;
         }
     }
@@ -23127,9 +23456,9 @@ export function createTokenPermanents(
         // "common" satisfies the required field.
         rarity: "common",
         manaCost,
-        types: [...spec.types],
-        ...(spec.subtypes ? { subtypes: [...spec.subtypes] } : {}),
-        ...(spec.supertypes ? { supertypes: [...spec.supertypes] } : {}),
+        types: spec.types.slice(),
+        ...(spec.subtypes ? { subtypes: spec.subtypes.slice() } : {}),
+        ...(spec.supertypes ? { supertypes: spec.supertypes.slice() } : {}),
         power: spec.power,
         toughness: spec.toughness,
         // CR 702.122b (issue #1863) — the crew-power rider rides the def, the
@@ -23138,13 +23467,13 @@ export function createTokenPermanents(
             ? { crewPowerBonus: spec.crewPowerBonus }
             : {}),
         ...(spec.staticAbilities
-            ? { staticAbilities: [...spec.staticAbilities] }
+            ? { staticAbilities: spec.staticAbilities.slice() }
             : {}),
         // CR 707.2 (issue #778) — a token's own activated abilities (Treasure's
         // sacrifice-for-mana). Registered on the def so the normal activation
         // path finds them (the instance stores only `card: { id }`).
         ...(spec.activatedAbilities
-            ? { activatedAbilities: [...spec.activatedAbilities] }
+            ? { activatedAbilities: spec.activatedAbilities.slice() }
             : {}),
         // CR 707.2 (issue #2364) — a token's own triggered abilities (Pest
         // Infestation's "when this token dies, you gain 1 life", Vaultborn
@@ -23154,7 +23483,7 @@ export function createTokenPermanents(
         // the ordinary `presented?.triggeredAbilities` read the trigger
         // scanner already uses — no change needed at the scan site itself.
         ...(spec.triggeredAbilities
-            ? { triggeredAbilities: [...spec.triggeredAbilities] }
+            ? { triggeredAbilities: spec.triggeredAbilities.slice() }
             : {}),
         ...(spec.imagePrintId ? { imagePrintId: spec.imagePrintId } : {}),
         // CR 611 — register the token's continuous static effects on its
@@ -23193,7 +23522,10 @@ export function createTokenPermanents(
                           ? { asEnters: spec.entersWith.asEnters }
                           : {}),
                       ...(spec.copiableEntersWithCounters?.length
-                          ? { counters: [...spec.copiableEntersWithCounters] }
+                          ? {
+                                counters:
+                                    spec.copiableEntersWithCounters.slice(),
+                            }
                           : {}),
                   },
               }
@@ -23209,10 +23541,10 @@ export function createTokenPermanents(
             controllerId,
             ownerId: controllerId,
             zone: "battlefield",
-            types: [...spec.types],
-            subtypes: [...tokenSubtypes],
+            types: spec.types.slice(),
+            subtypes: tokenSubtypes.slice(),
             staticAbilities: spec.staticAbilities
-                ? [...spec.staticAbilities]
+                ? spec.staticAbilities.slice()
                 : [],
             power: spec.power,
             toughness: spec.toughness,
@@ -23395,14 +23727,15 @@ export function createTokenPermanents(
         // in-line, exactly as before. Not owed by a token the attacking player
         // does not control (CR 506.3b — it never attacks at all), nor by a
         // debug board PLACING tokens (`placement`), which owes no choice.
-        const owed: AsEntersChoice[] = [
-            ...(typeof enterDestination === "object"
+        const owed: AsEntersChoice[] = (
+            typeof enterDestination === "object"
                 ? enterDestination.asEnters
-                : []),
-            ...(opts?.placement
+                : []
+        ).concat(
+            opts?.placement
                 ? []
-                : attackTargetOwedOnEntry(state, token, controllerId, spec)),
-        ];
+                : attackTargetOwedOnEntry(state, token, controllerId, spec)
+        );
         if (owed.length > 0) {
             // CR 614.12a (ADR 0100 D2/D5) — this token owes "as it enters"
             // choices. Park it off every zone with everything the rest of this
@@ -23463,16 +23796,15 @@ export function createTokenPermanents(
     // trigger sees, and a rider that scales off the number created
     // (`TOKENS_CREATED.count`) must scale off the doubled number.
     if (effectiveCount > 0) {
-        state.pendingEvents = [
-            ...(state.pendingEvents ?? []),
+        state.pendingEvents = (state.pendingEvents ?? []).concat([
             {
                 type: "TOKENS_CREATED",
                 controllerId,
                 count: effectiveCount,
-                types: [...spec.types],
-                subtypes: [...tokenSubtypes],
+                types: spec.types.slice(),
+                subtypes: tokenSubtypes.slice(),
             },
-        ];
+        ]);
     }
     return ids;
 }
@@ -23715,7 +24047,8 @@ export function planDrawStep(
     // for the CR 616.1 choice, as for the terminal outcomes.
     let count = 1;
     let terminal: (typeof matches)[number] | undefined;
-    for (const candidate of matches) {
+    for (let i = 0; i < matches.length; i++) {
+        const candidate = matches[i];
         const candidateOutcome = candidate.effect.outcome;
         if (candidateOutcome.kind === "modify-count") {
             count += candidateOutcome.delta;
@@ -23846,9 +24179,9 @@ export function putHandCardOnTopOfLibrary(
     // this resolution publicly revealed the card to; nobody else sees it at
     // this position. A later reveal clause (markKnownToAll) adds its audience.
     const known = card.knownTo ?? [];
-    if (!known.includes(player.id)) card.knownTo = [...known, player.id];
+    if (!known.includes(player.id)) card.knownTo = known.concat([player.id]);
     card.libraryPositionKnownTo = [
-        ...new Set([player.id, ...publicRevealAudience(state, card.id)]),
+        ...new Set([player.id].concat(publicRevealAudience(state, card.id))),
     ];
     player.library.unshift(card);
     // issue #3242 — hand → library is a card put into a library.
@@ -23898,7 +24231,8 @@ export function noteGraveyardDeparture(
     // CR 400.7 / 613.7d — the graveyard object's timestamp goes with it; a
     // card that comes back is a new object and is stamped afresh
     // (`stampGraveyardStaticSources`).
-    for (const card of cards) {
+    for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
         delete (card as CardInstanceState).zoneStaticSeq;
         // Issue #7209 — the stamp named the graveyard object that just left.
         delete (card as CardInstanceState).putIntoGraveyardThisTurn;
@@ -23937,7 +24271,7 @@ function emitCardsLeftGraveyard(
     if (cards.length === 0) return;
     const cohort =
         toZone === "battlefield" && battlefieldCohort !== undefined
-            ? [...battlefieldCohort]
+            ? battlefieldCohort.slice()
             : undefined;
     const events: CardLeftGraveyardEvent[] = cards.map((card) => {
         const cardId = (card.card as { id?: string }).id;
@@ -23949,14 +24283,14 @@ function emitCardsLeftGraveyard(
             cardInstanceId: card.id,
             ...(cardId ? { cardId } : {}),
             toZone,
-            types: [...card.types],
+            types: card.types.slice(),
             ...(card.isToken ? { isToken: true as const } : {}),
             ...(cohort !== undefined && cohort.length > 1
                 ? { battlefieldCohort: cohort }
                 : {}),
         };
     });
-    state.pendingEvents = [...(state.pendingEvents ?? []), ...events];
+    state.pendingEvents = (state.pendingEvents ?? []).concat(events);
 }
 
 /** CR 400.7 (issue #7209) — the arrival twin of `noteGraveyardDeparture`: every
@@ -24002,14 +24336,17 @@ export function payGraveyardCostCards(
     destination: "library-bottom" | undefined
 ): void {
     if (destination === undefined) {
-        for (const id of cardInstanceIds)
+        for (let i = 0; i < cardInstanceIds.length; i++) {
+            const id = cardInstanceIds[i];
             exileCardFromGraveyard(state, owner, id);
+        }
         // CR 611.3a — the graveyard's top card may have changed.
         refreshFullText(state);
         return;
     }
     const moved: LibraryEntry[] = [];
-    for (const id of cardInstanceIds) {
+    for (let i = 0; i < cardInstanceIds.length; i++) {
+        const id = cardInstanceIds[i];
         if (!owner.graveyard.some((c) => c.id === id)) continue;
         const card = moveCard(owner, id, "graveyard", "library", state);
         moved.push(libraryEntry(card, "graveyard"));
@@ -24381,10 +24718,10 @@ function moveCardWithGraveyardReplacementUnsynced(
         // library is seen by its owner and a reveal's audience, not by whoever
         // merely knows what the card is.
         if (from === "hand" && to === "library") {
-            narrowLibraryPosition(moved, [
-                player.id,
-                ...publicRevealAudience(state, moved.id),
-            ]);
+            narrowLibraryPosition(
+                moved,
+                [player.id].concat(publicRevealAudience(state, moved.id))
+            );
         }
         if (PUBLIC_ZONES.has(from) && !PUBLIC_ZONES.has(to)) {
             if (!leavingFaceDownExile) {
@@ -24410,7 +24747,7 @@ function moveCardWithGraveyardReplacementUnsynced(
     );
     // CR 603.10 — snapshot the types BEFORE the move; a "permanent card was put
     // into a graveyard" filter reads last-known information.
-    const movedTypes = sourceCard ? [...sourceCard.types] : undefined;
+    const movedTypes = sourceCard ? sourceCard.types.slice() : undefined;
     const moved = moveCard(player, cardInstanceId, from, destination, state);
     if (destination === "library") {
         // (issue #2106) — a self-referential graveyard-bound replacement
@@ -24708,7 +25045,9 @@ export function checkManaCost(
     const pool = { ...manaPool };
 
     // Pay colored/colorless costs first
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         const required = (cost[color] as number | undefined) ?? 0;
         if (required > 0) {
             if ((pool[color] ?? 0) < required) {
@@ -24724,7 +25063,9 @@ export function checkManaCost(
     if (hybridPips.length > 0) {
         const spent = assignHybridPips(pool, hybridPips);
         if (!spent) return formatManaCost(cost);
-        for (const [color, amount] of Object.entries(spent)) {
+        const entries2 = Object.entries(spent);
+        for (let i = 0; i < entries2.length; i++) {
+            const [color, amount] = entries2[i];
             pool[color] = (pool[color] ?? 0) - amount;
         }
     }
@@ -24733,7 +25074,9 @@ export function checkManaCost(
     const generic = (cost.X as number | undefined) ?? 0;
     if (generic > 0) {
         let available = 0;
-        for (const color of MANA_COLORS) {
+        const colorList2 = MANA_COLORS;
+        for (let i = 0; i < colorList2.length; i++) {
+            const color = colorList2[i];
             available += pool[color] ?? 0;
         }
         if (available < generic) {
@@ -25104,7 +25447,7 @@ export function costCardSnapshot(
         cardInstanceId: card.id,
         mv: manaValue(def?.manaCost),
         ...(card.subtypes && card.subtypes.length > 0
-            ? { subtypes: [...card.subtypes] }
+            ? { subtypes: card.subtypes.slice() }
             : {}),
         ...costVictimTypeFields(card),
     };
@@ -25176,7 +25519,9 @@ function payColoredRequirements(
     // Pay colored/colorless costs from their exact color, clamping at the
     // available amount so substitution can cover any shortfall (CR 609.4b).
     const deficits: Record<string, number> = {};
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         const required = (cost[color] as number | undefined) ?? 0;
         if (required <= 0) continue;
         const paid = Math.min(manaPool[color] ?? 0, required);
@@ -25185,9 +25530,12 @@ function payColoredRequirements(
     }
 
     // Cover remaining colored deficits from substitutable colors.
-    for (const [color, deficitAmount] of Object.entries(deficits)) {
+    const entries2 = Object.entries(deficits);
+    for (let i = 0; i < entries2.length; i++) {
+        const [color, deficitAmount] = entries2[i];
         let need = deficitAmount;
-        for (const sub of substitutions) {
+        for (let j = 0; j < substitutions.length; j++) {
+            const sub = substitutions[j];
             if (need <= 0) break;
             if (sub.to !== color) continue;
             const take = Math.min(manaPool[sub.from] ?? 0, need);
@@ -25216,7 +25564,9 @@ function payHybridPips(
     if (pips.length === 0) return;
     const spent = assignHybridPips(manaPool, pips, substitutions);
     if (!spent) return;
-    for (const [color, amount] of Object.entries(spent)) {
+    const entries2 = Object.entries(spent);
+    for (let i = 0; i < entries2.length; i++) {
+        const [color, amount] = entries2[i];
         manaPool[color] = (manaPool[color] ?? 0) - amount;
     }
 }
@@ -25239,12 +25589,12 @@ export function payManaCost(
             (a, b) => (manaPool[b] ?? 0) - (manaPool[a] ?? 0)
         );
         const sorted = genericSpendOrder
-            ? [
-                  ...genericSpendOrder,
-                  ...greedy.filter((c) => !genericSpendOrder.includes(c)),
-              ]
+            ? genericSpendOrder.concat(
+                  greedy.filter((c) => !genericSpendOrder.includes(c))
+              )
             : greedy;
-        for (const color of sorted) {
+        for (let i = 0; i < sorted.length; i++) {
+            const color = sorted[i];
             const available = manaPool[color] ?? 0;
             const take = Math.min(available, generic);
             if (take > 0) {
@@ -25353,13 +25703,16 @@ export function validateManaSpendOrder(
         throw new Error(`Spend order must name exactly ${choice.generic} mana`);
     }
     const counts: Record<string, number> = {};
-    for (const color of spendOrder) {
+    for (let i = 0; i < spendOrder.length; i++) {
+        const color = spendOrder[i];
         if (!choice.candidateColors.includes(color)) {
             throw new Error(`${color} is not a valid mana source`);
         }
         counts[color] = (counts[color] ?? 0) + 1;
     }
-    for (const [color, needed] of Object.entries(counts)) {
+    const entries2 = Object.entries(counts);
+    for (let i = 0; i < entries2.length; i++) {
+        const [color, needed] = entries2[i];
         if (needed > (manaPool[color] ?? 0)) {
             throw new Error(`Not enough ${color} mana in pool`);
         }
@@ -25376,7 +25729,9 @@ export function manaSpentDelta(
     after: Record<string, number>
 ): Record<string, number> {
     const out: Record<string, number> = {};
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         const spent = (before[color] ?? 0) - (after[color] ?? 0);
         if (spent > 0) out[color] = spent;
     }
@@ -25590,7 +25945,9 @@ export function spendablePoolForAbility(
     sourceSubject?: RestrictionSubject
 ): Record<string, number> {
     const pool = { ...player.manaPool };
-    for (const r of player.restrictedMana ?? []) {
+    const rList = player.restrictedMana ?? [];
+    for (let i = 0; i < rList.length; i++) {
+        const r = rList[i];
         if (restrictedUnitAllowsAbility(r, sourceTypes, sourceSubject)) {
             pool[r.color] = (pool[r.color] ?? 0) + r.amount;
         }
@@ -25643,17 +26000,20 @@ export function payManaCostForAbility(
 
     const preferred: RestrictedMana[] = [];
     const deferred: RestrictedMana[] = [];
-    for (const r of eligible) {
+    for (let i = 0; i < eligible.length; i++) {
+        const r = eligible[i];
         if (isUnrestrictedRiderUnit(r)) deferred.push(r);
         else preferred.push(r);
     }
 
     const merged = { ...player.manaPool };
     const preferredByColor: Record<string, number> = {};
-    for (const r of eligible) {
+    for (let i = 0; i < eligible.length; i++) {
+        const r = eligible[i];
         merged[r.color] = (merged[r.color] ?? 0) + r.amount;
     }
-    for (const r of preferred) {
+    for (let i = 0; i < preferred.length; i++) {
+        const r = preferred[i];
         preferredByColor[r.color] = (preferredByColor[r.color] ?? 0) + r.amount;
     }
     const before = { ...merged };
@@ -25666,7 +26026,8 @@ export function payManaCostForAbility(
         amount: number
     ): void => {
         let remaining = amount;
-        for (const r of units) {
+        for (let i = 0; i < units.length; i++) {
+            const r = units[i];
             if (remaining <= 0) break;
             if (r.color !== color) continue;
             const take = Math.min(r.amount, remaining);
@@ -25675,7 +26036,9 @@ export function payManaCostForAbility(
         }
     };
 
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         const consumed = (before[color] ?? 0) - (merged[color] ?? 0);
         if (consumed <= 0) continue;
         const fromPreferred = Math.min(consumed, preferredByColor[color] ?? 0);
@@ -25973,7 +26336,9 @@ export function spendablePoolWithRiders(
     player: Pick<PlayerState, "manaPool" | "restrictedMana">
 ): Record<string, number> {
     const pool = { ...player.manaPool };
-    for (const r of player.restrictedMana ?? []) {
+    const rList = player.restrictedMana ?? [];
+    for (let i = 0; i < rList.length; i++) {
+        const r = rList[i];
         if (isUnrestrictedRiderUnit(r)) {
             pool[r.color] = (pool[r.color] ?? 0) + r.amount;
         }
@@ -26006,14 +26371,17 @@ export function payManaCostWithRiders(
         return {};
     }
     const merged = { ...player.manaPool };
-    for (const r of eligible) {
+    for (let i = 0; i < eligible.length; i++) {
+        const r = eligible[i];
         merged[r.color] = (merged[r.color] ?? 0) + r.amount;
     }
     const before = { ...merged };
     payManaCost(merged, cost, substitutions, genericSpendOrder);
 
     const fromRiders: Record<string, number> = {};
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         const consumed = (before[color] ?? 0) - (merged[color] ?? 0);
         if (consumed <= 0) continue;
         const fromReal = Math.min(consumed, player.manaPool[color] ?? 0);
@@ -26021,7 +26389,8 @@ export function payManaCostWithRiders(
         let remaining = consumed - fromReal;
         if (remaining <= 0) continue;
         fromRiders[color] = remaining;
-        for (const r of eligible) {
+        for (let j = 0; j < eligible.length; j++) {
+            const r = eligible[j];
             if (remaining <= 0) break;
             if (r.color !== color) continue;
             const take = Math.min(r.amount, remaining);
@@ -26048,7 +26417,9 @@ export function spendablePoolForSpell(
     spellSubject?: RestrictionSubject
 ): Record<string, number> {
     const pool = { ...player.manaPool };
-    for (const r of player.restrictedMana ?? []) {
+    const rList = player.restrictedMana ?? [];
+    for (let i = 0; i < rList.length; i++) {
+        const r = rList[i];
         if (
             restrictedUnitAllowsSpell(
                 r,
@@ -26120,7 +26491,8 @@ export function payManaCostForSpell(
     // what floating it was for. Genuinely restricted units are unaffected.
     const preferred: RestrictedMana[] = [];
     const deferred: RestrictedMana[] = [];
-    for (const r of eligible) {
+    for (let i = 0; i < eligible.length; i++) {
+        const r = eligible[i];
         const useful =
             !!r.cantBeCounteredRider ||
             (!!r.hasteRider && spellTypes.includes("Creature"));
@@ -26129,9 +26501,12 @@ export function payManaCostForSpell(
     }
     const merged = { ...player.manaPool };
     const preferredByColor: Record<string, number> = {};
-    for (const r of eligible)
+    for (let i = 0; i < eligible.length; i++) {
+        const r = eligible[i];
         merged[r.color] = (merged[r.color] ?? 0) + r.amount;
-    for (const r of preferred) {
+    }
+    for (let i = 0; i < preferred.length; i++) {
+        const r = preferred[i];
         preferredByColor[r.color] = (preferredByColor[r.color] ?? 0) + r.amount;
     }
     const before = { ...merged };
@@ -26146,7 +26521,8 @@ export function payManaCostForSpell(
         amount: number
     ): number => {
         let remaining = amount;
-        for (const r of units) {
+        for (let i = 0; i < units.length; i++) {
+            const r = units[i];
             if (remaining <= 0) break;
             if (r.color !== color) continue;
             const take = Math.min(r.amount, remaining);
@@ -26168,7 +26544,9 @@ export function payManaCostForSpell(
         }
         return remaining;
     };
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         const consumed = (before[color] ?? 0) - (merged[color] ?? 0);
         if (consumed <= 0) continue;
         const fromPreferred = Math.min(consumed, preferredByColor[color] ?? 0);
@@ -26204,7 +26582,9 @@ export function commitLandsForCost(
      *  Falls back to intrinsic subtype mana or fixed activated ability. */
     const getManaColor = (card: CardInstanceState): string | null => {
         if (card.chosenMana) {
-            for (const color of MANA_COLORS) {
+            const colorList = MANA_COLORS;
+            for (let i = 0; i < colorList.length; i++) {
+                const color = colorList[i];
                 if (
                     ((card.chosenMana as Record<string, number>)[color] ?? 0) >
                     0
@@ -26217,10 +26597,14 @@ export function commitLandsForCost(
     };
 
     // Commit mana sources for colored costs first
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         let needed = remaining[color] ?? 0;
         if (needed <= 0) continue;
-        for (const card of player.battlefield) {
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (needed <= 0) break;
             if (
                 card.isTapped &&
@@ -26242,7 +26626,9 @@ export function commitLandsForCost(
     // pips, then generic). The pip's own assignment is re-derived here from the
     // TAPPED sources rather than the pool: this walk works on battlefield
     // sources, and the two agree on cardinality, which is what commitment needs.
-    for (const pip of normalizedHybridPips(remaining)) {
+    const pipList = normalizedHybridPips(remaining);
+    for (let i = 0; i < pipList.length; i++) {
+        const pip = pipList[i];
         const match = player.battlefield.find((card) => {
             if (!card.isTapped || card.manaCommitted) return false;
             const color = getManaColor(card);
@@ -26266,8 +26652,11 @@ export function commitLandsForCost(
             ).length;
             return countB - countA;
         });
-        for (const color of sorted) {
-            for (const card of player.battlefield) {
+        for (let i = 0; i < sorted.length; i++) {
+            const color = sorted[i];
+            const cardList2 = player.battlefield;
+            for (let j = 0; j < cardList2.length; j++) {
+                const card = cardList2[j];
                 if (generic <= 0) break;
                 if (
                     card.isTapped &&
@@ -26357,7 +26746,9 @@ export function normalizeManaCost(
     // `{X}{X}{U}` → twice). Defaults to 1 for a single `{X}`.
     const xFactor =
         typeof cost.xFactor === "number" && cost.xFactor > 0 ? cost.xFactor : 1;
-    for (const [key, val] of Object.entries(cost)) {
+    const entries2 = Object.entries(cost);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, val] = entries2[i];
         if (
             key === "xFactor" ||
             key === "xSpendColors" ||
@@ -26370,7 +26761,9 @@ export function normalizeManaCost(
         // kicker, a "pay its mana cost") charges the pip instead of reading it
         // as free.
         if (key === "hybridGeneric" && Array.isArray(val)) {
-            for (const pip of val as { generic: number }[]) {
+            const pipList = val as { generic: number }[];
+            for (let j = 0; j < pipList.length; j++) {
+                const pip = pipList[j];
                 extraGeneric += pip.generic;
             }
             continue;
@@ -26404,7 +26797,8 @@ export function normalizeManaCost(
                             "xSpendDistinctColors forbids repeating a colour"
                         );
                     }
-                    for (const c of picked) {
+                    for (let j = 0; j < picked.length; j++) {
+                        const c = picked[j];
                         if (
                             !(COLORED_MANA_COLORS as readonly Color[]).includes(
                                 c
@@ -26435,7 +26829,9 @@ export function normalizeManaCost(
         // payment layer OWES it. Before this branch the `hybrid` array fell
         // out of the numeric-key walk below and every hybrid pip was free.
         if (key === "hybrid" && Array.isArray(val)) {
-            for (const pip of val as [Color, Color][]) {
+            const pipList2 = val as [Color, Color][];
+            for (let j = 0; j < pipList2.length; j++) {
+                const pip = pipList2[j];
                 const pipKey = hybridCostKey(pip[0], pip[1]);
                 result[pipKey] = (result[pipKey] ?? 0) + 1;
             }
@@ -26532,8 +26928,11 @@ function censusOf(
                 battlefield: p.battlefield,
             }));
             let n = 0;
-            for (const board of boards) {
-                for (const c of board.battlefield) {
+            for (let i = 0; i < boards.length; i++) {
+                const board = boards[i];
+                const cList = board.battlefield;
+                for (let j = 0; j < cList.length; j++) {
+                    const c = cList[j];
                     if (c.controllerId === player.id || !isLand(c)) continue;
                     if (
                         getProducibleColorsOnBoard(c, boards, 0, true).has(mana)
@@ -26739,21 +27138,28 @@ export function getCostModifiers(
             announcerId ?? state.priorityPlayerId
         )
     ) {
-        for (const [k, v] of Object.entries(
+        const entries2 = Object.entries(
             normalizeManaCost(card.castFromExileCostIncrease)
-        )) {
+        );
+        for (let i = 0; i < entries2.length; i++) {
+            const [k, v] = entries2[i];
             increase[k] = (increase[k] ?? 0) + v;
         }
     }
     let reductionGeneric = 0;
     let minTotalMana = 0;
     let raiseTotalTo = 0;
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let m = 0; m < sourceList.length; m++) {
+            const source = sourceList[m];
             const cardId = (source.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : null;
             const effects = getEffectiveStaticEffects(def, source.chosenModeId);
-            for (const effect of effects) {
+            for (let i2 = 0; i2 < effects.length; i2++) {
+                const effect = effects[i2];
                 if (effect.kind !== "cost-modifier") continue;
                 // Two separate calls (not one shared `pred` reference) because
                 // `appliesToAbility` takes fourth/fifth `ability`/`announcerId`
@@ -26811,7 +27217,9 @@ export function getCostModifiers(
                             ? (state.players.find((p) => p.id === announcer)
                                   ?.spellsCastThisTurn ?? 0)
                             : 1;
-                    for (const [k, v] of Object.entries(norm)) {
+                    const entries3 = Object.entries(norm);
+                    for (let i3 = 0; i3 < entries3.length; i3++) {
+                        const [k, v] = entries3[i3];
                         increase[k] = (increase[k] ?? 0) + v * times;
                     }
                 }
@@ -26858,10 +27266,9 @@ export function getCostModifiers(
     // to its own player's casts; an opponent's spell is never reduced.
     // The "until your next turn" twin list (issue #9435, CR 611.2a) is the
     // SAME fold: only the boundary that empties it differs (`advanceTurn`).
-    const floatingReductions = [
-        ...(state.spellCostReductionsThisTurn ?? []),
-        ...(state.spellCostReductionsUntilNextTurn ?? []),
-    ];
+    const floatingReductions = (state.spellCostReductionsThisTurn ?? []).concat(
+        state.spellCostReductionsUntilNextTurn ?? []
+    );
     if (kind === "spell" && floatingReductions.length) {
         // The announced object as a `MatchableSpell`. Colours come from
         // `getEffectiveColors` (`cards/effectiveColors.ts`), which is the ONE
@@ -26887,7 +27294,8 @@ export function getCostModifiers(
             subtypes: card.subtypes,
             colors: getEffectiveColors(card),
         };
-        for (const entry of floatingReductions) {
+        for (let i = 0; i < floatingReductions.length; i++) {
+            const entry = floatingReductions[i];
             if (entry.playerId !== announcer) continue;
             if (
                 entry.filter !== undefined &&
@@ -26982,12 +27390,17 @@ export function getStaticAdditionalSacrifices(
     kind: "spell" | "ability"
 ): StaticAdditionalSacrifice[] {
     const out: StaticAdditionalSacrifice[] = [];
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const cardId = (source.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : null;
             const effects = getEffectiveStaticEffects(def, source.chosenModeId);
-            for (const effect of effects) {
+            for (let k = 0; k < effects.length; k++) {
+                const effect = effects[k];
                 if (effect.kind !== "additional-cost") continue;
                 const pred =
                     kind === "spell"
@@ -27117,13 +27530,18 @@ export function getManaSubstitutions(
     }
 ): ManaSubstitution[] {
     const out: ManaSubstitution[] = [];
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let j = 0; j < playerList.length; j++) {
+        const player = playerList[j];
+        const sourceList = player.battlefield;
+        for (let k = 0; k < sourceList.length; k++) {
+            const source = sourceList[k];
             if (source.controllerId !== playerId) continue;
             const cardId = (source.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : null;
             const effects = getEffectiveStaticEffects(def, source.chosenModeId);
-            for (const effect of effects) {
+            for (let m = 0; m < effects.length; m++) {
+                const effect = effects[m];
                 if (effect.kind !== "mana-substitution") continue;
                 // CR 609.4b (issue #2944) — a SCOPED permission reaches only
                 // the cost its scope names. Fails closed: no scope arm matches
@@ -27149,8 +27567,9 @@ export function getManaSubstitutions(
     // CR 609.4b (issue #3811) — the player's until-end-of-turn grants (False
     // Dawn). Worded with no cost scope, so every payment sees them, named cast
     // or not, and `excludeOneShotGrants` leaves them in (they are not one-shot).
-    for (const grant of state.manaSubstitutionGrantsThisTurn?.[playerId] ??
-        []) {
+    const grantList = state.manaSubstitutionGrantsThisTurn?.[playerId] ?? [];
+    for (let j = 0; j < grantList.length; j++) {
+        const grant = grantList[j];
         out.push(
             ...substitutionsForBreadth(grant.breadth).filter(
                 (pair) => pair.from === grant.from
@@ -27178,7 +27597,9 @@ export function getManaSubstitutions(
     // player's exile: the card stays in ITS OWNER's zone (CR 400.7) while a
     // DIFFERENT player holds the cast permission, so the grant is keyed on
     // `castableFromExileBy`, never on which zone the card sits in.
-    for (const player of state.players) {
+    const playerList2 = state.players;
+    for (let j = 0; j < playerList2.length; j++) {
+        const player = playerList2[j];
         const granted = player.exile.find(
             (c) =>
                 c.id === castCardInstanceId &&
@@ -27200,7 +27621,9 @@ export function getManaSubstitutions(
     // grants (North Star). Any spell qualifies, so the id only had to prove a
     // SPELL is what is being paid for. Consumption happens at the payment seam.
     if (opts?.excludeOneShotGrants || !opts?.printedManaCostOnly) return out;
-    for (const breadth of state.spellManaSubstitutionGrants?.[playerId] ?? []) {
+    const breadthList = state.spellManaSubstitutionGrants?.[playerId] ?? [];
+    for (let j = 0; j < breadthList.length; j++) {
+        const breadth = breadthList[j];
         out.push(...substitutionsForBreadth(breadth));
     }
     return out;
@@ -27256,7 +27679,8 @@ export function isPrintedManaCostOnly(
     const genericTotal = (cost: Record<string, number>) =>
         (cost.X ?? 0) + restrictedXPipCount(cost);
     if (genericTotal(printed) !== genericTotal(paidCost)) return false;
-    const keys = new Set([...Object.keys(printed), ...Object.keys(paidCost)]);
+    const keys = new Set(Object.keys(printed).concat(Object.keys(paidCost)));
+    // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
     for (const key of keys) {
         if (key === "X" || parseRestrictedXCostKey(key)) continue;
         if ((printed[key] ?? 0) !== (paidCost[key] ?? 0)) return false;
@@ -27424,7 +27848,9 @@ export function applyCostModifiers(
     modifiers: CostModifiers
 ): number {
     let raised = 0;
-    for (const [k, v] of Object.entries(modifiers.increase)) {
+    const entries2 = Object.entries(modifiers.increase);
+    for (let j = 0; j < entries2.length; j++) {
+        const [k, v] = entries2[j];
         baseCost[k] = (baseCost[k] ?? 0) + v;
     }
     if (modifiers.reductionGeneric > 0) {
@@ -27499,14 +27925,17 @@ export function isManaCostCovered(
     const pool = { ...manaPool };
 
     // Check colored/colorless — exact color first, then substitutable colors.
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         let required = cost[color] ?? 0;
         if (required <= 0) continue;
         const direct = Math.min(pool[color] ?? 0, required);
         pool[color] = (pool[color] ?? 0) - direct;
         required -= direct;
         if (required > 0) {
-            for (const sub of substitutions) {
+            for (let j = 0; j < substitutions.length; j++) {
+                const sub = substitutions[j];
                 if (required <= 0) break;
                 if (sub.to !== color) continue;
                 const take = Math.min(pool[sub.from] ?? 0, required);
@@ -27526,7 +27955,9 @@ export function isManaCostCovered(
     if (hybridPips.length > 0) {
         const spent = assignHybridPips(pool, hybridPips, substitutions);
         if (!spent) return false;
-        for (const [color, amount] of Object.entries(spent)) {
+        const entries2 = Object.entries(spent);
+        for (let i = 0; i < entries2.length; i++) {
+            const [color, amount] = entries2[i];
             pool[color] = (pool[color] ?? 0) - amount;
         }
     }
@@ -27535,7 +27966,9 @@ export function isManaCostCovered(
     const generic = cost.X ?? 0;
     if (generic > 0) {
         let available = 0;
-        for (const color of MANA_COLORS) {
+        const colorList2 = MANA_COLORS;
+        for (let i = 0; i < colorList2.length; i++) {
+            const color = colorList2[i];
             available += pool[color] ?? 0;
         }
         if (available < generic) return false;
@@ -27548,7 +27981,9 @@ function formatManaCost(cost: ManaCost): string {
     const parts: string[] = [];
     const generic = (cost.X as number | undefined) ?? 0;
     if (generic > 0) parts.push(`${generic}`);
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let j = 0; j < colorList.length; j++) {
+        const color = colorList[j];
         const n = (cost[color] as number | undefined) ?? 0;
         for (let i = 0; i < n; i++) parts.push(`{${color}}`);
     }
@@ -27559,7 +27994,9 @@ function formatManaCost(cost: ManaCost): string {
     // `manaCostToString` (`src/lib/card-utils.ts`, issue #1740): no catalogue
     // card currently mixes a hybrid pip with a single-colour pip, so this
     // canonical ordering has never diverged from a real printing.
-    for (const [a, b] of normalizedHybridPips(cost as Record<string, number>)) {
+    const entries = normalizedHybridPips(cost as Record<string, number>);
+    for (let j = 0; j < entries.length; j++) {
+        const [a, b] = entries[j];
         parts.push(a === b ? `{${a}}` : `{${a}/${b}}`);
     }
     return parts.join("") || "0";
@@ -27672,7 +28109,10 @@ export function sumEffectivePower(
     permanents: CardInstanceState[]
 ): number {
     let total = 0;
-    for (const c of permanents) total += getEffectivePower(state, c);
+    for (let i = 0; i < permanents.length; i++) {
+        const c = permanents[i];
+        total += getEffectivePower(state, c);
+    }
     return total;
 }
 
@@ -27815,11 +28255,13 @@ export function assignMayPayHandCards<T extends MayPayHandCard>(
     const rank = (c: T): number => ranks.get(c.id) ?? sentinel;
     const reserved = new Set<string>();
     const chosen: T[] = [];
-    for (const req of leg.requirements) {
+    const reqList = leg.requirements;
+    for (let j = 0; j < reqList.length; j++) {
+        const req = reqList[j];
         const cands = mayPayHandRequirementCandidates(hand, req, reserved);
         const ordered =
             preferred && preferred.length > 0
-                ? [...cands].sort((a, b) => rank(a) - rank(b))
+                ? cands.slice().sort((a, b) => rank(a) - rank(b))
                 : cands;
         if (ordered.length < req.count) return undefined;
         for (let i = 0; i < req.count; i++) {
@@ -28030,7 +28472,9 @@ function spendablePoolForRestriction(
     restriction?: ManaRestriction
 ): Record<string, number> {
     const pool = { ...player.manaPool };
-    for (const r of player.restrictedMana ?? []) {
+    const rList = player.restrictedMana ?? [];
+    for (let i = 0; i < rList.length; i++) {
+        const r = rList[i];
         if (mayPayUnitIsEligible(r, restriction)) {
             pool[r.color] = (pool[r.color] ?? 0) + r.amount;
         }
@@ -28086,16 +28530,19 @@ function payManaCostForRestriction(
     }
     const preferred: RestrictedMana[] = [];
     const deferred: RestrictedMana[] = [];
-    for (const r of eligible) {
+    for (let i = 0; i < eligible.length; i++) {
+        const r = eligible[i];
         if (isUnrestrictedRiderUnit(r)) deferred.push(r);
         else preferred.push(r);
     }
     const merged = { ...player.manaPool };
     const preferredByColor: Record<string, number> = {};
-    for (const r of eligible) {
+    for (let i = 0; i < eligible.length; i++) {
+        const r = eligible[i];
         merged[r.color] = (merged[r.color] ?? 0) + r.amount;
     }
-    for (const r of preferred) {
+    for (let i = 0; i < preferred.length; i++) {
+        const r = preferred[i];
         preferredByColor[r.color] = (preferredByColor[r.color] ?? 0) + r.amount;
     }
     const before = { ...merged };
@@ -28107,7 +28554,8 @@ function payManaCostForRestriction(
         amount: number
     ): void => {
         let remaining = amount;
-        for (const r of units) {
+        for (let i = 0; i < units.length; i++) {
+            const r = units[i];
             if (remaining <= 0) break;
             if (r.color !== color) continue;
             const take = Math.min(r.amount, remaining);
@@ -28115,7 +28563,9 @@ function payManaCostForRestriction(
             remaining -= take;
         }
     };
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         const consumed = (before[color] ?? 0) - (merged[color] ?? 0);
         if (consumed <= 0) continue;
         const fromPreferred = Math.min(consumed, preferredByColor[color] ?? 0);
@@ -28337,14 +28787,17 @@ export function payMayPayCost(
             if (sacrificeIds && sacrificeIds.length > 0) {
                 victims = candidates.filter((c) => sacrificeIds.includes(c.id));
             } else {
-                const greedy = [...candidates].sort(
-                    (a, b) =>
-                        getEffectivePower(state, b) -
-                        getEffectivePower(state, a)
-                );
+                const greedy = candidates
+                    .slice()
+                    .sort(
+                        (a, b) =>
+                            getEffectivePower(state, b) -
+                            getEffectivePower(state, a)
+                    );
                 victims = [];
                 let running = 0;
-                for (const c of greedy) {
+                for (let i = 0; i < greedy.length; i++) {
+                    const c = greedy[i];
                     if (running >= threshold) break;
                     victims.push(c);
                     running += getEffectivePower(state, c);
@@ -28383,7 +28836,9 @@ export function payMayPayCost(
             // event): a victim a CR 614 graveyard-bound replacement
             // redirects to exile joins one batched CARDS_EXILED.
             withCardsExiledBatch(state, () => {
-                for (const v of victims) {
+                const vList = victims;
+                for (let i = 0; i < vList.length; i++) {
+                    const v = vList[i];
                     removePermanentTo(state, v.id, "graveyard", "sacrifice");
                 }
             });
@@ -28413,7 +28868,8 @@ export function payMayPayCost(
             // boundary and the pay path disagreed on ordering).
             throw new Error("Cannot pay the hand cost from your hand");
         }
-        for (const c of toGiveUp) {
+        for (let i = 0; i < toGiveUp.length; i++) {
+            const c = toGiveUp[i];
             if (norm.hand.action === "exile") {
                 // CR 701.13 — the pitch-style hand leg (Forsaken City ships
                 // one as a may-pay cost; the alternative-cost path owns Force
@@ -28441,7 +28897,9 @@ export function payMayPayCost(
         // ("you may exile eight cards from your graveyard. If you do, …").
         const destination =
             norm.graveyard.action === "return" ? "hand" : "exile";
-        for (const id of graveyardIds ?? []) {
+        const idList = graveyardIds ?? [];
+        for (let i = 0; i < idList.length; i++) {
+            const id = idList[i];
             moveCardWithGraveyardReplacement(
                 state,
                 player,

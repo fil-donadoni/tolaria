@@ -38,7 +38,8 @@ export function greedySelectMove(
 
     let bestScore = -Infinity;
     let best: Move[] = [];
-    for (const move of moves) {
+    for (let i = 0; i < moves.length; i++) {
+        const move = moves[i];
         const score = evaluate(
             applyMoveForSearch(state, playerId, move),
             playerId

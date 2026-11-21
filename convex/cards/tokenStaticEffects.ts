@@ -54,8 +54,12 @@ function ptCdaArtifactsYouControl(): StaticPTCDA {
         applies: EFFECT_AFFECTS_SELF,
         compute: (source, state) => {
             let artifacts = 0;
-            for (const player of state.players) {
-                for (const permanent of player.battlefield) {
+            const playerList = state.players;
+            for (let i = 0; i < playerList.length; i++) {
+                const player = playerList[i];
+                const permanentList = player.battlefield;
+                for (let j = 0; j < permanentList.length; j++) {
+                    const permanent = permanentList[j];
                     if (permanent.controllerId !== source.controllerId)
                         continue;
                     if (permanent.types.includes("Artifact")) artifacts++;
@@ -194,7 +198,8 @@ export function resolveTokenStaticEffects(
 ): StaticEffect[] {
     if (!keys?.length) return [];
     const effects: StaticEffect[] = [];
-    for (const raw of keys) {
+    for (let i = 0; i < keys.length; i++) {
+        const raw = keys[i];
         const key = isTokenStaticEffectKey(raw)
             ? raw
             : LEGACY_KIND_ALIASES[raw];

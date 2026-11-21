@@ -107,7 +107,9 @@ export function temporaryDefensiveKeywords(
     // (`tickContinuousEffectDurations` splices expired ones), which is exactly
     // what `g.duration !== undefined` used to mean.
     const expiring: string[] = [];
-    for (const entry of state.continuousEffects ?? []) {
+    const entryList = state.continuousEffects ?? [];
+    for (let i = 0; i < entryList.length; i++) {
+        const entry = entryList[i];
         if (entry.layer !== 6) continue;
         if (entry.expiry.kind !== "duration") continue;
         if (entry.affected.kind !== "instances") continue;
@@ -120,13 +122,16 @@ export function temporaryDefensiveKeywords(
     // what `staticAbilities` actually holds so a stripped occurrence is not
     // claimed twice.
     const available = new Map<string, number>();
-    for (const keyword of card.staticAbilities) {
+    const keywordList = card.staticAbilities;
+    for (let i = 0; i < keywordList.length; i++) {
+        const keyword = keywordList[i];
         if (!isDefensiveKeyword(keyword)) continue;
         available.set(keyword, (available.get(keyword) ?? 0) + 1);
     }
     if (available.size === 0) return [];
     const out: string[] = [];
-    for (const ability of expiring) {
+    for (let i = 0; i < expiring.length; i++) {
+        const ability = expiring[i];
         const left = available.get(ability);
         if (!left) continue;
         available.set(ability, left - 1);
@@ -188,7 +193,9 @@ function facesCombatDamage(state: GameState, card: CardInstanceState): boolean {
  *    see leaves the position un-quiet only if some OTHER clause says so.
  */
 export function isQuietFor(state: GameState, card: CardInstanceState): boolean {
-    for (const item of state.stack) {
+    const itemList = state.stack;
+    for (let i = 0; i < itemList.length; i++) {
+        const item = itemList[i];
         if (item.castById === card.controllerId) continue;
         if (!isInertStackItemFor(item, card.controllerId)) return false;
     }

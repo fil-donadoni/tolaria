@@ -36,12 +36,19 @@ export function negatedLandwalkSubtypes(
     battlefield: ReadonlyArray<LandwalkNegationPermanent>
 ): ReadonlySet<string> {
     const negated = new Set<string>();
-    for (const perm of battlefield) {
+    for (let i = 0; i < battlefield.length; i++) {
+        const perm = battlefield[i];
         const def = liveDefinitionOf(perm);
         if (!def?.staticEffects) continue;
-        for (const effect of def.staticEffects) {
+        const effectList = def.staticEffects;
+        for (let j = 0; j < effectList.length; j++) {
+            const effect = effectList[j];
             if (effect.kind !== "landwalk-negation") continue;
-            for (const subtype of effect.subtypes) negated.add(subtype);
+            const subtypeList = effect.subtypes;
+            for (let k = 0; k < subtypeList.length; k++) {
+                const subtype = subtypeList[k];
+                negated.add(subtype);
+            }
         }
     }
     return negated;

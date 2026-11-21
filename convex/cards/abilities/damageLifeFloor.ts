@@ -81,15 +81,14 @@ export function expandDamageLifeFloor(base: CardDefinition): CardDefinition {
         ...base,
         replacementEffects: existing.some((r) => r.id === id)
             ? existing
-            : [
-                  ...existing,
+            : existing.concat([
                   damageLifeFloor({
                       id,
                       oracleText: DAMAGE_LIFE_FLOOR_ORACLE_TEXT(spec),
                       floor: spec.floor,
                       whileControlling: spec.whileControlling,
                   }),
-              ],
+              ]),
     };
     delete expanded.damageLifeFloor;
     return expanded;

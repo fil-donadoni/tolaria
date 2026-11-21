@@ -139,10 +139,11 @@ export function pickTapOtherPayment<T extends TapOtherCandidate>(
     if (spec.totalPower === undefined) {
         return candidates.slice(0, spec.count ?? 0);
     }
-    const byPowerDesc = [...candidates].sort((a, b) => b.power - a.power);
+    const byPowerDesc = candidates.slice().sort((a, b) => b.power - a.power);
     const picks: T[] = [];
     let total = 0;
-    for (const c of byPowerDesc) {
+    for (let i = 0; i < byPowerDesc.length; i++) {
+        const c = byPowerDesc[i];
         if (total >= spec.totalPower) break;
         // A 0-power (or negative) creature can never move the total closer to
         // the threshold — tapping it is pure loss, so never pick one.

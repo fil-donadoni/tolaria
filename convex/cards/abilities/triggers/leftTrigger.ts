@@ -191,7 +191,7 @@ function passesFilter(
             // match works directly. `staticAbilities` still isn't carried by
             // the event; a filter needing those should be expressed via
             // `condition`.
-            subtypes: event.subtypes ? [...event.subtypes] : [],
+            subtypes: event.subtypes ? event.subtypes.slice() : [],
             staticAbilities: [],
             controllerId: event.controllerId,
         },

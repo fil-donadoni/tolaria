@@ -119,8 +119,9 @@ export function getEffectiveActivatedAbilities(
     const strippedAt = abilityLossTimestamp(card);
     const out: EffectiveActivatedAbility[] = [];
     if (cardId && strippedAt === null) {
-        for (const ability of tryGetDefinition(cardId)?.activatedAbilities ??
-            []) {
+        const abilityList = tryGetDefinition(cardId)?.activatedAbilities ?? [];
+        for (let i = 0; i < abilityList.length; i++) {
+            const ability = abilityList[i];
             out.push({ ability });
         }
         // CR 707.9a — an ability a copy effect GAINED ("except it has this
@@ -132,7 +133,9 @@ export function getEffectiveActivatedAbilities(
         // a face-down permanent has no abilities (CR 708.2 — the stamp waits
         // on the instance for it to turn face up), and a full-text effect
         // (layer 3) replaces every copiable ability with the text it shows.
-        for (const gained of gainedThroughCopy(card)) {
+        const gainedList = gainedThroughCopy(card);
+        for (let i = 0; i < gainedList.length; i++) {
+            const gained = gainedList[i];
             if (gained.sourceCardId === cardId) continue;
             const tmpl = resolveGrantedActivatedAbility(
                 gained.sourceCardId,
@@ -148,7 +151,9 @@ export function getEffectiveActivatedAbilities(
             }
         }
     }
-    for (const grant of card.grantedActivatedAbilities ?? []) {
+    const grantList = card.grantedActivatedAbilities ?? [];
+    for (let i = 0; i < grantList.length; i++) {
+        const grant = grantList[i];
         if (grantOutrankedByAbilityLoss(grant.seq, strippedAt)) continue;
         const tmpl = resolveGrantedActivatedAbility(
             grant.sourceCardId,

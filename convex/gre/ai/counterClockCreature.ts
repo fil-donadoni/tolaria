@@ -30,5 +30,5 @@ export function isCounterClockCreature(perm: CardInstanceState): boolean {
  *  back, every other field as it stands. */
 export function asEventualCreature(perm: CardInstanceState): CardInstanceState {
     const def = tryGetDefinition(String(perm.card.id ?? ""));
-    return { ...perm, types: [...(def?.types ?? perm.types)] };
+    return { ...perm, types: (def?.types ?? perm.types).slice() };
 }

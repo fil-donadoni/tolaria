@@ -17,7 +17,8 @@ function manaLabel(mana: ManaCost): string {
     const generic =
         (mana.generic ?? 0) + (typeof mana.X === "number" ? mana.X : 0);
     let out = generic > 0 ? `{${generic}}` : "";
-    for (const colour of COLOURED_PIPS) {
+    for (let i = 0; i < COLOURED_PIPS.length; i++) {
+        const colour = COLOURED_PIPS[i];
         out += `{${colour}}`.repeat(mana[colour] ?? 0);
     }
     return out || "{0}";

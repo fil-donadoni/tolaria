@@ -245,7 +245,7 @@ export function isPreAttackGrant(
         if (!body || !isTapLockedBySummoningSickness(body)) return false;
         const hasty = {
             ...body,
-            staticAbilities: [...body.staticAbilities, "haste"],
+            staticAbilities: body.staticAbilities.concat(["haste"]),
         };
         return validateAttackerEligibility(hasty, defenders, state).eligible;
     });
@@ -319,12 +319,14 @@ function castCardOf(
     player: GameState["players"][number],
     id: string
 ): CardInstanceState | undefined {
-    for (const zone of [
+    const zoneList = [
         player.hand,
         player.graveyard,
         player.exile,
         player.library,
-    ]) {
+    ];
+    for (let i = 0; i < zoneList.length; i++) {
+        const zone = zoneList[i];
         const card = zone.find((c) => c.id === id);
         if (card) return card;
     }
@@ -376,18 +378,20 @@ export function reachesOnlyOwnSide(
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     if (!def) return false;
     const source = targetingSourceFromCard(castCard, false);
-    for (const trigger of def.triggeredAbilities ?? []) {
+    const triggerList = def.triggeredAbilities ?? [];
+    for (let i = 0; i < triggerList.length; i++) {
+        const trigger = triggerList[i];
         const events = Array.isArray(trigger.event)
             ? trigger.event
             : [trigger.event];
         if (!events.includes("PERMANENT_ENTERED")) continue;
         // A modal trigger (CR 700.2b) carries its requirements per mode: any
         // mode that can point at the opponent's side takes the cast out.
-        const requirements = [
-            trigger.targetRequirement,
-            ...(trigger.modes ?? []).map((m) => m.targetRequirement),
-        ];
-        for (const requirement of requirements) {
+        const requirements = [trigger.targetRequirement].concat(
+            (trigger.modes ?? []).map((m) => m.targetRequirement)
+        );
+        for (let j = 0; j < requirements.length; j++) {
+            const requirement = requirements[j];
             if (!requirement) continue;
             const legal = getLegalTargets(state, requirement, source, pid);
             if (!legal.every((t) => isOwnSideTarget(state, pid, t)))

@@ -222,7 +222,8 @@ function linkPairs(
     gaps: VerdictGap[]
 ): void {
     const byLabel = new Map(scenarios.map((s) => [s.label, s]));
-    for (const scenario of scenarios) {
+    for (let i = 0; i < scenarios.length; i++) {
+        const scenario = scenarios[i];
         const decl = scenario.pairOf;
         const half = verdictOf.get(scenario.label);
         if (decl === undefined || half === undefined) continue;
@@ -299,7 +300,8 @@ export function verdictsFromRegistry(
 ): RegistryVerdicts {
     const verdictOf = new Map<string, Verdict>();
     const gaps: VerdictGap[] = [];
-    for (const scenario of scenarios) {
+    for (let i = 0; i < scenarios.length; i++) {
+        const scenario = scenarios[i];
         const out = verdictFromScenario(scenario);
         if ("verdict" in out) verdictOf.set(scenario.label, out.verdict);
         else gaps.push(out.gap);

@@ -91,7 +91,8 @@ export function mustBladeEntryFor(
     cardNames: readonly string[],
     index: BladeCardIndex
 ): string | undefined {
-    for (const name of cardNames) {
+    for (let i = 0; i < cardNames.length; i++) {
+        const name = cardNames[i];
         const must = (index[name] ?? []).find((e) => e.tier === "must");
         if (must !== undefined) return must.label;
     }
@@ -125,8 +126,9 @@ export function rankFindingClasses<T extends RankableFindingClass>(
 ): T[] {
     const countOf = (cls: T, target: string): number =>
         cls.targetCounts.find((t) => t.target === target)?.count ?? 0;
-    return [...classes].sort((a, b) => {
-        for (const target of priorityTargets) {
+    return classes.slice().sort((a, b) => {
+        for (let i = 0; i < priorityTargets.length; i++) {
+            const target = priorityTargets[i];
             const d = countOf(b, target) - countOf(a, target);
             if (d !== 0) return d;
         }

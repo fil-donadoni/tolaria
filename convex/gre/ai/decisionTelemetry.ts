@@ -341,7 +341,8 @@ export type RootDecisionSummary = {
 };
 
 function bucketLabel(gapMarginPoints: number): string {
-    for (const edge of GAP_BUCKET_EDGES) {
+    for (let i = 0; i < GAP_BUCKET_EDGES.length; i++) {
+        const edge = GAP_BUCKET_EDGES[i];
         if (gapMarginPoints <= edge) return `≤${edge}`;
     }
     return `>${GAP_BUCKET_EDGES[GAP_BUCKET_EDGES.length - 1]}`;
@@ -383,7 +384,8 @@ export function summarizeRootDecisions(
         if (agrees) row.agree++;
     };
 
-    for (const r of records) {
+    for (let i = 0; i < records.length; i++) {
+        const r = records[i];
         if (r.greedyAgrees !== undefined) {
             greedyTotal++;
             if (r.greedyAgrees) greedyAgree++;

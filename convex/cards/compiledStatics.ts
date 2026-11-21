@@ -629,14 +629,19 @@ function staticConditionHolds(
     }
     if (condition.kind === "opponent-controls") {
         let matched = 0;
-        for (const player of state.players)
-            for (const permanent of player.battlefield) {
+        const playerList = state.players;
+        for (let i = 0; i < playerList.length; i++) {
+            const player = playerList[i];
+            const permanentList = player.battlefield;
+            for (let j = 0; j < permanentList.length; j++) {
+                const permanent = permanentList[j];
                 if (permanent.controllerId === source.controllerId) continue;
                 if (!filterMatches(condition.filter, permanent, source, ctx))
                     continue;
                 matched += 1;
                 if (matched >= condition.atLeast) return true;
             }
+        }
         return false;
     }
     return controlsHolds(condition, source, state, ctx);
@@ -653,14 +658,19 @@ export function controlsHolds(
     const cap =
         "atMost" in condition ? condition.atMost + 1 : condition.atLeast;
     let matched = 0;
-    for (const player of state.players)
-        for (const permanent of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const permanentList = player.battlefield;
+        for (let j = 0; j < permanentList.length; j++) {
+            const permanent = permanentList[j];
             if (matched >= cap) break;
             if (permanent.controllerId !== source.controllerId) continue;
             if (!filterMatches(condition.filter, permanent, source, ctx))
                 continue;
             matched += 1;
         }
+    }
     return "atMost" in condition
         ? matched <= condition.atMost
         : matched >= condition.atLeast;
@@ -826,22 +836,22 @@ function layerFourReads(scope: CompiledStaticScope): ContinuousRead[] {
     if (filter === undefined) return [];
     const reads: ContinuousRead[] = [];
     const list = (v: string | readonly string[] | undefined) =>
-        v === undefined ? [] : typeof v === "string" ? [v] : [...v];
+        v === undefined ? [] : typeof v === "string" ? [v] : v.slice();
     const read = (
         characteristic: "types" | "subtypes" | "supertypes",
         values: readonly string[]
     ) => {
         if (values.length > 0) reads.push({ characteristic, values });
     };
-    read("types", [...list(filter.types), ...list(filter.excludeTypes)]);
-    read("subtypes", [
-        ...list(filter.subtypes),
-        ...list(filter.excludeSubtypes),
-    ]);
-    read("supertypes", [
-        ...list(filter.supertypes),
-        ...list(filter.excludeSupertypes),
-    ]);
+    read("types", list(filter.types).concat(list(filter.excludeTypes)));
+    read(
+        "subtypes",
+        list(filter.subtypes).concat(list(filter.excludeSubtypes))
+    );
+    read(
+        "supertypes",
+        list(filter.supertypes).concat(list(filter.excludeSupertypes))
+    );
     return reads;
 }
 
@@ -896,10 +906,9 @@ export function resolveCompiledStatic(
                         // exile put there; an empty or unseen zone totals 0.
                         let power = 0;
                         let toughness = 0;
-                        for (const { card } of getCardsExiledWith(
-                            state,
-                            source.id
-                        )) {
+                        const entries = getCardsExiledWith(state, source.id);
+                        for (let i = 0; i < entries.length; i++) {
+                            const { card } = entries[i];
                             power += card.power ?? 0;
                             toughness += card.toughness ?? 0;
                         }
@@ -926,20 +935,20 @@ export function resolveCompiledStatic(
             return {
                 kind: "type-remove",
                 applies: RECONFIGURE_LOSES_CREATURE_WHILE_ATTACHED,
-                types: [...descriptor.types],
+                types: descriptor.types.slice(),
             };
         case "type-add":
             return {
                 kind: "type-add",
                 applies: scopePredicate(descriptor),
-                types: [...descriptor.types],
+                types: descriptor.types.slice(),
             };
         case "subtype-add": {
             const reads = layerFourReads(descriptor);
             return {
                 kind: "subtype-add",
                 applies: scopePredicate(descriptor),
-                subtypes: [...descriptor.subtypes],
+                subtypes: descriptor.subtypes.slice(),
                 ...(reads.length > 0 ? { reads } : {}),
             };
         }
@@ -1237,12 +1246,11 @@ function expandBarStatics(base: CardDefinition): CardDefinition {
             if (descriptors === undefined) return bar;
             return {
                 ...rest,
-                staticEffects: [
-                    ...(bar.staticEffects ?? []),
-                    ...(descriptors.map(
+                staticEffects: (bar.staticEffects ?? []).concat(
+                    descriptors.map(
                         resolveCompiledStatic
-                    ) as GateableStaticEffect[]),
-                ],
+                    ) as GateableStaticEffect[]
+                ),
             };
         }),
     };
@@ -1263,10 +1271,9 @@ export function expandCompiledStatics(raw: CardDefinition): CardDefinition {
     if (descriptors === undefined || descriptors.length === 0) return base;
     const expanded: CardDefinition = {
         ...base,
-        staticEffects: [
-            ...(base.staticEffects ?? []),
-            ...descriptors.map(resolveCompiledStatic),
-        ],
+        staticEffects: (base.staticEffects ?? []).concat(
+            descriptors.map(resolveCompiledStatic)
+        ),
     };
     delete expanded.compiledStaticEffects;
     return expanded;

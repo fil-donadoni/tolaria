@@ -25,9 +25,9 @@ export function createCardCopyInExile(
     getPlayer(state, ownerId).exile.push({
         id,
         card: { id: (card.card as { id?: string }).id ?? "" },
-        types: [...card.types],
-        subtypes: [...card.subtypes],
-        staticAbilities: [...card.staticAbilities],
+        types: card.types.slice(),
+        subtypes: card.subtypes.slice(),
+        staticAbilities: card.staticAbilities.slice(),
         controllerId: ownerId,
         ownerId,
         zone: "exile",
@@ -53,7 +53,9 @@ export function onCardCopyCast(item: StackItem): void {
 export function checkCardCopySBA(state: GameState): boolean {
     if ((state.pendingChoices?.length ?? 0) > 0) return false;
     let removed = false;
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         if (!player.exile.some((c) => c.castCopyOfCard === true)) continue;
         player.exile = player.exile.filter((c) => c.castCopyOfCard !== true);
         removed = true;

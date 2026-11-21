@@ -177,9 +177,9 @@ export function revertModalBackCastIdentity(item: CardInstanceState): void {
     delete item.transformed;
     delete item.transformedFrom;
     item.card = { id: def.id };
-    item.types = [...def.types];
-    item.subtypes = [...(def.subtypes ?? [])];
-    item.staticAbilities = [...(def.staticAbilities ?? [])];
+    item.types = def.types.slice();
+    item.subtypes = (def.subtypes ?? []).slice();
+    item.staticAbilities = (def.staticAbilities ?? []).slice();
     delete item.baseTypes;
     delete item.baseSubtypes;
     delete item.baseStaticAbilities;

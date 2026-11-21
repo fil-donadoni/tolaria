@@ -48,7 +48,8 @@ export function parseFadingVanishing(
     staticAbilities: string[] | undefined
 ): ParsedKeyword | null {
     if (!staticAbilities) return null;
-    for (const ability of staticAbilities) {
+    for (let i = 0; i < staticAbilities.length; i++) {
+        const ability = staticAbilities[i];
         const fade = FADING_PATTERN.exec(ability);
         if (fade) return { keyword: "fading", count: Number(fade[1]) };
         const vanish = VANISHING_PATTERN.exec(ability);
@@ -177,11 +178,10 @@ export function expandFadingVanishing(def: CardDefinition): CardDefinition {
         ...def,
         entersWith: {
             ...def.entersWith,
-            counters: [
-                ...existingCounters,
+            counters: existingCounters.concat([
                 { type: counterType, count: parsed.count },
-            ],
+            ]),
         },
-        triggeredAbilities: [...existing, ...injectedTriggers],
+        triggeredAbilities: existing.concat(injectedTriggers),
     };
 }

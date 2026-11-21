@@ -70,7 +70,7 @@ function differingPaths(
 ): { paths: string[]; resized: string[] } {
     if (same(a, b)) return { paths: [], resized };
     if (isObject(a) && isObject(b)) {
-        const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+        const keys = new Set(Object.keys(a).concat(Object.keys(b)));
         const paths = [...keys].flatMap(
             (k) => differingPaths(a[k], b[k], `${path}.${k}`, resized).paths
         );
@@ -125,7 +125,10 @@ function without(
     keys: readonly SpecKey[]
 ): PairPosition {
     const out = copy(position);
-    for (const key of keys) delete out.spec[key];
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        delete out.spec[key];
+    }
     return out;
 }
 
@@ -148,7 +151,10 @@ function units(cards: readonly ScenarioCard[]): string[] {
 /** `from` without one occurrence of each of `drop`, order kept. */
 function removing(from: readonly string[], drop: readonly string[]): string[] {
     const left = new Map<string, number>();
-    for (const key of drop) left.set(key, (left.get(key) ?? 0) + 1);
+    for (let i = 0; i < drop.length; i++) {
+        const key = drop[i];
+        left.set(key, (left.get(key) ?? 0) + 1);
+    }
     return from.filter((key) => {
         const n = left.get(key) ?? 0;
         if (n === 0) return true;
@@ -197,13 +203,20 @@ function stepDefect(anchor: PairPosition, half: PairPosition): string | null {
         return "the halves share a step and a turn, so nothing realises the step Discriminant";
     }
     const newTurn = moved("turn");
-    const keys = newTurn ? [...STEP_KEYS, ...NEW_TURN_KEYS] : STEP_KEYS;
+    const keys = newTurn ? STEP_KEYS.concat(NEW_TURN_KEYS) : STEP_KEYS;
     const a = without(anchor, keys);
     const b = without(half, keys);
     if (newTurn) {
-        for (const position of [a, b]) {
-            for (const card of position.spec.cards) {
-                for (const key of NEW_TURN_CARD_KEYS) delete card[key];
+        const positionList = [a, b];
+        for (let i = 0; i < positionList.length; i++) {
+            const position = positionList[i];
+            const cardList = position.spec.cards;
+            for (let j = 0; j < cardList.length; j++) {
+                const card = cardList[j];
+                for (let k = 0; k < NEW_TURN_CARD_KEYS.length; k++) {
+                    const key = NEW_TURN_CARD_KEYS[k];
+                    delete card[key];
+                }
             }
         }
     }

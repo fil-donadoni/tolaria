@@ -26,7 +26,9 @@ import type { BladeExpectation, BladeSeat, MoveMatcher } from "./types";
  *  (`StackItem extends CardInstanceState`.) */
 export function allInstances(state: GameState): CardInstanceState[] {
     const out: CardInstanceState[] = [];
-    for (const p of state.players) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
         out.push(
             ...p.battlefield,
             ...p.hand,
@@ -67,7 +69,9 @@ export function instanceIdsForName(
 ): Set<string> {
     const def = getCardByName(name); // throws on an unknown name
     const ids = new Set<string>();
-    for (const inst of allInstances(state)) {
+    const instList = allInstances(state);
+    for (let i = 0; i < instList.length; i++) {
+        const inst = instList[i];
         const id = (inst.card as { id?: string } | undefined)?.id;
         // The definition id, or the NAME the object presents: a prepare
         // spell's exiled copy is an instance of the twin definition
@@ -209,7 +213,8 @@ export function matchesMove(
     if (cardIds && !acting.some((id) => cardIds.has(id))) return false;
 
     if (cardsIds) {
-        for (const ids of cardsIds) {
+        for (let i = 0; i < cardsIds.length; i++) {
+            const ids = cardsIds[i];
             if (!acting.some((id) => ids.has(id))) return false;
         }
     }
@@ -238,7 +243,8 @@ export function matchesMove(
         if (move.kind !== "resolution-choice") return false;
         const second = move.secondZoneIds ?? [];
         if (secondIds.length === 0 && second.length !== 0) return false;
-        for (const ids of secondIds) {
+        for (let i = 0; i < secondIds.length; i++) {
+            const ids = secondIds[i];
             if (!second.some((id) => ids.has(id))) return false;
         }
     }
@@ -252,7 +258,8 @@ export function matchesMove(
             .tapPlan;
         if (!plan || plan.length !== tapsIds.length) return false;
         const unclaimed = plan.map((tap) => tap.cardInstanceId);
-        for (const ids of tapsIds) {
+        for (let i = 0; i < tapsIds.length; i++) {
+            const ids = tapsIds[i];
             const at = unclaimed.findIndex((id) => ids.has(id));
             if (at === -1) return false;
             unclaimed.splice(at, 1);

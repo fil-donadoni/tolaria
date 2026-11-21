@@ -155,7 +155,8 @@ export function applyMayPaySubmit(
             const legal = new Set(
                 getMayPaySacrificeCandidateIds(state, args.playerId, head.cost)
             );
-            for (const id of ids) {
+            for (let i = 0; i < ids.length; i++) {
+                const id = ids[i];
                 if (!legal.has(id)) {
                     throw new Error("Illegal sacrifice choice");
                 }
@@ -202,7 +203,8 @@ export function applyMayPaySubmit(
             const legal = new Set(
                 getMayPayDiscardCandidateIds(state, args.playerId, head.cost)
             );
-            for (const id of ids) {
+            for (let i = 0; i < ids.length; i++) {
+                const id = ids[i];
                 if (!legal.has(id)) {
                     throw new Error("Illegal discard choice");
                 }
@@ -830,7 +832,9 @@ export function applyPendingChoiceSubmit(
         // A kind whose candidates are permanent-OR-player (`choose-aura-host`,
         // CR 303.4) lists the players in `candidatePlayerIds`; an id is legal
         // when it is in either list.
-        for (const id of args.cardInstanceIds) {
+        const idList = args.cardInstanceIds;
+        for (let i = 0; i < idList.length; i++) {
+            const id = idList[i];
             if (
                 (head.candidateIds || head.candidatePlayerIds) &&
                 !(head.candidateIds?.includes(id) ?? false) &&

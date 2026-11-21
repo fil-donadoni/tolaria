@@ -61,7 +61,8 @@ export function costBalancedSlice<T>(
         .sort((a, b) => b.cost - a.cost || a.index - b.index);
     const load = new Array<number>(parts).fill(0);
     const binOf = new Array<number>(items.length);
-    for (const { index, cost: c } of order) {
+    for (let i = 0; i < order.length; i++) {
+        const { index, cost: c } = order[i];
         let bin = 0;
         for (let b = 1; b < parts; b++) if (load[b] < load[bin]) bin = b;
         load[bin] += c;

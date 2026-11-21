@@ -507,7 +507,9 @@ function runBladeScenarioInner(
     pick: BladePick
 ): BladeResult {
     const seeds: BladeSeedResult[] = [];
-    for (const seed of bladeScenarioSeeds(scenario)) {
+    const seedList = bladeScenarioSeeds(scenario);
+    for (let i = 0; i < seedList.length; i++) {
+        const seed = seedList[i];
         // A fresh state per seed: `searchWithTrace` never mutates the root
         // state, but rebuilding keeps each seed's run provably independent.
         const state = buildBladeState(scenario);

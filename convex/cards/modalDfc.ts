@@ -214,16 +214,16 @@ export function backFaceTwinDefinition(
         id,
         name: back.name,
         rarity: parent.rarity,
-        types: [...back.types],
+        types: back.types.slice(),
         ...(back.manaCost ? { manaCost: back.manaCost } : {}),
-        ...(back.subtypes ? { subtypes: [...back.subtypes] } : {}),
-        ...(back.supertypes ? { supertypes: [...back.supertypes] } : {}),
+        ...(back.subtypes ? { subtypes: back.subtypes.slice() } : {}),
+        ...(back.supertypes ? { supertypes: back.supertypes.slice() } : {}),
         ...(back.power !== undefined ? { power: back.power } : {}),
         ...(back.toughness !== undefined ? { toughness: back.toughness } : {}),
         ...(back.loyalty !== undefined ? { loyalty: back.loyalty } : {}),
-        ...(back.colors ? { colors: [...back.colors] } : {}),
+        ...(back.colors ? { colors: back.colors.slice() } : {}),
         ...(back.staticAbilities
-            ? { staticAbilities: [...back.staticAbilities] }
+            ? { staticAbilities: back.staticAbilities.slice() }
             : {}),
         // CR 611 — the face's continuous effects, rebuilt through the SAME
         // shared factory table `registerBackFaceDefinition` resolves them with

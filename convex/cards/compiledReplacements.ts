@@ -114,7 +114,9 @@ export function compiledDamageBonusReplacement(
                 return event.target.id !== self.controllerId;
             if (event.target.type !== "permanent") return false;
             const targetId = event.target.id;
-            for (const player of state.players) {
+            const playerList = state.players;
+            for (let i = 0; i < playerList.length; i++) {
+                const player = playerList[i];
                 const permanent = player.battlefield.find(
                     (c) => c.id === targetId
                 );
@@ -144,9 +146,10 @@ export function expandCompiledReplacements(
 ): CardDefinition {
     const descriptors = base.compiledReplacements;
     if (descriptors === undefined) return base;
-    const replacementEffects = [...(base.replacementEffects ?? [])];
+    const replacementEffects = (base.replacementEffects ?? []).slice();
     let drawReplacement = base.drawReplacement;
-    for (const descriptor of descriptors) {
+    for (let i = 0; i < descriptors.length; i++) {
+        const descriptor = descriptors[i];
         switch (descriptor.kind) {
             case "draw-count":
                 if (drawReplacement !== undefined)

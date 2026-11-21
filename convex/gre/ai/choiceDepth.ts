@@ -249,10 +249,13 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
  *  simply stops proving at the cap there, which is its fail-open direction. */
 export function scriptChoiceDepth(effects: readonly EffectOp[]): number {
     let chain = 0;
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         const own = RAISES_RESOLUTION_CHOICE[op.op] ? 1 : 0;
         let nested = 0;
-        for (const child of childOpArrays(op)) {
+        const childList = childOpArrays(op);
+        for (let j = 0; j < childList.length; j++) {
+            const child = childList[j];
             nested = Math.max(nested, scriptChoiceDepth(child));
         }
         chain += own + nested;
@@ -293,27 +296,32 @@ export function definitionChoiceDepth(def: CardDefinition): number {
     script(record.effects);
     sites.push(closureChoiceDepth(record.resolve));
     sites.push(closureChoiceDepth(record.effect));
-    for (const step of (record.resolveSteps as unknown[]) ?? []) {
+    const stepList = (record.resolveSteps as unknown[]) ?? [];
+    for (let i = 0; i < stepList.length; i++) {
+        const step = stepList[i];
         sites.push(closureChoiceDepth(step));
         if (step && typeof step === "object") {
             script((step as Record<string, unknown>).effects);
         }
     }
-    for (const mode of (def.modes ?? []) as unknown as Record<
-        string,
-        unknown
-    >[]) {
+    const modeList = (def.modes ?? []) as unknown as Record<string, unknown>[];
+    for (let i = 0; i < modeList.length; i++) {
+        const mode = modeList[i];
         script(mode.effects);
         sites.push(closureChoiceDepth(mode.resolve));
         sites.push(closureChoiceDepth(mode.effect));
     }
-    for (const ability of def.activatedAbilities ?? []) {
+    const abilityList = def.activatedAbilities ?? [];
+    for (let i = 0; i < abilityList.length; i++) {
+        const ability = abilityList[i];
         const row = ability as unknown as Record<string, unknown>;
         script(row.effects);
         sites.push(closureChoiceDepth(row.resolve));
         sites.push(closureChoiceDepth(row.effect));
     }
-    for (const ability of def.triggeredAbilities ?? []) {
+    const abilityList2 = def.triggeredAbilities ?? [];
+    for (let i = 0; i < abilityList2.length; i++) {
+        const ability = abilityList2[i];
         const row = ability as unknown as Record<string, unknown>;
         script(row.effects);
         sites.push(closureChoiceDepth(row.resolve));
@@ -331,7 +339,8 @@ export function catalogueChoiceDepth(defs: readonly CardDefinition[]): {
 } {
     let depth = 0;
     let cards: string[] = [];
-    for (const def of defs) {
+    for (let i = 0; i < defs.length; i++) {
+        const def = defs[i];
         const d = definitionChoiceDepth(def);
         if (d > depth) {
             depth = d;

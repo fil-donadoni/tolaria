@@ -126,7 +126,9 @@ export function payDeclaredExertCosts(state: GameState): GameEvent[] {
     const declared = new Set(combat.attackerIds);
     const paid: string[] = [];
     const events: GameEvent[] = [];
-    for (const id of combat.exertedIds) {
+    const idList = combat.exertedIds;
+    for (let i = 0; i < idList.length; i++) {
+        const id = idList[i];
         if (!declared.has(id)) continue;
         const card = active.battlefield.find((c) => c.id === id);
         // CR 701.43c — only a permanent on the battlefield can be exerted.
@@ -154,7 +156,7 @@ export function payExertActivationCost(
 ): boolean {
     const alreadyExerted = card.skipNextUntap === true;
     const event = exertPermanent(card, false);
-    state.pendingEvents = [...(state.pendingEvents ?? []), event];
+    state.pendingEvents = (state.pendingEvents ?? []).concat([event]);
     return !alreadyExerted;
 }
 
@@ -185,7 +187,7 @@ export function restoreExertOnUntap(
     for (let i = queued.length - 1; i >= 0; i--) {
         const e = queued[i];
         if (e.type === "PERMANENT_EXERTED" && e.permanentId === card.id) {
-            const filtered = [...queued.slice(0, i), ...queued.slice(i + 1)];
+            const filtered = queued.slice(0, i).concat(queued.slice(i + 1));
             state.pendingEvents = filtered.length === 0 ? undefined : filtered;
             return;
         }

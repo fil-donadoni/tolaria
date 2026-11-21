@@ -136,7 +136,9 @@ function converterOutput(ability: ActivatedAbility): {
         if (!mana) return null;
         let total = 0;
         let color: Color | null = null;
-        for (const c of MANA_COLORS) {
+        const cList = MANA_COLORS;
+        for (let i = 0; i < cList.length; i++) {
+            const c = cList[i];
             const n = mana[c] ?? 0;
             total += n;
             if (n > 0) color = c;
@@ -199,7 +201,9 @@ export function collectManaConverterLegs(
         ability: ActivatedAbility;
         output: NonNullable<ReturnType<typeof converterOutput>>;
     }[] = [];
-    for (const converter of player.battlefield) {
+    const converterList = player.battlefield;
+    for (let i = 0; i < converterList.length; i++) {
+        const converter = converterList[i];
         // `mayHaveNonTapManaAbility` (constants.ts) is a strict SUPERSET of
         // what `isSingleTapOtherManaAbility` accepts, read off the PRINTED
         // definition — so an ordinary board pays a map lookup per permanent
@@ -214,7 +218,9 @@ export function collectManaConverterLegs(
         ) {
             continue;
         }
-        for (const { ability } of getEffectiveActivatedAbilities(converter)) {
+        const entries = getEffectiveActivatedAbilities(converter);
+        for (let j = 0; j < entries.length; j++) {
+            const { ability } = entries[j];
             if (!isSingleTapOtherManaAbility(ability)) continue;
             const output = converterOutput(ability);
             if (!output) continue;
@@ -223,12 +229,14 @@ export function collectManaConverterLegs(
                 tapping.push({ converter, ability, output });
                 continue;
             }
-            for (const candidate of tapOtherCandidates(
+            const candidateList = tapOtherCandidates(
                 state,
                 player,
                 converter,
                 ability
-            )) {
+            );
+            for (let k = 0; k < candidateList.length; k++) {
+                const candidate = candidateList[k];
                 legs ??= new Map();
                 const row = legs.get(candidate.id);
                 const leg: ManaConverterLeg = {
@@ -248,8 +256,12 @@ export function collectManaConverterLegs(
     // summoning sickness. Each fodder is reserved for one converter, and never
     // one Urza's shape already counts, so no physical tap is counted twice.
     const taken = new Set<string>(legs?.keys() ?? []);
-    for (const t of tapping) taken.add(t.converter.id);
-    for (const { converter, ability, output } of tapping) {
+    for (let i = 0; i < tapping.length; i++) {
+        const t = tapping[i];
+        taken.add(t.converter.id);
+    }
+    for (let i = 0; i < tapping.length; i++) {
+        const { converter, ability, output } = tapping[i];
         if (converter.isTapped) continue;
         if (isTapLockedBySummoningSickness(converter)) continue;
         if (legs?.has(converter.id)) continue;
@@ -290,10 +302,17 @@ export function manaConverterColors(
     const legs = collectManaConverterLegs(state, player);
     if (legs.size === 0) return new Map();
     const out = new Map<string, Set<Color>>();
-    for (const [fodderId, rows] of legs) {
+    legs.forEach((rows, fodderId) => {
         const set = new Set<Color>();
-        for (const row of rows) for (const c of row.colors) set.add(c);
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const cList = row.colors;
+            for (let j = 0; j < cList.length; j++) {
+                const c = cList[j];
+                set.add(c);
+            }
+        }
         out.set(fodderId, set);
-    }
+    });
     return out;
 }

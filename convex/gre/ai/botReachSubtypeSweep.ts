@@ -27,7 +27,8 @@ const SWEPT_CREATURES = 2;
 /** The subtype a `destroy` inside a `forEach` sweeps, at any depth, or null. */
 function sweptSubtype(node: unknown): string | null {
     if (Array.isArray(node)) {
-        for (const child of node) {
+        for (let i = 0; i < node.length; i++) {
+            const child = node[i];
             const found = sweptSubtype(child);
             if (found) return found;
         }
@@ -45,7 +46,9 @@ function sweptSubtype(node: unknown): string | null {
         );
         if (kills && typeof subtype === "string") return subtype;
     }
-    for (const value of Object.values(rec)) {
+    const valueList = Object.values(rec);
+    for (let i = 0; i < valueList.length; i++) {
+        const value = valueList[i];
         const found = sweptSubtype(value);
         if (found) return found;
     }

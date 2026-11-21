@@ -201,7 +201,9 @@ function hasKeyword(item: unknown, keyword: string): boolean {
 /** Does a card with `keyword` sit in a hand, on the battlefield or on the stack? */
 function keywordIsInReach(state: GameState, keyword: string): boolean {
     const carries = (item: unknown) => hasKeyword(item, keyword);
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         if (player.hand.some(carries) || player.battlefield.some(carries)) {
             return true;
         }
@@ -256,7 +258,9 @@ function canonical(
     const obj = value as Record<string, unknown>;
     out.push("{");
     let first = true;
-    for (const key of Object.keys(obj).sort()) {
+    const keyList = Object.keys(obj).sort();
+    for (let j = 0; j < keyList.length; j++) {
+        const key = keyList[j];
         const v = obj[key];
         if (v === undefined || typeof v === "function") continue;
         if (ignore?.has(key)) continue;
@@ -348,7 +352,9 @@ function fingerprintOf(state: GameState): string {
     const top = state as unknown as Record<string, unknown>;
     out.push("{");
     let first = true;
-    for (const key of Object.keys(top).sort()) {
+    const keyList = Object.keys(top).sort();
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         const v = top[key];
         if (v === undefined || sets.state.has(key)) continue;
         if (!first) out.push(",");
@@ -486,7 +492,9 @@ export function repeatedMoveKeys(
     const prefix = stepPrefix(state);
     let now: RepetitionEntry | undefined;
     const out = new Set<string>();
-    for (const [key, entry] of Object.entries(history.chosen)) {
+    const entries2 = Object.entries(history.chosen);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, entry] = entries2[i];
         if (!key.startsWith(prefix)) continue;
         now ??= progressOf(state, seatId);
         if (!madeProgress(now, entry)) out.add(key.slice(prefix.length));

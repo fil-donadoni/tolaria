@@ -101,7 +101,8 @@ export function manaValueCoverPick(
 ): string[] | null {
     const picked: string[] = [];
     let total = 0;
-    for (const { id, manaValue: mv } of candidates) {
+    for (let i = 0; i < candidates.length; i++) {
+        const { id, manaValue: mv } = candidates[i];
         if (total >= n) break;
         if (mv <= 0) continue;
         picked.push(id);

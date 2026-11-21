@@ -119,12 +119,13 @@ export { castShape } from "./botReachForm";
  *  only for a card that has it — a sorcery-speed permanent cannot be cast onto
  *  a non-empty stack, and posing one would make it unplayable, not pose it. */
 function needsStackTarget(def: CardDefinition): boolean {
-    const cardReqs = [
-        ...(def.targetRequirement ? [def.targetRequirement] : []),
-        ...(def.modes ?? []).flatMap((m) =>
+    const cardReqs = (
+        def.targetRequirement ? [def.targetRequirement] : []
+    ).concat(
+        (def.modes ?? []).flatMap((m) =>
             m.targetRequirement ? [m.targetRequirement] : []
-        ),
-    ];
+        )
+    );
     const triggerReqs = hasInstantSpeed({
         types: def.types,
         staticAbilities: def.staticAbilities ?? [],
@@ -137,7 +138,8 @@ function needsStackTarget(def: CardDefinition): boolean {
               ...(def.compiledTriggeredAbilities ?? []),
           ].flatMap((a) => (a.targetRequirement ? [a.targetRequirement] : []))
         : [];
-    return [...cardReqs, ...triggerReqs]
+    return cardReqs
+        .concat(triggerReqs)
         .flatMap((r) => (Array.isArray(r.type) ? r.type : [r.type]))
         .some((t) => t === "spell" || t === "spell-or-permanent");
 }
@@ -199,11 +201,9 @@ const FILTERED_SWEEP_CANDIDATES = [
  */
 function filteredSweepSurplus(def: CardDefinition): string[] {
     const names = new Set<string>();
-    for (const { select, effects } of battlefieldForEaches(
-        def,
-        true,
-        selfEnterEffects(def)
-    )) {
+    const entries = battlefieldForEaches(def, true, selfEnterEffects(def));
+    for (let i = 0; i < entries.length; i++) {
+        const { select, effects } = entries[i];
         if (select.controller !== undefined || !removesSomething(effects))
             continue;
         // `sweptTypes` already poses a type filter and a missing filter.
@@ -211,7 +211,8 @@ function filteredSweepSurplus(def: CardDefinition): string[] {
             continue;
         const filter = sweepPermanentFilter(select.filter);
         if (filter === UNREADABLE_SWEEP_FILTER) continue;
-        for (const name of FILTERED_SWEEP_CANDIDATES) {
+        for (let j = 0; j < FILTERED_SWEEP_CANDIDATES.length; j++) {
+            const name = FILTERED_SWEEP_CANDIDATES[j];
             const candidate = tryGetCardByName(name);
             if (!candidate) continue;
             const matches =
@@ -313,11 +314,9 @@ function selectsCreatures(select: BattlefieldForEach["select"]): boolean {
  */
 function sweptTypes(def: CardDefinition): ReadonlySet<SweepableType> {
     const swept = new Set<SweepableType>();
-    for (const { select, effects } of battlefieldForEaches(
-        def,
-        true,
-        selfEnterEffects(def)
-    )) {
+    const entries = battlefieldForEaches(def, true, selfEnterEffects(def));
+    for (let i = 0; i < entries.length; i++) {
+        const { select, effects } = entries[i];
         if (select.controller !== undefined || !removesSomething(effects))
             continue;
         const named =
@@ -326,9 +325,11 @@ function sweptTypes(def: CardDefinition): ReadonlySet<SweepableType> {
                 : select.filter.type === undefined
                   ? []
                   : [select.filter.type].flat();
-        for (const t of named)
+        for (let j = 0; j < named.length; j++) {
+            const t = named[j];
             if ((SWEEPABLE_TYPES as readonly string[]).includes(t))
                 swept.add(t as SweepableType);
+        }
     }
     return swept;
 }
@@ -615,10 +616,14 @@ function edictedTypes(def: CardDefinition): ReadonlySet<SweepableType> {
             player?.ref === "$each" &&
             filter?.type !== undefined &&
             Object.keys(filter).length === 1
-        )
-            for (const t of [filter.type].flat())
+        ) {
+            const tList = [filter.type].flat();
+            for (let i = 0; i < tList.length; i++) {
+                const t = tList[i];
                 if ((SWEEPABLE_TYPES as readonly string[]).includes(t))
                     edicted.add(t as SweepableType);
+            }
+        }
         Object.values(record).forEach(visitBody);
     };
     const visit = (node: unknown): void => {
@@ -781,10 +786,16 @@ const EXTRA_LANDS = 2;
  */
 function kickerLands(def: CardDefinition): string[] {
     const lands: string[] = [];
-    for (const { mana } of def.kickers ?? [])
-        for (const color of getColorsFromCost(mana))
+    const entries = def.kickers ?? [];
+    for (let j = 0; j < entries.length; j++) {
+        const { mana } = entries[j];
+        const colorList = getColorsFromCost(mana);
+        for (let k = 0; k < colorList.length; k++) {
+            const color = colorList[k];
             for (let i = 0; i < (mana?.[color] ?? 0); i++)
                 lands.push(basicLandsForColors([color])[0]!);
+        }
+    }
     return lands;
 }
 
@@ -902,10 +913,16 @@ export function botReachSpec(
             zone: "battlefield",
         });
     }
-    for (const name of kickerLands(def))
+    const nameList = kickerLands(def);
+    for (let j = 0; j < nameList.length; j++) {
+        const name = nameList[j];
         cards.push({ name, owner: "me", zone: "battlefield" });
-    for (const name of delayedPaymentLands(def))
+    }
+    const nameList2 = delayedPaymentLands(def);
+    for (let j = 0; j < nameList2.length; j++) {
+        const name = nameList2[j];
         cards.push({ name, owner: "me", zone: "battlefield" });
+    }
     const shrinks = shrinksEveryCreature(def) || damagesEveryCreature(def);
     const spendsSelf = spendsItselfOnDamageSweep(def);
     const target = targetPose(def);
@@ -924,7 +941,9 @@ export function botReachSpec(
     // edict is not posed: no filler is a Land.
     const holderKeeps = (name: string): boolean =>
         !FILLER_TYPES[name]!.some((t) => edicted.has(t));
-    for (const owner of ["me", "opp"] as const) {
+    const ownerList = ["me", "opp"] as const;
+    for (let j = 0; j < ownerList.length; j++) {
+        const owner = ownerList[j];
         const stands = (name: string): boolean =>
             owner === "opp" || holderKeeps(name);
         if (stands(FILLER_CREATURE) && !(owner === "me" && spendsSelf))
@@ -981,7 +1000,8 @@ export function botReachSpec(
             count: SWEEP_SURPLUS,
         });
     }
-    for (const type of SWEEPABLE_TYPES) {
+    for (let j = 0; j < SWEEPABLE_TYPES.length; j++) {
+        const type = SWEEPABLE_TYPES[j];
         if (!swept.has(type)) continue;
         if (type === "Land") {
             // A land sweep needs lands on the opponent's side to destroy; the
@@ -1002,7 +1022,9 @@ export function botReachSpec(
             });
         }
     }
-    for (const name of filteredSweepSurplus(def)) {
+    const nameList3 = filteredSweepSurplus(def);
+    for (let j = 0; j < nameList3.length; j++) {
+        const name = nameList3[j];
         // A land candidate is posed like a land sweep: the holder's own lands
         // may match too, so the opponent's exceed them by the surplus.
         const land = tryGetCardByName(name)?.types.includes("Land") ?? false;
@@ -1113,7 +1135,7 @@ export function botReachSpec(
         ...(window === AMBUSH_WINDOW ? ambushPosition(def) : null),
         ...(blocked?.position ?? null),
         ...(cost.manaPool ? { manaPool: cost.manaPool } : {}),
-        ...(stack ? { stack: [...stack.stack] } : {}),
+        ...(stack ? { stack: stack.stack.slice() } : {}),
     };
 }
 
@@ -1315,7 +1337,9 @@ function playSeat(
         opening.instanceId,
         budget
     );
-    for (const window of laterWindows(def)) {
+    const windowList = laterWindows(def);
+    for (let i = 0; i < windowList.length; i++) {
+        const window = windowList[i];
         // Only a card the search passed over is posed again: `frozen` and
         // `position-unmodelled` describe the position or the driver, which a
         // later window of the same turn does not change. A later `played` or
@@ -1408,11 +1432,12 @@ export function etbFindsNoTarget(
     const live = tryGetDefinition(def.id) ?? def;
     const requirements = (live.triggeredAbilities ?? [])
         .filter((t) => t.etbAbility === true)
-        .flatMap((t) => [
-            t.targetRequirement,
-            ...(t.additionalTargetRequirements ?? []),
-            ...(t.modes ?? []).map((m) => m.targetRequirement),
-        ])
+        .flatMap((t) =>
+            [t.targetRequirement].concat(
+                t.additionalTargetRequirements ?? [],
+                (t.modes ?? []).map((m) => m.targetRequirement)
+            )
+        )
         .filter((r) => r !== undefined);
     if (requirements.length === 0) return false;
     const card = state.players
@@ -1454,7 +1479,9 @@ function playFrom(
     // `searchWithTrace` builds the trace after choosing, so reading it costs
     // no draw from the search RNG and changes no verdict.
     let refusal: BotReachTrace | undefined;
-    for (const seed of budget.seeds) {
+    const seedList = budget.seeds;
+    for (let i = 0; i < seedList.length; i++) {
+        const seed = seedList[i];
         const { move, trace } = searchWithTrace(
             state,
             holderId,

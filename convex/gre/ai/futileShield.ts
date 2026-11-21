@@ -198,7 +198,9 @@ function costIsLossOnly(
     source: CardInstanceState,
     ability: ActivatedAbility
 ): boolean {
-    for (const [key, value] of Object.entries(ability.cost)) {
+    const entries2 = Object.entries(ability.cost);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, value] = entries2[i];
         if (value === undefined || value === false) continue;
         if (!LOSS_ONLY_COST_KEYS.has(key)) return false;
     }
@@ -234,12 +236,15 @@ function shieldsOf(
     const effects = ability.effects;
     if (!effects || effects.length === 0) return null;
     const out: Shield[] = [];
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         // CR 608.2d — the land type "of your choice" is an `optionChoice`
         // whose every mode is one land-type change; each mode is a shield.
         if ("op" in op && op.op === "optionChoice") {
             if (op.modes.length === 0) return null;
-            for (const mode of op.modes) {
+            const modeList = op.modes;
+            for (let j = 0; j < modeList.length; j++) {
+                const mode = modeList[j];
                 if (mode.effects.length !== 1) return null;
                 const shield = landTypeChangeOf(
                     mode.effects[0]!,
@@ -346,9 +351,15 @@ function permanentNamed(
 }
 
 function anyBecameTargetListener(state: GameState): boolean {
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
-            for (const trigger of effectiveTriggeredAbilities(card)) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
+            const triggerList = effectiveTriggeredAbilities(card);
+            for (let k = 0; k < triggerList.length; k++) {
+                const trigger = triggerList[k];
                 const events = Array.isArray(trigger.event)
                     ? trigger.event
                     : [trigger.event];
@@ -505,12 +516,15 @@ function landwalkCanStillMatter(state: GameState): boolean {
 }
 
 function anyLandTypeReader(state: GameState, moverId: string): boolean {
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const zones =
             player.id === moverId
                 ? [player.battlefield, player.hand, player.graveyard]
                 : [player.battlefield];
-        for (const zone of zones) {
+        for (let j = 0; j < zones.length; j++) {
+            const zone = zones[j];
             if (zone.some(readsLandTypes)) return true;
         }
     }
@@ -524,7 +538,9 @@ function readsLandTypes(card: CardInstanceState): boolean {
     if (!def) return true;
     if (def.oracleText === undefined) return true;
     let text = def.oracleText;
-    for (const ability of def.activatedAbilities ?? []) {
+    const abilityList = def.activatedAbilities ?? [];
+    for (let i = 0; i < abilityList.length; i++) {
+        const ability = abilityList[i];
         if (ability.oracleText && isLandTypeChangeScript(ability.effects)) {
             text = text.replace(ability.oracleText, "");
         }
@@ -578,12 +594,18 @@ function retypeUnlocksACost(
  *  every non-mana activation on its battlefield. */
 function demandedCosts(player: GameState["players"][number]) {
     const costs: NonNullable<ActivatedAbility["cost"]["mana"]>[] = [];
-    for (const card of player.hand) {
+    const cardList = player.hand;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         const cost = tryGetDefinition(card.card.id as string)?.manaCost;
         if (cost) costs.push(cost);
     }
-    for (const card of player.battlefield) {
-        for (const { ability } of getEffectiveActivatedAbilities(card)) {
+    const cardList2 = player.battlefield;
+    for (let i = 0; i < cardList2.length; i++) {
+        const card = cardList2[i];
+        const entries = getEffectiveActivatedAbilities(card);
+        for (let j = 0; j < entries.length; j++) {
+            const { ability } = entries[j];
             if (ability.cost.mana && !isManaAbilityDefinition(ability)) {
                 costs.push(ability.cost.mana);
             }
@@ -602,7 +624,9 @@ function threatsTo(
     kind: ShieldKind
 ): number {
     let threats = 0;
-    for (const item of state.stack) {
+    const itemList = state.stack;
+    for (let i = 0; i < itemList.length; i++) {
+        const item = itemList[i];
         if (!isHarmlessStackItem(item, tapCost)) threats++;
     }
     // A P/T change is consumed by the creature's own combat damage, so any
@@ -655,9 +679,9 @@ function combatDamageCanReach(
     if (!combat || !combat.blockersConfirmed) return true;
     const opposingIds: string[] = [];
     if (combat.attackerIds.includes(permanent.id)) {
-        for (const [blockerId, blocked] of Object.entries(
-            combat.blockerAssignments
-        )) {
+        const entries2 = Object.entries(combat.blockerAssignments);
+        for (let i = 0; i < entries2.length; i++) {
+            const [blockerId, blocked] = entries2[i];
             if (blocked.includes(permanent.id)) opposingIds.push(blockerId);
         }
     }
@@ -816,7 +840,7 @@ function subtypeFillsADemandedCost(
     const color = LAND_SUBTYPE_MANA[subtype];
     if (!color) return false;
     const units = manaUnitsFor(state, player);
-    const widened = [...units, new Set([color])];
+    const widened = units.concat([new Set([color])]);
     const opts = { life: player.life };
     return demandedCosts(player).some(
         (cost) =>

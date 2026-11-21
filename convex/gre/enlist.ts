@@ -59,10 +59,9 @@ export function toggleEnlistChoice(
         ?.battlefield.find((c) => c.id === attackerId);
     const slots = enlistInstanceCount(attacker?.staticAbilities);
     const evicted = held.length >= slots ? held[0] : undefined;
-    combat.enlists = [
-        ...next.filter((pair) => pair !== evicted),
-        { attackerId, enlistedId },
-    ];
+    combat.enlists = next
+        .filter((pair) => pair !== evicted)
+        .concat([{ attackerId, enlistedId }]);
 }
 
 /** Drop the enlist choices the current selection no longer means: an attacker
@@ -100,7 +99,9 @@ export function payDeclaredEnlistCosts(state: GameState): GameEvent[] {
     if (!active) return [];
     const paid: EnlistPair[] = [];
     const events: GameEvent[] = [];
-    for (const pair of combat.enlists) {
+    const pairList = combat.enlists;
+    for (let i = 0; i < pairList.length; i++) {
+        const pair = pairList[i];
         if (!combat.attackerIds.includes(pair.attackerId)) continue;
         const attacker = active.battlefield.find(
             (c) => c.id === pair.attackerId

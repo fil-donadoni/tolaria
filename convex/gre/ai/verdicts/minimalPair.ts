@@ -97,7 +97,8 @@ export function minimalPairStandings(
     const completeHalves = new Map<string, string[]>();
     const out = new Map<string, MinimalPairStanding>();
 
-    for (const member of members) {
+    for (let i = 0; i < members.length; i++) {
+        const member = members[i];
         const link = member.judgement.pairOf;
         if (link === undefined) continue;
         const why = halfDefect(member, byId.get(link.anchorId));
@@ -105,10 +106,10 @@ export function minimalPairStandings(
             out.set(member.verdictId, { kind: "incomplete", why });
             continue;
         }
-        completeHalves.set(link.anchorId, [
-            ...(completeHalves.get(link.anchorId) ?? []),
-            member.verdictId,
-        ]);
+        completeHalves.set(
+            link.anchorId,
+            (completeHalves.get(link.anchorId) ?? []).concat([member.verdictId])
+        );
         out.set(member.verdictId, {
             kind: "paired",
             role: "half",
@@ -116,7 +117,8 @@ export function minimalPairStandings(
         });
     }
 
-    for (const member of members) {
+    for (let i = 0; i < members.length; i++) {
+        const member = members[i];
         const { judgement, verdictId } = member;
         if (judgement.pairOf !== undefined) continue;
         const classification = judgement.classification;
@@ -134,7 +136,7 @@ export function minimalPairStandings(
                     : {
                           kind: "paired",
                           role: "anchor",
-                          partnerIds: [...halves].sort(),
+                          partnerIds: halves.slice().sort(),
                       }
             );
         } else if (member.stored && judgement.answer.kind === "forbidden") {

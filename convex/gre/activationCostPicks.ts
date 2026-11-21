@@ -187,11 +187,11 @@ function planExilePick(
     const sources =
         leg.owner === "you"
             ? [player]
-            : [
-                  ...state.players.filter((p) => p.id !== player.id),
-                  ...state.players.filter((p) => p.id === player.id),
-              ];
-    for (const p of sources) {
+            : state.players
+                  .filter((p) => p.id !== player.id)
+                  .concat(state.players.filter((p) => p.id === player.id));
+    for (let i = 0; i < sources.length; i++) {
+        const p = sources[i];
         const matching = p.graveyard.filter(
             (c) => leg.cardType === undefined || c.types.includes(leg.cardType)
         );
@@ -238,7 +238,9 @@ export function buildActivationSacrificeSelection(
     // CR 602.1a / 118.3 — the filtered give-up legs, `sacrificeFilter`,
     // `returnToHandFilter` and `exileFilter`, read through their one authority so a leg is never
     // gated in one place and missing from the payment here.
-    for (const leg of permanentGiveUpCostLegs(ability.cost)) {
+    const legList = permanentGiveUpCostLegs(ability.cost);
+    for (let i = 0; i < legList.length; i++) {
+        const leg = legList[i];
         specs.push({
             // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact". This is
             // the one point where the ability's STATIC, per-card filter becomes
@@ -283,12 +285,14 @@ export function buildActivationSacrificeSelection(
                   : { snapshot: leg.count === 1 }),
         });
     }
-    for (const req of getStaticAdditionalSacrifices(
+    const reqList = getStaticAdditionalSacrifices(
         state,
         ability.cost.mana,
         source,
         "ability"
-    )) {
+    );
+    for (let i = 0; i < reqList.length; i++) {
+        const req = reqList[i];
         specs.push({ filter: req.filter, count: req.count });
     }
     const requirements = buildSacrificeRequirements(specs);
@@ -347,10 +351,9 @@ export function planGenericSubstitution<F extends { plan: ManaTap[] | null }>(
         const funded = fund(manaCostAfterSubstitution(manaCost, taps));
         if (funded.plan === null) continue;
         const spent = new Set(
-            funded.plan.flatMap((t) => [
-                t.cardInstanceId,
-                ...(t.tapOtherIds ?? []),
-            ])
+            funded.plan.flatMap((t) =>
+                [t.cardInstanceId].concat(t.tapOtherIds ?? [])
+            )
         );
         const picks = candidates.filter((c) => !spent.has(c.id)).slice(0, taps);
         if (picks.length === taps) {
@@ -439,8 +442,9 @@ export function activationSacrificePayment(
     const sel = activationSacrificeSelection(state, player, source, ability);
     if (!sel) return undefined;
     const submitted = picks?.sacrificeIds ?? [];
-    const picked = [...sel.picked];
-    for (const id of submitted) {
+    const picked = sel.picked.slice();
+    for (let i = 0; i < submitted.length; i++) {
+        const id = submitted[i];
         if (!picked.includes(id)) picked.push(id);
     }
     return { ...sel, picked };
@@ -567,7 +571,9 @@ function enumerateActivationCostPickVariants(
     if (discard && discard.count === 1) {
         const seen = new Set<string>();
         const variants: ActivationCostPicks[] = [];
-        for (const card of activationDiscardCandidates(player, ability)) {
+        const cardList = activationDiscardCandidates(player, ability);
+        for (let i = 0; i < cardList.length; i++) {
+            const card = cardList[i];
             // Two copies of the same card are the same decision (CR 400.7 —
             // identity is the card, not the instance).
             const key = (card.card as { id?: string }).id ?? card.id;
@@ -594,7 +600,9 @@ function enumerateActivationCostPickVariants(
         if (!sel) return [base];
         const seen = new Set<string>();
         const variants: ActivationCostPicks[] = [];
-        for (const victim of nextSacrificeCandidates(state, sel)) {
+        const victimList = nextSacrificeCandidates(state, sel);
+        for (let i = 0; i < victimList.length; i++) {
+            const victim = victimList[i];
             // Skipped HERE, before the cap, rather than only in the caller's
             // filter: a self-defeating victim that ate one of the four slots
             // would silently cost a real candidate its variant.
@@ -606,7 +614,7 @@ function enumerateActivationCostPickVariants(
             seen.add(key);
             const trial: SacrificeSelection = {
                 ...sel,
-                picked: [...sel.picked],
+                picked: sel.picked.slice(),
             };
             const submitted = completeSacrificeSelection(state, trial, victim);
             if (submitted === null) continue;

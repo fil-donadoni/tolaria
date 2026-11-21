@@ -47,10 +47,9 @@ export function modeHasLegalTargets(
     casterId: string,
     chosenX: number | undefined
 ): boolean {
-    const groups: TargetRequirement[] = [
-        ...(mode.targetRequirement ? [mode.targetRequirement] : []),
-        ...(mode.additionalTargetRequirements ?? []),
-    ];
+    const groups: TargetRequirement[] = (
+        mode.targetRequirement ? [mode.targetRequirement] : []
+    ).concat(mode.additionalTargetRequirements ?? []);
     return groups.every((req) => {
         const count = announcedTargetCount(req, chosenX);
         if (count === undefined) return true;

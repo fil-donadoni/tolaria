@@ -325,7 +325,8 @@ export function withPerExtraModePayments(
     if (perMode.length === 0) return requested;
     const owed = Math.max(0, chosenModeCount - 1);
     const out: KickerPayments = { ...(requested ?? {}) };
-    for (const entry of perMode) {
+    for (let i = 0; i < perMode.length; i++) {
+        const entry = perMode[i];
         const sent = out[entry.id];
         if (sent !== undefined && sent !== 0 && sent !== owed) {
             throw new Error(
@@ -383,7 +384,9 @@ export function perExtraModeAffordableModeCap(
 export function totalKickerCount(payments: KickerPayments | undefined): number {
     if (!payments) return 0;
     let total = 0;
-    for (const n of Object.values(payments)) {
+    const nList = Object.values(payments);
+    for (let i = 0; i < nList.length; i++) {
+        const n = nList[i];
         if (typeof n === "number" && n > 0) total += n;
     }
     return total;
@@ -464,7 +467,9 @@ export function paidKickers(
 ): { kicker: KickerCost; times: number }[] {
     if (!payments) return [];
     const out: { kicker: KickerCost; times: number }[] = [];
-    for (const kicker of cardDef.kickers ?? []) {
+    const kickerList = cardDef.kickers ?? [];
+    for (let i = 0; i < kickerList.length; i++) {
+        const kicker = kickerList[i];
         const times = kickerPaidCount(payments, kicker.id);
         if (times > 0) out.push({ kicker, times });
     }
@@ -492,7 +497,9 @@ export function resolveKickerPayments(
 ): KickerPayments | undefined {
     if (!requested) return undefined;
     const canonical: KickerPayments = {};
-    for (const [id, raw] of Object.entries(requested)) {
+    const entries2 = Object.entries(requested);
+    for (let i = 0; i < entries2.length; i++) {
+        const [id, raw] = entries2[i];
         const n = raw ?? 0;
         if (n === 0) continue;
         if (!Number.isInteger(n) || n < 0) {
@@ -572,7 +579,9 @@ export function additionalCostPaymentSnapshot(
     const kicked: KickerPayments = {};
     const unkicked: KickerPayments = {};
     const entries: KickerCost[] = [];
-    for (const [id, raw] of Object.entries(payments)) {
+    const entries2 = Object.entries(payments);
+    for (let i = 0; i < entries2.length; i++) {
+        const [id, raw] = entries2[i];
         if (typeof raw !== "number" || raw <= 0) continue;
         const entry = cardDef ? findKicker(cardDef, id) : undefined;
         if (entry) entries.push(entry);
@@ -685,7 +694,9 @@ export function buildSpellKickedEvents(
     spellColors: ReadonlyArray<Color>
 ): SpellKickedEvent[] {
     const events: SpellKickedEvent[] = [];
-    for (const { kicker, times } of paidKickers(cardDef, item.kickerPayments)) {
+    const entries = paidKickers(cardDef, item.kickerPayments);
+    for (let j = 0; j < entries.length; j++) {
+        const { kicker, times } = entries[j];
         for (let i = 0; i < times; i++) {
             events.push({
                 type: "SPELL_KICKED",
@@ -763,7 +774,9 @@ export function paidKickersMinX(
     payments: KickerPayments | undefined
 ): number {
     let min = 0;
-    for (const { kicker } of paidKickers(cardDef, payments)) {
+    const entries = paidKickers(cardDef, payments);
+    for (let i = 0; i < entries.length; i++) {
+        const { kicker } = entries[i];
         if (kickerAnnouncesX(kicker)) min = Math.max(min, kicker.minX ?? 0);
     }
     return min;
@@ -805,10 +818,14 @@ export function foldKickerCosts(
      *  every Kicker without that flag. */
     chosenXColors?: Color[]
 ): void {
-    for (const { kicker, times } of paidKickers(cardDef, payments)) {
+    const entries2 = paidKickers(cardDef, payments);
+    for (let i = 0; i < entries2.length; i++) {
+        const { kicker, times } = entries2[i];
         if (!kicker.mana) continue;
         const per = normalizeManaCost(kicker.mana, { chosenX, chosenXColors });
-        for (const [sym, amt] of Object.entries(per)) {
+        const entries3 = Object.entries(per);
+        for (let j = 0; j < entries3.length; j++) {
+            const [sym, amt] = entries3[j];
             cost[sym] = (cost[sym] ?? 0) + amt * times;
         }
     }
@@ -821,7 +838,9 @@ export function kickerLifeCost(
     payments: KickerPayments | undefined
 ): number {
     let life = 0;
-    for (const { kicker, times } of paidKickers(cardDef, payments)) {
+    const entries = paidKickers(cardDef, payments);
+    for (let i = 0; i < entries.length; i++) {
+        const { kicker, times } = entries[i];
         life += (kicker.life ?? 0) * times;
     }
     return life;
@@ -837,7 +856,9 @@ export function kickerCostLegs(
     payments: KickerPayments | undefined
 ): CastCostLegs[] {
     const legs: CastCostLegs[] = [];
-    for (const { kicker, times } of paidKickers(cardDef, payments)) {
+    const entries = paidKickers(cardDef, payments);
+    for (let j = 0; j < entries.length; j++) {
+        const { kicker, times } = entries[j];
         for (let i = 0; i < times; i++) legs.push(kicker);
     }
     return legs;
@@ -870,7 +891,10 @@ function bindCastSpellColors(
     const colors = castCard ? STATIC_EFFECT_CTX.getColors(castCard) : [];
     return {
         ...legs,
-        permanent: { ...leg, filter: { ...leg.filter, colors: [...colors] } },
+        permanent: {
+            ...leg,
+            filter: { ...leg.filter, colors: colors.slice() },
+        },
     };
 }
 
@@ -1012,7 +1036,7 @@ export function resolveCastPermanentSelection(
     if (altLeg.length === 0) {
         return {
             ...ownSacrifice,
-            requirements: [...ownSacrifice.requirements, ...kickerLegs],
+            requirements: ownSacrifice.requirements.concat(kickerLegs),
         };
     }
     const merged: SacrificeSelection = {
@@ -1072,7 +1096,9 @@ export function paidCollectEvidence(
     cardDef: Pick<CardDefinition, "kickers">,
     payments: KickerPayments | undefined
 ): number | undefined {
-    for (const { kicker } of paidKickers(cardDef, payments)) {
+    const entries = paidKickers(cardDef, payments);
+    for (let i = 0; i < entries.length; i++) {
+        const { kicker } = entries[i];
         if (kicker.collectEvidence !== undefined) return kicker.collectEvidence;
     }
     return undefined;
@@ -1162,7 +1188,9 @@ export function foldBuybackCost(
 ): void {
     if (!buybackPaid || !cardDef.buyback) return;
     const per = normalizeManaCost(cardDef.buyback);
-    for (const [sym, amt] of Object.entries(per)) {
+    const entries2 = Object.entries(per);
+    for (let i = 0; i < entries2.length; i++) {
+        const [sym, amt] = entries2[i];
         cost[sym] = (cost[sym] ?? 0) + amt;
     }
 }
@@ -1227,7 +1255,8 @@ export function castAnnouncedTargetGroups(
     wasKicked: boolean
 ): TargetRequirement[] {
     const announced: TargetRequirement[] = [];
-    for (const group of groups) {
+    for (let i = 0; i < groups.length; i++) {
+        const group = groups[i];
         if (!group) continue;
         if (group.announcedOnlyIfKicked && !wasKicked) continue;
         announced.push(group);
@@ -1279,7 +1308,7 @@ export function firstUnfillableCastGroup(
         }
         if (extra.excludePriorTargets && sameInstanceAsPrimary(i)) {
             const distinct = new Set(
-                [...primaryLegal, ...extraLegal].map((t) => t.id)
+                primaryLegal.concat(extraLegal).map((t) => t.id)
             );
             if (distinct.size < primaryRequired + extraRequired) {
                 return { group: i, kind: "short" };
@@ -1390,12 +1419,16 @@ export function enumerateKickerVariants(
     );
 
     let combos: number[][] = [[]];
-    for (const states of axisStates) {
+    for (let j = 0; j < axisStates.length; j++) {
+        const states = axisStates[j];
         const next: number[][] = [];
-        outer: for (const prefix of combos) {
-            for (const s of states) {
+        const prefixList = combos;
+        outer: for (let m = 0; m < prefixList.length; m++) {
+            const prefix = prefixList[m];
+            for (let i2 = 0; i2 < states.length; i2++) {
+                const s = states[i2];
                 if (next.length >= MAX_KICKER_COMBINATIONS) break outer;
-                next.push([...prefix, s]);
+                next.push(prefix.concat([s]));
             }
         }
         combos = next;
@@ -1403,7 +1436,9 @@ export function enumerateKickerVariants(
 
     const variants: (KickerPayments | undefined)[] = [undefined];
     const seen = new Set<string>();
-    for (const combo of combos) {
+    const comboList = combos;
+    for (let j = 0; j < comboList.length; j++) {
+        const combo = comboList[j];
         if (combo.every((n) => n === 0)) continue; // the baseline, already included
         const requested: KickerPayments = {};
         combo.forEach((n, i) => {

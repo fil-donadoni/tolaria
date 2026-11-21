@@ -1077,7 +1077,7 @@ export function applyMoveInSearch(
             // ANNOUNCED selection would corrupt a half-built announcement.
             const pt = raisedPendingTargetOwedBy(state, playerId);
             if (!pt) return;
-            pt.selected = [...pt.selected, ...move.targets];
+            pt.selected = pt.selected.concat(move.targets);
             applyRaisedTargetFinalization(state, pt);
             drainAutoPasses(state);
             checkStateBasedActions(state);
@@ -1372,7 +1372,7 @@ export function applyMoveInSearch(
             // attacker would reach the player's life in the sandbox.
             const attackTargets = declaredAttackTargets(state, playerId, move);
             const combat = (state.combat = {
-                attackerIds: [...move.attackerIds],
+                attackerIds: move.attackerIds.slice(),
                 ...(attackTargets ? { attackTargets } : {}),
                 ...(declaredExertIds.length > 0
                     ? { exertedIds: declaredExertIds }
@@ -1384,7 +1384,9 @@ export function applyMoveInSearch(
                 blockerAssignments: {},
                 blockersConfirmed: false,
             });
-            for (const id of combat.attackerIds) {
+            const idList = combat.attackerIds;
+            for (let i = 0; i < idList.length; i++) {
+                const id = idList[i];
                 const atk = findPermanent(state, id);
                 if (!atk) continue;
                 markAttacking(state, atk);
@@ -1420,7 +1422,9 @@ export function applyMoveInSearch(
         case "declare-blockers": {
             if (state.combat) {
                 const byBlocker: Record<string, string[]> = {};
-                for (const { blockerId, attackerId } of move.assignments) {
+                const entries = move.assignments;
+                for (let i = 0; i < entries.length; i++) {
+                    const { blockerId, attackerId } = entries[i];
                     (byBlocker[blockerId] ??= []).push(attackerId);
                 }
                 state.combat.blockerAssignments = byBlocker;
@@ -2101,11 +2105,15 @@ function findActivationSource(
 ): CardInstanceState | undefined {
     const permanent = findPermanent(state, instanceId);
     if (permanent) return permanent;
-    for (const p of state.players) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
         const found = p.graveyard.find((c) => c.id === instanceId);
         if (found) return found;
     }
-    for (const p of state.players) {
+    const pList2 = state.players;
+    for (let i = 0; i < pList2.length; i++) {
+        const p = pList2[i];
         const found = p.hand.find((c) => c.id === instanceId);
         if (found) return found;
     }
@@ -2493,7 +2501,8 @@ export function selectRolloutMove(
     const held = heldInstantProbe(state, pid, memo);
     let bestScore = -Infinity;
     let best: Move[] = [];
-    for (const move of moves) {
+    for (let i = 0; i < moves.length; i++) {
+        const move = moves[i];
         const probe = cloneGameState(state);
         applyMoveInSearch(probe, pid, move);
         // `policyValue` is from the bot's view; flip for the opponent so each
@@ -2593,7 +2602,8 @@ export function saturationPriorTerms(
     let highReward = -Infinity;
     let low = Infinity;
     let high = -Infinity;
-    for (const e of edges) {
+    for (let i = 0; i < edges.length; i++) {
+        const e = edges[i];
         if (!e || e.visits === 0) return null;
         const mean = e.totalReward / e.visits;
         lowReward = Math.min(lowReward, mean);
@@ -2608,7 +2618,8 @@ export function saturationPriorTerms(
     // apart are the same move read twice, not a ranking.
     if (!(high - low > 1e-12)) return null;
     const terms = new Map<Edge, number>();
-    for (const e of edges) {
+    for (let i = 0; i < edges.length; i++) {
+        const e = edges[i];
         const value = policyValues.get(e!.key)!;
         terms.set(
             e!,
@@ -2909,7 +2920,9 @@ export function keyedMovesFor(
     // `priorityMoveKey`, which folds a non-observer's HAND card to its
     // definition id (hidden information) and leaves the bot's own duplicates
     // fully distinct.
-    for (const move of enumerateMoves(state, pid)) {
+    const moveList = enumerateMoves(state, pid);
+    for (let i = 0; i < moveList.length; i++) {
+        const move = moveList[i];
         const key = priorityMoveKey(state, pid, botId, move);
         if (seen.has(key)) continue;
         seen.add(key);
@@ -3038,7 +3051,8 @@ function opposingGateArmKeys(
         rewardFromValue(policyValueOfSettled(settled, pid, weights), weights);
     let passReward: number | undefined;
     const denied = new Set<string>();
-    for (const k of keyed) {
+    for (let i = 0; i < keyed.length; i++) {
+        const k = keyed[i];
         if (k.move.kind === "pass") continue;
         let settled: GameState;
         try {
@@ -3679,7 +3693,8 @@ export function computeActionPriors(
 ): Map<string, number> {
     const moverIsBot = pid === botId;
     const scores: number[] = [];
-    for (const k of keyed) {
+    for (let j = 0; j < keyed.length; j++) {
+        const k = keyed[j];
         let raw = cache?.get(k.key);
         if (raw === undefined) {
             const probe = cloneGameState(state);
@@ -3701,19 +3716,24 @@ export function computeActionPriors(
     if (keyed.length === 0) return out;
     let min = Infinity;
     let max = -Infinity;
-    for (const value of scores) {
+    for (let j = 0; j < scores.length; j++) {
+        const value = scores[j];
         if (value < min) min = value;
         if (value > max) max = value;
     }
     const span = max - min;
     if (!(span > 1e-12)) {
         const uniform = 1 / keyed.length;
-        for (const k of keyed) out.set(k.key, uniform);
+        for (let j = 0; j < keyed.length; j++) {
+            const k = keyed[j];
+            out.set(k.key, uniform);
+        }
         return out;
     }
     const floored: number[] = [];
     let total = 0;
-    for (const value of scores) {
+    for (let j = 0; j < scores.length; j++) {
+        const value = scores[j];
         const q =
             ACTION_PRIOR_FLOOR +
             (1 - ACTION_PRIOR_FLOOR) * ((value - min) / span);
@@ -3801,10 +3821,10 @@ function puctDescend(
     // received, which is what `√(parentVisits)` is measuring.
     let parentVisits = 0;
     let parentReward = 0;
-    for (const edge of node.children.values()) {
+    node.children.forEach((edge) => {
         parentVisits += edge.visits;
         parentReward += edge.totalReward;
-    }
+    });
     // No child opened yet → no mean to discount, so the FPU baseline is a
     // constant across candidates and the pick reduces to the highest prior.
     const fpuValue =
@@ -3823,7 +3843,8 @@ function puctDescend(
         path.length === 0,
         pid === botId
     );
-    for (const k of keyed) {
+    for (let i = 0; i < keyed.length; i++) {
+        const k = keyed[i];
         const edge = node.children.get(k.key);
         const visits = edge?.visits ?? 0;
         // ISMCTS availability: this edge WAS available in this world. Bumped
@@ -4185,7 +4206,9 @@ function iterate(
         let bestVal = -Infinity;
         // The node's castable-instant probe, once for every edge (issue #4461).
         const held = heldInstantProbe(world, pid);
-        for (const k of keyed) {
+        const kList = keyed;
+        for (let i = 0; i < kList.length; i++) {
+            const k = kList[i];
             const edge = view.children.get(k.key)!;
             edge.avail += 1;
             const val =
@@ -4298,7 +4321,8 @@ function withoutMisdirectedVariants(
  *  it from ITS mover's perspective (bot keeps `r` / `margin`, opponent keeps the
  *  complement `1 − r` / `−margin`). */
 function backpropagate(path: Edge[], leaf: Leaf, botId: string): void {
-    for (const edge of path) {
+    for (let i = 0; i < path.length; i++) {
+        const edge = path[i];
         const forMover = edge.mover === botId;
         edge.visits += 1;
         edge.totalReward += forMover ? leaf.reward : 1 - leaf.reward;
@@ -4665,7 +4689,8 @@ function bestSettledBranch(
     const sign = chooser === moverId ? 1 : -1;
     let best: GameState | null = null;
     let bestScore = -Infinity;
-    for (const answer of answers) {
+    for (let i = 0; i < answers.length; i++) {
+        const answer = answers[i];
         // All-or-nothing on the budget (never `break` with a partial argmax):
         // a later sibling that got no budget would be scored on its UNSETTLED
         // state, and the max would then be taken over unlike quantities,
@@ -4726,7 +4751,7 @@ export function buildTrace(
     scorer: RootScorer = makeRootScorer(root, weights)
 ): DecisionTrace {
     const candidates: CandidateTrace[] = [];
-    for (const edge of root.children.values()) {
+    root.children.forEach((edge) => {
         // Same re-resolution the real pick uses (`rootMoveFor`): the stored move
         // may name instances from the determinization that opened the edge, and
         // applying those to the root world would probe (or label) a position the
@@ -4765,7 +4790,7 @@ export function buildTrace(
             eval: evaluateBreakdown(probe, botId, weights),
             ...(unavailable ? { unavailable: true } : {}),
         });
-    }
+    });
     candidates.sort(
         (a, b) => b.visits - a.visits || b.meanReward - a.meanReward
     );
@@ -4932,6 +4957,7 @@ export function blockOutcomeDominates(
     a: BlockExchange,
     b: BlockExchange
 ): boolean {
+    // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
     for (const id of b.killed) if (!a.killed.has(id)) return false;
     // Values are float sums in assignment order: equal within a rounding ulp.
     const VALUE_EPS = 1e-6;
@@ -5443,7 +5469,8 @@ function optionalPutPayoff(
     if (!baseline) return undefined;
     let best: Edge | undefined;
     let bestMargin = baseline.margin;
-    for (const edge of contenders) {
+    for (let i = 0; i < contenders.length; i++) {
+        const edge = contenders[i];
         if (edge === decline) continue;
         const move = rootMoveFor(edge, rootState);
         if (
@@ -5479,8 +5506,16 @@ function floatingManaOf(state: GameState, playerId: string): number {
     const player = state.players.find((p) => p.id === playerId);
     if (!player) return 0;
     let total = 0;
-    for (const amount of Object.values(player.manaPool)) total += amount ?? 0;
-    for (const unit of player.restrictedMana ?? []) total += unit.amount;
+    const amountList = Object.values(player.manaPool);
+    for (let i = 0; i < amountList.length; i++) {
+        const amount = amountList[i];
+        total += amount ?? 0;
+    }
+    const unitList = player.restrictedMana ?? [];
+    for (let i = 0; i < unitList.length; i++) {
+        const unit = unitList[i];
+        total += unit.amount;
+    }
     return total;
 }
 
@@ -5902,7 +5937,8 @@ function unopenedVariantEdges(root: Node, moves: Move[], ref: Edge): Edge[] {
         [...root.children.values()].map((e) => moveKey(e.move))
     );
     const out: Edge[] = [];
-    for (const move of moves) {
+    for (let i = 0; i < moves.length; i++) {
+        const move = moves[i];
         if (!isCastVariantOf(move, ref.move)) continue;
         const key = moveKey(move);
         if (opened.has(key)) continue;
@@ -6057,7 +6093,8 @@ function colorModeTiebreak(
     let winner: Edge | null = null;
     let topShare = -Infinity;
     let runnerUpShare = -Infinity;
-    for (const e of contenders) {
+    for (let i = 0; i < contenders.length; i++) {
+        const e = contenders[i];
         const share = shareOf(e);
         if (share > topShare) {
             runnerUpShare = topShare;
@@ -6217,7 +6254,8 @@ export function selectRootMove(
     );
 
     let best = contenders[0];
-    for (const edge of contenders) {
+    for (let i = 0; i < contenders.length; i++) {
+        const edge = contenders[i];
         if (meanMargin(edge) > meanMargin(best)) best = edge;
     }
 
@@ -6493,7 +6531,8 @@ export function selectRootMove(
         const outside = pool.filter(
             (e) => e.move.kind === "declare-blockers" && !blocks.includes(e)
         );
-        for (const e of outside) {
+        for (let i = 0; i < outside.length; i++) {
+            const e = outside[i];
             const x = exchangeOf(e);
             if (!x) continue;
             const dominates = bases.some((b) => {
@@ -6618,7 +6657,9 @@ export function selectRootMove(
                 (best.move.kind === "cast-spell" ||
                     best.move.kind === "activate-ability")
             ) {
-                for (const e of unopenedVariantEdges(root, moves, best)) {
+                const eList = unopenedVariantEdges(root, moves, best);
+                for (let i = 0; i < eList.length; i++) {
+                    const e = eList[i];
                     if (
                         blindSelfHarm ||
                         mean(e) >= bestMean - weights.outcomeEps
@@ -6627,7 +6668,8 @@ export function selectRootMove(
                     }
                 }
             }
-            for (const edge of variants) {
+            for (let i = 0; i < variants.length; i++) {
+                const edge = variants[i];
                 if (scoreOf(edge) > scoreOf(best)) {
                     best = edge;
                     mechanism = "announcement-variant";
@@ -7043,7 +7085,8 @@ export function selectRootMove(
         // FIRST (deliberately, see ORDER above) would silently override that
         // ranking with pool-insertion order.
         let payoff: Edge | undefined;
-        for (const e of pool) {
+        for (let i = 0; i < pool.length; i++) {
+            const e = pool[i];
             if (e.move.kind !== "cast-spell") continue;
             if (mean(e) < bestMean - weights.outcomeEps) continue;
             if (
@@ -7126,7 +7169,8 @@ export function selectRootMove(
     // `meanMargin`, not the pool's insertion order.
     if (rootState && best.move.kind === "pass" && ruleOn("free-development")) {
         let develop: Edge | undefined;
-        for (const e of pool) {
+        for (let i = 0; i < pool.length; i++) {
+            const e = pool[i];
             if (mean(e) < bestMean - weights.outcomeEps) continue;
             if (!isSorcerySpeedPermanentCast(rootState, e.move, botId))
                 continue;
@@ -7216,7 +7260,8 @@ export function selectRootMove(
                     firingBeatsHolding(rootState, botId, e.move, weights)
             );
         } else {
-            for (const e of pool) {
+            for (let i = 0; i < pool.length; i++) {
+                const e = pool[i];
                 if (mean(e) < bestMean - weights.outcomeEps) continue;
                 if (!isPreAttackGrant(rootState, botId, e.move)) continue;
                 if (!fire || meanMargin(e) > meanMargin(fire)) fire = e;
@@ -7244,7 +7289,8 @@ export function selectRootMove(
     ) {
         const before = waitReadingOf(rootState, botId);
         let act: Edge | undefined;
-        for (const e of pool) {
+        for (let i = 0; i < pool.length; i++) {
+            const e = pool[i];
             if (mean(e) < bestMean - weights.outcomeEps) continue;
             if (!isDeferrableAction(rootState, botId, e.move)) continue;
             if (isStandingSpendActivation(rootState, botId, e.move)) continue;
@@ -7430,10 +7476,11 @@ function clearsBlockerBeforeOwnAttack(
             .filter((c) => isCreature(c) && !c.isTapped)
             .map((c) => c.id)
     );
-    for (const id of blockersOf(state, pid, attackerIds)) {
-        if (!standing.has(id)) return true;
-    }
-    return false;
+    let cleared = false;
+    blockersOf(state, pid, attackerIds).forEach((id) => {
+        if (!standing.has(id)) cleared = true;
+    });
+    return cleared;
 }
 
 /** The ids of the untapped creatures `pid`'s opponents control that may
@@ -7449,9 +7496,13 @@ function blockersOf(
         attackerIds.includes(c.id)
     );
     const ids = new Set<string>();
-    for (const opp of state.players) {
+    const oppList = state.players;
+    for (let i = 0; i < oppList.length; i++) {
+        const opp = oppList[i];
         if (opp.id === pid) continue;
-        for (const blocker of opp.battlefield) {
+        const blockerList = opp.battlefield;
+        for (let j = 0; j < blockerList.length; j++) {
+            const blocker = blockerList[j];
             if (!isCreature(blocker) || blocker.isTapped) continue;
             if (
                 attackers.some(
@@ -7665,7 +7716,9 @@ export function activationBuysNothing(
         const h = evaluateBreakdown(held, pid, weights);
         const a = evaluateBreakdown(acted, pid, weights);
         if (a.danger > h.danger) return false;
-        for (const key of Object.keys(h.self) as (keyof typeof h.self)[]) {
+        const keyList = Object.keys(h.self) as (keyof typeof h.self)[];
+        for (let i = 0; i < keyList.length; i++) {
+            const key = keyList[i];
             if (PAYMENT_TERMS.has(key)) continue;
             if (a.self[key] > h.self[key]) return false;
             if (a.opp[key] < h.opp[key]) return false;
@@ -7816,7 +7869,9 @@ export function waitReadingOf(
 function sorceryTimedCasts(state: GameState, pid: string): string[] {
     if (!isSorceryTimingFor(state, pid)) return [];
     const ids: string[] = [];
-    for (const move of enumerateMoves(state, pid)) {
+    const moveList = enumerateMoves(state, pid);
+    for (let i = 0; i < moveList.length; i++) {
+        const move = moveList[i];
         if (move.kind !== "cast-spell") continue;
         const card = findCardInAnyZone(state, move.cardInstanceId);
         if (!card || ids.includes(card.id)) continue;
@@ -7995,10 +8050,11 @@ function sacrificeCostHasDoomedFodder(
         if (c.id === source.id || !isInPendingCombatExchange(state, c.id)) {
             return false;
         }
-        const facing = new Set<string>([
-            ...(graph.attackersByBlocker[c.id] ?? []),
-            ...(graph.blockersByAttacker[c.id] ?? []),
-        ]);
+        const facing = new Set<string>(
+            (graph.attackersByBlocker[c.id] ?? []).concat(
+                graph.blockersByAttacker[c.id] ?? []
+            )
+        );
         const against = opposing.filter((o) => facing.has(o.id));
         const damage = against.reduce(
             (sum, o) => sum + Math.max(0, getEffectivePT(state, o).power),
@@ -8227,7 +8283,8 @@ export function rootDecisionSettled(
     // The most-visited root child (exists: pool.length >= 2 above).
     const top = pool.reduce((m, e) => (e.visits > m.visits ? e : m));
     let runnerUpMean = -Infinity;
-    for (const e of pool) {
+    for (let i = 0; i < pool.length; i++) {
+        const e = pool[i];
         if (e === top) continue;
         if (top.visits - e.visits <= remaining) return false;
         runnerUpMean = Math.max(runnerUpMean, mean(e));
@@ -8410,7 +8467,11 @@ function runSearchWithTrace(
             (m) => isLoopExit(m) || !repeated.has(repetitionKeyAt(state, m))
         );
         if (kept.length > 0 && kept.length < moves.length) {
-            for (const m of moves) if (!kept.includes(m)) deniedAtRoot.push(m);
+            const mList = moves;
+            for (let j = 0; j < mList.length; j++) {
+                const m = mList[j];
+                if (!kept.includes(m)) deniedAtRoot.push(m);
+            }
             moves = kept;
         }
     }

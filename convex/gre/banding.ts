@@ -61,7 +61,9 @@ export function getBandsWithOtherQualities(
     card: CardInstanceState
 ): BandQuality[] {
     const out: BandQuality[] = [];
-    for (const kw of card.staticAbilities) {
+    const kwList = card.staticAbilities;
+    for (let i = 0; i < kwList.length; i++) {
+        const kw = kwList[i];
         const q = parseBandsWithOtherQuality(kw);
         if (q) out.push(q);
     }
@@ -133,8 +135,11 @@ export function isLegalBandComposition(members: CardInstanceState[]): boolean {
     if (banding >= 1 && members.length - banding <= 1) return true;
     // CR 702.22j — bands with other [quality]: some member grants the variant
     // and every member satisfies that member's quality.
-    for (const member of members) {
-        for (const quality of getBandsWithOtherQualities(member)) {
+    for (let i = 0; i < members.length; i++) {
+        const member = members[i];
+        const qualityList = getBandsWithOtherQualities(member);
+        for (let k = 0; k < qualityList.length; k++) {
+            const quality = qualityList[k];
             if (members.every((m) => matchesBandQuality(m, quality))) {
                 return true;
             }
@@ -162,22 +167,27 @@ export function getEffectiveBlockGraph(state: GameState): BlockGraph {
     const combat = state.combat;
     if (!combat) return { blockersByAttacker, attackersByBlocker };
 
-    for (const [blockerId, attackerIds] of Object.entries(
-        combat.blockerAssignments
-    )) {
+    const entries2 = Object.entries(combat.blockerAssignments);
+    for (let i = 0; i < entries2.length; i++) {
+        const [blockerId, attackerIds] = entries2[i];
         const expanded = new Set<string>();
-        for (const attackerId of attackerIds) {
+        const attackerIdList = attackerIds;
+        for (let j = 0; j < attackerIdList.length; j++) {
+            const attackerId = attackerIdList[j];
             const band = getBandMembers(combat, attackerId);
             if (band) {
-                for (const m of band) expanded.add(m);
+                for (let k = 0; k < band.length; k++) {
+                    const m = band[k];
+                    expanded.add(m);
+                }
             } else {
                 expanded.add(attackerId);
             }
         }
         attackersByBlocker[blockerId] = [...expanded];
-        for (const attackerId of expanded) {
+        expanded.forEach((attackerId) => {
             (blockersByAttacker[attackerId] ??= []).push(blockerId);
-        }
+        });
     }
     return { blockersByAttacker, attackersByBlocker };
 }
@@ -214,7 +224,8 @@ export function applyMeleeUnblockedRider(state: GameState): void {
     const activePlayer = getPlayer(state, state.activePlayerId);
     const blocked = new Set(state.combat.blockedAttackerIds ?? []);
     const unblocked = state.combat.attackerIds.filter((id) => !blocked.has(id));
-    for (const attackerId of unblocked) {
+    for (let i = 0; i < unblocked.length; i++) {
+        const attackerId = unblocked[i];
         const card = activePlayer.battlefield.find((c) => c.id === attackerId);
         if (card) {
             // CR 701.26 — untap, then CR 506.4 — remove from combat.
@@ -260,7 +271,9 @@ export function outstandingDamageAssigner(combat: {
     const assigners = combat.damageAssignerIds;
     if (!assigners) return undefined;
     const confirmed = new Set(combat.damageAssignmentConfirmedBy ?? []);
-    for (const playerId of Object.values(assigners)) {
+    const playerIdList = Object.values(assigners);
+    for (let i = 0; i < playerIdList.length; i++) {
+        const playerId = playerIdList[i];
         if (!confirmed.has(playerId)) return playerId;
     }
     return undefined;

@@ -164,14 +164,17 @@ function opIsGraveyardRecovery(
  *  blinks. A real blink exiles INLINE and returns the object it just bound,
  *  which this still sees. */
 function scriptExiles(effects: readonly EffectOp[]): boolean {
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         if (op.op === "exile") return true;
         if (op.op === "moveZone" && (op as { to?: string }).to === "exile") {
             return true;
         }
         if (op.op === "delayedTrigger" || op.op === "reflexiveTrigger")
             continue;
-        for (const child of childOpArrays(op)) {
+        const childList = childOpArrays(op);
+        for (let j = 0; j < childList.length; j++) {
+            const child = childList[j];
             if (scriptExiles(child)) return true;
         }
     }
@@ -184,9 +187,12 @@ function scriptRecoversFromGraveyard(
     targetZone: string | undefined,
     exiles: boolean = scriptExiles(effects)
 ): boolean {
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         if (opIsGraveyardRecovery(op, targetZone, exiles)) return true;
-        for (const child of childOpArrays(op)) {
+        const childList = childOpArrays(op);
+        for (let j = 0; j < childList.length; j++) {
+            const child = childList[j];
             // `exiles` is a property of the WHOLE script, so nested calls keep
             // the top-level answer rather than re-deriving it per branch.
             if (scriptRecoversFromGraveyard(child, targetZone, exiles)) {
@@ -206,7 +212,8 @@ function scriptSelfRecoversFromGraveyard(
     effects: readonly EffectOp[] | undefined
 ): boolean {
     if (!effects) return false;
-    for (const op of effects) {
+    for (let i = 0; i < effects.length; i++) {
+        const op = effects[i];
         if (op.op === "moveZone") {
             const shape = op as {
                 to?: string;
@@ -222,7 +229,9 @@ function scriptSelfRecoversFromGraveyard(
                 return true;
             }
         }
-        for (const child of childOpArrays(op)) {
+        const childList = childOpArrays(op);
+        for (let j = 0; j < childList.length; j++) {
+            const child = childList[j];
             if (scriptSelfRecoversFromGraveyard(child)) return true;
         }
     }
@@ -266,7 +275,8 @@ function definitionRecoversFromGraveyard(def: CardDefinition): boolean {
                 ] as [readonly EffectOp[] | undefined, string | undefined][]
         ),
     ];
-    for (const [script, targetZone] of pairs) {
+    for (let i = 0; i < pairs.length; i++) {
+        const [script, targetZone] = pairs[i];
         if (script && scriptRecoversFromGraveyard(script, targetZone)) {
             return true;
         }
@@ -364,10 +374,14 @@ export function latentGraveyardValue(
  *  the OPPONENT's own reach by this same predicate — never assumed hostile,
  *  never assumed harmless. */
 export function hasGraveyardRecursionAccess(player: PlayerState): boolean {
-    for (const card of player.hand) {
+    const cardList = player.hand;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         if (instanceRecoversFromGraveyard(card)) return true;
     }
-    for (const perm of player.battlefield) {
+    const permList = player.battlefield;
+    for (let i = 0; i < permList.length; i++) {
+        const perm = permList[i];
         if (instanceRecoversFromGraveyard(perm)) return true;
     }
     return false;

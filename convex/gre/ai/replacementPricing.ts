@@ -123,7 +123,9 @@ export function replacementStandingWorth(
     const def = liveStaticDefinition(source);
     if (!def || !declaresDamageShield(def)) return 0;
     let worth = 0;
-    for (const effect of def.replacementEffects ?? []) {
+    const effectList = def.replacementEffects ?? [];
+    for (let i = 0; i < effectList.length; i++) {
+        const effect = effectList[i];
         worth += readEventKind(effect.eventKind, effect, (e) =>
             damageShieldWorth(state, source, e, weights, pass)
         );
@@ -171,7 +173,9 @@ function damageShieldWorth(
         );
     let own = 0;
     let theirs = 0;
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const attackers = state.players
             .filter((p) => p.id !== player.id)
             .flatMap((p) => p.battlefield)
@@ -180,7 +184,8 @@ function damageShieldWorth(
             .filter((a) => a.power > 0);
         let shielded = 0;
         // The player: every point their opponents' creatures would deal.
-        for (const a of attackers) {
+        for (let j = 0; j < attackers.length; j++) {
+            const a = attackers[j];
             if (shields(probe(a.card, "player", player.id, a.power))) {
                 shielded += a.power;
             }
@@ -188,11 +193,14 @@ function damageShieldWorth(
         // Each of their creatures: the damage the strongest attacker would
         // put on it, up to the toughness it has to spend.
         let strongest: (typeof attackers)[number] | undefined;
-        for (const a of attackers) {
+        for (let j = 0; j < attackers.length; j++) {
+            const a = attackers[j];
             if (!strongest || a.power > strongest.power) strongest = a;
         }
         if (strongest) {
-            for (const c of player.battlefield) {
+            const cList = player.battlefield;
+            for (let j = 0; j < cList.length; j++) {
+                const c = cList[j];
                 if (!isCreature(c)) continue;
                 const toughness = Math.max(
                     0,

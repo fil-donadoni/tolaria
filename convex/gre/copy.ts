@@ -140,7 +140,7 @@ export function applyTimedCopy(
     applyCopyEffect(state, recipient, source, opts);
     recipient.timedCopyEffects = {
         underlying,
-        effects: [...effects, { ...layer, duration: { ...duration } }],
+        effects: effects.concat([{ ...layer, duration: { ...duration } }]),
     };
 }
 
@@ -187,7 +187,7 @@ export function rematerialiseTimedCopies(
         l.opts.copyColor === false ||
         l.sourceCopyExcept?.colorOverride !== undefined;
     const colourIsTheCopys =
-        [...expired, ...survivors].some(writesColour) ||
+        expired.concat(survivors).some(writesColour) ||
         (underlying !== null && writesColour(underlying));
     const keptColour = card.colorOverride;
     const keptColourSeq = card.colorOverrideSeq;
@@ -325,7 +325,7 @@ function applyCopyEffect(
     // A copiable value carries no layer timestamp (`colorOverrideSeq`): the
     // layer-5 walk orders it beneath every layer-5 effect.
     if (except?.colorOverride) {
-        recipient.colorOverride = [...except.colorOverride];
+        recipient.colorOverride = except.colorOverride.slice();
         delete recipient.colorOverrideSeq;
     } else if (priorCopyOwnsColour) {
         delete recipient.colorOverride;
@@ -383,7 +383,7 @@ function applyCopyEffect(
             sourceCardId: printedId,
             abilityId,
         }));
-        const merged = [...others, ...mine];
+        const merged = others.concat(mine);
         recipient.grantedTriggeredAbilities =
             merged.length > 0 ? merged : undefined;
     }
@@ -413,11 +413,11 @@ export function revertCopy(
     delete card.copyExcept;
     if (def) {
         rebuildCopiableValuesAndReplayOverlays(state, card, {
-            types: [...def.types],
-            subtypes: [...(def.subtypes ?? [])],
+            types: def.types.slice(),
+            subtypes: (def.subtypes ?? []).slice(),
             power: def.power,
             toughness: def.toughness,
-            staticAbilities: [...(def.staticAbilities ?? [])],
+            staticAbilities: (def.staticAbilities ?? []).slice(),
         });
     }
     // Drop any triggered-ability grant the copy effect itself installed
@@ -511,10 +511,10 @@ function unionTriggeredAbilities(
     if (total === granted.length) return granted;
     if (total === keywords.length) return keywords;
     const out: TriggeredAbility[] = [];
-    for (const a of base) out.push(a);
-    for (const a of retained) out.push(a);
-    for (const a of granted) out.push(a);
-    for (const a of keywords) out.push(a);
+    for (let i = 0; i < base.length; i++) out.push(base[i]);
+    for (let i = 0; i < retained.length; i++) out.push(retained[i]);
+    for (let i = 0; i < granted.length; i++) out.push(granted[i]);
+    for (let i = 0; i < keywords.length; i++) out.push(keywords[i]);
     return out;
 }
 
@@ -562,7 +562,8 @@ function grantedTriggeredAbilities(
     const grants = card.grantedTriggeredAbilities;
     if (!grants || grants.length === 0) return [];
     const out: TriggeredAbility[] = [];
-    for (const grant of grants) {
+    for (let i = 0; i < grants.length; i++) {
+        const grant = grants[i];
         if (grantOutrankedByAbilityLoss(grant.seq, strippedAt)) continue;
         const grantingDef = tryGetDefinition(grant.sourceCardId);
         const template = grantingDef?.triggeredGrantTemplates?.find(
@@ -647,7 +648,7 @@ function withAbilitiesAtLeave(
     if (!keywords && !abilities) return view;
     return {
         ...view,
-        ...(keywords ? { staticAbilities: [...keywords] } : {}),
+        ...(keywords ? { staticAbilities: keywords.slice() } : {}),
         ...(abilities
             ? {
                   abilitiesSuppressedBy: abilities.suppressedBy,
@@ -748,7 +749,7 @@ function lookBackLayer1(
         copiableValuesOf(def, entry.copyExcept)
     );
     if (entry.copyExcept?.colorOverride) {
-        view.colorOverride = [...entry.copyExcept.colorOverride];
+        view.colorOverride = entry.copyExcept.colorOverride.slice();
     }
     if (entry.copyExcept?.noManaCost) view.manaCostOverride = {};
     return view;

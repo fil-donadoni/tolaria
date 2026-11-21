@@ -85,7 +85,9 @@ function abandonAttackDeclaration(state: GameState): void {
     const tax = combat.pendingAttackManaTax;
     if (tax) {
         const payer = getPlayer(state, tax.playerId);
-        for (const cardId of tax.tappedLandIds) {
+        const cardIdList = tax.tappedLandIds;
+        for (let i = 0; i < cardIdList.length; i++) {
+            const cardId = cardIdList[i];
             const card = payer.battlefield.find((c) => c.id === cardId);
             if (card) untapSourceFromPayment(state, payer, card);
         }

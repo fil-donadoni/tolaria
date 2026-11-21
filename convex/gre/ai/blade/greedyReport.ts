@@ -62,7 +62,8 @@ export function collectGreedyReport(
     options: { withSearch: boolean; onRow?: (row: GreedyReportRow) => void }
 ): GreedyReportRow[] {
     const rows: GreedyReportRow[] = [];
-    for (const s of scenarios) {
+    for (let i = 0; i < scenarios.length; i++) {
+        const s = scenarios[i];
         const row: GreedyReportRow = {
             label: s.label,
             tier: s.tier,
@@ -115,7 +116,8 @@ export function summarizeGreedyReport(
     const bucket = (t: GreedyReportSummary["byTier"], k: string) =>
         (t[k] ??= { greedy: agg(), search: agg() });
     const agreement = { both: 0, greedyOnly: 0, searchOnly: 0, neither: 0 };
-    for (const r of rows) {
+    for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
         add(bucket(byTier, r.tier).greedy, r.greedy);
         add(bucket(byKind, r.kind).greedy, r.greedy);
         if (!r.search) continue;
@@ -158,16 +160,20 @@ export function formatGreedyReport(
     out.push(
         `== greedy 1-ply pick vs blade registry (issue #3393) — ${rows.length} entries, ${(elapsedMs / 1000).toFixed(1)}s`
     );
-    for (const [tier, a] of Object.entries(summary.byTier)) {
+    const entries2 = Object.entries(summary.byTier);
+    for (let i = 0; i < entries2.length; i++) {
+        const [tier, a] = entries2[i];
         out.push(`  ${tier.padEnd(8)} greedy: ${fmt(a.greedy)}`);
         if (withSearch) out.push(`  ${"".padEnd(8)} search: ${fmt(a.search)}`);
     }
     out.push(
         `\n== by expected move kind (greedy${withSearch ? " / search" : ""})`
     );
-    for (const [kind, a] of Object.entries(summary.byKind).sort(
+    const entries3 = Object.entries(summary.byKind).sort(
         (x, y) => y[1].greedy.entries - x[1].greedy.entries
-    )) {
+    );
+    for (let i = 0; i < entries3.length; i++) {
+        const [kind, a] = entries3[i];
         out.push(
             `  ${kind.padEnd(28)} ${fmt(a.greedy)}${withSearch ? `  ||  ${fmt(a.search)}` : ""}`
         );
@@ -177,7 +183,8 @@ export function formatGreedyReport(
         out.push(
             `\n== entry agreement: both ok ${g.both}, greedy-only ${g.greedyOnly}, search-only ${g.searchOnly}, neither ${g.neither}`
         );
-        for (const r of rows) {
+        for (let i = 0; i < rows.length; i++) {
+            const r = rows[i];
             if (r.search && r.greedy.ok !== r.search.ok)
                 out.push(
                     `  ${r.greedy.ok ? "greedy-only" : "search-only"}  [${r.tier}] ${r.label}`

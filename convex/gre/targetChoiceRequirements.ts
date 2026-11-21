@@ -86,13 +86,18 @@ export function activeTargetChoiceRequirements(
     chooserId: string
 ): ActiveTargetChoiceRequirement[] {
     const byKey = new Map<string, ActiveTargetChoiceRequirement>();
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const def = liveStaticDefinition(source);
             const effects: readonly StaticEffect[] | undefined =
                 def?.staticEffects;
             if (!effects) continue;
-            for (const effect of effects) {
+            for (let k = 0; k < effects.length; k++) {
+                const effect = effects[k];
                 if (effect.kind !== "target-choice-requirement") continue;
                 // CR 601.2c — `binds: "opponents"` is the Flagbearer wording
                 // ("while an OPPONENT is choosing targets"): the source's own
@@ -205,7 +210,7 @@ export function computeRequiredTargetChoiceIds(
     const requirements = activeTargetChoiceRequirements(state, chooserId);
     if (requirements.length === 0) return undefined;
 
-    const chosen = [...(pt.priorSelected ?? []), ...pt.selected];
+    const chosen = (pt.priorSelected ?? []).concat(pt.selected);
     const unsatisfied = requirements.filter(
         (req) =>
             !chosen.some((t) => satisfiesTargetChoiceRequirement(state, req, t))
@@ -296,7 +301,9 @@ function deferrableSlots(
         slots += owedHere;
 
     const source = pendingTargetingSource(state, pt.cardInstanceId, pt.kind);
-    for (const requirement of pt.remainingRequirements ?? []) {
+    const requirementList = pt.remainingRequirements ?? [];
+    for (let i = 0; i < requirementList.length; i++) {
+        const requirement = requirementList[i];
         // Issue #2365 — `resolveTargetRequirementCount` is the single resolver
         // every count consumer calls, so an `"X"` count is read here exactly as
         // the group itself will read it when the walk reaches it.

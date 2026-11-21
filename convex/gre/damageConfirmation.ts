@@ -67,7 +67,9 @@ export function confirmDamageOnState(
     // combat owes zero — see `combatDamageAssignmentCompleteness`). Checked
     // before any state is touched, so a rejection leaves the confirmation set
     // and the map untouched.
-    for (const [sourceId, assignerId] of Object.entries(assignerIds)) {
+    const entries2 = Object.entries(assignerIds);
+    for (let i = 0; i < entries2.length; i++) {
+        const [sourceId, assignerId] = entries2[i];
         if (assignerId !== playerId) continue;
         const { complete, assigned, required } =
             combatDamageAssignmentCompleteness(
@@ -121,9 +123,9 @@ export function confirmDefaultDamageOnState(
         state.phase === "FIRST_STRIKE_DAMAGE" ? "first-strike" : "regular";
     const defaults = buildDefaultDamageAssignments(state, kind);
     const assignments = { ...(combat.damageAssignments ?? {}) };
-    for (const [sourceId, assignerId] of Object.entries(
-        combat.damageAssignerIds ?? {}
-    )) {
+    const entries2 = Object.entries(combat.damageAssignerIds ?? {});
+    for (let i = 0; i < entries2.length; i++) {
+        const [sourceId, assignerId] = entries2[i];
         if (assignerId !== playerId || !defaults[sourceId]) continue;
         assignments[sourceId] = defaults[sourceId];
     }

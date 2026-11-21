@@ -50,7 +50,9 @@ import { MANA_COLORS } from "../../gre/constants";
 function ninjutsuCostLabel(cost: ManaCost): string {
     const generic = (cost.X as number | undefined) ?? 0;
     const parts = generic > 0 ? [`{${generic}}`] : [];
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let j = 0; j < colorList.length; j++) {
+        const color = colorList[j];
         for (let i = 0; i < ((cost[color] as number | undefined) ?? 0); i++) {
             parts.push(`{${color}}`);
         }

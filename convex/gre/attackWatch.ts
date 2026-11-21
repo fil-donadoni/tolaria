@@ -85,7 +85,7 @@ export function attackWatchFirings(
     if (attackerIds.length === 0) return [];
     const groups =
         watch.firing === "batch"
-            ? [[...attackerIds]]
+            ? [attackerIds.slice()]
             : attackerIds.map((id) => [id]);
     return groups.map((ids) => ({
         type: "ATTACKERS_DECLARED",

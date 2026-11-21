@@ -50,7 +50,9 @@ export function randomInt(state: GameState, n: number): number {
 export function seededShuffle<T>(state: GameState, array: T[]): T[] {
     for (let i = array.length - 1; i > 0; i--) {
         const j = randomInt(state, i + 1);
-        [array[i], array[j]] = [array[j], array[i]];
+        const held = array[i];
+        array[i] = array[j];
+        array[j] = held;
     }
     return array;
 }
@@ -65,10 +67,12 @@ export function seededShuffle<T>(state: GameState, array: T[]): T[] {
  *  extract-on-the-second-copy rule. Pure: the same `(items, rng)` sequence
  *  always yields the same order. */
 export function shuffleWithRng<T>(items: readonly T[], rng: () => number): T[] {
-    const copy = [...items];
+    const copy = items.slice();
     for (let i = copy.length - 1; i > 0; i--) {
         const j = Math.floor(rng() * (i + 1));
-        [copy[i], copy[j]] = [copy[j], copy[i]];
+        const held = copy[i];
+        copy[i] = copy[j];
+        copy[j] = held;
     }
     return copy;
 }
@@ -93,7 +97,9 @@ export function sampleWithRng<T>(
     const steps = Math.min(Math.max(k, 0), n);
     for (let i = n - 1; i >= n - steps && i > 0; i--) {
         const j = Math.floor(rng() * (i + 1));
-        [items[i], items[j]] = [items[j], items[i]];
+        const held = items[i];
+        items[i] = items[j];
+        items[j] = held;
     }
     return steps === n ? items : items.slice(n - steps);
 }
