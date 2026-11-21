@@ -377,7 +377,7 @@ vuole. L'unico timer di gioco è la **deadline server del Bot** (vs-AI, issue
 (`gameTicks.botDeadlineAt` è il marcatore; un save con un check pendente non
 ne schedula un altro). Allo scatto il check rilegge il tick: Bot non più in
 debito → pulisce; in debito a un `seq` più nuovo → si riarma per
-`updatedAt + BOT_SERVER_DEADLINE_MS` (60 s, sopra l'intera scala del client);
+`updatedAt + BOT_SERVER_DEADLINE_MS` (80 s, sopra l'intera scala del client);
 stesso `seq` oltre la deadline → `forceAdvanceOwedInput` + report di sistema
 con origin `server-deadline`. Se il driver del giocatore ha segnalato di aver
 LASCIATO proprio quel `seq` (`botLiveness.reportDriverExit`, tabella

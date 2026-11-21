@@ -33,7 +33,7 @@ export const DIFFICULTIES: readonly Difficulty[] = [
  *  the wall clock in a real game.
  *
  *  `hard.timeMs` is twice `medium.timeMs`, so `hard` stays proportionally the
- *  deeper search: `1500 * 2 = 3000`. Monotonicity (1500 < 3000 < 3300) is asserted in
+ *  deeper search: `1500 * 2 = 3000`. Monotonicity (1500 < 3000 < 8300) is asserted in
  *  `difficulty.bot.test.ts`.
  *
  *  `medium` and `hard` both read clean tactics perfectly; `hard`'s extra budget
@@ -70,13 +70,26 @@ export const DIFFICULTIES: readonly Difficulty[] = [
  *  `iterations` gets the same +10% (1200 → 1320) so the preset stays the
  *  strictly deepest of them all when time is not the binding constraint,
  *  preserving the monotonic-budget pattern the other presets already
- *  assert. `BRAIN_CONSULT_TIMEOUT_MS` and `BOT_WATCHDOG_MS` are DERIVED from
+ *  assert.
+ *
+ *  `expert.timeMs` 8300 (issue #10029) is sized to the owner's quality
+ *  target — 400 iterations per search on every engine family (ruling in
+ *  issue #10027, `docs/research/expert-think-longer.md` § 5) — from the
+ *  field reading after the engine changes (issue #10028,
+ *  `docs/research/field-reading-after-engine-changes.md` § 1), where 99% of
+ *  searches stopped on the 3300 ms cap: Chromium 387 iterations per search
+ *  (117/s), iPhone 309 (94/s), desktop WebKit 160 (48/s), Gecko 94 (28/s).
+ *  400 on Gecko would take ~14 s; the owner ruled the compromise (2026-11-21)
+ *  at the cap that brings desktop WebKit to 400 (400 / 48.5 per s ≈ 8.25 s),
+ *  leaving Gecko at ~235 for the engine work to close. `iterations` stays
+ *  1320 (≥ 400): a fast machine stops on the count, not the clock.
+ *  `BRAIN_CONSULT_TIMEOUT_MS` and `BOT_WATCHDOG_MS` are DERIVED from
  *  {@link HARDEST_SEARCH_TIME_MS} (issue #10115), so raising a cap here
  *  carries the client's timeout chain with it. */
 export const DIFFICULTY_BUDGETS: Record<Difficulty, SearchBudget> = {
     medium: { iterations: 400, timeMs: 1500 },
     hard: { iterations: 1200, timeMs: 3000 },
-    expert: { iterations: 1320, timeMs: 3300 },
+    expert: { iterations: 1320, timeMs: 8300 },
 };
 
 /** The longest wall-clock cap any preset grants one search (issue #10115):
@@ -108,8 +121,8 @@ export const DEFAULT_DIFFICULTY: Difficulty = "expert";
 
 /** Which presets a game may play at (issue #10113). Levels are switched off,
  *  not deleted: below `expert` the Bot is not worth playing, and in the field
- *  `hard` (3000 ms) is `expert` (3300 ms) minus 9%, indistinguishable (owner
- *  ruling, issue #10027). No surface offers a choice, and a game stored at a
+ *  `hard` (3000 ms) was `expert` (then 3300 ms) minus 9%, indistinguishable
+ *  (owner ruling, issue #10027). No surface offers a choice, and a game stored at a
  *  level switched off plays at {@link DEFAULT_DIFFICULTY}. The levels may come
  *  back once they differ in the field: flipping a row back on owes the lobby a
  *  selector again. */

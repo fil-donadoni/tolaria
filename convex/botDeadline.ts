@@ -18,8 +18,14 @@
  *  hands off to `reportStall` — `BOT_LADDER_HANDOFF_MS` from the stall to the
  *  client's own hand-off, held well under this deadline by
  *  `useVsAiDriver-liveness.bot.test.ts`. A live driver therefore always acts
- *  first; the deadline fires only when it never will. */
-export const BOT_SERVER_DEADLINE_MS = 60_000;
+ *  first; the deadline fires only when it never will.
+ *
+ *  80 s since `expert`'s cap went to 8300 ms (issue #10029): the watchdog is
+ *  then 8300 + 1500 + 500 + 1000 = 11 300 ms, and the ladder's hand-off plus
+ *  one interval of slack is 7 × 11 300 = 79 100 ms — past the old 60 s. A
+ *  literal, not derived: `convex/` cannot import the client's margins; the
+ *  liveness test reds when the next cap outgrows it. */
+export const BOT_SERVER_DEADLINE_MS = 80_000;
 
 /** The slice of a `gameTicks` row the planner reads. */
 export type BotDeadlineTick = {
