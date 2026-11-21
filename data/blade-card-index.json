@@ -111,6 +111,11 @@
     ],
     "Bonecrusher Giant": [
         {
+            "label": "lethal reach: blocks every attacker at 5 life against an on-board Pyrite Spellbomb",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
             "label": "lethal reach: the full report board blocks every attacker into an on-board Pyrite Spellbomb",
             "tier": "must",
             "needsSetup": true
@@ -700,6 +705,11 @@
     ],
     "Ivora, Insatiable Heir": [
         {
+            "label": "lethal reach: blocks every attacker at 5 life against an on-board Pyrite Spellbomb",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
             "label": "lethal reach: the full report board blocks every attacker into an on-board Pyrite Spellbomb",
             "tier": "must",
             "needsSetup": true
@@ -1171,6 +1181,11 @@
         }
     ],
     "Seasoned Pyromancer": [
+        {
+            "label": "lethal reach: blocks every attacker at 5 life against an on-board Pyrite Spellbomb",
+            "tier": "must",
+            "needsSetup": true
+        },
         {
             "label": "lethal reach: the full report board blocks every attacker into an on-board Pyrite Spellbomb",
             "tier": "must",
