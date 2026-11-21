@@ -27957,8 +27957,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // as `forbidden`/`moves` verdicts the fit cannot close a ~70-point gap
         // through `combatReserveWeight` inside its trust region, so it closes
         // part of it through `latentCreatureDiscount` (0.620 → 0.641) — and
-        // that refit flips the `must` entry "Self-growing sacrifice outlet:
-        // casts the creature" to `pass` on seed 0x5eed. No `pairOf` (a
+        // that refit flipped the `must` entry "Self-growing sacrifice outlet:
+        // casts the creature" to `pass` on seed 0x5eed (its precombat form,
+        // before issue #10336 moved it postcombat). No `pairOf` (a
         // predicate lowers to no verdict); each note names its twin.
         label: "combat reserve pair: does NOT cast a creature precombat that taps out of the held trick",
         classification: { kind: "absolute" },
@@ -29792,7 +29793,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // `forbidden` verdict the fit chases this position and moves
         // `latentCreatureDiscount` 0.627 → 0.641, past the value that flips
         // the `must` entry "Self-growing sacrifice outlet: casts the
-        // creature". The search answers it (`isEvokeCast`), but the one-ply
+        // creature" (its precombat form, before issue #10336). The search answers it (`isEvokeCast`), but the one-ply
         // reading still puts the evoke 3.2 above `pass`, which is the reading
         // the fit would chase.
         expect: {
@@ -30839,7 +30840,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // A PREDICATE, kept out of the weight fit on purpose (measured): as a
         // `moves` verdict the fit moves `latentCreatureDiscount` 0.624 → 0.660,
         // past the value that flips the `must` entry "Self-growing sacrifice
-        // outlet: casts the creature". The committed weights already plot here.
+        // outlet: casts the creature" (its precombat form, before issue
+        // #10336). The committed weights already plot here.
         expect: {
             predicate: (move, state) =>
                 matchesMove(state, move, {
