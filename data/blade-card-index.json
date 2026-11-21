@@ -109,6 +109,13 @@
             "needsSetup": true
         }
     ],
+    "Bonecrusher Giant": [
+        {
+            "label": "lethal reach: blocks every attacker at 5 life against an on-board Pyrite Spellbomb",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Brain Freeze": [
         {
             "label": "decking: casts the storm kill that recurs its own Black Lotus",
@@ -691,6 +698,13 @@
             "needsSetup": true
         }
     ],
+    "Ivora, Insatiable Heir": [
+        {
+            "label": "lethal reach: blocks every attacker at 5 life against an on-board Pyrite Spellbomb",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Jace, Wielder of Mysteries": [
         {
             "label": "draw-replacement win: mills its own library empty under Jace, Wielder of Mysteries",
@@ -1154,6 +1168,13 @@
             "label": "sorcery-speed permanent: deploys a Seal with the mana open and nothing else to do",
             "tier": "must",
             "needsSetup": false
+        }
+    ],
+    "Seasoned Pyromancer": [
+        {
+            "label": "lethal reach: blocks every attacker at 5 life against an on-board Pyrite Spellbomb",
+            "tier": "must",
+            "needsSetup": true
         }
     ],
     "Sengir Vampire": [

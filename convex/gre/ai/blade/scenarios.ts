@@ -32387,4 +32387,158 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9910. The same board with the Craw Wurm summoning sick: nothing attacks this turn, so the sweep buys no combat and keeps its later window (the opponent's attack, with blocks known). The right half is `sweep: Engineered Explosives clears three blockers before the Craw Wurm attacks`.",
     },
+    {
+        // MUST. Block everything at five life when the attacker holds burn on
+        // the battlefield (issue #10403, a user report from a Vintage Cube
+        // game, frozen state lowered by `bug-report:pull`). The defender faces
+        // a Hero with seven +1/+1 counters (8/8, no trample), Forensic
+        // Gadgeteer (2/3) and Hullbreacher (3/2), and controls Seasoned
+        // Pyromancer (2/2), Ivora (1/1) and Bonecrusher Giant (4/3). The
+        // attacker has an untapped Pyrite Spellbomb and red mana: leaving
+        // Hullbreacher unblocked takes the defender to 2, and the Spellbomb's
+        // 2 damage (CR 120.3a) ends the game. Pyromancer on Hullbreacher, Ivora
+        // on the Hero and the Giant on the Gadgeteer takes no damage at all and
+        // trades the Pyromancer for the Hullbreacher (CR 510.1a, 510.2).
+        //
+        // The report's board minus four permanents no line here uses (the
+        // attacker's Candelabra of Tawnos and Fastbond, the defender's Blood
+        // token and Metamorphosis Fanatic in hand): the Candelabra's {X}
+        // activations alone made the search ~7x dearer (152 s for five seeds).
+        //
+        // MEASURED with the attacker's decklist known, as every production
+        // difficulty searches: at 400 iterations all five seeds block all three
+        // attackers on `mean-reward` (seed 4: 0.334 against 0.256 for the next
+        // declaration); at 12 iterations, the root visit count the field
+        // report read on a Gecko client, all five leave Hullbreacher unblocked
+        // on `material-tiebreak` / `block-quality`. The margin is thin: the
+        // losing two-creature block reads ~0.25, close enough that the
+        // report's full board with only the Candelabra removed fails one seed
+        // in five at 400 — that class defect is issue #10422.
+        label: "lethal reach: blocks every attacker at 5 life against an on-board Pyrite Spellbomb",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Mountain", owner: "me", tapped: true },
+                { name: "Swamp", owner: "me", tapped: true },
+                { name: "Blackcleave Cliffs", owner: "me" },
+                {
+                    name: "Seasoned Pyromancer",
+                    owner: "me",
+                    summoningSick: false,
+                },
+                { name: "Swamp", owner: "me", tapped: true },
+                {
+                    name: "Ivora, Insatiable Heir",
+                    owner: "me",
+                    summoningSick: false,
+                },
+                { name: "Mountain", owner: "me", tapped: true },
+                {
+                    name: "Bonecrusher Giant",
+                    owner: "me",
+                    summoningSick: false,
+                },
+                { name: "Swamp", owner: "me", tapped: true },
+                { name: "Spirebluff Canal", owner: "opp" },
+                { name: "Breeding Pool", owner: "opp" },
+                { name: "Mountain", owner: "opp", tapped: true },
+                { name: "Island", owner: "opp" },
+                { name: "Island", owner: "opp" },
+                { name: "Mountain", owner: "opp" },
+                { name: "Thundering Falls", owner: "opp" },
+                {
+                    name: "Astrologian's Planisphere",
+                    owner: "opp",
+                    attachedTo: "Hero",
+                },
+                {
+                    name: "Hero",
+                    owner: "opp",
+                    token: true,
+                    counters: { "+1/+1": 7 },
+                    summoningSick: false,
+                },
+                {
+                    name: "Forensic Gadgeteer",
+                    owner: "opp",
+                    summoningSick: false,
+                },
+                { name: "Hullbreacher", owner: "opp", summoningSick: false },
+                { name: "Pyrite Spellbomb", owner: "opp" },
+                { name: "Island", owner: "opp", zone: "hand" },
+            ],
+            turn: 18,
+            phase: "DECLARE_ATTACKERS",
+            life: { me: 5, opp: 14 },
+            activePlayer: "opp",
+            priority: "opp",
+            libraryCount: 16,
+            landCount: 0,
+        },
+        setup: [{ kind: "declare-attackers" }],
+        bot: "me",
+        // The attacker's 40 cards as the report's frozen state held them
+        // (library, hand and every public zone).
+        deckKnowledge: [
+            {
+                seat: "opp",
+                cards: [
+                    "Abrade",
+                    "Aether Spellbomb",
+                    "Astrologian's Planisphere",
+                    "Breeding Pool",
+                    "Candelabra of Tawnos",
+                    "Chain Lightning",
+                    "Chromatic Star",
+                    "Fastbond",
+                    "Flame Slash",
+                    "Forensic Gadgeteer",
+                    "Hullbreacher",
+                    "Island",
+                    "Island",
+                    "Island",
+                    "Island",
+                    "Island",
+                    "Karn, Scion of Urza",
+                    "Mana Leak",
+                    "Mishra's Bauble",
+                    "Mountain",
+                    "Mountain",
+                    "Mountain",
+                    "Mountain",
+                    "Preordain",
+                    "Pyrite Spellbomb",
+                    "Ragavan, Nimble Pilferer",
+                    "Skullclamp",
+                    "Spirebluff Canal",
+                    "Strip Mine",
+                    "Thundering Falls",
+                    "Tropical Island",
+                    "Wheel of Fortune",
+                    "Windswept Heath",
+                ],
+            },
+        ],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            // All three blockers, one of them on Hullbreacher: the matcher
+            // cannot also require the Hero to be blocked, but leaving the 8/8
+            // unblocked is lethal from combat damage alone (CR 510.1b,
+            // 704.5a), the shape `lethalUnblockedDelta` already prices.
+            moves: [
+                {
+                    kind: "declare-blockers",
+                    cards: [
+                        "Seasoned Pyromancer",
+                        "Ivora, Insatiable Heir",
+                        "Bonecrusher Giant",
+                    ],
+                    target: "Hullbreacher",
+                },
+            ],
+        },
+        note: "Issue #10403 — the reported block, pinned at the production budget. In the field the Brain reached ~12 root visits (`iterations.ratio` 0.03-0.04 on Gecko) and left Hullbreacher unblocked into the Spellbomb's reach; at 400 iterations it blocks all three on every seed. Running the entry at 12 iterations reds four of five seeds, which is its proof-of-failure.",
+    },
 ];
