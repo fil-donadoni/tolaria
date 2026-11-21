@@ -138,7 +138,8 @@ export function verdictDecisionClass(
             ? verdict.answer.rightIndexes
             : verdict.answer.forbiddenIndexes;
     const classes = new Set<DecisionClass | null>();
-    for (const index of named) {
+    for (let i = 0; i < named.length; i++) {
+        const index = named[i];
         const candidate = verdict.candidates[index];
         if (candidate === undefined) continue;
         classes.add(decisionClassOfKey(candidate.key));
@@ -154,7 +155,9 @@ export function verdictDecisionClass(
  *  decisions even had an attack available to reject. */
 export function offeredDecisionClasses(verdict: Verdict): Set<DecisionClass> {
     const out = new Set<DecisionClass>();
-    for (const candidate of verdict.candidates) {
+    const candidateList = verdict.candidates;
+    for (let i = 0; i < candidateList.length; i++) {
+        const candidate = candidateList[i];
         const cls = decisionClassOfKey(candidate.key);
         if (cls !== null) out.add(cls);
     }
@@ -254,27 +257,32 @@ export function censusByClass(
     // pairs and no reason. The report lists it (`report.incomplete`).
     const incompleteIds = new Set(report.incomplete.map((e) => e.verdictId));
 
-    for (const verdict of verdicts) {
+    for (let i = 0; i < verdicts.length; i++) {
+        const verdict = verdicts[i];
         if (incompleteIds.has(verdict.id)) continue;
         const cls = verdictDecisionClass(verdict) ?? "unclassified";
         const target = row(cls);
         target.verdicts += 1;
         if (isResponseVerdict(verdict)) target.responses += 1;
         if (staleIds.has(verdict.id)) target.stale += 1;
-        for (const offered of offeredDecisionClasses(verdict)) {
+        offeredDecisionClasses(verdict).forEach((offered) => {
             row(offered).offered += 1;
-        }
+        });
     }
 
     const satisfied = new Set(report.satisfied);
     const blind = new Set(report.blind);
     const contradictory = new Set<EvalPair>();
-    for (const couple of report.contradictions) {
+    const coupleList = report.contradictions;
+    for (let i = 0; i < coupleList.length; i++) {
+        const couple = coupleList[i];
         contradictory.add(couple.a);
         contradictory.add(couple.b);
     }
 
-    for (const pair of report.pairs) {
+    const pairList = report.pairs;
+    for (let i = 0; i < pairList.length; i++) {
+        const pair = pairList[i];
         const target = row(pairDecisionClass(pair));
         target.pairs += 1;
         if (satisfied.has(pair)) {
@@ -294,11 +302,14 @@ export function censusByClass(
     }
 
     const ordered: CoverageRow[] = [];
-    for (const cls of DECISION_CLASSES) {
+    for (let i = 0; i < DECISION_CLASSES.length; i++) {
+        const cls = DECISION_CLASSES[i];
         const found = rows.get(cls);
         if (found !== undefined) ordered.push(found);
     }
-    for (const cls of ["mixed", "unclassified"] as const) {
+    const clsList = ["mixed", "unclassified"] as const;
+    for (let i = 0; i < clsList.length; i++) {
+        const cls = clsList[i];
         const found = rows.get(cls);
         if (found !== undefined) ordered.push(found);
     }
@@ -417,11 +428,12 @@ export function formatCensus(
             ? ["every class clears the evidence floor"]
             : [
                   `classes under the ${floor}-pair evidence floor — collection targets, NOT results:`,
-                  ...below.map(
+              ].concat(
+                  below.map(
                       (b) =>
                           `  ${pad(b.class, 18)} ${padStart(`${b.pairs}`, 6)} pair(s)`
-                  ),
-              ];
+                  )
+              );
 
-    return [header, ...lines, total, "", ...shopping].join("\n");
+    return [header].concat(lines, [total, ""], shopping).join("\n");
 }

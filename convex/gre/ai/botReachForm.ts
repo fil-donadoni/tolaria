@@ -20,7 +20,9 @@ import type { CardDefinition, TargetRequirement } from "../../cards/types";
 function targetTypes(def: CardDefinition): string[] {
     const reqs: TargetRequirement[] = [];
     if (def.targetRequirement) reqs.push(def.targetRequirement);
-    for (const mode of def.modes ?? []) {
+    const modeList = def.modes ?? [];
+    for (let i = 0; i < modeList.length; i++) {
+        const mode = modeList[i];
         if (mode.targetRequirement) reqs.push(mode.targetRequirement);
     }
     return reqs.flatMap((r) => (Array.isArray(r.type) ? r.type : [r.type]));

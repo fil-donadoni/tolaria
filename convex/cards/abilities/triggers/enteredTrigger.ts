@@ -166,11 +166,9 @@ export interface EnteredTriggerArgs {
 /** Does any body of this trigger — its script, its shadow script or a mode's
  *  script — carry a `delayedTrigger` Op, at any nesting depth (issue #4758)? */
 function schedulesDelayedTrigger(args: EnteredTriggerArgs): boolean {
-    const bodies: unknown[] = [
-        args.effects,
-        args.aiEffects,
-        ...(args.modes ?? []).map((m) => m.effects),
-    ];
+    const bodies: unknown[] = [args.effects, args.aiEffects].concat(
+        (args.modes ?? []).map((m) => m.effects)
+    );
     const walk = (node: unknown): boolean => {
         if (Array.isArray(node)) return node.some(walk);
         if (node === null || typeof node !== "object") return false;

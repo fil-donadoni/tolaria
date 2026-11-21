@@ -153,7 +153,8 @@ export function splitCastOptionsFor(
     const def = tryGetDefinition(cardId) ?? undefined;
     if (!def?.splitHalves) return [];
     const options: AlternativeCost[] = [];
-    for (const side of SPLIT_CAST_SIDES) {
+    for (let i = 0; i < SPLIT_CAST_SIDES.length; i++) {
+        const side = SPLIT_CAST_SIDES[i];
         // CR 702.102a — fuse "applies while the card with fuse is in a
         // player's hand": "if a player casts a split card with fuse FROM
         // THEIR HAND". Cast from any other zone, only the halves exist.
@@ -214,9 +215,9 @@ export function castAsSplitHalf(
     // Every array is COPIED, never aliased — handing the registry definition's
     // own array to an instance would let any later in-place writer corrupt the
     // catalogue globally (`turnFaceUp`'s note).
-    item.types = [...twin.types];
-    item.subtypes = [...(twin.subtypes ?? [])];
-    item.staticAbilities = [...(twin.staticAbilities ?? [])];
+    item.types = twin.types.slice();
+    item.subtypes = (twin.subtypes ?? []).slice();
+    item.staticAbilities = (twin.staticAbilities ?? []).slice();
     delete item.power;
     delete item.toughness;
 }
@@ -234,9 +235,9 @@ export function revertSplitIdentity(item: CardInstanceState): void {
     delete item.splitHalfOf;
     if (!def) return;
     item.card = { id: def.id };
-    item.types = [...def.types];
-    item.subtypes = [...(def.subtypes ?? [])];
-    item.staticAbilities = [...(def.staticAbilities ?? [])];
+    item.types = def.types.slice();
+    item.subtypes = (def.subtypes ?? []).slice();
+    item.staticAbilities = (def.staticAbilities ?? []).slice();
     if (def.power !== undefined) item.power = def.power;
     if (def.toughness !== undefined) item.toughness = def.toughness;
 }

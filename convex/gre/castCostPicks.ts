@@ -223,12 +223,14 @@ export function buildCastCostSelection(
     }
     // CR 601.2f / 118.5 — the board-wide static additional sacrifice (Drought),
     // per effect, per colour symbol in the PRINTED mana cost.
-    for (const req of getStaticAdditionalSacrifices(
+    const reqList = getStaticAdditionalSacrifices(
         state,
         getInstanceManaCost(card),
         card,
         "spell"
-    )) {
+    );
+    for (let i = 0; i < reqList.length; i++) {
+        const req = reqList[i];
         specs.push({ filter: req.filter, count: req.count });
     }
     const requirements = buildSacrificeRequirements(specs);
@@ -374,8 +376,9 @@ export function applyCastSacrificeVictims(
     );
     if (!selection) return undefined;
     const submitted = picks?.sacrificeIds ?? [];
-    const picked = [...selection.picked];
-    for (const id of submitted) {
+    const picked = selection.picked.slice();
+    for (let i = 0; i < submitted.length; i++) {
+        const id = submitted[i];
         if (!picked.includes(id)) picked.push(id);
     }
     return sacrificeSnapshotFromResults(
@@ -475,7 +478,7 @@ export function planCastCostPicks(
                 emergeVictimOf(merged) === undefined
                     ? largestEmergeVictim(player, def.emerge)
                     : undefined;
-            const announced = [...merged.picked];
+            const announced = merged.picked.slice();
             const submitted = completeSacrificeSelection(
                 state,
                 merged,

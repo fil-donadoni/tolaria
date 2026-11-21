@@ -89,14 +89,17 @@ function bestKillSet(
 ): Set<string> {
     if (targets.length > MAX_EXACT_TARGETS) {
         // Greedy fallback: most value per point of damage first.
-        const order = [...targets].sort(
-            (a, b) =>
-                b.value / Math.max(1, b.threshold) -
-                a.value / Math.max(1, a.threshold)
-        );
+        const order = targets
+            .slice()
+            .sort(
+                (a, b) =>
+                    b.value / Math.max(1, b.threshold) -
+                    a.value / Math.max(1, a.threshold)
+            );
         const kills = new Set<string>();
         let left = power;
-        for (const t of order) {
+        for (let j = 0; j < order.length; j++) {
+            const t = order[j];
             if (t.threshold <= left) {
                 kills.add(t.id);
                 left -= t.threshold;
@@ -132,7 +135,8 @@ function bestKillSet(
  *  the first of `pool` — where damage left over after the kills goes. */
 function remainderTarget(pool: readonly SplitTarget[]): string | undefined {
     let best: SplitTarget | undefined;
-    for (const t of pool) {
+    for (let i = 0; i < pool.length; i++) {
+        const t = pool[i];
         if (t.threshold > 0 && (!best || t.value > best.value)) best = t;
     }
     return (best ?? pool[0])?.id;
@@ -146,7 +150,8 @@ function splitOntoHostile(
     const kills = bestKillSet(targets, power);
     const out: Record<string, number> = {};
     let left = power;
-    for (const t of targets) {
+    for (let i = 0; i < targets.length; i++) {
+        const t = targets[i];
         const amount = kills.has(t.id) ? t.threshold : 0;
         out[t.id] = amount;
         left -= amount;
@@ -170,7 +175,10 @@ function splitOntoFriendly(
     power: number
 ): Record<string, number> {
     const out: Record<string, number> = {};
-    for (const t of targets) out[t.id] = 0;
+    for (let i = 0; i < targets.length; i++) {
+        const t = targets[i];
+        out[t.id] = 0;
+    }
     // A target already lethally damaged dies whatever this source does: it
     // soaks the whole amount for free.
     const doomed = targets.find((t) => t.threshold === 0);
@@ -186,7 +194,8 @@ function splitOntoFriendly(
             ? targets.reduce((a, b) => (b.value < a.value ? b : a))
             : undefined;
     let left = power;
-    for (const t of targets) {
+    for (let i = 0; i < targets.length; i++) {
+        const t = targets[i];
         if (t === victim) continue;
         const amount = Math.min(left, t.threshold - 1);
         out[t.id] = amount;
@@ -229,7 +238,8 @@ export function chooseDamageSplit(
     const pass = beginLayer7Pass(state);
     const targets: SplitTarget[] = [];
     const controllers = new Set<string>();
-    for (const id of rawTargets) {
+    for (let i = 0; i < rawTargets.length; i++) {
+        const id = rawTargets[i];
         // CR 510.1c — a creature no longer on the battlefield absorbs nothing.
         const card = findPermanent(state, id);
         if (!card) continue;
@@ -277,7 +287,8 @@ export function searchCombatDamageAssignments(
         kind,
         getEffectiveBlockGraph(state)
     );
-    for (const sourceId of manual) {
+    for (let i = 0; i < manual.length; i++) {
+        const sourceId = manual[i];
         const split = chooseDamageSplit(state, sourceId, step);
         if (split) step[sourceId] = split;
     }
@@ -314,9 +325,13 @@ export function damageSplitsFor(
     // (CR 702.19b) and then be replaced — a trampler could be priced as
     // having lethal on a shared blocker that ends up with none.
     const step: StepAssignments = { ...current };
-    for (const sourceId of owned) delete step[sourceId];
+    for (let i = 0; i < owned.length; i++) {
+        const sourceId = owned[i];
+        delete step[sourceId];
+    }
     const out: ChosenDamageSplit[] = [];
-    for (const sourceId of owned) {
+    for (let i = 0; i < owned.length; i++) {
+        const sourceId = owned[i];
         const split = chooseDamageSplit(state, sourceId, step);
         if (!split) continue;
         step[sourceId] = split;
@@ -343,7 +358,8 @@ function sameSplit(
     b: Record<string, number> | undefined
 ): boolean {
     if (!b) return false;
-    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    const keys = new Set(Object.keys(a).concat(Object.keys(b)));
+    // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
     for (const k of keys) if ((a[k] ?? 0) !== (b[k] ?? 0)) return false;
     return true;
 }

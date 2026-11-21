@@ -73,8 +73,12 @@ function controlledPermanents(
     playerId: string
 ): Map<string, string> {
     const out = new Map<string, string>();
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (card.controllerId !== playerId) continue;
             const pt = isCreature(card)
                 ? getEffectivePT(state, card, { includeTemporary: true })
@@ -143,6 +147,7 @@ function inclusion(
     sub: Map<string, string>,
     sup: Map<string, string>
 ): 0 | 1 | undefined {
+    // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
     for (const [id, counters] of sub) {
         if (sup.get(id) !== counters) return undefined;
     }
@@ -188,19 +193,21 @@ export function pruneDominatedTriggerTargets(
         announcing.playerId !== moverId ||
         state.stack.length !== 1
     ) {
-        return [...moves];
+        return moves.slice();
     }
     const opponentId = getOpponentId(state, moverId);
     const answers = moves.filter((m) => m.kind === "submit-target");
-    if (answers.length < 2) return [...moves];
+    if (answers.length < 2) return moves.slice();
     const outcomes = new Map<Move, TriggerOutcome>();
-    for (const move of answers) {
+    for (let i = 0; i < answers.length; i++) {
+        const move = answers[i];
         const outcome = resolveAnswer(state, moverId, opponentId, move, apply);
         if (outcome) outcomes.set(move, outcome);
     }
     return moves.filter((b) => {
         const ob = outcomes.get(b);
         if (!ob) return true;
+        // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
         for (const [a, oa] of outcomes) {
             if (a !== b && strictlyDominates(oa, ob)) return false;
         }
@@ -255,13 +262,14 @@ export function beamTriggerTargetsByValue(
         announcing.playerId !== moverId ||
         state.stack.length !== 1
     ) {
-        return [...moves];
+        return moves.slice();
     }
     const answers = moves.filter((m) => m.kind === "submit-target");
-    if (answers.length < 2) return [...moves];
+    if (answers.length < 2) return moves.slice();
     const rewards = new Map<Move, number>();
     let best = -Infinity;
-    for (const move of answers) {
+    for (let i = 0; i < answers.length; i++) {
+        const move = answers[i];
         const reward = value(move);
         if (reward === undefined) continue;
         rewards.set(move, reward);

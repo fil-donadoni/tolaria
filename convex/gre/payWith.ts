@@ -329,7 +329,9 @@ export function consumeColoredAndHybridPips(
     hybridPips: ReadonlyArray<readonly [Color, Color]>
 ): Set<Color>[] | null {
     const remaining = sources.map((s) => new Set(s));
-    for (const c of MANA_COLORS) {
+    const cList = MANA_COLORS;
+    for (let j = 0; j < cList.length; j++) {
+        const c = cList[j];
         let need = coloredNeed[c] ?? 0;
         while (need > 0) {
             let bestIdx = -1;
@@ -346,7 +348,8 @@ export function consumeColoredAndHybridPips(
             need--;
         }
     }
-    for (const [c1, c2] of hybridPips) {
+    for (let j = 0; j < hybridPips.length; j++) {
+        const [c1, c2] = hybridPips[j];
         let bestIdx = -1;
         let bestSize = Infinity;
         for (let i = 0; i < remaining.length; i++) {
@@ -381,12 +384,13 @@ export function greedyDistinctColorMatch(
     maxColors: number = COLORED_MANA_COLORS.length
 ): Color[] {
     const remaining = sources.map((s) => new Set(s));
-    const order = [...COLORED_MANA_COLORS].sort((a, b) => {
+    const order = COLORED_MANA_COLORS.slice().sort((a, b) => {
         const countFor = (c: Color) => remaining.filter((s) => s.has(c)).length;
         return countFor(a) - countFor(b);
     });
     const matched: Color[] = [];
-    for (const c of order) {
+    for (let j = 0; j < order.length; j++) {
+        const c = order[j];
         if (matched.length >= maxColors) break;
         let bestIdx = -1;
         let bestSize = Infinity;
@@ -411,7 +415,9 @@ export function coloredPipsOf(
     cost: Record<string, number>
 ): Partial<Record<Color, number>> {
     const out: Partial<Record<Color, number>> = {};
-    for (const c of MANA_COLORS) {
+    const cList = MANA_COLORS;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
         if (c === "C") continue;
         const n = cost[c] ?? 0;
         if (n > 0) out[c] = n;

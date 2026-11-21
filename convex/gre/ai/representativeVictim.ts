@@ -116,7 +116,8 @@ export function representativeVictimUnits(
         ? requirement.type
         : [requirement.type];
     let best = 0;
-    for (const type of types) {
+    for (let i = 0; i < types.length; i++) {
+        const type = types[i];
         if (NON_CARD_TYPES.has(type)) return undefined;
         const loss = representativeLossOfType(type as CardType, weights);
         if (loss === undefined) return undefined;

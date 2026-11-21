@@ -103,7 +103,8 @@ function hexproofFromQualities(card: CardInstanceState): HexproofQuality[] {
     if (!card.staticAbilities?.some(isHexproofFromAbility)) return [];
     const abilities = applySubstitution(card).staticAbilities;
     const qualities: HexproofQuality[] = [];
-    for (const ability of abilities) {
+    for (let i = 0; i < abilities.length; i++) {
+        const ability = abilities[i];
         const quality = parseHexproofQuality(ability);
         if (quality) qualities.push(quality);
     }
@@ -175,7 +176,9 @@ export function guardSourceColorWords(
     staticEffects: ReadonlyArray<StaticEffect> | undefined
 ): Color[] {
     const words: Color[] = [];
-    for (const effect of staticEffects ?? []) {
+    const effectList = staticEffects ?? [];
+    for (let i = 0; i < effectList.length; i++) {
+        const effect = effectList[i];
         if (effect.kind === "permanent-guard")
             words.push(...(effect.targetSourceColorFilter ?? []));
     }
@@ -264,12 +267,17 @@ export function isGuardedAgainst(
         return true;
     }
 
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const def = liveStaticDefinition(source);
             const effects = def?.staticEffects;
             if (!effects) continue;
-            for (const effect of effects) {
+            for (let m = 0; m < effects.length; m++) {
+                const effect = effects[m];
                 if (effect.kind !== "permanent-guard") continue;
                 if (!effect[clause]) continue;
                 if (clause === "cantBeTargeted") {
@@ -405,12 +413,17 @@ function playerGuardsOf(
     playerId: string
 ): StaticPlayerGuard[] {
     const guards: StaticPlayerGuard[] = [];
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const def = liveStaticDefinition(source);
             const effects = def?.staticEffects;
             if (!effects) continue;
-            for (const effect of effects) {
+            for (let k = 0; k < effects.length; k++) {
+                const effect = effects[k];
                 if (effect.kind !== "player-guard") continue;
                 const appliesTo = effect.appliesTo ?? "controller";
                 const targetPlayerId =
@@ -465,11 +478,16 @@ export function isOpponentSearchProhibited(
     searcherId: string | undefined
 ): boolean {
     if (searcherId === undefined) return false;
-    for (const player of state.players) {
-        for (const source of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const effects = liveStaticDefinition(source)?.staticEffects;
             if (!effects) continue;
-            for (const effect of effects) {
+            for (let k = 0; k < effects.length; k++) {
+                const effect = effects[k];
                 if (effect.kind !== "player-guard") continue;
                 if (!effect.opponentsCantSearch) continue;
                 const guardedId =

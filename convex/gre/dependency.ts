@@ -204,10 +204,9 @@ function writesOf(
                     ...(payload.set
                         ? {}
                         : {
-                              values: [
-                                  ...(payload.add ?? []),
-                                  ...(payload.remove ?? []),
-                              ],
+                              values: (payload.add ?? []).concat(
+                                  payload.remove ?? []
+                              ),
                           }),
                 };
             case "subtype-change":
@@ -218,7 +217,7 @@ function writesOf(
             case "supertype-change":
                 return {
                     characteristic: "supertypes",
-                    values: [...(payload.add ?? []), ...(payload.remove ?? [])],
+                    values: (payload.add ?? []).concat(payload.remove ?? []),
                 };
             case "color-change":
                 return {
@@ -260,7 +259,7 @@ function writesOf(
         case "supertype-set":
             return {
                 characteristic: "supertypes",
-                values: [...(effect.add ?? []), ...(effect.remove ?? [])],
+                values: (effect.add ?? []).concat(effect.remove ?? []),
             };
         case "color-grant":
             return {
@@ -348,7 +347,7 @@ function readsOf(
     if (entry.payload.kind !== "template" || !template) return [];
     const declared =
         template.effect.reads ?? STATIC_EFFECT_READS[template.effect.kind];
-    return [...declared, "rules-text"];
+    return declared.concat(["rules-text"]);
 }
 
 /** Whether this entry's read set was DECLARED rather than defaulted. The only
@@ -550,7 +549,7 @@ export function orderByDependency(
     entries: readonly ContinuousEffect[],
     context: DependencyContext
 ): ContinuousEffect[] {
-    if (entries.length < 2) return [...entries];
+    if (entries.length < 2) return entries.slice();
     // Grouped by KEY, not by adjacency: layer 7 hands over entries sorted with
     // `compareContinuousEffects`, which carries no sublayer key, so a 7c/7b/7c
     // run is interleaved and two same-sublayer effects would never meet if this
@@ -565,11 +564,11 @@ export function orderByDependency(
         if (slots) slots.push(index);
         else groups.set(key, [index]);
     }
-    if (groups.size === entries.length) return [...entries];
-    const ordered = [...entries];
+    if (groups.size === entries.length) return entries.slice();
+    const ordered = entries.slice();
     const deleted: boolean[] = new Array(entries.length).fill(false);
-    for (const slots of groups.values()) {
-        if (slots.length < 2) continue;
+    groups.forEach((slots) => {
+        if (slots.length < 2) return;
         const group = slots.map((index) => entries[index]);
         const reordered = orderGroup(group, context);
         // An entry whose source's rules text was destroyed does not exist
@@ -579,7 +578,7 @@ export function orderByDependency(
             deleted[slots[i]] = i >= reordered.length;
             if (i < reordered.length) ordered[slots[i]] = reordered[i];
         }
-    }
+    });
     return ordered.filter((_, index) => !deleted[index]);
 }
 
@@ -629,7 +628,7 @@ function orderGroup(
             declaresReads(group[i], templates[i]) ||
             canDestroyRulesText(group[i], templates[i]);
     }
-    if (!asymmetric) return [...group];
+    if (!asymmetric) return group.slice();
 
     const nodes: DependencyNode[] = group.map((entry) =>
         nodeOf(entry, context)
@@ -648,7 +647,7 @@ function orderGroup(
     }
     // CR 613.8's "sometimes": no dependency in this layer, so the timestamp
     // system stands unchanged.
-    if (!anyEdge) return [...group];
+    if (!anyEdge) return group.slice();
 
     // CR 613.8b's loop clause — an edge inside a component is ignored.
     const component = tarjan(edges);
@@ -660,7 +659,9 @@ function orderGroup(
     );
     const blocks: number[][] = nodes.map(() => []);
     for (let a = 0; a < edges.length; a++) {
-        for (const b of edges[a]) {
+        const bList = edges[a];
+        for (let j = 0; j < bList.length; j++) {
+            const b = bList[j];
             if (component[a] === component[b]) continue;
             blocks[b].push(a);
         }
@@ -672,15 +673,15 @@ function orderGroup(
         // Among the effects whose dependencies have all been applied, the
         // earliest by the layer's own comparator (CR 613.8b, second sentence).
         let pick: number | undefined;
-        for (const candidate of remaining) {
-            if (pending[candidate] > 0) continue;
+        remaining.forEach((candidate) => {
+            if (pending[candidate] > 0) return;
             if (
                 pick === undefined ||
                 context.compare(nodes[candidate].entry, nodes[pick].entry) < 0
             ) {
                 pick = candidate;
             }
-        }
+        });
         // Unreachable: a condensation is acyclic, so some effect is always
         // ready. Falling back to the comparator rather than looping forever
         // keeps a future graph-construction bug from hanging a read.
@@ -694,7 +695,11 @@ function orderGroup(
         }
         remaining.delete(pick);
         result.push(pick);
-        for (const blocked of blocks[pick]) pending[blocked]--;
+        const blockedList = blocks[pick];
+        for (let j = 0; j < blockedList.length; j++) {
+            const blocked = blockedList[j];
+            pending[blocked]--;
+        }
     }
     return applyExistence(result, nodes, context.ctx);
 }
@@ -734,7 +739,8 @@ function applyExistence(
 ): ContinuousEffect[] {
     const destroyed = new Set<string>();
     const applied: ContinuousEffect[] = [];
-    for (const index of order) {
+    for (let i = 0; i < order.length; i++) {
+        const index = order[i];
         const node = nodes[index];
         if (node.rulesTextSource && destroyed.has(node.rulesTextSource.id)) {
             continue;
@@ -743,7 +749,8 @@ function applyExistence(
         // Marked AFTER this entry is applied, so an effect that destroys the
         // rules text of its OWN source still applies once: the CR never lets an
         // effect un-apply itself.
-        for (const other of nodes) {
+        for (let j = 0; j < nodes.length; j++) {
+            const other = nodes[j];
             const victim = other.rulesTextSource;
             if (!victim || destroyed.has(victim.id)) continue;
             if (destroysRulesTextOf(node.entry, node.template, victim, ctx)) {

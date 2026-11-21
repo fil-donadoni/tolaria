@@ -65,7 +65,7 @@ export function chooseableNamesOf(def: CardDefinition): string[] {
 export function chooseableDomainNamesOf(def: CardDefinition): string[] {
     const names = chooseableNamesOf(def);
     const meldBack = chooseableMeldBackName(def);
-    return meldBack ? [...names, meldBack] : names;
+    return meldBack ? names.concat([meldBack]) : names;
 }
 
 /** CR 709.4a — "an object has the chosen name if ONE of its names is the

@@ -82,7 +82,9 @@ export function restoreManaPaidOnUntap(
 ): void {
     const paid = card.manaPaidThisTap;
     if (!paid) return;
-    for (const [color, amount] of Object.entries(paid)) {
+    const entries2 = Object.entries(paid);
+    for (let i = 0; i < entries2.length; i++) {
+        const [color, amount] = entries2[i];
         if (color === "X" || typeof amount !== "number" || amount <= 0)
             continue;
         const key = color as keyof typeof player.manaPool;
@@ -174,7 +176,9 @@ export function refundChosenManaOutput(
     // banked the mana in the parallel pool even without a restriction, so the
     // reversal must look for it there or the refund silently untaps for free.
     const tagged = restriction !== undefined || hasAnyManaRider(riders);
-    for (const [color, amount] of Object.entries(refund)) {
+    const entries2 = Object.entries(refund);
+    for (let i = 0; i < entries2.length; i++) {
+        const [color, amount] = entries2[i];
         if (color !== "X" && typeof amount === "number" && amount > 0) {
             if (tagged) {
                 reverseRestrictedManaFromPool(
@@ -246,7 +250,9 @@ export function refundTapBonusMana(
     card: CardInstanceState
 ): void {
     if (!card.tapBonusMana) return;
-    for (const [color, amount] of Object.entries(card.tapBonusMana)) {
+    const entries2 = Object.entries(card.tapBonusMana);
+    for (let i = 0; i < entries2.length; i++) {
+        const [color, amount] = entries2[i];
         if (color !== "X" && typeof amount === "number" && amount > 0) {
             player.manaPool[color] = Math.max(
                 0,
@@ -319,7 +325,9 @@ export function rollbackPendingCast(state: GameState): void {
     // there's nothing to refund — just untap and drop the queued tap event.
     // `manaCost` itself is discarded below with the whole pendingCast, so the
     // generic reduction it carried needs no separate restoration.
-    for (const cardId of state.pendingCast.improviseTappedArtifactIds ?? []) {
+    const cardIdList = state.pendingCast.improviseTappedArtifactIds ?? [];
+    for (let i = 0; i < cardIdList.length; i++) {
+        const cardId = cardIdList[i];
         discardPermanentTappedEvent(state, cardId);
         const card = player.battlefield.find((c) => c.id === cardId);
         if (!card) continue;
@@ -336,7 +344,8 @@ function reversePaymentTaps(
     player: PlayerState,
     cardIds: readonly string[]
 ): void {
-    for (const cardId of cardIds) {
+    for (let i = 0; i < cardIds.length; i++) {
+        const cardId = cardIds[i];
         discardPermanentTappedEvent(state, cardId);
         const card = player.battlefield.find((c) => c.id === cardId);
         if (!card) continue;
@@ -378,7 +387,9 @@ export function rollbackPendingActivation(state: GameState): void {
     const pa = state.pendingActivation;
     if (!pa) return;
     const player = getPlayer(state, pa.playerId);
-    for (const cardId of pa.tappedLandIds) {
+    const cardIdList = pa.tappedLandIds;
+    for (let i = 0; i < cardIdList.length; i++) {
+        const cardId = cardIdList[i];
         const card = player.battlefield.find((c) => c.id === cardId);
         if (!card) continue;
         untapSourceFromPayment(state, player, card);

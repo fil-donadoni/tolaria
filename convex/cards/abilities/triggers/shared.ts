@@ -97,7 +97,9 @@ export function resolvePhaseScope(
     }
     // host-controller (CR 303.4b — Aura trigger keyed on enchanted permanent).
     if (!self.attachedTo) return null;
-    for (const p of state?.players ?? []) {
+    const pList = state?.players ?? [];
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
         const host = p.battlefield.find((c) => c.id === self.attachedTo);
         if (host) {
             return host.controllerId === event.activePlayerId
@@ -277,7 +279,9 @@ export function enteringEffectivePower(
 ): number | undefined {
     if (event.power !== undefined) return event.power;
     if (!state) return undefined;
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         const entered = player.battlefield.find(
             (c) => c.id === event.instanceId
         );
@@ -294,8 +298,12 @@ export function findPermanentInView(
     instanceId: string
 ): MatchablePermanent | null {
     if (!state) return null;
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (card.id === instanceId) {
                 return {
                     id: card.id,
@@ -316,7 +324,9 @@ export function findPlayerInView(
     playerId: string
 ): MatchablePlayer | null {
     if (!state) return null;
-    for (const player of state.players) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
         if (player.id === playerId) {
             return { id: player.id, life: player.life };
         }

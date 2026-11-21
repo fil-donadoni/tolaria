@@ -133,8 +133,8 @@ export function costVictimTypeFields(card: CardInstanceState): {
 } {
     const supertypes = liveSupertypesOf(card);
     return {
-        types: [...card.types],
-        ...(supertypes.length > 0 ? { supertypes: [...supertypes] } : {}),
+        types: card.types.slice(),
+        ...(supertypes.length > 0 ? { supertypes: supertypes.slice() } : {}),
     };
 }
 
@@ -253,7 +253,7 @@ export function tapPaymentSpokenForIds(
         req?.action === "tap"
             ? requirementCandidates(state, sel.playerId, req).map((c) => c.id)
             : [];
-    return [...tapPaymentPickIds(sel), ...outstanding];
+    return tapPaymentPickIds(sel).concat(outstanding);
 }
 
 /** CR 601.2g / 111.10a — what an automatic mana plan must never SACRIFICE while
@@ -269,7 +269,7 @@ export function costPickSpokenForIds(
     const outstanding = req
         ? requirementCandidates(state, sel.playerId, req).map((c) => c.id)
         : [];
-    return [...sel.picked, ...outstanding];
+    return sel.picked.concat(outstanding);
 }
 
 /** The first requirement whose picked-count is below its `count`. Picks are
@@ -278,7 +278,9 @@ export function nextUnmetRequirement(
     sel: SacrificeSelection
 ): SacrificeRequirement | undefined {
     let remaining = sel.picked.length;
-    for (const req of sel.requirements) {
+    const reqList = sel.requirements;
+    for (let i = 0; i < reqList.length; i++) {
+        const req = reqList[i];
         if (remaining < req.count) return req;
         remaining -= req.count;
     }
@@ -292,8 +294,12 @@ function counterCount(c: CardInstanceState): number {
 }
 
 function hasAttachments(state: GameState, c: CardInstanceState): boolean {
-    for (const p of state.players) {
-        for (const other of p.battlefield) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
+        const otherList = p.battlefield;
+        for (let j = 0; j < otherList.length; j++) {
+            const other = otherList[j];
             if (other.attachedTo === c.id) return true;
         }
     }
@@ -321,8 +327,10 @@ function countPicksFor(
     sel: SacrificeSelection,
     target: SacrificeRequirement
 ): number {
-    let remaining = [...sel.picked];
-    for (const req of sel.requirements) {
+    let remaining = sel.picked.slice();
+    const reqList = sel.requirements;
+    for (let i = 0; i < reqList.length; i++) {
+        const req = reqList[i];
         const take = Math.min(req.count, remaining.length);
         const forThis = remaining.slice(0, take);
         remaining = remaining.slice(take);
@@ -342,7 +350,9 @@ export function autoResolveFungible(
     sel: SacrificeSelection
 ): void {
     const used = new Set(sel.picked);
-    for (const req of sel.requirements) {
+    const reqList = sel.requirements;
+    for (let i = 0; i < reqList.length; i++) {
+        const req = reqList[i];
         // Every stop below is a `break`, never a `continue`: picks are allocated
         // to requirements GREEDILY IN ORDER (`countPicksFor`), so pre-filling a
         // LATER requirement while this one still owes picks would charge those
@@ -362,7 +372,9 @@ export function autoResolveFungible(
             new Set(cands.map((c) => identityKey(state, c))).size === 1;
         // A real choice remains: leave it, and all that follows, for the client.
         if (!forced && !fungible) break;
-        for (const c of cands.slice(0, need)) {
+        const cList = cands.slice(0, need);
+        for (let j = 0; j < cList.length; j++) {
+            const c = cList[j];
             sel.picked.push(c.id);
             used.add(c.id);
         }
@@ -379,9 +391,12 @@ export function canAffordSacrifice(
     requirements: SacrificeRequirement[]
 ): boolean {
     const reserved = new Set<string>();
-    for (const req of requirements) {
+    for (let i = 0; i < requirements.length; i++) {
+        const req = requirements[i];
         let need = req.count;
-        for (const c of requirementCandidates(state, playerId, req)) {
+        const cList = requirementCandidates(state, playerId, req);
+        for (let j = 0; j < cList.length; j++) {
+            const c = cList[j];
             if (need <= 0) break;
             if (reserved.has(c.id)) continue;
             reserved.add(c.id);
@@ -431,8 +446,10 @@ function pickRequirements(
     sel: SacrificeSelection
 ): Map<string, SacrificeRequirement> {
     const owner = new Map<string, SacrificeRequirement>();
-    let remaining = [...sel.picked];
-    for (const req of sel.requirements) {
+    let remaining = sel.picked.slice();
+    const reqList = sel.requirements;
+    for (let j = 0; j < reqList.length; j++) {
+        const req = reqList[j];
         const take = Math.min(req.count, remaining.length);
         for (let i = 0; i < take; i++) owner.set(remaining[i], req);
         remaining = remaining.slice(take);
@@ -450,7 +467,7 @@ function victimCharacteristics(
 ): Omit<SacrificeResult, "id" | "snapshot"> {
     const subtypes =
         victim.subtypes && victim.subtypes.length > 0
-            ? [...victim.subtypes]
+            ? victim.subtypes.slice()
             : undefined;
     const isCreature = victim.types.includes("Creature");
     const { power, toughness } = isCreature
@@ -521,7 +538,9 @@ function applyPicks(
 ): SacrificeResult[] {
     const results: SacrificeResult[] = [];
     const owners = pickRequirements(sel);
-    for (const id of sel.picked) {
+    const idList = sel.picked;
+    for (let i = 0; i < idList.length; i++) {
+        const id = idList[i];
         const player: PlayerState = getPlayer(state, sel.playerId);
         const victim = player.battlefield.find((c) => c.id === id);
         if (!victim) continue; // CR 608.2b — already gone

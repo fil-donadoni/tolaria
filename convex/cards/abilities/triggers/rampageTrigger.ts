@@ -41,7 +41,9 @@ export function firstBlockerOf(
 ): string | undefined {
     const assignments = state?.combat?.blockerAssignments;
     if (!assignments) return undefined;
-    for (const [blockerId, attackerIds] of Object.entries(assignments)) {
+    const entries2 = Object.entries(assignments);
+    for (let i = 0; i < entries2.length; i++) {
+        const [blockerId, attackerIds] = entries2[i];
         if (attackerIds.includes(attackerId)) return blockerId;
     }
     return undefined;
@@ -84,8 +86,14 @@ export function rampageTrigger(n: number): TriggeredAbility {
             // blockers still on the battlefield: a blocker destroyed before this
             // resolves no longer counts.
             const live = new Set<string>();
-            for (const pid of ctx.allPlayerIds) {
-                for (const id of ctx.getBattlefieldIds(pid)) live.add(id);
+            const pidList = ctx.allPlayerIds;
+            for (let i = 0; i < pidList.length; i++) {
+                const pid = pidList[i];
+                const idList = ctx.getBattlefieldIds(pid);
+                for (let j = 0; j < idList.length; j++) {
+                    const id = idList[j];
+                    live.add(id);
+                }
             }
             const blockers = (
                 ctx.getBlockersByAttacker()[attackerId] ?? []

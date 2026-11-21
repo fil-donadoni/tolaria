@@ -118,12 +118,15 @@ export function parseVerdictPack(
     });
 
     const named = new Set(lock.verdictIds);
-    for (const { verdictId } of entries) {
+    for (let j = 0; j < entries.length; j++) {
+        const { verdictId } = entries[j];
         if (!named.has(verdictId)) {
             bad(`carries ${verdictId}, which the lock does not name`);
         }
     }
-    for (const id of lock.verdictIds) {
+    const idList = lock.verdictIds;
+    for (let j = 0; j < idList.length; j++) {
+        const id = idList[j];
         if (!seen.has(id)) bad(`lacks ${id}, which the lock names`);
     }
     return entries;

@@ -83,7 +83,9 @@ export function parsePromotionStreakLedger(
         bad(`"streaks" must be an object`);
     }
     const out: Record<string, number> = {};
-    for (const [id, count] of Object.entries(streaks)) {
+    const entries2 = Object.entries(streaks);
+    for (let i = 0; i < entries2.length; i++) {
+        const [id, count] = entries2[i];
         if (!VERDICT_HASH_PATTERN.test(id)) {
             bad(`"streaks" names ${JSON.stringify(id)}, not a verdict id`);
         }
@@ -146,7 +148,9 @@ export function advancePromotionStreaks(
 ): { ledger: PromotionStreakLedger; reset: string | null } {
     const before = streaksOverLock(ledger, prior);
     const streaks: Record<string, number> = {};
-    for (const id of next.verdictIds) {
+    const idList = next.verdictIds;
+    for (let i = 0; i < idList.length; i++) {
+        const id = idList[i];
         streaks[id] = unsatisfied.has(id)
             ? 0
             : (before.streaks.get(id) ?? 0) + 1;

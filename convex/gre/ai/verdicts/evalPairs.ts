@@ -316,7 +316,10 @@ export function resolveVerdictMoves(
 ): { moves: Move[] } | { error: string } {
     const enumerated = candidateMoves(state, botId);
     const byKey = new Map<string, Move>();
-    for (const move of enumerated) byKey.set(moveKey(move), move);
+    for (let i = 0; i < enumerated.length; i++) {
+        const move = enumerated[i];
+        byKey.set(moveKey(move), move);
+    }
 
     // The interchangeability collapse (issue #3593) means a candidate set no
     // longer holds every copy of a card: a verdict RECORDED BEFORE IT may name
@@ -328,7 +331,8 @@ export function resolveVerdictMoves(
     // which lands on the representative by construction.
     const collapseKeyOf = makeInterchangeableKeyer(state);
     const byCollapseKey = new Map<string, Move>();
-    for (const move of enumerated) {
+    for (let i = 0; i < enumerated.length; i++) {
+        const move = enumerated[i];
         const key = collapseKeyOf(move);
         if (!byCollapseKey.has(key)) byCollapseKey.set(key, move);
     }
@@ -338,7 +342,8 @@ export function resolveVerdictMoves(
             move.kind === "activate-ability" ? { ...move, tapPlan: [] } : move
         );
     const byPlanlessKey = new Map<string, Move>();
-    for (const move of enumerated) {
+    for (let i = 0; i < enumerated.length; i++) {
+        const move = enumerated[i];
         if (move.kind !== "activate-ability") continue;
         const key = planlessKey(move);
         if (!byPlanlessKey.has(key)) byPlanlessKey.set(key, move);
@@ -393,7 +398,9 @@ export function resolveVerdictMoves(
     };
 
     const moves: Move[] = [];
-    for (const candidate of verdict.candidates) {
+    const candidateList = verdict.candidates;
+    for (let i = 0; i < candidateList.length; i++) {
+        const candidate = candidateList[i];
         const move = resolveCandidate(candidate.key);
         if (!move) {
             return {

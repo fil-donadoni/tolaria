@@ -103,6 +103,7 @@ function unitOfMask(mask: ColorMask): ReadonlySet<Color> {
 
 function maskOfColors(colors: Iterable<Color>): ColorMask {
     let mask = 0;
+    // eslint-disable-next-line no-restricted-syntax -- an iterable (a Set or an array), not an array (issue #10126)
     for (const c of colors) mask |= COLOR_BIT[c] ?? 0;
     return mask;
 }
@@ -294,7 +295,9 @@ function producibleManaUnitsWithDebt(
     const optionDebts: number[] = [];
     const perOptionUnits: ColorMask[][] = detailed.map((opt) => {
         const units: ColorMask[] = [];
-        for (const c of MANA_COLORS) {
+        const cList = MANA_COLORS;
+        for (let j = 0; j < cList.length; j++) {
+            const c = cList[j];
             const amount = opt.mana[c] ?? 0;
             for (let i = 0; i < amount; i++) units.push(COLOR_BIT[c]);
         }
@@ -352,7 +355,10 @@ function producibleManaUnitsWithDebt(
     const best: ReadonlySet<Color>[] = [];
     for (let i = 0; i < maxLen; i++) {
         let mask = 0;
-        for (const units of perOptionUnits) mask |= units[i] ?? 0;
+        for (let j = 0; j < perOptionUnits.length; j++) {
+            const units = perOptionUnits[j];
+            mask |= units[i] ?? 0;
+        }
         best.push(unitOfMask(mask));
     }
     return { units: best, debt: Number.isFinite(debt) ? debt : 0 };
@@ -405,16 +411,24 @@ function netFundingDebts(
         .filter((seg) => seg.debt === 0)
         .flatMap((seg) => seg.rows.map((row) => ({ row, spent: false })));
     const out: ReadonlySet<Color>[] = [];
-    for (const seg of segments) {
+    for (let j = 0; j < segments.length; j++) {
+        const seg = segments[j];
         if (seg.debt === 0) continue;
         const free = funders
             .filter((f) => !f.spent)
             .sort((x, y) => x.row.size - y.row.size);
         if (free.length < seg.debt) continue;
         for (let i = 0; i < seg.debt; i++) free[i].spent = true;
-        for (const row of seg.rows) out.push(row);
+        const rowList = seg.rows;
+        for (let k = 0; k < rowList.length; k++) {
+            const row = rowList[k];
+            out.push(row);
+        }
     }
-    for (const f of funders) if (!f.spent) out.push(f.row);
+    for (let j = 0; j < funders.length; j++) {
+        const f = funders[j];
+        if (!f.spent) out.push(f.row);
+    }
     return out;
 }
 
@@ -482,7 +496,8 @@ export function boardManaCensus(
         ? scanManaBoard(opts.battlefields)
         : undefined;
     const tapBonuses = declaresTapManaBonus(battlefield);
-    for (const perm of battlefield) {
+    for (let j = 0; j < battlefield.length; j++) {
+        const perm = battlefield[j];
         const widen = converters?.get(perm.id);
         const widenMask = widen ? maskOfColors(widen) : 0;
         // CR 302.1 — a summoning-sick permanent can't pay {T}. It CAN still be
@@ -518,10 +533,16 @@ export function boardManaCensus(
                 row.push(unitOfMask(widenMask));
             }
         } else {
-            for (const unit of units) row.push(unit);
+            const unitList = units;
+            for (let k = 0; k < unitList.length; k++) {
+                const unit = unitList[k];
+                row.push(unit);
+            }
         }
         if (tapBonuses && units.length > 0) {
-            for (const unit of tapManaBonusUnits(battlefield, perm)) {
+            const unitList2 = tapManaBonusUnits(battlefield, perm);
+            for (let k = 0; k < unitList2.length; k++) {
+                const unit = unitList2[k];
                 row.push(unit);
             }
         }
@@ -556,7 +577,9 @@ export function boardManaUnits(
  *  single colour. */
 function poolUnits(player: PlayerState): ReadonlySet<Color>[] {
     const units: ReadonlySet<Color>[] = [];
-    for (const c of MANA_COLORS) {
+    const cList = MANA_COLORS;
+    for (let j = 0; j < cList.length; j++) {
+        const c = cList[j];
         const n = player.manaPool[c] ?? 0;
         for (let i = 0; i < n; i++) units.push(unitOfMask(COLOR_BIT[c]));
     }
@@ -566,7 +589,9 @@ function poolUnits(player: PlayerState): ReadonlySet<Color>[] {
     // it a bot that just attacked with a firebender reads its own four red as
     // zero. Genuinely restricted units stay out: their eligibility depends on
     // the cost being paid, which this census does not know.
-    for (const unit of unrestrictedFloatingMana(player)) {
+    const unitList = unrestrictedFloatingMana(player);
+    for (let j = 0; j < unitList.length; j++) {
+        const unit = unitList[j];
         if (!(MANA_COLORS as readonly string[]).includes(unit.color)) continue;
         for (let i = 0; i < unit.amount; i++) {
             units.push(unitOfMask(COLOR_BIT[unit.color as Color]));
@@ -620,7 +645,9 @@ export function manaCensusFor(
     player: PlayerState
 ): { now: ReadonlySet<Color>[]; base: ReadonlySet<Color>[] } {
     const census = boardCensusFor(state, player);
-    for (const unit of poolUnits(player)) {
+    const unitList = poolUnits(player);
+    for (let i = 0; i < unitList.length; i++) {
+        const unit = unitList[i];
         census.now.push(unit);
         census.base.push(unit);
     }
@@ -688,7 +715,9 @@ function pricedCost(
     const normalized = normalizeManaCost(cost);
     if (cost.phyrexian) {
         let lifeLeft = life;
-        for (const [color, count] of Object.entries(cost.phyrexian)) {
+        const entries2 = Object.entries(cost.phyrexian);
+        for (let j = 0; j < entries2.length; j++) {
+            const [color, count] = entries2[j];
             for (let i = 0; i < (count ?? 0); i++) {
                 if (lifeLeft >= 2) {
                     lifeLeft -= 2;
@@ -729,7 +758,11 @@ export function castCostTotal(
     if (!cost) return 0;
     const { normalized } = pricedCost(cost, cast.caster.life, cast);
     let total = 0;
-    for (const amount of Object.values(normalized)) total += amount;
+    const amountList = Object.values(normalized);
+    for (let i = 0; i < amountList.length; i++) {
+        const amount = amountList[i];
+        total += amount;
+    }
     return total;
 }
 
@@ -784,11 +817,15 @@ export function coversCostColors(
     if (!cost) return true;
     const { normalized, hybrid } = pricedCost(cost, opts.life ?? 0, opts.cast);
     if (cantSpendManaOn(opts.cast)) units = [];
-    for (const c of MANA_COLORS) {
+    const cList = MANA_COLORS;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
         if ((normalized[c] ?? 0) === 0) continue;
         if (!units.some((u) => u.has(c))) return false;
     }
-    for (const [c1, c2] of hybrid) {
+    const entries = hybrid;
+    for (let i = 0; i < entries.length; i++) {
+        const [c1, c2] = entries[i];
         if (!units.some((u) => u.has(c1) || u.has(c2))) return false;
     }
     return true;

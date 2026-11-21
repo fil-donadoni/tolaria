@@ -65,7 +65,9 @@ export function maxLoyaltySpend(def: {
     activatedAbilities?: readonly { cost: { loyalty?: number } }[];
 }): number {
     let maxSpend = 0;
-    for (const ability of def.activatedAbilities ?? []) {
+    const abilityList = def.activatedAbilities ?? [];
+    for (let i = 0; i < abilityList.length; i++) {
+        const ability = abilityList[i];
         const loyalty = ability.cost.loyalty;
         if (loyalty === undefined) continue;
         if (typeof loyalty !== "number" || !Number.isFinite(loyalty)) {

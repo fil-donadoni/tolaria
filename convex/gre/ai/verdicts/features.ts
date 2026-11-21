@@ -293,14 +293,16 @@ export function featuresOfSettled(
 ): FeatureVector {
     const breakdown = evaluateBreakdown(settled, botId, weights);
     const terms = {} as Record<keyof EvalTerms, number>;
-    for (const key of EVAL_TERM_KEYS) {
+    for (let i = 0; i < EVAL_TERM_KEYS.length; i++) {
+        const key = EVAL_TERM_KEYS[i];
         terms[key] = breakdown.self[key] - breakdown.opp[key];
     }
 
     const base = policyValueOfSettled(settled, botId, weights);
     const basis = {} as Record<FittableWeightKey, number>;
     let explained = 0;
-    for (const key of FITTABLE_WEIGHT_KEYS) {
+    for (let i = 0; i < FITTABLE_WEIGHT_KEYS.length; i++) {
+        const key = FITTABLE_WEIGHT_KEYS[i];
         const w = weightValue(weights, key);
         const h = stepFor(w);
         const bumped = policyValueOfSettled(
@@ -328,7 +330,10 @@ export function subtractBasis(
     b: Record<FittableWeightKey, number>
 ): Record<FittableWeightKey, number> {
     const out = {} as Record<FittableWeightKey, number>;
-    for (const key of FITTABLE_WEIGHT_KEYS) out[key] = a[key] - b[key];
+    for (let i = 0; i < FITTABLE_WEIGHT_KEYS.length; i++) {
+        const key = FITTABLE_WEIGHT_KEYS[i];
+        out[key] = a[key] - b[key];
+    }
     return out;
 }
 
@@ -338,7 +343,10 @@ export function subtractTerms(
     b: Record<keyof EvalTerms, number>
 ): Record<keyof EvalTerms, number> {
     const out = {} as Record<keyof EvalTerms, number>;
-    for (const key of EVAL_TERM_KEYS) out[key] = a[key] - b[key];
+    for (let i = 0; i < EVAL_TERM_KEYS.length; i++) {
+        const key = EVAL_TERM_KEYS[i];
+        out[key] = a[key] - b[key];
+    }
     return out;
 }
 
@@ -351,7 +359,9 @@ export function scoreBasis(
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): number {
     let total = 0;
-    for (const key of FITTABLE_WEIGHT_KEYS)
+    for (let i = 0; i < FITTABLE_WEIGHT_KEYS.length; i++) {
+        const key = FITTABLE_WEIGHT_KEYS[i];
         total += weightValue(weights, key) * basis[key];
+    }
     return total;
 }

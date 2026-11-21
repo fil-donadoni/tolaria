@@ -37,8 +37,12 @@ function applyPumpCombat(ctx: SpellContext, effect: PumpCombatEffect): void {
         effect.side === "attacking"
             ? { isAttacking: true }
             : { isBlocking: true };
-    for (const playerId of ctx.allPlayerIds) {
-        for (const id of ctx.getBattlefieldIds(playerId, filter)) {
+    const playerIdList = ctx.allPlayerIds;
+    for (let i = 0; i < playerIdList.length; i++) {
+        const playerId = playerIdList[i];
+        const idList = ctx.getBattlefieldIds(playerId, filter);
+        for (let j = 0; j < idList.length; j++) {
+            const id = idList[j];
             ctx.addTemporaryPTBuff(
                 { type: "permanent", id },
                 effect.power,

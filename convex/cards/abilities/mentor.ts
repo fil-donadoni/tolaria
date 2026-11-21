@@ -66,6 +66,6 @@ export function expandMentor(def: CardDefinition): CardDefinition {
     if (existing.some((t) => t.id === MENTOR_TRIGGER_ID)) return def;
     return {
         ...def,
-        triggeredAbilities: [...existing, ...instances.map(mentorTrigger)],
+        triggeredAbilities: existing.concat(instances.map(mentorTrigger)),
     };
 }

@@ -240,14 +240,18 @@ export const MAX_CHOSEN_NUMBER = 999;
 export function manaValue(cost?: ManaCost): number {
     if (!cost) return 0;
     let total = 0;
-    for (const key of ["X", "W", "U", "B", "R", "G", "C", "generic"] as const) {
+    const keyList = ["X", "W", "U", "B", "R", "G", "C", "generic"] as const;
+    for (let j = 0; j < keyList.length; j++) {
+        const key = keyList[j];
         const v = cost[key];
         if (typeof v === "number") total += v;
     }
     // CR 202.3f — each Phyrexian pip `{C/P}` is valued as its colour without the
     // `/P` (i.e. 1), so Dismember `{1}{B/P}{B/P}` has mana value 3.
     if (cost.phyrexian) {
-        for (const n of Object.values(cost.phyrexian)) {
+        const nList = Object.values(cost.phyrexian);
+        for (let j = 0; j < nList.length; j++) {
+            const n = nList[j];
             if (typeof n === "number") total += n;
         }
     }
@@ -256,8 +260,11 @@ export function manaValue(cost?: ManaCost): number {
     if (cost.hybrid) total += cost.hybrid.length;
     // CR 202.3f — a monocolour hybrid pip `{2/W}` is valued at the LARGER of its
     // halves (2), unlike a guild-hybrid pip; `{W/U}`-style pips above stay 1.
-    for (const pip of cost.hybridGeneric ?? [])
+    const pipList = cost.hybridGeneric ?? [];
+    for (let j = 0; j < pipList.length; j++) {
+        const pip = pipList[j];
         total += Math.max(pip.generic, 1);
+    }
     return total;
 }
 
@@ -301,7 +308,9 @@ export function stackManaValue(
  *  `hybridCostKey` so `{B/G}{B/G}` and `{G/B}{B/G}` (two spellings of the
  *  same pair) compare equal. */
 export function manaCostsEqual(a: ManaCost, b: ManaCost): boolean {
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         if ((a[color] ?? 0) !== (b[color] ?? 0)) return false;
     }
     const aVariable = a.X === "X";
@@ -321,7 +330,9 @@ export function manaCostsEqual(a: ManaCost, b: ManaCost): boolean {
         // CR 107.3 — {X}{X}-style multiplier; defaults to 1 ({X} alone).
         if ((a.xFactor ?? 1) !== (b.xFactor ?? 1)) return false;
     }
-    for (const color of MANA_COLORS) {
+    const colorList2 = MANA_COLORS;
+    for (let i = 0; i < colorList2.length; i++) {
+        const color = colorList2[i];
         if ((a.phyrexian?.[color] ?? 0) !== (b.phyrexian?.[color] ?? 0)) {
             return false;
         }
@@ -340,7 +351,9 @@ function hybridPipsEqual(
 ): boolean {
     const countsOf = (pips: Array<[Color, Color]> | undefined) => {
         const counts = new Map<string, number>();
-        for (const [x, y] of pips ?? []) {
+        const entries = pips ?? [];
+        for (let i = 0; i < entries.length; i++) {
+            const [x, y] = entries[i];
             const key = hybridCostKey(x, y);
             counts.set(key, (counts.get(key) ?? 0) + 1);
         }
@@ -349,6 +362,7 @@ function hybridPipsEqual(
     const aCounts = countsOf(a);
     const bCounts = countsOf(b);
     if (aCounts.size !== bCounts.size) return false;
+    // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
     for (const [key, count] of aCounts) {
         if (bCounts.get(key) !== count) return false;
     }
@@ -364,7 +378,9 @@ function hybridPipsEqual(
 export function getBasicLandManaColors(card: CardInstanceState): Color[] {
     const { subtypes } = applySubstitution(card);
     const colors: Color[] = [];
-    for (const subtype of subtypes ?? []) {
+    const subtypeList = subtypes ?? [];
+    for (let i = 0; i < subtypeList.length; i++) {
+        const subtype = subtypeList[i];
         const color = LAND_SUBTYPE_MANA[subtype];
         if (color && !colors.includes(color)) colors.push(color);
     }
@@ -496,10 +512,9 @@ export function applyLandTypeReplacement(
     currentSubtypes: readonly string[],
     newLandTypes: readonly string[]
 ): string[] {
-    return [
-        ...currentSubtypes.filter((s) => !LAND_TYPES.has(s)),
-        ...newLandTypes,
-    ];
+    return currentSubtypes
+        .filter((s) => !LAND_TYPES.has(s))
+        .concat(newLandTypes);
 }
 
 /** CR 205.1a (issue #3809) — "when an effect sets one or more of an object's
@@ -515,10 +530,9 @@ export function applyCreatureTypeReplacement(
     currentSubtypes: readonly string[],
     newCreatureTypes: readonly string[]
 ): string[] {
-    return [
-        ...currentSubtypes.filter((s) => !CREATURE_SUBTYPES.has(s)),
-        ...newCreatureTypes,
-    ];
+    return currentSubtypes
+        .filter((s) => !CREATURE_SUBTYPES.has(s))
+        .concat(newCreatureTypes);
 }
 
 /** CR 205.1a — the artifact-type twin of {@link applyCreatureTypeReplacement}:
@@ -531,10 +545,9 @@ export function applyArtifactTypeReplacement(
     currentSubtypes: readonly string[],
     newArtifactTypes: readonly string[]
 ): string[] {
-    return [
-        ...currentSubtypes.filter((s) => !ARTIFACT_SUBTYPES.has(s)),
-        ...newArtifactTypes,
-    ];
+    return currentSubtypes
+        .filter((s) => !ARTIFACT_SUBTYPES.has(s))
+        .concat(newArtifactTypes);
 }
 
 /** CR 205.3j — the planeswalker types. Here rather than beside the other tables
@@ -1011,7 +1024,9 @@ function withEffectivePT(
  *  `mana[color]` sees 0 rather than a missing key. */
 function scaleManaUnit(unit: ManaCost, count: number): ManaCost {
     const scaled: ManaCost = {};
-    for (const c of MANA_COLORS) {
+    const cList = MANA_COLORS;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
         const per = unit[c];
         if (per !== undefined) scaled[c] = per * count;
     }
@@ -1175,7 +1190,9 @@ function producibleColorsFromAbilities(
 ): Set<Color> {
     const colors = new Set<Color>();
     const counts = (c: Color) => includeColorless || c !== "C";
-    for (const ability of abilities ?? []) {
+    const abilityList = abilities ?? [];
+    for (let i = 0; i < abilityList.length; i++) {
+        const ability = abilityList[i];
         if (ability.useStack) continue;
         if (ability.manaProduced) {
             // CR 106.7 — "could produce" is what the ability WOULD add if it
@@ -1184,7 +1201,9 @@ function producibleColorsFromAbilities(
             // the printed unit stands in.
             const output =
                 resolveDynamicAmount?.(ability) ?? ability.manaProduced;
-            for (const c of MANA_COLORS) {
+            const cList = MANA_COLORS;
+            for (let j = 0; j < cList.length; j++) {
+                const c = cList[j];
                 if (counts(c) && (output[c] ?? 0) > 0) colors.add(c);
             }
         }
@@ -1213,14 +1232,19 @@ function producibleColorsFromAbilities(
                 // CR 106.7 — a nested `"producesType"` descriptor (a
                 // Reflecting Pool read by a Fellwar Stone) can yield {C};
                 // a colour read still drops it (CR 106.1a).
+                // eslint-disable-next-line no-restricted-syntax -- an iterable or generator, not an array (issue #10126)
                 for (const c of resolveManaColorSource(ability.manaColorSource))
                     if (counts(c)) colors.add(c);
             }
             continue;
         }
         if (ability.manaChoices) {
-            for (const choice of ability.manaChoices) {
-                for (const c of MANA_COLORS) {
+            const choiceList = ability.manaChoices;
+            for (let j = 0; j < choiceList.length; j++) {
+                const choice = choiceList[j];
+                const cList2 = MANA_COLORS;
+                for (let k = 0; k < cList2.length; k++) {
+                    const c = cList2[k];
                     if (counts(c) && (choice[c] ?? 0) > 0) colors.add(c);
                 }
             }
@@ -1251,12 +1275,15 @@ export function getDefinitionProducibleColors(
     const colors = new Set<Color>();
     // CR 305.6 — intrinsic basic-land subtype abilities, definition subtypes
     // (no text-change substitution — that's an instance-only rewrite).
-    for (const subtype of cardDef.subtypes ?? []) {
+    const subtypeList = cardDef.subtypes ?? [];
+    for (let i = 0; i < subtypeList.length; i++) {
+        const subtype = subtypeList[i];
         const color = LAND_SUBTYPE_MANA[subtype];
         if (color && color !== "C") colors.add(color);
     }
-    for (const c of producibleColorsFromAbilities(cardDef.activatedAbilities))
+    producibleColorsFromAbilities(cardDef.activatedAbilities).forEach((c) => {
         colors.add(c);
+    });
     return colors;
 }
 
@@ -1295,10 +1322,12 @@ export function getProducibleColors(
     // CR 305.6 — intrinsic basic-land subtype abilities, one per basic land
     // type (text-change aware). Every type, never the first only (issue
     // #5623): a Badlands could produce {B} AND {R} (CR 106.7).
-    for (const intrinsic of getBasicLandManaColors(card)) {
+    const intrinsicList = getBasicLandManaColors(card);
+    for (let i = 0; i < intrinsicList.length; i++) {
+        const intrinsic = intrinsicList[i];
         if (includeColorless || intrinsic !== "C") colors.add(intrinsic);
     }
-    for (const c of producibleColorsFromAbilities(
+    producibleColorsFromAbilities(
         // CR 113.6m — a hand-source mana ability is not one the permanent has.
         getEffectiveActivatedAbilities(card)
             .map(({ ability }) => ability)
@@ -1306,8 +1335,9 @@ export function getProducibleColors(
         resolveManaColorSource,
         includeColorless,
         resolveDynamicAmount
-    ))
+    ).forEach((c) => {
         colors.add(c);
+    });
     return colors;
 }
 
@@ -1391,8 +1421,14 @@ export function getProducibleColorsOnBoard(
     // result the other orderings reach, read below with `fixedOnly`.
     const chosen =
         printed.size > 0 && landManaColorIsChosen(battlefields, card);
-    if (chosen) for (const c of COLORED_MANA_COLORS) out.add(c);
-    for (const color of printed) {
+    if (chosen) {
+        const cList = COLORED_MANA_COLORS;
+        for (let i = 0; i < cList.length; i++) {
+            const c = cList[i];
+            out.add(c);
+        }
+    }
+    printed.forEach((color) => {
         const replaced = replaceLandManaType(
             replacements,
             battlefields,
@@ -1401,11 +1437,13 @@ export function getProducibleColorsOnBoard(
             { [color]: 1 },
             chosen
         );
-        for (const c of MANA_COLORS) {
+        const cList = MANA_COLORS;
+        for (let i = 0; i < cList.length; i++) {
+            const c = cList[i];
             if ((replaced[c] ?? 0) > 0 && (includeColorless || c !== "C"))
                 out.add(c);
         }
-    }
+    });
     return out;
 }
 
@@ -1490,17 +1528,22 @@ function boardDerivedManaColors(
     // offered.
     if (source.colors === "chosen-color") return new Set(chosenColorOf(self));
     const colors = new Set<Color>();
-    for (const permanent of boardPermanentsMatching(
+    const permanentList = boardPermanentsMatching(
         source.filter,
         self,
         controllerId,
         battlefields
-    )) {
+    );
+    for (let i = 0; i < permanentList.length; i++) {
+        const permanent = permanentList[i];
         if (source.colors === "isColor") {
             // CR 105.3 / 613.1e — the permanent's LIVE colours, the same read
             // a `colors` clause of the filter matched against.
-            for (const c of STATIC_EFFECT_CTX.getColors(permanent))
+            const cList = STATIC_EFFECT_CTX.getColors(permanent);
+            for (let j = 0; j < cList.length; j++) {
+                const c = cList[j];
                 colors.add(c);
+            }
             continue;
         }
         // CR 106.4 (issue #1941) — DESCRIPTOR-aware: a contributing
@@ -1510,13 +1553,14 @@ function boardDerivedManaColors(
         // no-board `manaChoices` fallback, which would make every such
         // permanent a phantom WUBRG source. CR 106.7 — `"producesType"`
         // reads every TYPE the permanent could produce, {C} included.
-        for (const c of getProducibleColorsOnBoard(
+        getProducibleColorsOnBoard(
             permanent,
             battlefields,
             depth,
             source.colors === "producesType"
-        ))
+        ).forEach((c) => {
             colors.add(c);
+        });
     }
     return colors;
 }
@@ -1552,8 +1596,11 @@ function boardPermanentsMatching(
         supertypesOf: liveSupertypesOf,
     };
     const matched: CardInstanceState[] = [];
-    for (const { battlefield } of battlefields) {
-        for (const permanent of battlefield) {
+    for (let i = 0; i < battlefields.length; i++) {
+        const { battlefield } = battlefields[i];
+        const permanentList = battlefield;
+        for (let j = 0; j < permanentList.length; j++) {
+            const permanent = permanentList[j];
             let liveColors: readonly Color[] | undefined;
             let pt: PermanentView | undefined;
             const view: MatchablePermanent = {
@@ -1973,7 +2020,9 @@ const HAND_DISCARD_MANA_COST_LEGS: ReadonlySet<string> = new Set([
 export function isHandDiscardManaCost(cost: ActivatedAbility["cost"]): boolean {
     if (cost.sacrifice !== true) return false;
     if ((cost.discardAtRandom ?? 0) < DISCARD_HAND_COUNT) return false;
-    for (const [leg, value] of Object.entries(cost)) {
+    const entries2 = Object.entries(cost);
+    for (let i = 0; i < entries2.length; i++) {
+        const [leg, value] = entries2[i];
         if (value === undefined || value === false) continue;
         if (!HAND_DISCARD_MANA_COST_LEGS.has(leg)) return false;
     }
@@ -2165,7 +2214,8 @@ export function mayHaveNonTapManaAbility(card: CardInstanceState): boolean {
     if (!cardId) return false;
     const printed = tryGetDefinition(cardId)?.activatedAbilities;
     if (!printed) return false;
-    for (const ability of printed) {
+    for (let i = 0; i < printed.length; i++) {
+        const ability = printed[i];
         // CR 605.1a — a {T} + tap-other cost (Springleaf Drum) is no plain
         // tap either: it rides the converter model too (`manaConverters.ts`).
         if (
@@ -2195,7 +2245,8 @@ export function mayBeSacrificedForMana(card: CardInstanceState): boolean {
     if (!cardId) return false;
     const printed = tryGetDefinition(cardId)?.activatedAbilities;
     if (!printed) return false;
-    for (const ability of printed) {
+    for (let i = 0; i < printed.length; i++) {
+        const ability = printed[i];
         if (!ability.useStack && ability.cost.sacrifice) return true;
         // CR 701.21 (the depletion lands) — a CONDITIONAL self-sacrifice is
         // still a way for a permanent to leave the battlefield by being tapped
@@ -2230,7 +2281,8 @@ export function mayRemoveCountersForMana(card: CardInstanceState): boolean {
     if (!cardId) return false;
     const printed = tryGetDefinition(cardId)?.activatedAbilities;
     if (!printed) return false;
-    for (const ability of printed) {
+    for (let i = 0; i < printed.length; i++) {
+        const ability = printed[i];
         if (ability.useStack) continue;
         if (ability.cost.removeCounter) return true;
         if (ability.manaChoiceRemovesCounters) return true;
@@ -2275,7 +2327,9 @@ export function manaTapCounterCost(
     const scaling = getManaChoiceCounterCost(card, opt.source);
     if (scaling) return { type: scaling.counterType, count: scaling.count };
     const abilityId = opt.source.abilityId;
-    for (const { ability } of getEffectiveActivatedAbilities(card)) {
+    const entries = getEffectiveActivatedAbilities(card);
+    for (let i = 0; i < entries.length; i++) {
+        const { ability } = entries[i];
         if (ability.id !== abilityId) continue;
         return ability.cost.removeCounter ?? null;
     }
@@ -2302,7 +2356,8 @@ export function mayExertForMana(card: CardInstanceState): boolean {
     if (!cardId) return false;
     const printed = tryGetDefinition(cardId)?.activatedAbilities;
     if (!printed) return false;
-    for (const ability of printed) {
+    for (let i = 0; i < printed.length; i++) {
+        const ability = printed[i];
         if (!ability.useStack && ability.cost.exertThis) return true;
     }
     return false;
@@ -2329,7 +2384,8 @@ export function mayHaveCostedManaTapOption(card: CardInstanceState): boolean {
     if (!cardId) return false;
     const printed = tryGetDefinition(cardId)?.activatedAbilities;
     if (!printed) return false;
-    for (const ability of printed) {
+    for (let i = 0; i < printed.length; i++) {
+        const ability = printed[i];
         if (ability.useStack || !ability.cost.tap) continue;
         if (ability.cost.exertThis || ability.cost.mana) return true;
     }
@@ -2427,7 +2483,9 @@ export function finiteManaUsesRemaining(card: CardInstanceState): number {
     if (abilitiesSuppressed(card)) return 0;
     if (!mayRemoveCountersForMana(card)) return 0;
     let uses = 0;
-    for (const { ability } of getEffectiveActivatedAbilities(card)) {
+    const entries = getEffectiveActivatedAbilities(card);
+    for (let i = 0; i < entries.length; i++) {
+        const { ability } = entries[i];
         const leg = finiteManaCounterLeg(ability);
         if (!leg) continue;
         const held = card.counters?.[leg.type] ?? 0;
@@ -2468,7 +2526,9 @@ export function manaTapSpendsFiniteUse(
     );
     const opt = detailed[manaChoiceIndex ?? 0];
     if (!opt || opt.source.kind !== "activated") return false;
-    for (const { ability } of getEffectiveActivatedAbilities(card)) {
+    const entries = getEffectiveActivatedAbilities(card);
+    for (let i = 0; i < entries.length; i++) {
+        const { ability } = entries[i];
         if (ability.id !== opt.source.abilityId) continue;
         return finiteManaCounterLeg(ability) !== null;
     }
@@ -2578,7 +2638,9 @@ export function getManaTapOptionsDetailed(
     // entry. `def` is still consulted for its EXISTENCE (a slim client
     // instance with no definition exposes no activated options).
     if (def && !abilitiesSuppressed(card)) {
-        for (const { ability } of getEffectiveActivatedAbilities(card)) {
+        const entries2 = getEffectiveActivatedAbilities(card);
+        for (let i = 0; i < entries2.length; i++) {
+            const { ability } = entries2[i];
             if (ability.useStack) continue;
             // CR 605.1a — a {T} + tap-other cost is no tap option: the tap
             // mutations would tap the source and nothing else. It is paid by
@@ -2797,7 +2859,9 @@ export function getManaTapOptionsDetailed(
     // non-destructive alternative. `?? []` tolerates a slim client
     // `CardInstance` whose `subtypes` may be absent; the server always has it.
     const { subtypes } = applySubstitution(card);
-    for (const subtype of subtypes ?? []) {
+    const subtypeList = subtypes ?? [];
+    for (let i = 0; i < subtypeList.length; i++) {
+        const subtype = subtypeList[i];
         const color = LAND_SUBTYPE_MANA[subtype];
         if (color) {
             nonSacrifice.push({
@@ -2852,7 +2916,8 @@ export function getManaTapOptionsDetailed(
     // match the manual list's primary options.
     const reached = new Set(substituted.map((o) => manaCostKey(o.mana)));
     const extras: ManaTapOption[] = [];
-    for (const option of out) {
+    for (let i = 0; i < out.length; i++) {
+        const option = out[i];
         const mana = replaceLandManaType(
             replacements,
             substitutionBoard ?? [],
@@ -2866,7 +2931,7 @@ export function getManaTapOptionsDetailed(
         reached.add(key);
         extras.push({ ...option, mana });
     }
-    return [...substituted, ...extras];
+    return substituted.concat(extras);
 }
 
 /** CR 614 — "it produces mana of a color of your choice instead of any other
@@ -2880,13 +2945,16 @@ function expandToChosenColors(
     options: readonly ManaTapOption[]
 ): ManaTapOption[] {
     const out: ManaTapOption[] = [];
-    for (const option of options) {
+    for (let i = 0; i < options.length; i++) {
+        const option = options[i];
         const total = totalManaCount(option.mana);
         if (total === 0) {
             out.push(option);
             continue;
         }
-        for (const color of COLORED_MANA_COLORS) {
+        const colorList = COLORED_MANA_COLORS;
+        for (let j = 0; j < colorList.length; j++) {
+            const color = colorList[j];
             out.push({ ...option, mana: { [color]: total } as ManaCost });
         }
     }
@@ -2930,7 +2998,9 @@ function substituteTapOptionMana(
 /** Whether two produced costs are the same mana — `manaCostKey` equality
  *  without building either key. */
 function sameProducedMana(a: ManaCost, b: ManaCost): boolean {
-    for (const c of MANA_COLORS) {
+    const cList = MANA_COLORS;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
         if ((a[c] ?? 0) !== (b[c] ?? 0)) return false;
     }
     return true;
@@ -2947,7 +3017,8 @@ function dedupByProducedMana(
 ): ManaTapOption[] {
     const out: ManaTapOption[] = [];
     if (options.length <= DEDUP_SCAN_LIMIT) {
-        for (const opt of options) {
+        for (let j = 0; j < options.length; j++) {
+            const opt = options[j];
             if (!out.some((kept) => sameProducedMana(kept.mana, opt.mana))) {
                 out.push(opt);
             }
@@ -2955,7 +3026,8 @@ function dedupByProducedMana(
         return out;
     }
     const seen = new Set<string>();
-    for (const opt of options) {
+    for (let i = 0; i < options.length; i++) {
+        const opt = options[i];
         const key = manaCostKey(opt.mana);
         if (seen.has(key)) continue;
         seen.add(key);
@@ -3009,7 +3081,11 @@ export function getManaTapOptions(
 /** Total mana count across all colours in a `ManaCost` (ignoring `X`). */
 export function totalManaCount(produced: ManaCost): number {
     let total = 0;
-    for (const c of MANA_COLORS) total += produced[c] ?? 0;
+    const cList = MANA_COLORS;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
+        total += produced[c] ?? 0;
+    }
     return total;
 }
 
@@ -3059,15 +3135,20 @@ function getContinuousLandManaOverride(
     card: CardInstanceState
 ): Color | null {
     if (!isLand(card)) return null;
-    for (const player of battlefields) {
-        for (const source of player.battlefield) {
+    for (let i = 0; i < battlefields.length; i++) {
+        const player = battlefields[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const sub = liveStaticDefinition(source)?.landManaSubstitution;
             if (!sub) continue;
             if ("color" in sub) return sub.color;
             // A chosen-colour shape fixes no colour: it is read by
             // `landManaColorIsChosen`, never here.
             if ("chosenColor" in sub || "collapseMultiMana" in sub) continue;
-            for (const subtype of card.subtypes) {
+            const subtypeList = card.subtypes;
+            for (let k = 0; k < subtypeList.length; k++) {
+                const subtype = subtypeList[k];
                 const mapped = sub.byBasicSubtype[subtype];
                 if (mapped) return mapped;
             }
@@ -3082,8 +3163,11 @@ function getContinuousLandManaOverride(
 function collapseMultiManaColor(
     battlefields: ReadonlyArray<{ battlefield: readonly CardInstanceState[] }>
 ): Color | null {
-    for (const player of battlefields) {
-        for (const source of player.battlefield) {
+    for (let i = 0; i < battlefields.length; i++) {
+        const player = battlefields[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             const sub = liveStaticDefinition(source)?.landManaSubstitution;
             if (sub && "collapseMultiMana" in sub) return sub.collapseMultiMana;
         }
@@ -3108,8 +3192,11 @@ export function landManaColorIsChosen(
 ): boolean {
     if (!isLand(card)) return false;
     if (!liveSupertypesOf(card).includes("Basic")) return false;
-    for (const player of battlefields) {
-        for (const source of player.battlefield) {
+    for (let i = 0; i < battlefields.length; i++) {
+        const player = battlefields[i];
+        const sourceList = player.battlefield;
+        for (let j = 0; j < sourceList.length; j++) {
+            const source = sourceList[j];
             if (source.controllerId !== card.controllerId) continue;
             const sub = liveStaticDefinition(source)?.landManaSubstitution;
             if (sub && "chosenColor" in sub) return true;
@@ -3151,7 +3238,9 @@ export function replaceProducedManaColor(
     if (color === undefined) return produced;
     let colored = 0;
     const result: ManaCost = {};
-    for (const c of MANA_COLORS) {
+    const cList = MANA_COLORS;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
         const n = produced[c] ?? 0;
         if (n <= 0) continue;
         if (c === "C") result.C = n;
@@ -3213,7 +3302,9 @@ export function replaceLandManaType(
         if (total > 0) result = { U: total };
     }
     if (onLand) {
-        for (const rider of view?.landManaRidersThisTurn ?? []) {
+        const riderList = view?.landManaRidersThisTurn ?? [];
+        for (let i = 0; i < riderList.length; i++) {
+            const rider = riderList[i];
             if (rider.mode !== "override") continue;
             if (!card.subtypes.includes(rider.subtype)) continue;
             const total = totalManaCount(result);
@@ -3265,13 +3356,17 @@ export function applyLandManaReplacement(
         const unit = replaceProducedManaColor(state, producerId, {
             [color]: 1,
         });
-        for (const c of MANA_COLORS) {
+        const cList = MANA_COLORS;
+        for (let i = 0; i < cList.length; i++) {
+            const c = cList[i];
             const n = unit[c] ?? 0;
             if (n > 0) result = { ...result, [c]: (result[c] ?? 0) + n };
         }
     };
     if (isLand(card)) {
-        for (const rider of state.landManaRidersThisTurn ?? []) {
+        const riderList = state.landManaRidersThisTurn ?? [];
+        for (let i = 0; i < riderList.length; i++) {
+            const rider = riderList[i];
             if (rider.mode !== "additional") continue;
             if (!card.subtypes.includes(rider.subtype)) continue;
             addUnit(rider.color, rider.controllerId ?? controllerId);
@@ -3281,7 +3376,9 @@ export function applyLandManaReplacement(
     // mana, that player adds an additional {U}." One extra {U} per active High
     // Tide, each produced by ITS caster's effect.
     if (card.subtypes.includes("Island")) {
-        for (const casterId of state.highTideThisTurn ?? []) {
+        const casterIdList = state.highTideThisTurn ?? [];
+        for (let i = 0; i < casterIdList.length; i++) {
+            const casterId = casterIdList[i];
             addUnit("U", casterId);
         }
     }
@@ -3391,7 +3488,9 @@ function manaTapOptionRiderIsSought(
     if (!ability.manaHasteRider) return false;
     const mana = ability.cost.mana;
     if (mana) {
-        for (const value of Object.values(mana)) {
+        const valueList = Object.values(mana);
+        for (let i = 0; i < valueList.length; i++) {
+            const value = valueList[i];
             if (typeof value !== "number") return false;
         }
     }

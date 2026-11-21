@@ -43,7 +43,8 @@ export function isDistinctPickLegal(
 ): boolean {
     const seenIds = new Set<string>();
     const seenKeys = new Set<string>();
-    for (const id of picks) {
+    for (let i = 0; i < picks.length; i++) {
+        const id = picks[i];
         const key = keys[id];
         if (key === undefined || seenIds.has(id) || seenKeys.has(key)) {
             return false;
@@ -63,5 +64,5 @@ export function canAddDistinctPick(
     cardId: string
 ): boolean {
     if (picks.includes(cardId)) return false;
-    return isDistinctPickLegal(keys, [...picks, cardId]);
+    return isDistinctPickLegal(keys, picks.concat([cardId]));
 }

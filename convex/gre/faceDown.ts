@@ -178,11 +178,11 @@ export function turnFaceUp(
     // shared printed `CardDefinition` array, and handing it to the instance
     // would let any later in-place writer corrupt the catalogue globally.
     rebuildCopiableValuesAndReplayOverlays(state, card, {
-        types: [...def.types],
-        subtypes: [...(def.subtypes ?? [])],
+        types: def.types.slice(),
+        subtypes: (def.subtypes ?? []).slice(),
         power: def.power,
         toughness: def.toughness,
-        staticAbilities: [...(def.staticAbilities ?? [])],
+        staticAbilities: (def.staticAbilities ?? []).slice(),
     });
     delete card.faceDown;
     delete card.faceDownOf;
@@ -210,12 +210,11 @@ export function turnFaceUpOnBattlefield(
     if (!card.faceDown) return;
     turnFaceUp(state, card);
     if (card.faceDown) return;
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         {
             type: "PERMANENT_TURNED_FACE_UP",
             permanentId: card.id,
             controllerId: card.controllerId,
         },
-    ];
+    ]);
 }

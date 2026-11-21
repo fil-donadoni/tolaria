@@ -389,7 +389,9 @@ export function canPayHandCost(
 ): boolean {
     if (!altCost.hand) return true;
     const reserved = new Set<string>();
-    for (const req of altCost.hand.requirements) {
+    const reqList = altCost.hand.requirements;
+    for (let j = 0; j < reqList.length; j++) {
+        const req = reqList[j];
         const cands = matchingHandCardsForAltCost(
             player,
             req.filter,
@@ -896,7 +898,8 @@ export function buildCostLegsPermanentChoice(
 ): SacrificeSelection | undefined {
     const requirements: SacrificeRequirement[] = [];
     let action: "return" | "sacrifice" | undefined;
-    for (const entry of entries) {
+    for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
         const leg = entry.legs.permanent;
         if (!leg) continue;
         // CR 118 — no picker for a threshold leg; `canPayAlternativeCost` already
@@ -1004,13 +1007,16 @@ export function buildCostLegsHandChoice(
 ): CastHandCostChoice | undefined {
     const requirements: { filter: EffectCardFilter; count: number }[] = [];
     let action: "exile" | "discard" | undefined;
-    for (const leg of legs) {
+    for (let i = 0; i < legs.length; i++) {
+        const leg = legs[i];
         if (!leg.hand) continue;
         if (action !== undefined && action !== leg.hand.action) {
             throw new Error("These costs cannot be paid together");
         }
         action = leg.hand.action;
-        for (const r of leg.hand.requirements) {
+        const rList = leg.hand.requirements;
+        for (let j = 0; j < rList.length; j++) {
+            const r = rList[j];
             // Issue #2267 — requirements with the SAME filter merge into one
             // (counts summed): a cost paid N times (escalate per extra mode,
             // a Multikicker hand leg) is one "discard N cards", so the forced
@@ -1036,7 +1042,8 @@ export function buildCostLegsHandChoice(
     const reserved = new Set<string>();
     const forcedPicks: string[] = [];
     let forced = true;
-    for (const req of requirements) {
+    for (let i = 0; i < requirements.length; i++) {
+        const req = requirements[i];
         const cands = matchingHandCardsForAltCost(
             player,
             req.filter,
@@ -1044,7 +1051,8 @@ export function buildCostLegsHandChoice(
             reserved
         );
         if (cands.length === req.count) {
-            for (const c of cands) {
+            for (let j = 0; j < cands.length; j++) {
+                const c = cands[j];
                 reserved.add(c.id);
                 forcedPicks.push(c.id);
             }
@@ -1079,7 +1087,8 @@ export function validateAlternativeHandCostPicks(
     if (new Set(cardInstanceIds).size !== cardInstanceIds.length) {
         throw new Error("Duplicate card selected for the alternative cost");
     }
-    for (const id of cardInstanceIds) {
+    for (let i = 0; i < cardInstanceIds.length; i++) {
+        const id = cardInstanceIds[i];
         if (id === choice.excludeInstanceId) {
             throw new Error("Can't use the spell itself to pay its own cost");
         }
@@ -1090,9 +1099,13 @@ export function validateAlternativeHandCostPicks(
     // Greedy match: assign each requirement `count` cards from the remaining
     // picks that match its filter.
     const remaining = new Set(cardInstanceIds);
-    for (const req of choice.requirements) {
+    const reqList = choice.requirements;
+    for (let i = 0; i < reqList.length; i++) {
+        const req = reqList[i];
         let need = req.count;
-        for (const id of [...remaining]) {
+        const idList = [...remaining];
+        for (let j = 0; j < idList.length; j++) {
+            const id = idList[j];
             if (need <= 0) break;
             const card = player.hand.find((c) => c.id === id);
             if (card && handCardMatchesFilter(card, req.filter)) {

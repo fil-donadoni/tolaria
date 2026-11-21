@@ -63,11 +63,17 @@ export function graveyardTopReadTypes(
 ): Set<CardType> {
     const out = new Set<CardType>();
     const player = state.players.find((p) => p.id === playerId);
-    for (const card of player?.battlefield ?? []) {
+    const cardList = player?.battlefield ?? [];
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         if (card.controllerId !== playerId) continue;
         const effect = readerEffectOf(card);
         if (!effect) continue;
-        for (const type of readTypesOf(effect)) out.add(type);
+        const typeList = readTypesOf(effect);
+        for (let j = 0; j < typeList.length; j++) {
+            const type = typeList[j];
+            out.add(type);
+        }
     }
     return out;
 }

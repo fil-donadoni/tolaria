@@ -255,7 +255,9 @@ function applyChoiceAnswer(
  *  the gate admits). */
 function choiceStep(state: GameState, botPlayerId: string): string {
     let best: { action: ChoiceAction; rank: number } | undefined;
-    for (const legal of legalActions(state)) {
+    const legalList = legalActions(state);
+    for (let i = 0; i < legalList.length; i++) {
+        const legal = legalList[i];
         if (legal.expect !== "choice" || legal.playerId !== botPlayerId) {
             continue;
         }

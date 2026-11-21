@@ -71,7 +71,7 @@ export function hasCityBlessing(state: GameState, playerId: string): boolean {
  *  monotonic (CR 702.131b). Returns true iff this call newly granted it. */
 export function grantCityBlessing(state: GameState, playerId: string): boolean {
     if (hasCityBlessing(state, playerId)) return false;
-    state.cityBlessingIds = [...(state.cityBlessingIds ?? []), playerId];
+    state.cityBlessingIds = (state.cityBlessingIds ?? []).concat([playerId]);
     return true;
 }
 
@@ -83,8 +83,12 @@ export function countControlledPermanents(
     playerId: string
 ): number {
     let count = 0;
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (card.controllerId === playerId) count++;
         }
     }
@@ -135,8 +139,12 @@ export function checkAscendCityBlessing(state: GameState): void {
     // controller.
     const counts = new Map<string, number>();
     const ascendControllers = new Set<string>();
-    for (const p of state.players) {
-        for (const card of p.battlefield) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
+        const cardList = p.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             counts.set(
                 card.controllerId,
                 (counts.get(card.controllerId) ?? 0) + 1
@@ -145,9 +153,9 @@ export function checkAscendCityBlessing(state: GameState): void {
                 ascendControllers.add(card.controllerId);
         }
     }
-    for (const playerId of ascendControllers) {
-        if (hasCityBlessing(state, playerId)) continue;
-        if ((counts.get(playerId) ?? 0) < CITY_BLESSING_THRESHOLD) continue;
+    ascendControllers.forEach((playerId) => {
+        if (hasCityBlessing(state, playerId)) return;
+        if ((counts.get(playerId) ?? 0) < CITY_BLESSING_THRESHOLD) return;
         grantCityBlessing(state, playerId);
-    }
+    });
 }

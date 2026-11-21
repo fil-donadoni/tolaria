@@ -144,6 +144,14 @@ function giveUpSpans(src: string): [number, number][] {
         const body = src.indexOf("{", closeOf(src, src.indexOf("(", m.index)));
         spans.push([body, closeOf(src, body)]);
     }
+    // The engine loops by index, not `for…of` (issue #10126): the legs are
+    // bound first, then the `for (…)` right after the binding walks them.
+    const bound = /const \w+ = permanentGiveUpCostLegs\(/g;
+    for (let m = bound.exec(src); m; m = bound.exec(src)) {
+        const header = src.indexOf("for (", m.index);
+        const body = src.indexOf("{", closeOf(src, header + 4));
+        spans.push([body, closeOf(src, body)]);
+    }
     return spans;
 }
 

@@ -210,29 +210,46 @@ function makeRealLibrary(
 
     // Deck as a card-id multiset.
     const remaining = new Map<string, number>();
-    for (const id of deckCardIds) {
+    for (let j = 0; j < deckCardIds.length; j++) {
+        const id = deckCardIds[j];
         remaining.set(id, (remaining.get(id) ?? 0) + 1);
     }
 
     // Subtract the bot-owned cards already visible outside the library.
     let hiddenHandCards = 0;
-    for (const c of player.hand) {
+    const cList = player.hand;
+    for (let j = 0; j < cList.length; j++) {
+        const c = cList[j];
         if (c) removeOne(remaining, c.card.id);
         else hiddenHandCards++;
     }
-    for (const c of player.battlefield) removeOne(remaining, c.card.id);
-    for (const c of player.graveyard) removeOne(remaining, c.card.id);
-    for (const c of player.exile) removeOne(remaining, c.card.id);
-    for (const item of state.stack) {
+    const cList2 = player.battlefield;
+    for (let j = 0; j < cList2.length; j++) {
+        const c = cList2[j];
+        removeOne(remaining, c.card.id);
+    }
+    const cList3 = player.graveyard;
+    for (let j = 0; j < cList3.length; j++) {
+        const c = cList3[j];
+        removeOne(remaining, c.card.id);
+    }
+    const cList4 = player.exile;
+    for (let j = 0; j < cList4.length; j++) {
+        const c = cList4[j];
+        removeOne(remaining, c.card.id);
+    }
+    const itemList = state.stack;
+    for (let j = 0; j < itemList.length; j++) {
+        const item = itemList[j];
         if (item.ownerId === player.id) removeOne(remaining, item.card.id);
     }
 
     // The remainder is the library content. Emit real instances up to `count`,
     // then pad with placeholders (or truncate) so length === count exactly.
     const realIds: string[] = [];
-    for (const [id, n] of remaining) {
+    remaining.forEach((n, id) => {
         for (let i = 0; i < n; i++) realIds.push(id);
-    }
+    });
 
     const cards: CardInstanceState[] = [];
     // Any hidden hand card makes every surviving identity a guess (see the
@@ -339,16 +356,16 @@ function overlayKnownLibraryCards(
     // restores the "one entry per index" property the original code got for
     // free from a single source.
     const peekIndices = new Set(peek.map((e) => e.index));
-    const known = [
-        ...(wireKnown ?? []).filter((e) => !peekIndices.has(e.index)),
-        ...peek,
-    ];
+    const known = (wireKnown ?? [])
+        .filter((e) => !peekIndices.has(e.index))
+        .concat(peek);
     if (known.length === 0) return library;
-    const out = [...library];
+    const out = library.slice();
     // Slots already resolved to a known card — never raided for a donor, or an
     // earlier entry's placement would be undone by a later one.
     const pinned = new Set<number>();
-    for (const entry of known) {
+    for (let k = 0; k < known.length; k++) {
+        const entry = known[k];
         const index = entry.index;
         if (index < 0 || index >= out.length) continue;
         const cardId = entry.card.card.id;

@@ -177,7 +177,9 @@ function assertZonePickLegal(
         const pool: CardInstanceState[] = head.allControllers
             ? state.players.flatMap((p) => p.battlefield)
             : zoneOwner.battlefield;
-        for (const id of args.cardInstanceIds) {
+        const idList = args.cardInstanceIds;
+        for (let i = 0; i < idList.length; i++) {
+            const id = idList[i];
             const card = pool.find((c: CardInstanceState) => c.id === id);
             if (!card) throw new Error("Card not on battlefield");
             // CR 202.2 — match against the effective view so color/tapped
@@ -208,7 +210,9 @@ function assertZonePickLegal(
         // carries the filtered allow-list, so an absent one admits nothing
         // (fail closed) rather than the whole pool.
         const pool = damageSourceChoicePool(state);
-        for (const id of args.cardInstanceIds) {
+        const idList2 = args.cardInstanceIds;
+        for (let i = 0; i < idList2.length; i++) {
+            const id = idList2[i];
             if (!pool.some((c) => c.id === id)) {
                 throw new Error("Not a permanent or a spell on the stack");
             }
@@ -217,7 +221,9 @@ function assertZonePickLegal(
             }
         }
     } else if (head.zone === "hand") {
-        for (const id of args.cardInstanceIds) {
+        const idList3 = args.cardInstanceIds;
+        for (let i = 0; i < idList3.length; i++) {
+            const id = idList3[i];
             if (!zoneOwner.hand.find((c: CardInstanceState) => c.id === id)) {
                 throw new Error("Card not in hand");
             }
@@ -232,7 +238,9 @@ function assertZonePickLegal(
         // check. See `assertCategorizedPickLegal`.
         assertCategorizedPickLegal(head, args.cardInstanceIds, "cards");
     } else if (head.zone === "library") {
-        for (const id of args.cardInstanceIds) {
+        const idList4 = args.cardInstanceIds;
+        for (let i = 0; i < idList4.length; i++) {
+            const id = idList4[i];
             if (
                 !zoneOwner.library.find((c: CardInstanceState) => c.id === id)
             ) {
@@ -303,7 +311,8 @@ function assertZonePickLegal(
             // The second-zone cards (`secondZoneIds`) must also be looked-at
             // library cards, disjoint from the primary list.
             const second = args.secondZoneIds ?? [];
-            for (const id of second) {
+            for (let i = 0; i < second.length; i++) {
+                const id = second[i];
                 if (
                     !zoneOwner.library.find(
                         (c: CardInstanceState) => c.id === id
@@ -315,7 +324,7 @@ function assertZonePickLegal(
                     throw new Error("Card is not an eligible choice");
                 }
             }
-            const placed = [...args.cardInstanceIds, ...second];
+            const placed = args.cardInstanceIds.concat(second);
             const placedSet = new Set(placed);
             if (placedSet.size !== placed.length) {
                 throw new Error("A card was placed more than once");
@@ -345,7 +354,9 @@ function assertZonePickLegal(
         // (CR 400.7). The graveyard is public; eligibility is the snapshot taken
         // when the choice was raised (after any earlier discard in the same
         // resolution), carried verbatim in `candidateIds`.
-        for (const id of args.cardInstanceIds) {
+        const idList5 = args.cardInstanceIds;
+        for (let i = 0; i < idList5.length; i++) {
+            const id = idList5[i];
             if (
                 !zoneOwner.graveyard.find((c: CardInstanceState) => c.id === id)
             ) {
@@ -360,7 +371,9 @@ function assertZonePickLegal(
         // filter (typically `hasCounter`). Exile is public (CR 400.2);
         // eligibility is the snapshot taken when the choice was raised,
         // carried verbatim in `candidateIds`, mirroring the graveyard branch.
-        for (const id of args.cardInstanceIds) {
+        const idList6 = args.cardInstanceIds;
+        for (let i = 0; i < idList6.length; i++) {
+            const id = idList6[i];
             if (!zoneOwner.exile.find((c: CardInstanceState) => c.id === id)) {
                 throw new Error("Card not in exile");
             }
@@ -415,7 +428,9 @@ export function submitPlayerPick(
     queue: PendingChoice[],
     args: SubmitChoiceArgs
 ): void {
-    for (const id of args.cardInstanceIds) {
+    const idList = args.cardInstanceIds;
+    for (let i = 0; i < idList.length; i++) {
+        const id = idList[i];
         if (!(head.candidatePlayerIds?.includes(id) ?? false)) {
             throw new Error("Not a legal player");
         }
@@ -456,7 +471,8 @@ export function submitOptionPick(
  *  an id no longer in the game is skipped. */
 function pileCardNames(state: GameState, ids: string[] = []): string[] {
     const names: string[] = [];
-    for (const id of ids) {
+    for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
         const card = findCardInAnyZone(state, id);
         if (!card) continue;
         if (card.faceDown) {
@@ -530,7 +546,9 @@ export function submitTriggerMode(
     queue: PendingChoice[],
     args: SubmitChoiceArgs
 ): void {
-    for (const id of args.cardInstanceIds) {
+    const idList = args.cardInstanceIds;
+    for (let i = 0; i < idList.length; i++) {
+        const id = idList[i];
         if (!head.options?.some((o) => o.id === id)) {
             throw new Error("Not a legal mode");
         }
@@ -585,10 +603,10 @@ export function submitTriggerOrder(
     const batch = state.pendingTriggerBatch ?? [];
     // UI submits topmost-first; the batch stores bottom-first (resolve-last
     // first). Reverse to slot this player's slice back in stack order.
-    const bottomFirst = [...submitted].reverse();
+    const bottomFirst = submitted.slice().reverse();
     const inSlice = new Set(sliceIds);
     const byId = new Map(batch.map((it) => [it.id, it]));
-    const next = [...bottomFirst];
+    const next = bottomFirst.slice();
     state.pendingTriggerBatch = batch.map((it) =>
         inSlice.has(it.id) ? byId.get(next.shift()!)! : it
     );
@@ -666,7 +684,9 @@ export function submitUntapPick(
 ): void {
     const zoneOwner = getPlayer(state, head.zoneOwnerId ?? args.playerId);
     const vetoFilters = computeHardSkipFilters(state);
-    for (const id of args.cardInstanceIds) {
+    const idList = args.cardInstanceIds;
+    for (let i = 0; i < idList.length; i++) {
+        const id = idList[i];
         const card = zoneOwner.battlefield.find(
             (c: CardInstanceState) => c.id === id
         )!;
@@ -805,7 +825,9 @@ export function submitOutsideGamePick(
 ): void {
     const owner = getPlayer(state, head.zoneOwnerId ?? args.playerId);
     const pool = outsideGamePool(owner);
-    for (const id of args.cardInstanceIds) {
+    const idList = args.cardInstanceIds;
+    for (let i = 0; i < idList.length; i++) {
+        const id = idList[i];
         if (!pool.some((c) => c.id === id)) {
             throw new Error("Card is not outside the game");
         }

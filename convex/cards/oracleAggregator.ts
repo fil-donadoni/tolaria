@@ -28,25 +28,33 @@ export function aggregateOracleText(def: CardDefinition): AggregatedOracleText {
     }
 
     if (def.staticAbilities && def.staticAbilities.length > 0) {
-        for (const kw of def.staticAbilities) {
+        const kwList = def.staticAbilities;
+        for (let i = 0; i < kwList.length; i++) {
+            const kw = kwList[i];
             lines.push(kw);
         }
     }
 
     if (def.activatedAbilities) {
-        for (const ability of def.activatedAbilities) {
+        const abilityList = def.activatedAbilities;
+        for (let i = 0; i < abilityList.length; i++) {
+            const ability = abilityList[i];
             if (ability.oracleText) lines.push(ability.oracleText);
         }
     }
 
     if (def.triggeredAbilities) {
-        for (const ability of def.triggeredAbilities) {
+        const abilityList2 = def.triggeredAbilities;
+        for (let i = 0; i < abilityList2.length; i++) {
+            const ability = abilityList2[i];
             if (ability.oracleText) lines.push(ability.oracleText);
         }
     }
 
     if (def.delayedTriggers) {
-        for (const trig of def.delayedTriggers) {
+        const trigList = def.delayedTriggers;
+        for (let i = 0; i < trigList.length; i++) {
+            const trig = trigList[i];
             if (trig.oracleText) lines.push(trig.oracleText);
         }
     }
@@ -55,7 +63,9 @@ export function aggregateOracleText(def: CardDefinition): AggregatedOracleText {
     // definition — no `activatedAbilities` entry — so add a synthetic line
     // when the card carries a basic land subtype.
     if (def.types.includes("Land") && def.subtypes) {
-        for (const subtype of def.subtypes) {
+        const subtypeList = def.subtypes;
+        for (let i = 0; i < subtypeList.length; i++) {
+            const subtype = subtypeList[i];
             const color = LAND_SUBTYPE_MANA[subtype];
             if (color && def.subtypes.length === 1) {
                 lines.push(`{T}: Add {${color}}.`);

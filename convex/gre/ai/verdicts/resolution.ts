@@ -33,12 +33,13 @@ const byString = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 /** Every verdict id a resolution decides over: the accepted one, if any, and
  *  the rejected ones — sorted. */
 export function decidedVerdictIds(resolution: VerdictResolution): string[] {
-    return [
-        ...(resolution.acceptedVerdictId === null
+    return (
+        resolution.acceptedVerdictId === null
             ? []
-            : [resolution.acceptedVerdictId]),
-        ...resolution.rejected.map((r) => r.verdictId),
-    ].sort(byString);
+            : [resolution.acceptedVerdictId]
+    )
+        .concat(resolution.rejected.map((r) => r.verdictId))
+        .sort(byString);
 }
 
 /**
@@ -54,7 +55,8 @@ export function resolutionProblems(resolution: VerdictResolution): string[] {
         );
     }
     const decided = decidedVerdictIds(resolution);
-    for (const id of decided) {
+    for (let i = 0; i < decided.length; i++) {
+        const id = decided[i];
         if (!VERDICT_HASH_PATTERN.test(id)) {
             problems.push(`${JSON.stringify(id)} is not a verdict id`);
         }
@@ -67,7 +69,9 @@ export function resolutionProblems(resolution: VerdictResolution): string[] {
     if (decided.length < 2) {
         problems.push("a resolution decides over at least two verdicts");
     }
-    for (const { verdictId, reason } of resolution.rejected) {
+    const entries = resolution.rejected;
+    for (let i = 0; i < entries.length; i++) {
+        const { verdictId, reason } = entries[i];
         if (reason.trim() === "") {
             problems.push(`${verdictId} is rejected without a reason`);
         }
@@ -82,7 +86,8 @@ export function resolutionIdOf(resolution: VerdictResolution): string {
     const encoding = canonicalJson({
         positionKey: resolution.positionKey,
         acceptedVerdictId: resolution.acceptedVerdictId,
-        rejected: [...resolution.rejected]
+        rejected: resolution.rejected
+            .slice()
             .map(({ verdictId, reason }) => ({ verdictId, reason }))
             .sort((a, b) => byString(a.verdictId, b.verdictId)),
         author: resolution.author,

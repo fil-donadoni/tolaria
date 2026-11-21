@@ -178,7 +178,9 @@ export function delayedTriggerTemplateOpValue(
     if (!def.delayedTriggers?.length) return undefined;
     if (carriesShadowScript(def)) return undefined;
     let acc: OpValue | undefined;
-    for (const template of def.delayedTriggers) {
+    const templateList = def.delayedTriggers;
+    for (let i = 0; i < templateList.length; i++) {
+        const template = templateList[i];
         const script = template.effects;
         if (!script || script.length === 0) continue;
         if (readsBinding(script)) continue;
@@ -427,21 +429,25 @@ function bestModeCombinationOpValue(
 ): OpValue | undefined {
     if (!modes || modes.length === 0) return undefined;
     const valueById = new Map<string, OpValue>();
-    for (const mode of modes) {
+    for (let i = 0; i < modes.length; i++) {
+        const mode = modes[i];
         const script = effectiveScript(mode);
         if (script) valueById.set(mode.id, valueEffectScript(script, ctx));
     }
     if (valueById.size === 0) return undefined;
     let best: OpValue | undefined;
-    for (const ids of announceableModeCombinations({
+    const idsList = announceableModeCombinations({
         modes,
         selection,
         facts: CONTEXT_FREE_MODE_FACTS,
         isModeLegal: () => true,
         ownerName: "mode list",
-    })) {
+    });
+    for (let i = 0; i < idsList.length; i++) {
+        const ids = idsList[i];
         let combined: OpValue | undefined;
-        for (const id of ids) {
+        for (let j = 0; j < ids.length; j++) {
+            const id = ids[j];
             const value = valueById.get(id);
             if (!value) continue;
             combined = combined ? addValues(combined, value) : value;
@@ -541,7 +547,7 @@ function heldAnswerShare(def: CardDefinition, board?: LatentLens): number {
  *  since it composes ABILITY scripts across an activated + triggered list
  *  rather than Ops within one script. */
 function mergeOpValue(a: OpValue, b: OpValue): OpValue {
-    const tags = new Set<ValueTag>([...a.tags, ...b.tags]);
+    const tags = new Set<ValueTag>(a.tags.concat(b.tags));
     return { points: a.points + b.points, tags: [...tags] };
 }
 
@@ -677,7 +683,8 @@ function abilityScriptOpValue(
         })),
         ...(def.triggeredAbilities ?? []),
     ];
-    for (const ability of abilities) {
+    for (let i = 0; i < abilities.length; i++) {
+        const ability = abilities[i];
         // Issue #5155 — a MANA ability is never standing worth: the `mana`
         // term (`evaluate.ts`) already scores every mana source, so reading
         // its script here too would count a land's mana twice. This is what
@@ -1004,7 +1011,9 @@ export function etbSelfSacrificeWeight(
     route: LatentCastRoute = "hand"
 ): number {
     let weight = 0;
-    for (const ability of def.triggeredAbilities ?? []) {
+    const abilityList = def.triggeredAbilities ?? [];
+    for (let i = 0; i < abilityList.length; i++) {
+        const ability = abilityList[i];
         if (ability.etbAbility !== true) continue;
         const script = effectiveScript(ability);
         if (!script || !sacrificesSource(script, route)) continue;
@@ -1093,7 +1102,8 @@ function sacrificesSource(
 ): boolean {
     if (Array.isArray(node)) {
         let seen = guarded;
-        for (const n of node) {
+        for (let i = 0; i < node.length; i++) {
+            const n = node[i];
             if (sacrificesSource(n, route, mode, seen)) return true;
             if (mode === "unpaid" && hasOp(n, "mayPay")) seen = true;
         }
@@ -1213,7 +1223,9 @@ export function dslLoyaltyAbilityValue(
     const start = def.loyalty;
     if (start === undefined || start <= 0) return undefined;
     let best: number | undefined;
-    for (const ability of def.activatedAbilities ?? []) {
+    const abilities = def.activatedAbilities ?? [];
+    for (let i = 0; i < abilities.length; i++) {
+        const ability = abilities[i];
         const cost = ability.cost.loyalty;
         if (cost === undefined || start + cost <= 0) continue;
         const read = abilityScriptOpValue(
@@ -1282,7 +1294,9 @@ export function dslSelfConsumingOption(
     board?: LatentLens
 ): SelfConsumingOption | undefined {
     let best = 0;
-    for (const ability of selfConsumingAbilities(def)) {
+    const abilityList = selfConsumingAbilities(def);
+    for (let i = 0; i < abilityList.length; i++) {
+        const ability = abilityList[i];
         const foreign = foreignTargetReach(ability);
         if (foreign === "unanswerable") continue;
         const grounded =
@@ -1551,7 +1565,9 @@ function collectSiteScripts(site: ScriptSite, out: EffectOp[][]): boolean {
         return true;
     }
     if (site.modes && site.modes.length > 0) {
-        for (const mode of site.modes) {
+        const modeList = site.modes;
+        for (let i = 0; i < modeList.length; i++) {
+            const mode = modeList[i];
             const modeScript = effectiveScript(mode);
             if (modeScript) out.push(modeScript);
             else if (mode.resolve !== undefined) return false;
@@ -1571,7 +1587,10 @@ function collectSiteScripts(site: ScriptSite, out: EffectOp[][]): boolean {
  *  predicate node is never mistaken for one. */
 function collectOps(node: unknown, out: EffectOp[]): void {
     if (Array.isArray(node)) {
-        for (const n of node) collectOps(n, out);
+        for (let i = 0; i < node.length; i++) {
+            const n = node[i];
+            collectOps(n, out);
+        }
         return;
     }
     if (node === null || typeof node !== "object") return;
@@ -1579,7 +1598,11 @@ function collectOps(node: unknown, out: EffectOp[]): void {
     if (typeof op === "string" && VALUED_OR_STRUCTURAL.has(op)) {
         out.push(node as EffectOp);
     }
-    for (const n of Object.values(node)) collectOps(n, out);
+    const nList = Object.values(node);
+    for (let i = 0; i < nList.length; i++) {
+        const n = nList[i];
+        collectOps(n, out);
+    }
 }
 
 /** Issue #5161 (ADR 0151) — a leaf Op whose `neutral` sign is not an
@@ -1655,7 +1678,9 @@ const LATENT_READ_KEYS: ReadonlySet<string> = new Set([
 /** True when the definition sets a key outside {@link LATENT_READ_KEYS}. An
  *  empty array is no clause. */
 function carriesUnreadField(def: CardDefinition): boolean {
-    for (const [key, value] of Object.entries(def)) {
+    const entries2 = Object.entries(def);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, value] = entries2[i];
         if (value === undefined || LATENT_READ_KEYS.has(key)) continue;
         if (Array.isArray(value) && value.length === 0) continue;
         return true;
@@ -1703,7 +1728,7 @@ function computeCompleteScript(def: CardDefinition): boolean {
     if (carriesUnreadField(def)) return false;
     const scripts: EffectOp[][] = [];
     if (!collectSiteScripts(def as ScriptSite, scripts)) return false;
-    for (const ability of [
+    const abilityList = [
         ...(def.activatedAbilities ?? []).map((a) => ({
             site: a as ScriptSite,
             cost: a.cost as
@@ -1724,7 +1749,9 @@ function computeCompleteScript(def: CardDefinition): boolean {
             etbAbility: t.etbAbility,
             mana: t.manaAbility === true,
         })),
-    ]) {
+    ];
+    for (let i = 0; i < abilityList.length; i++) {
+        const ability = abilityList[i];
         // An ability the non-creature latent reading never prices — a mana
         // ability (the `mana` term's, and only on the battlefield), spent on
         // entering (an ETB Ability), consumed by its own cost, or hand-only
@@ -1748,7 +1775,9 @@ function computeCompleteScript(def: CardDefinition): boolean {
     // clause, unless a shadow stands for the whole resolution
     // (`delayedTriggerTemplateOpValue`'s exclusions).
     if (def.delayedTriggers?.length && !carriesShadowScript(def)) {
-        for (const template of def.delayedTriggers) {
+        const templateList = def.delayedTriggers;
+        for (let i = 0; i < templateList.length; i++) {
+            const template = templateList[i];
             if (!template.effects?.length || readsBinding(template.effects)) {
                 return false;
             }
@@ -1759,7 +1788,8 @@ function computeCompleteScript(def: CardDefinition): boolean {
     const ops: EffectOp[] = [];
     collectOps(scripts, ops);
     let leaves = 0;
-    for (const op of ops) {
+    for (let i = 0; i < ops.length; i++) {
+        const op = ops[i];
         // CR 101.4 — "each player" is a Symmetric Effect: its sign is the
         // board's (Differential Reading), never the representative member's.
         // A sweep over every player's permanents (no `controller` narrowing —

@@ -113,8 +113,8 @@ function landEntryCostOwed(
         controllerId: player.id,
         ...(faceDef
             ? {
-                  types: [...faceDef.types],
-                  subtypes: [...(faceDef.subtypes ?? [])],
+                  types: faceDef.types.slice(),
+                  subtypes: (faceDef.subtypes ?? []).slice(),
               }
             : {}),
     };
@@ -1038,7 +1038,9 @@ function payCostText(cost: MayPayCost): string {
     if (norm.life !== undefined && norm.life > 0)
         parts.push(`${norm.life} life`);
     if (norm.mana) {
-        for (const sym of ["W", "U", "B", "R", "G", "C"] as const) {
+        const symList = ["W", "U", "B", "R", "G", "C"] as const;
+        for (let j = 0; j < symList.length; j++) {
+            const sym = symList[j];
             const n = norm.mana[sym] ?? 0;
             for (let i = 0; i < n; i++) parts.push(`{${sym}}`);
         }

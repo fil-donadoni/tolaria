@@ -136,7 +136,7 @@ export function enlistAssignments(
             if (chosen.some((pair) => pair.enlistedId === enlistedId)) continue;
             walk(
                 index + 1,
-                [...chosen, { attackerId, enlistedId }],
+                chosen.concat([{ attackerId, enlistedId }]),
                 new Map(lastPartnerOf).set(attackerId, p)
             );
         }

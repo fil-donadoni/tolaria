@@ -431,7 +431,9 @@ function boxViolations(
 ): string[] {
     const slack = 2 * 10 ** -ROUND_DECIMALS;
     const out: string[] = [];
-    for (const key of FITTABLE_WEIGHT_KEYS) {
+    const keyList = FITTABLE_WEIGHT_KEYS;
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         const after = weightValue(weights, key);
         const before = weightValue(w0, key);
         if (before >= 0 && after < -slack) {
@@ -452,7 +454,9 @@ function boxViolations(
 /** Every fittable weight that is not a finite number. */
 function nonFiniteWeights(weights: EvalWeights): string[] {
     const out: string[] = [];
-    for (const key of FITTABLE_WEIGHT_KEYS) {
+    const keyList = FITTABLE_WEIGHT_KEYS;
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         const v = weightValue(weights, key);
         if (!Number.isFinite(v)) out.push(`${key} = ${v} is not finite`);
     }
@@ -483,7 +487,8 @@ function projectBands(
     let moved = false;
     const index = new Map<FittableWeightKey, number>();
     FITTABLE_WEIGHT_KEYS.forEach((k, i) => index.set(k, i));
-    for (const band of FIT_BANDS) {
+    for (let j = 0; j < FIT_BANDS.length; j++) {
+        const band = FIT_BANDS[j];
         const ia = index.get(band.a);
         const ib = index.get(band.b);
         if (ia === undefined || ib === undefined) continue;
@@ -514,7 +519,8 @@ function bandViolations(weights: EvalWeights): string[] {
     // band end by one unit in the last place printed.
     const slack = 2 * 10 ** -ROUND_DECIMALS;
     const out: string[] = [];
-    for (const band of FIT_BANDS) {
+    for (let i = 0; i < FIT_BANDS.length; i++) {
+        const band = FIT_BANDS[i];
         const d = weightValue(weights, band.a) - weightValue(weights, band.b);
         if (d < band.min - slack || d > band.max + slack) {
             out.push(
@@ -538,7 +544,9 @@ export function weightsFromCoordinates(
 ): EvalWeights {
     const latent = { ...w0.latent } as Record<keyof LatentWeights, number>;
     const out = { ...w0 } as Record<string, unknown>;
-    for (const key of FITTABLE_WEIGHT_KEYS) {
+    const keyList = FITTABLE_WEIGHT_KEYS;
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         const value = roundWeight(
             weightValue(w0, key) + scaleOf(w0, key) * u[key]
         );
@@ -642,7 +650,11 @@ export function fitWeights(
     if (n > 0) {
         let trace = 0;
         a.forEach((row, p) => {
-            if (fitted[p]) for (const v of row) trace += v * v;
+            if (fitted[p])
+                for (let i = 0; i < row.length; i++) {
+                    const v = row[i];
+                    trace += v * v;
+                }
         });
         curvature += (2 * trace) / (n * margin * margin);
     }
@@ -677,11 +689,10 @@ export function fitWeights(
     // comparison the other two make. The box is verified rather than assumed
     // for the same reason as the bands: `project` ends on the box, but the two
     // sets are reconciled by alternation, not by an exact joint projection.
-    const broken = [
-        ...nonFiniteWeights(weights),
-        ...boxViolations(weights, w0, trustRegion),
-        ...bandViolations(weights),
-    ];
+    const broken = nonFiniteWeights(weights).concat(
+        boxViolations(weights, w0, trustRegion),
+        bandViolations(weights)
+    );
     if (broken.length > 0) {
         throw new Error(`weight fit broke a constraint: ${broken.join("; ")}`);
     }
@@ -759,12 +770,16 @@ export function fitWeights(
  *  overwrites a search constant with a stale copy. */
 export function formatFittedWeights(result: WeightFitResult): string {
     const lines: string[] = [];
-    for (const m of result.movement) {
+    const mList = result.movement;
+    for (let i = 0; i < mList.length; i++) {
+        const m = mList[i];
         if (m.key.startsWith("latent.")) continue;
         lines.push(`    ${m.key}: ${m.after},`);
     }
     lines.push("    latent: Object.freeze({");
-    for (const m of result.movement) {
+    const mList2 = result.movement;
+    for (let i = 0; i < mList2.length; i++) {
+        const m = mList2[i];
         if (!m.key.startsWith("latent.")) continue;
         lines.push(`        ${m.key.slice("latent.".length)}: ${m.after},`);
     }
@@ -803,7 +818,8 @@ export function formatWeightFitReport(
         .filter((m) => m.relative !== 0)
         .sort((a, b) => Math.abs(b.relative) - Math.abs(a.relative));
     if (moved.length === 0) out.push("  (nothing moved)");
-    for (const m of moved) {
+    for (let i = 0; i < moved.length; i++) {
+        const m = moved[i];
         const wall =
             Math.abs(m.relative) >= o.trustRegion - 1e-9
                 ? "  ← trust-region wall"
@@ -826,12 +842,14 @@ export function formatWeightFitReport(
     out.push(
         `\n== pairs the fit BOUGHT (${gained.length}) / gave up (${lost.length})`
     );
-    for (const g of gained) {
+    for (let i = 0; i < gained.length; i++) {
+        const g = gained[i];
         out.push(
             `  + ${g.pair.verdictId}\n      want  ${g.pair.right.description}\n      over  ${g.pair.other.description}\n      Δ ${g.before.toFixed(1)} → ${g.predicted.toFixed(1)}`
         );
     }
-    for (const l of lost) {
+    for (let i = 0; i < lost.length; i++) {
+        const l = lost[i];
         out.push(
             `  − ${l.pair.verdictId}\n      want  ${l.pair.right.description}\n      over  ${l.pair.other.description}\n      Δ ${l.before.toFixed(1)} → ${l.predicted.toFixed(1)}`
         );
@@ -840,7 +858,9 @@ export function formatWeightFitReport(
     out.push(
         `\n== pairs STILL under the margin (${result.violated.length}) — a missing term, a wrong verdict, or a residual no weight reaches`
     );
-    for (const v of result.violated) {
+    const vList = result.violated;
+    for (let i = 0; i < vList.length; i++) {
+        const v = vList[i];
         out.push(
             `  ${v.pair.verdictId}\n      want  ${v.pair.right.description}\n      over  ${v.pair.other.description}\n      Δ ${v.before.toFixed(1)} → ${v.predicted.toFixed(1)}`
         );
@@ -901,7 +921,8 @@ function verdictOutcomes(
     pairs: readonly Pick<EvalPair, "verdictId" | "delta">[]
 ): Map<string, MinimalPairHalfOutcome> {
     const out = new Map<string, MinimalPairHalfOutcome>();
-    for (const pair of pairs) {
+    for (let i = 0; i < pairs.length; i++) {
+        const pair = pairs[i];
         const ok = pair.delta > SATISFIED_EPS;
         const prev = out.get(pair.verdictId);
         out.set(
@@ -941,7 +962,8 @@ export function minimalPairFitOutcomes(
         }))
     );
     const out: MinimalPairFitOutcome[] = [];
-    for (const [i, verdict] of verdicts.entries()) {
+    for (let i = 0; i < verdicts.length; i++) {
+        const verdict = verdicts[i];
         const standing = standings.get(hashes[i]);
         if (standing?.kind !== "paired" || standing.role !== "anchor") continue;
         // `minimalPairStandings` reaches "paired"/"anchor" from exactly one
@@ -953,7 +975,9 @@ export function minimalPairFitOutcomes(
             );
         }
         const discriminant = verdict.classification.discriminant;
-        for (const partnerHash of standing.partnerIds) {
+        const partnerHashList = standing.partnerIds;
+        for (let j = 0; j < partnerHashList.length; j++) {
+            const partnerHash = partnerHashList[j];
             const halfId = idByHash.get(partnerHash) ?? partnerHash;
             out.push({
                 anchorId: verdict.id,
@@ -1000,7 +1024,8 @@ export function minimalPairTally(
         neither: 0,
         notFitted: 0,
     };
-    for (const p of pairs) {
+    for (let i = 0; i < pairs.length; i++) {
+        const p = pairs[i];
         const shape = pairShapeOf(p);
         if (shape === "both") tally.both++;
         else if (shape === "one") tally.one++;
@@ -1028,7 +1053,7 @@ export function formatMinimalPairSection(
     const one = pairs.filter((p) => pairShapeOf(p) === "one");
     const none = pairs.filter((p) => pairShapeOf(p) === "neither");
     const notFitted = pairs.filter((p) => pairShapeOf(p) === "not-fitted");
-    const unsatisfied = [...one, ...none];
+    const unsatisfied = one.concat(none);
 
     const out: string[] = [
         `== Minimal Pairs (${pairs.length}) — both halves satisfied / one / neither / not fitted (ADR 0148)`,
@@ -1042,7 +1067,8 @@ export function formatMinimalPairSection(
         out.push(
             `\n== Minimal Pairs with ONE half satisfied (${one.length}) — the fit settled "always" or "never"`
         );
-        for (const p of one) {
+        for (let i = 0; i < one.length; i++) {
+            const p = one[i];
             const unsatisfiedSide =
                 p.anchor === "satisfied" ? "half" : "anchor";
             out.push(
@@ -1053,7 +1079,8 @@ export function formatMinimalPairSection(
     }
 
     const byKind = new Map<string, number>();
-    for (const p of unsatisfied) {
+    for (let i = 0; i < unsatisfied.length; i++) {
+        const p = unsatisfied[i];
         byKind.set(
             p.discriminant.kind,
             (byKind.get(p.discriminant.kind) ?? 0) + 1
@@ -1063,7 +1090,9 @@ export function formatMinimalPairSection(
         `\n== unsatisfied Minimal Pairs by Discriminant kind (${unsatisfied.length})`
     );
     if (unsatisfied.length === 0) out.push("  (none)");
-    for (const kind of DISCRIMINANT_KINDS) {
+    const kindList = DISCRIMINANT_KINDS;
+    for (let i = 0; i < kindList.length; i++) {
+        const kind = kindList[i];
         const n = byKind.get(kind) ?? 0;
         if (n > 0) out.push(`  ${kind.padEnd(10)} ${n}`);
     }
@@ -1073,21 +1102,25 @@ export function formatMinimalPairSection(
     );
     if (otherPairs.length > 0) {
         const byDetail = new Map<string, number>();
-        for (const p of otherPairs) {
+        for (let i = 0; i < otherPairs.length; i++) {
+            const p = otherPairs[i];
             byDetail.set(
                 p.discriminant.detail,
                 (byDetail.get(p.discriminant.detail) ?? 0) + 1
             );
         }
         out.push(`\n== "other" Discriminant phrases, verbatim`);
-        for (const [detail, n] of byDetail) out.push(`  ${n}x  ${detail}`);
+        byDetail.forEach((n, detail) => {
+            out.push(`  ${n}x  ${detail}`);
+        });
     }
 
     if (none.length > 0) {
         out.push(
             `\n== Minimal Pairs with NEITHER half satisfied (${none.length}) — a look at the board, not a missing term`
         );
-        for (const p of none) {
+        for (let i = 0; i < none.length; i++) {
+            const p = none[i];
             out.push(
                 `  ${p.anchorId} / ${p.halfId}\n      Discriminant: ${p.discriminant.kind}: ${p.discriminant.detail}`
             );
@@ -1098,7 +1131,8 @@ export function formatMinimalPairSection(
         out.push(
             `\n== Minimal Pairs NOT FITTED (${notFitted.length}) — a timing pair or a rebuild error; the search checks these, never the fit`
         );
-        for (const p of notFitted) {
+        for (let i = 0; i < notFitted.length; i++) {
+            const p = notFitted[i];
             out.push(
                 `  ${p.anchorId} / ${p.halfId}  (anchor ${p.anchor}, half ${p.half})\n      Discriminant: ${p.discriminant.kind}: ${p.discriminant.detail}`
             );

@@ -30,7 +30,8 @@ const OUTSIDE_GAME_CANDIDATES = ["Mind Twist", "Craw Wurm"] as const;
  *  has neither. */
 function outsideGameFilter(node: unknown): EffectCardFilter | null | undefined {
     if (Array.isArray(node)) {
-        for (const child of node) {
+        for (let i = 0; i < node.length; i++) {
+            const child = node[i];
             const found = outsideGameFilter(child);
             if (found !== undefined) return found;
         }
@@ -42,7 +43,9 @@ function outsideGameFilter(node: unknown): EffectCardFilter | null | undefined {
         return (rec.filter as EffectCardFilter | undefined) ?? null;
     if (rec.op === "grantOutsideGamePlays" && rec.player === "controller")
         return null;
-    for (const child of Object.values(rec)) {
+    const childList = Object.values(rec);
+    for (let i = 0; i < childList.length; i++) {
+        const child = childList[i];
         const found = outsideGameFilter(child);
         if (found !== undefined) return found;
     }
@@ -56,7 +59,8 @@ export function outsideGamePose(
 ): { name: string; owner: "me" }[] {
     const filter = outsideGameFilter(def.effects ?? []);
     if (filter === undefined) return [];
-    for (const name of OUTSIDE_GAME_CANDIDATES) {
+    for (let i = 0; i < OUTSIDE_GAME_CANDIDATES.length; i++) {
+        const name = OUTSIDE_GAME_CANDIDATES[i];
         const candidate = tryGetCardByName(name);
         if (
             !candidate ||

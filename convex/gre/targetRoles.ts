@@ -145,7 +145,9 @@ function normalizeSlots(value: unknown): unknown {
     if (value === null || typeof value !== "object") return value;
     if (Array.isArray(value)) return value.map(normalizeSlots);
     const out: Record<string, unknown> = {};
-    for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+    const entries2 = Object.entries(value as Record<string, unknown>);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, v] = entries2[i];
         out[key] =
             key === "target" && typeof v === "number" ? "#" : normalizeSlots(v);
     }
@@ -172,7 +174,9 @@ function collectSlotReferences(
             if (typeof obj.target === "number") return false;
             return Object.values(obj).every(walk);
         }
-        for (const [key, v] of Object.entries(obj)) {
+        const entries2 = Object.entries(obj);
+        for (let i = 0; i < entries2.length; i++) {
+            const [key, v] = entries2[i];
             if (key === "op") continue;
             const slot = directSlot(v);
             if (slot === undefined) {
@@ -266,9 +270,11 @@ export function announcedTargetRoles(
     const window = slotWindow(effects, firstSlot, count);
     if (!window) return undefined;
     const roles: string[] = [];
-    for (const refs of window) {
+    for (let i = 0; i < window.length; i++) {
+        const refs = window[i];
         const phrases: string[] = [];
-        for (const ref of refs) {
+        for (let j = 0; j < refs.length; j++) {
+            const ref = refs[j];
             if (ref.phrase === undefined) return undefined;
             if (!phrases.includes(ref.phrase)) phrases.push(ref.phrase);
         }

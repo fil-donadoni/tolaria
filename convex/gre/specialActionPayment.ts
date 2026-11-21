@@ -67,7 +67,9 @@ export function paySpecialActionManaCost(
         state
     );
     const tappedIds = new Set(plan.map((step) => step.cardId));
-    for (const src of player.battlefield) {
+    const srcList = player.battlefield;
+    for (let i = 0; i < srcList.length; i++) {
+        const src = srcList[i];
         if (tappedIds.has(src.id)) src.isTapped = true;
     }
     const produced = replaceProducedManaColor(
@@ -75,7 +77,9 @@ export function paySpecialActionManaCost(
         player.id,
         manaFromPlan(sources, plan)
     );
-    for (const color of MANA_COLORS) {
+    const colorList = MANA_COLORS;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         const amount = produced[color];
         if (amount) {
             player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;

@@ -131,7 +131,9 @@ export function costModifierStandingWorth(
         const caster = state.players[i];
         const casterWithout = without.players[i];
         let side = 0;
-        for (const card of caster.hand) {
+        const cardList = caster.hand;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (isLand(card)) continue;
             const cost = getInstanceManaCost(card);
             if (!cost) continue;

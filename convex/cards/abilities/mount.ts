@@ -69,10 +69,9 @@ export function saddleAbility(args: {
 export function withSaddle<T extends CardDefinition>(def: T, n: number): T {
     return {
         ...def,
-        staticAbilities: [...(def.staticAbilities ?? []), saddleKeyword(n)],
-        activatedAbilities: [
-            ...(def.activatedAbilities ?? []),
+        staticAbilities: (def.staticAbilities ?? []).concat([saddleKeyword(n)]),
+        activatedAbilities: (def.activatedAbilities ?? []).concat([
             saddleAbility({ name: def.name, n }),
-        ],
+        ]),
     };
 }

@@ -225,6 +225,27 @@ at 46 ms in the field):
 | issue #10127 | object spread and `flatMap` in the hot callers (`cardValue`, `liveKeywordTriggerInstances`, …)                                                                      | 3–5%: about 46 → 44 ms per iteration                  |
 | issue #10128 | not a hotspot: the field report's OS family and an early-board speed reading, so the field's engine ratio can be read without the machine and game-length confounds | none; it makes the Gecko slices readable in the field |
 
+**Issue #10126, read.** Base `2ceca7dc5` against the branch rebased on it,
+Playwright Firefox 153.0 on the owner's M1 Pro (macOS, load average 30–45),
+blade 45, 18 and 35 at 400 iterations. The engine (`convex/gre/**`,
+`convex/cards/**` outside `sets/`) loops arrays by index and Maps and Sets by
+`forEach`, array spread became `concat`/`slice`, and a lint rule keeps
+`for…of` out (29 annotated exceptions: early exits from a Map or Set,
+generators). `profile-gecko.mjs` now charges `next`'s self time to its
+caller (`nextCallers`).
+
+| position | `next` self share, base | `next` self share, head |
+| -------- | ----------------------- | ----------------------- |
+| blade 45 | 7.5                     | 0.05                    |
+| blade 18 | 10.0                    | 0.25                    |
+| blade 35 | 7.3                     | 0.09                    |
+
+`run-gecko-gap.mjs`, 2 rounds: Firefox 1.45 → 1.29 ms per iteration on the
+main thread and 1.48 → 1.25 in a Worker; its ratio to Chromium's main thread
+1.58 → 1.55 and 1.60 → 1.56, Chromium moving 0.76 → 0.72 in the same runs
+(load). `compare.mjs` in Node: head/base 1.002 median (0.956–1.048), 0 of 56
+choices moved.
+
 Together the two Gecko slices buy about a tenth. The 3.7x the ruling needs is
 engine-wide work on field-sized boards: evaluation (27–34% there) and the
 sweep after every applied move (`checkStateBasedActions` 21–28%), which

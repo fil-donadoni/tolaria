@@ -48,8 +48,14 @@ export function copiableSupertypesOf(
     card: Pick<SupertypeView, "faceDown" | "copyExcept">
 ): string[] {
     const out: string[] = [];
-    for (const s of def?.supertypes ?? []) if (!out.includes(s)) out.push(s);
-    for (const s of copyExceptSupertypes(card)) {
+    const sList = def?.supertypes ?? [];
+    for (let i = 0; i < sList.length; i++) {
+        const s = sList[i];
+        if (!out.includes(s)) out.push(s);
+    }
+    const sList2 = copyExceptSupertypes(card);
+    for (let i = 0; i < sList2.length; i++) {
+        const s = sList2[i];
         if (!out.includes(s)) out.push(s);
     }
     return out;
@@ -114,7 +120,8 @@ export function isSnowLand(card: SupertypeView): boolean {
  *  P/T, damage amounts and activation gates. */
 export function countSnowLands(battlefield: readonly SupertypeView[]): number {
     let n = 0;
-    for (const perm of battlefield) {
+    for (let i = 0; i < battlefield.length; i++) {
+        const perm = battlefield[i];
         if (isSnowLand(perm)) n += 1;
     }
     return n;
@@ -144,7 +151,8 @@ export function liveSupertypesOf(card: SupertypeView): readonly string[] {
     const result = copiable.filter(
         (s) => !removed.some((r) => r.supertype === s)
     );
-    for (const g of granted) {
+    for (let i = 0; i < granted.length; i++) {
+        const g = granted[i];
         if (!result.includes(g.supertype)) result.push(g.supertype);
     }
     return result;

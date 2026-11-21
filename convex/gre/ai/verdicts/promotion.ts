@@ -260,9 +260,11 @@ export function validateStoreObjects(
     // is set aside unread rather than judged — or reported invalid.
     const decoded: VerdictAttestation[] = [];
     const attestationProblems: StoreValidation["attestationProblems"] = [];
-    for (const object of [...attestationObjects].sort((a, b) =>
-        byString(a.name, b.name)
-    )) {
+    const objectList = attestationObjects
+        .slice()
+        .sort((a, b) => byString(a.name, b.name));
+    for (let i = 0; i < objectList.length; i++) {
+        const object = objectList[i];
         try {
             decoded.push(decodeAttestationObject(object.name, object.bytes));
         } catch (error) {
@@ -278,9 +280,11 @@ export function validateStoreObjects(
     const rows: VerdictObjectRow[] = [];
     const readable = new Map<string, VerdictJudgement>();
     const invalidIds = new Set<string>();
-    for (const object of [...verdictObjects].sort((a, b) =>
-        byString(a.name, b.name)
-    )) {
+    const objectList2 = verdictObjects
+        .slice()
+        .sort((a, b) => byString(a.name, b.name));
+    for (let i = 0; i < objectList2.length; i++) {
+        const object = objectList2[i];
         const fixtureId = verdictIdOfObjectName(object.name);
         if (fixtureId !== null && fixtureOnlyVerdictIds.has(fixtureId)) {
             rows.push({
@@ -308,7 +312,9 @@ export function validateStoreObjects(
     }
 
     const attestations: VerdictAttestation[] = [];
-    for (const attestation of realAttestations) {
+    const attestationList = realAttestations;
+    for (let i = 0; i < attestationList.length; i++) {
+        const attestation = attestationList[i];
         if (readable.has(attestation.verdictId)) {
             attestations.push(attestation);
         } else if (!invalidIds.has(attestation.verdictId)) {
@@ -327,9 +333,11 @@ export function validateStoreObjects(
     // contested, the direction that keeps a judgement out of the lock.
     const resolutions: VerdictResolution[] = [];
     const resolutionProblems: StoreValidation["resolutionProblems"] = [];
-    for (const object of [...resolutionObjects].sort((a, b) =>
-        byString(a.name, b.name)
-    )) {
+    const objectList3 = resolutionObjects
+        .slice()
+        .sort((a, b) => byString(a.name, b.name));
+    for (let i = 0; i < objectList3.length; i++) {
+        const object = objectList3[i];
         try {
             resolutions.push(decodeResolutionObject(object.name, object.bytes));
         } catch (error) {
@@ -357,13 +365,19 @@ export function validateStoreObjects(
     });
     const registryById = new Map<string, string>();
     const registryByKey = new Map<string, string[]>();
-    for (const entry of registry) {
+    for (let i = 0; i < registry.length; i++) {
+        const entry = registry[i];
         registryById.set(verdictIdOf(entry), entry.id);
         const key = positionKeyOf(entry);
-        registryByKey.set(key, [...(registryByKey.get(key) ?? []), entry.id]);
+        registryByKey.set(
+            key,
+            (registryByKey.get(key) ?? []).concat([entry.id])
+        );
     }
     const eligible: typeof quarantine.promotable = [];
-    for (const v of quarantine.promotable) {
+    const vList = quarantine.promotable;
+    for (let i = 0; i < vList.length; i++) {
+        const v = vList[i];
         const same = registryById.get(v.verdictId);
         const rivals = registryByKey.get(v.positionKey);
         if (same !== undefined) {
@@ -399,7 +413,8 @@ export function validateStoreObjects(
         }))
     );
     const promotable: typeof quarantine.promotable = [];
-    for (const v of eligible) {
+    for (let i = 0; i < eligible.length; i++) {
+        const v = eligible[i];
         const standing = standings.get(v.verdictId);
         if (standing?.kind === "incomplete") {
             rows.push(row(v.verdictId, "incomplete-pair", [standing.why]));
@@ -408,14 +423,22 @@ export function validateStoreObjects(
             rows.push(row(v.verdictId, "promotable", []));
         }
     }
-    for (const v of quarantine.unattested) {
+    const vList2 = quarantine.unattested;
+    for (let i = 0; i < vList2.length; i++) {
+        const v = vList2[i];
         rows.push(row(v.verdictId, "unattested", [UNATTESTED_REASON]));
     }
-    for (const v of quarantine.implicitOnly) {
+    const vList3 = quarantine.implicitOnly;
+    for (let i = 0; i < vList3.length; i++) {
+        const v = vList3[i];
         rows.push(row(v.verdictId, "implicit-only", [IMPLICIT_REASON]));
     }
-    for (const position of quarantine.contested) {
-        for (const v of position.verdicts) {
+    const positionList = quarantine.contested;
+    for (let i = 0; i < positionList.length; i++) {
+        const position = positionList[i];
+        const vList4 = position.verdicts;
+        for (let j = 0; j < vList4.length; j++) {
+            const v = vList4[j];
             const others = position.verdicts
                 .filter((o) => o.verdictId !== v.verdictId)
                 .map((o) => o.verdictId);
@@ -428,8 +451,12 @@ export function validateStoreObjects(
     }
     // A rejected verdict is kept, with the resolver's reason: it stays in the
     // store as evidence and never enters the lock (ADR 0128 §6).
-    for (const position of quarantine.resolved) {
-        for (const { verdict, reason } of position.rejected) {
+    const positionList2 = quarantine.resolved;
+    for (let i = 0; i < positionList2.length; i++) {
+        const position = positionList2[i];
+        const entries = position.rejected;
+        for (let j = 0; j < entries.length; j++) {
+            const { verdict, reason } = entries[j];
             rows.push(
                 row(verdict.verdictId, "rejected", [
                     `rejected by ${position.applied.resolution.author} at position ${position.positionKey}: ${reason}`,
@@ -497,15 +524,18 @@ export function promotionReadings(
     isReferenceJudge: (author: string) => boolean
 ): Record<string, VerdictReading> {
     const attested = new Map(
-        [
-            ...validation.quarantine.promotable,
-            ...validation.quarantine.resolved.flatMap((r) =>
-                r.accepted === null ? [] : [r.accepted]
-            ),
-        ].map((v) => [v.verdictId, v.attestations])
+        validation.quarantine.promotable
+            .concat(
+                validation.quarantine.resolved.flatMap((r) =>
+                    r.accepted === null ? [] : [r.accepted]
+                )
+            )
+            .map((v) => [v.verdictId, v.attestations])
     );
     const out: Record<string, VerdictReading> = {};
-    for (const id of [...verdictIds].sort(byString)) {
+    const idList = verdictIds.slice().sort(byString);
+    for (let i = 0; i < idList.length; i++) {
+        const id = idList[i];
         const reading = readingOfAttestations(
             attested.get(id) ?? [],
             isReferenceJudge
@@ -535,7 +565,9 @@ export function planPromotion(
 
     const kept: StoredVerdictPayload[] = [];
     const dropped: PromotionPlan["dropped"] = [];
-    for (const verdictId of current?.verdictIds ?? []) {
+    const verdictIdList = current?.verdictIds ?? [];
+    for (let i = 0; i < verdictIdList.length; i++) {
+        const verdictId = verdictIdList[i];
         const entry = promotable.get(verdictId);
         if (entry !== undefined) {
             kept.push(entry);
@@ -554,7 +586,7 @@ export function planPromotion(
     const appended = validation.promotable.filter(
         (e) => !keptIds.has(e.verdictId)
     );
-    const entries = [...kept, ...appended];
+    const entries = kept.concat(appended);
     const verdictIds = entries.map((e) => e.verdictId);
     const readings = promotionReadings(
         validation,
@@ -604,20 +636,29 @@ export function formatStoreValidation(validation: StoreValidation): string {
     ];
     const blocked = validation.rows.filter((r) => r.status !== "promotable");
     if (blocked.length > 0) out.push("", "not promotable:");
-    for (const r of blocked) {
+    for (let i = 0; i < blocked.length; i++) {
+        const r = blocked[i];
         out.push(`  ${r.name}  [${r.status}]`);
-        for (const reason of r.reasons) out.push(`    ${reason}`);
+        const reasonList = r.reasons;
+        for (let j = 0; j < reasonList.length; j++) {
+            const reason = reasonList[j];
+            out.push(`    ${reason}`);
+        }
     }
     if (validation.attestationProblems.length > 0) {
         out.push("", "attestations that attest no verdict object:");
     }
-    for (const p of validation.attestationProblems) {
+    const pList = validation.attestationProblems;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
         out.push(`  ${p.name}`, `    ${p.reason}`);
     }
     if (validation.resolutionProblems.length > 0) {
         out.push("", "resolutions that could not be read:");
     }
-    for (const p of validation.resolutionProblems) {
+    const pList2 = validation.resolutionProblems;
+    for (let i = 0; i < pList2.length; i++) {
+        const p = pList2[i];
         out.push(`  ${p.name}`, `    ${p.reason}`);
     }
     return out.join("\n");
@@ -675,24 +716,40 @@ export function formatPromotionReport(input: PromotionReportInput): string {
         `  weights moved          : ${moved.length} of ${input.movement.length}`,
     ];
     out.push(`\n== verdicts added (${plan.added.length})`);
-    for (const id of plan.added) out.push(`  ${id}`);
+    const idList = plan.added;
+    for (let i = 0; i < idList.length; i++) {
+        const id = idList[i];
+        out.push(`  ${id}`);
+    }
     if (plan.dropped.length > 0) {
         out.push(
             `\n== verdicts DROPPED from the lock (${plan.dropped.length})`
         );
-        for (const d of plan.dropped)
+        const dList = plan.dropped;
+        for (let i = 0; i < dList.length; i++) {
+            const d = dList[i];
             out.push(`  ${d.verdictId}`, `    ${d.why}`);
+        }
     }
     out.push(`\n== new Eval Pairs (${input.newPairs.length})`);
-    for (const pair of input.newPairs) out.push(...pairLines(pair));
+    const pairList = input.newPairs;
+    for (let i = 0; i < pairList.length; i++) {
+        const pair = pairList[i];
+        out.push(...pairLines(pair));
+    }
     out.push(
         `\n== pairs the fit could not satisfy (${input.unsatisfied.length}) — kept, never dropped: each names a missing term, a wrong verdict, or a residual no weight reaches`
     );
-    for (const pair of input.unsatisfied) out.push(...pairLines(pair));
+    const pairList2 = input.unsatisfied;
+    for (let i = 0; i < pairList2.length; i++) {
+        const pair = pairList2[i];
+        out.push(...pairLines(pair));
+    }
     out.push(`\n${formatMinimalPairSection(input.minimalPairs)}`);
     out.push(`\n== weight movement, committed DEFAULT_EVAL_WEIGHTS → fitted`);
     if (moved.length === 0) out.push("  (nothing moved)");
-    for (const m of moved) {
+    for (let i = 0; i < moved.length; i++) {
+        const m = moved[i];
         const pct =
             m.committed === 0
                 ? ""

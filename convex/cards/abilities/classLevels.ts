@@ -172,7 +172,9 @@ function manaCostLabel(cost: ManaCost): string {
     if (cost.generic !== undefined && cost.generic > 0) {
         pips.push(String(cost.generic));
     }
-    for (const colour of ["W", "U", "B", "R", "G"] as const) {
+    const colourList = ["W", "U", "B", "R", "G"] as const;
+    for (let j = 0; j < colourList.length; j++) {
+        const colour = colourList[j];
         for (let i = 0; i < (cost[colour] ?? 0); i++) pips.push(colour);
     }
     for (let i = 0; i < (cost.C ?? 0); i++) pips.push("C");
@@ -335,30 +337,35 @@ export function expandClassLevelBars(def: CardDefinition): CardDefinition {
     const sectionActivated: ActivatedAbility[] = [];
     const sectionTriggered: TriggeredAbility[] = [];
     const sectionStatics: GateableStaticEffect[] = [];
-    for (const bar of bars) {
-        for (const ability of bar.activatedAbilities ?? []) {
+    for (let i = 0; i < bars.length; i++) {
+        const bar = bars[i];
+        const abilityList = bar.activatedAbilities ?? [];
+        for (let j = 0; j < abilityList.length; j++) {
+            const ability = abilityList[j];
             sectionActivated.push(gateActivatedAbility(ability, bar.level));
         }
-        for (const ability of bar.triggeredAbilities ?? []) {
+        const abilityList2 = bar.triggeredAbilities ?? [];
+        for (let j = 0; j < abilityList2.length; j++) {
+            const ability = abilityList2[j];
             sectionTriggered.push(gateTriggeredAbility(ability, bar.level));
         }
-        for (const effect of bar.staticEffects ?? []) {
+        const effectList = bar.staticEffects ?? [];
+        for (let j = 0; j < effectList.length; j++) {
+            const effect = effectList[j];
             sectionStatics.push(gateStaticEffect(effect, bar.level));
         }
     }
 
     return {
         ...def,
-        activatedAbilities: [
-            ...existingActivated,
-            ...barAbilities,
-            ...sectionActivated,
-        ],
-        triggeredAbilities: [
-            ...(def.triggeredAbilities ?? []),
-            ...sectionTriggered,
-        ],
-        staticEffects: [...(def.staticEffects ?? []), ...sectionStatics],
+        activatedAbilities: existingActivated.concat(
+            barAbilities,
+            sectionActivated
+        ),
+        triggeredAbilities: (def.triggeredAbilities ?? []).concat(
+            sectionTriggered
+        ),
+        staticEffects: (def.staticEffects ?? []).concat(sectionStatics),
     };
 }
 
@@ -381,7 +388,9 @@ export function extraLandDropsOf(
     permanent: Pick<PermanentView, "classLevel">
 ): number {
     let extra = def.extraLandDrops ?? 0;
-    for (const bar of sectionsInForce(def, permanent)) {
+    const barList = sectionsInForce(def, permanent);
+    for (let i = 0; i < barList.length; i++) {
+        const bar = barList[i];
         extra += bar.extraLandDrops ?? 0;
     }
     return extra;

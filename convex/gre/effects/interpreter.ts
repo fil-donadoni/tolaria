@@ -441,7 +441,9 @@ const OPTION_CHOICE_ID = "optionChoiceMode";
  *  `grantAbility`, so they always return `undefined` here. */
 function modeProtectionColor(mode: EffectMode): Color | undefined {
     if (!mode.color) return undefined;
-    for (const effect of mode.effects) {
+    const effectList = mode.effects;
+    for (let i = 0; i < effectList.length; i++) {
+        const effect = effectList[i];
         if (
             effect.op === "grantAbility" &&
             effect.ability !== undefined &&
@@ -1087,7 +1089,8 @@ function resolveValue(
                 ? ctx.getHandCards(playerId)
                 : ctx.getGraveyardCards(playerId);
         let total = 0;
-        for (const id of picks) {
+        for (let j = 0; j < picks.length; j++) {
+            const id = picks[j];
             const card = cards.find((c) => c.id === id);
             // Indexed by `read` rather than hard-coded, so the
             // characteristic axis the type names is the one the runtime
@@ -2246,10 +2249,9 @@ function countZoneForPlayer(
         const picks = resolvePicks(ctx, spec.picks);
         if (picks === undefined) return 0;
         const ids = new Set(picks);
-        const batch = [
-            ...cards.filter((c) => ids.has(c.id)),
-            ...ctx.getExileCards(playerId).filter((c) => ids.has(c.id)),
-        ];
+        const batch = cards
+            .filter((c) => ids.has(c.id))
+            .concat(ctx.getExileCards(playerId).filter((c) => ids.has(c.id)));
         // `countTypes` never reaches here — the validator refuses it with
         // `picks` — so the cardinality is the whole answer.
         return spec.filter
@@ -2615,7 +2617,8 @@ function resolveExiledWithSource(
     filter: EffectCardFilter | undefined
 ): TargetSelection | undefined {
     const cards = ctx.getCardsExiledWith(ctx.sourceInstanceId);
-    for (const card of cards) {
+    for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
         if (filter && !matchesCardFilter(ctx, card, filter)) continue;
         return { type: "graveyard-card", id: card.id, playerId: card.ownerId };
     }
@@ -2641,7 +2644,9 @@ function resolveExiledWithSource(
  *  may-pay payment path has no per-pip mana-or-life split (tracked-by: #4776). */
 function reduceGenericMana(cost: ManaCost, amount: number): ManaCost {
     const result: ManaCost = {};
-    for (const color of ["W", "U", "B", "R", "G", "C"] as const) {
+    const colorList = ["W", "U", "B", "R", "G", "C"] as const;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         const v = (cost[color] ?? 0) + (cost.phyrexian?.[color] ?? 0);
         if (v) result[color] = v;
     }
@@ -2807,7 +2812,7 @@ function revealToAllPlayers(
 ): void {
     ctx.markKnownToAll(zoneOwnerId, cardInstanceIds);
     ctx.notifyReveal(
-        [...ctx.allPlayerIds],
+        ctx.allPlayerIds.slice(),
         cardInstanceIds,
         ctx.sourceCardId,
         "reveal"
@@ -2941,9 +2946,13 @@ function boundSetCandidates(
 ): ChoicePoolResult & { candidateIds: string[] } {
     const present = new Map(cards.map((c) => [c.id, c]));
     const ids: string[] = [];
-    for (const selector of op.candidates ?? []) {
+    const selectorList = op.candidates ?? [];
+    for (let i = 0; i < selectorList.length; i++) {
+        const selector = selectorList[i];
         if (!("ref" in selector)) continue;
-        for (const id of resolvePicks(ctx, selector) ?? []) {
+        const idList = resolvePicks(ctx, selector) ?? [];
+        for (let j = 0; j < idList.length; j++) {
+            const id = idList[j];
             const card = present.get(id);
             if (!card || ids.includes(id)) continue;
             if (op.filter && !matchesCardFilter(ctx, card, op.filter)) continue;
@@ -2974,7 +2983,7 @@ function randomSelectionPool(
         (op.zone === "hand"
             ? ctx.getHandIds(ownerId)
             : ctx.getLibraryCards(ownerId).map((c) => c.id));
-    if (op.top === undefined) return [...ids];
+    if (op.top === undefined) return ids.slice();
     const top = resolveValue(ctx, op.top);
     if (top === undefined) return [];
     const window = new Set(ctx.peekLibraryTop(ownerId, Math.max(0, top)));
@@ -3055,7 +3064,9 @@ function choiceCandidates(
         // clamps to availability. A `filter` still narrows the resolved set.
         if (op.candidates) {
             const ids: string[] = [];
-            for (const selector of op.candidates) {
+            const selectorList = op.candidates;
+            for (let i = 0; i < selectorList.length; i++) {
+                const selector = selectorList[i];
                 const resolved = resolveObjectRef(ctx, selector);
                 if (!resolved || resolved.type !== "permanent") continue;
                 if (ids.includes(resolved.id)) continue;
@@ -3152,9 +3163,13 @@ function choiceCandidates(
                 ctx.getLibraryCards(zoneOwnerId).map((c) => c.id)
             );
             const ids: string[] = [];
-            for (const selector of op.candidates) {
+            const selectorList2 = op.candidates;
+            for (let i = 0; i < selectorList2.length; i++) {
+                const selector = selectorList2[i];
                 if (!("ref" in selector)) continue;
-                for (const id of resolvePicks(ctx, selector) ?? []) {
+                const idList = resolvePicks(ctx, selector) ?? [];
+                for (let j = 0; j < idList.length; j++) {
+                    const id = idList[j];
                     if (!inLibrary.has(id) || ids.includes(id)) continue;
                     ids.push(id);
                 }
@@ -3283,7 +3298,8 @@ function resolveDistinctKeys(
 ): Record<string, string> {
     const zoneCards = ctx.getLibraryCards(zoneOwnerId);
     const keys: Record<string, string> = {};
-    for (const card of zoneCards) {
+    for (let i = 0; i < zoneCards.length; i++) {
+        const card = zoneCards[i];
         if (poolIds !== undefined && !poolIds.includes(card.id)) continue;
         const key =
             op.distinctBy === "power"
@@ -3331,7 +3347,8 @@ function bottomLookedAtCards(
         // Surveil leg uses inline for its own `destination: "graveyard"`. The
         // graveyard is a public zone, so no `markKnown` call (unlike the
         // library-bottom branch below).
-        for (const id of restTop) {
+        for (let j = 0; j < restTop.length; j++) {
+            const id = restTop[j];
             ctx.moveCardById(playerId, id, "library", "graveyard");
         }
         return;
@@ -3348,7 +3365,8 @@ function bottomLookedAtCards(
         // per-card defect `exileTopOfLibrary` was caught with; fixed as a
         // class rather than at the new Op alone.
         const exiled = ctx.moveCardsById(playerId, restTop, "library", "exile");
-        for (const id of exiled) {
+        for (let j = 0; j < exiled.length; j++) {
+            const id = exiled[j];
             if (counters) ctx.stampCardCounters(id, counters);
         }
         return;
@@ -3359,7 +3377,7 @@ function bottomLookedAtCards(
     const all = ctx.peekLibraryTop(playerId, Number.MAX_SAFE_INTEGER);
     const restSet = new Set(restTop);
     const below = all.filter((id) => !restSet.has(id));
-    ctx.reorderLibraryTop(playerId, [...below, ...restTop]);
+    ctx.reorderLibraryTop(playerId, below.concat(restTop));
     // ADR 0026 — nobody else saw where these went, so what anyone knew about
     // them from before ends here, on the no-choice path too.
     ctx.forgetLibraryCards(playerId, restTop);
@@ -3624,21 +3642,20 @@ function copyOptionsFromExcept(
         ...(except.baseToughness !== undefined
             ? { baseToughness: except.baseToughness }
             : {}),
-        ...(except.colors ? { colorOverride: [...except.colors] } : {}),
+        ...(except.colors ? { colorOverride: except.colors.slice() } : {}),
         ...(except.additionalTypes
-            ? { additionalTypes: [...except.additionalTypes] }
+            ? { additionalTypes: except.additionalTypes.slice() }
             : {}),
         ...(except.additionalSubtypes
-            ? { additionalSubtypes: [...except.additionalSubtypes] }
+            ? { additionalSubtypes: except.additionalSubtypes.slice() }
             : {}),
         ...(except.additionalSupertypes
-            ? { additionalSupertypes: [...except.additionalSupertypes] }
+            ? { additionalSupertypes: except.additionalSupertypes.slice() }
             : {}),
         ...(except.additionalStaticAbilities
             ? {
-                  additionalStaticAbilities: [
-                      ...except.additionalStaticAbilities,
-                  ],
+                  additionalStaticAbilities:
+                      except.additionalStaticAbilities.slice(),
               }
             : {}),
         ...(except.additionalActivatedAbilityIds && abilityCardId
@@ -4147,7 +4164,9 @@ export const OP_EXECUTORS: {
             ids = resolvePicks(ctx, op.card);
         }
         if (!ids || ids.length === 0) return;
-        for (const cardInstanceId of ids) {
+        const cardInstanceIdList = ids;
+        for (let i = 0; i < cardInstanceIdList.length; i++) {
+            const cardInstanceId = cardInstanceIdList[i];
             const zoneOwnerId = ctx.getExileCardOwner(cardInstanceId);
             if (zoneOwnerId === undefined) continue;
             ctx.grantCastFromExile(
@@ -4306,7 +4325,8 @@ export const OP_EXECUTORS: {
             );
             const ordered = ctx.peekLibraryTop(playerId, byId.size);
             const walked: string[] = [];
-            for (const id of ordered) {
+            for (let i = 0; i < ordered.length; i++) {
+                const id = ordered[i];
                 const card = byId.get(id);
                 if (card === undefined) continue; // no longer there
                 walked.push(id);
@@ -4340,12 +4360,13 @@ export const OP_EXECUTORS: {
             // the top" dialog, the same one `revealUntilMatch` /
             // `revealTopAndRoute` / `explore` raise.
             ctx.notifyReveal(
-                [...ctx.allPlayerIds],
+                ctx.allPlayerIds.slice(),
                 walked,
                 ctx.sourceCardId,
                 "reveal"
             );
-            for (const id of walked) {
+            for (let i = 0; i < walked.length; i++) {
+                const id = walked[i];
                 ctx.moveCardById(playerId, id, "library", "exile");
             }
             ctx.noteChoice(exiledKey, walked);
@@ -4403,7 +4424,9 @@ export const OP_EXECUTORS: {
         // of Islands, a `ref`); an unresolvable or non-positive amount adds
         // nothing (CR 106.1, CR 608.2b).
         const mana: Record<string, number> = {};
-        for (const [color, amount] of Object.entries(op.mana)) {
+        const entries2 = Object.entries(op.mana);
+        for (let i = 0; i < entries2.length; i++) {
+            const [color, amount] = entries2[i];
             const n = resolveValue(ctx, amount);
             if (n !== undefined && n > 0) mana[color] = n;
         }
@@ -4460,8 +4483,9 @@ export const OP_EXECUTORS: {
         } else {
             ctx.exile(target);
         }
-        const cards = [target, ...ctx.meldGroupPartners(target.id)];
-        for (const { id } of cards) {
+        const cards = [target].concat(ctx.meldGroupPartners(target.id));
+        for (let i = 0; i < cards.length; i++) {
+            const { id } = cards[i];
             const ownerId = ctx.getExileCardOwner(id);
             if (ownerId === undefined) continue;
             ctx.grantCastFromExile(id, ownerId, ownerId, "while-exiled", {
@@ -4621,7 +4645,9 @@ export const OP_EXECUTORS: {
         if ("fromZones" in op) {
             const playerId = resolvePlayerRef(ctx, op.player);
             if (playerId === undefined) return;
-            for (const zone of op.fromZones) {
+            const zoneList = op.fromZones;
+            for (let j = 0; j < zoneList.length; j++) {
+                const zone = zoneList[j];
                 const cards =
                     zone === "hand"
                         ? ctx.getHandCards(playerId)
@@ -4630,7 +4656,8 @@ export const OP_EXECUTORS: {
                           : zone === "graveyard"
                             ? ctx.getGraveyardCards(playerId)
                             : ctx.getExileCards(playerId);
-                for (const card of cards) {
+                for (let k = 0; k < cards.length; k++) {
+                    const card = cards[k];
                     if (matchesCardFilter(ctx, card, op.filter)) {
                         ctx.moveCardById(playerId, card.id, zone, op.to);
                     }
@@ -4660,7 +4687,8 @@ export const OP_EXECUTORS: {
                 ctx.putLibraryCardsOnTop(playerId, ids);
                 return;
             }
-            for (const id of ids) {
+            for (let j = 0; j < ids.length; j++) {
+                const id = ids[j];
                 if (op.to === "battlefield") {
                     // `from: "graveyard"` (issue #680) reanimates each picked
                     // card under ITS OWN owner's control (`playerId` — the
@@ -4775,7 +4803,8 @@ export const OP_EXECUTORS: {
                 // one face-down exile per card, with NO knower. The oracle
                 // grants no look, so no player may examine them — the owner
                 // included — until they leave exile.
-                for (const id of movedIds) {
+                for (let j = 0; j < movedIds.length; j++) {
+                    const id = movedIds[j];
                     ctx.exileFaceDown(
                         playerId,
                         id,
@@ -5107,7 +5136,7 @@ export const OP_EXECUTORS: {
                 const rest = ctx
                     .peekLibraryTop(owner, Number.MAX_SAFE_INTEGER)
                     .filter((id) => id !== target.id);
-                ctx.reorderLibraryTop(owner, [target.id, ...rest]);
+                ctx.reorderLibraryTop(owner, [target.id].concat(rest));
                 ctx.markKnown(owner, [target.id], owner);
                 return;
             }
@@ -5608,7 +5637,8 @@ export const OP_EXECUTORS: {
             "exile",
             op.faceDown ? playerId : undefined
         );
-        for (const id of exiled) {
+        for (let j = 0; j < exiled.length; j++) {
+            const id = exiled[j];
             // CR 607 / 406.6 — stamp the resolving source so a later Op (here
             // or in a linked second ability) can name exactly these cards
             // through `{ exiledWithSource: true }`.
@@ -5695,12 +5725,13 @@ export const OP_EXECUTORS: {
         // there is no resumed pass that could double-pop it.
         ctx.markKnownToAll(playerId, topIds);
         ctx.notifyReveal(
-            [...ctx.allPlayerIds],
+            ctx.allPlayerIds.slice(),
             topIds,
             ctx.sourceCardId,
             "reveal"
         );
-        for (const id of topIds) {
+        for (let i = 0; i < topIds.length; i++) {
+            const id = topIds[i];
             const card = revealed.get(id);
             if (card === undefined) continue; // CR 608.2b — no longer there
             // FIRST MATCH WINS across the ordered `routes`; no match falls
@@ -5742,7 +5773,8 @@ export const OP_EXECUTORS: {
         // card is itself revealed, CR 701.20a).
         const revealed: string[] = [];
         let matchId: string | undefined;
-        for (const id of ordered) {
+        for (let i = 0; i < ordered.length; i++) {
+            const id = ordered[i];
             const card = byId.get(id);
             if (card === undefined) continue; // CR 101.3 — no longer there
             revealed.push(id);
@@ -5757,7 +5789,7 @@ export const OP_EXECUTORS: {
         // fire.
         ctx.markKnownToAll(playerId, revealed);
         ctx.notifyReveal(
-            [...ctx.allPlayerIds],
+            ctx.allPlayerIds.slice(),
             revealed,
             ctx.sourceCardId,
             "reveal"
@@ -5776,7 +5808,8 @@ export const OP_EXECUTORS: {
         // A `match: "battlefield"` card therefore enters with the milled cards
         // already in the graveyard, which is what an ETB trigger reading them
         // (a graveyard count, a delirium check) has to see.
-        for (const id of revealed) {
+        for (let i = 0; i < revealed.length; i++) {
+            const id = revealed[i];
             const destination = id === matchId ? op.match : op.rest;
             // The rest stays where it is: the shuffle below moves it.
             if (destination === "shuffleIntoLibrary") continue;
@@ -5854,7 +5887,7 @@ export const OP_EXECUTORS: {
             // transient dialog.
             ctx.markKnownToAll(controllerId, [revealedId]);
             ctx.notifyReveal(
-                [...ctx.allPlayerIds],
+                ctx.allPlayerIds.slice(),
                 [revealedId],
                 ctx.sourceCardId,
                 "reveal"
@@ -5959,7 +5992,7 @@ export const OP_EXECUTORS: {
             // public graveyard or a hidden random bottom, handled below).
             if (op.reveal === "window") {
                 ctx.notifyReveal(
-                    [...ctx.allPlayerIds],
+                    ctx.allPlayerIds.slice(),
                     topIds,
                     ctx.sourceCardId,
                     "reveal"
@@ -6032,7 +6065,7 @@ export const OP_EXECUTORS: {
         }
         if (op.reveal !== undefined) {
             ctx.notifyReveal(
-                [...ctx.allPlayerIds],
+                ctx.allPlayerIds.slice(),
                 op.reveal === "window" ? topIds : picks,
                 ctx.sourceCardId,
                 "reveal"
@@ -6042,8 +6075,10 @@ export const OP_EXECUTORS: {
         // that has since left the library is a no-op in `moveCardById` /
         // `putLibraryCardsOnTop` alike (CR 608.2b).
         if (op.keepTo === "hand") {
-            for (const id of picks)
+            for (let i = 0; i < picks.length; i++) {
+                const id = picks[i];
                 ctx.moveCardById(playerId, id, "library", "hand");
+            }
         } else if (op.keepTo === "battlefield") {
             // "battlefield" (issue #3249, Aang, at the Crossroads: "You may put
             // a creature card ... from among them onto the battlefield") — CR
@@ -6052,8 +6087,10 @@ export const OP_EXECUTORS: {
             // cast trigger fires, it enters summoning sick (CR 302.6) and its
             // own ETB triggers fire (CR 603.6a). Routed before the rest are
             // bottomed, the order the Oracle text states.
-            for (const id of picks)
+            for (let i = 0; i < picks.length; i++) {
+                const id = picks[i];
                 ctx.putFromLibraryOntoBattlefield(playerId, id);
+            }
         } else {
             // "library-top" (Thassa's Oracle) — `picks[0]` (the first kept
             // id) ends up the very top when more than one is kept, mirroring
@@ -6271,7 +6308,7 @@ export const OP_EXECUTORS: {
         if (keep === 0) {
             if (op.reveal === "window") {
                 ctx.notifyReveal(
-                    [...ctx.allPlayerIds],
+                    ctx.allPlayerIds.slice(),
                     topIds,
                     ctx.sourceCardId,
                     "reveal"
@@ -6317,14 +6354,16 @@ export const OP_EXECUTORS: {
         }
         if (op.reveal !== undefined) {
             ctx.notifyReveal(
-                [...ctx.allPlayerIds],
+                ctx.allPlayerIds.slice(),
                 op.reveal === "window" ? topIds : picks,
                 ctx.sourceCardId,
                 "reveal"
             );
         }
-        for (const id of picks)
+        for (let i = 0; i < picks.length; i++) {
+            const id = picks[i];
             ctx.moveCardById(playerId, id, "library", "hand");
+        }
         const chosenBottom = randomBottom
             ? []
             : ctx.readOrderedSecond("reveal-categorize");
@@ -6391,7 +6430,10 @@ export const OP_EXECUTORS: {
         // ADR 0026 — the owner keeps knowing each put-back card on top
         // (private — no reveal clause here); knowledge is granted inside the
         // primitive itself so every hand→library-top site shares it.
-        for (const id of picks) ctx.moveHandCardToLibraryTop(playerId, id);
+        for (let i = 0; i < picks.length; i++) {
+            const id = picks[i];
+            ctx.moveHandCardToLibraryTop(playerId, id);
+        }
     },
     // CR 615 (issue #845) — establish a damage-prevention shield. A thin
     // declarative skin over three SpellContext prevention primitives, ONE
@@ -6563,7 +6605,8 @@ export const OP_EXECUTORS: {
                               ? {}
                               : { cardType: op.match.cardType }),
                       };
-            for (const sourceId of sourceIds) {
+            for (let i = 0; i < sourceIds.length; i++) {
+                const sourceId = sourceIds[i];
                 ctx.preventNextDamageFromSource(
                     sourceId,
                     playerId,
@@ -6841,7 +6884,7 @@ export const OP_EXECUTORS: {
                 });
             }
             if (op.bindAll && alreadyCreated.length > 0) {
-                ctx.noteChoice(op.bindAll, [...alreadyCreated]);
+                ctx.noteChoice(op.bindAll, alreadyCreated.slice());
             }
             return;
         }
@@ -6949,7 +6992,7 @@ export const OP_EXECUTORS: {
         // "sacrifice THEM" (Mobilize, CR 702.181a). Uncaptured when nothing
         // was created, so a reader skips.
         if (op.bindAll && ids.length > 0) {
-            ctx.noteChoice(op.bindAll, [...ids]);
+            ctx.noteChoice(op.bindAll, ids.slice());
         }
     },
     // CR 707.2 + CR 111.1 (issue #1459) — create token COPIES of a runtime
@@ -7470,7 +7513,7 @@ export const OP_EXECUTORS: {
         // Confidant's look:1 match-all reveal-and-keep).
         ctx.markKnownToAll(playerId, topIds);
         ctx.notifyReveal(
-            [...ctx.allPlayerIds],
+            ctx.allPlayerIds.slice(),
             topIds,
             ctx.sourceCardId,
             "reveal"
@@ -7480,7 +7523,8 @@ export const OP_EXECUTORS: {
         );
         const matches: string[] = [];
         const rest: string[] = [];
-        for (const id of topIds) {
+        for (let i = 0; i < topIds.length; i++) {
+            const id = topIds[i];
             const c = byId.get(id);
             if (c !== undefined && matchesCardFilter(ctx, c, op.filter)) {
                 matches.push(id);
@@ -7488,10 +7532,14 @@ export const OP_EXECUTORS: {
                 rest.push(id);
             }
         }
-        for (const id of matches)
+        for (let i = 0; i < matches.length; i++) {
+            const id = matches[i];
             ctx.moveCardById(playerId, id, "library", "hand");
-        for (const id of rest)
+        }
+        for (let i = 0; i < rest.length; i++) {
+            const id = rest[i];
             ctx.moveCardById(playerId, id, "library", op.destination);
+        }
         // `bind` (optional) — snapshot the FIRST card put into hand, mirrors
         // `lookDistribute`'s own bind (the card already sits in hand at this
         // point — no last-known-info need, `resolveObjectRef`'s hand-lookup
@@ -7741,17 +7789,25 @@ export const OP_EXECUTORS: {
                     .getHandCards(playerId)
                     .filter((card) => matchesCardFilter(ctx, card, filter))
                     .map((card) => card.id);
-                for (const id of matching) ctx.discardCard(playerId, id);
+                for (let i = 0; i < matching.length; i++) {
+                    const id = matching[i];
+                    ctx.discardCard(playerId, id);
+                }
                 return;
             }
-            for (const id of ctx.getHandIds(playerId)) {
+            const idList = ctx.getHandIds(playerId);
+            for (let i = 0; i < idList.length; i++) {
+                const id = idList[i];
                 ctx.discardCard(playerId, id);
             }
             return;
         }
         const ids = resolvePicks(ctx, op.cards);
         if (!ids) return; // binding never captured — CR 608.2b, skip
-        for (const id of ids) ctx.discardCard(playerId, id);
+        for (let i = 0; i < ids.length; i++) {
+            const id = ids[i];
+            ctx.discardCard(playerId, id);
+        }
     },
     // CR 117.3a / 118.4 (issue #806) — an optional "you may pay {cost}"
     // decision through the existing `may-pay` Pending Choice pipeline. First
@@ -8118,7 +8174,10 @@ export const OP_EXECUTORS: {
         if (op.bind && ids.length > 0) {
             bindSnapshot(ctx, op.bind, { type: "permanent", id: ids[0] });
         }
-        for (const id of ids) ctx.sacrifice(id);
+        for (let i = 0; i < ids.length; i++) {
+            const id = ids[i];
+            ctx.sacrifice(id);
+        }
     },
     // CR 701.21a + CR 608.2b + CR 400.7 (issue #7206) — Goblin Welder's
     // "If both targets are still legal as this ability resolves, that player
@@ -8154,7 +8213,9 @@ export const OP_EXECUTORS: {
         // Set when a SCALAR capture (ref/target, never a literal string or a
         // list `select`) fails to resolve — see the guard below the loop.
         let unresolvedScalarCapture = false;
-        for (const [name, source] of Object.entries(op.capture ?? {})) {
+        const entries2 = Object.entries(op.capture ?? {});
+        for (let i = 0; i < entries2.length; i++) {
+            const [name, source] = entries2[i];
             // Persisted payload keys must NOT start with '$': Convex reserves
             // that sigil for object field names and rejects the whole DB write
             // ("Field name $guard starts with a '$', which is reserved"). A
@@ -8269,7 +8330,9 @@ export const OP_EXECUTORS: {
     // ADR 0045).
     reflexiveTrigger(ctx, op) {
         const payload: Record<string, string | string[]> = {};
-        for (const [name, source] of Object.entries(op.capture ?? {})) {
+        const entries2 = Object.entries(op.capture ?? {});
+        for (let i = 0; i < entries2.length; i++) {
+            const [name, source] = entries2[i];
             // Same '$'-stripping contract as `delayedTrigger` (Convex rejects
             // a field name starting with '$'); `runDelayedTriggerBody` re-adds
             // the sigil when it re-binds the payload.
@@ -8520,7 +8583,10 @@ export const OP_EXECUTORS: {
         });
         if (picks === undefined) return "suspend"; // enqueued — wait
         const topdeck = picks.filter((id) => hand.has(id));
-        for (const id of topdeck) ctx.moveHandCardToLibraryTop(playerId, id);
+        for (let i = 0; i < topdeck.length; i++) {
+            const id = topdeck[i];
+            ctx.moveHandCardToLibraryTop(playerId, id);
+        }
         const kept = n - topdeck.length;
         if (kept > 0 && costPerKept > 0) {
             ctx.loseLife(playerId, costPerKept * kept);
@@ -8647,7 +8713,8 @@ function withMeldGroup<K extends EffectOp["op"]>(
         const forced = new Map<string, TargetSelection>();
         MELD_PARTNER_SELECTIONS.set(ctx, forced);
         try {
-            for (const [i, partner] of partners.entries()) {
+            for (let i = 0; i < partners.length; i++) {
+                const partner = partners[i];
                 const scratch = `$meldGroup${i}`;
                 bindSnapshot(ctx, scratch, partner);
                 forced.set(scratch, partner);
@@ -8674,7 +8741,9 @@ const MELD_PARTNER_SELECTIONS = new WeakMap<
  *  source the census test reads. */
 export const MELD_GROUP_WRAPPED = Symbol("meldGroupWrapped");
 
-for (const [op, disposition] of Object.entries(MELD_GROUP_DISPOSITION)) {
+const entries2 = Object.entries(MELD_GROUP_DISPOSITION);
+for (let j = 0; j < entries2.length; j++) {
+    const [op, disposition] = entries2[j];
     if (disposition !== "expands") continue;
     const table = OP_EXECUTORS as unknown as Record<
         string,
@@ -8725,7 +8794,8 @@ function execChooseCategorized(
     const keep = maxCategorizedPicks(categories);
     const applyOnPicked = (picks: readonly string[]) => {
         if (op.onPicked !== "returnToHand") return; // "keep" — no move
-        for (const id of picks) {
+        for (let i = 0; i < picks.length; i++) {
+            const id = picks[i];
             ctx.returnToHand({ type: "permanent", id });
         }
     };
@@ -8741,7 +8811,10 @@ function execChooseCategorized(
             const rest = battlefieldIdsFor(ctx, playerId, sweepFilter).filter(
                 (id) => !picked.has(id)
             );
-            for (const id of rest) ctx.sacrifice(id);
+            for (let i = 0; i < rest.length; i++) {
+                const id = rest[i];
+                ctx.sacrifice(id);
+            }
             return;
         }
         const rest = ctx
@@ -8752,7 +8825,10 @@ function execChooseCategorized(
                     sweepFilter === undefined ||
                     matchesCardFilter(ctx, c, sweepFilter)
             );
-        for (const c of rest) ctx.discardCard(playerId, c.id);
+        for (let i = 0; i < rest.length; i++) {
+            const c = rest[i];
+            ctx.discardCard(playerId, c.id);
+        }
     };
     // CR 101.4 (issue #3712) — under `forEach { set: "players", simultaneous }`
     // the Op runs twice per player: the "choose" pass freezes the answer under
@@ -8768,7 +8844,7 @@ function execChooseCategorized(
     }
     const commit = (picks: readonly string[]): undefined => {
         if (phase === "choose") {
-            ctx.noteChoice(CATEGORIZED_PICKS_BINDING, [...picks]);
+            ctx.noteChoice(CATEGORIZED_PICKS_BINDING, picks.slice());
             return undefined;
         }
         applyOnPicked(picks);
@@ -8887,7 +8963,8 @@ function runOpList(
     ops: readonly EffectOp[],
     cursor: Cursor
 ): OpOutcome {
-    for (const op of ops) {
+    for (let i = 0; i < ops.length; i++) {
+        const op = ops[i];
         const myPos = cursor.pos++;
         // Already-completed leaf Ops never re-run. The structural constructs
         // `if` / `forEach`, `optionChoice` and
@@ -9084,7 +9161,10 @@ function readIteratedPicks(
             const row = ctx.recallChoice(scopeBindingName(name, pos, k));
             if (row === undefined) continue;
             captured = true;
-            for (const id of row) if (!ids.includes(id)) ids.push(id);
+            for (let i = 0; i < row.length; i++) {
+                const id = row[i];
+                if (!ids.includes(id)) ids.push(id);
+            }
         }
     }
     return captured ? ids : undefined;
@@ -9165,12 +9245,12 @@ function selectForEachMembers(
     ctx: SpellContext,
     select: EffectForEachSelector
 ): string[] {
-    if (select.set === "players") return [...ctx.apNapOrder()];
+    if (select.set === "players") return ctx.apNapOrder().slice();
     // CR 508.3b — "those creatures": the group the firing declaration named.
     if (select.set === "eventAttackers") {
         const event = ctx.triggerEvent;
         return event?.type === "ATTACKERS_DECLARED"
-            ? [...event.attackerIds]
+            ? event.attackerIds.slice()
             : [];
     }
     // `times` (issue #1368) — N repetitions of the body, N read ONCE here and
@@ -9227,14 +9307,14 @@ function selectForEachMembers(
                       (id) => ctx.getExileCardOwner(id) !== undefined
                   )
                 : [];
-        return [...new Set([...departed, ...live])];
+        return [...new Set(departed.concat(live))];
     }
     let owners: string[];
     if (select.controller !== undefined) {
         const pid = resolvePlayerRef(ctx, select.controller);
         owners = pid === undefined ? [] : [pid];
     } else {
-        owners = [...ctx.apNapOrder()];
+        owners = ctx.apNapOrder().slice();
     }
     // A bulk graveyard-set sweep (issue #1056, CR 404): gather every matching
     // card in the selected graveyard(s), owners in APNAP order. Filtered by the
@@ -9349,7 +9429,9 @@ function execForEach(
             }
             const entries: { playerId: string; cardInstanceId: string }[] = [];
             if (!controllerUnresolvable) {
-                for (const id of members) {
+                const idList = members;
+                for (let j = 0; j < idList.length; j++) {
+                    const id = idList[j];
                     const owner =
                         fromZone === "graveyard"
                             ? ctx.getGraveyardCardOwner(id)
@@ -9372,7 +9454,8 @@ function execForEach(
             // after entry the per-member `moveZone` path performs, on each
             // permanent that actually entered.
             if (body.tapped) {
-                for (const id of entered) {
+                for (let j = 0; j < entered.length; j++) {
+                    const id = entered[j];
                     ctx.tap({ type: "permanent", id });
                 }
             }
@@ -9762,16 +9845,22 @@ function resolveCaptureListSource(
     // whole-zone `moveZone`'s `bindAll` exiled. An unbound ref (the zone was
     // empty) freezes nothing, so the body's reader skips (CR 609.3).
     if (select.set === "bound")
-        return [...(readBinding(ctx, select.ref) ?? [])];
+        return (readBinding(ctx, select.ref) ?? []).slice();
     const targetId = ctx.targets[select.of.target]?.id;
     if (targetId === undefined) return [];
     const blockGraph = ctx.getBlockersByAttacker();
     const partners = new Set<string>();
     // "were blocked by it": the target attacked — its blockers are partners.
-    for (const id of blockGraph[targetId] ?? []) partners.add(id);
+    const idList = blockGraph[targetId] ?? [];
+    for (let i = 0; i < idList.length; i++) {
+        const id = idList[i];
+        partners.add(id);
+    }
     // "blocked it": the target blocked — the attackers whose blocker list
     // contains the target are partners (CR 509.1h inverse direction).
-    for (const [attackerId, blockerIds] of Object.entries(blockGraph)) {
+    const entries2 = Object.entries(blockGraph);
+    for (let i = 0; i < entries2.length; i++) {
+        const [attackerId, blockerIds] = entries2[i];
         if (blockerIds.includes(targetId)) partners.add(attackerId);
     }
     return [...partners];
@@ -9793,7 +9882,9 @@ export function runDelayedTriggerBody(
     payload: Record<string, string | string[]>
 ): void {
     if (ctx.getScriptCheckpoint() === undefined) {
-        for (const [key, value] of Object.entries(payload)) {
+        const entries2 = Object.entries(payload);
+        for (let i = 0; i < entries2.length; i++) {
+            const [key, value] = entries2[i];
             // Payload keys are stored with the `$` binding sigil stripped
             // (Convex reserves a leading `$` on field names); re-add it to
             // recover the binding name. A legacy already-`$`-prefixed key is
@@ -9896,7 +9987,7 @@ function runVote(ctx: SpellContext, op: OpOf<"vote">): OpOutcome {
     if (controller === undefined) return; // CR 609.3 — nobody to start
     const order = ctx.apNapOrder();
     const start = Math.max(0, order.indexOf(controller));
-    const voters = [...order.slice(start), ...order.slice(0, start)];
+    const voters = order.slice(start).concat(order.slice(0, start));
 
     const candidatesKey = `#vote:${pos}:candidates`;
     let candidateIds = ctx.recallChoice(candidatesKey);
@@ -9909,7 +10000,8 @@ function runVote(ctx: SpellContext, op: OpOf<"vote">): OpOutcome {
     if (candidateIds.length === 0) return;
 
     const votes: string[] = [];
-    for (const [index, voter] of voters.entries()) {
+    for (let index = 0; index < voters.length; index++) {
+        const voter = voters[index];
         // Arena parity — one candidate is no decision, so no prompt.
         if (candidateIds.length === 1) {
             votes.push(candidateIds[0]);
@@ -10117,7 +10209,7 @@ function runCastDuringResolution(
             : undefined;
     const options =
         blockReason !== undefined
-            ? [...offerFaces, declineRow]
+            ? offerFaces.concat([declineRow])
             : offerFaces.length === 0
               ? offerOptions
               : [
@@ -10374,13 +10466,12 @@ function runCastAnyNumber(
         const pick = ctx.requestOptionChoice({
             playerId,
             choiceId: `cdr:any:${pos}:${k}`,
-            options: [
-                ...remaining.map((id) => ({
+            options: remaining
+                .map((id) => ({
                     id,
                     label: ctx.getCardName(id) ?? "Card",
-                })),
-                { id: CAST_ANY_NUMBER_STOP, label: "Stop casting" },
-            ],
+                }))
+                .concat([{ id: CAST_ANY_NUMBER_STOP, label: "Stop casting" }]),
             prompt: free
                 ? "You may cast any number of these spells without paying their mana costs. Choose the next one, or stop."
                 : "You may cast any number of these spells. Choose the next one, or stop.",

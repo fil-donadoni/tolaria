@@ -127,7 +127,9 @@ export function combineSplitManaCosts(
     const a = left ?? {};
     const b = right ?? {};
     const combined: ManaCost = {};
-    for (const key of ["W", "U", "B", "R", "G", "C"] as const) {
+    const keyList = ["W", "U", "B", "R", "G", "C"] as const;
+    for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i];
         const sum = (a[key] ?? 0) + (b[key] ?? 0);
         if (sum > 0) combined[key] = sum;
     }
@@ -156,20 +158,21 @@ export function combineSplitManaCosts(
         combined.X = numericGeneric;
     }
     const phyrexian: Record<string, number> = {};
-    for (const source of [a.phyrexian, b.phyrexian]) {
-        for (const [color, count] of Object.entries(source ?? {})) {
+    const sourceList = [a.phyrexian, b.phyrexian];
+    for (let i = 0; i < sourceList.length; i++) {
+        const source = sourceList[i];
+        const entries2 = Object.entries(source ?? {});
+        for (let j = 0; j < entries2.length; j++) {
+            const [color, count] = entries2[j];
             phyrexian[color] = (phyrexian[color] ?? 0) + (count ?? 0);
         }
     }
     if (Object.keys(phyrexian).length > 0) {
         combined.phyrexian = phyrexian as ManaCost["phyrexian"];
     }
-    const hybrid = [...(a.hybrid ?? []), ...(b.hybrid ?? [])];
+    const hybrid = (a.hybrid ?? []).concat(b.hybrid ?? []);
     if (hybrid.length > 0) combined.hybrid = hybrid;
-    const hybridGeneric = [
-        ...(a.hybridGeneric ?? []),
-        ...(b.hybridGeneric ?? []),
-    ];
+    const hybridGeneric = (a.hybridGeneric ?? []).concat(b.hybridGeneric ?? []);
     if (hybridGeneric.length > 0) combined.hybridGeneric = hybridGeneric;
     return combined;
 }
@@ -188,7 +191,7 @@ export function combineSplitNames(
 export function combineSplitTypes(
     halves: readonly [SplitHalf, SplitHalf]
 ): CardType[] {
-    return [...new Set([...halves[0].types, ...halves[1].types])];
+    return [...new Set(halves[0].types.concat(halves[1].types))];
 }
 
 /** THE authoring seam for a split card: everything a `CardDefinition` normally
@@ -265,8 +268,8 @@ export function splitHalfTwinDefinition(
         id: splitHalfDefinitionId(parent.id, side),
         name: half.name,
         rarity: parent.rarity,
-        types: [...half.types],
-        ...(half.subtypes ? { subtypes: [...half.subtypes] } : {}),
+        types: half.types.slice(),
+        ...(half.subtypes ? { subtypes: half.subtypes.slice() } : {}),
         ...(half.manaCost ? { manaCost: half.manaCost } : {}),
         oracleText: half.oracleText,
         ...(half.effects ? { effects: half.effects } : {}),

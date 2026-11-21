@@ -79,7 +79,9 @@ export function castableHeldInteraction(
 ): HeldInteraction {
     const units: ManaUnits = censusOf(state, player, memo).now;
     const result: HeldInteraction = { removal: false };
-    for (const card of player.hand) {
+    const cardList = player.hand;
+    for (let i = 0; i < cardList.length; i++) {
+        const card = cardList[i];
         if (!hasInstantSpeed(card)) continue;
         const hint = getInstanceAiCombatHint(card);
         if (!hint) continue;

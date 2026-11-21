@@ -74,7 +74,9 @@ function cyclingCostLabel(cost: ManaCost): string {
     const parts: string[] = [];
     const generic = cost.generic ?? 0;
     if (generic > 0) parts.push(`{${generic}}`);
-    for (const color of ["W", "U", "B", "R", "G", "C"] as const) {
+    const colorList = ["W", "U", "B", "R", "G", "C"] as const;
+    for (let j = 0; j < colorList.length; j++) {
+        const color = colorList[j];
         const n = cost[color] ?? 0;
         for (let i = 0; i < n; i++) parts.push(`{${color}}`);
     }

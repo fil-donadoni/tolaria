@@ -34,7 +34,7 @@ export function lockedVerdictCorpus(
 ): RegistryVerdicts {
     const registry = verdictsFromRegistry(scenarios);
     return {
-        verdicts: [...registry.verdicts, ...verdictsFromLock(lock, payloads)],
+        verdicts: registry.verdicts.concat(verdictsFromLock(lock, payloads)),
         gaps: registry.gaps,
     };
 }

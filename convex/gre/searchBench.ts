@@ -27,11 +27,13 @@ function instance(
     return {
         id,
         card: { id: cardId },
-        types: def?.types ? [...def.types] : ["Creature"],
-        subtypes: def?.subtypes ? [...def.subtypes] : [],
+        types: def?.types ? def.types.slice() : ["Creature"],
+        subtypes: def?.subtypes ? def.subtypes.slice() : [],
         power: def?.power,
         toughness: def?.toughness,
-        staticAbilities: def?.staticAbilities ? [...def.staticAbilities] : [],
+        staticAbilities: def?.staticAbilities
+            ? def.staticAbilities.slice()
+            : [],
         controllerId,
         ownerId: controllerId,
         zone,
@@ -110,9 +112,15 @@ function applyStubMove(state: GameState, step: number): void {
  *  `evaluate` (issue #111); only its cost matters here. */
 function dummyEval(state: GameState): number {
     let score = 0;
-    for (const p of state.players) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
         score += p.life;
-        for (const c of p.battlefield) score += c.power ?? 0;
+        const cList = p.battlefield;
+        for (let j = 0; j < cList.length; j++) {
+            const c = cList[j];
+            score += c.power ?? 0;
+        }
     }
     return score;
 }

@@ -69,7 +69,8 @@ export function resolveTokenTriggeredAbilities(
 ): TriggeredAbility[] {
     if (!descriptors?.length) return [];
     const abilities: TriggeredAbility[] = [];
-    for (const d of descriptors) {
+    for (let i = 0; i < descriptors.length; i++) {
+        const d = descriptors[i];
         switch (d.event) {
             case "PERMANENT_ENTERED":
                 abilities.push(

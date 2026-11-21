@@ -246,10 +246,9 @@ export function describeMove(move: Move, state: GameState): string {
                         `${instanceName(state, pair.attackerId)} ← ${instanceName(state, pair.enlistedId)}`
                 )
                 .join(", ");
-            const costs = [
-                ...(exerted.length > 0 ? [`exert: ${exerted}`] : []),
-                ...(enlisted.length > 0 ? [`enlist: ${enlisted}`] : []),
-            ];
+            const costs = (
+                exerted.length > 0 ? [`exert: ${exerted}`] : []
+            ).concat(enlisted.length > 0 ? [`enlist: ${enlisted}`] : []);
             return costs.length > 0
                 ? `attack: ${attackers} (${costs.join("; ")})`
                 : `attack: ${attackers}`;

@@ -83,11 +83,13 @@ export function instanceManaValue(card: CardInstanceState): number {
 export function cheapestFirst(
     cards: readonly CardInstanceState[]
 ): CardInstanceState[] {
-    return [...cards].sort(
-        (a, b) =>
-            instanceManaValue(a) - instanceManaValue(b) ||
-            a.id.localeCompare(b.id)
-    );
+    return cards
+        .slice()
+        .sort(
+            (a, b) =>
+                instanceManaValue(a) - instanceManaValue(b) ||
+                a.id.localeCompare(b.id)
+        );
 }
 
 /** Legal victims for the selection's next unmet requirement, CHEAPEST FIRST and
@@ -226,12 +228,13 @@ export type ConvokeChoiceView = {
  *  Deterministic and side-effect free. */
 export function chooseManaSpendOrder(choice: ManaSpendChoiceView): string[] {
     const { generic, candidateColors, poolCounts, colorUsefulness } = choice;
-    const order = [...candidateColors].sort(
-        (a, b) => (colorUsefulness[a] ?? 0) - (colorUsefulness[b] ?? 0)
-    );
+    const order = candidateColors
+        .slice()
+        .sort((a, b) => (colorUsefulness[a] ?? 0) - (colorUsefulness[b] ?? 0));
     const remaining = { ...poolCounts };
     const spendOrder: string[] = [];
-    for (const color of order) {
+    for (let i = 0; i < order.length; i++) {
+        const color = order[i];
         while (spendOrder.length < generic && (remaining[color] ?? 0) > 0) {
             spendOrder.push(color);
             remaining[color] = (remaining[color] ?? 0) - 1;
@@ -294,14 +297,14 @@ export function chooseCastExileCost(choice: CastExileChoiceView): string[] {
                     manaValue: manaValueById[id] ?? 0,
                 })),
                 minTotalManaValue
-            ) ?? [...choice.candidateIds]
+            ) ?? choice.candidateIds.slice()
         );
     }
     if (choice.typeCover) {
         const { minCardTypes, typesById } = choice.typeCover;
         const covered = new Set<string>();
         const picked: string[] = [];
-        const remaining = [...choice.candidateIds];
+        const remaining = choice.candidateIds.slice();
         while (covered.size < minCardTypes && remaining.length > 0) {
             let bestIdx = -1;
             let bestGain = 0;
@@ -320,11 +323,15 @@ export function chooseCastExileCost(choice: CastExileChoiceView): string[] {
             // submission is rejected by the server rather than silently wrong.
             if (bestIdx === -1) break;
             const [id] = remaining.splice(bestIdx, 1);
-            for (const t of typesById[id] ?? []) covered.add(t);
+            const tList = typesById[id] ?? [];
+            for (let j = 0; j < tList.length; j++) {
+                const t = tList[j];
+                covered.add(t);
+            }
             picked.push(id);
         }
         if (covered.size >= minCardTypes) return picked;
-        return [...choice.candidateIds];
+        return choice.candidateIds.slice();
     }
     const n = Math.min(
         choice.required,
@@ -351,7 +358,8 @@ export function chooseConvokeCreatures(choice: ConvokeChoiceView): string[] {
     ): string | undefined => {
         let bestId: string | undefined;
         let bestSize = Infinity;
-        for (const cand of pool) {
+        for (let i = 0; i < pool.length; i++) {
+            const cand = pool[i];
             if (used.has(cand.id)) continue;
             if (pred(cand.colors) && cand.colors.size < bestSize) {
                 bestId = cand.id;
@@ -362,20 +370,25 @@ export function chooseConvokeCreatures(choice: ConvokeChoiceView): string[] {
         return bestId;
     };
     const picked: string[] = [];
-    for (const [color, n] of Object.entries(choice.coloredPips)) {
+    const entries2 = Object.entries(choice.coloredPips);
+    for (let j = 0; j < entries2.length; j++) {
+        const [color, n] = entries2[j];
         for (let i = 0; i < n; i++) {
             const id = pickLeastFlexible((colors) => colors.has(color));
             if (id !== undefined) picked.push(id);
         }
     }
-    for (const [c1, c2] of choice.hybridPips) {
+    const entries3 = choice.hybridPips;
+    for (let j = 0; j < entries3.length; j++) {
+        const [c1, c2] = entries3[j];
         const id = pickLeastFlexible(
             (colors) => colors.has(c1) || colors.has(c2)
         );
         if (id !== undefined) picked.push(id);
     }
     // Top up to the forced minimum with any remaining creatures.
-    for (const cand of pool) {
+    for (let j = 0; j < pool.length; j++) {
+        const cand = pool[j];
         if (picked.length >= choice.min) break;
         if (!used.has(cand.id)) {
             used.add(cand.id);
@@ -538,12 +551,14 @@ function manaSpendViewFor(
 ): ManaSpendChoiceView {
     const pool = player.manaPool as unknown as Record<string, number>;
     const poolCounts: Record<string, number> = {};
-    for (const color of choice.candidateColors) {
+    const colorList = choice.candidateColors;
+    for (let i = 0; i < colorList.length; i++) {
+        const color = colorList[i];
         poolCounts[color] = pool[color] ?? 0;
     }
     return {
         generic: choice.generic,
-        candidateColors: [...choice.candidateColors],
+        candidateColors: choice.candidateColors.slice(),
         poolCounts,
         colorUsefulness: {},
     };
@@ -566,9 +581,13 @@ export function pickAlternativeHandCost(
 ): string[] | null {
     const used = new Set<string>([choice.excludeInstanceId]);
     const picked: string[] = [];
-    for (const req of choice.requirements) {
+    const reqList = choice.requirements;
+    for (let i = 0; i < reqList.length; i++) {
+        const req = reqList[i];
         let need = req.count;
-        for (const card of cheapestFirst(player.hand)) {
+        const cardList = cheapestFirst(player.hand);
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (need <= 0) break;
             if (used.has(card.id)) continue;
             if (!handCardMatchesFilter(card, req.filter)) continue;
@@ -611,7 +630,7 @@ export function pickForOwedPayment(
             // function must not mutate the caller's state.
             const trial: SacrificeSelection = {
                 ...sel,
-                picked: [...sel.picked],
+                picked: sel.picked.slice(),
             };
             // CR 702.119a — an emerge victim still to pick buys a reduction
             // by its mana value, so the fallback names the LARGEST one, the
@@ -732,10 +751,11 @@ export function pickForOwedPayment(
             const sources =
                 ec.owner === "you"
                     ? [player]
-                    : [
-                          ...state.players.filter((p) => p.id !== playerId),
-                          ...state.players.filter((p) => p.id === playerId),
-                      ];
+                    : state.players
+                          .filter((p) => p.id !== playerId)
+                          .concat(
+                              state.players.filter((p) => p.id === playerId)
+                          );
             // CR 701.59a — collect evidence: the same cover the plan names.
             if (ec.minTotalManaValue !== undefined) {
                 const picked = planEvidenceCardIds(
@@ -750,7 +770,8 @@ export function pickForOwedPayment(
                       }
                     : null;
             }
-            for (const p of sources) {
+            for (let i = 0; i < sources.length; i++) {
+                const p = sources[i];
                 const matching = p.graveyard.filter(
                     (c) =>
                         ec.cardType === undefined ||

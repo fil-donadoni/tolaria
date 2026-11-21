@@ -494,7 +494,8 @@ export const declaresCastPermission = (cardId: string): boolean =>
 /** Preload a batch of CardDefinitions into the runtime registry. Idempotent:
  *  calling twice with the same id is a no-op (later loads win the value). */
 export function preloadDefinitions(defs: CardDefinition[]): void {
-    for (const def of defs) {
+    for (let i = 0; i < defs.length; i++) {
+        const def = defs[i];
         setRegistryEntry(def.id, def);
         const twinIds: string[] = [];
         // CR 715.2 / 722.2 (ADR 0120 §2) — THE seam where an inset spell's
@@ -524,7 +525,9 @@ export function preloadDefinitions(defs: CardDefinition[]): void {
         // CR 709.2 — one card is one card: `allCards` is built from set-module
         // exports, so deck legality, the Limited pool, `check:index` and
         // `getAllCardNames` keep seeing exactly one Wax // Wane.
-        for (const side of SPLIT_HALF_SIDES) {
+        const sideList = SPLIT_HALF_SIDES;
+        for (let j = 0; j < sideList.length; j++) {
+            const side = sideList[j];
             const half = splitHalfTwinDefinition(def, side);
             if (half) {
                 setRegistryEntry(half.id, half);
@@ -840,6 +843,7 @@ export function* registeredDefinitions(): Generator<CardDefinition> {
     // compiled rows), once.
     const listed = new Set<string>();
     yield* walkSourceDefinitions(listed);
+    // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
     for (const [id, def] of registry) {
         if (id === def.id && !listed.has(id)) yield expandDefinition(def);
     }
@@ -870,12 +874,15 @@ function* walkSourceDefinitions(
     listed: Set<string>
 ): Generator<CardDefinition> {
     if (sourceIds === null) return;
+    // eslint-disable-next-line no-restricted-syntax -- an iterable or generator, not an array (issue #10126)
     for (const id of sourceIds()) {
         listed.add(id);
         const def = resolveRaw(id);
         if (!def || def.id !== id) continue;
         yield expandDefinition(def);
-        for (const twinId of twinIdsByParent.get(id) ?? []) {
+        const twinIdList = twinIdsByParent.get(id) ?? [];
+        for (let i = 0; i < twinIdList.length; i++) {
+            const twinId = twinIdList[i];
             const twin = registry.get(twinId);
             if (twin?.id !== twinId || listed.has(twinId)) continue;
             listed.add(twinId);
@@ -890,6 +897,7 @@ function* walkSourceDefinitions(
  *  reads to prove that loading the catalogue made nothing resident (issue
  *  #4856), or that a request materialised only the cards it touched. */
 export function* residentDefinitionIds(): Generator<string> {
+    // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
     for (const [id, def] of registry) {
         if (id === def.id) yield id;
     }
@@ -1258,6 +1266,7 @@ function printedBackFaceTriggers(
         const triggers = owner && expandedBackFaceOf(owner)?.triggeredAbilities;
         if (triggers?.length) return triggers;
     }
+    // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
     for (const [id, def] of registry) {
         const backFace = expandedBackFaceOf(def);
         if (id !== def.id || !backFace?.triggeredAbilities?.length) continue;
@@ -1469,7 +1478,10 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
         ? (JSON.parse(decodeURIComponent(manaCostRaw)) as ManaCost)
         : {};
     if (!manaCostRaw) {
-        for (const c of colors) manaCost[c] = (manaCost[c] ?? 0) + 1;
+        for (let i = 0; i < colors.length; i++) {
+            const c = colors[i];
+            manaCost[c] = (manaCost[c] ?? 0) + 1;
+        }
     }
     // CR 714.2 (issue #8338) — a Saga back face's chapters (see
     // `tokenDefinitionId`). `expandDefinition` desugars them on this definition
@@ -1569,14 +1581,16 @@ function decodeTokenSpec(defId: string): TokenSpec | undefined {
     >(parts[19]);
     const spec: TokenSpec = {
         name: def.name,
-        types: [...def.types],
-        ...(def.subtypes?.length ? { subtypes: [...def.subtypes] } : {}),
-        ...(def.supertypes?.length ? { supertypes: [...def.supertypes] } : {}),
+        types: def.types.slice(),
+        ...(def.subtypes?.length ? { subtypes: def.subtypes.slice() } : {}),
+        ...(def.supertypes?.length
+            ? { supertypes: def.supertypes.slice() }
+            : {}),
         ...(def.power !== undefined ? { power: def.power } : {}),
         ...(def.toughness !== undefined ? { toughness: def.toughness } : {}),
         ...(colors.length > 0 ? { colors } : {}),
         ...(def.staticAbilities?.length
-            ? { staticAbilities: [...def.staticAbilities] }
+            ? { staticAbilities: def.staticAbilities.slice() }
             : {}),
         ...(def.imagePrintId ? { imagePrintId: def.imagePrintId } : {}),
         ...(def.imagePrintFace ? { imagePrintFace: def.imagePrintFace } : {}),
@@ -1647,6 +1661,7 @@ function isNonmodalBackFaceDefinitionId(cardId: string): boolean {
     // Every synthesized back-face id is a token id (the content-derived codec).
     if (!cardId.startsWith("token:")) return false;
     if (printedBackFaceOwner?.(cardId) !== undefined) return true;
+    // eslint-disable-next-line no-restricted-syntax -- a Map/Set with an early exit, which forEach cannot take (issue #10126)
     for (const [id, def] of registry) {
         const backFace = expandedBackFaceOf(def);
         if (id !== def.id || !backFace || !isTokenCodecBackFace(backFace)) {

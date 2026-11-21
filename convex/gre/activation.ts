@@ -243,7 +243,9 @@ export function depositTappedMana(
     // for anything, but carries "if spent on a creature spell…"): the fungible
     // `manaPool` is a bare per-colour count with nowhere to record the tag.
     const tagged = restriction !== undefined || hasAnyManaRider(riders);
-    for (const [color, amount] of Object.entries(chosen)) {
+    const entries2 = Object.entries(chosen);
+    for (let i = 0; i < entries2.length; i++) {
+        const [color, amount] = entries2[i];
         if (color !== "X" && typeof amount === "number" && amount > 0) {
             if (tagged) {
                 addRestrictedManaToPool(
@@ -345,7 +347,9 @@ export function findCastableExileCard(
     casterId: string,
     instanceId: string
 ): CardInstanceState | undefined {
-    for (const p of state.players) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
         // CR 702.185a (issue #1268) — through the shared authority: a grant can
         // be stamped and not yet OPEN (a warped card is castable only "after
         // the current turn has ended"), and this is the REAL payment path.
@@ -664,7 +668,9 @@ export function resolveAbilityManaCost(
     // onto the base.
     const merged: Record<string, number> = { ...(base ?? {}) };
     const hostNormalized = hostCost ? normalizeManaCost(hostCost) : {};
-    for (const [sym, amt] of Object.entries(hostNormalized)) {
+    const entries2 = Object.entries(hostNormalized);
+    for (let i = 0; i < entries2.length; i++) {
+        const [sym, amt] = entries2[i];
         merged[sym] = (merged[sym] ?? 0) + amt;
     }
     return Object.keys(merged).length > 0 ? merged : undefined;
@@ -707,7 +713,9 @@ export function assertPermanentGiveUpCostAffordable(
     card: CardInstanceState,
     ability: ActivatedAbility
 ): void {
-    for (const leg of permanentGiveUpCostLegs(ability.cost)) {
+    const legList = permanentGiveUpCostLegs(ability.cost);
+    for (let i = 0; i < legList.length; i++) {
+        const leg = legList[i];
         const candidates = player.battlefield.filter((c) =>
             // Layered view, matching `sacrificeCandidates` (issue #1209).
             matchesPermanentFilter(
@@ -948,11 +956,15 @@ function findActivationSource(
     cardInstanceId: string | undefined
 ): CardInstanceState | undefined {
     if (!cardInstanceId) return undefined;
-    for (const p of state.players) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
         const found = p.battlefield.find((c) => c.id === cardInstanceId);
         if (found) return found;
     }
-    for (const p of state.players) {
+    const pList2 = state.players;
+    for (let i = 0; i < pList2.length; i++) {
+        const p = pList2[i];
         const found = p.graveyard.find((c) => c.id === cardInstanceId);
         if (found) return found;
     }
@@ -988,12 +1000,16 @@ export function findPendingActivationSource(
         fromHand?: boolean;
     }
 ): CardInstanceState | undefined {
-    for (const p of state.players) {
+    const pList = state.players;
+    for (let i = 0; i < pList.length; i++) {
+        const p = pList[i];
         const found = p.battlefield.find((c) => c.id === pa.cardInstanceId);
         if (found) return found;
     }
     if (pa.fromGraveyard) {
-        for (const p of state.players) {
+        const pList2 = state.players;
+        for (let i = 0; i < pList2.length; i++) {
+            const p = pList2[i];
             const found = p.graveyard.find((c) => c.id === pa.cardInstanceId);
             if (found) return found;
         }
@@ -1299,7 +1315,9 @@ export function tryAutoCommitPendingActivation(
             state.pendingActivation = undefined;
             return null;
         }
-        for (const id of pa.discardFilterChoice.pickedCardIds) {
+        const idList = pa.discardFilterChoice.pickedCardIds;
+        for (let i = 0; i < idList.length; i++) {
+            const id = idList[i];
             discardToGraveyard(state, playerId, id, { kind: "cost" });
         }
     }
@@ -1358,7 +1376,9 @@ export function tryAutoCommitPendingActivation(
     // vanished-source policy above).
     if (pa.tapOtherChoice) {
         const picks: CardInstanceState[] = [];
-        for (const id of pa.tapOtherChoice.pickedIds) {
+        const idList2 = pa.tapOtherChoice.pickedIds;
+        for (let i = 0; i < idList2.length; i++) {
+            const id = idList2[i];
             const perm = player.battlefield.find((c) => c.id === id);
             if (!perm || perm.isTapped || perm.id === card.id) {
                 state.pendingActivation = undefined;
@@ -1366,7 +1386,8 @@ export function tryAutoCommitPendingActivation(
             }
             picks.push(perm);
         }
-        for (const perm of picks) {
+        for (let i = 0; i < picks.length; i++) {
+            const perm = picks[i];
             tapPermanent(state, perm);
         }
     }
@@ -1639,7 +1660,8 @@ export function payAlternativeCostHandChoice(
     if (!picks.every((id) => player.hand.some((c) => c.id === id))) {
         return false;
     }
-    for (const id of picks) {
+    for (let i = 0; i < picks.length; i++) {
+        const id = picks[i];
         if (choice.action === "exile") {
             moveCard(player, id, "hand", "exile");
         } else {
@@ -2306,7 +2328,9 @@ export function activateAbilityOnState(
     // global search and gate it on the resolved ability's flag below.
     let card = player.battlefield.find((c) => c.id === args.cardInstanceId);
     if (!card) {
-        for (const p of state.players) {
+        const pList = state.players;
+        for (let i = 0; i < pList.length; i++) {
+            const p = pList[i];
             const found = p.battlefield.find(
                 (c) => c.id === args.cardInstanceId
             );
@@ -2322,7 +2346,9 @@ export function activateAbilityOnState(
     // flag on the resolved ability gates whether it may be activated there.
     let fromGraveyard = false;
     if (!card) {
-        for (const p of state.players) {
+        const pList2 = state.players;
+        for (let i = 0; i < pList2.length; i++) {
+            const p = pList2[i];
             const found = p.graveyard.find((c) => c.id === args.cardInstanceId);
             if (found) {
                 card = found;
@@ -2658,7 +2684,8 @@ export function activateAbilityOnState(
                 ? multiModeGroups.slice(1).map((g) => g.requirement)
                 : (ability.additionalTargetRequirements ?? [])
         ).map(effectiveRequirement);
-        for (const [g, extra] of abilityAdditionalRequirements.entries()) {
+        for (let g = 0; g < abilityAdditionalRequirements.length; g++) {
+            const extra = abilityAdditionalRequirements[g];
             const extraLegal = getLegalTargets(
                 state,
                 extra,
@@ -2688,7 +2715,7 @@ export function activateAbilityOnState(
                     multiModeGroups[0]?.instance;
             if (extra.excludePriorTargets && sameInstanceAsPrimary) {
                 const distinct = new Set(
-                    [...legal, ...extraLegal].map((t) => t.id)
+                    legal.concat(extraLegal).map((t) => t.id)
                 );
                 if (distinct.size < abilityRequired + extraRequired) {
                     throw new Error("Not enough legal targets");

@@ -39,12 +39,9 @@ function delayedPayments(node: unknown, inDelayed: boolean): ManaCost[] {
         rec.cost !== null
             ? [rec.cost as ManaCost]
             : [];
-    return [
-        ...own,
-        ...Object.values(rec).flatMap((child) =>
-            delayedPayments(child, delayed)
-        ),
-    ];
+    return own.concat(
+        Object.values(rec).flatMap((child) => delayedPayments(child, delayed))
+    );
 }
 
 /** The largest mana payment a delayed trigger of the card's spell script asks

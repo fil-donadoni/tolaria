@@ -80,14 +80,18 @@ function findCardInstanceAnywhere(
     state: GameState,
     instanceId: string
 ): CardInstanceState | undefined {
-    for (const player of state.players) {
-        for (const zone of [
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const zoneList = [
             player.battlefield,
             player.hand,
             player.library,
             player.graveyard,
             player.exile,
-        ]) {
+        ];
+        for (let j = 0; j < zoneList.length; j++) {
+            const zone = zoneList[j];
             const hit = zone.find((c) => c.id === instanceId);
             if (hit) return hit;
         }
@@ -119,17 +123,21 @@ function collectReplacements(
     const opponents = state.players.filter(
         (p) => p.id !== state.activePlayerId
     );
-    const ordered = active ? [active, ...opponents] : state.players;
+    const ordered = active ? [active].concat(opponents) : state.players;
 
     const out: { source: CardInstanceState; effect: ReplacementEffect }[] = [];
     const battlefieldSourceIds = new Set<string>();
-    for (const player of ordered) {
-        for (const card of player.battlefield) {
+    for (let i = 0; i < ordered.length; i++) {
+        const player = ordered[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             battlefieldSourceIds.add(card.id);
             // CR 613.1f — a source that lost its abilities replaces nothing.
             const effects =
                 liveStaticDefinition(card)?.replacementEffects ?? [];
-            for (const r of effects) {
+            for (let k = 0; k < effects.length; k++) {
+                const r = effects[k];
                 if (r.eventKind === kind) out.push({ source: card, effect: r });
             }
         }
@@ -193,11 +201,17 @@ export function buildStateView(state: GameState): ReplacementStateView {
     let combat: ReplacementStateView["combat"];
     if (state.combat) {
         const blockersByAttacker: Record<string, string[]> = {};
-        for (const id of state.combat.attackerIds) blockersByAttacker[id] = [];
-        for (const [blockerId, attackerIds] of Object.entries(
-            state.combat.blockerAssignments
-        )) {
-            for (const attackerId of attackerIds) {
+        const idList = state.combat.attackerIds;
+        for (let i = 0; i < idList.length; i++) {
+            const id = idList[i];
+            blockersByAttacker[id] = [];
+        }
+        const entries2 = Object.entries(state.combat.blockerAssignments);
+        for (let i = 0; i < entries2.length; i++) {
+            const [blockerId, attackerIds] = entries2[i];
+            const attackerIdList = attackerIds;
+            for (let j = 0; j < attackerIdList.length; j++) {
+                const attackerId = attackerIdList[j];
                 if (blockersByAttacker[attackerId])
                     blockersByAttacker[attackerId].push(blockerId);
             }
@@ -291,8 +305,12 @@ export function getApplicableDrawReplacements(
         source: CardInstanceState;
         effect: DrawReplacementEffect;
     }[] = [];
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             const effect = liveStaticDefinition(card)?.drawReplacement;
             if (!effect) continue;
             const permView = buildPermanentView(card);
@@ -303,7 +321,7 @@ export function getApplicableDrawReplacements(
             });
         }
     }
-    return [...own, ...others];
+    return own.concat(others);
 }
 
 /** CR 614.1a / 104.3c — would `playerId`'s next draw, attempted from an EMPTY
@@ -371,7 +389,7 @@ function buildApplyCtx(
             const others = state.players
                 .filter((p) => p.id !== active)
                 .map((p) => p.id);
-            return [active, ...others];
+            return [active].concat(others);
         },
         drawCards: (playerId, amount) => {
             const player = getPlayer(state, playerId);
@@ -389,10 +407,9 @@ function buildApplyCtx(
                 // Track the last card drawn this turn (CR — Jandor's Ring).
                 player.lastDrawnCardId = drawn.id;
                 // Full per-turn draw tally (CR 121.1) — Sylvan Library.
-                player.drawnThisTurn = [
-                    ...(player.drawnThisTurn ?? []),
+                player.drawnThisTurn = (player.drawnThisTurn ?? []).concat([
                     drawn.id,
-                ];
+                ]);
             }
         },
         moveHandCardToLibraryTop: (playerId, cardInstanceId) =>
@@ -501,7 +518,8 @@ function applyReplacementsLoop(
             effect: ReplacementEffect;
         } | null = null;
         const stateView = buildStateView(state);
-        for (const c of candidates) {
+        for (let j = 0; j < candidates.length; j++) {
+            const c = candidates[j];
             const key = `${c.source.id}|${c.effect.id}`;
             if (used.has(key)) continue;
             // CR 615.12 / 614.9 (issue #2231) — a locked damage event skips the
@@ -555,8 +573,7 @@ export function applyUntapReplacements(
     const before = card.counters?.[STUN_COUNTER] ?? 0;
     payRemoveCounterCost(state, card, { type: STUN_COUNTER, count: 1 });
     // Same COUNTER_REMOVED event `SpellContext.removeCounter` emits.
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
+    state.pendingEvents = (state.pendingEvents ?? []).concat([
         {
             type: "COUNTER_REMOVED",
             instanceId: card.id,
@@ -565,7 +582,7 @@ export function applyUntapReplacements(
             removed: 1,
             remaining: before - 1,
         },
-    ];
+    ]);
     return true;
 }
 
@@ -625,13 +642,14 @@ function applyTransientDestroyShields(
     );
     if (idx === -1) return event;
     const shield = shields[idx];
-    const kept = [
-        ...shields.slice(0, idx),
-        ...(shield.remaining - 1 > 0
-            ? [{ ...shield, remaining: shield.remaining - 1 }]
-            : []),
-        ...shields.slice(idx + 1),
-    ];
+    const kept = shields
+        .slice(0, idx)
+        .concat(
+            shield.remaining - 1 > 0
+                ? [{ ...shield, remaining: shield.remaining - 1 }]
+                : [],
+            shields.slice(idx + 1)
+        );
     state.destroyReplacementShields = kept.length > 0 ? kept : undefined;
     // Oracle "remove all damage marked on it instead" — the saved permanent
     // sheds its marked damage so the same lethal hit doesn't re-destroy it.
@@ -1151,7 +1169,9 @@ export function applyGraveyardRedirectCounters(
 ): void {
     if (!tagCounters) return;
     const counters: Record<string, number> = { ...(card.counters ?? {}) };
-    for (const [type, count] of Object.entries(tagCounters)) {
+    const entries2 = Object.entries(tagCounters);
+    for (let i = 0; i < entries2.length; i++) {
+        const [type, count] = entries2[i];
         if (count <= 0) continue;
         counters[type] = (counters[type] ?? 0) + count;
     }
@@ -1310,7 +1330,7 @@ export function enterBattlefieldDestinationFor(
         ? tryGetDefinition(presentedId)?.entersWith?.asEnters
         : undefined;
     const asEnters = declared ?? fromDefinition;
-    if (asEnters && asEnters.length > 0) return { asEnters: [...asEnters] };
+    if (asEnters && asEnters.length > 0) return { asEnters: asEnters.slice() };
     return "enter";
 }
 
@@ -1331,8 +1351,12 @@ const GHOSTLY_FLAME_ID = "6314344b-6493-4142-9c76-da9b90b8d3e1";
 /** True if any player controls Ghostly Flame (the colour override exists only
  *  while the enchantment does, CR 614). */
 function hasGhostlyFlameInPlay(state: GameState): boolean {
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if ((card.card as { id?: string }).id === GHOSTLY_FLAME_ID) {
                 return true;
             }
@@ -1364,8 +1388,12 @@ export function describeDamageSource(
     subtypes: ReadonlyArray<string>;
     staticAbilities: ReadonlyArray<string>;
 } {
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
             if (card.id !== sourceInstanceId) continue;
             const cardId = (card.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : null;

@@ -23,7 +23,9 @@ export function targetReadsAreRebasable(node: unknown): boolean {
     }
     if (Array.isArray(node)) return node.every(targetReadsAreRebasable);
     if (!node || typeof node !== "object") return true;
-    for (const [key, value] of Object.entries(node)) {
+    const entries2 = Object.entries(node);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, value] = entries2[i];
         if (key === "set" && value === "targets") return false;
         if (!targetReadsAreRebasable(value)) return false;
     }
@@ -33,11 +35,16 @@ export function targetReadsAreRebasable(node: unknown): boolean {
 /** The binding names `node` declares, anywhere in its op tree. */
 export function declaredBindingNames(node: unknown, out: Set<string>): void {
     if (Array.isArray(node)) {
-        for (const child of node) declaredBindingNames(child, out);
+        for (let i = 0; i < node.length; i++) {
+            const child = node[i];
+            declaredBindingNames(child, out);
+        }
         return;
     }
     if (!node || typeof node !== "object") return;
-    for (const [key, value] of Object.entries(node)) {
+    const entries2 = Object.entries(node);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, value] = entries2[i];
         if (
             typeof value === "string" &&
             value.startsWith("$") &&
@@ -81,7 +88,9 @@ export function renameBindings<T>(
     }
     if (!node || typeof node !== "object") return node;
     const out: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(node)) {
+    const entries2 = Object.entries(node);
+    for (let i = 0; i < entries2.length; i++) {
+        const [key, value] = entries2[i];
         out[key] = renameBindings(value, rename);
     }
     return out as T;
@@ -107,7 +116,8 @@ export function rebaseTargetRefs<T>(node: T, offset: number): T {
         return { target: (entries[0][1] as number) + offset } as T;
     }
     const out: Record<string, unknown> = {};
-    for (const [key, value] of entries) {
+    for (let i = 0; i < entries.length; i++) {
+        const [key, value] = entries[i];
         out[key] = rebaseTargetRefs(value, offset);
     }
     return out as T;

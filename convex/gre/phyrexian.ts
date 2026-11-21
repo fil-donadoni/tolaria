@@ -22,7 +22,9 @@ export const PHYREXIAN_LIFE_PER_PIP = 2;
 export function phyrexianPipCount(cost?: ManaCost): number {
     if (!cost?.phyrexian) return 0;
     let total = 0;
-    for (const n of Object.values(cost.phyrexian)) {
+    const nList = Object.values(cost.phyrexian);
+    for (let i = 0; i < nList.length; i++) {
+        const n = nList[i];
         if (typeof n === "number" && n > 0) total += n;
     }
     return total;
@@ -34,7 +36,9 @@ export function phyrexianPipCount(cost?: ManaCost): number {
 export function phyrexianPipColors(cost?: ManaCost): Color[] {
     if (!cost?.phyrexian) return [];
     const out: Color[] = [];
-    for (const c of MANA_COLORS) {
+    const cList = MANA_COLORS;
+    for (let j = 0; j < cList.length; j++) {
+        const c = cList[j];
         const n = cost.phyrexian[c] ?? 0;
         for (let i = 0; i < n; i++) out.push(c);
     }
@@ -125,7 +129,9 @@ export function foldPhyrexianManaAdditions(
     manaCost: Record<string, number>,
     additions: Partial<Record<Color, number>>
 ): Record<string, number> {
-    for (const [c, n] of Object.entries(additions)) {
+    const entries2 = Object.entries(additions);
+    for (let i = 0; i < entries2.length; i++) {
+        const [c, n] = entries2[i];
         if (n && n > 0) manaCost[c] = (manaCost[c] ?? 0) + n;
     }
     return manaCost;

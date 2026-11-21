@@ -12514,11 +12514,17 @@ export function countDomain(
     controllerId: string
 ): number {
     const found = new Set<string>();
-    for (const player of state.players) {
-        for (const permanent of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const permanentList = player.battlefield;
+        for (let j = 0; j < permanentList.length; j++) {
+            const permanent = permanentList[j];
             if (permanent.controllerId !== controllerId) continue;
             if (!permanent.types.includes("Land")) continue;
-            for (const subtype of permanent.subtypes) {
+            const subtypeList = permanent.subtypes;
+            for (let k = 0; k < subtypeList.length; k++) {
+                const subtype = subtypeList[k];
                 if (BASIC_LAND_SUBTYPES.includes(subtype)) {
                     found.add(subtype);
                 }
@@ -12648,8 +12654,12 @@ export function countArtifactsControlled(
     controllerId: string
 ): number {
     let count = 0;
-    for (const player of state.players) {
-        for (const permanent of player.battlefield) {
+    const playerList = state.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const permanentList = player.battlefield;
+        for (let j = 0; j < permanentList.length; j++) {
+            const permanent = permanentList[j];
             if (permanent.controllerId !== controllerId) continue;
             if (permanent.types.includes("Artifact")) count++;
         }
@@ -12675,8 +12685,13 @@ export function countGraveyardCardTypes(
     cards: ReadonlyArray<{ readonly types: ReadonlyArray<string> }>
 ): number {
     const found = new Set<string>();
-    for (const card of cards) {
-        for (const type of card.types) found.add(type);
+    for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
+        const typeList = card.types;
+        for (let j = 0; j < typeList.length; j++) {
+            const type = typeList[j];
+            found.add(type);
+        }
     }
     return found.size;
 }

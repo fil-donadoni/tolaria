@@ -28,7 +28,7 @@ export function expandUnleash(def: CardDefinition): CardDefinition {
         ...def,
         entersWith: {
             ...def.entersWith,
-            asEnters: [...asEnters, UNLEASH_CLAUSE],
+            asEnters: asEnters.concat([UNLEASH_CLAUSE]),
         },
     };
 }

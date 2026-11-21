@@ -103,7 +103,9 @@ export function freeAttackerIds(state: GameState): Set<string> {
     }
     if (attackTaxInPlay(state)) return free;
     const noCrackBack = !defBf.some(isCreature);
-    for (const card of attacker.battlefield) {
+    const attackerBf = attacker.battlefield;
+    for (let i = 0; i < attackerBf.length; i++) {
+        const card = attackerBf[i];
         if (!isCreature(card)) continue;
         if (getEffectivePower(state, card) <= 0) continue;
         const vigilant = card.staticAbilities.includes("vigilance");

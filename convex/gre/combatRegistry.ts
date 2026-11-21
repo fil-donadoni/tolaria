@@ -238,18 +238,19 @@ const SKULK_RULE: EvasionRule = {
     reason: "Attacker has skulk — creatures with greater power can't block it",
 };
 
-export const EVASION_RULES: readonly EvasionRule[] = [
-    UNBLOCKABLE_RULE,
-    ...LANDWALK_RULES,
-    ...LANDWALK_SUPERTYPE_RULES,
-    ...LANDWALK_SNOW_RULES,
-    FEAR_RULE,
-    INTIMIDATE_RULE,
-    FLYING_RULE,
-    SHADOW_RULE,
-    HORSEMANSHIP_RULE,
-    SKULK_RULE,
-];
+export const EVASION_RULES: readonly EvasionRule[] = [UNBLOCKABLE_RULE].concat(
+    LANDWALK_RULES,
+    LANDWALK_SUPERTYPE_RULES,
+    LANDWALK_SNOW_RULES,
+    [
+        FEAR_RULE,
+        INTIMIDATE_RULE,
+        FLYING_RULE,
+        SHADOW_RULE,
+        HORSEMANSHIP_RULE,
+        SKULK_RULE,
+    ]
+);
 
 // ---------------------------------------------------------------------------
 // Attack restriction rules registry (attacker eligibility)
@@ -351,8 +352,11 @@ export function describeMinimumBlockers(attacker: CardInstanceState): {
 } {
     let min = 1;
     let sourceLabel: string | undefined;
-    for (const declared of attacker.staticAbilities) {
-        for (const rule of MINIMUM_BLOCKER_RULES) {
+    const declaredList = attacker.staticAbilities;
+    for (let i = 0; i < declaredList.length; i++) {
+        const declared = declaredList[i];
+        for (let j = 0; j < MINIMUM_BLOCKER_RULES.length; j++) {
+            const rule = MINIMUM_BLOCKER_RULES[j];
             const n = rule.minimumFrom(declared);
             if (n === undefined || n <= min) continue;
             min = n;
@@ -393,7 +397,8 @@ export function evaluateBlockerKeywords(
     // CR 612: a text change can rewrite the attacker's landwalk keyword
     // (forestwalk → islandwalk), so match against the rewritten abilities.
     const attackerAbilities = applySubstitution(attacker).staticAbilities;
-    for (const rule of EVASION_RULES) {
+    for (let i = 0; i < EVASION_RULES.length; i++) {
+        const rule = EVASION_RULES[i];
         if (!attackerAbilities.includes(rule.keyword)) continue;
         if (!rule.canBlock(attacker, blocker, defenderBattlefield, powerOf)) {
             return { eligible: false, reason: rule.reason };
@@ -413,7 +418,8 @@ export function evaluateBlockerKeywords(
 export function evaluateAttackerKeywords(
     card: CardInstanceState
 ): AttackerKeywordResult {
-    for (const rule of ATTACK_RESTRICTION_RULES) {
+    for (let i = 0; i < ATTACK_RESTRICTION_RULES.length; i++) {
+        const rule = ATTACK_RESTRICTION_RULES[i];
         if (!card.staticAbilities.includes(rule.keyword)) continue;
         if (!rule.canAttack(card)) {
             return { eligible: false, reason: rule.reason };
