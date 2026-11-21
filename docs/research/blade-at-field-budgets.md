@@ -7,6 +7,10 @@
 > **Chromium 313, WebKit 200, Gecko 71**. They are research inputs here, never
 > constants in code; a later field reading replaces them and this census is
 > re-run.
+>
+> **Re-run:** 2026-11-21 at the post-engine-change field budgets (387 / 160 /
+> 94), diffed entry by entry against this one —
+> `field-reading-after-engine-changes.md`.
 
 **Question.** The blade proves the Bot's tested decisions at each entry's
 declared budget. In real games the clock stops almost every search long before
