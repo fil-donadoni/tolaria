@@ -149,6 +149,9 @@ describe("full-text effect, GRE → wire → UI → game.ts (CR 612.6, issue #67
             submitChoice(state, ["wurm"]);
             expect(getPlayer(state, "p1").graveyard.at(-1)?.id).toBe("wurm");
             expect(presentedDefId(shifter(state))).toBe(CRAW_WURM);
+            // The {2} just spent the pool; refill it so the retained ability's
+            // mana leg is fundable again (projected since issue #10370).
+            getPlayer(state, "p1").manaPool.C = 2;
             const card = projectedShifter(state);
             expect(card.card.id).toBe(CRAW_WURM);
             // Craw Wurm has no activated ability: the retained text alone.

@@ -48,7 +48,14 @@ function projectedAfterChapter(lore: number) {
         counters: { [LORE_COUNTER]: lore },
     });
     const state: GameState = makeState({
-        players: [makePlayer("p1", { battlefield: [saga] }), makePlayer("p2")],
+        players: [
+            // Ample pool: the mana leg is projected too (issue #10370).
+            makePlayer("p1", {
+                battlefield: [saga],
+                manaPool: { W: 5, U: 5, B: 5, R: 5, G: 5, C: 5 },
+            }),
+            makePlayer("p2"),
+        ],
     });
     advanceSagasAtPrecombatMain(state);
     processPendingActionTriggers(state);

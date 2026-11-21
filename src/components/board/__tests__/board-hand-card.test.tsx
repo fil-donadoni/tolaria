@@ -557,6 +557,34 @@ describe("BoardHandCard Cycling affordance (CR 702.29a, #689)", () => {
         expect(announceCast).not.toHaveBeenCalled();
     });
 
+    // Issue #10370 — CR 602.2b / 601.2g: the server projects the cycling cost
+    // as unfundable; ring and click both read the same withheld option.
+    it("an unaffordable cycling cost neither rings the card nor activates on click", () => {
+        cardDef = {
+            name: "Troll of Khazad-dûm",
+            activatedAbilities: [cyclingAbility],
+        };
+        const card = {
+            ...makeCard("troll", []),
+            unaffordableAbilityIds: ["cycling"],
+        };
+        const { container } = renderCard(card);
+        expect(container.querySelector(".card-ring-actionable")).toBeNull();
+        fireEvent.click(el());
+        expect(activateAbility).not.toHaveBeenCalled();
+    });
+
+    it("an affordable cycling cost rings the card and activates on click", () => {
+        cardDef = {
+            name: "Troll of Khazad-dûm",
+            activatedAbilities: [cyclingAbility],
+        };
+        const { container } = renderCard(makeCard("troll", []));
+        expect(container.querySelector(".card-ring-actionable")).not.toBeNull();
+        fireEvent.click(el());
+        expect(activateAbility).toHaveBeenCalledTimes(1);
+    });
+
     it("cycling + legal play (2 options): a plain left click opens the menu instead of acting directly", () => {
         // Raugrin Triome — a land (play) that can also be cycled. Two options,
         // so the click opens the menu; it must NOT immediately play the land or
