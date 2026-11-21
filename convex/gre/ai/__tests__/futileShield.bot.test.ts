@@ -1067,6 +1067,29 @@ describe("isFutileThisTurnMove — self-sacrifice regeneration (issue #10220)", 
         expect(isFutileThisTurnMove(state, move)).toBe(true);
     });
 
+    it("prunes the sacrifice against an opposing token-creation trigger", () => {
+        const state = position(
+            {
+                ...JAR_BOARD,
+                cards: [
+                    ...JAR_BOARD.cards,
+                    { name: "Elder Auntie", owner: "opp", zone: "battlefield" },
+                ],
+            },
+            [
+                {
+                    kind: "etb-trigger",
+                    card: "Elder Auntie",
+                    controller: "opp",
+                },
+                { kind: "pass", seat: "opp" },
+            ]
+        );
+        expect(state.stack).toHaveLength(1);
+        const move = jarAt(state, "Ornithopter");
+        expect(isFutileThisTurnMove(state, move)).toBe(true);
+    });
+
     it("keeps the sacrifice against a destroy-artifact spell on the stack", () => {
         const state = position(
             { ...SAGA_GRANT_ON_STACK, phase: "PRECOMBAT_MAIN" },
