@@ -449,8 +449,8 @@ describe("summarizeBotSearch", () => {
         );
         const report = summarizeBotSearch("game1", samples, DEVICE, {
             readings: [
-                { msPerIteration: 2.1, iterations: 9 },
-                { msPerIteration: 3.4, iterations: 6 },
+                { msPerUnit: 2.1, units: 9 },
+                { msPerUnit: 3.4, units: 6 },
             ],
             skipped: 2,
         });
@@ -598,10 +598,10 @@ describe("what a slow game was (issue #10321)", () => {
 describe("the calibration readings (issue #10451)", () => {
     /** Let the promises a calibration settles through run. */
     const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
-    /** A reading of `ms` per iteration over `iterations` units. */
-    const reading = (ms: number, iterations = 10) => ({
-        msPerIteration: ms,
-        iterations,
+    /** A reading of `ms` per unit over `units` units. */
+    const reading = (ms: number, units = 10) => ({
+        msPerUnit: ms,
+        units,
     });
     /** A page that is shown and stays shown. */
     const shown: PageVisibility = { hidden: () => false, changes: () => 0 };
@@ -620,11 +620,11 @@ describe("the calibration readings (issue #10451)", () => {
             skipped: 4,
         });
         expect(report["calibration.first"]).toBe(9.9);
-        expect(report["calibration.firstIterations"]).toBe(2);
+        expect(report["calibration.firstUnits"]).toBe(2);
         expect(report["calibration.last"]).toBe(3.42);
-        expect(report["calibration.lastIterations"]).toBe(7);
+        expect(report["calibration.lastUnits"]).toBe(7);
         expect(report["calibration.min"]).toBe(1.73);
-        expect(report["calibration.minIterations"]).toBe(11);
+        expect(report["calibration.minUnits"]).toBe(11);
         expect(report["calibration.count"]).toBe(3);
         expect(report["calibration.skipped"]).toBe(4);
     });
@@ -823,6 +823,54 @@ describe("the calibration readings (issue #10451)", () => {
         expect(log.waitedBehind(1_040, 4_000)).toBe(0);
     });
 
+    it("does not know the wait behind a calibration that came back with no reading, until the Worker answers a consult posted after it", async () => {
+        // The page's own timeout fired, or the Worker died: no reading came
+        // back, and the Worker may still have been on the calibration.
+        let now = 0;
+        let release!: (value: ReturnType<typeof reading> | null) => void;
+        const log = calibrationLog(
+            () =>
+                new Promise((resolve) => {
+                    release = resolve;
+                }),
+            () => now,
+            shown
+        );
+        log.after(searched(), 1_000);
+        now = 11_300;
+        release(null);
+        await settled();
+
+        // A consult posted after the page gave up: the wait is unknown, not
+        // zero.
+        expect(log.waitedBehind(11_400, 11_900)).toBeNull();
+        // The Worker answered that consult, so its queue is past the
+        // calibration: the consults after it waited behind nothing. (A slow
+        // search, so that no new reading is asked for here.)
+        log.after(
+            { ...capped(9_000, 8_300), postedAt: 11_400, consultMs: 500 },
+            11_900
+        );
+        expect(log.waitedBehind(12_000, 12_400)).toBe(0);
+    });
+
+    it("keeps the wait unknown while the consults since were not the Worker's to answer", async () => {
+        const log = calibrationLog(
+            () => Promise.resolve(null),
+            undefined,
+            shown
+        );
+        log.after(searched(), 1_000);
+        await settled();
+        // A timeout, an in-thread consult: neither says the Worker is free.
+        log.after(
+            { ...searched(), outcome: "timeout", postedAt: 2_000 },
+            12_000
+        );
+        log.after({ ...searched(), via: "inline", postedAt: 13_000 }, 13_100);
+        expect(log.waitedBehind(14_000, 14_500)).toBeNull();
+    });
+
     it("takes a known wait behind a calibration out of the consult's time, carries it, and gives the consult no idle reading", () => {
         const log = vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
         const span = vi
@@ -994,11 +1042,11 @@ describe("the calibration readings (issue #10451)", () => {
         expect(span.mock.calls[0]![0]).not.toHaveProperty("calibration");
         expect(span.mock.calls[1]![0]).toMatchObject({
             calibration: 2.5,
-            calibrationIterations: 9,
+            calibrationUnits: 9,
         });
         expect(log.mock.calls[0]![0]).toMatchObject({
             "calibration.first": 2.5,
-            "calibration.firstIterations": 9,
+            "calibration.firstUnits": 9,
             "calibration.last": 2.5,
             "calibration.min": 2.5,
             "calibration.count": 1,

@@ -46,13 +46,14 @@
 // the same fixed work on the same fixed board (`convex/gre/ai/calibration.ts`)
 // after each of the game's first `CALIBRATION_WARMUP_READINGS` consults and
 // then at most once every `CALIBRATION_INTERVAL_MS`. The report carries the
-// first, the latest and the best, each beside the iterations it stands on,
-// how many readings there were and how many were skipped
-// (`calibration.first`, `.last`, `.min`, their `...Iterations`, `.count`,
-// `.skipped`; milliseconds per iteration). The first readings run colder —
-// the browser has not compiled the calibration's own paths yet — so `.min` is
-// the machine at its best. A duration like the rest; it reads nothing of the
-// game.
+// first, the latest and the best, each beside the units it stands on, how
+// many readings there were and how many were skipped (`calibration.first`,
+// `.last`, `.min`, their `...Units`, `.count`, `.skipped`). They are
+// milliseconds per UNIT — a board built and one iteration searched with its
+// root read — and so not comparable with a consult's `msPerIteration`. The
+// first readings run colder — the browser has not compiled the calibration's
+// own paths yet — so `.min` is the machine at its best. A duration like the
+// rest; it reads nothing of the game.
 //
 // The report is flushed out of the SDK's log buffer the moment it is logged:
 // a phone backgrounding the page gives no second chance.
@@ -184,11 +185,11 @@ export const REPORT_KEYS = [
     "msPerProbe.p50",
     "idleMs.p50",
     "calibration.first",
-    "calibration.firstIterations",
+    "calibration.firstUnits",
     "calibration.last",
-    "calibration.lastIterations",
+    "calibration.lastUnits",
     "calibration.min",
-    "calibration.minIterations",
+    "calibration.minUnits",
     "calibration.count",
     "calibration.skipped",
     "device.engine",
@@ -414,25 +415,25 @@ export function summarizeBotSearch(
 
     // What the machine was worth, whatever the board (issue #10451): the
     // game's first calibration reading, its latest and its best, each beside
-    // the iterations it stands on. The first ones run colder, so the best is
+    // the units it stands on. The first ones run colder, so the best is
     // the machine's own speed. `skipped` counts the readings that were due
     // and not taken because a search had just run long past its cap: on a
     // device where that is every late search, `last` is an early reading.
     const readings = calibration.readings.filter(
-        (r) => finite(r.msPerIteration) && finite(r.iterations)
+        (r) => finite(r.msPerUnit) && finite(r.units)
     );
     if (readings.length > 0) {
         const first = readings[0]!;
         const last = readings[readings.length - 1]!;
         const best = readings.reduce((min, r) =>
-            r.msPerIteration < min.msPerIteration ? r : min
+            r.msPerUnit < min.msPerUnit ? r : min
         );
-        raw["calibration.first"] = round(first.msPerIteration, 2);
-        raw["calibration.firstIterations"] = first.iterations;
-        raw["calibration.last"] = round(last.msPerIteration, 2);
-        raw["calibration.lastIterations"] = last.iterations;
-        raw["calibration.min"] = round(best.msPerIteration, 2);
-        raw["calibration.minIterations"] = best.iterations;
+        raw["calibration.first"] = round(first.msPerUnit, 2);
+        raw["calibration.firstUnits"] = first.units;
+        raw["calibration.last"] = round(last.msPerUnit, 2);
+        raw["calibration.lastUnits"] = last.units;
+        raw["calibration.min"] = round(best.msPerUnit, 2);
+        raw["calibration.minUnits"] = best.units;
         raw["calibration.count"] = readings.length;
     }
     if (finite(calibration.skipped) && calibration.skipped > 0) {
@@ -561,8 +562,8 @@ export function consultClock(): ConsultClock {
 }
 
 /** Asks the Brain's Worker for one calibration reading (`calibrateBrain`,
- *  `./brain-client`): milliseconds per iteration beside the iterations
- *  behind it, or `null` for no reading. */
+ *  `./brain-client`): milliseconds per unit beside the units behind it, or
+ *  `null` for no reading. */
 export type Calibrator = () => Promise<CalibrationReading | null>;
 
 /** What a game's calibration log holds when its report goes out. */
@@ -640,8 +641,10 @@ export type CalibrationLog = {
     after: (sample: ConsultSample, now: number) => void;
     /** How long a consult posted at `postedAt` and answered at `answeredAt`
      *  waited in the Worker behind the latest calibration: 0 when it was not
-     *  posted while that calibration was in flight, `null` when it was and
-     *  the calibration never settled, so the wait is not known. */
+     *  posted while that calibration was in flight, `null` when the wait is
+     *  not known — the calibration is still in flight, or it came back with
+     *  no reading (the page's own timeout, a dead Worker), so the Worker may
+     *  still have been on it. */
     waitedBehind: (postedAt: number, answeredAt: number) => number | null;
 };
 
@@ -670,8 +673,12 @@ export function calibrationLog(
     const readings: CalibrationReading[] = [];
     let skipped = 0;
     let askedAt: number | undefined;
-    /** When the latest calibration settled; `undefined` while in flight, and
-     *  for good when it never settles. */
+    /** When the Worker is known to have finished the latest calibration:
+     *  when its reading came back. `undefined` while it is in flight, and
+     *  after it came back with NO reading — the page gave up on it or the
+     *  Worker died, which says nothing of when the Worker was free — until
+     *  the Worker answers a consult posted after it, which it could only do
+     *  with the calibration out of its queue. */
     let settledAt: number | undefined;
     let asked = 0;
     let asking = false;
@@ -685,6 +692,18 @@ export function calibrationLog(
             return until > postedAt ? until - postedAt : 0;
         },
         after(sample, now) {
+            // The Worker answered a consult posted after a calibration that
+            // never reported back: its queue is past that calibration.
+            if (
+                !asking &&
+                askedAt !== undefined &&
+                settledAt === undefined &&
+                workerAnswered(sample) &&
+                finite(sample.postedAt) &&
+                sample.postedAt >= askedAt
+            ) {
+                settledAt = askedAt;
+            }
             if (!calibrate || asking) return;
             if (!workerAnswered(sample)) return;
             if (
@@ -714,8 +733,10 @@ export function calibrationLog(
             askedAt = now;
             settledAt = undefined;
             const changesBefore = visibility.changes();
-            const settle = () => {
+            /** `answered`: the Worker's own answer came back. */
+            const settle = (answered: boolean) => {
                 asking = false;
+                if (!answered) return;
                 try {
                     settledAt = clock();
                 } catch {
@@ -725,24 +746,26 @@ export function calibrationLog(
             try {
                 void Promise.resolve(calibrate())
                     .then((reading) => {
+                        const usable =
+                            reading !== null &&
+                            reading !== undefined &&
+                            finite(reading.msPerUnit) &&
+                            reading.msPerUnit > 0 &&
+                            finite(reading.units) &&
+                            reading.units > 0;
+                        // Only a reading is proof the Worker finished: no
+                        // reading is also what the page's timeout and a dead
+                        // Worker look like.
+                        settle(usable);
                         // A reading the page was hidden or shown during may
                         // have spanned a freeze: it is not a measurement.
                         if (visibility.changes() !== changesBefore) return;
-                        if (
-                            reading &&
-                            finite(reading.msPerIteration) &&
-                            reading.msPerIteration > 0 &&
-                            finite(reading.iterations) &&
-                            reading.iterations > 0
-                        ) {
-                            readings.push(reading);
-                        }
+                        if (usable) readings.push(reading);
                     })
-                    .catch(() => {})
-                    .then(settle);
+                    .catch(() => settle(false));
             } catch {
                 // Monitoring never costs the game anything.
-                settle();
+                settle(false);
             }
         },
     };

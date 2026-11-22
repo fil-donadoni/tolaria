@@ -231,8 +231,7 @@ let deferConsult = false;
 let releaseConsult: ((result: unknown) => void) | undefined;
 /** What the Brain's Worker makes of the calibration search (issue #10451), in
  *  milliseconds per iteration; `null` is "no reading". */
-let calibrationReading: { msPerIteration: number; iterations: number } | null =
-    null;
+let calibrationReading: { msPerUnit: number; units: number } | null = null;
 let calibrationsAsked = 0;
 vi.mock("~/lib/ai/brain-client", () => ({
     calibrateBrain: () => {
@@ -1451,7 +1450,7 @@ describe("the game's Bot search report (issue #9526)", () => {
     // calibration search, asked of the Brain's Worker after a consult it
     // answered.
     it("asks the Worker for a calibration reading after its first answer, and reports it", async () => {
-        calibrationReading = { msPerIteration: 2.345, iterations: 9 };
+        calibrationReading = { msPerUnit: 2.345, units: 9 };
         calibrationsAsked = 0;
         const span = vi
             .spyOn(botConsultSpanSink, "record")
@@ -1473,7 +1472,7 @@ describe("the game's Bot search report (issue #9526)", () => {
             expect(span.mock.calls[0]![0]).not.toHaveProperty("calibration");
             expect(span.mock.calls[1]![0]).toMatchObject({
                 calibration: 2.35,
-                calibrationIterations: 9,
+                calibrationUnits: 9,
             });
 
             endGame(board, 3);
@@ -1481,7 +1480,7 @@ describe("the game's Bot search report (issue #9526)", () => {
             await advance(50);
             expect(log.mock.calls[0]![0]).toMatchObject({
                 "calibration.first": 2.35,
-                "calibration.firstIterations": 9,
+                "calibration.firstUnits": 9,
                 "calibration.last": 2.35,
                 "calibration.min": 2.35,
                 "calibration.count": 2,

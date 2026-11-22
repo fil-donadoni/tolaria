@@ -51,7 +51,7 @@ export const CONSULT_SPAN_KEYS = [
     "phase",
     "permanents",
     "calibration",
-    "calibrationIterations",
+    "calibrationUnits",
     "calibrationWaitMs",
     "device.engine",
     "device.os",
@@ -71,9 +71,9 @@ export type TimedConsult = ConsultSample & {
     ordinal: number;
     /** The game's latest calibration reading when the consult ended (issue
      *  #10451): what the machine made of the fixed calibration work,
-     *  whatever this consult's board, and the iterations behind the number.
-     *  Absent until the game has one. */
-    calibration?: { msPerIteration: number; iterations: number };
+     *  whatever this consult's board, in milliseconds per unit of that work,
+     *  and the units behind the number. Absent until the game has one. */
+    calibration?: { msPerUnit: number; units: number };
 };
 
 /** Where a span goes. An object, so a test observes the routing by spying on
@@ -165,9 +165,9 @@ export function consultSpanAttributes(
     if (finite(consult.consultMs)) raw.consultMs = round(consult.consultMs);
     if (finite(consult.idleMs)) raw.idleMs = round(consult.idleMs);
 
-    if (consult.calibration && finite(consult.calibration.msPerIteration)) {
-        raw.calibration = round(consult.calibration.msPerIteration, 2);
-        raw.calibrationIterations = consult.calibration.iterations;
+    if (consult.calibration && finite(consult.calibration.msPerUnit)) {
+        raw.calibration = round(consult.calibration.msPerUnit, 2);
+        raw.calibrationUnits = consult.calibration.units;
     }
     if (finite(consult.calibrationWaitMs)) {
         raw.calibrationWaitMs = round(consult.calibrationWaitMs);

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PublicGameState } from "@convex/gameProjections";
 import {
     CALIBRATION_BUDGET_MS,
+    CALIBRATION_WORK,
     runCalibration,
 } from "@convex/gre/ai/calibration";
 import {
@@ -25,13 +26,13 @@ describe("handleCalibration", () => {
     it("answers with the calibration's reading under the request's id", () => {
         expect(
             handleCalibration({ kind: "calibrate", id: 7 }, () => ({
-                msPerIteration: 2.5,
-                iterations: 9,
+                msPerUnit: 2.5,
+                units: 9,
             }))
         ).toEqual({
             kind: "calibration",
             id: 7,
-            reading: { msPerIteration: 2.5, iterations: 9 },
+            reading: { msPerUnit: 2.5, units: 9 },
         });
     });
 
@@ -50,10 +51,10 @@ describe("handleCalibration", () => {
             })
         ).toEqual(none(9));
         for (const bad of [
-            { msPerIteration: 0, iterations: 4 },
-            { msPerIteration: Number.NaN, iterations: 4 },
-            { msPerIteration: 2.5, iterations: 0 },
-            { msPerIteration: 2.5, iterations: 1.5 },
+            { msPerUnit: 0, units: 4 },
+            { msPerUnit: Number.NaN, units: 4 },
+            { msPerUnit: 2.5, units: 0 },
+            { msPerUnit: 2.5, units: 1.5 },
         ]) {
             expect(
                 handleCalibration({ kind: "calibrate", id: 10 }, () => bad)
@@ -65,31 +66,49 @@ describe("handleCalibration", () => {
         // On the real clock: under the suite's fake timers no time passes.
         vi.useRealTimers();
         const answer = handleCalibration({ kind: "calibrate", id: 1 });
-        expect(answer.reading!.msPerIteration).toBeGreaterThan(0);
-        expect(answer.reading!.iterations).toBeGreaterThan(0);
+        expect(answer.reading!.msPerUnit).toBeGreaterThan(0);
+        expect(answer.reading!.units).toBeGreaterThan(0);
     });
 
     // The wait a consult posted behind a calibration can be made to pay is
-    // the handler's whole length. With the REAL calibration behind it and a
-    // clock that charges every unit the same, that length stays under the
-    // budget plus one unit, whatever a unit costs on the device.
-    it("lasts no longer than its budget plus one unit, on the real calibration", () => {
-        for (const unitMs of [2, 10, 24, 26, 60, 250]) {
-            let reads = 0;
-            const now = () => {
-                reads += 1;
-                return reads * unitMs;
-            };
+    // the handler's whole length. Driven by the REAL calibration over a clock
+    // that advances only with the work done — building the board, searching
+    // it — the handler's length is under the budget plus one unit, and none
+    // of its work happens before the clock's first read or after its last:
+    // work moved outside the clock would be a wait the reading does not see.
+    it("lasts no longer than its budget plus one unit, all of it inside the clock, on the real calibration", () => {
+        for (const [buildMs, searchMs] of [
+            [1, 1],
+            [2, 8],
+            [6, 20],
+            [30, 220],
+        ] as const) {
+            let t = 0;
+            const readAt: number[] = [];
             const answer = handleCalibration({ kind: "calibrate", id: 2 }, () =>
-                runCalibration(now)
+                runCalibration(
+                    () => {
+                        readAt.push(t);
+                        return t;
+                    },
+                    {
+                        build: () => {
+                            t += buildMs;
+                            return CALIBRATION_WORK.build();
+                        },
+                        search: (state) => {
+                            t += searchMs;
+                            return CALIBRATION_WORK.search(state);
+                        },
+                    }
+                )
             );
             const reading = answer.reading!;
-            // Every clock read but the first closes a unit: the handler's
-            // length on this clock is the units it ran, nothing beside them.
-            expect(reads).toBe(1 + reading.iterations);
-            const length = (reads - 1) * unitMs;
-            expect(length).toBeLessThan(CALIBRATION_BUDGET_MS + unitMs);
-            expect(reading.msPerIteration).toBe(unitMs);
+            expect(readAt[0]).toBe(0);
+            expect(readAt.at(-1)).toBe(t);
+            expect(t).toBeLessThan(CALIBRATION_BUDGET_MS + buildMs + searchMs);
+            expect(reading.msPerUnit).toBeCloseTo(buildMs + searchMs, 9);
+            expect(reading.units * (buildMs + searchMs)).toBeCloseTo(t, 9);
         }
     });
 
@@ -101,7 +120,7 @@ describe("handleCalibration", () => {
             isBrainCalibration({
                 kind: "calibration",
                 id: 1,
-                reading: { msPerIteration: 2, iterations: 3 },
+                reading: { msPerUnit: 2, units: 3 },
             })
         ).toBe(true);
         expect(isBrainCalibration({ id: 1, move: null, trace: null })).toBe(
@@ -161,11 +180,11 @@ describe("calibrateBrain", () => {
         worker.answer({
             kind: "calibration",
             id: worker.posted[0]!.id,
-            reading: { msPerIteration: 2.5, iterations: 9 },
+            reading: { msPerUnit: 2.5, units: 9 },
         });
         await expect(reading).resolves.toEqual({
-            msPerIteration: 2.5,
-            iterations: 9,
+            msPerUnit: 2.5,
+            units: 9,
         });
     });
 
@@ -194,7 +213,7 @@ describe("calibrateBrain", () => {
         worker.answer({
             kind: "calibration",
             id: worker.posted[1]!.id,
-            reading: { msPerIteration: "fast", iterations: 3 },
+            reading: { msPerUnit: "fast", units: 3 },
         });
         await expect(malformed).resolves.toBeNull();
     });
@@ -231,11 +250,11 @@ describe("calibrateBrain", () => {
         worker.answer({
             kind: "calibration",
             id: calibrateMessage!.id,
-            reading: { msPerIteration: 3, iterations: 4 },
+            reading: { msPerUnit: 3, units: 4 },
         });
         await expect(reading).resolves.toEqual({
-            msPerIteration: 3,
-            iterations: 4,
+            msPerUnit: 3,
+            units: 4,
         });
 
         worker.answer({ id: consultMessage!.id, move: null, trace: null });

@@ -80,7 +80,7 @@ Eight consecutive readings in each of three fresh processes:
 - **A browser's Worker**, on any engine, and a phone. These are JavaScriptCore
   figures from a bun process; V8's and SpiderMonkey's compile tiers differ.
   The first production readings are the measurement: `calibration.first`
-  beside `calibration.firstIterations`, by `device.engine`.
+  beside `calibration.firstUnits`, by `device.engine`.
 - **A Worker that has already searched.** Every figure above starts from a
   process that had searched nothing. In a game the first reading follows a
   real consult, so the engine's shared paths are compiled; the first unit

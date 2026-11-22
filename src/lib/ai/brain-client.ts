@@ -389,7 +389,7 @@ function createBrainChannel(): BrainChannel {
     }
 
     /** Ask the Worker to time the calibration search (issue #10451); its
-     *  reading in milliseconds per iteration, or `null`.
+     *  reading in milliseconds per unit, or `null`.
      *
      *  Only a Worker that is already running is asked: a calibration never
      *  spawns one, and there is no in-thread calibration — on this thread it
@@ -635,8 +635,8 @@ export function consultBrain(
 
 /** Take a calibration reading in the Bot's Worker (issue #10451): the same
  *  fixed work on the same fixed board, whatever the game's own board is —
- *  what the machine is worth right now, in milliseconds per iteration, beside
- *  how many iterations stand behind the number. `null` when there is no
+ *  what the machine is worth right now, in milliseconds per unit of that
+ *  work, beside how many units stand behind the number. `null` when there is no
  *  running Worker to ask or it gave no reading. It queues behind a consult in
  *  flight and ahead of one posted after it, which then waits for at most the
  *  reading's budget plus one of its units (`convex/gre/ai/calibration.ts`).

@@ -29,19 +29,19 @@ export type BrainCalibration = {
     reading: CalibrationReading | null;
 };
 
-/** A reading as it may be trusted off the wire: a positive time per iteration
- *  and a positive whole number of iterations. Anything else is no reading. */
+/** A reading as it may be trusted off the wire: a positive time per unit and
+ *  a positive whole number of units. Anything else is no reading. */
 export function validReading(value: unknown): CalibrationReading | null {
     const reading = value as Partial<CalibrationReading> | null | undefined;
-    const ms = reading?.msPerIteration;
-    const iterations = reading?.iterations;
+    const ms = reading?.msPerUnit;
+    const units = reading?.units;
     return typeof ms === "number" &&
         Number.isFinite(ms) &&
         ms > 0 &&
-        typeof iterations === "number" &&
-        Number.isInteger(iterations) &&
-        iterations > 0
-        ? { msPerIteration: ms, iterations }
+        typeof units === "number" &&
+        Number.isInteger(units) &&
+        units > 0
+        ? { msPerUnit: ms, units }
         : null;
 }
 

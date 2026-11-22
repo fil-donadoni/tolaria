@@ -77,7 +77,7 @@ message:"bot search" gameId:<gameId>
 | `probesPerIteration.p50`                                           | what the boards cost: candidates the rollout tried per iteration |
 | `msPerProbe.p50`                                                   | what the machine made of them: time per candidate tried          |
 | `idleMs.p50`                                                       | the time the Worker sat idle between two consults                |
-| `calibration.first` / `.last` / `.min` (+ `...Iterations`)         | the machine itself: fixed work on a fixed board, ms per unit     |
+| `calibration.first` / `.last` / `.min` (+ `...Units`)              | the machine itself: fixed work on a fixed board, ms per unit     |
 | `calibration.count` / `.skipped`                                   | readings taken, and due readings skipped after a slow search     |
 | `searchMs.*` against `consultMs.*`                                 | the gap is what stood before the search (Worker start, a queue)  |
 | `consults.timeout` / `.worker-error` / `.search-error` / `.inline` | consults that gave no answer, or ran in-thread                   |
@@ -103,11 +103,14 @@ The `calibration.*` keys hold the board still (issue #10451). A reading is
 a number of identical units — build one small fixed board, search it for one
 iteration — run until the reading's time budget is spent, after each of the
 game's first three consults and then at most every 30 s. It reports the mean
-milliseconds per unit and, beside it, how many units it ran
-(`...Iterations`): every device measures the same work, a slower one over
-fewer units. A reading of one or two units ran mostly cold code (the browser
-was still compiling it), so read `.first` with `.firstIterations`. `.min` is
-the machine at its best and the number to compare two machines on.
+milliseconds per UNIT and, beside it, how many units it ran (`...Units`):
+every device measures the same work, a slower one over fewer units. A unit
+is not an iteration of a game's search — it carries the board's build and
+the root's read — so a calibration figure is compared with other calibration
+figures, never with a consult's `msPerIteration`. A reading of one or two
+units ran mostly cold code (the browser was still compiling it), so read
+`.first` with `.firstUnits`. `.min` is the machine at its best and the
+number to compare two machines on.
 
 `.last` is the latest reading TAKEN, not the end of the game. No reading is
 asked for while the page is hidden, one during which the page was hidden or
@@ -116,12 +119,18 @@ iteration ran more than 300 ms past its cap (`calibration.skipped` counts
 those). On a device whose late-game iterations all run that long, every late
 reading is skipped and `.last` is an early-game reading: with
 `calibration.skipped` above zero, `.last` against `.min` says nothing about
-the end of the game; read the consults' own `msPerProbe` there.
+the end of the game; read the consults' own `msPerProbe` there. A freeze
+the browser reports no visibility change for (a laptop suspended with the
+page in front) is not detected: a reading that spans one reads as a very
+slow one, on one or two units.
 
 A reading lasts its budget plus at most one unit of the device's own; a
 consult posted while one runs waits for it, and that wait is on the consult's
-span (`calibrationWaitMs`, already out of its `consultMs`). The measured
-lengths are in `docs/research/calibration-reading.md`.
+span (`calibrationWaitMs`, already out of its `consultMs`). The wait is
+known only when the reading came back: after a calibration the page got no
+answer to, the next consult the Worker answers has no `calibrationWaitMs`
+and no `idleMs`, and keeps its `consultMs` whole. The measured lengths are
+in `docs/research/calibration-reading.md`.
 
 **One decision at a time.** Each consult also records a span named
 `bot.consult` (Explore → Traces, `span.op:bot.consult gameId:<gameId>`), in
@@ -138,7 +147,7 @@ durations, the turn and step, the device class.
 | `msPerIteration`                                   | this decision's speed                                 |
 | `probes` / `msPerProbe`                            | candidates the rollout tried, and the time per one    |
 | `turn` / `phase` / `permanents`                    | where the game was, and how many permanents stood     |
-| `calibration` / `calibrationIterations`            | the game's latest calibration reading at that consult |
+| `calibration` / `calibrationUnits`                 | the game's latest calibration reading at that consult |
 | `calibrationWaitMs`                                | time this consult waited behind a calibration reading |
 | `gameId`, `difficulty`, `device.*`                 | as on the report                                      |
 

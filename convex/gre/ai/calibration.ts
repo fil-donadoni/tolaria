@@ -83,6 +83,9 @@ const SPIRIT: TokenSpec = {
     staticAbilities: ["flying"],
 };
 
+/** The board's permanents, one of each a side. */
+export const CALIBRATION_TOKENS: readonly TokenSpec[] = [BEAR, SPIRIT];
+
 const HAND_SIZE = 3;
 const LIBRARY_SIZE = 30;
 
@@ -136,9 +139,8 @@ export function calibrationState(): GameState {
         rngSeed: CALIBRATION_SEED,
         rngCounter: 0,
     };
-    const tokens = [BEAR, SPIRIT];
     state.players.forEach((player) => {
-        tokens.forEach((token) => {
+        CALIBRATION_TOKENS.forEach((token) => {
             createTokenPermanents(state, token, player.id, 1, undefined, {
                 placement: true,
             });
@@ -161,12 +163,13 @@ export function calibrationState(): GameState {
 
 /** One calibration reading. */
 export type CalibrationReading = {
-    /** Mean wall-clock milliseconds per unit: one iteration's search with the
-     *  board built before it and the root read after it. */
-    msPerIteration: number;
+    /** Mean wall-clock milliseconds per UNIT: the board built, then one
+     *  iteration's search with its root read. Not a search's time per
+     *  iteration: a unit carries the board and the root's work too. */
+    msPerUnit: number;
     /** Units completed: the samples behind the mean. A reading of one or two
      *  ran mostly cold code. */
-    iterations: number;
+    units: number;
 };
 
 /** The search every unit runs. */
@@ -176,38 +179,46 @@ const UNIT_BUDGET = {
     minIterations: CALIBRATION_UNIT_ITERATIONS,
 };
 
+/** The two halves of a unit's work. A seam: a test wraps them to prove that
+ *  both happen inside the reading's clock. */
+export type CalibrationWork = {
+    /** Build the calibration board. */
+    build: () => GameState;
+    /** Search it for the unit's iterations; whether the search ran them. */
+    search: (state: GameState) => boolean;
+};
+
+/** The real work of a unit. */
+export const CALIBRATION_WORK: CalibrationWork = {
+    build: calibrationState,
+    search: (state) =>
+        searchWithTrace(state, CALIBRATION_BOT, UNIT_BUDGET, CALIBRATION_SEED)
+            .trace?.iterationsCompleted === CALIBRATION_UNIT_ITERATIONS,
+};
+
 /** Run one calibration reading: units of identical work until the budget is
  *  spent, timed as a whole. `null` when it measured nothing (a unit that did
  *  not search, or a clock that did not advance). Never throws: a calibration
  *  that fails is no reading. `now` is the clock, injectable for a
- *  deterministic test; it is read once to start and once after each unit. */
+ *  deterministic test; it is read once to start, before any work, and once
+ *  after each unit, after which no work is done. */
 export function runCalibration(
-    now: () => number = () => performance.now()
+    now: () => number = () => performance.now(),
+    work: CalibrationWork = CALIBRATION_WORK
 ): CalibrationReading | null {
     try {
         const start = now();
         let units = 0;
         let elapsed = 0;
         while (units < CALIBRATION_MAX_UNITS) {
-            const { trace } = searchWithTrace(
-                calibrationState(),
-                CALIBRATION_BOT,
-                UNIT_BUDGET,
-                CALIBRATION_SEED
-            );
-            if (trace?.iterationsCompleted !== CALIBRATION_UNIT_ITERATIONS) {
-                return null;
-            }
+            if (!work.search(work.build())) return null;
             units += 1;
             elapsed = now() - start;
             if (elapsed >= CALIBRATION_BUDGET_MS) break;
         }
-        const iterations = units * CALIBRATION_UNIT_ITERATIONS;
-        const msPerIteration = elapsed / iterations;
-        if (!Number.isFinite(msPerIteration) || msPerIteration <= 0) {
-            return null;
-        }
-        return { msPerIteration, iterations };
+        const msPerUnit = elapsed / units;
+        if (!Number.isFinite(msPerUnit) || msPerUnit <= 0) return null;
+        return { msPerUnit, units };
     } catch {
         return null;
     }
