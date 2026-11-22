@@ -242,6 +242,7 @@ import { abilityIsDrainExchange } from "./ai/drainExchange";
 import { abilityIsDrawExchange } from "./ai/drawExchange";
 import { abilityIsRemovalExchange } from "./ai/removalExchange";
 import { assertNever } from "./assertNever";
+import { rolloutProbeCandidates } from "./rolloutProbeCut";
 // Root-decision telemetry (issue #1893, map #1892) — off by default.
 import {
     getRootDecisionSink,
@@ -1814,11 +1815,20 @@ export function rollout(
                               )
                       )
                     : moves;
+            // ADR 0184 (issue #10473) — the greedy pick probes the ply's
+            // decline and the best of the rest (`rolloutProbeCandidates`),
+            // never every candidate. Only here: the root's own reads of the greedy pick
+            // (`greedyRootPick`, the concordance key in `searchWithTrace`)
+            // and `controlledSeatPick` probe every candidate.
             chosen = selectRolloutMove(
                 state,
                 pid,
                 botId,
-                greedyPool.length > 0 ? greedyPool : moves,
+                rolloutProbeCandidates(
+                    state,
+                    greedyPool.length > 0 ? greedyPool : moves,
+                    rng
+                ),
                 rng,
                 weights,
                 memo
