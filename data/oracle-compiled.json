@@ -4,7 +4,7 @@
         "grammarVersion": "v0",
         "compilerHash": "sha256:440d2fce0f492ea93032ab0013e9bf5ab3fe9f70dfe6524f03f4a8adfbe09846",
         "registryHash": "sha256:fa20dcdf1e2bc78f19b0a250ebdc2d499da951341baabba8c5bac189abc45a9e",
-        "botHash": "sha256:dff2004ae32f77c8215a7ff2e32dee16a5b5d5abbcdba15d7e3b9b5b3ed5ac82",
+        "botHash": "sha256:5c974704ccddb7a473990b140e26ceec206ff9af663f56923b292a8415f2f3cb",
         "poolHash": "sha256:81d0b644ec8341d814d37ddb2f5974b9fbb163c201bfe27f77d1aa1c7510aa14",
         "corpus": {
             "source": "https://api.scryfall.com/bulk-data/oracle-cards",
@@ -29097,14 +29097,15 @@
         {"key":"never-chosen › Creature › destroy+forEach+pump","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › exile+if+mayPay+moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › exile+moveZone","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Creature › exileTopOfLibrary+grantCastFromExile","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › explore","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › gainLife","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › if+mayPay+moveZone+reflexiveTrigger","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › if+mayPay+pump+sacrifice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › revealUntilMatch","outcome":"ignored","cards":1},
         {"key":"never-chosen › Enchantment › (no Ops)","outcome":"ignored","cards":1},
-        {"key":"never-chosen › Instant target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:Creature › delayedTrigger+exile+moveZone","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Instant target:spell › choice+counter+libraryLook+moveZone+reveal","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:spell › counter","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:spell-or-permanent › setColor","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant › choice+forEach+sacrifice","outcome":"ignored","cards":1},
@@ -29124,6 +29125,7 @@
         {"key":"never-chosen › Sorcery target:Artifact|Creature › destroy+fight","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Creature › addMana+destroy","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Land › addMana+destroy","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Sorcery target:Land › destroy+if","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:card › moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:player [conspire] › mill","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:player › choice+moveZone+reveal","outcome":"ignored","cards":1},
@@ -29142,6 +29144,7 @@
         {"key":"position-unmodelled › Creature [defender,flash]","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Creature [flash]","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Creature [haste]","outcome":"ignored","cards":1},
+        {"key":"position-unmodelled › Creature [intimidate]","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Kindred target:Creature","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Kindred target:card","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Sorcery target:any","outcome":"ignored","cards":1}
@@ -31439,7 +31442,7 @@
 
         {"oracleId":"08261b68-b261-4e47-a085-c489ba394108","name":"Tyrranax Atrocity","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e3e13633e9fb"]},
 
-        {"oracleId":"0826cf7d-7ccc-459b-a92f-29dc169628f8","name":"Muddle the Mixture","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["choice","counter","libraryLook","moveZone","reveal"],"definition":{"name":"Muddle the Mixture","types":["Instant"],"manaCost":{"U":2},"oracleText":"Counter target instant or sorcery spell.\nTransmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with the same mana value as this card, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)","activatedAbilities":[{"id":"transmute","oracleText":"Transmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with the same mana value as this card, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)","cost":{"mana":{"X":1,"U":2},"discardThis":true},"activateFromHand":true,"useStack":true,"sorcerySpeedOnly":true,"effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"manaValueEquals":2},"count":{"min":0,"max":1},"prompt":"Search your library for a card with mana value 2 (or none).","bind":"$transmuted"},{"op":"reveal","player":"controller","cards":{"ref":"$transmuted"}},{"op":"moveZone","cards":{"ref":"$transmuted"},"player":"controller","from":"library","to":"hand"},{"op":"libraryLook","action":"shuffle","player":"controller"}]}],"effects":[{"op":"counter","target":{"target":0}}],"targetRequirement":{"type":"spell","count":1,"spellTypeFilter":["Instant","Sorcery"]}},"botReach":"played"},
+        {"oracleId":"0826cf7d-7ccc-459b-a92f-29dc169628f8","name":"Muddle the Mixture","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["choice","counter","libraryLook","moveZone","reveal"],"definition":{"name":"Muddle the Mixture","types":["Instant"],"manaCost":{"U":2},"oracleText":"Counter target instant or sorcery spell.\nTransmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with the same mana value as this card, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)","activatedAbilities":[{"id":"transmute","oracleText":"Transmute {1}{U}{U} ({1}{U}{U}, Discard this card: Search your library for a card with the same mana value as this card, reveal it, put it into your hand, then shuffle. Transmute only as a sorcery.)","cost":{"mana":{"X":1,"U":2},"discardThis":true},"activateFromHand":true,"useStack":true,"sorcerySpeedOnly":true,"effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"manaValueEquals":2},"count":{"min":0,"max":1},"prompt":"Search your library for a card with mana value 2 (or none).","bind":"$transmuted"},{"op":"reveal","player":"controller","cards":{"ref":"$transmuted"}},{"op":"moveZone","cards":{"ref":"$transmuted"},"player":"controller","from":"library","to":"hand"},{"op":"libraryLook","action":"shuffle","player":"controller"}]}],"effects":[{"op":"counter","target":{"target":0}}],"targetRequirement":{"type":"spell","count":1,"spellTypeFilter":["Instant","Sorcery"]}},"botReach":"ignored","botGap":"never-chosen › Instant target:spell › choice+counter+libraryLook+moveZone+reveal"},
 
         {"oracleId":"0828d891-f7c3-4e51-b42e-6ce88d48ac8b","name":"Icewrought Sentry","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d27144d297e9","de31adbe4ac0"]},
 
@@ -40393,7 +40396,7 @@
 
         {"oracleId":"2934233a-b90c-45df-b604-ce462480bbb7","name":"Goldenhide Ox","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5978739c9933"]},
 
-        {"oracleId":"293560ec-accf-49c6-9bf4-6d37f56a4eb7","name":"Halo Hunter","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["destroy"],"definition":{"name":"Halo Hunter","types":["Creature"],"subtypes":["Demon"],"manaCost":{"X":2,"B":3},"power":6,"toughness":3,"oracleText":"Intimidate (This creature can't be blocked except by artifact creatures and/or creatures that share a color with it.)\nWhen this creature enters, destroy target Angel.","staticAbilities":["intimidate"],"compiledTriggeredAbilities":[{"id":"halo-hunter-trigger","oracleText":"When this creature enters, destroy target Angel.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":1,"subtypeFilter":["Angel"]},"effects":[{"op":"destroy","target":{"target":0}}]}]},"botReach":"played"},
+        {"oracleId":"293560ec-accf-49c6-9bf4-6d37f56a4eb7","name":"Halo Hunter","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["destroy"],"definition":{"name":"Halo Hunter","types":["Creature"],"subtypes":["Demon"],"manaCost":{"X":2,"B":3},"power":6,"toughness":3,"oracleText":"Intimidate (This creature can't be blocked except by artifact creatures and/or creatures that share a color with it.)\nWhen this creature enters, destroy target Angel.","staticAbilities":["intimidate"],"compiledTriggeredAbilities":[{"id":"halo-hunter-trigger","oracleText":"When this creature enters, destroy target Angel.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":1,"subtypeFilter":["Angel"]},"effects":[{"op":"destroy","target":{"target":0}}]}]},"botReach":"ignored","botGap":"position-unmodelled › Creature [intimidate]"},
 
         {"oracleId":"29356966-652d-4456-84c8-7aeab5fc8d05","name":"Flubs, the Fool","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ddfe9cb0d75e"]},
 
@@ -51685,7 +51688,7 @@
 
         {"oracleId":"5230d0fc-2688-495d-9fd0-0d71ac27c811","name":"Lumbering Lightshield","state":"unparsed","gaps":["3dc57e971375"]},
 
-        {"oracleId":"5231a7d6-b6cf-4fa8-8da8-f0ecf023e054","name":"Dwarven Landslide","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["destroy","if"],"definition":{"name":"Dwarven Landslide","types":["Sorcery"],"manaCost":{"X":3,"R":1},"oracleText":"Kicker—{2}{R}, Sacrifice a land. (You may pay {2}{R} and sacrifice a land in addition to any other costs as you cast this spell.)\nDestroy target land. If this spell was kicked, destroy another target land.","kickers":[{"id":"kicker","description":"Kicker—{2}{R}, Sacrifice a land","mana":{"X":2,"R":1},"permanent":{"action":"sacrifice","filter":{"types":["Land"]},"count":1}}],"effects":[{"op":"destroy","target":{"target":0}},{"op":"if","predicate":{"left":{"kickerCount":true},"op":"ge","right":1},"then":[{"op":"destroy","target":{"target":1}}]}],"targetRequirement":{"type":"Land","count":1},"kickedTargetRequirement":{"type":"Land","count":2}},"botReach":"played"},
+        {"oracleId":"5231a7d6-b6cf-4fa8-8da8-f0ecf023e054","name":"Dwarven Landslide","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["destroy","if"],"definition":{"name":"Dwarven Landslide","types":["Sorcery"],"manaCost":{"X":3,"R":1},"oracleText":"Kicker—{2}{R}, Sacrifice a land. (You may pay {2}{R} and sacrifice a land in addition to any other costs as you cast this spell.)\nDestroy target land. If this spell was kicked, destroy another target land.","kickers":[{"id":"kicker","description":"Kicker—{2}{R}, Sacrifice a land","mana":{"X":2,"R":1},"permanent":{"action":"sacrifice","filter":{"types":["Land"]},"count":1}}],"effects":[{"op":"destroy","target":{"target":0}},{"op":"if","predicate":{"left":{"kickerCount":true},"op":"ge","right":1},"then":[{"op":"destroy","target":{"target":1}}]}],"targetRequirement":{"type":"Land","count":1},"kickedTargetRequirement":{"type":"Land","count":2}},"botReach":"ignored","botGap":"never-chosen › Sorcery target:Land › destroy+if"},
 
         {"oracleId":"5232fcc0-5dba-4569-8e99-c0b2c230e9f0","name":"Dogmeat, Ever Loyal","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0a607c3718b6","a2066f21a979"]},
 
@@ -95619,7 +95622,7 @@
 
         {"oracleId":"f0adab66-c3fe-4989-b7c8-ab7bdc7f0fd1","name":"Temporal Machinations","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["6835d8794470"]},
 
-        {"oracleId":"f0ae687a-7222-4521-a514-ba10373fed7e","name":"Rescue","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["moveZone"],"definition":{"name":"Rescue","types":["Instant"],"manaCost":{"U":1},"oracleText":"Return target permanent you control to its owner's hand.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}],"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1,"controller":"you"}},"botReach":"ignored","botGap":"never-chosen › Instant target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › moveZone"},
+        {"oracleId":"f0ae687a-7222-4521-a514-ba10373fed7e","name":"Rescue","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["moveZone"],"definition":{"name":"Rescue","types":["Instant"],"manaCost":{"U":1},"oracleText":"Return target permanent you control to its owner's hand.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}],"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1,"controller":"you"}},"botReach":"played"},
 
         {"oracleId":"f0b1dcdc-4fbb-4bcb-a4b0-1aa5928347f9","name":"Scepter of Fugue","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["choice","discard"],"definition":{"name":"Scepter of Fugue","types":["Artifact"],"manaCost":{"B":2},"oracleText":"{1}{B}, {T}: Target player discards a card. Activate only during your turn.","activatedAbilities":[{"id":"scepter-of-fugue-ability","oracleText":"{1}{B}, {T}: Target player discards a card. Activate only during your turn.","cost":{"mana":{"X":1,"B":1},"tap":true},"useStack":true,"effects":[{"op":"choice","kind":"discard-hand","player":{"target":0},"zone":"hand","count":1,"prompt":"Discard a card.","bind":"$discard1"},{"op":"discard","player":{"target":0},"cards":{"ref":"$discard1"}}],"targetRequirement":{"type":"player","count":1},"controllerTurnOnly":true}]},"botReach":"played"},
 
@@ -99301,7 +99304,7 @@
 
         {"oracleId":"fdf5d317-ded6-4b90-844a-dd0e1f317cc3","name":"Lethal","state":"unparsed","gaps":["c674ab8328b9"]},
 
-        {"oracleId":"fdf7f144-56e4-4f88-b81a-b85473922355","name":"Snowslope Hunter","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["exileTopOfLibrary","grantCastFromExile"],"definition":{"name":"Snowslope Hunter","types":["Creature"],"subtypes":["Goblin","Ranger"],"manaCost":{"X":2,"R":1},"power":2,"toughness":3,"oracleText":"Sacrifice another creature or artifact: Exile the top card of your library. You may play it until the end of your next turn. Activate only during your turn and only once each turn.","activatedAbilities":[{"id":"snowslope-hunter-ability","oracleText":"Sacrifice another creature or artifact: Exile the top card of your library. You may play it until the end of your next turn. Activate only during your turn and only once each turn.","cost":{"sacrificeFilter":{"types":["Creature","Artifact"],"excludeSource":true}},"useStack":true,"effects":[{"op":"exileTopOfLibrary","player":"controller","count":1,"bindAll":"$exiled1"},{"op":"grantCastFromExile","card":{"ref":"$exiled1"},"player":"controller","window":"until-end-of-your-next-turn","includesLand":true}],"controllerTurnOnly":true,"oncePerTurn":true}]},"botReach":"played"},
+        {"oracleId":"fdf7f144-56e4-4f88-b81a-b85473922355","name":"Snowslope Hunter","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["exileTopOfLibrary","grantCastFromExile"],"definition":{"name":"Snowslope Hunter","types":["Creature"],"subtypes":["Goblin","Ranger"],"manaCost":{"X":2,"R":1},"power":2,"toughness":3,"oracleText":"Sacrifice another creature or artifact: Exile the top card of your library. You may play it until the end of your next turn. Activate only during your turn and only once each turn.","activatedAbilities":[{"id":"snowslope-hunter-ability","oracleText":"Sacrifice another creature or artifact: Exile the top card of your library. You may play it until the end of your next turn. Activate only during your turn and only once each turn.","cost":{"sacrificeFilter":{"types":["Creature","Artifact"],"excludeSource":true}},"useStack":true,"effects":[{"op":"exileTopOfLibrary","player":"controller","count":1,"bindAll":"$exiled1"},{"op":"grantCastFromExile","card":{"ref":"$exiled1"},"player":"controller","window":"until-end-of-your-next-turn","includesLand":true}],"controllerTurnOnly":true,"oncePerTurn":true}]},"botReach":"ignored","botGap":"never-chosen › Creature › exileTopOfLibrary+grantCastFromExile"},
 
         {"oracleId":"fdfac093-a5c0-47b4-9052-e0af517d83cf","name":"Dance of the Manse","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c9acedff8106"]},
 
