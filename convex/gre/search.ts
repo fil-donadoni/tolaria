@@ -1817,9 +1817,9 @@ export function rollout(
                     : moves;
             // ADR 0184 (issue #10473) — the greedy pick probes the ply's
             // decline and the best of the rest (`rolloutProbeCandidates`),
-            // never every candidate. Only here: the root's own reads of the greedy pick
-            // (`greedyRootPick`, the concordance key in `searchWithTrace`)
-            // and `controlledSeatPick` probe every candidate.
+            // never every candidate. Only here: the root's own reads of the
+            // greedy pick (`greedyRootPick`, the concordance key in
+            // `searchWithTrace`) and `controlledSeatPick` probe every one.
             chosen = selectRolloutMove(
                 state,
                 pid,

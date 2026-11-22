@@ -74,6 +74,11 @@ const ROOT_HOOK_PATCHES = [
  *   - `rolloutEpsilonFor` returns `globalThis.__benchEpsilon` when one is
  *     set: at 1 every rollout ply takes the rollout's OWN random branch, its
  *     exclusion filters included — the faithful random playout.
+ *   - the rollout's probe cut (`rolloutProbeCandidates`, ADR 0184, issue
+ *     #10473) is skipped while `globalThis.__benchProbeAll` is set: the
+ *     greedy pick is handed every candidate, today's policy before the cut,
+ *     which is what every policy of `rollout-policies.mjs` but `shipped`
+ *     measures against.
  *
  * With no global installed the patched bundle searches byte-identically to
  * an unpatched one. Each replacement must match exactly once.
@@ -119,6 +124,12 @@ const ROLLOUT_HOOK_PATCHES = [
         "applyMoveInSearch(state, pid, chosen, true);",
         'globalThis.__benchPly?.("played", moves.length);\n' +
             "        applyMoveInSearch(state, pid, chosen, true);",
+    ],
+    [
+        "                rolloutProbeCandidates(\n",
+        "                (globalThis.__benchProbeAll\n" +
+            "                    ? (_state, moves) => moves.slice()\n" +
+            "                    : rolloutProbeCandidates)(\n",
     ],
     [
         "    if (!inCombat) return weights.rolloutEpsilon;",

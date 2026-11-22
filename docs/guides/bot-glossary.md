@@ -191,7 +191,10 @@ candidates and why [priors](#prior) matter.
 <a id="rollout"></a>**Rollout / playout** — after expansion, playing the
 position forward with a cheap policy (here: pick the move whose immediate
 evaluation is best, with a 25% chance of a random move instead) until the
-[horizon](#horizon), to get a rough sense of where the line leads. A
+[horizon](#horizon), to get a rough sense of where the line leads. On a ply
+with more than three candidates the "best" is read among three only: the
+decline (`pass`, or the empty attack or block declaration) and two of the
+rest, a copy of a kept play last, then by move kind, then by lot (ADR 0184). A
 **truncated** rollout stops early and evaluates the position instead of
 playing to the end.
 
