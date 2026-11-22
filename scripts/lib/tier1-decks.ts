@@ -13,7 +13,7 @@
  *
  * Fail-closed everywhere, because a deck report that quietly skips a card it
  * could not resolve reports progress that does not exist. A name absent from
- * the corpus, a name the corpus carries twice, a list that is not 60 + 15 —
+ * the corpus, a name the corpus carries twice, a list outside the constructed bounds —
  * each throws rather than shrinking the denominator.
  */
 
@@ -27,9 +27,18 @@ import { corpusNameIndex } from "./card-names";
 /** Path of the canonical lists, relative to the repo root. */
 export const TIER1_DECKS_PATH = "data/premodern-tier1-decks.json";
 
-/** Premodern deck construction: exactly 60 maindeck, exactly 15 sideboard. */
+/** The shape a metagame deck export normally has: 60 maindeck, 15
+ *  sideboard. The mtgtop8 import uses it to pick an export that parsed
+ *  cleanly; it is a parse check, not a legality rule (see the bounds below). */
 export const TIER1_MAIN_SIZE = 60;
 export const TIER1_SIDEBOARD_SIZE = 15;
+
+/** Constructed deck bounds the canonical lists are validated against
+ *  (issue #10608). CR 100.2a: a constructed deck has a minimum deck size of
+ *  60 cards. CR 100.4a: a sideboard may contain no more than fifteen cards.
+ *  So a legal 61-card main deck, such as the owner's Eldrazi Tron, passes. */
+export const CONSTRUCTED_MAIN_MIN = 60;
+export const CONSTRUCTED_SIDEBOARD_MAX = 15;
 
 /**
  * What a Tier 1 card is, from the engine's point of view.
@@ -134,11 +143,13 @@ export function totalCopies(entries: readonly Tier1DeckEntry[]): number {
 }
 
 /**
- * VALIDATE a `decks` array against the Premodern 60 + 15 shape — the reader
- * shared by every canonical deck-list file, not just the Tier 1 one. A list
- * that is not 60 + 15 is not a Premodern deck, and a report built from it
- * would answer a question nobody asked; `path` names the file in the message,
- * since the same validator now guards more than one.
+ * VALIDATE a `decks` array against the constructed deck bounds (at least 60
+ * main, at most 15 sideboard) — the reader shared by every canonical
+ * deck-list file, not just the Tier 1 one. A list outside them is not a legal
+ * deck, and a report built from it would answer a question nobody asked;
+ * `path` names the file in the message, since the same validator guards more
+ * than one. Every denominator downstream is the list's own total, so a legal
+ * 61-card main deck is measured against 61.
  */
 export function validateDecks(decks: readonly Tier1Deck[], path: string): void {
     const fail = (message: string): never => {
@@ -176,9 +187,10 @@ export function validateDecks(decks: readonly Tier1Deck[], path: string): void {
             );
         const main = totalCopies(deck.main);
         const side = totalCopies(deck.sideboard);
-        if (main !== TIER1_MAIN_SIZE || side !== TIER1_SIDEBOARD_SIZE)
+        if (main < CONSTRUCTED_MAIN_MIN || side > CONSTRUCTED_SIDEBOARD_MAX)
             fail(
-                `${deck.slug} is ${main} + ${side}, not ${TIER1_MAIN_SIZE} + ${TIER1_SIDEBOARD_SIZE} — ` +
+                `${deck.slug} is ${main} + ${side}, outside the constructed bounds ` +
+                    `(main at least ${CONSTRUCTED_MAIN_MIN}, sideboard at most ${CONSTRUCTED_SIDEBOARD_MAX}) — ` +
                     `the lists are stored exactly as supplied, so this is an edit, not a format change`
             );
     }
@@ -355,7 +367,7 @@ export function isPlayableState(state: DeckCardState): boolean {
     return PLAYABLE_STATES.includes(state);
 }
 
-/** A list's playable copies, main and sideboard apart, out of its 60 + 15,
+/** A list's playable copies, main and sideboard apart, out of its own main and sideboard totals,
  *  and the distinct cards that are not playable yet. */
 export interface DeckPlayability {
     readonly main: number;

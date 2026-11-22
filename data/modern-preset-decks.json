@@ -2,7 +2,7 @@
     "source": {
         "supplier": "owner",
         "format": "MO",
-        "note": "Modern Preset Deck lists the owner supplied on 2026-11-22, beyond the ten modern-metagame archetypes (PRDs issue #10493 and #10494 and their siblings). One 60 + 15 list per deck, card names normalised to the Oracle lockfile's names (the combined `Front // Back` for an MDFC, `Kíli the Resourceful` with its diacritic). Each deck is its own UNRANKED Target in data/targets.json: measured, never banded — the owner bands the work through each deck's PRD."
+        "note": "Modern Preset Deck lists the owner supplied on 2026-11-22, beyond the ten modern-metagame archetypes (PRDs issue #10493 and #10494 and their siblings). One list per deck (60 + 15, but Eldrazi Tron's main is a legal 61, issue #10608), card names normalised to the Oracle lockfile's names (the combined `Front // Back` for an MDFC, `Kíli the Resourceful` with its diacritic). Each deck is its own UNRANKED Target in data/targets.json: measured, never banded — the owner bands the work through each deck's PRD."
     },
     "decks": [
         {
@@ -596,6 +596,135 @@
                 }
             ],
             "featuredCard": "Samwise Gamgee"
+        },
+        {
+            "slug": "tron",
+            "name": "Eldrazi Tron",
+            "main": [
+                {
+                    "count": 4,
+                    "name": "Urza's Power Plant"
+                },
+                {
+                    "count": 4,
+                    "name": "Urza's Mine"
+                },
+                {
+                    "count": 4,
+                    "name": "Ugin's Labyrinth"
+                },
+                {
+                    "count": 4,
+                    "name": "Karn, the Great Creator"
+                },
+                {
+                    "count": 4,
+                    "name": "Kozilek's Command"
+                },
+                {
+                    "count": 1,
+                    "name": "Forest"
+                },
+                {
+                    "count": 4,
+                    "name": "Expedition Map"
+                },
+                {
+                    "count": 4,
+                    "name": "Urza's Tower"
+                },
+                {
+                    "count": 1,
+                    "name": "Abstergo Entertainment"
+                },
+                {
+                    "count": 4,
+                    "name": "Ugin, Eye of the Storms"
+                },
+                {
+                    "count": 4,
+                    "name": "Nexus of Becoming"
+                },
+                {
+                    "count": 1,
+                    "name": "Boseiju, Who Endures"
+                },
+                {
+                    "count": 4,
+                    "name": "Giant's Boulder"
+                },
+                {
+                    "count": 4,
+                    "name": "Deep Space 9"
+                },
+                {
+                    "count": 4,
+                    "name": "Devourer of Destiny"
+                },
+                {
+                    "count": 3,
+                    "name": "Extinguisher Battleship"
+                },
+                {
+                    "count": 3,
+                    "name": "U.S.S. Voyager, Lone Wanderer"
+                },
+                {
+                    "count": 4,
+                    "name": "Talisman of Unity"
+                }
+            ],
+            "sideboard": [
+                {
+                    "count": 1,
+                    "name": "Grafdigger's Cage"
+                },
+                {
+                    "count": 1,
+                    "name": "Ensnaring Bridge"
+                },
+                {
+                    "count": 1,
+                    "name": "Liquimetal Coating"
+                },
+                {
+                    "count": 1,
+                    "name": "Sundering Titan"
+                },
+                {
+                    "count": 1,
+                    "name": "Trinisphere"
+                },
+                {
+                    "count": 1,
+                    "name": "Engineered Explosives"
+                },
+                {
+                    "count": 4,
+                    "name": "Chalice of the Void"
+                },
+                {
+                    "count": 1,
+                    "name": "Extinguisher Battleship"
+                },
+                {
+                    "count": 1,
+                    "name": "The Echoverse Fulcrum"
+                },
+                {
+                    "count": 1,
+                    "name": "Soulless Jailer"
+                },
+                {
+                    "count": 1,
+                    "name": "Haywire Mite"
+                },
+                {
+                    "count": 1,
+                    "name": "U.S.S. Voyager, Lone Wanderer"
+                }
+            ],
+            "featuredCard": "Karn, the Great Creator"
         },
         {
             "slug": "boros-burn",
