@@ -55,28 +55,106 @@ const ROOT_HOOK_PATCHES = [
     ],
 ];
 
-const rootHookPlugin = {
-    name: "brain-bench-root-hook",
-    setup(b) {
-        b.onLoad({ filter: /convex[\\/]gre[\\/]search\.ts$/ }, async (args) => {
-            let source = await readFile(args.path, "utf8");
-            for (const [from, to] of ROOT_HOOK_PATCHES) {
-                const count = source.split(from).length - 1;
-                if (count !== 1) {
-                    throw new Error(
-                        `root hook: expected one ${JSON.stringify(from)} in search.ts, found ${count}`
-                    );
+/**
+ * The rollout-policy prototype's seam (issue #10134), patched into
+ * `convex/gre/search.ts` AT BUNDLE TIME like the root seam above:
+ *
+ *   - `rollout` becomes a wrapper that hands the call to
+ *     `globalThis.__benchRollout(inner, args)` when one is installed — the
+ *     counters (`rollout-policies.mjs`) see where a rollout starts and ends;
+ *   - `selectRolloutMove` becomes a wrapper that hands the call to
+ *     `globalThis.__benchPolicy(inner, args)` — a candidate policy may play
+ *     its own move, or call the greedy pick on fewer candidates;
+ *   - the ply loop reads `globalThis.__benchMaxPlies` before
+ *     `MAX_ROLLOUT_PLIES` — a shorter rollout, closed by the evaluation;
+ *   - every rollout ply reports itself to `globalThis.__benchPly(kind, n)`:
+ *     a forced pass, or a played move and the candidates it was chosen from;
+ *   - `searchWithTrace` leaves its trace in `globalThis.__benchLastTrace`: the
+ *     blade runner does not hand out the iterations a search completed.
+ *
+ * With no global installed the patched bundle searches byte-identically to
+ * an unpatched one. Each replacement must match exactly once.
+ */
+const ROLLOUT_HOOK_PATCHES = [
+    [
+        "export function searchWithTrace(",
+        "export function searchWithTrace(...__args) {\n" +
+            "    const __result = __searchWithTraceInner(...__args);\n" +
+            "    globalThis.__benchLastTrace = __result.trace;\n" +
+            "    return __result;\n" +
+            "}\n" +
+            "function __searchWithTraceInner(",
+    ],
+    [
+        "export function rollout(",
+        "export function rollout(...__args) {\n" +
+            "    return globalThis.__benchRollout\n" +
+            "        ? globalThis.__benchRollout(__rolloutInner, __args)\n" +
+            "        : __rolloutInner(...__args);\n" +
+            "}\n" +
+            "function __rolloutInner(",
+    ],
+    [
+        "export function selectRolloutMove(",
+        "export function selectRolloutMove(...__args) {\n" +
+            "    return globalThis.__benchPolicy\n" +
+            "        ? globalThis.__benchPolicy(__selectRolloutMoveInner, __args)\n" +
+            "        : __selectRolloutMoveInner(...__args);\n" +
+            "}\n" +
+            "function __selectRolloutMoveInner(",
+    ],
+    [
+        "for (let ply = 0; ply < MAX_ROLLOUT_PLIES; ply++) {",
+        "for (let ply = 0; ply < (globalThis.__benchMaxPlies ?? MAX_ROLLOUT_PLIES); ply++) {",
+    ],
+    [
+        "applyMoveInSearch(state, pid, FORCED_PASS, true);",
+        'globalThis.__benchPly?.("forced", 1);\n' +
+            "            applyMoveInSearch(state, pid, FORCED_PASS, true);",
+    ],
+    [
+        "applyMoveInSearch(state, pid, chosen, true);",
+        'globalThis.__benchPly?.("played", moves.length);\n' +
+            "        applyMoveInSearch(state, pid, chosen, true);",
+    ],
+];
+
+/** A plugin applying `patches` to `search.ts`, each exactly once. */
+function searchPatchPlugin(name, patches) {
+    return {
+        name,
+        setup(b) {
+            b.onLoad(
+                { filter: /convex[\\/]gre[\\/]search\.ts$/ },
+                async (args) => {
+                    let source = await readFile(args.path, "utf8");
+                    for (const [from, to] of patches) {
+                        const count = source.split(from).length - 1;
+                        if (count !== 1) {
+                            throw new Error(
+                                `${name}: expected one ${JSON.stringify(from)} in search.ts, found ${count}`
+                            );
+                        }
+                        source = source.replace(from, to);
+                    }
+                    return { contents: source, loader: "ts" };
                 }
-                source = source.replace(from, to);
-            }
-            return { contents: source, loader: "ts" };
-        });
-    },
-};
+            );
+        },
+    };
+}
 
 /** Bundle `entry` (an `entry.mjs`) into the single script `outfile`.
- *  `rootHook` adds the root-parallel seam above (issue #10135). */
-export async function bundleBench(entry, outfile, { rootHook = false } = {}) {
+ *  `rootHook` adds the root-parallel seam above (issue #10135),
+ *  `rolloutHook` the rollout-policy seam (issue #10134); not both. */
+export async function bundleBench(
+    entry,
+    outfile,
+    { rootHook = false, rolloutHook = false } = {}
+) {
+    if (rootHook && rolloutHook) {
+        throw new Error("bundleBench: one search.ts seam per bundle");
+    }
     await build({
         entryPoints: [entry],
         bundle: true,
@@ -89,6 +167,10 @@ export async function bundleBench(entry, outfile, { rootHook = false } = {}) {
         // has no such helper either.
         outfile,
         logLevel: "warning",
-        plugins: rootHook ? [rootHookPlugin] : [],
+        plugins: rootHook
+            ? [searchPatchPlugin("root hook", ROOT_HOOK_PATCHES)]
+            : rolloutHook
+              ? [searchPatchPlugin("rollout hook", ROLLOUT_HOOK_PATCHES)]
+              : [],
     });
 }
