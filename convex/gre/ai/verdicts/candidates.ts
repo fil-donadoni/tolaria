@@ -48,6 +48,17 @@ export function candidateMoves(state: GameState, playerId: string): Move[] {
     }
 }
 
+/** {@link candidateMoves} without the dominance prune: every legal move,
+ *  interchangeable copies collapsed. Never a candidate set — only what a
+ *  verdict recorded before a dominance proof existed is resolved against
+ *  (`resolveVerdictMoves`). */
+export function unprunedCandidateMoves(
+    state: GameState,
+    playerId: string
+): Move[] {
+    return enumerateMoves(state, playerId, { collapseInterchangeable: true });
+}
+
 /** The position a verdict names, replayed through the PRODUCTION builder —
  *  the same one `buildVerdictState` and the blade harness call, so there is no
  *  second way to build it. Instance ids are allocated by this build, which is

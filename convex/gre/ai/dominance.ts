@@ -55,6 +55,21 @@
 // the pruner more conservative (offer a move it could have dropped) — never
 // prune a move that does something.
 //
+// ── The second shape: marked damage that cannot become lethal ─────────────
+// Exact equality has one named exception. Damage marked on a creature that
+// survives it is removed at cleanup (CR 514.2), so a move whose ONLY lasting
+// difference is such damage is dominated too, provided nothing can turn that
+// damage lethal first. `forgiveMarkedDamage` takes the damage back off the
+// settled probe (and nothing else: a deathtouch mark, an infect counter, a
+// damage history on a permanent source all still differ), the compare runs
+// again, and `transientDamage.ts` then asks the three things that could
+// finish the creature: combat still to come, another announcement the mover
+// has available, a triggered ability or a damage replacement on the
+// battlefield. Each fails closed. The reading needs the mover's move list in
+// the settled position, which this module cannot import, so it is proved only
+// when `enumerateMoves` hands its own enumerator in; every other caller gets
+// the exact proof alone.
+//
 // ── Guards ────────────────────────────────────────────────────────────────
 //   * `pass` is never a candidate, so the `moves.length` floor in
 //     `enumerateMoves` can never be emptied.
@@ -168,6 +183,10 @@ import {
 import type { Move } from "../moves";
 import { assertNever } from "../assertNever";
 import { announcedModeFields } from "../modeSelection";
+import {
+    markedDamageCannotBecomeLethal,
+    type MoveEnumerator,
+} from "./transientDamage";
 
 /** Bound on stack resolutions per probe branch. A spell plus its triggers
  *  settles well inside this; anything deeper is unprovable, not pruned. */
@@ -190,7 +209,7 @@ const MAX_CHOICE_BRANCHES = 8;
 let probing = false;
 
 /** Branch expansions left in the CURRENT probe (issue #3194). Reset at each
- *  probe entry and spent by `branchesAllNoOp`'s recursion, so the work one
+ *  probe entry and spent by `branchesAll`'s recursion, so the work one
  *  proof may cost is bounded independently of how deep `MAX_CHOICE_DEPTH`
  *  lets it go. Exhausting it answers "not provably futile" — the same
  *  fail-open direction the depth cap already took. */
@@ -272,11 +291,18 @@ function spentCostOf(state: GameState, move: Move): SpentCost {
 
 /** True when `move` is PROVABLY dominated by `pass` for `pid`: applying and
  *  fully resolving it changes nothing but the mover's own cost. Pure — `state`
- *  is never mutated. Conservative: any doubt returns `false`. */
+ *  is never mutated. Conservative: any doubt returns `false`.
+ *
+ *  With `enumerate` — the mover's move list in a position, handed in by the
+ *  enumerator that calls this — a second shape is provable: the only lasting
+ *  difference is damage marked on creatures that survive it, and nothing can
+ *  make that damage lethal before cleanup removes it (`transientDamage.ts`).
+ *  Without it only the exact no-op is. */
 export function isDominatedNoOpMove(
     state: GameState,
     pid: string,
-    move: Move
+    move: Move,
+    enumerate?: MoveEnumerator
 ): boolean {
     if (probing) return false;
     if (move.kind !== "cast-spell" && move.kind !== "activate-ability") {
@@ -315,7 +341,14 @@ export function isDominatedNoOpMove(
                 : applyProbeActivation(probe, pid, move);
         if (!applied) return false;
         branchWorkLeft = MAX_CHOICE_BRANCH_WORK;
-        return branchesAllNoOp(probe, baseline, pid, spent, 0);
+        const damageReading =
+            probeModelsWholeAnnouncement(move) &&
+            !announcesDivision(state, move)
+                ? enumerate
+                : undefined;
+        return branchesAll(probe, baseline, pid, 0, (settled) =>
+            isDominatedDelta(baseline, settled, pid, spent, damageReading)
+        );
     } catch {
         // A probe that throws proves nothing. Never let it change legality.
         return false;
@@ -368,6 +401,83 @@ export function isSelfSacrificePaymentPureLoss(
     } finally {
         probing = false;
     }
+}
+
+/** The fields of an announcement the probe carries onto its stack item
+ *  (`applyProbeCast` / `applyProbeActivation`). */
+const PROBED_CAST_FIELDS: ReadonlySet<string> = new Set([
+    "kind",
+    "cardInstanceId",
+    "targets",
+    "confirmTargets",
+    "tapPlan",
+    "chosenX",
+    "chosenModeIds",
+    "modeTargetCounts",
+]);
+const PROBED_ACTIVATION_FIELDS: ReadonlySet<string> = new Set([
+    "kind",
+    "cardInstanceId",
+    "abilityId",
+    "targets",
+    "confirmTargets",
+    "tapPlan",
+    "chosenX",
+]);
+
+/** Whether the probe resolves `move` as announced: it sets no field the probe
+ *  drops. A kicker, a buyback, an alternative cost or a cost pick changes what
+ *  the resolution DOES, and the probe resolves the plain announcement.
+ *
+ *  The exact proof tolerates that: an under-modelled probe does less, and a
+ *  move whose plain form is a no-op is refused by the eligibility gate where
+ *  the dropped payment can be the payoff. The marked-damage shape cannot — a
+ *  kicked burn spell probed unkicked marks less damage than it deals, and
+ *  "less than lethal" is the very thing that shape proves. */
+function probeModelsWholeAnnouncement(move: Move): boolean {
+    const probed =
+        move.kind === "cast-spell"
+            ? PROBED_CAST_FIELDS
+            : move.kind === "activate-ability"
+              ? PROBED_ACTIVATION_FIELDS
+              : undefined;
+    if (!probed) return false;
+    return Object.entries(move).every(
+        ([key, value]) => value === undefined || probed.has(key)
+    );
+}
+
+/** Whether `move` announces a division among its targets (CR 601.2d): the
+ *  split is chosen at announcement and a `Move` does not carry it, so the
+ *  probe resolves some other split than the one the real cast would. Read off
+ *  every target slot of the spell or ability; an unresolvable one answers
+ *  `true`, the direction that proves nothing. */
+function announcesDivision(state: GameState, move: Move): boolean {
+    if (move.kind !== "cast-spell" && move.kind !== "activate-ability") {
+        return true;
+    }
+    const card = findCardInAnyZone(state, move.cardInstanceId);
+    if (!card) return true;
+    type Slots = {
+        targetRequirement?: unknown;
+        additionalTargetRequirements?: readonly unknown[];
+        modes?: readonly Slots[];
+    };
+    const site: Slots | undefined | null =
+        move.kind === "cast-spell"
+            ? tryGetDefinition((card.card as { id?: string }).id ?? "")
+            : abilityOf(card, move.abilityId);
+    if (!site) return true;
+    const divides = (slots: Slots): boolean =>
+        [
+            slots.targetRequirement,
+            ...(slots.additionalTargetRequirements ?? []),
+        ].some(
+            (req) =>
+                (req as { divideAsChosen?: unknown } | undefined)
+                    ?.divideAsChosen !== undefined
+        ) || (slots.modes ?? []).some(divides);
+    return divides(site);
 }
 
 /** Is `move` an announcement that can reach NOTHING but the mover's own side,
@@ -587,7 +697,7 @@ function probeWindowOpen(state: GameState): boolean {
     );
 }
 
-/** The `branchesAllNoOp` walk with the other quantifier: every leaf must leave
+/** The `branchesAll` walk with the other quantifier: every leaf must leave
  *  everything but the mover untouched, and `seen.sawNoOpBranch` records whether
  *  any leaf was a full no-op. Returns false — never "unknown" — for a leaf it
  *  cannot settle, so an unprovable branch suppresses nothing. */
@@ -646,7 +756,7 @@ function branchesTouchOnlyMover(
         return true;
     }
 
-    // The leaf must be genuinely SETTLED — the same requirement `branchesAllNoOp`
+    // The leaf must be genuinely SETTLED — the same requirement `branchesAll`
     // makes. A half-resolved state (the settle loop's own step guard, a
     // suspension this probe cannot answer) would otherwise be compared as if it
     // were the outcome.
@@ -1365,24 +1475,11 @@ function abilityOf(card: CardInstanceState, abilityId: string) {
 // Settle + all-branches recursion
 // ---------------------------------------------------------------------------
 
-/** Resolve `probe` down to `baseline`'s stack depth and prove the result is a
- *  no-op. When resolution suspends on a mid-resolution CHOICE owned by the
- *  mover, EVERY candidate branch must prove a no-op (mode/choice-dependent
- *  futility, Vision Charm): one useful branch is enough to keep the move. */
-function branchesAllNoOp(
-    probe: GameState,
-    baseline: GameState,
-    moverId: string,
-    spent: SpentCost,
-    depth: number
-): boolean {
-    return branchesAll(probe, baseline, moverId, depth, (settled) =>
-        isNoOpDelta(baseline, settled, moverId, spent)
-    );
-}
-
-/** The settle + all-branches walk, with the LEAF question left to the caller:
- *  every settled leaf must satisfy `leaf`, and every leaf that cannot be
+/** Resolve `probe` down to `baseline`'s stack depth, with the LEAF question
+ *  left to the caller. When resolution suspends on a mid-resolution CHOICE
+ *  owned by the mover, EVERY candidate branch must satisfy it
+ *  (mode/choice-dependent futility, Vision Charm): one useful branch is enough
+ *  to keep the move. Every settled leaf must satisfy `leaf`, and every leaf that cannot be
  *  settled (the step cap, a live continuation, a choice the mover does not own,
  *  the depth cap, the work budget, a game over) answers `false`. So whatever
  *  `leaf` asks, an unprovable branch never proves it. */
@@ -1610,6 +1707,43 @@ export const IGNORED_MOVER_PLAYER_KEYS = [
     "qualifyingActionThisTurn",
 ] as const;
 
+/** `baseline` and the settled `probe` as the compare reads them: fresh copies,
+ *  normalized (`normalize`), the mover's own taps forgiven. `null` when what
+ *  was spent cannot be accounted for. */
+function comparedPair(
+    baseline: GameState,
+    probe: GameState,
+    moverId: string,
+    spent: SpentCost,
+    reading: "exact" | "observable"
+): { base: GameState; settled: GameState } | null {
+    const read = (state: GameState): GameState => {
+        const copy = cloneGameState(state);
+        if (reading === "observable") readObservableCharacteristics(copy);
+        return copy;
+    };
+    const a = normalize(read(baseline), moverId, spent, "base");
+    const b = normalize(read(probe), moverId, spent, "probe");
+    if (!a || !b) return null;
+    // Tapping is a COST, untapping is a DELTA: forgive only untapped → tapped
+    // on the mover's own permanents, and only against the matching baseline
+    // instance. An effect that UNTAPS still registers as a difference.
+    const baseTapped = new Map<string, boolean>();
+    const basePlayer = a.players.find((p) => p.id === moverId);
+    const probePlayer = b.players.find((p) => p.id === moverId);
+    if (!basePlayer || !probePlayer) return null;
+    const baseList = basePlayer.battlefield;
+    for (let i = 0; i < baseList.length; i++) {
+        baseTapped.set(baseList[i].id, baseList[i].isTapped);
+    }
+    const cList = probePlayer.battlefield;
+    for (let i = 0; i < cList.length; i++) {
+        const c = cList[i];
+        if (c.isTapped && baseTapped.get(c.id) === false) c.isTapped = false;
+    }
+    return { base: a, settled: b };
+}
+
 /** True when the settled `probe` differs from `baseline` in nothing but the
  *  mover's own cost. See the module header for the fail-closed argument. */
 function isNoOpDelta(
@@ -1619,32 +1753,76 @@ function isNoOpDelta(
     spent: SpentCost,
     reading: "exact" | "observable" = "exact"
 ): boolean {
-    const read = (state: GameState): GameState => {
-        const copy = cloneGameState(state);
-        if (reading === "observable") readObservableCharacteristics(copy);
-        return copy;
-    };
-    const a = normalize(read(baseline), moverId, spent, "base");
-    const b = normalize(read(probe), moverId, spent, "probe");
-    if (!a || !b) return false;
-    // Tapping is a COST, untapping is a DELTA: forgive only untapped → tapped
-    // on the mover's own permanents, and only against the matching baseline
-    // instance. An effect that UNTAPS still registers as a difference.
-    const baseTapped = new Map<string, boolean>();
-    const basePlayer = a.players.find((p) => p.id === moverId);
-    const probePlayer = b.players.find((p) => p.id === moverId);
-    if (!basePlayer || !probePlayer) return false;
-    const cList = basePlayer.battlefield;
-    for (let i = 0; i < cList.length; i++) {
-        const c = cList[i];
-        baseTapped.set(c.id, c.isTapped);
+    const pair = comparedPair(baseline, probe, moverId, spent, reading);
+    return pair !== null && deepEqual(pair.base, pair.settled);
+}
+
+/** Take the damage the move marked back off `settled` (one side of a
+ *  `comparedPair`), and return the creatures it was marked on. Forgiven per
+ *  creature: more `damageMarked` than on `base` (CR 120.3e), and the spent
+ *  card's own entries in `damagedBySources`. Nothing else is touched, so a
+ *  deathtouch mark, an infect counter, a damage history written on a
+ *  PERMANENT source or a creature that left the battlefield all still read as
+ *  differences. A non-creature that took marked damage forgives nothing. */
+function forgiveMarkedDamage(
+    base: GameState,
+    settled: GameState,
+    spent: SpentCost
+): string[] {
+    const damaged: string[] = [];
+    const playerList = settled.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const basePlayer = base.players.find((p) => p.id === player.id);
+        const cardList = player.battlefield;
+        for (let j = 0; j < cardList.length; j++) {
+            const card = cardList[j];
+            const before = basePlayer?.battlefield.find(
+                (c) => c.id === card.id
+            );
+            if (!before) continue;
+            if ((card.damageMarked ?? 0) <= (before.damageMarked ?? 0)) {
+                continue;
+            }
+            if (!isCreature(card)) return [];
+            damaged.push(card.id);
+            card.damageMarked = before.damageMarked;
+            const sources = card.damagedBySources ?? [];
+            const known = before.damagedBySources ?? [];
+            if (
+                spent.cardId !== undefined &&
+                sources.length > known.length &&
+                sources
+                    .slice(known.length)
+                    .every((id) => id === spent.cardId) &&
+                deepEqual(sources.slice(0, known.length), known)
+            ) {
+                card.damagedBySources = before.damagedBySources;
+            }
+        }
     }
-    const cList2 = probePlayer.battlefield;
-    for (let i = 0; i < cList2.length; i++) {
-        const c = cList2[i];
-        if (c.isTapped && baseTapped.get(c.id) === false) c.isTapped = false;
+    return damaged;
+}
+
+/** The leaf question of {@link isDominatedNoOpMove}: the settled `probe` is
+ *  the baseline but for the mover's cost, or — with `enumerate` — but for
+ *  marked damage that cannot become lethal this turn. */
+function isDominatedDelta(
+    baseline: GameState,
+    probe: GameState,
+    moverId: string,
+    spent: SpentCost,
+    enumerate: MoveEnumerator | undefined
+): boolean {
+    const pair = comparedPair(baseline, probe, moverId, spent, "exact");
+    if (!pair) return false;
+    if (deepEqual(pair.base, pair.settled)) return true;
+    if (!enumerate) return false;
+    const damaged = forgiveMarkedDamage(pair.base, pair.settled, spent);
+    if (damaged.length === 0 || !deepEqual(pair.base, pair.settled)) {
+        return false;
     }
-    return deepEqual(a, b);
+    return markedDamageCannotBecomeLethal(probe, moverId, damaged, enumerate);
 }
 
 /** Per-permanent layer LEDGER: the holds, timestamps and seqs an effect writes
