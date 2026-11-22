@@ -365,11 +365,15 @@ function judgeSide(
         // has must be handler-only.
         const handlerOnly = valueBindings(decl)
             .filter((b) => !otherSide.has(b.identity))
-            .every((b) =>
-                referencesTo(b.local).every(
+            .every((b) => {
+                const refs = referencesTo(b.local);
+                // On a boot file an import nothing reads is no config edit:
+                // it runs its module's top level app-wide (issue #10616).
+                if (boot !== null && refs.length === 0) return false;
+                return refs.every(
                     (r) => inHandler(r) !== undefined || inBoot(r) !== undefined
-                )
-            );
+                );
+            });
         if (handlerOnly) {
             importRegions.push({
                 start: decl.getStart(sf),
@@ -445,9 +449,24 @@ function judgeSide(
             }
             const bootRegion = inBoot(token);
             if (bootRegion && boot) {
-                if (boot.refuse.test.test(source.slice(start, end))) {
+                const text = source.slice(start, end);
+                // The refused name on the line OR on any call enclosing the
+                // token inside the region (an option of a multi-line
+                // `feedbackIntegration({...})`).
+                if (
+                    boot.refuse.test.test(text) ||
+                    enclosingCallees(token, bootRegion.start, sf).some((c) =>
+                        boot.refuse.test.test(c)
+                    )
+                ) {
                     return {
                         reaching: `${line}: ${boot.refuse.why}`,
+                        placements,
+                    };
+                }
+                if (RENDER_REACHING.test(text)) {
+                    return {
+                        reaching: `${line}: a boot-configuration line that touches class / style / DOM or sets state`,
                         placements,
                     };
                 }
@@ -473,6 +492,21 @@ function judgeSide(
         }
     }
     return { reaching: null, placements };
+}
+
+/** The callee text of every call expression enclosing `token` that starts
+ *  at or after `floor` (a boot region's start). */
+function enclosingCallees(
+    token: ts.Node,
+    floor: number,
+    sf: ts.SourceFile
+): string[] {
+    const out: string[] = [];
+    for (let n: ts.Node = token.parent; n !== sf; n = n.parent) {
+        if (n.getStart(sf) < floor) break;
+        if (ts.isCallExpression(n)) out.push(n.expression.getText(sf));
+    }
+    return out;
 }
 
 /** The innermost statement (not a bare block) holding `token` inside

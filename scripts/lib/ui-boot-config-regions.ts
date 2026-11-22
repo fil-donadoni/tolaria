@@ -16,7 +16,8 @@
  *
  *   - `src/main.tsx`: the argument list of a `Sentry.init(...)` call — the
  *     SDK's DSN, transport, sampling and scrubbing options. A line naming the
- *     feedback widget or the report dialog (both render DOM) stays reaching.
+ *     feedback widget or the report dialog (both render DOM) — on the line
+ *     or on any call enclosing it inside the region — stays reaching.
  *   - `vite.config.ts`: the `proxy` table of the `server` / `preview` blocks
  *     of the `defineConfig({...})` object — dev-server request forwarding,
  *     which shapes no bundle. A line whose key is the bare root (`"/"`,
@@ -27,7 +28,11 @@
  *     (`/assets`, a route) is not recognised: the key may be computed, and
  *     the walk would show the breakage as a load failure, not a layout one;
  *   - a `Sentry.init` integration other than feedback that injects DOM is
- *     not recognised by name (none of the SDK's others does).
+ *     not recognised by name (none of the SDK's others does);
+ *   - a region admits ANY expression: a call into app code evaluated at boot
+ *     (`tracesSamplerFor(...)`) is cleared on its changed line alone. A line
+ *     naming the DOM, a class or style, or a state setter (the handler rule's
+ *     `RENDER_REACHING`) stays reaching, and so does an import no line reads.
  */
 import * as ts from "typescript";
 

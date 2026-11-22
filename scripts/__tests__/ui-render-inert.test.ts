@@ -361,6 +361,41 @@ import { TUNNEL } from "~/lib/diagnostics/sentry-tunnel";`
         expect(judgeMain(head)).toMatchObject({ inert: false });
     });
 
+    it("an option inside a multi-line feedbackIntegration({...}) reaches rendering (review, issue #10616)", () => {
+        const withFeedback = MAIN_BASE.replace(
+            `    enableLogs: true,`,
+            `    enableLogs: true,
+    integrations: [
+        Sentry.feedbackIntegration({
+            colorScheme: "dark",
+        }),
+    ],`
+        );
+        expect(
+            classifyRenderInert(
+                MAIN,
+                hunksOf(withFeedback, withFeedback.replace(`"dark"`, `"light"`))
+            )
+        ).toMatchObject({ inert: false });
+    });
+
+    it("a Sentry.init option that writes the DOM reaches rendering", () => {
+        const head = MAIN_BASE.replace(
+            `"https://key@o1.ingest.sentry.io/2"`,
+            `(document.body.style.zoom = "2", "x")`
+        );
+        expect(judgeMain(head)).toMatchObject({ inert: false });
+    });
+
+    it("an import nothing reads reaches rendering on a boot file: its module runs at load", () => {
+        const head = MAIN_BASE.replace(
+            `import { AppRouter } from "./app-router";`,
+            `import { AppRouter } from "./app-router";
+import { unused } from "./theme-boot";`
+        );
+        expect(judgeMain(head)).toMatchObject({ inert: false });
+    });
+
     it("a render line in src/main.tsx reaches rendering", () => {
         const head = MAIN_BASE.replace(
             "render(<AppRouter />)",
