@@ -49,7 +49,9 @@ in time and lose in decisions?
    are worth, and `topk:3` reads a few entries behind today's policy at equal
    iterations in every comparison at that budget, inside one seed's noise. At
    236, the same field rate under today's cap, it reads inside the dice.
-   `topk:2` is faster and loses one tested decision in every arm. A shorter
+   `topk:2` is faster and loses one tested decision in every arm. `topk:4`,
+   measured as the owner's reference, is slower than `topk:3` and keeps no
+   more decisions. A shorter
    rollout and the unfiltered random playout lose 7–14 entries at the
    declared budgets; a faithful random playout was not measured. The blade's
    boards are narrow, so all of this is a strong reading for narrow boards
@@ -61,7 +63,8 @@ in time and lose in decisions?
    implementation slice (§ 5). It about doubles the iterations on the boards
    where the field Bot is slowest and does not reach 400 there by itself: at
    V8's rates on the four boards, 36–173 iterations per 8.3 s become about
-   70–270. The owner's ruling is pending (§ 6).
+   70–270. The owner ruled for it on 2026-11-22 (§ 6); the implementation
+   slice is issue #10473.
 
 ## Method
 
@@ -154,7 +157,8 @@ that of an unfiltered random playout, and a faithful one was not measured.
       **field-board** speed-up in V8 (§ 2's 20-iteration reading: `topk:2`
       2.22, `topk:3` 2.09, `prefix:3` 2.02, `cap:16` 1.68, `prefix:0` 3.71).
       The two `topk` policies are run a second time at § 2's 60-iteration
-      reading (2.14 and 1.78). A factor is the median over the four boards of
+      reading (2.14 and 1.78). `topk:4` is run at its own two readings (1.76
+      and 1.55). A factor is the median over the four boards of
       1 ÷ the board's unrounded ratio, the mean of the two middle boards. A
       blade board's few probes would understate what a policy buys in the
       field, where that budget is spent.
@@ -234,6 +238,7 @@ each other, load 15–22):
 | `base`     | 1.00 (84 ms) | 1.00 (260 ms) | 1.00 (185 ms) | 1.00 (162 ms) | —                |
 | `topk:2`   | 0.46         | 0.45          | 0.37          | 0.47          | 2.22×            |
 | `topk:3`   | 0.43         | 0.54          | 0.42          | 0.64          | 2.09×            |
+| `topk:4` ¹ | 0.46         | 0.60          | 0.54          | 0.71          | 1.76×            |
 | `prefix:3` | 0.59         | 0.42          | 0.30          | 0.78          | 2.02×            |
 | `cap:16`   | 0.83         | 0.60          | 0.30          | 0.59          | 1.68×            |
 | `prefix:0` | 0.27         | 0.27          | 0.18          | 0.33          | 3.71×            |
@@ -246,9 +251,15 @@ each other, load 12–24):
 | `base`     | 1.00 (48 ms) | 1.00 (233 ms) | 1.00 (145 ms) | 1.00 (140 ms) | —                | 44 – 99            |
 | `topk:2`   | 0.62         | 0.41          | 0.47          | 0.47          | 2.14×            | 14 – 26            |
 | `topk:3`   | 0.64         | 0.50          | 0.54          | 0.59          | 1.78×            | 18 – 37            |
+| `topk:4` ¹ | 0.68         | 0.63          | 0.65          | 0.65          | 1.55×            | 22 – 45            |
 | `prefix:3` | 0.61         | 0.33          | 0.46          | 0.65          | 1.92×            | 19 – 21            |
 | `cap:16`   | 0.82         | 0.42          | 0.35          | 0.57          | 2.08×            | 22 – 40            |
 | `prefix:0` | 0.31         | 0.22          | 0.23          | 0.27          | 4.07×            | 0                  |
+
+¹ `topk:4`, the reference the owner asked for (§ 6), was read in a second
+session the same day at load 53–88, with `topk:3` re-read beside it: 0.41 /
+0.54 / 0.44 / 0.67 (2.07×) at 20 iterations and 0.64 / 0.46 / 0.56 / 0.53
+(1.83×) at 60, against the 2.09× and 1.78× of the first session.
 
 Every policy but `cap:16` keeps the rollout's length (28–46 plies); `cap:16`
 plays 14–16. The two iteration counts bracket a field search on such a board:
@@ -266,9 +277,15 @@ search on the page's main thread.
 | ---------- | ---------------- | -------------------- | -------------------- | ---------------- | ------------------- | ------------------- |
 | `topk:2`   | 0.97 (0.89–1.01) | 0.30                 | 0.45                 | 1.01 (0.93–1.04) | 0.34                | 0.44                |
 | `topk:3`   | 0.98 (0.91–1.01) | 0.29                 | 0.52                 | 0.98 (0.94–1.03) | 0.35                | 0.52                |
+| `topk:4` ² | 0.93 (0.92–0.97) | 0.35                 | 0.68                 | —                | —                   | —                   |
 | `prefix:3` | 1.01 (0.99–1.02) | 0.51                 | 0.33                 | 0.99 (0.95–1.08) | 0.52                | 0.34                |
 | `cap:16`   | 0.90 (0.75–0.92) | 0.74                 | 0.38                 | 0.88 (0.81–0.93) | 0.75                | 0.40                |
 | `prefix:0` | 0.74 (0.71–0.86) | 0.18                 | 0.23                 | 0.79 (0.76–0.89) | 0.20                | 0.23                |
+
+² `topk:4` was read in the second session at load 77–96, with `topk:3`
+beside it (Chromium: 0.96 on the blade positions, 0.29 and 0.48 on the two
+boards). Firefox's page was unreadable at that load (its blade ratios ranged
+from 0.73 to 1.59) and is left out.
 
 `base` on the two field boards: 104–114 and 88–93 ms per iteration in
 Chromium, 117–121 and 123–132 in Firefox. The ratio is the reading: a
@@ -312,13 +329,14 @@ green on all 574 searched, so nothing can be fixed.
 | ---------- | ----------------------- | ----------------- | ------------------------------------ |
 | `reseed`   | 0                       | 0                 | 1.00                                 |
 | `topk:3`   | 0                       | 1                 | 1.01                                 |
+| `topk:4`   | 0                       | 0                 | 1.00                                 |
 | `topk:2`   | 2                       | 3                 | 1.03                                 |
 | `prefix:3` | 7                       | 7                 | 1.02                                 |
 | `prefix:0` | 11                      | 12                | 1.25                                 |
 | `cap:16`   | 14                      | 14                | 1.17                                 |
 
 **Gecko's field budgets.** Equal time is B × the policy's field speed-up.
-The two `topk` policies are run at both readings of § 2: the 20-iteration
+Every `topk` policy is run at both of its readings of § 2: the 20-iteration
 factor first, the 60-iteration one second. A cell is the red entries, with
 flips / fixes in brackets and the iterations searched after "at". The
 `reseed` row's equal-time cell is today's policy, on another random stream,
@@ -330,6 +348,7 @@ at `topk:3`'s two iteration counts.
 | `reseed`   | 16 (6 / 7)               | 6 (2 / 13) at 196 · 8 (3 / 12) at 167         | 4 (0 / 4)                 | not run                             |
 | `topk:2`   | 15 (3 / 5)               | **8** (4 / 13) at 209 · **7** (4 / 14) at 201 | 8 (2 / 2)                 | 8 (6 / 6) at 524 · 4 (3 / 7) at 505 |
 | `topk:3`   | 21 (4 / 0)               | **9** (3 / 11) at 196 · **13** (5 / 9) at 167 | 8 (2 / 2)                 | 5 (2 / 5) at 493 · 3 (0 / 5) at 420 |
+| `topk:4`   | 20 (3 / 0)               | 17 (10 / 10) at 165 · 14 (7 / 10) at 146      | 7 (1 / 2)                 | 3 (0 / 5) at 415 · 2 (0 / 6) at 366 |
 | `prefix:3` | 21 (6 / 2)               | 14 (9 / 12) at 190                            | 13 (6 / 1)                | 8 (5 / 5) at 477                    |
 | `cap:16`   | 28 (17 / 6)              | 13 (8 / 12) at 158                            | 10 (7 / 5)                | 12 (9 / 5) at 396                   |
 | `prefix:0` | 21 (13 / 9)              | 12 (10 / 15) at 349                           | 14 (11 / 5)               | 18 (16 / 6) at 876                  |
@@ -376,6 +395,17 @@ at `topk:3`'s two iteration counts.
   against 6 for `topk:2`) is as wide as any difference from `base`. No
   `reseed` was run at those equal-time counts, so the dice's floor there is
   not measured.
+- **K = 4, the owner's reference, is slower than K = 3 and keeps no more.**
+  Probing `pass` and three candidates is 1.76× faster than today at 20
+  iterations and 1.55× at 60, where K = 3 read 2.07× and 1.83× in the same
+  session. Like K = 3 it flips nothing at the declared budgets. At Gecko's
+  94 iterations and equal time it leaves 14–17 red entries where K = 3 leaves
+  9–13: the iterations it gives up cost more than the extra candidate
+  recovers. At 236 it reads 2–3 red where K = 3 reads 3–5, both inside what
+  the dice alone move (8 to 4). K = 4 is behind K = 3 at one budget and not
+  separable from it at the other. On the blade's narrow boards it cuts even
+  less than K = 3 does: 13–15% of the probes, more than a quarter on about 40
+  entries.
 - **A shorter rollout and the unfiltered random playout lose classes of
   decisions**, at the declared budgets where the dice flip nothing.
   `prefix:0` and `prefix:3` lose five sacrifice-outlet reachability entries:
@@ -445,6 +475,12 @@ entries at Gecko's 94 iterations, but it loses a tested decision at every
 budget, the declared ones included. A rank that reads what a move does might
 keep that decision at K = 2 (Not measured).
 
+**K = 4 is the reference, not the choice.** It is 15% slower than K = 3 on
+the field boards (1.76× against 2.07×, 1.55× against 1.83×), flips nothing at
+the declared budgets either, and is behind K = 3 at Gecko's 94 iterations and
+equal time (14–17 red entries against 9–13). Its lower reading at 236 (2–3
+against 3–5) is inside the dice.
+
 **Not a shorter rollout, not a memo; random playouts are not settled.**
 `cap:16` brings back the action bias and the memo's key does not recur.
 `prefix:0` is the speed ceiling (about 4×) and the worst arm at equal time
@@ -462,21 +498,22 @@ it already has (issue #10450).
 
 ## 6. The owner's ruling
 
-**Pending.** The first pass was an unattended `afk-pass` job; the measurement was
-finished on 2026-11-22 in an attended session. The ruling is the owner's. The
-questions:
+**Ruled on 2026-11-22**, in an attended session. The first pass of this note
+was an unattended `afk-pass` job; the measurement was finished and put to the
+owner the same day. The three questions, and the owner's words:
 
-1. Build `topk:3` (the rollout probes `pass` and the two best-ranked
+1. **Build `topk:3`** (the rollout probes `pass` and the two best-ranked
    candidates instead of every candidate) as an implementation slice under
-   PRD issue #10017?
-2. K = 3 as recommended, or K = 2: faster again by 6–20% and better at
-   Gecko's 94 iterations, at the price of the Emperor of Bones decision until
-   a better rank exists?
-3. Accept the amendment of ADR 0021 (the rollout's default policy no longer
-   probes every candidate) as a new ADR?
+   PRD issue #10017? _"topk:3 si"._
+2. **K = 3 as recommended, or K = 2?** _"3 mosse. magari testerei anche con 4
+   per avere un riferimento in piu'. 2 mi sembra troppo tranciante."_ K = 3 is
+   the decision. K = 4 was measured as the reference asked for: the `topk:4`
+   rows of § 2 and § 3. It is slower than K = 3 and keeps no more decisions,
+   so nothing in it reopens the choice.
+3. **A new ADR amending ADR 0021** (the rollout's default policy no longer
+   probes every candidate)? _"adr si"._
 
-The implementation slice is filed under PRD issue #10017 once the ruling is
-recorded here.
+The implementation slice is issue #10473, under PRD issue #10017.
 
 ## Appendix: the first pass (Huawei runner, 2026-11-19)
 
@@ -605,6 +642,16 @@ node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/noise-94-1.jsonl --policies b
      --budget 94 --time-factors reseed=1 --slice 1/4
 node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/noise-236-1.jsonl --policies base,reseed \
      --budget 236 --time-factors reseed=1 --slice 1/4
+#    K = 4, the reference: speed with topk:3 beside it (20 and 60 iterations,
+#    every fixture), then quality; each field budget is run at both of its
+#    factors, 1.76 and 1.55 (the declared-budget run needs none)
+node $B/run-rollout.mjs speed /tmp/rollout.js /tmp/k4-speed.json --field field-jh7396nx.json \
+     --policies base,topk:3,topk:4 --iterations 20 --rounds 3
+node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/k4-decl-1.jsonl --policies base,topk:4 --slice 1/4
+node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/k4-94-1.jsonl --policies base,topk:4 \
+     --budget 94 --time-factors topk:4=1.76 --slice 1/4
+node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/k4-236-1.jsonl --policies base,topk:4 \
+     --budget 236 --time-factors topk:4=1.55 --slice 1/4
 #    today's policy at topk:3's equal-time counts, B = 94 (196 and 167 iterations)
 node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/noise-94-196-1.jsonl --policies base,reseed \
      --budget 94 --time-factors reseed=2.09 --slice 1/4
