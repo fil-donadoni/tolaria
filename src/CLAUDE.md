@@ -38,7 +38,8 @@ or viewport module; or a changed line adding/removing a
 `z-index`, scroll container or `@media`/`matchMedia`/`useViewport*`. Judged
 per HUNK (issue #10393, `ui-render-inert.ts`): a module whose every changed
 line is a comment, user-event handler body or handler-only import owes
-nothing. Leaf components, copy, tests: not. Not owed → PR line
+nothing; `src/main.tsx` / `vite.config.ts` only for `Sentry.init` options or
+the dev-server proxy table (issue #10616). Leaf components, copy, tests: not. Not owed → PR line
 `check:ui: no walk owed (<reason>)` replaces the receipt; owed + no receipt →
 `land` refuses. `--all`: the full proof, by hand only (#6143).
 
