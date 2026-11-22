@@ -25,13 +25,15 @@
 import type { RobustnessBaselineRow } from "./robustness";
 
 // The first FULL PR-side audit to finish (issue #10319, PR #10333) found
-// three, pre-existing: no full audit had completed since 2026-10-11.
-// "self-harm: Fatal Push …" flips with the tree: robust on the revert of
-// PR #10340 (row deleted there), pinned again on the next base tip (row
-// restored) — issue #10337 owns it.
+// three, pre-existing: no full audit had completed since 2026-10-11. All
+// three are retired (issues #10335, #10336, #10337). PR #10392's full audit
+// (base 258d11289) found two more, pre-existing — that PR moves only the
+// Fatal Push entry's budget (issues #10449, #10448). Blood Moon measured
+// robust again after the rebase onto f98284f5b (no row); the Runeclaw Bear
+// entry stays pinned: issue #10448 owns it.
 export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
     {
-        label: "self-harm: Fatal Push still destroys the opponent's mana value 4 creature beside the Bot's own",
-        issue: 10337,
+        label: "keyword relevance (protection): against a bot showing no red, protection from red does not make the Runeclaw Bear Terror's target (issue #5356)",
+        issue: 10448,
     },
 ];

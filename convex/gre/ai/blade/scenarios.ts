@@ -30406,15 +30406,18 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             { kind: "resolve-top" },
         ],
         bot: "me",
-        // The anchor's budget, so the pair differs by the Giant alone. The
-        // Emperor cast tops the means on most seeds, and the self-harm rule
-        // reads that argmax (issue #10222): it ranks every Fatal Push sibling
-        // and the Giant wins it, where the material tie-break used to hand
-        // the pick to `pass` on rollout noise (seeds 3, 14, 17 of 0–19 at 100
-        // iterations). Seeds 0–19 now 19/20, the one miss a seed whose
-        // `pass` out-means every cast by 0.08 with every one-ply reward at
-        // the clipped floor.
-        budget: { iterations: 100 },
+        // The Emperor cast tops the means on most seeds, and the self-harm
+        // rule reads that argmax (issue #10222): it ranks every Fatal Push
+        // sibling and the Giant wins it, where the material tie-break used to
+        // hand the pick to `pass` on rollout noise (seeds 3, 14, 17 of 0–19
+        // at 100 iterations). At the anchor's 100 iterations it stayed
+        // noise-pinned (issue #10337): a seed whose `pass` out-means every
+        // cast with every one-ply reward at the clipped floor, jitter+ seed 4
+        // of the robustness audit. 400 iterations cleared every leg on
+        // cc6f4016c (200 did not) but pinned again at jitter+ 9/10 on
+        // 258d11289; 800 clears every leg there. The anchor keeps its starved
+        // 100: its discriminating seed is the point of it.
+        budget: { iterations: 800 },
         seeds: [0xb1ade, 1, 2, 3, 4, 5, 6],
         tier: "must",
         // A PREDICATE, kept out of the weight fit on purpose: see the first
