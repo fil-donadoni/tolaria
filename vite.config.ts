@@ -15,6 +15,13 @@ import {
     setChunkName,
     setCodeOf,
 } from "./scripts/lib/vite-card-set-chunks";
+import {
+    SENTRY_DSN,
+    SENTRY_TUNNEL_PATH,
+    sentryEnvelopeEndpoint,
+} from "./src/lib/diagnostics/sentry-tunnel";
+
+const sentryEnvelope = new URL(sentryEnvelopeEndpoint(SENTRY_DSN));
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -32,6 +39,16 @@ export default defineConfig({
                 target: "https://cards.scryfall.io",
                 changeOrigin: true,
                 rewrite: (p) => p.replace(/^\/scryfall-proxy/, ""),
+            },
+            // The Sentry tunnel (issue #10414): the dev twin of the
+            // `vercel.json` rewrite, so a local build posts its envelopes to
+            // the same same-origin path production does. `preview.proxy`
+            // defaults to this block, so `vite preview` forwards too. A `^…$`
+            // key is a regex: the exact path, never a prefix.
+            [`^${SENTRY_TUNNEL_PATH}$`]: {
+                target: sentryEnvelope.origin,
+                changeOrigin: true,
+                rewrite: () => sentryEnvelope.pathname,
             },
         },
     },
