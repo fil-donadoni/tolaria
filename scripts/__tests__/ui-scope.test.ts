@@ -275,6 +275,29 @@ describe("computeUiScope — render-inert modules select nothing (issue #10393)"
         });
     });
 
+    it("vite.config.ts, every changed line inert, is not FULL (issue #10616)", () => {
+        expect(scopeWith([], "vite.config.ts")).toMatchObject({
+            kind: "full",
+        });
+        expect(scopeWith(["vite.config.ts"], "vite.config.ts")).toEqual({
+            kind: "scoped",
+            surfaces: [],
+        });
+    });
+
+    it("src/main.tsx, every changed line inert, selects nothing (issue #10616)", () => {
+        expect(scopeWith([], "src/main.tsx")).toMatchObject({ kind: "full" });
+        expect(scopeWith(["src/main.tsx"], "src/main.tsx")).toEqual({
+            kind: "scoped",
+            surfaces: [],
+        });
+    });
+
+    it("a module in the build closure stays FULL even when render-inert", () => {
+        const define = "scripts/lib/build-define.ts";
+        expect(scopeWith([define], define)).toMatchObject({ kind: "full" });
+    });
+
     it("a mixed diff selects only the render-reaching module's surfaces", () => {
         expect(
             scopeWith(

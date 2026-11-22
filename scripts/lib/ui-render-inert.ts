@@ -49,6 +49,12 @@
  *     no opener drives (an opener's handler sets state, which this refuses);
  *   - a module first imported (or last un-imported) by a handler-only import
  *     line has its top-level side effects added (or dropped) at load.
+ *
+ * BOOT FILES (`src/main.tsx`, `vite.config.ts`, issue #10616) are read under a
+ * RESTRICTED rule set instead: trivia, a token inside a boot-configuration
+ * region (`ui-boot-config-regions.ts`: the `Sentry.init` options, the
+ * dev-server proxy table) and an import only those regions read. No handler
+ * rule applies there.
  */
 import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
@@ -56,6 +62,11 @@ import * as nodePath from "node:path";
 import * as ts from "typescript";
 import { ORIGIN_BASE } from "./branches.ts";
 import { zeroContextLines } from "./ui-stylesheet-scope.ts";
+import {
+    bootConfigScan,
+    isBootConfigFile,
+    type BootConfigScan,
+} from "./ui-boot-config-regions.ts";
 
 /** A changed module's two sides and the 1-based line numbers its diff
  *  removes (on `before`) and adds (on `after`). */
@@ -243,7 +254,8 @@ function isReference(id: ts.Identifier): boolean {
 function judgeSide(
     sf: ts.SourceFile | null,
     lines: readonly number[],
-    otherSide: ReadonlySet<string>
+    otherSide: ReadonlySet<string>,
+    path: string
 ): SideVerdict {
     const placements = new Set<string>();
     if (lines.length === 0) return { reaching: null, placements };
@@ -254,6 +266,9 @@ function judgeSide(
         };
     }
     const source = sf.text;
+    // A boot file (issue #10616): only its boot-configuration regions, its
+    // trivia and the imports only those regions read can be inert.
+    const boot: BootConfigScan | null = bootConfigScan(path, sf);
 
     // Every identifier, once: the reference scan below reads it per binding.
     const identifiers: ts.Identifier[] = [];
@@ -281,7 +296,7 @@ function judgeSide(
         refs: ts.Identifier[] | null; // null: inline `on*` prop value
     }
     let handlers: Candidate[] = [];
-    for (const fn of functions) {
+    for (const fn of boot === null ? functions : []) {
         const body = fn.body as ts.Node;
         if (containsJsx(body)) continue;
         if (isHandlerPropValue(fn)) {
@@ -321,13 +336,20 @@ function judgeSide(
     }
     const inHandler = (node: ts.Node): Candidate | undefined =>
         handlers.find((h) => inside(node, h.body));
+    const inBoot = (node: ts.Node) =>
+        boot?.regions.find(
+            (r) => node.getStart(sf) >= r.start && node.getEnd() <= r.end
+        );
 
     const importRegions: Region[] = [];
     for (const decl of imports) {
         const clause = decl.importClause;
         if (!clause) continue; // side-effect-only: runs its module
         const spec = (decl.moduleSpecifier as ts.StringLiteral).text;
-        const label = `an import from ${spec} whose changed bindings only handlers read`;
+        const label =
+            boot === null
+                ? `an import from ${spec} whose changed bindings only handlers read`
+                : `an import from ${spec} whose changed bindings only boot configuration reads`;
         if (clause.isTypeOnly) {
             importRegions.push({
                 start: decl.getStart(sf),
@@ -344,7 +366,9 @@ function judgeSide(
         const handlerOnly = valueBindings(decl)
             .filter((b) => !otherSide.has(b.identity))
             .every((b) =>
-                referencesTo(b.local).every((r) => inHandler(r) !== undefined)
+                referencesTo(b.local).every(
+                    (r) => inHandler(r) !== undefined || inBoot(r) !== undefined
+                )
             );
         if (handlerOnly) {
             importRegions.push({
@@ -417,6 +441,17 @@ function judgeSide(
             );
             if (region) {
                 placements.add(region.label);
+                continue;
+            }
+            const bootRegion = inBoot(token);
+            if (bootRegion && boot) {
+                if (boot.refuse.test.test(source.slice(start, end))) {
+                    return {
+                        reaching: `${line}: ${boot.refuse.why}`,
+                        placements,
+                    };
+                }
+                placements.add(bootRegion.label);
                 continue;
             }
             const handler = inHandler(token);
@@ -540,11 +575,16 @@ export function classifyRenderInert(
     }
     const before = parseModule(path, hunks.before);
     const after = parseModule(path, hunks.after);
-    const base = judgeSide(before, hunks.removed, importIdentities(after));
+    const base = judgeSide(
+        before,
+        hunks.removed,
+        importIdentities(after),
+        path
+    );
     if (base.reaching !== null) {
         return { inert: false, at: `${path}:${base.reaching} (base side)` };
     }
-    const head = judgeSide(after, hunks.added, importIdentities(before));
+    const head = judgeSide(after, hunks.added, importIdentities(before), path);
     if (head.reaching !== null) {
         return { inert: false, at: `${path}:${head.reaching}` };
     }
@@ -553,14 +593,15 @@ export function classifyRenderInert(
 }
 
 /** A path this classifier may clear: a `src/**` TS module that is not a
- *  global styling input (the shell entry, the routers, the design tokens and
- *  the catalogue gate stay owed by their path — `globalReason`). */
+ *  global styling input (the routers, the design tokens and the catalogue
+ *  gate stay owed by their path — `globalReason`), or a boot file, read under
+ *  the restricted rule set (issue #10616). */
 export function isRenderInertCandidate(path: string): boolean {
+    if (isBootConfigFile(path)) return true;
     return (
         /^src\/.+\.tsx?$/.test(path) &&
         !path.endsWith(".d.ts") &&
         ![
-            "src/main.tsx",
             "src/app-router.tsx",
             "src/router.tsx",
             "src/lib/design-tokens.ts",
