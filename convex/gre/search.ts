@@ -2467,6 +2467,14 @@ export function policyValueOfSettled(
     return v + declaredBlockDelta(settled, botId, weights, memo);
 }
 
+/** Probes the default policy below has made since this module loaded: one per
+ *  candidate it cloned, applied and evaluated (issue #10321). A measurement,
+ *  never an input: nothing reads it to decide, so a search picks the same move
+ *  with or without it. `runSearchWithTrace` reads it before and after its
+ *  iteration loop and reports the difference on the trace (`rolloutProbes`) —
+ *  a search is synchronous, so the difference is that search's own. */
+let rolloutProbeCount = 0;
+
 /** The reactive-aware rollout DEFAULT POLICY (ADR 0021 slice 2, issue #222): the
  *  move maximizing the mover's combat-aware immediate reward (1-ply lookahead),
  *  with an RNG tie-break. Each candidate is probed on a clone so `state` is
@@ -2501,6 +2509,8 @@ export function selectRolloutMove(
     const held = heldInstantProbe(state, pid, memo);
     let bestScore = -Infinity;
     let best: Move[] = [];
+    // Every candidate below is cloned, applied and evaluated: one probe each.
+    rolloutProbeCount += moves.length;
     for (let i = 0; i < moves.length; i++) {
         const move = moves[i];
         const probe = cloneGameState(state);
@@ -4422,6 +4432,13 @@ export type DecisionTrace = {
      *  combination, how many moves survived and how many were refused. Absent
      *  when nothing was cut, so an untruncated decision's trace is unchanged. */
     truncations?: ModeCombinationTruncation[];
+    /** Candidates the rollout's default policy probed during this search's
+     *  iterations (issue #10321): each one a clone, an applied move and an
+     *  evaluation — where a late board's iteration spends most of its time.
+     *  `rolloutProbes / iterationsCompleted` is what the board cost per
+     *  iteration, `elapsedMs / rolloutProbes` what the machine made of it.
+     *  Set by every search; absent only on a trace built outside one. */
+    rolloutProbes?: number;
 };
 
 /** Resolve `state`'s stack to a stable point so a one-shot eval breakdown
@@ -8560,6 +8577,7 @@ function runSearchWithTrace(
     // what the budget actually asked for or against the wall clock that (in
     // a real game) usually cuts it short.
     let stoppedBy: SearchStopReason = "iterations";
+    const probesBefore = rolloutProbeCount;
     while (i < maxIter) {
         iterate(
             root,
@@ -8602,6 +8620,8 @@ function runSearchWithTrace(
             break;
         }
     }
+    // Read here, before the root pick below probes candidates of its own.
+    const rolloutProbes = rolloutProbeCount - probesBefore;
     const stats: SearchStats = {
         iterationsCompleted: i,
         // No `iterations` bound → nothing was "requested" beyond what ran;
@@ -8656,6 +8676,7 @@ function runSearchWithTrace(
             ),
             selectionRule: actionPriors ? "puct" : "ucb1",
             ...(truncations.length > 0 ? { truncations } : {}),
+            rolloutProbes,
         },
     };
 }

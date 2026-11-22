@@ -115,6 +115,7 @@ import { BRAIN_CONSULT_TIMEOUT_MS } from "~/lib/ai/consult-timeout";
 import { seatKnowledge } from "~/lib/ai/seat-knowledge";
 import {
     acquireBotSearchReport,
+    boardFacts,
     releaseBotSearchReport,
     telemetryNow,
     type BotSearchRecorder,
@@ -1453,6 +1454,9 @@ export function useVsAiDriver(
             // search runs must not file its verdict under the next game.
             const report = searchReport.current;
             const consultStartedAt = telemetryNow();
+            // The board the search is about to run on, as counts (issue
+            // #10321): its turn, its step and how many permanents stand.
+            const board = boardFacts(botState);
             dispatch(
                 signature,
                 () =>
@@ -1487,6 +1491,8 @@ export function useVsAiDriver(
                                 via,
                                 consultMs: telemetryNow() - consultStartedAt,
                                 difficulty,
+                                postedAt: consultStartedAt,
+                                ...(board ? { board } : {}),
                                 ...(trace
                                     ? {
                                           search: {
@@ -1496,6 +1502,13 @@ export function useVsAiDriver(
                                                   trace.iterationsCompleted,
                                               elapsedMs: trace.elapsedMs,
                                               stoppedBy: trace.stoppedBy,
+                                              ...(trace.rolloutProbes ===
+                                              undefined
+                                                  ? {}
+                                                  : {
+                                                        rolloutProbes:
+                                                            trace.rolloutProbes,
+                                                    }),
                                           },
                                       }
                                     : {}),

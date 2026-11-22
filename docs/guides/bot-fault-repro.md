@@ -68,18 +68,44 @@ Read one game in Sentry (Explore → Logs):
 message:"bot search" gameId:<gameId>
 ```
 
-| Attribute                                                          | Reads as                                                        |
-| ------------------------------------------------------------------ | --------------------------------------------------------------- |
-| `iterations.ratio`                                                 | completed / requested over the game's searches: 1 = as tested   |
-| `stopped.time` / `.iterations` / `.settled`                        | how many searches the clock ended, against the other two stops  |
-| `msPerIteration.p50` / `.p90`                                      | the device's speed over every board the game reached            |
-| `msPerIteration.first`                                             | the device's speed at the game's first search: an early board   |
-| `searchMs.*` against `consultMs.*`                                 | the gap is what stood before the search (Worker start, a queue) |
-| `consults.timeout` / `.worker-error` / `.search-error` / `.inline` | consults that gave no answer, or ran in-thread                  |
-| `device.engine` / `.os` / `.cores` / `.mobile`                     | engine family, OS family, core bucket, phone or iPad            |
+| Attribute                                                          | Reads as                                                         |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `iterations.ratio`                                                 | completed / requested over the game's searches: 1 = as tested    |
+| `stopped.time` / `.iterations` / `.settled`                        | how many searches the clock ended, against the other two stops   |
+| `msPerIteration.p50` / `.p90`                                      | the device's speed over every board the game reached             |
+| `msPerIteration.first`                                             | the device's speed at the game's first search: an early board    |
+| `probesPerIteration.p50`                                           | what the boards cost: candidates the rollout tried per iteration |
+| `msPerProbe.p50`                                                   | what the machine made of them: time per candidate tried          |
+| `idleMs.p50`                                                       | the time the Worker sat idle between two consults                |
+| `searchMs.*` against `consultMs.*`                                 | the gap is what stood before the search (Worker start, a queue)  |
+| `consults.timeout` / `.worker-error` / `.search-error` / `.inline` | consults that gave no answer, or ran in-thread                   |
+| `device.engine` / `.os` / `.cores` / `.mobile`                     | engine family, OS family, core bucket, phone or iPad             |
 
 Across games, group the same query by `device.engine`, `device.os` or
 `device.cores` and average `iterations.ratio`. A ratio between two engines is
 read on `msPerIteration.first` within one `device.os` (issue #10128): later
 boards cost more, so `.p50` makes a long game read slower on the same machine,
 and the OS family tells the machines behind the engines apart.
+
+**A slow game: costly boards, or a slow machine?** (issue #10321) A probe is
+one candidate move the rollout cloned, applied and evaluated; on a late board
+the probes are most of an iteration. Many probes per iteration
+(`probesPerIteration.p50`) with an ordinary time per probe is a game that
+reached costly boards. A high `msPerProbe.p50` is a slow or busy machine.
+
+**One decision at a time.** Each consult also records a span named
+`bot.consult` (Explore → Traces, `span.op:bot.consult gameId:<gameId>`), in
+order (`consult` = 1, 2, …), under the same boundary as the report: counters,
+durations, the turn and step, the device class.
+
+| Span attribute                                     | Reads as                                            |
+| -------------------------------------------------- | --------------------------------------------------- |
+| `consult`                                          | the consult's place in the game on this page        |
+| `outcome` / `via`                                  | how it ended, in the Worker or in-thread            |
+| `consultMs` / `searchMs`                           | posting to verdict, and the search inside it        |
+| `idleMs`                                           | the time since the previous consult's verdict       |
+| `iterations.requested` / `.completed`, `stoppedBy` | what the search asked for, got, and what stopped it |
+| `msPerIteration`                                   | this decision's speed                               |
+| `probes` / `msPerProbe`                            | candidates the rollout tried, and the time per one  |
+| `turn` / `phase` / `permanents`                    | where the game was, and how many permanents stood   |
+| `gameId`, `difficulty`, `device.*`                 | as on the report                                    |

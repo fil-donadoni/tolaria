@@ -10,6 +10,10 @@ import * as Sentry from "@sentry/react";
 import { installConsoleRing } from "~/lib/diagnostics/console-ring";
 import { installNetworkRing } from "~/lib/diagnostics/network-ring";
 import { sampleStorageFacts } from "~/lib/diagnostics/environment";
+import {
+    dropAutomatedTransaction,
+    tracesSamplerFor,
+} from "~/lib/diagnostics/tracing";
 
 // Client diagnostics (issue #3256), installed as early as a module can run.
 // All three are bounded, client-only rings that reach a maintainer ONLY when a
@@ -41,7 +45,11 @@ Sentry.init({
     // SDK, so a `sentry-trace` header on its requests buys nothing and risks
     // a CORS preflight failure.
     integrations: [Sentry.tanstackRouterBrowserTracingIntegration(router)],
-    tracesSampleRate: import.meta.env.PROD ? 0.2 : 0,
+    // Which traces are kept (issue #10321): every Brain consult's span and
+    // the game route in full, every other route at a fifth, and nothing from
+    // a browser driven by automation — `~/lib/diagnostics/tracing`.
+    tracesSampler: tracesSamplerFor(import.meta.env.PROD),
+    beforeSendTransaction: (event) => dropAutomatedTransaction(event),
 });
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);

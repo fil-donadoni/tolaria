@@ -10,7 +10,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     REPORT_KEYS,
+    acquireBotSearchReport,
+    boardFacts,
     botSearchSink,
+    clearBotSearchReports,
+    consultClock,
     coresBucket,
     deviceClass,
     engineFamily,
@@ -21,6 +25,7 @@ import {
     type ConsultSample,
     type DeviceClass,
 } from "../bot-search-telemetry";
+import { botConsultSpanSink } from "../bot-consult-span";
 
 const DEVICE: DeviceClass = {
     engine: "gecko",
@@ -35,6 +40,7 @@ function searched(
         completed?: number;
         elapsedMs?: number;
         stoppedBy?: "iterations" | "time" | "settled";
+        probes?: number;
     } = {}
 ): ConsultSample {
     const {
@@ -42,6 +48,7 @@ function searched(
         completed = 400,
         elapsedMs = 500,
         stoppedBy = "iterations",
+        probes = 1000,
         ...rest
     } = overrides;
     return {
@@ -54,6 +61,7 @@ function searched(
             iterationsCompleted: completed,
             elapsedMs,
             stoppedBy,
+            rolloutProbes: probes,
         },
         ...rest,
     };
@@ -61,6 +69,7 @@ function searched(
 
 afterEach(() => {
     vi.restoreAllMocks();
+    clearBotSearchReports();
 });
 
 describe("percentile (nearest rank)", () => {
@@ -332,6 +341,10 @@ describe("summarizeBotSearch", () => {
             "msPerIteration.p90": 10,
             // The first search: 1000/1320.
             "msPerIteration.first": 0.76,
+            // 1000 probes each: 1000/1320 = 0.8, 1000/330 = 3, 1000/200 = 5
+            "probesPerIteration.p50": 3,
+            // 1000/1000 = 1, 3300/1000 = 3.3, 100/1000 = 0.1
+            "msPerProbe.p50": 1,
             "device.engine": "gecko",
             "device.os": "linux",
             "device.cores": "3-4",
@@ -425,7 +438,7 @@ describe("summarizeBotSearch", () => {
         const stops = ["iterations", "time", "settled"] as const;
         const samples = outcomes.flatMap((outcome) =>
             stops.map((stoppedBy) =>
-                searched({ outcome, stoppedBy, via: "inline" })
+                searched({ outcome, stoppedBy, via: "inline", idleMs: 4000 })
             )
         );
         const report = summarizeBotSearch("game1", samples, DEVICE);
@@ -474,7 +487,182 @@ describe("summarizeBotSearch", () => {
     });
 });
 
+describe("what a slow game was (issue #10321)", () => {
+    it("reads the probes per iteration and the time per probe at the median", () => {
+        const report = summarizeBotSearch(
+            "game1",
+            [
+                // 60 probes an iteration at 1 ms each: a costly board.
+                searched({ completed: 50, elapsedMs: 3000, probes: 3000 }),
+                // 5 probes an iteration at 3 ms each: a slow machine.
+                searched({ completed: 200, elapsedMs: 3000, probes: 1000 }),
+                searched({ completed: 100, elapsedMs: 3000, probes: 1500 }),
+            ],
+            DEVICE
+        );
+        expect(report["probesPerIteration.p50"]).toBe(15);
+        expect(report["msPerProbe.p50"]).toBe(2);
+    });
+
+    it("leaves both out when no search counted a probe", () => {
+        const unprobed = searched();
+        delete unprobed.search!.rolloutProbes;
+        const report = summarizeBotSearch(
+            "game1",
+            [unprobed, searched({ probes: 0 })],
+            DEVICE
+        );
+        expect(report).not.toHaveProperty("probesPerIteration.p50");
+        expect(report).not.toHaveProperty("msPerProbe.p50");
+    });
+
+    it("reads the idle time between consults at the median, and leaves it out with no reading", () => {
+        const idle = summarizeBotSearch(
+            "game1",
+            [
+                searched(),
+                searched({ idleMs: 22_000 }),
+                searched({ idleMs: 4_000 }),
+                searched({ idleMs: 31_000 }),
+                // Not a reading: a clock that ran backwards, and no number.
+                searched({ idleMs: -5 }),
+                searched({ idleMs: Number.NaN }),
+            ],
+            DEVICE
+        );
+        expect(idle["idleMs.p50"]).toBe(22_000);
+        // A consult that never searched still had an idle time before it.
+        const unsearched = summarizeBotSearch(
+            "game1",
+            [
+                {
+                    outcome: "timeout",
+                    via: "worker",
+                    consultMs: 5000,
+                    difficulty: "expert",
+                    idleMs: 900,
+                },
+            ],
+            DEVICE
+        );
+        expect(unsearched["idleMs.p50"]).toBe(900);
+        expect(
+            summarizeBotSearch("game1", [searched()], DEVICE)
+        ).not.toHaveProperty("idleMs.p50");
+    });
+
+    it("counts a board and returns nothing else of it", () => {
+        const facts = boardFacts({
+            turn: 7,
+            phase: "DECLARE_BLOCKERS",
+            players: [
+                { battlefield: [{ id: "a" }, { id: "b" }, { id: "c" }] },
+                { battlefield: [{ id: "d" }] },
+            ],
+        });
+        expect(facts).toEqual({
+            turn: 7,
+            phase: "DECLARE_BLOCKERS",
+            permanents: 4,
+        });
+        expect(boardFacts({ phase: "UPKEEP" })).toBeUndefined();
+        expect(
+            boardFacts({ turn: 1, phase: "UPKEEP", players: [null as never] })
+        ).toBeUndefined();
+    });
+});
+
+describe("consultClock", () => {
+    const at = (postedAt: number, consultMs: number): ConsultSample => ({
+        ...searched(),
+        postedAt,
+        consultMs,
+    });
+
+    it("numbers a game's consults and reads the idle time before each", () => {
+        const clock = consultClock();
+        // Posted at 1000, answered at 4000.
+        const first = clock(at(1000, 3000));
+        // Posted at 26000: 22 s after the first answer.
+        const second = clock(at(26_000, 500));
+        const third = clock(at(26_800, 100));
+
+        expect(first.ordinal).toBe(1);
+        expect(first).not.toHaveProperty("idleMs");
+        expect(second.ordinal).toBe(2);
+        expect(second.idleMs).toBe(22_000);
+        expect(third.ordinal).toBe(3);
+        expect(third.idleMs).toBe(300);
+    });
+
+    it("has no idle reading across a consult it could not date", () => {
+        const clock = consultClock();
+        clock(at(1000, 3000));
+        // No post time: this consult has no reading, and neither has the next.
+        const undated = clock(searched());
+        const after = clock(at(9000, 100));
+        expect(undated).not.toHaveProperty("idleMs");
+        expect(after).not.toHaveProperty("idleMs");
+        expect(after.ordinal).toBe(3);
+    });
+
+    it("keeps its own reading over a caller's", () => {
+        const clock = consultClock();
+        expect(clock({ ...at(1000, 10), idleMs: 77 })).not.toHaveProperty(
+            "idleMs"
+        );
+        expect(clock({ ...at(2000, 10), idleMs: 77 }).idleMs).toBe(990);
+    });
+});
+
 describe("openBotSearchReport", () => {
+    it("records one span per consult, timed by the game's clock, and folds the idle time into the report", () => {
+        const log = vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
+        const span = vi
+            .spyOn(botConsultSpanSink, "record")
+            .mockImplementation(() => {});
+        const report = openBotSearchReport("game1");
+        report.record({ ...searched(), postedAt: 1000, consultMs: 3000 });
+        report.record({ ...searched(), postedAt: 26_000, consultMs: 500 });
+        report.flush();
+
+        expect(span).toHaveBeenCalledTimes(2);
+        expect(span.mock.calls[0]![0]).toMatchObject({
+            gameId: "game1",
+            consult: 1,
+        });
+        expect(span.mock.calls[1]![0]).toMatchObject({
+            gameId: "game1",
+            consult: 2,
+            idleMs: 22_000,
+        });
+        expect(log.mock.calls[0]![0]).toMatchObject({ "idleMs.p50": 22_000 });
+    });
+
+    it("still records a consult's span after the report went out", () => {
+        vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
+        const span = vi
+            .spyOn(botConsultSpanSink, "record")
+            .mockImplementation(() => {});
+        const report = openBotSearchReport("game1");
+        report.record(searched());
+        report.flush();
+        report.record(searched());
+        expect(span).toHaveBeenCalledTimes(2);
+        expect(span.mock.calls[1]![0]).toMatchObject({ consult: 2 });
+    });
+
+    it("swallows a throwing span sink, and still folds the consult in", () => {
+        const log = vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
+        vi.spyOn(botConsultSpanSink, "record").mockImplementation(() => {
+            throw new Error("tracing is down");
+        });
+        const report = openBotSearchReport("game1");
+        expect(() => report.record(searched())).not.toThrow();
+        report.flush();
+        expect(log.mock.calls[0]![0]).toMatchObject({ consults: 1 });
+    });
+
     it("emits one report, once, and ignores what arrives after it", () => {
         const log = vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
         const report = openBotSearchReport("game1");
@@ -552,5 +740,29 @@ describe("openBotSearchReport", () => {
         const report = openBotSearchReport("game1");
         report.record(searched());
         expect(() => report.flush()).not.toThrow();
+    });
+});
+
+describe("a game already reported (issue #10321)", () => {
+    it("adds nothing to a report and still records each consult's span, numbered on", () => {
+        const log = vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
+        const span = vi
+            .spyOn(botConsultSpanSink, "record")
+            .mockImplementation(() => {});
+        const first = acquireBotSearchReport("game1");
+        first.record(searched());
+        first.flush();
+        // The driver mounts on the same game again: its report has gone out.
+        acquireBotSearchReport("game2");
+        const again = acquireBotSearchReport("game1");
+        again.record(searched());
+        again.flush();
+
+        expect(log).toHaveBeenCalledTimes(1);
+        expect(span).toHaveBeenCalledTimes(2);
+        expect(span.mock.calls[1]![0]).toMatchObject({
+            gameId: "game1",
+            consult: 2,
+        });
     });
 });

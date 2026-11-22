@@ -325,6 +325,7 @@ const {
     BOT_SEARCH_LEAVE_GRACE_MS,
     clearBotSearchReports,
 } = await import("~/lib/ai/bot-search-telemetry");
+const { botConsultSpanSink } = await import("~/lib/ai/bot-consult-span");
 // The real mount point, so the rung-5 tests exercise the actual UI seam
 // (`VsAiDriver` → `reportStall` → `BotStuckNotice`) rather than a stand-in.
 const VsAiDriver = (await import("~/components/board/vs-ai-driver")).default;
@@ -1435,6 +1436,67 @@ describe("the game's Bot search report (issue #9526)", () => {
         // Leaving the game-over screen does not report the game again.
         unmount();
         expect(log).toHaveBeenCalledTimes(1);
+    });
+
+    // Issue #10321 — each consult also records ONE span of its own, with what
+    // the board cost beside what the search did.
+    it("records one span per consult, with the searched board's counts and the search's probes", async () => {
+        const span = vi
+            .spyOn(botConsultSpanSink, "record")
+            .mockImplementation(() => {});
+        try {
+            const board = searchWindow(1);
+            brainResult = {
+                move: { kind: "play-land", cardInstanceId: "land1" },
+                trace: { ...CUT_SHORT, rolloutProbes: 6600 },
+                outcome: "move",
+                via: "worker",
+            };
+            const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
+            await advance(500);
+
+            searchWindow(2);
+            timedOut();
+            rerender();
+            await advance(500);
+
+            expect(span).toHaveBeenCalledTimes(2);
+            const permanents = board.players.reduce(
+                (count, player) => count + player.battlefield.length,
+                0
+            );
+            const [first, startedAt, endedAt] = span.mock.calls[0]!;
+            expect(first).toMatchObject({
+                gameId: GAME,
+                consult: 1,
+                outcome: "move",
+                via: "worker",
+                "iterations.requested": 1320,
+                "iterations.completed": 330,
+                searchMs: 3300,
+                stoppedBy: "time",
+                msPerIteration: 10,
+                probes: 6600,
+                msPerProbe: 0.5,
+                turn: board.turn,
+                phase: board.phase,
+                permanents,
+            });
+            expect(first).not.toHaveProperty("idleMs");
+            expect(endedAt).toBeGreaterThanOrEqual(startedAt);
+
+            const second = span.mock.calls[1]![0] as Record<string, unknown>;
+            expect(second).toMatchObject({
+                gameId: GAME,
+                consult: 2,
+                outcome: "timeout",
+            });
+            // The time the Worker sat idle between the two consults.
+            expect(typeof second.idleMs).toBe("number");
+            expect(second).not.toHaveProperty("probes");
+        } finally {
+            span.mockRestore();
+        }
     });
 
     it("times a consult from its posting to its verdict", async () => {
