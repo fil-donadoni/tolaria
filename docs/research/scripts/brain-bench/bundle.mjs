@@ -70,7 +70,10 @@ const ROOT_HOOK_PATCHES = [
  *   - every rollout ply reports itself to `globalThis.__benchPly(kind, n)`:
  *     a forced pass, or a played move and the candidates it was chosen from;
  *   - `searchWithTrace` leaves its trace in `globalThis.__benchLastTrace`: the
- *     blade runner does not hand out the iterations a search completed.
+ *     blade runner does not hand out the iterations a search completed;
+ *   - `rolloutEpsilonFor` returns `globalThis.__benchEpsilon` when one is
+ *     set: at 1 every rollout ply takes the rollout's OWN random branch, its
+ *     exclusion filters included — the faithful random playout.
  *
  * With no global installed the patched bundle searches byte-identically to
  * an unpatched one. Each replacement must match exactly once.
@@ -116,6 +119,13 @@ const ROLLOUT_HOOK_PATCHES = [
         "applyMoveInSearch(state, pid, chosen, true);",
         'globalThis.__benchPly?.("played", moves.length);\n' +
             "        applyMoveInSearch(state, pid, chosen, true);",
+    ],
+    [
+        "    if (!inCombat) return weights.rolloutEpsilon;",
+        "    if (globalThis.__benchEpsilon !== undefined) {\n" +
+            "        return globalThis.__benchEpsilon;\n" +
+            "    }\n" +
+            "    if (!inCombat) return weights.rolloutEpsilon;",
     ],
 ];
 
