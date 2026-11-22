@@ -28,7 +28,8 @@ type BugReportConsentProps = {
  *    two-player game includes what the opponent is holding — information the
  *    reporter does not hold themselves;
  * 3. Sentry, a third-party monitoring service, receives console output,
- *    uncaught errors and page-load/navigation timings (issue #10214)
+ *    uncaught errors, page-load/navigation timings (issue #10214) and the
+ *    timings of the Bot's searches
  *    CONTINUOUSLY, report or no report. Disclosing that is not
  *    the same as consenting to it, and declining below does not stop it —
  *    saying otherwise would be the lie this gate exists to remove.
@@ -68,10 +69,10 @@ export default function BugReportConsent({
                 </li>
                 <li>
                     Separately from this report, Tolaria sends console output,
-                    uncaught errors and page-load timings to Sentry, a
-                    third-party monitoring service, on every session. That
-                    happens whether or not you file a report, and declining
-                    below does not stop it.
+                    uncaught errors, page-load timings and the timings of the
+                    Bot&rsquo;s searches to Sentry, a third-party monitoring
+                    service, on every session. That happens whether or not you
+                    file a report, and declining below does not stop it.
                 </li>
             </ul>
             <details className="text-xs text-text-muted">

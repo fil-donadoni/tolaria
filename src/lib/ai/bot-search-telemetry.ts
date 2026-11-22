@@ -28,6 +28,17 @@
 // derive the families and is never sent. No player, no card, no board state. `REPORT_KEYS` is the
 // allowlist; a test reds on a key outside it.
 //
+// WHAT A SLOW GAME WAS. Three readings say whether a slow search
+// was a costly board or a slow machine, and how much time the Worker had to
+// spare: the rollout policy's probes per iteration and the time per probe
+// (`probesPerIteration.p50`, `msPerProbe.p50`: a probe is one candidate move
+// the rollout cloned, applied and evaluated, where a late board's iteration
+// spends 67–78% of its time), and the idle time between two consults
+// (`idleMs.p50`). They are counters and durations like the rest. The owner
+// consented on 2026-11-22 to telemetry keys of this kind being added without
+// asking per key; the boundary above is unchanged. Each consult also records
+// a span of its own (`./bot-consult-span`), under the same boundary.
+//
 // The report is flushed out of the SDK's log buffer the moment it is logged:
 // a phone backgrounding the page gives no second chance.
 //
@@ -36,8 +47,9 @@
 import * as Sentry from "@sentry/react";
 import type { DecisionTrace } from "@convex/gre";
 import type { BrainOutcome } from "./brain-request";
+import { emitConsultSpan, type TimedConsult } from "./bot-consult-span";
 
-/** The search's own account of one decision — the four `DecisionTrace` fields
+/** The search's own account of one decision — the `DecisionTrace` fields
  *  this report reads. Absent when the consult produced no trace (a failed
  *  consult, or a window with no real decision to search). */
 export type SearchStats = {
@@ -45,7 +57,42 @@ export type SearchStats = {
     iterationsCompleted: number;
     elapsedMs: number;
     stoppedBy: DecisionTrace["stoppedBy"];
+    /** Candidates the rollout policy probed in this search (issue #10321). */
+    rolloutProbes?: number;
 };
+
+/** What the searched board cost, as counts (issue #10321): no card and no
+ *  player, only how far the game was and how many permanents stood. */
+export type BoardFacts = {
+    turn: number;
+    /** The step the decision was taken in (a `Phase`). */
+    phase: string;
+    /** Permanents on the battlefield, every player's together. */
+    permanents: number;
+};
+
+type BoardLike = {
+    turn?: unknown;
+    phase?: unknown;
+    players?: readonly { battlefield?: readonly unknown[] }[];
+};
+
+/** The counts of a projected state. Reads the board; returns only the counts.
+ *  Total: a state it cannot read has no counts, and never throws. */
+export function boardFacts(state: BoardLike): BoardFacts | undefined {
+    try {
+        if (typeof state.turn !== "number" || typeof state.phase !== "string") {
+            return undefined;
+        }
+        let permanents = 0;
+        for (const player of state.players ?? []) {
+            permanents += player.battlefield?.length ?? 0;
+        }
+        return { turn: state.turn, phase: state.phase, permanents };
+    } catch {
+        return undefined;
+    }
+}
 
 /** One Brain consult, as the driver saw it end. */
 export type ConsultSample = {
@@ -57,6 +104,16 @@ export type ConsultSample = {
     /** The difficulty preset the consult's budget came from. */
     difficulty: string;
     search?: SearchStats;
+    /** `telemetryNow()` when the consult was posted (issue #10321): with
+     *  `consultMs` it dates the consult, so the recorder can read the idle
+     *  time before the next one. */
+    postedAt?: number;
+    /** The board the consult searched, as counts. */
+    board?: BoardFacts;
+    /** The time from the previous consult's verdict to this consult's post:
+     *  what the Worker had to spare. Filled in by the game's recorder from
+     *  `postedAt`; a caller leaves it out. Absent on a game's first consult. */
+    idleMs?: number;
 };
 
 /** The coarse device class — see the module header for why it is this coarse. */
@@ -95,6 +152,9 @@ export const REPORT_KEYS = [
     "msPerIteration.p50",
     "msPerIteration.p90",
     "msPerIteration.first",
+    "probesPerIteration.p50",
+    "msPerProbe.p50",
+    "idleMs.p50",
     "device.engine",
     "device.os",
     "device.cores",
@@ -313,6 +373,12 @@ export function summarizeBotSearch(
         raw["consultMs.max"] = round(maxOf(consultMs));
     }
 
+    // What the Worker had to spare between two consults (issue #10321).
+    const idleMs = samples
+        .map((s) => s.idleMs)
+        .filter((idle): idle is number => finite(idle) && idle >= 0);
+    if (idleMs.length > 0) raw["idleMs.p50"] = round(percentile(idleMs, 50)!);
+
     const searches = samples.flatMap((s) => {
         const search = usableSearch(s.search);
         return search ? [search] : [];
@@ -360,12 +426,81 @@ export function summarizeBotSearch(
         );
     }
 
+    // What the boards cost and what the machine made of them (issue #10321):
+    // the rollout policy's probes per iteration, and the time per probe. A
+    // slow game with many probes per iteration reached costly boards; one
+    // with a high time per probe ran on a slow or busy machine.
+    const probed = searches.filter(
+        (s) => finite(s.rolloutProbes) && s.rolloutProbes > 0
+    );
+    const probesPerIteration = percentile(
+        probed
+            .filter((s) => s.iterationsCompleted > 0)
+            .map((s) => s.rolloutProbes! / s.iterationsCompleted),
+        50
+    );
+    const msPerProbe = percentile(
+        probed.map((s) => s.elapsedMs / s.rolloutProbes!),
+        50
+    );
+    if (probesPerIteration !== undefined) {
+        raw["probesPerIteration.p50"] = round(probesPerIteration, 1);
+    }
+    if (msPerProbe !== undefined) {
+        raw["msPerProbe.p50"] = round(msPerProbe, 3);
+    }
+
     return onlyAllowed(raw);
+}
+
+/** Times one game's consults in the order they end: each one's place in the
+ *  game and the idle time before it. */
+export type ConsultClock = (sample: ConsultSample) => TimedConsult;
+
+/** A game's consult clock, starting at its first consult. */
+export function consultClock(): ConsultClock {
+    let ordinal = 0;
+    let lastAnsweredAt: number | undefined;
+    return (sample) => {
+        ordinal += 1;
+        const posted = finite(sample.postedAt) ? sample.postedAt : undefined;
+        const idle =
+            posted !== undefined && lastAnsweredAt !== undefined
+                ? posted - lastAnsweredAt
+                : undefined;
+        lastAnsweredAt =
+            posted !== undefined && finite(sample.consultMs)
+                ? posted + sample.consultMs
+                : undefined;
+        // The idle time is the clock's reading, never the caller's.
+        const timed: TimedConsult = { ...sample, ordinal };
+        if (idle !== undefined && idle >= 0) timed.idleMs = idle;
+        else delete timed.idleMs;
+        return timed;
+    };
+}
+
+/** Time one consult and record its span (`./bot-consult-span`). Never throws;
+ *  a consult the clock could not time is returned as it came. */
+function timeAndTrace(
+    gameId: string,
+    clock: ConsultClock,
+    sample: ConsultSample
+): ConsultSample {
+    try {
+        const timed = clock(sample);
+        emitConsultSpan(gameId, timed, deviceClass());
+        return timed;
+    } catch {
+        // Monitoring never costs the game anything.
+        return sample;
+    }
 }
 
 /** One game's accumulator. Neither method ever throws. */
 export type BotSearchRecorder = {
-    /** Fold one consult in. A no-op once the report has been emitted. */
+    /** Fold one consult in, and record its span. Once the report has been
+     *  emitted the consult still records its span, and is not folded in. */
     record: (sample: ConsultSample) => void;
     /** Emit the game's report, once. With no consult recorded it emits
      *  nothing and stays open: a flush that came too early costs nothing. */
@@ -376,13 +511,15 @@ export type BotSearchRecorder = {
  *  the report goes out. */
 export function openBotSearchReport(
     gameId: string,
-    onEmit?: () => void
+    onEmit?: () => void,
+    clock: ConsultClock = consultClock()
 ): BotSearchRecorder {
     const samples: ConsultSample[] = [];
     let emitted = false;
     return {
         record(sample) {
-            if (!emitted) samples.push(sample);
+            const timed = timeAndTrace(gameId, clock, sample);
+            if (!emitted) samples.push(timed);
         },
         flush() {
             if (emitted || samples.length === 0) return;
@@ -426,10 +563,32 @@ type OpenReport = {
 let current: OpenReport | null = null;
 /** Games whose report has gone out from this page: a game is reported once. */
 const reported = new Set<string>();
+/** Each game's consult clock on this page. It outlives the game's report: a
+ *  consult that lands after the report went out still records its span, and
+ *  its place in the game continues where the report left off. */
+const clocks = new Map<string, ConsultClock>();
 let listeningForPageHide = false;
 
-/** The recorder of a game already reported: records nothing, sends nothing. */
-const REPORTED: BotSearchRecorder = { record() {}, flush() {} };
+function clockOf(gameId: string): ConsultClock {
+    let clock = clocks.get(gameId);
+    if (!clock) {
+        clock = consultClock();
+        clocks.set(gameId, clock);
+    }
+    return clock;
+}
+
+/** The recorder of a game already reported: it adds nothing to a report, and
+ *  each consult still records its span. */
+function reportedRecorder(gameId: string): BotSearchRecorder {
+    const clock = clockOf(gameId);
+    return {
+        record(sample) {
+            timeAndTrace(gameId, clock, sample);
+        },
+        flush() {},
+    };
+}
 
 function cancelLeave(open: OpenReport): void {
     if (open.leave !== null) clearTimeout(open.leave);
@@ -474,8 +633,12 @@ export function acquireBotSearchReport(gameId: string): BotSearchRecorder {
     }
     closeCurrent();
     const recorder = reported.has(gameId)
-        ? REPORTED
-        : openBotSearchReport(gameId, () => reported.add(gameId));
+        ? reportedRecorder(gameId)
+        : openBotSearchReport(
+              gameId,
+              () => reported.add(gameId),
+              clockOf(gameId)
+          );
     current = { gameId, recorder, leave: null };
     listenForPageHide();
     return recorder;
@@ -498,4 +661,5 @@ export function clearBotSearchReports(): void {
     if (current) cancelLeave(current);
     current = null;
     reported.clear();
+    clocks.clear();
 }

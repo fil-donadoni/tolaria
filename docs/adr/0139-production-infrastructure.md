@@ -108,7 +108,16 @@ to keep that down), and 1 GB/month is small against 50 active players. Storage
 is held down by the `sweepFinishedGames` cron (24 h TTL). Vercel serves a
 static bundle with immutable asset caching and is far from 100 GB; Resend
 sends only password resets; Sentry sees only client errors, logs and
-sampled traces.
+sampled traces. **Spans per vs-Bot game** (issue #10321, read from Sentry on
+2026-11-22): about 75. The `/game` page load or navigation, now kept in
+full, holds 46: the 5 `/game` transactions of the 14 days before stored 229
+spans (Sentry shows 1,145, scaled up by the 0.2 sample rate), 83% of them
+resources the page fetched. The Brain's consults add one `bot.consult`
+transaction of one span each: the 61 `bot search` reports of the 30 days
+before hold 1,624 consults, 25 per report at the median, 47 at the 90th
+percentile, 85 at most. At that month's two games a day this is about 4,500
+spans a month, 0.1% of the 5M cap; at 100 vs-Bot games a day about 225,000,
+4.5% of it.
 
 ### 5. The upgrade rule (owner decision)
 
@@ -124,8 +133,15 @@ sampled traces.
 ### 6. Monitoring today
 
 - **Sentry** (client): errors, console logs and tracing (page loads and route
-  navigations, sampled, production builds only — issue #10214),
-  `userInfo: false`, no HTTP bodies. Disclosed in the bug-report consent screen.
+  navigations, production builds only — issue #10214), `userInfo: false`, no
+  HTTP bodies. Sampling is by what a transaction is (issue #10321,
+  `src/lib/diagnostics/tracing.ts`): the game route and every Brain consult
+  in full, every other route at a fifth, nothing from a browser driven by
+  automation (`navigator.webdriver`). Per vs-Bot game it also receives the
+  `bot search` log and one `bot.consult` span per Brain consult: counters,
+  durations, the turn and step, a count of permanents and a coarse device
+  class — no player, no card, no board content (`src/lib/ai/bot-search-telemetry.ts`,
+  `src/lib/ai/bot-consult-span.ts`). Disclosed in the bug-report consent screen.
 - **In-app bug report** (`convex/bugReports.ts` `submitBugReport`):
   authenticated users only; files a GitHub issue on the public repository;
   diagnostics (route, user agent, game id, client console/network rings) are
