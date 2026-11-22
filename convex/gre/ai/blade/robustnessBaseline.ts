@@ -26,5 +26,14 @@ import type { RobustnessBaselineRow } from "./robustness";
 
 // The first FULL PR-side audit to finish (issue #10319, PR #10333) found
 // three, pre-existing: no full audit had completed since 2026-10-11. All
-// three are retired (issues #10335, #10336, #10337).
-export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [];
+// three are retired (issues #10335, #10336, #10337). PR #10392's full audit
+// (base 258d11289) found two more, pre-existing — that PR moves only the
+// Fatal Push entry's budget (issues #10449, #10448). Blood Moon measured
+// robust again after the rebase onto f98284f5b (no row); the Runeclaw Bear
+// entry stays pinned: issue #10448 owns it.
+export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
+    {
+        label: "keyword relevance (protection): against a bot showing no red, protection from red does not make the Runeclaw Bear Terror's target (issue #5356)",
+        issue: 10448,
+    },
+];
