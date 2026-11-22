@@ -6,8 +6,9 @@
 > (V8 13.6), Playwright 1.62.1 (Chromium 151.0.7922.34, Firefox 153.0).
 > **Every number below is as of that commit, that machine and that day**,
 > except the appendix: a first pass of 2026-11-19 at `0c7a640a2` on the Huawei
-> runner, on two other field boards, kept apart and labelled. Slice of PRD
-> issue #10017; the owner's ruling is § 6.
+> runner, on two other field boards, kept apart and labelled; and the
+> `epsilon:1` rows, read the same day at `66c88010b4` (footnote ³). Slice of
+> PRD issue #10017; the owner's ruling is § 6.
 
 **Question.** The owner ruled (issue #10027, `expert-think-longer.md` § 5)
 that `expert` must reach 400 iterations per search on every engine family.
@@ -35,8 +36,9 @@ in time and lose in decisions?
    about 3 per rollout on a blade board. The issue's multiplier holds where
    the field Bot is slow, and nowhere else.
 2. **No policy that still probes buys the order of magnitude.** No probe at
-   all (`prefix:0`, measured as an UNFILTERED uniform-random rollout) is the
-   ceiling: 3.0–5.7× faster per iteration on a field board, in V8. Probing two
+   all is the ceiling: the rollout's own random playout (`epsilon:1`) is
+   3.1–6.1× faster per iteration on a field board, in V8, and the unfiltered
+   one (`prefix:0`) 3.0–5.7×. Probing two
    candidates (`topk:2`) buys 1.6–2.7× there and three (`topk:3`) 1.6–2.4×,
    over a search's first 20 to 60 iterations. In Chromium and Firefox, over a
    board's first 10 iterations (the probe-densest window), `topk:2` reads
@@ -53,7 +55,9 @@ in time and lose in decisions?
    measured as the owner's reference, is slower than `topk:3` and keeps no
    more decisions. A shorter
    rollout and the unfiltered random playout lose 7–14 entries at the
-   declared budgets; a faithful random playout was not measured. The blade's
+   declared budgets. The faithful random playout loses 4 there, the
+   held-answer decisions at every budget; at equal time it is ahead of
+   `topk:3` at 94 iterations and behind it at 236. The blade's
    boards are narrow, so all of this is a strong reading for narrow boards
    and a thin one for wide ones (§ 3).
 4. **A memo of the probes is dead on arrival** (§ 4): an exact ply key
@@ -85,14 +89,15 @@ in AT BUNDLE TIME only (`bundle.mjs`, `rolloutHook`; the source tree's
   whole search and active only inside a rollout (the root's own reads of the
   greedy pick are left alone):
 
-| policy     | what the greedy ply does                                                                                                                                                                                                            |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `base`     | today: probe every candidate, play the best                                                                                                                                                                                         |
-| `topk:K`   | rank the candidates by a static per-move-kind score (land > cast > activation / attack / block > turn face up / foretell / plot / companion > other > empty declaration > pass) and probe only the best K, `pass` always among them |
-| `prefix:N` | probe for the rollout's first N greedy plies, then play a uniform-random candidate, UNFILTERED (below); `prefix:0` probes nothing, the speed ceiling of any probe cut                                                               |
-| `cap:N`    | today's pick, the rollout cut after N plies and closed by `scoreLeaf` where that comes before the next turn of the Bot                                                                                                              |
-| `memo`     | today's pick, memoised by the ply's exact state and candidates; `memo-public` keys without the libraries; `memo-count` only counts the key's recurrence                                                                             |
-| `reseed`   | today's pick on another random stream (one extra draw before every rollout): the noise control, the decisions that move with nothing but the playouts' dice                                                                         |
+| policy      | what the greedy ply does                                                                                                                                                                                                                  |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `base`      | today: probe every candidate, play the best                                                                                                                                                                                               |
+| `topk:K`    | rank the candidates by a static per-move-kind score (land > cast > activation / attack / block > turn face up / foretell / plot / companion > other > empty declaration > pass) and probe only the best K, `pass` always among them       |
+| `prefix:N`  | probe for the rollout's first N greedy plies, then play a uniform-random candidate, UNFILTERED (below); `prefix:0` probes nothing, the speed ceiling of any probe cut                                                                     |
+| `epsilon:E` | today's rollout with its epsilon set to E: at a ply with a real choice it plays its own random draw, exclusion filters applied, with probability E and the greedy pick otherwise; `epsilon:1` probes nothing, the FAITHFUL random playout |
+| `cap:N`     | today's pick, the rollout cut after N plies and closed by `scoreLeaf` where that comes before the next turn of the Bot                                                                                                                    |
+| `memo`      | today's pick, memoised by the ply's exact state and candidates; `memo-public` keys without the libraries; `memo-count` only counts the key's recurrence                                                                                   |
+| `reseed`    | today's pick on another random stream (one extra draw before every rollout): the noise control, the decisions that move with nothing but the playouts' dice                                                                               |
 
 `prefix` is not the rollout's own random play. When today's rollout plays a
 random move (its epsilon branch) it first drops the moves a random draw must
@@ -101,7 +106,10 @@ never take: the sacrifice conversions and the exchange sacrifices
 family), evoke casts (`isEvokeCast`), a source's body-damage conversion, and
 the moves that flip a step-target gate. The bench's `prefix` draws from every
 candidate. Its speed is a fair ceiling (no probe is no probe); its quality is
-that of an unfiltered random playout, and a faithful one was not measured.
+that of an unfiltered random playout. The faithful one is `epsilon:1`: a
+second seam makes `rolloutEpsilonFor` return a bench value, so at 1 every ply
+with a real choice takes the rollout's own random branch, filters included,
+and `selectRolloutMove` is never called from a rollout.
 
 - **The split** (`profile-rollout.mjs`): a V8 CPU profile of one search
   (500 µs sampling) folded by the iteration's own structure: `descent` (not
@@ -158,7 +166,8 @@ that of an unfiltered random playout, and a faithful one was not measured.
       2.22, `topk:3` 2.09, `prefix:3` 2.02, `cap:16` 1.68, `prefix:0` 3.71).
       The two `topk` policies are run a second time at § 2's 60-iteration
       reading (2.14 and 1.78). `topk:4` is run at its own two readings (1.76
-      and 1.55). A factor is the median over the four boards of
+      and 1.55), `epsilon:1` at 4.13 (its 60-iteration reading, 4.04, would
+      search 2% fewer iterations and was not run). A factor is the median over the four boards of
       1 ÷ the board's unrounded ratio, the mean of the two middle boards. A
       blade board's few probes would understate what a policy buys in the
       field, where that budget is spent.
@@ -233,33 +242,43 @@ boards). MacBook, `f98284f5b`, 2026-11-22.
 The first 20 iterations of a search (three measured rounds within ±0.03 of
 each other, load 15–22):
 
-| policy     | `jh7396nx`   | `jh73x8ad`    | `jh71n516`    | `jh7ba584`    | speed-up, median |
-| ---------- | ------------ | ------------- | ------------- | ------------- | ---------------- |
-| `base`     | 1.00 (84 ms) | 1.00 (260 ms) | 1.00 (185 ms) | 1.00 (162 ms) | —                |
-| `topk:2`   | 0.46         | 0.45          | 0.37          | 0.47          | 2.22×            |
-| `topk:3`   | 0.43         | 0.54          | 0.42          | 0.64          | 2.09×            |
-| `topk:4` ¹ | 0.46         | 0.60          | 0.54          | 0.71          | 1.76×            |
-| `prefix:3` | 0.59         | 0.42          | 0.30          | 0.78          | 2.02×            |
-| `cap:16`   | 0.83         | 0.60          | 0.30          | 0.59          | 1.68×            |
-| `prefix:0` | 0.27         | 0.27          | 0.18          | 0.33          | 3.71×            |
+| policy        | `jh7396nx`   | `jh73x8ad`    | `jh71n516`    | `jh7ba584`    | speed-up, median |
+| ------------- | ------------ | ------------- | ------------- | ------------- | ---------------- |
+| `base`        | 1.00 (84 ms) | 1.00 (260 ms) | 1.00 (185 ms) | 1.00 (162 ms) | —                |
+| `topk:2`      | 0.46         | 0.45          | 0.37          | 0.47          | 2.22×            |
+| `topk:3`      | 0.43         | 0.54          | 0.42          | 0.64          | 2.09×            |
+| `topk:4` ¹    | 0.46         | 0.60          | 0.54          | 0.71          | 1.76×            |
+| `prefix:3`    | 0.59         | 0.42          | 0.30          | 0.78          | 2.02×            |
+| `cap:16`      | 0.83         | 0.60          | 0.30          | 0.59          | 1.68×            |
+| `prefix:0`    | 0.27         | 0.27          | 0.18          | 0.33          | 3.71×            |
+| `epsilon:1` ³ | 0.22         | 0.27          | 0.16          | 0.32          | 4.13×            |
 
 The first 60 iterations (the mean of two measured rounds within ±0.04 of
 each other, load 12–24):
 
-| policy     | `jh7396nx`   | `jh73x8ad`    | `jh71n516`    | `jh7ba584`    | speed-up, median | probes per rollout |
-| ---------- | ------------ | ------------- | ------------- | ------------- | ---------------- | ------------------ |
-| `base`     | 1.00 (48 ms) | 1.00 (233 ms) | 1.00 (145 ms) | 1.00 (140 ms) | —                | 44 – 99            |
-| `topk:2`   | 0.62         | 0.41          | 0.47          | 0.47          | 2.14×            | 14 – 26            |
-| `topk:3`   | 0.64         | 0.50          | 0.54          | 0.59          | 1.78×            | 18 – 37            |
-| `topk:4` ¹ | 0.68         | 0.63          | 0.65          | 0.65          | 1.55×            | 22 – 45            |
-| `prefix:3` | 0.61         | 0.33          | 0.46          | 0.65          | 1.92×            | 19 – 21            |
-| `cap:16`   | 0.82         | 0.42          | 0.35          | 0.57          | 2.08×            | 22 – 40            |
-| `prefix:0` | 0.31         | 0.22          | 0.23          | 0.27          | 4.07×            | 0                  |
+| policy        | `jh7396nx`   | `jh73x8ad`    | `jh71n516`    | `jh7ba584`    | speed-up, median | probes per rollout |
+| ------------- | ------------ | ------------- | ------------- | ------------- | ---------------- | ------------------ |
+| `base`        | 1.00 (48 ms) | 1.00 (233 ms) | 1.00 (145 ms) | 1.00 (140 ms) | —                | 44 – 99            |
+| `topk:2`      | 0.62         | 0.41          | 0.47          | 0.47          | 2.14×            | 14 – 26            |
+| `topk:3`      | 0.64         | 0.50          | 0.54          | 0.59          | 1.78×            | 18 – 37            |
+| `topk:4` ¹    | 0.68         | 0.63          | 0.65          | 0.65          | 1.55×            | 22 – 45            |
+| `prefix:3`    | 0.61         | 0.33          | 0.46          | 0.65          | 1.92×            | 19 – 21            |
+| `cap:16`      | 0.82         | 0.42          | 0.35          | 0.57          | 2.08×            | 22 – 40            |
+| `prefix:0`    | 0.31         | 0.22          | 0.23          | 0.27          | 4.07×            | 0                  |
+| `epsilon:1` ³ | 0.31         | 0.21          | 0.22          | 0.29          | 4.04×            | 0                  |
 
 ¹ `topk:4`, the reference the owner asked for (§ 6), was read in a second
 session the same day at load 53–88, with `topk:3` re-read beside it: 0.41 /
 0.54 / 0.44 / 0.67 (2.07×) at 20 iterations and 0.64 / 0.46 / 0.56 / 0.53
 (1.83×) at 60, against the 2.09× and 1.78× of the first session.
+
+³ `epsilon:1`, the faithful random playout, was read in a third session the
+same day, at `66c88010b4`: the base had gained a probe counter inside
+`selectRolloutMove` (PR #10452), the seam still matched once, the search
+picked the same moves as at `f98284f5b` on the positions compared, and `base`
+read the same red entries in § 3 (0, 17 and 8). Load 28–49, with `topk:3`
+re-read beside it (2.00× and 1.74×) and `prefix:0` (4.32× and 4.10×). It was
+not read in a browser.
 
 Every policy but `cap:16` keeps the rollout's length (28–46 plies); `cap:16`
 plays 14–16. The two iteration counts bracket a field search on such a board:
@@ -305,8 +324,9 @@ over 574 entries): `topk:2` 0.83 / 0.97 / 1.07, `topk:3` 0.85 / 0.99 / 1.10,
 0.80 / 0.93.
 
 **Verdict.** No policy that still probes buys the order of magnitude. No
-probe at all (`prefix:0`) is the ceiling: 3.0–5.7× faster per iteration on a
-field board, about 4× at the median. In V8, over a search's first 20 to 60
+probe at all is the ceiling, filtered or not: `epsilon:1` is 3.1–6.1× faster
+per iteration on a field board and `prefix:0` 3.0–5.7×, about 4× at the
+median. In V8, over a search's first 20 to 60
 iterations, `topk:2` buys 1.6–2.7× (median 2.1–2.2×) and `topk:3` 1.6–2.4×
 (median 1.8–2.1×). Over a board's first 10 iterations the browsers read more,
 2.2–3.3× and 1.9–3.4×, Chromium and Firefox within 0.06 of each other. On a
@@ -325,15 +345,16 @@ policy on another random stream.
 iterations, 126 declare 200 and the other 65 between 1 and 2000). `base` is
 green on all 574 searched, so nothing can be fixed.
 
-| policy     | flips, equal iterations | flips, equal time | iterations at equal time ÷ T, median |
-| ---------- | ----------------------- | ----------------- | ------------------------------------ |
-| `reseed`   | 0                       | 0                 | 1.00                                 |
-| `topk:3`   | 0                       | 1                 | 1.01                                 |
-| `topk:4`   | 0                       | 0                 | 1.00                                 |
-| `topk:2`   | 2                       | 3                 | 1.03                                 |
-| `prefix:3` | 7                       | 7                 | 1.02                                 |
-| `prefix:0` | 11                      | 12                | 1.25                                 |
-| `cap:16`   | 14                      | 14                | 1.17                                 |
+| policy      | flips, equal iterations | flips, equal time | iterations at equal time ÷ T, median |
+| ----------- | ----------------------- | ----------------- | ------------------------------------ |
+| `reseed`    | 0                       | 0                 | 1.00                                 |
+| `topk:3`    | 0                       | 1                 | 1.01                                 |
+| `topk:4`    | 0                       | 0                 | 1.00                                 |
+| `topk:2`    | 2                       | 3                 | 1.03                                 |
+| `prefix:3`  | 7                       | 7                 | 1.02                                 |
+| `prefix:0`  | 11                      | 12                | 1.25                                 |
+| `epsilon:1` | 4                       | 4                 | 1.25                                 |
+| `cap:16`    | 14                      | 14                | 1.17                                 |
 
 **Gecko's field budgets.** Equal time is B × the policy's field speed-up.
 Every `topk` policy is run at both of its readings of § 2: the 20-iteration
@@ -342,16 +363,17 @@ flips / fixes in brackets and the iterations searched after "at". The
 `reseed` row's equal-time cell is today's policy, on another random stream,
 at `topk:3`'s two iteration counts.
 
-| policy     | B = 94, equal iterations | B = 94, equal time                            | B = 236, equal iterations | B = 236, equal time                 |
-| ---------- | ------------------------ | --------------------------------------------- | ------------------------- | ----------------------------------- |
-| `base`     | 17                       | 17                                            | 8                         | 8                                   |
-| `reseed`   | 16 (6 / 7)               | 6 (2 / 13) at 196 · 8 (3 / 12) at 167         | 4 (0 / 4)                 | not run                             |
-| `topk:2`   | 15 (3 / 5)               | **8** (4 / 13) at 209 · **7** (4 / 14) at 201 | 8 (2 / 2)                 | 8 (6 / 6) at 524 · 4 (3 / 7) at 505 |
-| `topk:3`   | 21 (4 / 0)               | **9** (3 / 11) at 196 · **13** (5 / 9) at 167 | 8 (2 / 2)                 | 5 (2 / 5) at 493 · 3 (0 / 5) at 420 |
-| `topk:4`   | 20 (3 / 0)               | 17 (10 / 10) at 165 · 14 (7 / 10) at 146      | 7 (1 / 2)                 | 3 (0 / 5) at 415 · 2 (0 / 6) at 366 |
-| `prefix:3` | 21 (6 / 2)               | 14 (9 / 12) at 190                            | 13 (6 / 1)                | 8 (5 / 5) at 477                    |
-| `cap:16`   | 28 (17 / 6)              | 13 (8 / 12) at 158                            | 10 (7 / 5)                | 12 (9 / 5) at 396                   |
-| `prefix:0` | 21 (13 / 9)              | 12 (10 / 15) at 349                           | 14 (11 / 5)               | 18 (16 / 6) at 876                  |
+| policy      | B = 94, equal iterations | B = 94, equal time                            | B = 236, equal iterations | B = 236, equal time                 |
+| ----------- | ------------------------ | --------------------------------------------- | ------------------------- | ----------------------------------- |
+| `base`      | 17                       | 17                                            | 8                         | 8                                   |
+| `reseed`    | 16 (6 / 7)               | 6 (2 / 13) at 196 · 8 (3 / 12) at 167         | 4 (0 / 4)                 | not run                             |
+| `topk:2`    | 15 (3 / 5)               | **8** (4 / 13) at 209 · **7** (4 / 14) at 201 | 8 (2 / 2)                 | 8 (6 / 6) at 524 · 4 (3 / 7) at 505 |
+| `topk:3`    | 21 (4 / 0)               | **9** (3 / 11) at 196 · **13** (5 / 9) at 167 | 8 (2 / 2)                 | 5 (2 / 5) at 493 · 3 (0 / 5) at 420 |
+| `topk:4`    | 20 (3 / 0)               | 17 (10 / 10) at 165 · 14 (7 / 10) at 146      | 7 (1 / 2)                 | 3 (0 / 5) at 415 · 2 (0 / 6) at 366 |
+| `prefix:3`  | 21 (6 / 2)               | 14 (9 / 12) at 190                            | 13 (6 / 1)                | 8 (5 / 5) at 477                    |
+| `cap:16`    | 28 (17 / 6)              | 13 (8 / 12) at 158                            | 10 (7 / 5)                | 12 (9 / 5) at 396                   |
+| `prefix:0`  | 21 (13 / 9)              | 12 (10 / 15) at 349                           | 14 (11 / 5)               | 18 (16 / 6) at 876                  |
+| `epsilon:1` | 15 (7 / 9)               | 6 (4 / 15) at 388                             | 8 (5 / 5)                 | 10 (8 / 6) at 975                   |
 
 **What the tables say.**
 
@@ -406,6 +428,21 @@ at `topk:3`'s two iteration counts.
   separable from it at the other. On the blade's narrow boards it cuts even
   less than K = 3 does: 13–15% of the probes, more than a quarter on about 40
   entries.
+- **The faithful random playout is the fastest arm, ahead of `topk:3` when
+  iterations are scarcest and behind it otherwise.** `epsilon:1` is about 4×
+  faster than today on the field boards. At the declared budgets it flips 4
+  entries where the dice flip none: Monastery Swiftspear holding the instant,
+  and the three held-answer entries, which it loses in every one of its six
+  arms. In those the opponent has cast Stone Rain on the Bot's Volcanic
+  Island and has no card left; the Bot holds a counterspell, the tested play
+  is to counter, and the Bot passes. The filters account for the rest of
+  `prefix:0`'s eleven: the five sacrifice-outlet entries, Armageddon and Oko
+  are green under `epsilon:1`. Against `topk:3` at equal time it is ahead at
+  Gecko's 94 iterations (6 red entries against 9–13; today's policy given 196
+  iterations also reads 6) and behind at 236 (10 against 3–5, with 8 flips
+  where `topk:3` has 0–2). Four times the iterations are worth the most when
+  iterations are scarcest; once they are not, what is left is the playout's
+  own quality.
 - **A shorter rollout and the unfiltered random playout lose classes of
   decisions**, at the declared budgets where the dice flip nothing.
   `prefix:0` and `prefix:3` lose five sacrifice-outlet reachability entries:
@@ -413,8 +450,7 @@ at `topk:3`'s two iteration counts.
   at least partly the bench's own doing: the rollout's own random draw never
   takes a sacrifice conversion (the filters of issue #4261), and `prefix`
   draws from every candidate (Method). `prefix:0` also loses three
-  held-answer entries. What a faithful random playout loses was not
-  measured. `cap:16` loses 14, the held answers and the
+  held-answer entries, as the faithful playout does. `cap:16` loses 14, the held answers and the
   hold-or-act entries among them (Snapcaster Mage held on an empty graveyard,
   Mana Drain held, Monastery Swiftspear holding the instant): a rollout cut
   before the round completes scores the Bot's action before the opponent's
@@ -481,13 +517,16 @@ the declared budgets either, and is behind K = 3 at Gecko's 94 iterations and
 equal time (14–17 red entries against 9–13). Its lower reading at 236 (2–3
 against 3–5) is inside the dice.
 
-**Not a shorter rollout, not a memo; random playouts are not settled.**
-`cap:16` brings back the action bias and the memo's key does not recur.
-`prefix:0` is the speed ceiling (about 4×) and the worst arm at equal time
-once iterations are no longer scarce, but it was measured as an unfiltered
-random playout only. Today's rollout played at epsilon 1, its own filtered
-random draw, is the faithful version: unmeasured, and the one candidate here
-that could still change this recommendation.
+**Not a shorter rollout, not a memo, not random playouts.** `cap:16` brings
+back the action bias and the memo's key does not recur. The rollout's own
+random playout (`epsilon:1`) is the fastest arm, about 4×, and at Gecko's 94
+iterations it recovers more than `topk:3` at equal time (6 red entries
+against 9–13). It is not the choice: it loses the held-answer decisions at
+every budget, the declared ones included, and at 236 iterations, what today's
+cap gives Gecko, it is behind `topk:3` at equal time (10 red against 3–5).
+Random playouts would still pay only in searches starved well under 100
+iterations; how many of those the field has is the pooled reading the
+telemetry of issue #10321 is for (Not measured).
 
 **It is one factor of about two, not the target.** On the four field boards
 V8 completes 36–173 iterations in 8.3 s today and would complete about
@@ -560,12 +599,6 @@ In browsers on `jh7bkzta` at 10 iterations (two measured rounds), wall clock
   boards, `topk:3` agrees with `base` on 2 of 4 and `topk:2` on 3 of 4. The
   blade's narrow boards carry the quality reading (§ 3, last bullet); wide
   `must` entries are the implementation slice's to add.
-- **A faithful random playout.** `prefix` draws its random moves from every
-  candidate; the rollout's own random draw excludes the sacrifice
-  conversions, the exchange sacrifices, evoke casts and the gate-flipping
-  moves (Method). The speed ceiling stands. The quality rows of `prefix:0`
-  and `prefix:3`, the five sacrifice-outlet entries above all, are those of
-  an unfiltered playout.
 - **Every seed.** One seed per entry (the first declared), as issue #10135's
   quality run; `blade:census` runs each entry's own seeds. The `reseed` rows
   bound what one seed can hide, they do not replace the census: the
@@ -577,7 +610,7 @@ In browsers on `jh7bkzta` at 10 iterations (two measured rounds), wall clock
   read on the whole blade call, not on `searchWithTrace` alone (Method).
 - **WebKit, and Gecko on more boards.** The browser reading covers two field
   boards at 10 iterations in Chromium and Firefox; the V8 one, four boards at
-  20 and 60.
+  20 and 60. `epsilon:1` was read in V8 only, and `topk:4` in Chromium only.
 - **A smarter rank.** `topk`'s score reads only a move's kind, ties in
   enumeration order. Ranking by what the move does (the priors the tree
   already computes for its own expansion) might let K = 2 keep the decisions
@@ -652,6 +685,15 @@ node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/k4-94-1.jsonl --policies base
      --budget 94 --time-factors topk:4=1.76 --slice 1/4
 node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/k4-236-1.jsonl --policies base,topk:4 \
      --budget 236 --time-factors topk:4=1.55 --slice 1/4
+#    the faithful random playout: speed with topk:3 and prefix:0 beside it (20
+#    and 60 iterations, every fixture), then quality
+node $B/run-rollout.mjs speed /tmp/rollout.js /tmp/e1-speed.json --field field-jh7396nx.json \
+     --policies base,topk:3,epsilon:1,prefix:0 --iterations 20 --rounds 3
+node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/e1-decl-1.jsonl --policies base,epsilon:1 --slice 1/4
+node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/e1-94-1.jsonl --policies base,epsilon:1 \
+     --budget 94 --time-factors epsilon:1=4.13 --slice 1/4
+node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/e1-236-1.jsonl --policies base,epsilon:1 \
+     --budget 236 --time-factors epsilon:1=4.13 --slice 1/4
 #    today's policy at topk:3's equal-time counts, B = 94 (196 and 167 iterations)
 node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/noise-94-196-1.jsonl --policies base,reseed \
      --budget 94 --time-factors reseed=2.09 --slice 1/4
