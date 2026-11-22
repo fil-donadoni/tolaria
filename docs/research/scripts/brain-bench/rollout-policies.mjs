@@ -17,6 +17,12 @@
 //               the sacrifice conversions, exchange sacrifices, evoke casts
 //               and gate-flipping moves. A fair SPEED ceiling, not a faithful
 //               random playout: its quality rows are an unfiltered one's
+//   epsilon:E   today's rollout with its epsilon set to E: at every ply with
+//               a real choice it plays its OWN random draw with probability
+//               E (the exclusion filters of that branch applied) and the
+//               greedy pick otherwise. `epsilon:1` probes nothing: the
+//               FAITHFUL random playout, where `prefix:0` is the unfiltered
+//               one
 //   cap:N       today's policy, the rollout cut after N plies and closed by
 //               the evaluation (`scoreLeaf`) — the ADR 0015 horizon kept
 //               where it comes sooner
@@ -127,6 +133,7 @@ export function installPolicy(policy) {
     const [name, arg] = policy.split(":");
     const n = Number(arg);
     globalThis.__benchMaxPlies = name === "cap" ? n : undefined;
+    globalThis.__benchEpsilon = name === "epsilon" ? n : undefined;
     globalThis.__benchPly = (kind, candidates) => {
         if (!inRollout) return;
         pliesThisRollout += 1;
