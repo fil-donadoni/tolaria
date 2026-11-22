@@ -34,20 +34,26 @@ in time and lose in decisions?
    rollout with 5.2–8.1 candidates each (44–99 probes per rollout), against
    about 3 per rollout on a blade board. The issue's multiplier holds where
    the field Bot is slow, and nowhere else.
-2. **No policy that still probes buys the order of magnitude.** Free probes
-   (`prefix:0`, a uniform-random rollout) are the ceiling: 3.0–5.7× faster per
-   iteration on a field board, in V8. Probing two candidates (`topk:2`) buys
-   1.6–2.7×, three (`topk:3`) 1.6–2.4×, and Chromium and Firefox read the same
-   ratios (§ 2). On a blade board `topk` buys 1–3%.
-3. **Probing three candidates loses no tested decision.** At the declared
-   budgets `topk:3` flips 0 of the 574 searched `must` entries, the same count
-   as the dice alone. At Gecko's field budget of 94 iterations and equal time
-   it halves the red entries (17 → 9–13, where the dice alone leave 16); at
+2. **No policy that still probes buys the order of magnitude.** No probe at
+   all (`prefix:0`, measured as an UNFILTERED uniform-random rollout) is the
+   ceiling: 3.0–5.7× faster per iteration on a field board, in V8. Probing two
+   candidates (`topk:2`) buys 1.6–2.7× there and three (`topk:3`) 1.6–2.4×,
+   over a search's first 20 to 60 iterations. In Chromium and Firefox, over a
+   board's first 10 iterations (the probe-densest window), `topk:2` reads
+   2.2–3.3× and `topk:3` 1.9–3.4× (§ 2). On a blade board `topk` buys 1–3%.
+3. **Probing three candidates loses no tested decision at the declared
+   budgets.** There `topk:3` flips 0 of the 574 searched `must` entries, the
+   same count as the dice alone. At Gecko's field budget of 94 iterations and
+   equal time the red entries go from 17 to 9–13. Today's policy given the
+   same iteration counts reads 6–8, so the gain is what the extra iterations
+   are worth, and `topk:3` reads a few entries behind today's policy at equal
+   iterations in every comparison at that budget, inside one seed's noise. At
    236, the same field rate under today's cap, it reads inside the dice.
-   `topk:2` is faster and loses one tested decision in every arm. Random
-   playouts and a shorter rollout lose 7–14 entries at the declared budgets,
-   whole classes of them. The blade's boards are narrow, so this is a strong
-   reading for narrow boards and a thin one for wide ones (§ 3).
+   `topk:2` is faster and loses one tested decision in every arm. A shorter
+   rollout and the unfiltered random playout lose 7–14 entries at the
+   declared budgets; a faithful random playout was not measured. The blade's
+   boards are narrow, so all of this is a strong reading for narrow boards
+   and a thin one for wide ones (§ 3).
 4. **A memo of the probes is dead on arrival** (§ 4): an exact ply key
    recurs 0.3% of the time within one search; a key blind to the libraries
    12.6% on blade boards and 0–9% on the field boards where it would pay.
@@ -80,10 +86,19 @@ in AT BUNDLE TIME only (`bundle.mjs`, `rolloutHook`; the source tree's
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `base`     | today: probe every candidate, play the best                                                                                                                                                                                         |
 | `topk:K`   | rank the candidates by a static per-move-kind score (land > cast > activation / attack / block > turn face up / foretell / plot / companion > other > empty declaration > pass) and probe only the best K, `pass` always among them |
-| `prefix:N` | probe for the rollout's first N greedy plies, then play a uniform-random candidate; `prefix:0` probes nothing, the ceiling of any probe cut                                                                                         |
+| `prefix:N` | probe for the rollout's first N greedy plies, then play a uniform-random candidate, UNFILTERED (below); `prefix:0` probes nothing, the speed ceiling of any probe cut                                                               |
 | `cap:N`    | today's pick, the rollout cut after N plies and closed by `scoreLeaf` where that comes before the next turn of the Bot                                                                                                              |
 | `memo`     | today's pick, memoised by the ply's exact state and candidates; `memo-public` keys without the libraries; `memo-count` only counts the key's recurrence                                                                             |
 | `reseed`   | today's pick on another random stream (one extra draw before every rollout): the noise control, the decisions that move with nothing but the playouts' dice                                                                         |
+
+`prefix` is not the rollout's own random play. When today's rollout plays a
+random move (its epsilon branch) it first drops the moves a random draw must
+never take: the sacrifice conversions and the exchange sacrifices
+(`isTransientSacrificeConversion`, `isRemovalExchangeSacrifice` and their
+family), evoke casts (`isEvokeCast`), a source's body-damage conversion, and
+the moves that flip a step-target gate. The bench's `prefix` draws from every
+candidate. Its speed is a fair ceiling (no probe is no probe); its quality is
+that of an unfiltered random playout, and a faithful one was not measured.
 
 - **The split** (`profile-rollout.mjs`): a V8 CPU profile of one search
   (500 µs sampling) folded by the iteration's own structure: `descent` (not
@@ -106,38 +121,53 @@ in AT BUNDLE TIME only (`bundle.mjs`, `rolloutHook`; the source tree's
 
 - **Speed:** on the field boards, `run-rollout.mjs speed`: every policy at a
   fixed iteration count on the process CPU clock in one Node process,
-  interleaved rounds, the first discarded, the ratio the median of three
-  rounds. In browsers, `run-rollout-browsers.mjs`: the same positions in
-  Chromium and Firefox on the wall clock, on the page's main thread, policies
-  interleaved within each round, the ratio per position the median of three
-  rounds. No speed reading was taken while the quality slices ran.
+  interleaved rounds, the first discarded. At 20 iterations the ratio is the
+  median of three measured rounds; at 60 iterations two rounds were measured
+  and the table gives their mean (the script prints the lower of the two,
+  0.00–0.04 under it). In browsers, `run-rollout-browsers.mjs`: blade
+  positions and one field board in Chromium and Firefox on the wall clock, on
+  the page's main thread, policies interleaved within each round, the ratio
+  per position the median of three rounds; the blade positions and the field
+  board are summarised apart. No speed reading was taken while the quality
+  slices ran.
 - **Quality** (`run-rollout.mjs blade`): the blade runner's own expectation
   check (`runBladeScenario`) on every `must` entry (634 at this sha), one seed
   per entry (its first declared), iterations only, so every arm is
   deterministic. Three runs:
     - _Declared budgets:_ each entry at its declared budget T under every
-      policy (**equal iterations**), then every non-base policy at the
-      iterations it completes in the CPU time `base` spent on that entry
-      (**equal time**, read in the same process back to back, at most 20× T).
-      "Equal time" is T × `base`'s CPU per COMPLETED iteration ÷ the policy's:
-      a blade search stops early once its root's pick is settled, so total CPU
-      would misstate it. Each entry is searched once untimed first (an
-      entry's first search runs 10–60% slower, its cards' code cold) and the
-      timed arms rotate their order by entry.
+      policy (**equal iterations**), then every non-base policy again at
+      **equal time**: T × `base`'s CPU per COMPLETED iteration ÷ the policy's,
+      both read in the same process back to back, at most 20× T. Per completed
+      iteration, because a blade search stops early once its root's pick is
+      settled. The CPU read is the whole blade call, the scenario's build and
+      the root's enumeration included, not the search alone: that pulls the
+      factor towards 1, so an equal-time arm is given too few iterations
+      rather than too many, and CPU noise can push the factor under 1 (the
+      reading is conservative for the cheaper policies). Each entry is
+      searched once untimed first (an entry's first search runs 10–60%
+      slower, its cards' code cold) and the timed arms rotate their order by
+      entry.
     - _Gecko's field budget, B = 94_ (`field-reading-after-engine-changes.md`:
       what a Gecko search completed under the 3300 ms cap) and _B = 236_ (the
       same field rate under today's 8300 ms cap, a projection): every entry at
       B under every policy, then each non-base policy at B × its
-      **field-board** speed-up in V8, the median over the four boards (§ 2:
-      `topk:2` 2.22, `topk:3` 2.09, `prefix:3` 2.02, `cap:16` 1.68,
-      `prefix:0` 3.71). A blade board's few probes would understate what a
-      policy buys in the field, where that budget is spent.
+      **field-board** speed-up in V8 (§ 2's 20-iteration reading: `topk:2`
+      2.22, `topk:3` 2.09, `prefix:3` 2.02, `cap:16` 1.68, `prefix:0` 3.71).
+      The two `topk` policies are run a second time at § 2's 60-iteration
+      reading (2.14 and 1.78). A factor is the median over the four boards of
+      1 ÷ the board's unrounded ratio, the mean of the two middle boards. A
+      blade board's few probes would understate what a policy buys in the
+      field, where that budget is spent.
 
     A **flip** is an entry green under `base` and red under the policy; a
     **fix** the reverse; **net** is fixes − flips. Forced entries (no rollout
     under `base`) are left out. Because one seed per entry is one draw, each
-    run is repeated under `reseed`: its flips and fixes are what the dice
-    alone move, the floor every other row is read against.
+    run is repeated under `reseed` at the same iterations: its flips and
+    fixes are what the dice alone move, the floor the equal-iterations rows
+    are read against. At B = 94 `reseed` is also run at `topk:3`'s two
+    equal-time counts (196 and 167 iterations): today's policy given the
+    iterations a cheaper policy would complete, the reference the equal-time
+    rows are read against. No such run was made at B = 236.
 
 ## Results
 
@@ -193,7 +223,8 @@ with the most options.
 
 **Field boards, V8, CPU per iteration ÷ `base`** (`run-rollout.mjs speed`;
 `base`'s own CPU per iteration in brackets; the last column is the median
-over the four boards of 1 ÷ the ratio). MacBook, `f98284f5b`, 2026-11-22.
+over the four boards of 1 ÷ the unrounded ratio, the mean of the two middle
+boards). MacBook, `f98284f5b`, 2026-11-22.
 
 The first 20 iterations of a search (three measured rounds within ±0.03 of
 each other, load 15–22):
@@ -207,7 +238,8 @@ each other, load 15–22):
 | `cap:16`   | 0.83         | 0.60          | 0.30          | 0.59          | 1.68×            |
 | `prefix:0` | 0.27         | 0.27          | 0.18          | 0.33          | 3.71×            |
 
-The first 60 iterations (two measured rounds within ±0.04, load 12–24):
+The first 60 iterations (the mean of two measured rounds within ±0.04 of
+each other, load 12–24):
 
 | policy     | `jh7396nx`   | `jh73x8ad`    | `jh71n516`    | `jh7ba584`    | speed-up, median | probes per rollout |
 | ---------- | ------------ | ------------- | ------------- | ------------- | ---------------- | ------------------ |
@@ -224,25 +256,30 @@ at these rates `base` completes between 36 and 173 iterations in 8.3 s.
 
 **Browsers, wall clock ÷ `base`** (`run-rollout-browsers.mjs`, three measured
 rounds, each position's ratio the median of its rounds; blade: positions 0,
-11, 40 and 54 at 200 iterations, median over the four, range in brackets,
-load 29–36; field: the board's first 10 iterations, load 7–9). MacBook,
+11, 40 and 54 at 200 iterations, the nearest-rank median over the four as the
+script prints it, range in brackets, load 29–36; field: each board's first
+10 iterations, one run per board, load 7–9). MacBook,
 `f98284f5b`, 2026-11-22, Playwright's Chromium 151 and Firefox 153, the
 search on the page's main thread.
 
 | policy     | Chromium, blade  | Chromium, `jh7396nx` | Chromium, `jh71n516` | Firefox, blade   | Firefox, `jh7396nx` | Firefox, `jh71n516` |
 | ---------- | ---------------- | -------------------- | -------------------- | ---------------- | ------------------- | ------------------- |
-| `topk:2`   | 0.97 (0.89–1.01) | 0.30                 | 0.45                 | 1.02 (0.93–1.04) | 0.34                | 0.44                |
-| `topk:3`   | 1.00 (0.91–1.01) | 0.29                 | 0.52                 | 0.98 (0.94–1.03) | 0.35                | 0.52                |
-| `prefix:3` | 1.01 (0.99–1.02) | 0.51                 | 0.33                 | 1.01 (0.95–1.08) | 0.52                | 0.34                |
-| `cap:16`   | 0.91 (0.75–0.92) | 0.74                 | 0.38                 | 0.90 (0.81–0.93) | 0.75                | 0.40                |
-| `prefix:0` | 0.79 (0.71–0.86) | 0.18                 | 0.23                 | 0.81 (0.76–0.89) | 0.20                | 0.23                |
+| `topk:2`   | 0.97 (0.89–1.01) | 0.30                 | 0.45                 | 1.01 (0.93–1.04) | 0.34                | 0.44                |
+| `topk:3`   | 0.98 (0.91–1.01) | 0.29                 | 0.52                 | 0.98 (0.94–1.03) | 0.35                | 0.52                |
+| `prefix:3` | 1.01 (0.99–1.02) | 0.51                 | 0.33                 | 0.99 (0.95–1.08) | 0.52                | 0.34                |
+| `cap:16`   | 0.90 (0.75–0.92) | 0.74                 | 0.38                 | 0.88 (0.81–0.93) | 0.75                | 0.40                |
+| `prefix:0` | 0.74 (0.71–0.86) | 0.18                 | 0.23                 | 0.79 (0.76–0.89) | 0.20                | 0.23                |
 
 `base` on the two field boards: 104–114 and 88–93 ms per iteration in
 Chromium, 117–121 and 123–132 in Firefox. The ratio is the reading: a
 headless Firefox page's main thread runs at a low scheduler priority on this
 machine, so the milliseconds are not an engine comparison. Ten iterations are
 the probe-densest part of a search (§ 1), which is why these field ratios sit
-below the 20- and 60-iteration ones above.
+below the 20- and 60-iteration ones above: `topk:2` reads 2.2–3.3× in
+Chromium and 2.3–2.9× in Firefox, `topk:3` 1.9–3.4× and 1.9–2.9×. The two
+browsers agree with each other to within 0.06 on every policy and board; no
+browser run at 20 or 60 iterations was made, so the V8 ranges are not
+confirmed in a browser at those counts.
 
 **Blade boards** read the same way through the quality run's own CPU times
 (§ 3, declared budgets, equal iterations, CPU ÷ `base` at p10 / median / p90
@@ -250,12 +287,14 @@ over 574 entries): `topk:2` 0.83 / 0.97 / 1.07, `topk:3` 0.85 / 0.99 / 1.10,
 `prefix:3` 0.81 / 0.98 / 1.09, `cap:16` 0.67 / 0.86 / 0.99, `prefix:0` 0.59 /
 0.80 / 0.93.
 
-**Verdict.** No policy that still probes buys the order of magnitude. Free
-probes (`prefix:0`) are the ceiling: 3.0–5.7× faster per iteration on a field
-board, about 4× at the median. `topk:2` buys 1.6–2.7× (median 2.1–2.2×) and
-`topk:3` 1.6–2.4× (median 1.8–2.1×), and Chromium and Firefox read the same
-ratios. On a blade board, where the probes are a tenth to a fifth of the
-search, `topk` buys 1–3%. A shorter rollout (`cap:16`) cuts 60% of the plies
+**Verdict.** No policy that still probes buys the order of magnitude. No
+probe at all (`prefix:0`) is the ceiling: 3.0–5.7× faster per iteration on a
+field board, about 4× at the median. In V8, over a search's first 20 to 60
+iterations, `topk:2` buys 1.6–2.7× (median 2.1–2.2×) and `topk:3` 1.6–2.4×
+(median 1.8–2.1×). Over a board's first 10 iterations the browsers read more,
+2.2–3.3× and 1.9–3.4×, Chromium and Firefox within 0.06 of each other. On a
+blade board, where the probes are a tenth to a fifth of the search, `topk`
+buys 1–3%. A shorter rollout (`cap:16`) cuts 60% of the plies
 and buys 1.2–3.4×, unevenly: the probes sit in the turn the rollout starts
 in, so it pays only on the boards whose later plies still probe.
 
@@ -265,8 +304,9 @@ in, so it pays only on the boards whose later plies still probe.
 one seed each. MacBook, 2026-11-22. `reseed` is the dice alone: today's
 policy on another random stream.
 
-**Declared budgets** (each entry's own: 443 declare 400 iterations, 126
-declare 200). `base` is green on all 574, so nothing can be fixed.
+**Declared budgets** (each entry's own: of the 634, 443 declare 400
+iterations, 126 declare 200 and the other 65 between 1 and 2000). `base` is
+green on all 574 searched, so nothing can be fixed.
 
 | policy     | flips, equal iterations | flips, equal time | iterations at equal time ÷ T, median |
 | ---------- | ----------------------- | ----------------- | ------------------------------------ |
@@ -280,12 +320,14 @@ declare 200). `base` is green on all 574, so nothing can be fixed.
 **Gecko's field budgets.** Equal time is B × the policy's field speed-up.
 The two `topk` policies are run at both readings of § 2: the 20-iteration
 factor first, the 60-iteration one second. A cell is the red entries, with
-flips / fixes in brackets and the iterations searched after "at".
+flips / fixes in brackets and the iterations searched after "at". The
+`reseed` row's equal-time cell is today's policy, on another random stream,
+at `topk:3`'s two iteration counts.
 
 | policy     | B = 94, equal iterations | B = 94, equal time                            | B = 236, equal iterations | B = 236, equal time                 |
 | ---------- | ------------------------ | --------------------------------------------- | ------------------------- | ----------------------------------- |
 | `base`     | 17                       | 17                                            | 8                         | 8                                   |
-| `reseed`   | 16 (6 / 7)               | —                                             | 4 (0 / 4)                 | —                                   |
+| `reseed`   | 16 (6 / 7)               | 6 (2 / 13) at 196 · 8 (3 / 12) at 167         | 4 (0 / 4)                 | not run                             |
 | `topk:2`   | 15 (3 / 5)               | **8** (4 / 13) at 209 · **7** (4 / 14) at 201 | 8 (2 / 2)                 | 8 (6 / 6) at 524 · 4 (3 / 7) at 505 |
 | `topk:3`   | 21 (4 / 0)               | **9** (3 / 11) at 196 · **13** (5 / 9) at 167 | 8 (2 / 2)                 | 5 (2 / 5) at 493 · 3 (0 / 5) at 420 |
 | `prefix:3` | 21 (6 / 2)               | 14 (9 / 12) at 190                            | 13 (6 / 1)                | 8 (5 / 5) at 477                    |
@@ -297,8 +339,8 @@ flips / fixes in brackets and the iterations searched after "at".
 - **`topk:3` loses nothing where iterations are plentiful.** 0 flips of 574
   at the declared budgets, the dice's own count. Its one flip at equal time
   (a redirection-shield entry) is a search run at 187 iterations instead of
-  the entry's 200, because the CPU ratio measured on that entry read below
-  1; at 200 it is green.
+  the entry's 200: the equal-time factor is read on the whole blade call
+  (Method), and on that entry it read below 1. At 200 it is green.
 - **`topk:2` loses one tested decision in every arm.** "Holds Emperor of
   Bones' Adapt in main 1 for the beginning-of-combat exile of Atraxa" is red
   under `topk:2` in all eight of its arms (the declared budget, 94 and 236,
@@ -314,27 +356,41 @@ flips / fixes in brackets and the iterations searched after "at".
   the declared budgets (Blood Moon cast against nonbasic lands) is red at 400
   and 417 iterations and green at 94, 209, 236 and 524: an entry the blade
   already re-seeded once for noise.
-- **At Gecko's 94 iterations the cheaper policy pays for itself twice.** At
-  equal iterations `topk` moves fewer entries than the dice do: `topk:2`
-  flips 3 and fixes 5, `topk:3` flips 4 and fixes none, where another random
-  stream flips 6 and fixes 7. At equal time it halves the losses: 17 red entries become 7–8 under `topk:2` and 9–13 under `topk:3`.
-  `base` needs 2.5 times the clock for the same result (8 red at 236).
+- **At Gecko's 94 iterations the gain is the extra iterations'.** At equal
+  iterations `topk` moves fewer entries than the dice do: `topk:2` flips 3
+  and fixes 5, `topk:3` flips 4 and fixes none, where another random stream
+  flips 6 and fixes 7. At equal time 17 red entries become 7–8 under `topk:2`
+  and 9–13 under `topk:3`. Today's policy on another random stream, given
+  `topk:3`'s iteration counts, reads 6 and 8: what Gecko recovers is what
+  about twice the iterations are worth, and `topk` is the way to complete
+  them in the same time. `base` itself needs 2.5 times the clock for that
+  result (8 red at 236).
+- **`topk:3` reads a few entries behind today's policy at equal iterations
+  when iterations are scarce.** 21 red against the dice's 16 at 94
+  iterations, 9 against 6 at 196, 13 against 8 at 167: three to five entries
+  each time, inside what one seed can move each time, on the same side every
+  time. The every-seed census settles whether that is a cost (Not measured).
 - **At 236 there is nothing left to claim from one seed.** The dice alone
   move `base`'s 8 red entries to 4. `topk` at equal time reads 3–8, and the
   spread between its two iteration counts (0 against 2 flips for `topk:3`, 3
-  against 6 for `topk:2`) is as wide as any difference from `base`.
-- **Random playouts and a shorter rollout lose classes of decisions**, at
-  the declared budgets where the dice flip nothing. `prefix:0` and `prefix:3`
-  lose five sacrifice-outlet reachability entries: a random playout
-  sacrifices its own board through the outlet, the failure the rollout's
-  filters were written against (issue #4261). `prefix:0` also loses three
-  held-answer entries. `cap:16` loses 14, the held answers and the
+  against 6 for `topk:2`) is as wide as any difference from `base`. No
+  `reseed` was run at those equal-time counts, so the dice's floor there is
+  not measured.
+- **A shorter rollout and the unfiltered random playout lose classes of
+  decisions**, at the declared budgets where the dice flip nothing.
+  `prefix:0` and `prefix:3` lose five sacrifice-outlet reachability entries:
+  a random playout sacrifices its own board through the outlet. That loss is
+  at least partly the bench's own doing: the rollout's own random draw never
+  takes a sacrifice conversion (the filters of issue #4261), and `prefix`
+  draws from every candidate (Method). `prefix:0` also loses three
+  held-answer entries. What a faithful random playout loses was not
+  measured. `cap:16` loses 14, the held answers and the
   hold-or-act entries among them (Snapcaster Mage held on an empty graveyard,
   Mana Drain held, Monastery Swiftspear holding the instant): a rollout cut
   before the round completes scores the Bot's action before the opponent's
   reply, the bias ADR 0015 removed. At 236 and equal time `prefix:0` is the
-  worst arm (18 red against 8) with 876 iterations: more iterations of a
-  random playout do not buy back what its noise costs.
+  worst arm (18 red against 8) with 876 iterations: more iterations of an
+  unfiltered random playout do not buy back what it costs.
 - **The blade tests the cut more lightly than the field applies it.** A blade
   board is narrow (2.2 candidates per probing ply at the median, § 1), so
   `topk:3` drops 18% of the probes over the 574 entries and more than a
@@ -371,9 +427,10 @@ through `/bot-change`.
   `pass` and the two best by the static kind score; a ply with three or fewer
   is unchanged. Nothing above the rollout changes: the tree, the root's rules
   and the horizon of ADR 0015 stay as they are.
-- **What it buys.** 1.6–2.4× the iterations on late boards, in V8 and in both
-  browsers measured; 1–3% on early ones. It is the one candidate here that is
-  faster and loses no tested decision.
+- **What it buys.** 1.6–2.4× the iterations on late boards in V8, over a
+  search's first 20 to 60 iterations (1.9–3.4× in the two browsers over the
+  first 10); 1–3% on early ones. It is the one candidate here that is faster
+  and loses no tested decision at the declared budgets.
 - **What the slice still owes.** The full-seed census (`blade:census`) at the
   declared and field budgets: this note reads one seed per entry. The change
   moves every rollout's random stream, so entries pinned by noise will move
@@ -381,17 +438,20 @@ through `/bot-change`.
   none at the declared budgets). `must` entries on wide boards, five to eight
   candidates on a ply, where the cut actually bites and the blade has few;
   the Emperor of Bones entry already separates K = 2 from K = 3. An ADR
-  amending ADR 0021, whose rollout policy probes
-  every candidate.
+  amending ADR 0021, whose rollout policy probes every candidate.
 
 **Not K = 2.** It is 6–20% faster than K = 3 and recovers one to six more
 entries at Gecko's 94 iterations, but it loses a tested decision at every
 budget, the declared ones included. A rank that reads what a move does might
 keep that decision at K = 2 (Not measured).
 
-**Not random playouts, not a shorter rollout, not a memo.** `prefix:0` is the
-speed ceiling and the worst arm at equal time once iterations are no longer
-scarce; `cap:16` brings back the action bias; the memo's key does not recur.
+**Not a shorter rollout, not a memo; random playouts are not settled.**
+`cap:16` brings back the action bias and the memo's key does not recur.
+`prefix:0` is the speed ceiling (about 4×) and the worst arm at equal time
+once iterations are no longer scarce, but it was measured as an unfiltered
+random playout only. Today's rollout played at epsilon 1, its own filtered
+random draw, is the faithful version: unmeasured, and the one candidate here
+that could still change this recommendation.
 
 **It is one factor of about two, not the target.** On the four field boards
 V8 completes 36–173 iterations in 8.3 s today and would complete about
@@ -463,10 +523,21 @@ In browsers on `jh7bkzta` at 10 iterations (two measured rounds), wall clock
   boards, `topk:3` agrees with `base` on 2 of 4 and `topk:2` on 3 of 4. The
   blade's narrow boards carry the quality reading (§ 3, last bullet); wide
   `must` entries are the implementation slice's to add.
+- **A faithful random playout.** `prefix` draws its random moves from every
+  candidate; the rollout's own random draw excludes the sacrifice
+  conversions, the exchange sacrifices, evoke casts and the gate-flipping
+  moves (Method). The speed ceiling stands. The quality rows of `prefix:0`
+  and `prefix:3`, the five sacrifice-outlet entries above all, are those of
+  an unfiltered playout.
 - **Every seed.** One seed per entry (the first declared), as issue #10135's
-  quality run; `blade:census` runs each entry's own seeds. The `reseed` row
-  bounds what one seed can hide, it does not replace the census: the
-  implementation slice owes it.
+  quality run; `blade:census` runs each entry's own seeds. The `reseed` rows
+  bound what one seed can hide, they do not replace the census: the
+  implementation slice owes it. It also settles the three-to-five-entry gap
+  between `topk:3` and today's policy at equal iterations under 200.
+- **The dice at equal time, B = 236.** `reseed` was run at the equal-time
+  iteration counts for B = 94 only.
+- **The search's own CPU.** The equal-time factor at the declared budgets is
+  read on the whole blade call, not on `searchWithTrace` alone (Method).
 - **WebKit, and Gecko on more boards.** The browser reading covers two field
   boards at 10 iterations in Chromium and Firefox; the V8 one, four boards at
   20 and 60.
@@ -496,23 +567,49 @@ node $B/profile-rollout.mjs /tmp/rollout.js /tmp/prof-field.json --iterations 10
 node $B/run-rollout.mjs counts /tmp/rollout.js /tmp/counts.json --iterations 400 [--policy memo-count]
 node $B/run-rollout.mjs counts /tmp/rollout.js /tmp/counts-field.json --iterations 60 \
      --field-only --field field-jh7396nx.json [--policy memo-count]
-# 2. speed
+# 2. speed: each of the four field fixtures, at 20 iterations (three rounds)
+#    and at 60 (two rounds)
 P=base,topk:2,topk:3,prefix:0,prefix:3,cap:16
 node $B/run-rollout.mjs speed /tmp/rollout.js /tmp/speed.json --field field-jh7396nx.json \
      --policies $P --iterations 20 --rounds 3
-node $B/run-rollout-browsers.mjs /tmp/rollout.js /tmp/browsers.json \
-     --policies $P --positions 0,11,40,54 \
-     --iterations 200 --rounds 3 --field field-jh7396nx.json --field-iterations 10
-# 3. quality (slices in parallel, then read together)
-F=topk:2=2.22,topk:3=2.09,prefix:0=3.71,prefix:3=2.02,cap:16=1.68
+node $B/run-rollout.mjs speed /tmp/rollout.js /tmp/speed60.json --field field-jh7396nx.json \
+     --policies $P --iterations 60 --rounds 2
+#    browsers: the blade positions, then one run per field board (its blade
+#    part is read apart from its field ratio and is not the table's)
+node $B/run-rollout-browsers.mjs /tmp/rollout.js /tmp/browsers-blade.json \
+     --policies $P --positions 0,11,40,54 --iterations 200 --rounds 3
+node $B/run-rollout-browsers.mjs /tmp/rollout.js /tmp/browsers-jh7396nx.json \
+     --policies $P --positions 0,11,40,54 --iterations 200 --rounds 3 \
+     --field field-jh7396nx.json --field-iterations 10
+node $B/run-rollout-browsers.mjs /tmp/rollout.js /tmp/browsers-jh71n516.json \
+     --policies $P --positions 0 --iterations 50 --rounds 3 \
+     --field field-jh71n516.json --field-iterations 10
+# 3. quality: every command once per slice (--slice 1/4 … 4/4, in parallel),
+#    then read together
+F20=topk:2=2.22,topk:3=2.09,prefix:0=3.71,prefix:3=2.02,cap:16=1.68
+F60=topk:2=2.14,topk:3=1.78
 node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/decl-1.jsonl --policies $P --slice 1/4
 node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/g94-1.jsonl --policies $P --budget 94 \
-     --time-factors $F --slice 1/4
+     --time-factors $F20 --slice 1/4
 node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/g236-1.jsonl --policies $P --budget 236 \
-     --time-factors $F --slice 1/4
-# the noise control: the same three runs under another random stream
+     --time-factors $F20 --slice 1/4
+#    topk's second equal-time counts (201 / 167 and 505 / 420 iterations)
+node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/h94-1.jsonl --policies base,topk:2,topk:3 \
+     --budget 94 --time-factors $F60 --slice 1/4
+node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/h236-1.jsonl --policies base,topk:2,topk:3 \
+     --budget 236 --time-factors $F60 --slice 1/4
+#    the noise control: the same three runs under another random stream
+node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/noise-decl-1.jsonl --policies base,reseed \
+     --slice 1/4
 node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/noise-94-1.jsonl --policies base,reseed \
      --budget 94 --time-factors reseed=1 --slice 1/4
+node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/noise-236-1.jsonl --policies base,reseed \
+     --budget 236 --time-factors reseed=1 --slice 1/4
+#    today's policy at topk:3's equal-time counts, B = 94 (196 and 167 iterations)
+node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/noise-94-196-1.jsonl --policies base,reseed \
+     --budget 94 --time-factors reseed=2.09 --slice 1/4
+node $B/run-rollout.mjs blade /tmp/rollout.js /tmp/noise-94-167-1.jsonl --policies base,reseed \
+     --budget 94 --time-factors reseed=1.78 --slice 1/4
 node $B/summarize-rollout.mjs /tmp/decl-*.jsonl
 ```
 

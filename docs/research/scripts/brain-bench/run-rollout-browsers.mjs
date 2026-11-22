@@ -13,8 +13,11 @@
 // interleaved rounds (`run-browsers.mjs`'s method): within one round every
 // policy searches the same position back to back, the order rotating by
 // round and position, and one warm-up round is discarded. Each position's
-// ratio is the median of its rounds; the table is p10 / median / p90 over
-// positions.
+// ratio is the median of its rounds. The blade positions and the field board
+// are read APART: `blade` is p10 / median / p90 over the blade positions,
+// `field` the field board's own ratio — a late-game board is another regime
+// (most of its search is the policy's probes) and must not sit in the blade's
+// percentiles.
 
 import { chromium, firefox } from "playwright";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -101,7 +104,7 @@ const ratios = {};
 for (const engine of Object.keys(versions)) {
     ratios[engine] = {};
     for (const policy of policies.slice(1)) {
-        const perPosition = positions.map((index) => {
+        const ratioAt = (index) => {
             const per = [];
             for (let round = 1; round < rounds; round++) {
                 const at = (p) =>
@@ -114,14 +117,28 @@ for (const engine of Object.keys(versions)) {
                     );
                 const b = at("base");
                 const h = at(policy);
+                // A forced position has no search: no ratio.
+                if (!b.completed || !h.completed) return null;
                 per.push(h.wallMs / h.completed / (b.wallMs / b.completed));
             }
             return median(per);
-        });
+        };
+        const blade = positions
+            .filter((index) => index !== "field")
+            .map(ratioAt)
+            .filter((ratio) => ratio !== null);
         ratios[engine][policy] = {
-            p10: percentile(perPosition, 10),
-            median: median(perPosition),
-            p90: percentile(perPosition, 90),
+            blade: blade.length
+                ? {
+                      positions: blade.length,
+                      p10: percentile(blade, 10),
+                      median: median(blade),
+                      min: Math.min(...blade),
+                      max: Math.max(...blade),
+                      p90: percentile(blade, 90),
+                  }
+                : null,
+            field: fixture ? ratioAt("field") : null,
         };
     }
 }

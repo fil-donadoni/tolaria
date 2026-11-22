@@ -11,7 +11,12 @@
 //   topk:K      a static per-move-kind score ranks the candidates and only
 //               the best K (pass always among them) are probed
 //   prefix:N    the greedy pick for a rollout's first N greedy plies; every
-//               later ply plays a uniform-random candidate, no probe
+//               later ply plays a uniform-random candidate, no probe.
+//               UNFILTERED: the draw is over every candidate, where the
+//               rollout's own random draw (its epsilon branch) first drops
+//               the sacrifice conversions, exchange sacrifices, evoke casts
+//               and gate-flipping moves. A fair SPEED ceiling, not a faithful
+//               random playout: its quality rows are an unfiltered one's
 //   cap:N       today's policy, the rollout cut after N plies and closed by
 //               the evaluation (`scoreLeaf`) — the ADR 0015 horizon kept
 //               where it comes sooner
