@@ -22,6 +22,11 @@
 // residency, which also keeps them in FIFO order (an `async` handler would let
 // a later short request overtake an earlier one).
 //
+// A CALIBRATION (`./brain-calibration`, issue #10451) rides the same chain: the
+// page asks the Worker to time a fixed search on a fixed board that names no
+// catalogue card, so it needs nothing resident and decides nothing. Chained,
+// it never overlaps a search, and a request posted after it waits for it.
+//
 // A residency FAILURE must not silently swallow the queue either: every
 // request it blocks gets a real `error` response, the same shape #2470 added
 // for a search that throws. A bot that answers "no move" forever is
@@ -30,6 +35,11 @@
 /// <reference lib="webworker" />
 import { handleBrainRequest } from "./brain-request";
 import type { BrainRequest, BrainResponse } from "./brain-request";
+import {
+    handleCalibration,
+    isBrainCalibrate,
+    type BrainCalibration,
+} from "./brain-calibration";
 import {
     isBrainPrime,
     requestDefinitionIds,
@@ -47,7 +57,7 @@ import "../catalogueArtifact";
 
 export type { BrainRequest, BrainResponse } from "./brain-request";
 
-const post = (response: BrainResponse) =>
+const post = (response: BrainResponse | BrainCalibration) =>
     (self as DedicatedWorkerGlobalScope).postMessage(response);
 
 /** The Set codes of every Manifest entry this worker was primed with. */
@@ -113,6 +123,18 @@ self.onmessage = (e: MessageEvent<BrainWorkerMessage>) => {
             (cause: unknown) =>
                 console.warn("[AI] manifest prime failed", toBrainError(cause))
         );
+        return;
+    }
+    if (isBrainCalibrate(message)) {
+        // Chained like a request, so it never overlaps a search: it waits
+        // for what is in flight, and what is posted after it waits for it.
+        // It names no card, so it needs nothing resident. A failure here is
+        // no reading; the page's own timeout settles it.
+        chain = chain
+            .then(() => post(handleCalibration(message)))
+            .catch((cause: unknown) =>
+                console.warn("[AI] calibration failed", toBrainError(cause))
+            );
         return;
     }
     const request = message;

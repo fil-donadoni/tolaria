@@ -77,6 +77,7 @@ message:"bot search" gameId:<gameId>
 | `probesPerIteration.p50`                                           | what the boards cost: candidates the rollout tried per iteration |
 | `msPerProbe.p50`                                                   | what the machine made of them: time per candidate tried          |
 | `idleMs.p50`                                                       | the time the Worker sat idle between two consults                |
+| `calibration.first` / `.last` / `.min` / `.count`                  | the machine itself: a fixed search on a fixed board, in ms       |
 | `searchMs.*` against `consultMs.*`                                 | the gap is what stood before the search (Worker start, a queue)  |
 | `consults.timeout` / `.worker-error` / `.search-error` / `.inline` | consults that gave no answer, or ran in-thread                   |
 | `device.engine` / `.os` / `.cores` / `.mobile`                     | engine family, OS family, core bucket, phone or iPad             |
@@ -92,20 +93,37 @@ one candidate move the rollout cloned, applied and evaluated; on a late board
 the probes are most of an iteration. Many probes per iteration
 (`probesPerIteration.p50`) with an ordinary time per probe is a game that
 reached costly boards. A high `msPerProbe.p50` is a slow or busy machine.
+The time per probe is the search's whole time over its probes: it carries
+the tree's own work too, so it reads high on a search of few iterations
+(compare searches of similar `iterations.completed`). `idleMs` is read only
+between two consults the Worker itself answered: after a timeout, a failure
+or an in-thread consult the next one has none.
+The `calibration.*` keys hold the board still (issue #10451): the Worker
+times the same fixed search (8 iterations, capped at 50 ms) on the same small
+board after each of the game's first three consults and then at most every
+30 s, in milliseconds per iteration. The first readings run colder (the
+browser is still compiling that code), and a cold run the cap cut short
+covered fewer iterations, a different workload: `.first` is biased high and
+says little alone. `.min` is the machine at its best and the number to
+compare two machines on; `.last` against `.min` says whether the machine
+slowed down during the game. No reading follows a search whose last
+iteration ran more than 300 ms past its cap, so a game stuck on very slow
+boards stops taking them.
 
 **One decision at a time.** Each consult also records a span named
 `bot.consult` (Explore → Traces, `span.op:bot.consult gameId:<gameId>`), in
 order (`consult` = 1, 2, …), under the same boundary as the report: counters,
 durations, the turn and step, the device class.
 
-| Span attribute                                     | Reads as                                            |
-| -------------------------------------------------- | --------------------------------------------------- |
-| `consult`                                          | the consult's place in the game on this page        |
-| `outcome` / `via`                                  | how it ended, in the Worker or in-thread            |
-| `consultMs` / `searchMs`                           | posting to verdict, and the search inside it        |
-| `idleMs`                                           | the time since the previous consult's verdict       |
-| `iterations.requested` / `.completed`, `stoppedBy` | what the search asked for, got, and what stopped it |
-| `msPerIteration`                                   | this decision's speed                               |
-| `probes` / `msPerProbe`                            | candidates the rollout tried, and the time per one  |
-| `turn` / `phase` / `permanents`                    | where the game was, and how many permanents stood   |
-| `gameId`, `difficulty`, `device.*`                 | as on the report                                    |
+| Span attribute                                     | Reads as                                              |
+| -------------------------------------------------- | ----------------------------------------------------- |
+| `consult`                                          | the consult's place in the game on this page          |
+| `outcome` / `via`                                  | how it ended, in the Worker or in-thread              |
+| `consultMs` / `searchMs`                           | posting to verdict, and the search inside it          |
+| `idleMs`                                           | the time since the previous consult's verdict         |
+| `iterations.requested` / `.completed`, `stoppedBy` | what the search asked for, got, and what stopped it   |
+| `msPerIteration`                                   | this decision's speed                                 |
+| `probes` / `msPerProbe`                            | candidates the rollout tried, and the time per one    |
+| `turn` / `phase` / `permanents`                    | where the game was, and how many permanents stood     |
+| `calibration`                                      | the game's latest calibration reading at that consult |
+| `gameId`, `difficulty`, `device.*`                 | as on the report                                      |

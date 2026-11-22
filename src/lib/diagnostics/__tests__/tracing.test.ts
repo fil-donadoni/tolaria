@@ -9,8 +9,10 @@ import {
     BOT_CONSULT_SPAN,
     GAME_ROUTE,
     ROUTE_SAMPLE_RATE,
-    dropAutomatedTransaction,
     isAutomatedBrowser,
+    isGameRouteName,
+    scrubBotConsultTransaction,
+    sendableTransaction,
     tracesSamplerFor,
 } from "../tracing";
 
@@ -63,11 +65,121 @@ describe("tracesSamplerFor", () => {
     });
 });
 
-describe("dropAutomatedTransaction", () => {
+describe("the game route, as the router integration names it", () => {
+    it("is kept in full under each shape the SDK gives the name", () => {
+        const sample = tracesSamplerFor(true, human);
+        // A matched route: the route id, `sentry.source: route`.
+        expect(
+            sample({
+                name: "/game",
+                attributes: {
+                    "sentry.op": "pageload",
+                    "sentry.source": "route",
+                },
+            })
+        ).toBe(1);
+        // No route matched yet: the location's pathname, `sentry.source: url`.
+        expect(
+            sample({
+                name: "/game/",
+                attributes: {
+                    "sentry.op": "navigation",
+                    "sentry.source": "url",
+                },
+            })
+        ).toBe(1);
+    });
+
+    it("is told from a route that only starts like it", () => {
+        expect(isGameRouteName("/game")).toBe(true);
+        expect(isGameRouteName("/game/")).toBe(true);
+        expect(isGameRouteName("/game?gameId=abc")).toBe(true);
+        expect(isGameRouteName("/games")).toBe(false);
+        expect(isGameRouteName("/game/extra")).toBe(false);
+        expect(isGameRouteName("/")).toBe(false);
+    });
+});
+
+/** A consult's transaction as the SDK builds it with its default
+ *  integrations (captured from a real client, 2026-11-22). */
+const consultTransaction = () => ({
+    type: "transaction",
+    transaction: BOT_CONSULT_SPAN,
+    request: {
+        url: "https://tolaria.example/game?gameId=abc123",
+        headers: { "User-Agent": "Mozilla/5.0 (Macintosh) Firefox/147.0" },
+    },
+    breadcrumbs: [
+        { category: "navigation", data: { from: "/", to: "/game" } },
+        { category: "console", message: "a console line" },
+    ],
+    user: { ip_address: "{{auto}}" },
+    tags: { anything: "else" },
+    extra: { anything: "else" },
+    contexts: {
+        trace: {
+            op: BOT_CONSULT_SPAN,
+            trace_id: "d9f58ee1a74d42649151c9f443465e2c",
+            data: { gameId: "abc123", consult: 1 },
+        },
+        culture: { locale: "it-IT", timezone: "Europe/Rome" },
+        react: { version: "19.2.6" },
+    },
+    sdk: { name: "sentry.javascript.react" },
+    environment: "production",
+});
+
+describe("scrubBotConsultTransaction", () => {
+    it("strips a consult's transaction to its trace context", () => {
+        const scrubbed = scrubBotConsultTransaction(consultTransaction());
+        expect(scrubbed).toEqual({
+            type: "transaction",
+            transaction: BOT_CONSULT_SPAN,
+            contexts: {
+                trace: {
+                    op: BOT_CONSULT_SPAN,
+                    trace_id: "d9f58ee1a74d42649151c9f443465e2c",
+                    data: { gameId: "abc123", consult: 1 },
+                },
+            },
+            sdk: { name: "sentry.javascript.react" },
+            environment: "production",
+        });
+        expect(JSON.stringify(scrubbed)).not.toMatch(
+            /Mozilla|tolaria\.example|console line|Europe\/Rome|ip_address/
+        );
+    });
+
+    it("knows a consult by its op when the name was changed", () => {
+        const renamed = { ...consultTransaction(), transaction: "renamed" };
+        expect(scrubBotConsultTransaction(renamed)).not.toHaveProperty(
+            "request"
+        );
+    });
+
+    it("leaves any other transaction as it came", () => {
+        const pageLoad = {
+            ...consultTransaction(),
+            transaction: GAME_ROUTE,
+            contexts: { trace: { op: "pageload" }, culture: { locale: "it" } },
+        };
+        const before = JSON.stringify(pageLoad);
+        expect(scrubBotConsultTransaction(pageLoad)).toBe(pageLoad);
+        expect(JSON.stringify(pageLoad)).toBe(before);
+    });
+});
+
+describe("sendableTransaction", () => {
     it("drops a transaction from an automated browser and passes any other through", () => {
         const event = { type: "transaction", transaction: GAME_ROUTE };
-        expect(dropAutomatedTransaction(event, automated)).toBeNull();
-        expect(dropAutomatedTransaction(event, human)).toBe(event);
+        expect(sendableTransaction(event, automated)).toBeNull();
+        expect(sendableTransaction(event, human)).toBe(event);
+    });
+
+    it("strips a consult's transaction on its way out", () => {
+        const sent = sendableTransaction(consultTransaction(), human);
+        expect(sent).not.toHaveProperty("request");
+        expect(sent).not.toHaveProperty("breadcrumbs");
     });
 });
 

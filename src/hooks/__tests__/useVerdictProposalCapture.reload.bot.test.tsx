@@ -80,6 +80,7 @@ vi.mock("~/hooks/useResilientQuery", () => ({
 vi.mock("~/lib/ai/brain-client", () => {
     Object.assign(h.brain, {
         consultBrain: vi.fn(),
+        calibrateBrain: vi.fn(() => Promise.resolve(null)),
         warmBrain: vi.fn(),
         primeBrain: vi.fn(),
         disposeBrain: vi.fn(),

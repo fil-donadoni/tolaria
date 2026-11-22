@@ -66,6 +66,18 @@ vi.mock("../../catalogue/residentFor", () => ({
 vi.mock("../../catalogue/definitionShards", () => ({ installShards }));
 vi.mock("../../catalogueArtifact", () => ({ hydrateCatalogue }));
 vi.mock("../brain-request", () => ({ handleBrainRequest }));
+// The calibration search (issue #10451), stubbed: the shell's ORDER is under
+// test here, the search in `convex/gre/ai/__tests__/calibration.bot.test.ts`.
+const handleCalibration = vi.fn((request: { id: number }) => ({
+    kind: "calibration" as const,
+    id: request.id,
+    msPerIteration: 2.5,
+}));
+vi.mock("../brain-calibration", () => ({
+    handleCalibration,
+    isBrainCalibrate: (message: { kind?: unknown }) =>
+        message.kind === "calibrate",
+}));
 
 const posted: BrainResponse[] = [];
 vi.stubGlobal("postMessage", (response: BrainResponse) =>
@@ -89,6 +101,7 @@ async function loadWorker(): Promise<void> {
         installShards,
         hydrateCatalogue,
         handleBrainRequest,
+        handleCalibration,
     ])
         spy.mockClear();
     await import("../brain.worker");
@@ -185,6 +198,55 @@ describe("the Brain's Worker shell", () => {
         resolveResidency();
         await settle();
         expect(posted.map((r) => r.id)).toEqual([3, 4]);
+    });
+
+    // Issue #10451 — a calibration rides the same chain as a consult: it
+    // never overlaps a search, and what is posted after it is answered next.
+    it("serves a calibration in arrival order: after the consult ahead of it, before the consult behind it", async () => {
+        await loadWorker();
+        send(5);
+        post({ kind: "calibrate", id: 6 });
+        send(7);
+        await settle();
+        // The first consult still waits for its residency: nothing ran.
+        expect(handleCalibration).not.toHaveBeenCalled();
+        expect(posted).toEqual([]);
+
+        resolveResidency();
+        await settle();
+        // The consult, then the calibration behind it. It names no card, so
+        // it waited for no residency of its own.
+        expect(posted.map((r) => r.id)).toEqual([5, 6]);
+        expect(posted[1]).toEqual({
+            kind: "calibration",
+            id: 6,
+            msPerIteration: 2.5,
+        });
+        expect(makeResident).toHaveBeenCalledTimes(2);
+
+        // The consult queued behind the calibration is answered, not lost.
+        resolveResidency();
+        await settle();
+        expect(posted.map((r) => r.id)).toEqual([5, 6, 7]);
+        expect(handleCalibration.mock.invocationCallOrder[0]!).toBeGreaterThan(
+            handleBrainRequest.mock.invocationCallOrder[0]!
+        );
+        expect(handleCalibration.mock.invocationCallOrder[0]!).toBeLessThan(
+            handleBrainRequest.mock.invocationCallOrder[1]!
+        );
+    });
+
+    it("keeps answering after a calibration that throws", async () => {
+        await loadWorker();
+        handleCalibration.mockImplementationOnce(() => {
+            throw new Error("engine fault");
+        });
+        post({ kind: "calibrate", id: 8 });
+        send(9);
+        await settle();
+        resolveResidency();
+        await settle();
+        expect(posted.map((r) => r.id)).toEqual([9]);
     });
 
     it("answers an install FAILURE with a named error, and retries once the cooldown has passed", async () => {
