@@ -32,11 +32,7 @@ slower and kept no more (§§ 2–3). The owner ruled for K = 3 (§ 6).
    which offers no `pass`, the empty attack or block declaration. The note's
    bench ranked the empty declaration just above `pass` but let it fall to
    the cut.
-3. **"Best" is three keys, in order.**
-    - **A repeat last**: a candidate `collapseInterchangeableMoves` (issue
-      #3593) folds into another, the same play on another copy of the same
-      card, ranks after every candidate that does something else. Its probe
-      would tell the pick nothing the representative's did not.
+3. **"Best" is two keys, in order.**
     - **The move-kind rank the note measured**: land > cast > activation /
       attack / block > turn face up / foretell / plot / companion > other.
       What kind of move it is, never a card (ADR 0102).
@@ -52,24 +48,27 @@ slower and kept no more (§§ 2–3). The owner ruled for K = 3 (§ 6).
    candidate as before: `greedyRootPick` (the blade's greedy leg), the
    greedy-concordance key in `searchWithTrace`, and `controlledSeatPick`
    (CR 723.5, ADR 0181).
-5. **No draw, no state.** The cut reads the ply and nothing else: the same
-   list at the same state keeps the same moves, and the rollout's random
-   stream is consumed exactly as before the cut.
+5. **No draw, no state, no table.** The cut reads the ply's list and
+   nothing else: it costs one sort of the candidates, the same list keeps
+   the same moves, and the rollout's random stream is consumed exactly as
+   before the cut.
 
 ## Considered and measured
 
-Four tie-breaks between equal kinds went through `blade:census` (the `must`
-tier, every entry's own seeds, against `d629e2b3d9`, 2026-11-22). A cell is
-new red entries (seeds) / fixed entries; the base has 31 red entries at 94
-iterations and 8 at 236, none at the declared budgets.
+Every arm went through `blade:census` (the `must` tier, every entry's own
+seeds, against `d629e2b3d9`, 2026-11-22). A cell is new red entries (seeds) /
+fixed entries; the base has 31 red entries at 94 iterations and 8 at 236,
+none at the declared budgets. The first five arms also ranked a copy of a
+kept play last (`collapseInterchangeableMoves`, issue #3593).
 
-| tie-break between equal kinds            | declared  | 94 iterations | 236 iterations | cost of the cut's own work |
-| ---------------------------------------- | --------- | ------------- | -------------- | -------------------------- |
-| by lot, every ply                        | 2 new red | 4 (6) / 7     | 3 (4) / 1      | one draw per candidate     |
-| enumeration order (the note's bench)     | 0         | 5 (9) / 2     | 4 (8) / 1      | none                       |
-| the search's own probe history           | 0         | 4 (5) / 2     | 3 (7) / 1      | 6–9% of an iteration       |
-| by lot, declaration plies only           | 0         | 5 (7) / 2     | 3 (4) / 0      | one draw per candidate     |
-| **widest declaration, then enumeration** | **0**     | **3 (4) / 2** | **3 (3) / 1**  | **none**                   |
+| between equal kinds                      | copies last | declared  | 94 iterations | 236 iterations |
+| ---------------------------------------- | ----------- | --------- | ------------- | -------------- |
+| by lot, every ply                        | yes         | 2 new red | 4 (6) / 7     | 3 (4) / 1      |
+| enumeration order (the note's bench)     | yes         | 0         | 5 (9) / 2     | 4 (8) / 1      |
+| the search's own probe history           | yes         | 0         | 4 (5) / 2     | 3 (7) / 1      |
+| by lot, declaration plies only           | yes         | 0         | 5 (7) / 2     | 3 (4) / 0      |
+| widest declaration, then enumeration     | yes         | 0         | 3 (4) / 2     | 3 (3) / 1      |
+| **widest declaration, then enumeration** | **no**      | **0**     | **4 (5) / 2** | **2 (2) / 0**  |
 
 - **A lot on every ply** reds two `must` entries at their declared budgets
   (a Fatal Push and a Blood Moon cast, each green again without the lot):
@@ -84,8 +83,14 @@ iterations and 8 at 236, none at the declared budgets.
   beginning-of-combat step once Atraxa is exiled with it" on 3 seeds at 94
   iterations and 5 at 236. The reanimated Atraxa must attack, and with two
   creatures on the battlefield the full attack is never probed. The widest
-  declaration keeps that entry green at both budgets. It is the one
-  difference between the arms that has a mechanism.
+  declaration keeps that entry green at both budgets, with the copies rule
+  and without it. It is the one difference between the arms that has a
+  mechanism.
+- **Copies last** buys nothing the census can read (the last two rows are
+  inside each other's dice) and is the cut's only work that is not free: on
+  the field board below it read level over a search's first 60 iterations
+  and 0.07 of the base's time dearer over the first 20, on a loaded
+  machine. Left out.
 - **Everything else is inside the dice.** The note's `reseed` arm moves 6
   entries and fixes 7 at 94 iterations with nothing changed but the stream.
 
@@ -97,23 +102,23 @@ own epsilon branch is that randomness and is untouched.
 
 ## Consequences
 
-- **Speed.** At `fe32b6d89b` against `d629e2b3d9`, on the MacBook (Apple M1
-  Pro, load average 33–88 from other sessions), 2026-11-22. On the 53
-  searched blade positions of the bench (`compare.mjs`, 200 iterations) an
-  iteration takes 0.949 of the base's CPU time at the median (p10 0.820, p90
-  1.016). On the field board `jh71n516` of the note it takes 0.48–0.49 of
-  every-candidate probing over a search's first 20 iterations and 0.51–0.53
-  over 60, where the note's `topk:3` reads 0.42–0.43 and 0.44–0.52 in the
-  same runs. The difference is the full attack: probing it, and then playing
-  it out, is more combat than three single attackers. A build without the
-  widest declaration read level with `topk:3` (0.44 against 0.45).
+- **Speed.** Against `d629e2b3d9`, on the MacBook (Apple M1 Pro, load average
+  33–88 from other sessions), 2026-11-22. On the 53 searched blade positions
+  of the bench (`compare.mjs`, 200 iterations) an iteration takes 0.931 of
+  the base's CPU time at the median (p10 0.801, p90 1.005). On the field
+  board `jh71n516` of the note it takes 0.44 of every-candidate probing over
+  a search's first 20 iterations and 0.54 over 60, where the note's `topk:3`
+  reads 0.42 and 0.50 in the same runs: what the kept decline and the widest
+  declaration play out differently from the bench's rank, no work of the
+  cut's own.
 - **The rollout's random stream is consumed as before.** Decisions still
   move, because playouts play other moves: the census above lists what
   moved.
 - **The residual blindness.** The rank reads a move's kind, never what it
   does: among distinct candidates of one kind on a priority or a choice ply
   (two activations, eleven graveyard targets) the first two enumerated are
-  probed and the others only by the rollout's random branch. The blade's
+  probed and the others only by the rollout's random branch; two copies of
+  one play count as two. The blade's
   stretch entry "rollout probe cut: holds Emperor of Bones' Adapt in main 1
   with two identical pump activations enumerated before it" reads it on a
   wide board: of 14 seeds, every candidate probed passes 12 and the shipped
@@ -123,8 +128,8 @@ own epsilon branch is that randomness and is untouched.
   no cost per candidate is the open lever; the probe history above is not
   it.
 - **Guarded by** `convex/gre/__tests__/rolloutProbeCut.bot.test.ts`: the
-  repeat rule, the kept decline and the widest declaration, each proven to
-  fail without its mechanism.
+  kept decline and the widest declaration, each proven to fail without its
+  mechanism, and the enumeration order between equal kinds pinned as it is.
 - **The field reading** (`probesPerIteration.p50`, `msPerProbe.p50` in the
   per-game `bot search` report, issue #10321) is issue #10612, after a
   release.

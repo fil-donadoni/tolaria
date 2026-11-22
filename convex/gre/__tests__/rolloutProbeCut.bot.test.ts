@@ -82,14 +82,37 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
         );
         const moves = enumerateMoves(state, "p1");
         expect(moves.length).toBeLessThanOrEqual(ROLLOUT_PROBE_CAP);
-        expect(rolloutProbeCandidates(state, moves)).toEqual(moves);
+        expect(rolloutProbeCandidates(moves)).toEqual(moves);
     });
 
-    // Two identical pump creatures enumerated before the Emperor: by kind
-    // alone the two kept activations are both pumps, and the one play that
-    // does something else on the ply — Adapt — is never probed (the blade's
-    // stretch entry "rollout probe cut: holds Emperor of Bones' Adapt …").
-    it("ranks a repeat of a kept play after every play that does something else", () => {
+    // A priority ply: `pass` is the decline, and the kind rank fills the
+    // other two probes — a land and a spell before any activation.
+    it("keeps pass and the two best kinds of a priority ply", () => {
+        const state = mainPhase(
+            [card(SWAMP, "swamp-hand", "hand"), card(BOLT, "bolt", "hand")],
+            [
+                card(MOUNTAIN, "m1", "battlefield"),
+                ...swamps(2),
+                card(LEECH, "leech-a", "battlefield"),
+                card(EMPEROR, "emperor", "battlefield"),
+            ]
+        );
+        const moves = enumerateMoves(state, "p1");
+        expect(moves.some((m) => m.kind === "activate-ability")).toBe(true);
+        const kept = rolloutProbeCandidates(moves);
+        expect(kept.map((m) => m.kind).sort()).toEqual([
+            "cast-spell",
+            "pass",
+            "play-land",
+        ]);
+    });
+
+    // The cut's known blindness, pinned so a change to it is a decision:
+    // between candidates of one kind on a priority ply it keeps enumeration
+    // order, so two pumps enumerated before Adapt are the two it probes (the
+    // blade's stretch entry "rollout probe cut: holds Emperor of Bones'
+    // Adapt …" reads what that costs on a wide board).
+    it("keeps candidates of one kind in enumeration order on a priority ply", () => {
         const state = mainPhase(
             [],
             [
@@ -108,27 +131,8 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
             "leech-b",
             "emperor",
         ]);
-        const kept = rolloutProbeCandidates(state, moves);
-        expect(kept.map(abilityOf)).toEqual([undefined, "leech-a", "emperor"]);
-    });
-
-    it("keeps the second copy of a land behind a spell, whatever the kind rank says", () => {
-        const state = mainPhase(
-            [
-                card(SWAMP, "swamp-hand-a", "hand"),
-                card(SWAMP, "swamp-hand-b", "hand"),
-                card(BOLT, "bolt", "hand"),
-            ],
-            [card(MOUNTAIN, "m1", "battlefield")]
-        );
-        const moves = enumerateMoves(state, "p1");
-        const kept = rolloutProbeCandidates(state, moves);
-        expect(kept).toHaveLength(ROLLOUT_PROBE_CAP);
-        expect(kept[0]).toEqual({ kind: "pass" });
-        expect(
-            kept.filter((m) => m.kind === "play-land").map((m) => m.kind)
-        ).toEqual(["play-land"]);
-        expect(kept.some((m) => m.kind === "cast-spell")).toBe(true);
+        const kept = rolloutProbeCandidates(moves);
+        expect(kept.map(abilityOf)).toEqual([undefined, "leech-a", "leech-b"]);
     });
 
     // A declaration ply offers no `pass`: the empty declaration is the
@@ -155,7 +159,7 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
         const moves = enumerateMoves(state, "p1");
         expect(moves.length).toBeGreaterThan(ROLLOUT_PROBE_CAP);
         expect(moves.some((m) => m.kind === "pass")).toBe(false);
-        const kept = rolloutProbeCandidates(state, moves);
+        const kept = rolloutProbeCandidates(moves);
         expect(kept).toHaveLength(ROLLOUT_PROBE_CAP);
         expect(kept.filter(isRolloutDecline)).toEqual([
             { kind: "declare-attackers", attackerIds: [] },
@@ -198,7 +202,7 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
         });
         const moves = enumerateMoves(state, "p2");
         expect(moves.length).toBeGreaterThan(ROLLOUT_PROBE_CAP);
-        const kept = rolloutProbeCandidates(state, moves);
+        const kept = rolloutProbeCandidates(moves);
         expect(kept.filter(isRolloutDecline)).toEqual([
             { kind: "declare-blockers", assignments: [] },
         ]);
@@ -220,8 +224,8 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
         );
         const moves = enumerateMoves(state, "p1");
         const before = [...moves];
-        const once = rolloutProbeCandidates(state, moves);
-        const twice = rolloutProbeCandidates(state, moves);
+        const once = rolloutProbeCandidates(moves);
+        const twice = rolloutProbeCandidates(moves);
         expect(twice).toEqual(once);
         expect(moves).toEqual(before);
         const at = once.map((m) => moves.indexOf(m));

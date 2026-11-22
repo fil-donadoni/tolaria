@@ -128,7 +128,7 @@ const ROLLOUT_HOOK_PATCHES = [
     [
         "                rolloutProbeCandidates(\n",
         "                (globalThis.__benchProbeAll\n" +
-            "                    ? (_state, moves) => moves.slice()\n" +
+            "                    ? (moves) => moves.slice()\n" +
             "                    : rolloutProbeCandidates)(\n",
     ],
     [

@@ -1,6 +1,4 @@
-import { collapseInterchangeableMoves } from "./ai/interchangeable";
 import type { Move } from "./moves";
-import type { GameState } from "./state";
 
 /** How many candidates the rollout's greedy pick probes on one ply (ADR 0184,
  *  amending ADR 0021; issue #10473): the ply's decline and the best
@@ -71,21 +69,14 @@ function widestDeclarationAt(moves: readonly Move[]): number {
 }
 
 /** The candidates the rollout's greedy pick probes out of `moves`, the moves
- *  a player may make at `state` (ADR 0184, issue #10473): all of them when
- *  there are `cap` or fewer; otherwise the decline, when the ply has one, and
- *  the best of the rest, `cap` in all.
+ *  of one rollout ply (ADR 0184, issue #10473): all of them when there are
+ *  `cap` or fewer; otherwise the decline, when the ply has one, and the best
+ *  of the rest, `cap` in all.
  *
- *  "Best" is three keys, in order:
+ *  "Best" is two keys, in order:
  *
- *  1. A REPEAT last. A candidate `collapseInterchangeableMoves` folds into
- *     another (issue #3593) — the same play on another copy of the same
- *     card: the second Swamp in hand, the second of two identical pump
- *     creatures, the other Bear attacking alone — does what its
- *     representative does, so its probe tells the pick nothing the
- *     representative's did not. It ranks after every candidate that does
- *     something else, whatever their kinds.
- *  2. `rolloutMoveKindRank`.
- *  3. Between equal kinds, the WIDEST declaration of a declaration ply, then
+ *  1. `rolloutMoveKindRank`.
+ *  2. Between equal kinds, the WIDEST declaration of a declaration ply, then
  *     enumeration order. On a declaration ply every candidate is one kind,
  *     so the kind rank says nothing, and the power set enumerates the
  *     single attackers first and the full attack last: in enumeration order
@@ -94,31 +85,27 @@ function widestDeclarationAt(moves: readonly Move[]): number {
  *     the widest declaration — are what the pick must always be able to
  *     compare.
  *
- *  No draw and no state of its own: the same list at the same state keeps
- *  the same moves. Returned in enumeration order, so the pick's own
- *  tie-break reads the kept moves as it read the whole list. `moves` is not
- *  mutated. */
+ *  It reads the list and nothing else — no state, no draw, no table: the
+ *  cut costs a sort of the ply's candidates, and the rollout's random stream
+ *  is consumed as before it. Ranking a copy of a kept play last
+ *  (`collapseInterchangeableMoves`) and a draw between equal kinds were both
+ *  measured and left out (ADR 0184 § Considered and measured). Returned in
+ *  enumeration order, so the pick's own tie-break reads the kept moves as it
+ *  read the whole list. `moves` is not mutated. */
 export function rolloutProbeCandidates(
-    state: GameState,
     moves: readonly Move[],
     cap: number = ROLLOUT_PROBE_CAP
 ): Move[] {
     if (moves.length <= cap) return moves.slice();
     const declineAt = moves.findIndex(isRolloutDecline);
     const widestAt = widestDeclarationAt(moves);
-    const representatives = new Set(collapseInterchangeableMoves(state, moves));
-    const ranked: { at: number; repeat: boolean; rank: number }[] = [];
+    const ranked: { at: number; rank: number }[] = [];
     for (let i = 0; i < moves.length; i++) {
         if (i === declineAt) continue;
-        ranked.push({
-            at: i,
-            repeat: !representatives.has(moves[i]),
-            rank: rolloutMoveKindRank(moves[i]),
-        });
+        ranked.push({ at: i, rank: rolloutMoveKindRank(moves[i]) });
     }
     ranked.sort(
         (a, b) =>
-            Number(a.repeat) - Number(b.repeat) ||
             b.rank - a.rank ||
             Number(b.at === widestAt) - Number(a.at === widestAt) ||
             a.at - b.at
