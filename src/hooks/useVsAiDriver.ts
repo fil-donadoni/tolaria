@@ -106,6 +106,7 @@ import {
 import { shouldThink, budgetFor, knowsOpponent } from "@convex/gre";
 import type { GameState, Move, Phase } from "@convex/gre";
 import {
+    calibrateBrain,
     consultBrain,
     disposeBrain,
     primeBrain,
@@ -281,7 +282,11 @@ export function useVsAiDriver(
     // download instead of on the search.
     useEffect(() => {
         if (botId) warmBrain();
-        searchReport.current = botId ? acquireBotSearchReport(gameId) : null;
+        // The report also takes the game's calibration readings (issue
+        // #10451) from the Brain's Worker, on its own schedule.
+        searchReport.current = botId
+            ? acquireBotSearchReport(gameId, calibrateBrain)
+            : null;
         // Tear the Brain down when the bot seat goes away (issue #3040). It
         // frees a thread that had no owner otherwise — `disposeBrain` had no
         // caller in the app at all — and, more to the point, it resets the

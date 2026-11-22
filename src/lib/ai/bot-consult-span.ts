@@ -46,6 +46,7 @@ export const CONSULT_SPAN_KEYS = [
     "turn",
     "phase",
     "permanents",
+    "calibration",
     "device.engine",
     "device.os",
     "device.cores",
@@ -62,6 +63,11 @@ export type ConsultSpanAttributes = Partial<
 export type TimedConsult = ConsultSample & {
     /** 1 for the game's first consult on this page. */
     ordinal: number;
+    /** The game's latest calibration reading when the consult ended (issue
+     *  #10451), in milliseconds per iteration: what the machine made of the
+     *  fixed calibration search, whatever this consult's board. Absent until
+     *  the game has one. */
+    calibration?: number;
 };
 
 /** Where a span goes. An object, so a test observes the routing by spying on
@@ -142,6 +148,10 @@ export function consultSpanAttributes(
     };
     if (finite(consult.consultMs)) raw.consultMs = round(consult.consultMs);
     if (finite(consult.idleMs)) raw.idleMs = round(consult.idleMs);
+
+    if (finite(consult.calibration)) {
+        raw.calibration = round(consult.calibration, 2);
+    }
 
     const board = consult.board;
     if (board) {

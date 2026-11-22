@@ -27,6 +27,7 @@
 import type { DefinitionManifestEntry } from "@convex/definitionManifestEntry";
 import { publicStateDefinitionIds } from "~/lib/publicStateDefinitionIds";
 import type { BrainRequest } from "./brain-request";
+import type { BrainCalibrate } from "./brain-calibration";
 
 /** The worker's Manifest, posted by `primeBrain` (`./brain-client`) ahead of
  *  the consults that need it. */
@@ -36,7 +37,7 @@ export type BrainPrime = {
 };
 
 /** Everything the page posts to the Brain worker. */
-export type BrainWorkerMessage = BrainRequest | BrainPrime;
+export type BrainWorkerMessage = BrainRequest | BrainPrime | BrainCalibrate;
 
 export function isBrainPrime(
     message: BrainWorkerMessage

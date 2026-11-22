@@ -31,6 +31,7 @@ function consult(overrides: Partial<TimedConsult> = {}): TimedConsult {
         difficulty: "expert",
         postedAt: 90_000,
         idleMs: 21_999.6,
+        calibration: 2.1849,
         board: { turn: 9, phase: "DECLARE_ATTACKERS", permanents: 21 },
         search: {
             iterationsRequested: 1320,
@@ -69,6 +70,7 @@ describe("consultSpanAttributes", () => {
             turn: 9,
             phase: "DECLARE_ATTACKERS",
             permanents: 21,
+            calibration: 2.18,
             "device.engine": "gecko",
             "device.os": "macos",
             "device.cores": "5-8",
@@ -153,6 +155,7 @@ describe("consultSpanAttributes", () => {
         expect(failed.consultMs).toBe(5300);
         for (const key of [
             "idleMs",
+            "calibration",
             "searchMs",
             "iterations.completed",
             "msPerIteration",

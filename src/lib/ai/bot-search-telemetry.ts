@@ -39,6 +39,18 @@
 // asking per key; the boundary above is unchanged. Each consult also records
 // a span of its own (`./bot-consult-span`), under the same boundary.
 //
+// WHAT THE MACHINE WAS WORTH. Every reading above moves with
+// the board the game reached. The calibration reading does not: the Worker
+// times the same fixed search on the same fixed board
+// (`convex/gre/ai/calibration.ts`) after each of the game's first
+// `CALIBRATION_WARMUP_READINGS` consults and then at most once every
+// `CALIBRATION_INTERVAL_MS`. The report carries the first, the latest, the
+// best and how many there were (`calibration.first`, `.last`, `.min`,
+// `.count`, milliseconds per iteration). The first readings run colder — the
+// browser has not compiled the calibration's own paths yet — so `.min` is
+// the machine at its best, and `.first` compares games at the same point. A
+// duration like the rest; it reads nothing of the game.
+//
 // The report is flushed out of the SDK's log buffer the moment it is logged:
 // a phone backgrounding the page gives no second chance.
 //
@@ -155,6 +167,10 @@ export const REPORT_KEYS = [
     "probesPerIteration.p50",
     "msPerProbe.p50",
     "idleMs.p50",
+    "calibration.first",
+    "calibration.last",
+    "calibration.min",
+    "calibration.count",
     "device.engine",
     "device.os",
     "device.cores",
@@ -345,7 +361,8 @@ function usableSearch(search: SearchStats | undefined): SearchStats | null {
 export function summarizeBotSearch(
     gameId: string,
     samples: readonly ConsultSample[],
-    device: DeviceClass
+    device: DeviceClass,
+    calibration: readonly number[] = []
 ): BotSearchReport {
     const difficulties = new Set(samples.map((s) => s.difficulty));
     const raw: Record<string, string | number | boolean> = {
@@ -371,6 +388,20 @@ export function summarizeBotSearch(
         raw["consultMs.p50"] = round(percentile(consultMs, 50)!);
         raw["consultMs.p90"] = round(percentile(consultMs, 90)!);
         raw["consultMs.max"] = round(maxOf(consultMs));
+    }
+
+    // What the machine was worth, whatever the board (issue #10451): the
+    // game's first calibration reading, its latest and its best. The first
+    // ones run colder, so the best is the machine's own speed.
+    const readings = calibration.filter(finite);
+    if (readings.length > 0) {
+        raw["calibration.first"] = round(readings[0]!, 2);
+        raw["calibration.last"] = round(readings[readings.length - 1]!, 2);
+        raw["calibration.min"] = round(
+            readings.reduce((min, r) => (r < min ? r : min)),
+            2
+        );
+        raw["calibration.count"] = readings.length;
     }
 
     // What the Worker had to spare between two consults (issue #10321).
@@ -480,16 +511,100 @@ export function consultClock(): ConsultClock {
     };
 }
 
-/** Time one consult and record its span (`./bot-consult-span`). Never throws;
- *  a consult the clock could not time is returned as it came. */
+/** Asks the Brain's Worker for one calibration reading (`calibrateBrain`,
+ *  `./brain-client`): milliseconds per iteration, or `null` for no reading. */
+export type Calibrator = () => Promise<number | null>;
+
+/** The least time between two calibration readings of one game, once it has
+ *  its first `CALIBRATION_WARMUP_READINGS`. A reading costs the Worker a few
+ *  tens of milliseconds; one every half minute is under a thousandth of its
+ *  time, and still dates a slow stretch of a game. */
+export const CALIBRATION_INTERVAL_MS = 30_000;
+
+/** How many readings a game takes back to back, one after each of its first
+ *  consults, before the interval applies. A browser compiles the
+ *  calibration's own code paths over its first runs: three consecutive
+ *  readings in a fresh process read 10.2, 4.2 and 1.7 ms per iteration
+ *  (2026-11-22). Three early readings reach the steady speed inside the
+ *  game's first turns, so even a short game has one. */
+export const CALIBRATION_WARMUP_READINGS = 3;
+
+/** One game's calibration readings on this page (issue #10451). */
+export type CalibrationLog = {
+    /** The readings so far, oldest first, in milliseconds per iteration. */
+    readings: () => readonly number[];
+    /** A consult just ended, at `now` (`telemetryNow()`): ask for a reading
+     *  if one is due. Never throws, and never waits. */
+    after: (sample: ConsultSample, now: number) => void;
+};
+
+/** A game's calibration log. A reading is due after a consult the WORKER
+ *  answered — never after the in-thread fallback, and never behind a Worker
+ *  that timed out or failed, where it would queue behind the search that is
+ *  stuck — while the game has asked for fewer than
+ *  `CALIBRATION_WARMUP_READINGS`, or once the last one was asked for
+ *  `CALIBRATION_INTERVAL_MS` ago; never while one is in flight. With no
+ *  `calibrate` the log stays empty. */
+export function calibrationLog(calibrate?: Calibrator): CalibrationLog {
+    const readings: number[] = [];
+    let askedAt: number | undefined;
+    let asked = 0;
+    let asking = false;
+    return {
+        readings: () => readings,
+        after(sample, now) {
+            if (!calibrate || asking) return;
+            if (sample.via !== "worker") return;
+            if (sample.outcome !== "move" && sample.outcome !== "no-move") {
+                return;
+            }
+            if (
+                asked >= CALIBRATION_WARMUP_READINGS &&
+                askedAt !== undefined &&
+                now - askedAt < CALIBRATION_INTERVAL_MS
+            ) {
+                return;
+            }
+            asking = true;
+            asked += 1;
+            askedAt = now;
+            const settle = () => {
+                asking = false;
+            };
+            try {
+                void Promise.resolve(calibrate())
+                    .then((reading) => {
+                        if (finite(reading) && reading > 0) {
+                            readings.push(reading);
+                        }
+                    })
+                    .catch(() => {})
+                    .then(settle);
+            } catch {
+                // Monitoring never costs the game anything.
+                settle();
+            }
+        },
+    };
+}
+
+/** Time one consult and record its span (`./bot-consult-span`), with the
+ *  game's latest calibration reading beside it. Never throws; a consult the
+ *  clock could not time is returned as it came. */
 function timeAndTrace(
     gameId: string,
     clock: ConsultClock,
-    sample: ConsultSample
+    sample: ConsultSample,
+    calibration: readonly number[] = []
 ): ConsultSample {
     try {
         const timed = clock(sample);
-        emitConsultSpan(gameId, timed, deviceClass());
+        const latest = calibration[calibration.length - 1];
+        emitConsultSpan(
+            gameId,
+            finite(latest) ? { ...timed, calibration: latest } : timed,
+            deviceClass()
+        );
         return timed;
     } catch {
         // Monitoring never costs the game anything.
@@ -512,14 +627,21 @@ export type BotSearchRecorder = {
 export function openBotSearchReport(
     gameId: string,
     onEmit?: () => void,
-    clock: ConsultClock = consultClock()
+    clock: ConsultClock = consultClock(),
+    calibration: CalibrationLog = calibrationLog()
 ): BotSearchRecorder {
     const samples: ConsultSample[] = [];
     let emitted = false;
     return {
         record(sample) {
-            const timed = timeAndTrace(gameId, clock, sample);
+            const timed = timeAndTrace(
+                gameId,
+                clock,
+                sample,
+                calibration.readings()
+            );
             if (!emitted) samples.push(timed);
+            calibration.after(sample, telemetryNow());
         },
         flush() {
             if (emitted || samples.length === 0) return;
@@ -527,7 +649,12 @@ export function openBotSearchReport(
             onEmit?.();
             try {
                 botSearchSink.log(
-                    summarizeBotSearch(gameId, samples, deviceClass())
+                    summarizeBotSearch(
+                        gameId,
+                        samples,
+                        deviceClass(),
+                        calibration.readings()
+                    )
                 );
             } catch {
                 // Monitoring never costs the game anything.
@@ -563,28 +690,38 @@ type OpenReport = {
 let current: OpenReport | null = null;
 /** Games whose report has gone out from this page: a game is reported once. */
 const reported = new Set<string>();
-/** Each game's consult clock on this page. It outlives the game's report: a
- *  consult that lands after the report went out still records its span, and
- *  its place in the game continues where the report left off. */
-const clocks = new Map<string, ConsultClock>();
+/** What times one game on this page: its consult clock and its calibration
+ *  log. */
+type GameTiming = { clock: ConsultClock; calibration: CalibrationLog };
+
+/** Each game's timing on this page. It outlives the game's report: a consult
+ *  that lands after the report went out still records its span, and its
+ *  place in the game continues where the report left off. */
+const timings = new Map<string, GameTiming>();
 let listeningForPageHide = false;
 
-function clockOf(gameId: string): ConsultClock {
-    let clock = clocks.get(gameId);
-    if (!clock) {
-        clock = consultClock();
-        clocks.set(gameId, clock);
+function timingOf(gameId: string, calibrate?: Calibrator): GameTiming {
+    let timing = timings.get(gameId);
+    if (!timing) {
+        timing = {
+            clock: consultClock(),
+            calibration: calibrationLog(calibrate),
+        };
+        timings.set(gameId, timing);
     }
-    return clock;
+    return timing;
 }
 
 /** The recorder of a game already reported: it adds nothing to a report, and
  *  each consult still records its span. */
-function reportedRecorder(gameId: string): BotSearchRecorder {
-    const clock = clockOf(gameId);
+function reportedRecorder(
+    gameId: string,
+    { clock, calibration }: GameTiming
+): BotSearchRecorder {
     return {
         record(sample) {
-            timeAndTrace(gameId, clock, sample);
+            timeAndTrace(gameId, clock, sample, calibration.readings());
+            calibration.after(sample, telemetryNow());
         },
         flush() {},
     };
@@ -626,18 +763,23 @@ function listenForPageHide(): void {
  *  gets the report already open — a remount continues it; a different game
  *  flushes the open one (its game was left) and starts from zero; a game
  *  already reported gets a recorder that records nothing. */
-export function acquireBotSearchReport(gameId: string): BotSearchRecorder {
+export function acquireBotSearchReport(
+    gameId: string,
+    calibrate?: Calibrator
+): BotSearchRecorder {
     if (current?.gameId === gameId) {
         cancelLeave(current);
         return current.recorder;
     }
     closeCurrent();
+    const timing = timingOf(gameId, calibrate);
     const recorder = reported.has(gameId)
-        ? reportedRecorder(gameId)
+        ? reportedRecorder(gameId, timing)
         : openBotSearchReport(
               gameId,
               () => reported.add(gameId),
-              clockOf(gameId)
+              timing.clock,
+              timing.calibration
           );
     current = { gameId, recorder, leave: null };
     listenForPageHide();
@@ -661,5 +803,5 @@ export function clearBotSearchReports(): void {
     if (current) cancelLeave(current);
     current = null;
     reported.clear();
-    clocks.clear();
+    timings.clear();
 }

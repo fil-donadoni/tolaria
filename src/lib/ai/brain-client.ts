@@ -41,6 +41,11 @@ import type {
     BrainResponse,
 } from "./brain-request";
 import { recordAiDecision } from "./trace-store";
+import {
+    isBrainCalibration,
+    type BrainCalibrate,
+    type BrainCalibration,
+} from "./brain-calibration";
 import type { DefinitionManifestEntry } from "@convex/definitionManifestEntry";
 import type { BrainPrime } from "./brain-residency";
 // The worker's URL: a chunk of the page's own build, so its engine chunks,
@@ -132,6 +137,12 @@ export const BRAIN_FALLBACK_BUDGET: SearchBudget = {
     timeMs: 400,
 };
 
+/** How long a calibration may go unanswered before it settles with no
+ *  reading (issue #10451). A calibration waits in the Worker behind a search
+ *  in flight, so the bound is a search's own ceiling: the consult timeout. A
+ *  reading that late would describe a moment long past anyway. */
+export const BRAIN_CALIBRATION_TIMEOUT_MS = BRAIN_CONSULT_TIMEOUT_MS;
+
 /** Named in the failure text of a script-load failure, which carries no
  *  filename of its own. */
 const BRAIN_WORKER_SCRIPT = "brain.worker.ts";
@@ -162,6 +173,7 @@ type BrainChannel = {
         deckKnowledge?: DeckKnowledgeBySeat,
         repetition?: RepetitionHistory
     ) => Promise<BrainResult>;
+    calibrate: () => Promise<number | null>;
     dispose: () => void;
 };
 
@@ -170,6 +182,9 @@ function createBrainChannel(): BrainChannel {
     let worker: Worker | null = null;
     let nextId = 1;
     const pending = new Map<number, InFlight>();
+    /** Calibrations in flight (issue #10451), by request id: each settles
+     *  with its reading, or with `null`. */
+    const calibrations = new Map<number, (reading: number | null) => void>();
     /** Worker failures since the last successful reply — see
      *  {@link MAX_BRAIN_WORKER_FAILURES}. */
     let failures = 0;
@@ -192,10 +207,23 @@ function createBrainChannel(): BrainChannel {
         const spawned = new Worker(brainWorkerUrl, { type: "module" });
         worker = spawned;
         if (primed.size > 0) postPrime(spawned, [...primed.values()]);
-        spawned.onmessage = (e: MessageEvent<BrainResponse>) => {
+        spawned.onmessage = (
+            e: MessageEvent<BrainResponse | BrainCalibration>
+        ) => {
             // A reply — even one carrying a search `error` — proves the script
             // loaded and this Worker answers, so the failure count starts over.
             failures = 0;
+            if (isBrainCalibration(e.data)) {
+                const settle = calibrations.get(e.data.id);
+                calibrations.delete(e.data.id);
+                const reading = e.data.msPerIteration;
+                settle?.(
+                    typeof reading === "number" && Number.isFinite(reading)
+                        ? reading
+                        : null
+                );
+                return;
+            }
             const entry = pending.get(e.data.id);
             if (entry) {
                 pending.delete(e.data.id);
@@ -243,6 +271,8 @@ function createBrainChannel(): BrainChannel {
 
         const inFlight = [...pending.values()];
         pending.clear();
+        // A calibration the dead Worker held has no reading.
+        dropCalibrations();
 
         // Who reports the failure? An in-flight consult settling as `worker-error`
         // already carries it to the driver's breadcrumb ring. The two cases where
@@ -351,6 +381,45 @@ function createBrainChannel(): BrainChannel {
         });
     }
 
+    /** Settle every calibration in flight with no reading. */
+    function dropCalibrations(): void {
+        const waiting = [...calibrations.values()];
+        calibrations.clear();
+        for (const settle of waiting) settle(null);
+    }
+
+    /** Ask the Worker to time the calibration search (issue #10451); its
+     *  reading in milliseconds per iteration, or `null`.
+     *
+     *  Only a Worker that is already running is asked: a calibration never
+     *  spawns one, and there is no in-thread calibration — on this thread it
+     *  would time the UI, not the Brain, and drop a frame doing it. Always
+     *  settles: a Worker that never answers, dies or is disposed is no
+     *  reading. Never throws. */
+    function calibrate(): Promise<number | null> {
+        const w = worker;
+        if (!w || exhausted) return Promise.resolve(null);
+        const id = nextId++;
+        return new Promise<number | null>((resolve) => {
+            const timer = setTimeout(() => {
+                if (calibrations.delete(id)) resolve(null);
+            }, BRAIN_CALIBRATION_TIMEOUT_MS);
+            calibrations.set(id, (reading) => {
+                clearTimeout(timer);
+                resolve(reading);
+            });
+            try {
+                const request: BrainCalibrate = { kind: "calibrate", id };
+                w.postMessage(request);
+            } catch {
+                if (calibrations.delete(id)) {
+                    clearTimeout(timer);
+                    resolve(null);
+                }
+            }
+        });
+    }
+
     function dispose(): void {
         if (worker) {
             worker.onerror = null;
@@ -368,6 +437,7 @@ function createBrainChannel(): BrainChannel {
         // guard and a stray mutation aimed at the game the player just left.
         const inFlight = [...pending.values()];
         pending.clear();
+        dropCalibrations();
         for (const entry of inFlight) {
             entry.resolve({
                 move: null,
@@ -383,7 +453,13 @@ function createBrainChannel(): BrainChannel {
         primed.clear();
     }
 
-    return { warm: () => void getWorker(), prime, consult, dispose };
+    return {
+        warm: () => void getWorker(),
+        prime,
+        consult,
+        calibrate,
+        dispose,
+    };
 }
 
 /** Write a Worker failure into the decision ring a bug report carries.
@@ -555,6 +631,16 @@ export function consultBrain(
     repetition?: RepetitionHistory
 ): Promise<BrainResult> {
     return botBrain.consult(state, botId, budget, deckKnowledge, repetition);
+}
+
+/** Time the calibration search in the Bot's Worker (issue #10451): the same
+ *  fixed search on the same fixed board, whatever the game's own board is —
+ *  what the machine is worth right now, in milliseconds per iteration.
+ *  `null` when there is no running Worker to ask or it gave no reading. It
+ *  queues behind a consult in flight and ahead of one posted after it, which
+ *  then waits at most `CALIBRATION_CAP_MS`. Never rejects. */
+export function calibrateBrain(): Promise<number | null> {
+    return botBrain.calibrate();
 }
 
 /** Tear the Brain down (e.g. on leaving a game). Tests may call this too.

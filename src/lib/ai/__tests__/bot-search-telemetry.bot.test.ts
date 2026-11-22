@@ -11,8 +11,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     REPORT_KEYS,
     acquireBotSearchReport,
+    CALIBRATION_INTERVAL_MS,
+    CALIBRATION_WARMUP_READINGS,
     boardFacts,
     botSearchSink,
+    calibrationLog,
     clearBotSearchReports,
     consultClock,
     coresBucket,
@@ -441,7 +444,7 @@ describe("summarizeBotSearch", () => {
                 searched({ outcome, stoppedBy, via: "inline", idleMs: 4000 })
             )
         );
-        const report = summarizeBotSearch("game1", samples, DEVICE);
+        const report = summarizeBotSearch("game1", samples, DEVICE, [2.1, 3.4]);
         const allowed = new Set<string>(REPORT_KEYS);
         expect(Object.keys(report).filter((k) => !allowed.has(k))).toEqual([]);
         // Every key the allowlist names is reachable: none is dead weight.
@@ -569,6 +572,159 @@ describe("what a slow game was (issue #10321)", () => {
         expect(
             boardFacts({ turn: 1, phase: "UPKEEP", players: [null as never] })
         ).toBeUndefined();
+    });
+});
+
+describe("the calibration readings (issue #10451)", () => {
+    /** Let the promises a calibration settles through run. */
+    const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    it("reports the game's first reading, its latest, its best and their count, and none of them with none", () => {
+        const report = summarizeBotSearch(
+            "game1",
+            [searched()],
+            DEVICE,
+            [9.9049, 1.7349, 3.4151]
+        );
+        expect(report["calibration.first"]).toBe(9.9);
+        expect(report["calibration.last"]).toBe(3.42);
+        expect(report["calibration.min"]).toBe(1.73);
+        expect(report["calibration.count"]).toBe(3);
+
+        const none = summarizeBotSearch("game1", [searched()], DEVICE, []);
+        expect(none).not.toHaveProperty("calibration.first");
+        expect(none).not.toHaveProperty("calibration.last");
+        expect(none).not.toHaveProperty("calibration.min");
+        expect(none).not.toHaveProperty("calibration.count");
+        const noNumber = summarizeBotSearch("game1", [searched()], DEVICE, [
+            Number.NaN,
+        ]);
+        expect(noNumber).not.toHaveProperty("calibration.first");
+    });
+
+    it("asks after each of the game's first consults, then only once the interval has passed", async () => {
+        const calibrate = vi.fn(() => Promise.resolve(2.5));
+        const log = calibrationLog(calibrate);
+
+        // The warm-up: one reading after each of the first consults, however
+        // close together they come.
+        for (let i = 0; i < CALIBRATION_WARMUP_READINGS; i++) {
+            log.after(searched(), 1_000 + i);
+            await settled();
+        }
+        expect(calibrate).toHaveBeenCalledTimes(CALIBRATION_WARMUP_READINGS);
+        expect(log.readings()).toHaveLength(CALIBRATION_WARMUP_READINGS);
+        const lastAsked = 1_000 + CALIBRATION_WARMUP_READINGS - 1;
+
+        // Then too soon: a consult a second later asks for nothing.
+        log.after(searched(), lastAsked + 1_000);
+        log.after(searched(), lastAsked + CALIBRATION_INTERVAL_MS - 1);
+        expect(calibrate).toHaveBeenCalledTimes(CALIBRATION_WARMUP_READINGS);
+
+        calibrate.mockReturnValue(Promise.resolve(7.5));
+        log.after(searched(), lastAsked + CALIBRATION_INTERVAL_MS);
+        expect(calibrate).toHaveBeenCalledTimes(
+            CALIBRATION_WARMUP_READINGS + 1
+        );
+        await settled();
+        expect(log.readings().at(-1)).toBe(7.5);
+    });
+
+    it("never asks after the in-thread fallback, nor behind a Worker that gave no answer", () => {
+        const calibrate = vi.fn(() => Promise.resolve(2.5));
+        const log = calibrationLog(calibrate);
+        log.after(searched({ via: "inline" }), 1_000);
+        for (const outcome of [
+            "timeout",
+            "worker-error",
+            "search-error",
+        ] as const) {
+            log.after({ ...searched(), outcome }, 1_000);
+        }
+        expect(calibrate).not.toHaveBeenCalled();
+        // The first consult the Worker does answer gets the game's first.
+        log.after(searched({ outcome: "no-move" }), 1_000);
+        expect(calibrate).toHaveBeenCalledTimes(1);
+    });
+
+    it("asks for one reading at a time", async () => {
+        let release!: (reading: number | null) => void;
+        const calibrate = vi.fn(
+            () =>
+                new Promise<number | null>((resolve) => {
+                    release = resolve;
+                })
+        );
+        const log = calibrationLog(calibrate);
+        log.after(searched(), 0);
+        // Long past the interval, and the first is still in flight.
+        log.after(searched(), 10 * CALIBRATION_INTERVAL_MS);
+        expect(calibrate).toHaveBeenCalledTimes(1);
+        release(4);
+        await settled();
+        log.after(searched(), 20 * CALIBRATION_INTERVAL_MS);
+        expect(calibrate).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps no reading that is not a positive number", async () => {
+        for (const reading of [null, 0, -1, Number.NaN]) {
+            const log = calibrationLog(() => Promise.resolve(reading));
+            log.after(searched(), 0);
+            await settled();
+            expect(log.readings()).toEqual([]);
+        }
+    });
+
+    it("swallows a calibration that throws or rejects, and asks again later", async () => {
+        const calibrate = vi
+            .fn<() => Promise<number | null>>()
+            .mockImplementationOnce(() => {
+                throw new Error("no Worker");
+            })
+            .mockImplementationOnce(() => Promise.reject(new Error("died")))
+            .mockImplementation(() => Promise.resolve(3));
+        const log = calibrationLog(calibrate);
+        expect(() => log.after(searched(), 0)).not.toThrow();
+        expect(() =>
+            log.after(searched(), CALIBRATION_INTERVAL_MS)
+        ).not.toThrow();
+        await settled();
+        log.after(searched(), 2 * CALIBRATION_INTERVAL_MS);
+        await settled();
+        expect(calibrate).toHaveBeenCalledTimes(3);
+        expect(log.readings()).toEqual([3]);
+    });
+
+    it("stays empty and asks nobody when there is no Worker to ask", () => {
+        const log = calibrationLog();
+        expect(() => log.after(searched(), 0)).not.toThrow();
+        expect(log.readings()).toEqual([]);
+    });
+
+    it("puts the game's readings on its report and the latest on each later span", async () => {
+        const log = vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
+        const span = vi
+            .spyOn(botConsultSpanSink, "record")
+            .mockImplementation(() => {});
+        const report = openBotSearchReport(
+            "game1",
+            undefined,
+            undefined,
+            calibrationLog(() => Promise.resolve(2.5))
+        );
+        report.record(searched());
+        await settled();
+        report.record(searched());
+        report.flush();
+
+        expect(span.mock.calls[0]![0]).not.toHaveProperty("calibration");
+        expect(span.mock.calls[1]![0]).toMatchObject({ calibration: 2.5 });
+        expect(log.mock.calls[0]![0]).toMatchObject({
+            "calibration.first": 2.5,
+            "calibration.last": 2.5,
+            "calibration.min": 2.5,
+            "calibration.count": 1,
+        });
     });
 });
 
