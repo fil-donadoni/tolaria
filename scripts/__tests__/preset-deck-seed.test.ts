@@ -485,7 +485,7 @@ describe("seed:preset over the Modern lists (issue #8453)", () => {
         expect(rows[1].refusal).toBeUndefined();
     });
 
-    it("reads both canonical files without a slug collision", () => {
+    it("reads every canonical file without a slug collision (issue #10515)", () => {
         const all = sourcedDecks(
             PRESET_SOURCES.map((source) => ({
                 source,
@@ -494,9 +494,11 @@ describe("seed:preset over the Modern lists (issue #8453)", () => {
             LOCK,
             POOL
         );
-        expect(all.filter((d) => d.source.format === "modern")).toHaveLength(
-            10
-        );
+        // Ten modern-metagame archetypes + the owner's ten further lists of
+        // data/modern-preset-decks.json, none refused for a shared slug.
+        const modern = all.filter((d) => d.source.format === "modern");
+        expect(modern).toHaveLength(20);
+        expect(modern.filter((d) => d.refusal !== undefined)).toEqual([]);
     });
 });
 
