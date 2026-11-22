@@ -14,6 +14,10 @@ import {
     sendableTransaction,
     tracesSamplerFor,
 } from "~/lib/diagnostics/tracing";
+import {
+    SENTRY_DSN,
+    SENTRY_TUNNEL_PATH,
+} from "~/lib/diagnostics/sentry-tunnel";
 
 // Client diagnostics (issue #3256), installed as early as a module can run.
 // All three are bounded, client-only rings that reach a maintainer ONLY when a
@@ -28,7 +32,12 @@ installNetworkRing(import.meta.env.VITE_CONVEX_URL);
 void sampleStorageFacts();
 
 Sentry.init({
-    dsn: "https://82a4e88a462f5637f13141dc3b7a37d9@o4505113193218048.ingest.us.sentry.io/4511609765691393",
+    dsn: SENTRY_DSN,
+    // First-party route (issue #10414): content blockers drop every request
+    // to `*.ingest.sentry.io`, so envelopes go to this same-origin path and
+    // the host forwards them — a `vercel.json` rewrite in production, the
+    // Vite proxy in dev (`~/lib/diagnostics/sentry-tunnel`).
+    tunnel: SENTRY_TUNNEL_PATH,
     dataCollection: {
         // To disable sending user data and HTTP bodies, uncomment the lines below. For more info visit:
         // https://docs.sentry.io/platforms/javascript/guides/react/configuration/options/#dataCollection
