@@ -11,7 +11,7 @@ import { installConsoleRing } from "~/lib/diagnostics/console-ring";
 import { installNetworkRing } from "~/lib/diagnostics/network-ring";
 import { sampleStorageFacts } from "~/lib/diagnostics/environment";
 import {
-    dropAutomatedTransaction,
+    sendableTransaction,
     tracesSamplerFor,
 } from "~/lib/diagnostics/tracing";
 
@@ -47,9 +47,11 @@ Sentry.init({
     integrations: [Sentry.tanstackRouterBrowserTracingIntegration(router)],
     // Which traces are kept (issue #10321): every Brain consult's span and
     // the game route in full, every other route at a fifth, and nothing from
-    // a browser driven by automation — `~/lib/diagnostics/tracing`.
+    // a browser driven by automation; a consult's transaction is stripped of
+    // the page URL, the user-agent header and the breadcrumbs the SDK adds
+    // to every transaction — `~/lib/diagnostics/tracing`.
     tracesSampler: tracesSamplerFor(import.meta.env.PROD),
-    beforeSendTransaction: (event) => dropAutomatedTransaction(event),
+    beforeSendTransaction: (event) => sendableTransaction(event),
 });
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);

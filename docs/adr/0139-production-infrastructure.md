@@ -141,7 +141,14 @@ spans a month, 0.1% of the 5M cap; at 100 vs-Bot games a day about 225,000,
   `bot search` log and one `bot.consult` span per Brain consult: counters,
   durations, the turn and step, a count of permanents and a coarse device
   class — no player, no card, no board content (`src/lib/ai/bot-search-telemetry.ts`,
-  `src/lib/ai/bot-consult-span.ts`). Disclosed in the bug-report consent screen.
+  `src/lib/ai/bot-consult-span.ts`). A page-load or navigation transaction
+  carries what the SDK adds to every transaction: the page's address with
+  its query string, the browser's user-agent header, the session's
+  breadcrumbs (console lines, navigations, clicks, requests), the locale and
+  the time zone. A `bot.consult` transaction is stripped of all of that
+  before it is sent (`scrubBotConsultTransaction`) and leaves with its trace
+  context alone; Sentry's ingest still sees the connection it arrives on.
+  Disclosed in the bug-report consent screen.
 - **In-app bug report** (`convex/bugReports.ts` `submitBugReport`):
   authenticated users only; files a GitHub issue on the public repository;
   diagnostics (route, user agent, game id, client console/network rings) are

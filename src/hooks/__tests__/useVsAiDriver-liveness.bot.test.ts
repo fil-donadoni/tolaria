@@ -229,7 +229,15 @@ let brainResult: {
  *  apart from the latest one. */
 let deferConsult = false;
 let releaseConsult: ((result: unknown) => void) | undefined;
+/** What the Brain's Worker makes of the calibration search (issue #10451), in
+ *  milliseconds per iteration; `null` is "no reading". */
+let calibrationReading: number | null = null;
+let calibrationsAsked = 0;
 vi.mock("~/lib/ai/brain-client", () => ({
+    calibrateBrain: () => {
+        calibrationsAsked += 1;
+        return Promise.resolve(calibrationReading);
+    },
     consultBrain: () =>
         deferConsult
             ? new Promise((resolve) => {
@@ -1436,6 +1444,47 @@ describe("the game's Bot search report (issue #9526)", () => {
         // Leaving the game-over screen does not report the game again.
         unmount();
         expect(log).toHaveBeenCalledTimes(1);
+    });
+
+    // Issue #10451 — the report carries what the machine made of the fixed
+    // calibration search, asked of the Brain's Worker after a consult it
+    // answered.
+    it("asks the Worker for a calibration reading after its first answer, and reports it", async () => {
+        calibrationReading = 2.345;
+        calibrationsAsked = 0;
+        const span = vi
+            .spyOn(botConsultSpanSink, "record")
+            .mockImplementation(() => {});
+        try {
+            const board = searchWindow(1);
+            answered();
+            const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
+            await advance(500);
+            expect(calibrationsAsked).toBe(1);
+
+            // The next consult: its span carries the first reading, and the
+            // game, still warming up, asks for its second.
+            searchWindow(2);
+            answered();
+            rerender();
+            await advance(500);
+            expect(calibrationsAsked).toBe(2);
+            expect(span.mock.calls[0]![0]).not.toHaveProperty("calibration");
+            expect(span.mock.calls[1]![0]).toMatchObject({ calibration: 2.35 });
+
+            endGame(board, 3);
+            rerender();
+            await advance(50);
+            expect(log.mock.calls[0]![0]).toMatchObject({
+                "calibration.first": 2.35,
+                "calibration.last": 2.35,
+                "calibration.min": 2.35,
+                "calibration.count": 2,
+            });
+        } finally {
+            span.mockRestore();
+            calibrationReading = null;
+        }
     });
 
     // Issue #10321 — each consult also records ONE span of its own, with what

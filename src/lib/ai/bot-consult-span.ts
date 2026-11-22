@@ -20,6 +20,10 @@
 // No player, no card, no hand, no board content, no free text.
 // `CONSULT_SPAN_KEYS` is the allowlist, enforced at runtime and pinned by a
 // test; a string attribute outside its own closed vocabulary is left out.
+// The SDK dresses every transaction with the page's URL, the user-agent
+// header, the session's breadcrumbs and the locale: for this one they are
+// taken off before it is sent (`scrubBotConsultTransaction`,
+// `~/lib/diagnostics/tracing`).
 //
 // Monitoring is best-effort: `emitConsultSpan` never throws.
 
@@ -46,6 +50,7 @@ export const CONSULT_SPAN_KEYS = [
     "turn",
     "phase",
     "permanents",
+    "calibration",
     "device.engine",
     "device.os",
     "device.cores",
@@ -62,6 +67,11 @@ export type ConsultSpanAttributes = Partial<
 export type TimedConsult = ConsultSample & {
     /** 1 for the game's first consult on this page. */
     ordinal: number;
+    /** The game's latest calibration reading when the consult ended (issue
+     *  #10451), in milliseconds per iteration: what the machine made of the
+     *  fixed calibration search, whatever this consult's board. Absent until
+     *  the game has one. */
+    calibration?: number;
 };
 
 /** Where a span goes. An object, so a test observes the routing by spying on
@@ -93,10 +103,14 @@ const round = (value: number, digits = 0): number => {
     return Math.round(value * scale) / scale;
 };
 
-/** The closed vocabularies of the span's string attributes. A value outside
- *  its own — a union member added later, a malformed trace — is left out
- *  rather than sent as text nobody reviewed. */
+/** The closed vocabularies of the span's string attributes: every key that
+ *  may hold a string has one. A value outside its own — a union member added
+ *  later, a malformed trace, an id that is not an id — is left out rather
+ *  than sent as text nobody reviewed, and a string under a key with no
+ *  vocabulary is never sent. */
 const VOCABULARY: Partial<Record<ConsultSpanKey, RegExp>> = {
+    // A Convex document id: lower-case letters and digits.
+    gameId: /^[a-z0-9]{1,64}$/,
     // A difficulty preset's name (`convex/gre/difficulty.ts`).
     difficulty: /^[a-z]{1,16}$/,
     outcome: /^(move|no-move|search-error|worker-error|timeout)$/,
@@ -104,19 +118,25 @@ const VOCABULARY: Partial<Record<ConsultSpanKey, RegExp>> = {
     stoppedBy: /^(iterations|time|settled)$/,
     // A `Phase` (`convex/gre/types.ts`): an upper-case step name.
     phase: /^[A-Z_]{3,24}$/,
+    // The `DeviceClass` unions (`./bot-search-telemetry`).
+    "device.engine": /^(chromium|gecko|webkit|other)$/,
+    "device.os": /^(macos|windows|linux|ios|android|other)$/,
+    "device.cores": /^(1-2|3-4|5-8|9\+|unknown)$/,
 };
 
 /** Keep only what the allowlist names, each number finite and each string
- *  inside its vocabulary. */
-function onlyAllowed(raw: Record<string, unknown>): ConsultSpanAttributes {
+ *  inside its key's vocabulary. The one gate everything a span carries goes
+ *  through, whatever built the raw record. */
+export function allowedSpanAttributes(
+    raw: Record<string, unknown>
+): ConsultSpanAttributes {
     const attributes: ConsultSpanAttributes = {};
     for (const key of CONSULT_SPAN_KEYS) {
         const value = raw[key];
         if (typeof value === "boolean" || finite(value)) {
             attributes[key] = value;
         } else if (typeof value === "string") {
-            const vocabulary = VOCABULARY[key];
-            if (!vocabulary || vocabulary.test(value)) attributes[key] = value;
+            if (VOCABULARY[key]?.test(value)) attributes[key] = value;
         }
     }
     return attributes;
@@ -143,6 +163,10 @@ export function consultSpanAttributes(
     if (finite(consult.consultMs)) raw.consultMs = round(consult.consultMs);
     if (finite(consult.idleMs)) raw.idleMs = round(consult.idleMs);
 
+    if (finite(consult.calibration)) {
+        raw.calibration = round(consult.calibration, 2);
+    }
+
     const board = consult.board;
     if (board) {
         raw.turn = board.turn;
@@ -164,6 +188,9 @@ export function consultSpanAttributes(
                 );
             }
         }
+        // The time per probe divides the WHOLE search's time by its probes:
+        // it carries the tree's own work too, so it reads high on a search
+        // of few iterations, where the tree is most of the time.
         if (finite(search.rolloutProbes)) {
             raw.probes = search.rolloutProbes;
             if (finite(search.elapsedMs) && search.rolloutProbes > 0) {
@@ -174,7 +201,7 @@ export function consultSpanAttributes(
             }
         }
     }
-    return onlyAllowed(raw);
+    return allowedSpanAttributes(raw);
 }
 
 /** Record one consult's span, ending at `endedAtMs` (epoch milliseconds, the

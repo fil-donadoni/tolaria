@@ -43,6 +43,15 @@ export function isAutomatedBrowser(
     return nav?.webdriver === true;
 }
 
+/** Whether a transaction's name is the game route. The router integration
+ *  names a transaction by its matched route id (`/game`) and, when no route
+ *  matched yet, by the location's pathname: the same text, possibly with a
+ *  trailing slash, never with the query string. */
+export function isGameRouteName(name: string): boolean {
+    const path = name.split(/[?#]/)[0]!.replace(/\/+$/, "");
+    return path === GAME_ROUTE;
+}
+
 /** The trace sampler of a build: the rate a transaction starting now is kept
  *  at. `production` is the build's own flag; `automated` is asked per call. */
 export function tracesSamplerFor(
@@ -57,17 +66,58 @@ export function tracesSamplerFor(
         ) {
             return 1;
         }
-        if (name === GAME_ROUTE) return 1;
+        if (isGameRouteName(name)) return 1;
         return ROUTE_SAMPLE_RATE;
     };
 }
 
+/** A transaction event, as far as this module reads and rewrites it. */
+type TransactionLike = {
+    transaction?: string;
+    contexts?: { trace?: { op?: string } } & Record<string, unknown>;
+    request?: unknown;
+    breadcrumbs?: unknown;
+    user?: unknown;
+    extra?: unknown;
+    tags?: unknown;
+};
+
+/** A Brain consult's transaction, stripped to what the consult itself says.
+ *
+ *  The SDK dresses every transaction like a page load: the page's URL with
+ *  its query string, the full user-agent header, the session's breadcrumbs
+ *  (console lines, navigations, clicks, requests), the locale and time zone.
+ *  A consult's span leaves the device outside the bug-report consent gate
+ *  and promises counters, durations and a coarse device class
+ *  (`~/lib/ai/bot-consult-span`), so none of that may ride on it: only the
+ *  trace context, which holds the span's own allowlisted attributes, stays.
+ *  Any other transaction is returned untouched. */
+export function scrubBotConsultTransaction<T>(event: T): T {
+    const loose = event as TransactionLike;
+    if (
+        loose.transaction !== BOT_CONSULT_SPAN &&
+        loose.contexts?.trace?.op !== BOT_CONSULT_SPAN
+    ) {
+        return event;
+    }
+    delete loose.request;
+    delete loose.breadcrumbs;
+    delete loose.user;
+    delete loose.extra;
+    delete loose.tags;
+    loose.contexts = loose.contexts?.trace
+        ? { trace: loose.contexts.trace }
+        : {};
+    return event;
+}
+
 /** `beforeSendTransaction`: a transaction from an automated browser is not
- *  sent. The sampler already keeps none; this is the send step saying the
- *  same, for a transaction sampled before the browser said what drives it. */
-export function dropAutomatedTransaction<T>(
+ *  sent (the sampler already keeps none; this is the send step saying the
+ *  same, for a transaction sampled before the browser said what drives it),
+ *  and a Brain consult's is stripped first. */
+export function sendableTransaction<T>(
     event: T,
     automated: () => boolean = isAutomatedBrowser
 ): T | null {
-    return automated() ? null : event;
+    return automated() ? null : scrubBotConsultTransaction(event);
 }

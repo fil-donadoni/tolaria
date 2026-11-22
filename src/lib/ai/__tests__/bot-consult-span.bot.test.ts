@@ -8,6 +8,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     CONSULT_SPAN_KEYS,
+    allowedSpanAttributes,
     botConsultSpanSink,
     consultSpanAttributes,
     emitConsultSpan,
@@ -31,6 +32,7 @@ function consult(overrides: Partial<TimedConsult> = {}): TimedConsult {
         difficulty: "expert",
         postedAt: 90_000,
         idleMs: 21_999.6,
+        calibration: 2.1849,
         board: { turn: 9, phase: "DECLARE_ATTACKERS", permanents: 21 },
         search: {
             iterationsRequested: 1320,
@@ -69,6 +71,7 @@ describe("consultSpanAttributes", () => {
             turn: 9,
             phase: "DECLARE_ATTACKERS",
             permanents: 21,
+            calibration: 2.18,
             "device.engine": "gecko",
             "device.os": "macos",
             "device.cores": "5-8",
@@ -153,6 +156,7 @@ describe("consultSpanAttributes", () => {
         expect(failed.consultMs).toBe(5300);
         for (const key of [
             "idleMs",
+            "calibration",
             "searchMs",
             "iterations.completed",
             "msPerIteration",
@@ -186,6 +190,52 @@ describe("consultSpanAttributes", () => {
                 expect(Number.isFinite(value)).toBe(true);
             }
         }
+    });
+});
+
+describe("allowedSpanAttributes", () => {
+    it("passes nothing the allowlist does not name, whatever the raw record holds", () => {
+        // The gate itself, fed a record with keys nobody reviewed.
+        expect(
+            allowedSpanAttributes({
+                gameId: "abc123",
+                consult: 3,
+                hand: "Lightning Bolt",
+                playerId: "user-1",
+                "board.cards": 7,
+                secret: true,
+            })
+        ).toEqual({ gameId: "abc123", consult: 3 });
+    });
+
+    it("sends a string only under a key with a vocabulary, and only inside it", () => {
+        const attributes = allowedSpanAttributes({
+            // Not ids: free text, a URL, upper case.
+            gameId: "abc123?x=Lightning Bolt",
+            "device.engine": "Mozilla/5.0 (Macintosh; Intel Mac OS X)",
+            "device.os": "my laptop",
+            "device.cores": "eight",
+            // Numeric keys never carry text.
+            consult: "the third one",
+            turn: "cast Tarmogoyf",
+            permanents: "Tarmogoyf",
+            "device.mobile": "yes",
+        });
+        expect(attributes).toEqual({});
+
+        expect(
+            allowedSpanAttributes({
+                gameId: "jh7396nx0a9",
+                "device.engine": "gecko",
+                "device.os": "macos",
+                "device.cores": "9+",
+            })
+        ).toEqual({
+            gameId: "jh7396nx0a9",
+            "device.engine": "gecko",
+            "device.os": "macos",
+            "device.cores": "9+",
+        });
     });
 });
 
