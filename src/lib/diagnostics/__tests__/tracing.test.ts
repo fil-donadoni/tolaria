@@ -14,6 +14,7 @@ import {
     scrubBotConsultTransaction,
     sendableTransaction,
     tracesSamplerFor,
+    withoutBreadcrumbs,
 } from "../tracing";
 
 const human = () => false;
@@ -169,6 +170,41 @@ describe("scrubBotConsultTransaction", () => {
     });
 });
 
+/** A page-load transaction as the SDK builds it (captured from a real
+ *  client, 2026-11-22), with the breadcrumbs a session leaves. */
+const pageLoadTransaction = () => ({
+    type: "transaction",
+    transaction: GAME_ROUTE,
+    request: {
+        url: "https://tolaria.example/game?gameId=abc123",
+        headers: { "User-Agent": "Mozilla/5.0 (Macintosh) Firefox/147.0" },
+    },
+    breadcrumbs: [
+        { category: "navigation", data: { from: "/", to: "/game" } },
+        {
+            category: "ui.click",
+            message: 'div.board > img.card[alt="Lightning Bolt"]',
+        },
+        { category: "console", message: "a console line" },
+    ],
+    contexts: {
+        trace: { op: "pageload", trace_id: "50a130bc" },
+        culture: { locale: "it-IT", timezone: "Europe/Rome" },
+    },
+    spans: [{ op: "resource.script", description: "/assets/index.js" }],
+});
+
+describe("withoutBreadcrumbs", () => {
+    it("takes the session's breadcrumbs off a transaction and nothing else", () => {
+        const { breadcrumbs: _dropped, ...rest } = pageLoadTransaction();
+        void _dropped;
+        const sent = withoutBreadcrumbs(pageLoadTransaction());
+        expect(sent).toEqual(rest);
+        // A clicked card's name rode in a click breadcrumb.
+        expect(JSON.stringify(sent)).not.toMatch(/Lightning Bolt/);
+    });
+});
+
 describe("sendableTransaction", () => {
     it("drops a transaction from an automated browser and passes any other through", () => {
         const event = { type: "transaction", transaction: GAME_ROUTE };
@@ -176,10 +212,15 @@ describe("sendableTransaction", () => {
         expect(sendableTransaction(event, human)).toBe(event);
     });
 
-    it("strips a consult's transaction on its way out", () => {
-        const sent = sendableTransaction(consultTransaction(), human);
-        expect(sent).not.toHaveProperty("request");
-        expect(sent).not.toHaveProperty("breadcrumbs");
+    it("sends no transaction with breadcrumbs: a page load keeps the rest, a consult only its trace", () => {
+        const pageLoad = sendableTransaction(pageLoadTransaction(), human);
+        expect(pageLoad).not.toHaveProperty("breadcrumbs");
+        expect(pageLoad).toHaveProperty("request");
+        expect(pageLoad).toHaveProperty("spans");
+
+        const consult = sendableTransaction(consultTransaction(), human);
+        expect(consult).not.toHaveProperty("breadcrumbs");
+        expect(consult).not.toHaveProperty("request");
     });
 });
 

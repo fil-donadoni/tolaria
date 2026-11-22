@@ -14,6 +14,14 @@
 //      (`navigator.webdriver`) is sampled at zero, and a transaction that
 //      reaches the send step from one is dropped.
 //
+// The two rules are independent: a consult's span is a root span, sampled by
+// its own name whatever was decided for the navigation it happened under.
+// The game route is kept in full for its own page-load timings, not so that
+// consults inherit a sampled trace. A consult does share its TRACE ID with
+// the page's latest navigation (the SDK starts one trace per navigation and
+// every root span after it joins it), so a consult's transaction and that
+// navigation's are one trace in Sentry.
+//
 // Production builds only: the local dev server must not spend the free-tier
 // span quota (ADR 0139 § 4).
 
@@ -111,13 +119,26 @@ export function scrubBotConsultTransaction<T>(event: T): T {
     return event;
 }
 
+/** A transaction without the session's breadcrumbs. The SDK attaches them to
+ *  every event: console lines, navigations, requests, and clicks named by
+ *  the clicked element's selector and its `alt` or `title` — which on a board
+ *  can be a card's name. An error report is read with its breadcrumbs and
+ *  keeps them; a transaction is a timing, and nothing reads them there. */
+export function withoutBreadcrumbs<T>(event: T): T {
+    delete (event as TransactionLike).breadcrumbs;
+    return event;
+}
+
 /** `beforeSendTransaction`: a transaction from an automated browser is not
  *  sent (the sampler already keeps none; this is the send step saying the
- *  same, for a transaction sampled before the browser said what drives it),
- *  and a Brain consult's is stripped first. */
+ *  same, for a transaction sampled before the browser said what drives it);
+ *  any other leaves without its breadcrumbs, and a Brain consult's stripped
+ *  to its trace context. */
 export function sendableTransaction<T>(
     event: T,
     automated: () => boolean = isAutomatedBrowser
 ): T | null {
-    return automated() ? null : scrubBotConsultTransaction(event);
+    return automated()
+        ? null
+        : withoutBreadcrumbs(scrubBotConsultTransaction(event));
 }
