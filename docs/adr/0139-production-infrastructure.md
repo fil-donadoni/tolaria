@@ -108,13 +108,16 @@ to keep that down), and 1 GB/month is small against 50 active players. Storage
 is held down by the `sweepFinishedGames` cron (24 h TTL). Vercel serves a
 static bundle with immutable asset caching and is far from 100 GB; Resend
 sends only password resets; Sentry sees only client errors, logs and
-sampled traces. **Spans per vs-Bot game** (issue #10321): one `bot.consult`
-transaction of one span per Brain consult, plus the `/game` page load or
-navigation, now kept in full. The 61 `bot search` reports of the 30 days to
-2026-11-22 hold 1,624 consults: 25 per report at the median, 47 at the 90th
-percentile, 85 at most. That month would have sent about 1,600 consult
-spans, 0.03% of the 5M cap; 100 vs-Bot games a day at 27 consults each is
-about 81,000 a month, 1.6% of it.
+sampled traces. **Spans per vs-Bot game** (issue #10321, read from Sentry on
+2026-11-22): about 75. The `/game` page load or navigation, now kept in
+full, holds 46: the 5 `/game` transactions of the 14 days before stored 229
+spans (Sentry shows 1,145, scaled up by the 0.2 sample rate), 83% of them
+resources the page fetched. The Brain's consults add one `bot.consult`
+transaction of one span each: the 61 `bot search` reports of the 30 days
+before hold 1,624 consults, 25 per report at the median, 47 at the 90th
+percentile, 85 at most. At that month's two games a day this is about 4,500
+spans a month, 0.1% of the 5M cap; at 100 vs-Bot games a day about 225,000,
+4.5% of it.
 
 ### 5. The upgrade rule (owner decision)
 

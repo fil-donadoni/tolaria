@@ -652,6 +652,16 @@ describe("openBotSearchReport", () => {
         expect(span.mock.calls[1]![0]).toMatchObject({ consult: 2 });
     });
 
+    it("swallows a throwing clock, and still folds the consult in", () => {
+        const log = vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
+        const report = openBotSearchReport("game1", undefined, () => {
+            throw new Error("the clock is broken");
+        });
+        expect(() => report.record(searched())).not.toThrow();
+        report.flush();
+        expect(log.mock.calls[0]![0]).toMatchObject({ consults: 1 });
+    });
+
     it("swallows a throwing span sink, and still folds the consult in", () => {
         const log = vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
         vi.spyOn(botConsultSpanSink, "record").mockImplementation(() => {
