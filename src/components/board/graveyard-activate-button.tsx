@@ -4,6 +4,7 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
 import { trackGameIntent } from "~/lib/pending-intent-store";
 import { V4_ZONE_CTA_PLATE } from "~/lib/board-chrome-v4";
+import { symbolsToSpokenText } from "~/lib/symbol-names";
 
 /** CR 113.6 / 602.5b — activation affordance for an activated ability whose
  *  source is a card in the viewer's OWN graveyard (Ashen Ghoul's "{B}: Return
@@ -37,7 +38,7 @@ export default function GraveyardActivateButton({
                 <button
                     key={a.id}
                     type="button"
-                    title={a.oracleText}
+                    title={symbolsToSpokenText(a.oracleText)}
                     onClick={() => {
                         trackGameIntent(
                             activateAbility({

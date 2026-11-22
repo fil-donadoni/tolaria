@@ -5,6 +5,7 @@ import type { Player, GrantedAbility } from "~/types/game";
 import { splitSecondSpellOnStack } from "@convex/cards/abilities/splitSecond";
 import { useGameContext } from "~/hooks/useGameContext";
 import { formatOracleText } from "~/lib/oracle-text";
+import { symbolsToSpokenText } from "~/lib/symbol-names";
 
 /** Whether the viewer may activate `grant` right now, mirroring the gates
  *  `activatePlayerAbility` (convex/game.ts) enforces server-side.
@@ -173,7 +174,7 @@ export default function PlayerGrantedAbilities({ player }: { player: Player }) {
                         data-granted-ability={grant.id}
                         onClick={() => void handleClick(grant)}
                         disabled={disabled}
-                        title={grant.oracleText}
+                        title={symbolsToSpokenText(grant.oracleText)}
                         className={`pointer-events-auto max-w-full truncate text-xs text-display tracking-wide px-3 py-1.5 rounded-sm shadow-md transition-colors border ${
                             disabled
                                 ? "bg-surface-elevated border-border-subtle text-text-disabled cursor-not-allowed"

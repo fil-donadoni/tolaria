@@ -6,6 +6,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import CastCostDialog from "../cast-cost-dialog";
+import { symbolsToSpokenText } from "~/lib/symbol-names";
 
 function renderDialog(
     props: Partial<React.ComponentProps<typeof CastCostDialog>> = {}
@@ -500,13 +501,15 @@ describe("CastCostDialog — distinct-colour X (CR 107.3a / 601.2h, issue #4506)
     ];
 
     const pickColor = (color: string) =>
-        fireEvent.click(screen.getByTitle(`Spend {${color}} on X`));
+        fireEvent.click(
+            screen.getByTitle(symbolsToSpokenText(`Spend {${color}} on X`))
+        );
 
     it("hides the colour picker until the Kicker is toggled on", () => {
         renderDialog({ askX: false, kickers: distinctColorKicker });
-        expect(screen.queryByTitle("Spend {W} on X")).toBeNull();
+        expect(screen.queryByTitle("Spend white mana on X")).toBeNull();
         fireEvent.click(screen.getByRole("checkbox"));
-        expect(screen.getByTitle("Spend {W} on X")).toBeTruthy();
+        expect(screen.getByTitle("Spend white mana on X")).toBeTruthy();
     });
 
     it("disables Cast until exactly X distinct colours are picked", () => {

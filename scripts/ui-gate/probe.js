@@ -735,7 +735,7 @@ window.__tolariaProbe = () => {
      * MAPPABLE `{…}` token: "{T}" reaching the screen (or a screen reader) as
      * braces instead of the symbol or its spoken name. `SYMBOL_TOKENS` is the
      * key set of `SYMBOL_NAMES` (`src/lib/symbol-names.ts`) — this file takes
-     * no imports, so `ui-gate-probe-symbols.test.ts` pins the two equal. An
+     * no imports, so `ui-gate-probe-offenders.test.ts` pins the two equal. An
      * unmappable `{foo}` is not a symbol and is never counted. "Rendered" is
      * "has a layout box": a `display: none` subtree has none, while
      * screen-reader-only text keeps its 1px box and IS counted — a screen
