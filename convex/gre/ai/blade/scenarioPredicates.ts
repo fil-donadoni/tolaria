@@ -130,6 +130,17 @@ export const FREE_ATTACK_OPP_TAPPED_LANDS = Array.from({ length: 3 }, () => ({
     tapped: true,
 }));
 
+/** The crack-back half of the free-attack pair (issue #9975): a TAPPED Craw
+ *  Wurm (6/4) on the defender's side — no blocker this combat (CR 509.1a),
+ *  six damage next turn. */
+export const FREE_ATTACK_OPP_TAPPED_WURM = {
+    name: "Craw Wurm",
+    owner: "opp" as const,
+    zone: "battlefield" as const,
+    tapped: true,
+    summoningSick: false,
+};
+
 /** The free-attack pair's opponent hand: four REAL cards, not `hiddenHand`
  *  placeholders, because a blade position must load into a live game
  *  (`debugLoadBladeScenario`); the search re-deals the opponent's hand from

@@ -847,6 +847,19 @@ describe("predictCombatOutcome — crude declared-combat resolution (issue #208)
         expect(out.deadBlockerIds).toEqual(["wall"]);
         expect(out.faceDamage).toBe(0);
     });
+
+    it("a TAPPED creature is no blocker — CR 509.1a (issue #10492)", () => {
+        // The 3/3 that kills the 2/2 above is tapped: it cannot block this
+        // declared combat, so nothing dies and the 2/2 connects.
+        const state = declaredCombat(
+            [atk(BEARS, "g")],
+            [blk(GIANT, "wall", { isTapped: true })]
+        );
+        const out = predictCombatOutcome(state, "p1", "p2");
+        expect(out.deadAttackerIds).toEqual([]);
+        expect(out.deadBlockerIds).toEqual([]);
+        expect(out.faceDamage).toBe(2);
+    });
 });
 
 describe("evaluate — declare-attackers leaf distinguishes attack sets (issue #208)", () => {

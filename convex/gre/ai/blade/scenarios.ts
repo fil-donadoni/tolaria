@@ -23,6 +23,7 @@ import {
     MOUNTAINS_5,
     NINJUTSU_LANDS_4,
     FREE_ATTACK_ATTACKERS,
+    FREE_ATTACK_OPP_TAPPED_WURM,
     FREE_ATTACK_OPP_TAPPED_LANDS,
     FREE_ATTACK_OPP_DECK,
     FREE_ATTACK_OPP_HAND,
@@ -1462,13 +1463,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             cards: [
                 ...FREE_ATTACK_ATTACKERS,
                 ...FREE_ATTACK_OPP_TAPPED_LANDS,
-                {
-                    name: "Craw Wurm",
-                    owner: "opp",
-                    zone: "battlefield",
-                    tapped: true,
-                    summoningSick: false,
-                },
+                FREE_ATTACK_OPP_TAPPED_WURM,
                 FREE_ATTACK_OPP_HAND,
             ],
             phase: "DECLARE_ATTACKERS",
@@ -1490,6 +1485,79 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         note: "Issue #9975 — discriminating pair with the entry above (the tapped Craw Wurm differs; the opponent's hand is the same four stand-in cards): it pins that the free-attack pruning reads crack-back, so a proof that ignored tapped opposing creatures would force the all-in swing here and lose the game.",
+    },
+    {
+        // MUST. The crack-back entry above at a LOW budget (issue #10492): 94
+        // iterations, what a slow engine completes. The declared-combat
+        // prediction let the TAPPED Craw Wurm block (CR 509.1a says it
+        // cannot), so the opponent's lethal swing into the tapped-out board
+        // read as blocked and the greedy rollout opponent declined it: the
+        // all-in attack sat inside the outcome band and the material
+        // tie-break took it on 6 of 8 seeds, measured on base b1e76567e8.
+        label: "crack-back at a low budget: a tapped creature is no blocker in the declared combat",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                ...FREE_ATTACK_ATTACKERS,
+                ...FREE_ATTACK_OPP_TAPPED_LANDS,
+                FREE_ATTACK_OPP_TAPPED_WURM,
+                FREE_ATTACK_OPP_HAND,
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 6, opp: 14 },
+        },
+        bot: "me",
+        budget: { iterations: 94 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "declare-attackers",
+                    cards: ["Two-Headed Giant of Foriys", "Hurloon Minotaur"],
+                },
+            ],
+        },
+        note: "Issue #10492 — `predictCombatOutcome` offers only untapped creatures as blockers (CR 509.1a). Discriminating pair with the next entry: this one pins that the blocker stays home, the next that the free damage is still taken.",
+    },
+    {
+        // MUST. The other direction of the same defect (issue #10492): on the
+        // crack-back board, the Minotaur's two damage are FREE — the only
+        // opposing creature is tapped and cannot block (CR 509.1a) — and the
+        // Giant stays home against the Wurm's crack-back. With the tapped Wurm
+        // predicted to block and kill the Minotaur, `isWastefulAttack` called
+        // the attack wasteful and every seed passed at 400 iterations.
+        label: "free damage into a tapped board: attacks with the creature the crack-back does not need",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                ...FREE_ATTACK_ATTACKERS,
+                ...FREE_ATTACK_OPP_TAPPED_LANDS,
+                FREE_ATTACK_OPP_TAPPED_WURM,
+                FREE_ATTACK_OPP_HAND,
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 6, opp: 14 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6, 7],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "declare-attackers",
+                    cards: ["Hurloon Minotaur"],
+                },
+            ],
+        },
+        note: "Issue #10492 — discriminating pair with the entry above: the same board must neither tap out (above) nor decline the free damage (here). Red before the fix on 8 of 8 seeds (`no attacks`, `wasteful-attack`).",
     },
     {
         // MUST. The attack-target seam (CR 508.1b / 510.1b, issue #2798). A

@@ -198,7 +198,15 @@ export function predictCombatOutcome(
     const pumpT = (atk: { id: string }) =>
         atk.id === pumpedId ? (attackerHeldPump?.toughness ?? 0) : 0;
 
-    const blockers = defender.battlefield.filter((c) => isCreature(c));
+    // CR 509.1a — the creatures chosen to block must be untapped. This scores
+    // the ONE combat already declared, so a tapped creature is no blocker here
+    // (issue #10492); `predictUnblockedThreat` keeps reading tapped creatures
+    // as blockers on purpose, its clock being the steady state of future turns.
+    // An effect that lets a tapped creature block, or untaps one before blocks,
+    // is outside this prediction.
+    const blockers = defender.battlefield.filter(
+        (c) => isCreature(c) && !c.isTapped
+    );
     const used = new Set<string>();
     const out: CombatOutcome = {
         faceDamage: 0,
