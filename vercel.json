@@ -19,5 +19,11 @@
             ]
         }
     ],
-    "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+    "rewrites": [
+        {
+            "source": "/diag/relay",
+            "destination": "https://o4505113193218048.ingest.us.sentry.io/api/4511609765691393/envelope/"
+        },
+        { "source": "/(.*)", "destination": "/index.html" }
+    ]
 }
