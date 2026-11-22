@@ -43,6 +43,11 @@
             "source": "data/modern-preset-decks.json#sam-combo"
         },
         {
+            "id": "modern-tron",
+            "kind": "deck-list",
+            "source": "data/modern-preset-decks.json#tron"
+        },
+        {
             "id": "modern-boros-burn",
             "kind": "deck-list",
             "source": "data/modern-preset-decks.json#boros-burn"

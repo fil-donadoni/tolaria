@@ -111,7 +111,24 @@ describe("parseTier1Decks — fail-closed on the canonical data", () => {
         expect(parseTier1Decks(file(fixtureDeck())).decks).toHaveLength(1);
     });
 
-    it("refuses a maindeck that is not 60 — the denominator would be wrong", () => {
+    it("accepts a legal 61-card maindeck (issue #10608)", () => {
+        const long = fixtureDeck({
+            main: [
+                { count: 4, name: "Goblin Lackey" },
+                { count: 57, name: "Mountain" },
+            ],
+        });
+        expect(parseTier1Decks(file(long)).decks).toHaveLength(1);
+    });
+
+    it("accepts a sideboard under 15", () => {
+        const narrow = fixtureDeck({
+            sideboard: [{ count: 14, name: "Goblin Sharpshooter" }],
+        });
+        expect(parseTier1Decks(file(narrow)).decks).toHaveLength(1);
+    });
+
+    it("refuses a maindeck under 60", () => {
         const short = fixtureDeck({
             main: [
                 { count: 4, name: "Goblin Lackey" },
@@ -119,16 +136,16 @@ describe("parseTier1Decks — fail-closed on the canonical data", () => {
             ],
         });
         expect(() => parseTier1Decks(file(short))).toThrow(
-            /fixture is 59 \+ 15, not 60 \+ 15/
+            /fixture is 59 \+ 15, outside the constructed bounds/
         );
     });
 
-    it("refuses a sideboard that is not 15", () => {
+    it("refuses a sideboard over 15", () => {
         const wide = fixtureDeck({
             sideboard: [{ count: 16, name: "Goblin Sharpshooter" }],
         });
         expect(() => parseTier1Decks(file(wide))).toThrow(
-            /fixture is 60 \+ 16, not 60 \+ 15/
+            /fixture is 60 \+ 16, outside the constructed bounds/
         );
     });
 
