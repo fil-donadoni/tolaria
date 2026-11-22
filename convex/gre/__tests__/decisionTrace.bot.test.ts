@@ -285,6 +285,26 @@ describe("searchWithTrace (DecisionTrace by-product)", () => {
         expect(trace!.elapsedMs).toBeGreaterThanOrEqual(5);
     });
 
+    // Issue #10321 — the rollout policy's probes, counted per search. The
+    // counter behind it is module-wide and only ever grows, so what a trace
+    // reports must be THIS search's share of it: a second identical search
+    // reports the same number, never the running total, and picks the same
+    // move — the count is a measurement, not an input.
+    it("reports the rollout policy's probes for its own search, the same on a repeat", () => {
+        const state = botMainWithLand();
+        const first = searchWithTrace(state, "p1", BUDGET, SEED);
+        const second = searchWithTrace(state, "p1", BUDGET, SEED);
+        expect(first.trace!.rolloutProbes).toBeGreaterThan(0);
+        expect(second.trace!.rolloutProbes).toBe(first.trace!.rolloutProbes);
+        expect(second.move).toEqual(first.move);
+        // One iteration probes fewer candidates than two hundred: the count
+        // follows the iterations run, not the module's history.
+        const shortest = searchWithTrace(state, "p1", { iterations: 1 }, SEED);
+        expect(shortest.trace!.rolloutProbes).toBeLessThan(
+            first.trace!.rolloutProbes!
+        );
+    });
+
     // Issue #2685 — the early-stop rule. A dominant root pick (lethal Bolt to
     // the face) stops at `minIterations + k` with `stoppedBy: "settled"`; a
     // genuinely tied decision (two identical lands) never clears the mean-reward

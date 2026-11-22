@@ -319,7 +319,9 @@ owner rules on:
 1. Build slice 1 (tree reuse, budget counted in root visits)?
 2. Build slice 2 (pondering), and with `device.mobile` off by default?
 3. Consent to the two coarse report keys: `idleMs.p50` (§ 1) and
-   `iterations.kept` (§ 5)?
+   `iterations.kept` (§ 5)? — **`idleMs.p50`: consented on 2026-11-22** and
+   shipped with issue #10321 (the owner's standing consent to telemetry keys
+   of this kind). `iterations.kept` exists only with slice 1.
 4. Accept the amendment of ADR 0000 § 7 as a new ADR?
 
 The implementation slices are filed under PRD issue #10017 once the ruling is
