@@ -27,7 +27,7 @@
 // catalogue card, so it needs nothing resident and decides nothing. Chained,
 // it never overlaps a search, and a request posted after it waits for it.
 //
-// It also owns the KEPT TREE (issue #10470, ADR 0185): the tree the last
+// It also owns the KEPT TREE (ADR 0185): the tree the last
 // search grew, held here between consults so the next one continues from the
 // subtree the game moved into. `handleBrainRequest` decides whether it can;
 // this shell only holds it, and names the catalogue it was grown against —

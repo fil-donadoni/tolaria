@@ -628,7 +628,7 @@ export function primeBrain(entries: readonly DefinitionManifestEntry[]): void {
  *  optional `budget` scales the search by the chosen difficulty (issue #114);
  *  omitted, it falls back to the default preset. `deckKnowledge` names which
  *  seats (if any) the search may know the real deck contents of (issue #2788);
- *  omitted, every seat is blind. `reuse` (issue #10470) names the game and
+ *  omitted, every seat is blind. `reuse` (ADR 0185) names the game and
  *  the decisions played since the last consult, so the Worker continues from
  *  the tree it kept; omitted, it searches fresh and keeps nothing. */
 export function consultBrain(
