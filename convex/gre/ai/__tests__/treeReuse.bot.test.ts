@@ -79,6 +79,13 @@ describe("walkKeptTree", () => {
         expect(walkKeptTree(root, [{ seat: BOT, key: "z" }], BOT)).toBeNull();
     });
 
+    it("refuses a Bot step along an edge another seat chose", () => {
+        const { root } = smallTree();
+        // A node some world handed to the other seat holds that seat's edges.
+        root.children.set("h", edge("h", HUMAN, node()));
+        expect(walkKeptTree(root, [{ seat: BOT, key: "h" }], BOT)).toBeNull();
+    });
+
     it("refuses a step made by the seat that did not decide the node", () => {
         const { root } = smallTree();
         // `a` is a Bot edge: the opponent cannot have played it.
