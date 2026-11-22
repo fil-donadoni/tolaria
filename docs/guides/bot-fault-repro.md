@@ -77,7 +77,8 @@ message:"bot search" gameId:<gameId>
 | `probesPerIteration.p50`                                           | what the boards cost: candidates the rollout tried per iteration |
 | `msPerProbe.p50`                                                   | what the machine made of them: time per candidate tried          |
 | `idleMs.p50`                                                       | the time the Worker sat idle between two consults                |
-| `calibration.first` / `.last` / `.min` / `.count`                  | the machine itself: a fixed search on a fixed board, in ms       |
+| `calibration.first` / `.last` / `.min` (+ `...Iterations`)         | the machine itself: fixed work on a fixed board, ms per unit     |
+| `calibration.count` / `.skipped`                                   | readings taken, and due readings skipped after a slow search     |
 | `searchMs.*` against `consultMs.*`                                 | the gap is what stood before the search (Worker start, a queue)  |
 | `consults.timeout` / `.worker-error` / `.search-error` / `.inline` | consults that gave no answer, or ran in-thread                   |
 | `device.engine` / `.os` / `.cores` / `.mobile`                     | engine family, OS family, core bucket, phone or iPad             |
@@ -98,17 +99,29 @@ the tree's own work too, so it reads high on a search of few iterations
 (compare searches of similar `iterations.completed`). `idleMs` is read only
 between two consults the Worker itself answered: after a timeout, a failure
 or an in-thread consult the next one has none.
-The `calibration.*` keys hold the board still (issue #10451): the Worker
-times the same fixed search (8 iterations, capped at 50 ms) on the same small
-board after each of the game's first three consults and then at most every
-30 s, in milliseconds per iteration. The first readings run colder (the
-browser is still compiling that code), and a cold run the cap cut short
-covered fewer iterations, a different workload: `.first` is biased high and
-says little alone. `.min` is the machine at its best and the number to
-compare two machines on; `.last` against `.min` says whether the machine
-slowed down during the game. No reading follows a search whose last
-iteration ran more than 300 ms past its cap, so a game stuck on very slow
-boards stops taking them.
+The `calibration.*` keys hold the board still (issue #10451). A reading is
+a number of identical units — build one small fixed board, search it for one
+iteration — run until the reading's time budget is spent, after each of the
+game's first three consults and then at most every 30 s. It reports the mean
+milliseconds per unit and, beside it, how many units it ran
+(`...Iterations`): every device measures the same work, a slower one over
+fewer units. A reading of one or two units ran mostly cold code (the browser
+was still compiling it), so read `.first` with `.firstIterations`. `.min` is
+the machine at its best and the number to compare two machines on.
+
+`.last` is the latest reading TAKEN, not the end of the game. No reading is
+asked for while the page is hidden, one during which the page was hidden or
+shown is discarded, and a due reading is skipped after a search whose last
+iteration ran more than 300 ms past its cap (`calibration.skipped` counts
+those). On a device whose late-game iterations all run that long, every late
+reading is skipped and `.last` is an early-game reading: with
+`calibration.skipped` above zero, `.last` against `.min` says nothing about
+the end of the game; read the consults' own `msPerProbe` there.
+
+A reading lasts its budget plus at most one unit of the device's own; a
+consult posted while one runs waits for it, and that wait is on the consult's
+span (`calibrationWaitMs`, already out of its `consultMs`). The measured
+lengths are in `docs/research/calibration-reading.md`.
 
 **One decision at a time.** Each consult also records a span named
 `bot.consult` (Explore → Traces, `span.op:bot.consult gameId:<gameId>`), in
@@ -125,5 +138,18 @@ durations, the turn and step, the device class.
 | `msPerIteration`                                   | this decision's speed                                 |
 | `probes` / `msPerProbe`                            | candidates the rollout tried, and the time per one    |
 | `turn` / `phase` / `permanents`                    | where the game was, and how many permanents stood     |
-| `calibration`                                      | the game's latest calibration reading at that consult |
+| `calibration` / `calibrationIterations`            | the game's latest calibration reading at that consult |
+| `calibrationWaitMs`                                | time this consult waited behind a calibration reading |
 | `gameId`, `difficulty`, `device.*`                 | as on the report                                      |
+
+**What links to what.** A consult's transaction leaves with its span's
+attributes and its trace context alone: no page address, no user-agent
+header, no breadcrumbs. Two things still tie it to the rest of what Sentry
+holds, by design. Its `gameId` is the game's id, the same one the game
+page's address carries (`/game?gameId=…`) and the `bot search` report names.
+And its trace id is the trace of the page's latest navigation: the SDK
+starts one trace per navigation and every transaction after it joins it, so
+in Sentry a consult sits in the same trace as that page-load or navigation
+transaction, which carries the page's address and the browser's user-agent
+header. Sentry derives the browser and OS it shows from the user-agent
+header an event carries; a consult's transaction carries none.

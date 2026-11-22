@@ -43,8 +43,10 @@ import type {
 import { recordAiDecision } from "./trace-store";
 import {
     isBrainCalibration,
+    validReading,
     type BrainCalibrate,
     type BrainCalibration,
+    type CalibrationReading,
 } from "./brain-calibration";
 import type { DefinitionManifestEntry } from "@convex/definitionManifestEntry";
 import type { BrainPrime } from "./brain-residency";
@@ -173,7 +175,7 @@ type BrainChannel = {
         deckKnowledge?: DeckKnowledgeBySeat,
         repetition?: RepetitionHistory
     ) => Promise<BrainResult>;
-    calibrate: () => Promise<number | null>;
+    calibrate: () => Promise<CalibrationReading | null>;
     dispose: () => void;
 };
 
@@ -184,7 +186,10 @@ function createBrainChannel(): BrainChannel {
     const pending = new Map<number, InFlight>();
     /** Calibrations in flight (issue #10451), by request id: each settles
      *  with its reading, or with `null`. */
-    const calibrations = new Map<number, (reading: number | null) => void>();
+    const calibrations = new Map<
+        number,
+        (reading: CalibrationReading | null) => void
+    >();
     /** Worker failures since the last successful reply — see
      *  {@link MAX_BRAIN_WORKER_FAILURES}. */
     let failures = 0;
@@ -216,12 +221,7 @@ function createBrainChannel(): BrainChannel {
             if (isBrainCalibration(e.data)) {
                 const settle = calibrations.get(e.data.id);
                 calibrations.delete(e.data.id);
-                const reading = e.data.msPerIteration;
-                settle?.(
-                    typeof reading === "number" && Number.isFinite(reading)
-                        ? reading
-                        : null
-                );
+                settle?.(validReading(e.data.reading));
                 return;
             }
             const entry = pending.get(e.data.id);
@@ -396,11 +396,11 @@ function createBrainChannel(): BrainChannel {
      *  would time the UI, not the Brain, and drop a frame doing it. Always
      *  settles: a Worker that never answers, dies or is disposed is no
      *  reading. Never throws. */
-    function calibrate(): Promise<number | null> {
+    function calibrate(): Promise<CalibrationReading | null> {
         const w = worker;
         if (!w || exhausted) return Promise.resolve(null);
         const id = nextId++;
-        return new Promise<number | null>((resolve) => {
+        return new Promise<CalibrationReading | null>((resolve) => {
             const timer = setTimeout(() => {
                 if (calibrations.delete(id)) resolve(null);
             }, BRAIN_CALIBRATION_TIMEOUT_MS);
@@ -633,13 +633,15 @@ export function consultBrain(
     return botBrain.consult(state, botId, budget, deckKnowledge, repetition);
 }
 
-/** Time the calibration search in the Bot's Worker (issue #10451): the same
- *  fixed search on the same fixed board, whatever the game's own board is —
- *  what the machine is worth right now, in milliseconds per iteration.
- *  `null` when there is no running Worker to ask or it gave no reading. It
- *  queues behind a consult in flight and ahead of one posted after it, which
- *  then waits at most `CALIBRATION_CAP_MS`. Never rejects. */
-export function calibrateBrain(): Promise<number | null> {
+/** Take a calibration reading in the Bot's Worker (issue #10451): the same
+ *  fixed work on the same fixed board, whatever the game's own board is —
+ *  what the machine is worth right now, in milliseconds per iteration, beside
+ *  how many iterations stand behind the number. `null` when there is no
+ *  running Worker to ask or it gave no reading. It queues behind a consult in
+ *  flight and ahead of one posted after it, which then waits for at most the
+ *  reading's budget plus one of its units (`convex/gre/ai/calibration.ts`).
+ *  Never rejects. */
+export function calibrateBrain(): Promise<CalibrationReading | null> {
     return botBrain.calibrate();
 }
 

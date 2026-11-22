@@ -15,9 +15,10 @@ import { enumerateMoves } from "../../moves";
 import { searchWithTrace } from "../../search";
 import {
     CALIBRATION_BOT,
-    CALIBRATION_CAP_MS,
-    CALIBRATION_ITERATIONS,
+    CALIBRATION_BUDGET_MS,
+    CALIBRATION_MAX_UNITS,
     CALIBRATION_SEED,
+    CALIBRATION_UNIT_ITERATIONS,
     calibrationState,
     runCalibration,
 } from "../calibration";
@@ -74,8 +75,8 @@ describe("the calibration board", () => {
 
 describe("the calibration search", () => {
     const budget = {
-        iterations: CALIBRATION_ITERATIONS,
-        minIterations: CALIBRATION_ITERATIONS,
+        iterations: CALIBRATION_UNIT_ITERATIONS,
+        minIterations: CALIBRATION_UNIT_ITERATIONS,
     };
 
     it("does the same work on a repeat: iterations, probes and pick", () => {
@@ -91,7 +92,9 @@ describe("the calibration search", () => {
             budget,
             CALIBRATION_SEED
         );
-        expect(first.trace!.iterationsCompleted).toBe(CALIBRATION_ITERATIONS);
+        expect(first.trace!.iterationsCompleted).toBe(
+            CALIBRATION_UNIT_ITERATIONS
+        );
         expect(first.trace!.stoppedBy).toBe("iterations");
         // The rollouts really probe: the reading covers the policy's work.
         expect(first.trace!.rolloutProbes).toBeGreaterThan(0);
@@ -141,56 +144,83 @@ describe("a calibration between two real searches", () => {
         });
     }
 
-    it("leaves the next real search as it was: same move, same work, no randomness drawn", () => {
+    it("leaves the next real search as it was: the same move and the same trace, down to every candidate's numbers", () => {
         const budget = { iterations: 120 };
         const state = realBoard();
         const before = searchWithTrace(state, "p1", budget, 4242);
-        const rngBefore = state.rngCounter;
 
         expect(runCalibration()).not.toBeNull();
 
         const after = searchWithTrace(state, "p1", budget, 4242);
         expect(after.move).toEqual(before.move);
-        expect(after.trace!.iterationsCompleted).toBe(
-            before.trace!.iterationsCompleted
-        );
-        // The rollout policy's probes are counted by one module-wide counter
-        // the calibration advances too: the second search reports its own.
+        // Everything the search says about its own work — iterations, the
+        // rollout policy's probes (one module-wide counter the calibration
+        // advances too), each candidate's visits, rewards and evaluation —
+        // all but the wall clock.
+        const work = (trace: NonNullable<typeof before.trace>) => ({
+            ...trace,
+            elapsedMs: 0,
+        });
         expect(before.trace!.rolloutProbes).toBeGreaterThan(0);
-        expect(after.trace!.rolloutProbes).toBe(before.trace!.rolloutProbes);
-        expect(after.trace!.candidates.map((c) => [c.label, c.visits])).toEqual(
-            before.trace!.candidates.map((c) => [c.label, c.visits])
-        );
-        expect(state.rngCounter).toBe(rngBefore);
+        expect(work(after.trace!)).toEqual(work(before.trace!));
     });
 });
 
 describe("runCalibration", () => {
-    it("reads the time per completed iteration off the search's own clock", () => {
-        // A clock that advances 3 ms per read: the search reads it once to
-        // start, once per iteration for the cap, and once to finish.
-        let t = 0;
-        const reading = runCalibration(() => (t += 3));
-        expect(reading).not.toBeNull();
-        expect(reading!.iterations).toBe(CALIBRATION_ITERATIONS);
-        // 16 iterations and the closing read: 17 steps of 3 ms.
-        expect(reading!.msPerIteration).toBeCloseTo(
-            (3 * (CALIBRATION_ITERATIONS + 1)) / CALIBRATION_ITERATIONS,
-            6
+    /** A clock that advances `step` ms on every read: once to start, then
+     *  once after each unit. */
+    const steppingClock = (step: number) => {
+        let reads = 0;
+        return {
+            now: () => {
+                reads += 1;
+                return reads * step;
+            },
+            reads: () => reads,
+        };
+    };
+
+    it("reads the mean time per unit beside how many units it ran", () => {
+        // 4 ms a unit: units run until the budget is spent.
+        const reading = runCalibration(steppingClock(4).now);
+        const units = Math.ceil(CALIBRATION_BUDGET_MS / 4);
+        expect(reading).toEqual({
+            msPerIteration: 4,
+            iterations: units * CALIBRATION_UNIT_ITERATIONS,
+        });
+    });
+
+    it("never runs past its budget by more than the one unit it was in", () => {
+        // Whatever a unit costs on this device, the reading ends at the
+        // first unit that finishes past the budget: its length is under the
+        // budget plus one unit. This is the wait a consult posted behind it
+        // can be made to pay.
+        for (const unitMs of [1, 4, 7, 24, 25, 26, 90, 400]) {
+            const clock = steppingClock(unitMs);
+            const reading = runCalibration(clock.now)!;
+            const length = reading.msPerIteration * reading.iterations;
+            expect(length).toBeLessThan(CALIBRATION_BUDGET_MS + unitMs);
+            // The clock was read once to start and once per unit: nothing
+            // the reading does is outside it.
+            expect(clock.reads()).toBe(1 + reading.iterations);
+        }
+    });
+
+    it("runs one unit when one unit is longer than the whole budget", () => {
+        const reading = runCalibration(steppingClock(90).now);
+        expect(reading).toEqual({ msPerIteration: 90, iterations: 1 });
+    });
+
+    it("stops at its unit cap on a machine too fast to spend the budget", () => {
+        const fast = CALIBRATION_BUDGET_MS / (CALIBRATION_MAX_UNITS * 4);
+        const reading = runCalibration(steppingClock(fast).now);
+        expect(reading!.iterations).toBe(
+            CALIBRATION_MAX_UNITS * CALIBRATION_UNIT_ITERATIONS
         );
     });
 
-    it("stops at its cap, and still reads the iterations it completed", () => {
-        // 150 ms per read: the first iteration already ends past the cap.
-        let t = 0;
-        const reading = runCalibration(() => (t += 150));
-        expect(CALIBRATION_CAP_MS).toBeLessThanOrEqual(150);
-        expect(reading!.iterations).toBe(1);
-        // One iteration, and the closing read: two steps of 150 ms.
-        expect(reading!.msPerIteration).toBe(300);
-    });
-
-    it("is no reading when the search fails, and never throws", () => {
+    it("is no reading when the clock did not advance, or the search fails", () => {
+        expect(runCalibration(() => 0)).toBeNull();
         expect(
             runCalibration(() => {
                 throw new Error("no clock");

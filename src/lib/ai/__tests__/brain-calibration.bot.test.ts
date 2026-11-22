@@ -5,6 +5,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PublicGameState } from "@convex/gameProjections";
 import {
+    CALIBRATION_BUDGET_MS,
+    runCalibration,
+} from "@convex/gre/ai/calibration";
+import {
     handleCalibration,
     isBrainCalibrate,
     isBrainCalibration,
@@ -18,31 +22,75 @@ import {
 } from "../brain-client";
 
 describe("handleCalibration", () => {
-    it("answers with the search's reading under the request's id", () => {
+    it("answers with the calibration's reading under the request's id", () => {
         expect(
             handleCalibration({ kind: "calibrate", id: 7 }, () => ({
                 msPerIteration: 2.5,
-                iterations: 16,
+                iterations: 9,
             }))
-        ).toEqual({ kind: "calibration", id: 7, msPerIteration: 2.5 });
+        ).toEqual({
+            kind: "calibration",
+            id: 7,
+            reading: { msPerIteration: 2.5, iterations: 9 },
+        });
     });
 
-    it("answers with no reading when the search measured nothing or threw", () => {
+    it("answers with no reading when the calibration measured nothing, threw, or returned a number nobody can use", () => {
+        const none = (id: number) => ({
+            kind: "calibration",
+            id,
+            reading: null,
+        });
         expect(
             handleCalibration({ kind: "calibrate", id: 8 }, () => null)
-        ).toEqual({ kind: "calibration", id: 8, msPerIteration: null });
+        ).toEqual(none(8));
         expect(
             handleCalibration({ kind: "calibrate", id: 9 }, () => {
                 throw new Error("engine fault");
             })
-        ).toEqual({ kind: "calibration", id: 9, msPerIteration: null });
+        ).toEqual(none(9));
+        for (const bad of [
+            { msPerIteration: 0, iterations: 4 },
+            { msPerIteration: Number.NaN, iterations: 4 },
+            { msPerIteration: 2.5, iterations: 0 },
+            { msPerIteration: 2.5, iterations: 1.5 },
+        ]) {
+            expect(
+                handleCalibration({ kind: "calibrate", id: 10 }, () => bad)
+            ).toEqual(none(10));
+        }
     });
 
-    it("runs the real calibration search by default", () => {
+    it("runs the real calibration by default", () => {
         // On the real clock: under the suite's fake timers no time passes.
         vi.useRealTimers();
         const answer = handleCalibration({ kind: "calibrate", id: 1 });
-        expect(answer.msPerIteration).toBeGreaterThan(0);
+        expect(answer.reading!.msPerIteration).toBeGreaterThan(0);
+        expect(answer.reading!.iterations).toBeGreaterThan(0);
+    });
+
+    // The wait a consult posted behind a calibration can be made to pay is
+    // the handler's whole length. With the REAL calibration behind it and a
+    // clock that charges every unit the same, that length stays under the
+    // budget plus one unit, whatever a unit costs on the device.
+    it("lasts no longer than its budget plus one unit, on the real calibration", () => {
+        for (const unitMs of [2, 10, 24, 26, 60, 250]) {
+            let reads = 0;
+            const now = () => {
+                reads += 1;
+                return reads * unitMs;
+            };
+            const answer = handleCalibration({ kind: "calibrate", id: 2 }, () =>
+                runCalibration(now)
+            );
+            const reading = answer.reading!;
+            // Every clock read but the first closes a unit: the handler's
+            // length on this clock is the units it ran, nothing beside them.
+            expect(reads).toBe(1 + reading.iterations);
+            const length = (reads - 1) * unitMs;
+            expect(length).toBeLessThan(CALIBRATION_BUDGET_MS + unitMs);
+            expect(reading.msPerIteration).toBe(unitMs);
+        }
     });
 
     it("tells its two messages from a consult's", () => {
@@ -53,7 +101,7 @@ describe("handleCalibration", () => {
             isBrainCalibration({
                 kind: "calibration",
                 id: 1,
-                msPerIteration: 2,
+                reading: { msPerIteration: 2, iterations: 3 },
             })
         ).toBe(true);
         expect(isBrainCalibration({ id: 1, move: null, trace: null })).toBe(
@@ -113,9 +161,12 @@ describe("calibrateBrain", () => {
         worker.answer({
             kind: "calibration",
             id: worker.posted[0]!.id,
-            msPerIteration: 2.5,
+            reading: { msPerIteration: 2.5, iterations: 9 },
         });
-        await expect(reading).resolves.toBe(2.5);
+        await expect(reading).resolves.toEqual({
+            msPerIteration: 2.5,
+            iterations: 9,
+        });
     });
 
     it("never spawns a Worker to ask, and has no reading without one", async () => {
@@ -135,7 +186,7 @@ describe("calibrateBrain", () => {
         worker.answer({
             kind: "calibration",
             id: worker.posted[0]!.id,
-            msPerIteration: null,
+            reading: null,
         });
         await expect(empty).resolves.toBeNull();
 
@@ -143,7 +194,7 @@ describe("calibrateBrain", () => {
         worker.answer({
             kind: "calibration",
             id: worker.posted[1]!.id,
-            msPerIteration: "fast",
+            reading: { msPerIteration: "fast", iterations: 3 },
         });
         await expect(malformed).resolves.toBeNull();
     });
@@ -180,9 +231,12 @@ describe("calibrateBrain", () => {
         worker.answer({
             kind: "calibration",
             id: calibrateMessage!.id,
-            msPerIteration: 3,
+            reading: { msPerIteration: 3, iterations: 4 },
         });
-        await expect(reading).resolves.toBe(3);
+        await expect(reading).resolves.toEqual({
+            msPerIteration: 3,
+            iterations: 4,
+        });
 
         worker.answer({ id: consultMessage!.id, move: null, trace: null });
         await expect(consult).resolves.toMatchObject({ outcome: "no-move" });

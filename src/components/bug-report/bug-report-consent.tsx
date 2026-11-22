@@ -70,11 +70,12 @@ export default function BugReportConsent({
                 <li>
                     Separately from this report, Tolaria sends console output,
                     uncaught errors, page-load timings (with the page&rsquo;s
-                    address and your browser&rsquo;s identification) and the
-                    timings of the Bot&rsquo;s searches to Sentry, a third-party
-                    monitoring service, on every session. That happens whether
-                    or not you file a report, and declining below does not stop
-                    it.
+                    address, the addresses of what it loaded, your
+                    browser&rsquo;s identification, language and time zone) and
+                    the timings of the Bot&rsquo;s searches to Sentry, a
+                    third-party monitoring service, on every session. That
+                    happens whether or not you file a report, and declining
+                    below does not stop it.
                 </li>
             </ul>
             <details className="text-xs text-text-muted">

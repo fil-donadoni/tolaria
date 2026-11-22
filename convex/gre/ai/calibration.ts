@@ -18,6 +18,20 @@
 // through the real engine, so the reading covers what a search does: clone,
 // enumerate, apply, state-based actions, evaluate.
 //
+// A READING IS A NUMBER OF IDENTICAL UNITS. One unit builds the board and
+// searches it for one iteration, root pick and trace included: the same work
+// every time, on every device. A reading runs units until its time budget is
+// spent and reports the mean time per unit beside how many it completed, so a
+// fast machine and a slow one measure the same thing over a different number
+// of samples — never a different workload. The clock is read around whole
+// units, board included: nothing a reading does is outside it.
+//
+// THE WAIT IT CAN IMPOSE. A consult posted behind a reading in the Worker
+// waits for it. A reading stops at the first unit that ends past the budget,
+// so it lasts at most the budget plus one unit of the device's own. One unit
+// is the floor: a device takes that long whatever the budget says. The
+// measured figures are in `docs/research/calibration-reading.md`.
+//
 // Not a decision: nothing here is played, and no game state is read.
 
 import type { TokenSpec } from "../../cards/types";
@@ -35,28 +49,23 @@ import {
 export const CALIBRATION_BOT = "calibration-bot";
 const CALIBRATION_OPPONENT = "calibration-opponent";
 
-/** Iterations of one reading. Eight cost about 18 ms on the development
- *  machine under load (2.2 ms each, measured 2026-11-22): long enough to time
- *  against a 1 ms clock, and few enough that a machine three times slower
- *  still completes them all inside the cap — a reading the cap cut covers
- *  fewer iterations and is a different workload. */
-export const CALIBRATION_ITERATIONS = 8;
-
 /** The search's seed. Fixed forever: a different seed is a different search. */
 export const CALIBRATION_SEED = 0xca11b;
 
-/** The longest one reading's search may run, on any device: a consult posted
- *  behind a calibration waits for it, and that wait comes out of the consult
- *  timeout's margins (`src/lib/ai/consult-timeout.ts`). The cap is checked
- *  between iterations, so the wait can exceed it by one iteration and by
- *  building the board. A search this cuts short completed fewer iterations;
- *  its reading is still the time per iteration it did complete, over a
- *  shorter and so different workload — the cold first reading of a game is
- *  the likeliest. */
-export const CALIBRATION_CAP_MS = 50;
+/** Iterations of one unit's search. One: the smallest unit there is, so the
+ *  floor on a reading's length (one unit) is as low as it can be. */
+export const CALIBRATION_UNIT_ITERATIONS = 1;
 
+/** A reading's time budget: it starts no unit once this much has passed. */
+export const CALIBRATION_BUDGET_MS = 25;
+
+/** The most units one reading runs, however fast the machine. */
+export const CALIBRATION_MAX_UNITS = 16;
+
+// Named for what they are, so their definition ids can never be a real
+// token's: a game that makes its own 2/2 green Bear gets its own definition.
 const BEAR: TokenSpec = {
-    name: "Bear",
+    name: "Calibration Bear",
     types: ["Creature"],
     subtypes: ["Bear"],
     power: 2,
@@ -65,7 +74,7 @@ const BEAR: TokenSpec = {
 };
 
 const SPIRIT: TokenSpec = {
-    name: "Spirit",
+    name: "Calibration Spirit",
     types: ["Creature"],
     subtypes: ["Spirit"],
     power: 1,
@@ -152,35 +161,53 @@ export function calibrationState(): GameState {
 
 /** One calibration reading. */
 export type CalibrationReading = {
-    /** Wall-clock milliseconds per completed iteration. */
+    /** Mean wall-clock milliseconds per unit: one iteration's search with the
+     *  board built before it and the root read after it. */
     msPerIteration: number;
-    /** Iterations completed: `CALIBRATION_ITERATIONS` unless the cap cut it. */
+    /** Units completed: the samples behind the mean. A reading of one or two
+     *  ran mostly cold code. */
     iterations: number;
 };
 
-/** Run the calibration search once and time it. `null` when it measured
- *  nothing (no iteration completed, or no decision to search). Never throws:
- *  a calibration that fails is no reading. `now` is the clock, injectable for
- *  a deterministic test. */
-export function runCalibration(now?: () => number): CalibrationReading | null {
+/** The search every unit runs. */
+const UNIT_BUDGET = {
+    iterations: CALIBRATION_UNIT_ITERATIONS,
+    // The settle rule must not end it early: every unit is the same work.
+    minIterations: CALIBRATION_UNIT_ITERATIONS,
+};
+
+/** Run one calibration reading: units of identical work until the budget is
+ *  spent, timed as a whole. `null` when it measured nothing (a unit that did
+ *  not search, or a clock that did not advance). Never throws: a calibration
+ *  that fails is no reading. `now` is the clock, injectable for a
+ *  deterministic test; it is read once to start and once after each unit. */
+export function runCalibration(
+    now: () => number = () => performance.now()
+): CalibrationReading | null {
     try {
-        const { trace } = searchWithTrace(
-            calibrationState(),
-            CALIBRATION_BOT,
-            {
-                iterations: CALIBRATION_ITERATIONS,
-                // The settle rule must not end it early: every reading runs
-                // the same iterations.
-                minIterations: CALIBRATION_ITERATIONS,
-                timeMs: CALIBRATION_CAP_MS,
-                ...(now ? { now } : {}),
-            },
-            CALIBRATION_SEED
-        );
-        if (!trace || trace.iterationsCompleted <= 0) return null;
-        const msPerIteration = trace.elapsedMs / trace.iterationsCompleted;
-        if (!Number.isFinite(msPerIteration) || msPerIteration < 0) return null;
-        return { msPerIteration, iterations: trace.iterationsCompleted };
+        const start = now();
+        let units = 0;
+        let elapsed = 0;
+        while (units < CALIBRATION_MAX_UNITS) {
+            const { trace } = searchWithTrace(
+                calibrationState(),
+                CALIBRATION_BOT,
+                UNIT_BUDGET,
+                CALIBRATION_SEED
+            );
+            if (trace?.iterationsCompleted !== CALIBRATION_UNIT_ITERATIONS) {
+                return null;
+            }
+            units += 1;
+            elapsed = now() - start;
+            if (elapsed >= CALIBRATION_BUDGET_MS) break;
+        }
+        const iterations = units * CALIBRATION_UNIT_ITERATIONS;
+        const msPerIteration = elapsed / iterations;
+        if (!Number.isFinite(msPerIteration) || msPerIteration <= 0) {
+            return null;
+        }
+        return { msPerIteration, iterations };
     } catch {
         return null;
     }

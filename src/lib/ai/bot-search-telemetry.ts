@@ -41,17 +41,18 @@
 // asking per key; the boundary above is unchanged. Each consult also records
 // a span of its own (`./bot-consult-span`), under the same boundary.
 //
-// WHAT THE MACHINE WAS WORTH. Every reading above moves with
-// the board the game reached. The calibration reading does not: the Worker
-// times the same fixed search on the same fixed board
-// (`convex/gre/ai/calibration.ts`) after each of the game's first
-// `CALIBRATION_WARMUP_READINGS` consults and then at most once every
-// `CALIBRATION_INTERVAL_MS`. The report carries the first, the latest, the
-// best and how many there were (`calibration.first`, `.last`, `.min`,
-// `.count`, milliseconds per iteration). The first readings run colder — the
-// browser has not compiled the calibration's own paths yet — so `.min` is
-// the machine at its best, and `.first` compares games at the same point. A
-// duration like the rest; it reads nothing of the game.
+// WHAT THE MACHINE WAS WORTH. Every reading above moves with the board the
+// game reached. The calibration reading does not: the Worker times units of
+// the same fixed work on the same fixed board (`convex/gre/ai/calibration.ts`)
+// after each of the game's first `CALIBRATION_WARMUP_READINGS` consults and
+// then at most once every `CALIBRATION_INTERVAL_MS`. The report carries the
+// first, the latest and the best, each beside the iterations it stands on,
+// how many readings there were and how many were skipped
+// (`calibration.first`, `.last`, `.min`, their `...Iterations`, `.count`,
+// `.skipped`; milliseconds per iteration). The first readings run colder —
+// the browser has not compiled the calibration's own paths yet — so `.min` is
+// the machine at its best. A duration like the rest; it reads nothing of the
+// game.
 //
 // The report is flushed out of the SDK's log buffer the moment it is logged:
 // a phone backgrounding the page gives no second chance.
@@ -62,6 +63,7 @@ import * as Sentry from "@sentry/react";
 import type { DecisionTrace } from "@convex/gre";
 import type { BrainOutcome } from "./brain-request";
 import { emitConsultSpan, type TimedConsult } from "./bot-consult-span";
+import type { CalibrationReading } from "./brain-calibration";
 
 /** The search's own account of one decision — the `DecisionTrace` fields
  *  this report reads. Absent when the consult produced no trace (a failed
@@ -136,6 +138,10 @@ export type ConsultSample = {
      *  searching), after one that ran in-thread, and for a consult posted
      *  while a calibration was running. */
     idleMs?: number;
+    /** How long the consult waited in the Worker behind a calibration
+     *  reading; that wait is already out of `consultMs`. Filled in by the
+     *  game's recorder; absent when it waited behind none. */
+    calibrationWaitMs?: number;
 };
 
 /** The coarse device class — see the module header for why it is this coarse. */
@@ -178,9 +184,13 @@ export const REPORT_KEYS = [
     "msPerProbe.p50",
     "idleMs.p50",
     "calibration.first",
+    "calibration.firstIterations",
     "calibration.last",
+    "calibration.lastIterations",
     "calibration.min",
+    "calibration.minIterations",
     "calibration.count",
+    "calibration.skipped",
     "device.engine",
     "device.os",
     "device.cores",
@@ -374,7 +384,7 @@ export function summarizeBotSearch(
     gameId: string,
     samples: readonly ConsultSample[],
     device: DeviceClass,
-    calibration: readonly number[] = []
+    calibration: CalibrationSummary = NO_CALIBRATION
 ): BotSearchReport {
     const difficulties = new Set(samples.map((s) => s.difficulty));
     const raw: Record<string, string | number | boolean> = {
@@ -403,17 +413,30 @@ export function summarizeBotSearch(
     }
 
     // What the machine was worth, whatever the board (issue #10451): the
-    // game's first calibration reading, its latest and its best. The first
-    // ones run colder, so the best is the machine's own speed.
-    const readings = calibration.filter(finite);
+    // game's first calibration reading, its latest and its best, each beside
+    // the iterations it stands on. The first ones run colder, so the best is
+    // the machine's own speed. `skipped` counts the readings that were due
+    // and not taken because a search had just run long past its cap: on a
+    // device where that is every late search, `last` is an early reading.
+    const readings = calibration.readings.filter(
+        (r) => finite(r.msPerIteration) && finite(r.iterations)
+    );
     if (readings.length > 0) {
-        raw["calibration.first"] = round(readings[0]!, 2);
-        raw["calibration.last"] = round(readings[readings.length - 1]!, 2);
-        raw["calibration.min"] = round(
-            readings.reduce((min, r) => (r < min ? r : min)),
-            2
+        const first = readings[0]!;
+        const last = readings[readings.length - 1]!;
+        const best = readings.reduce((min, r) =>
+            r.msPerIteration < min.msPerIteration ? r : min
         );
+        raw["calibration.first"] = round(first.msPerIteration, 2);
+        raw["calibration.firstIterations"] = first.iterations;
+        raw["calibration.last"] = round(last.msPerIteration, 2);
+        raw["calibration.lastIterations"] = last.iterations;
+        raw["calibration.min"] = round(best.msPerIteration, 2);
+        raw["calibration.minIterations"] = best.iterations;
         raw["calibration.count"] = readings.length;
+    }
+    if (finite(calibration.skipped) && calibration.skipped > 0) {
+        raw["calibration.skipped"] = calibration.skipped;
     }
 
     // What the Worker had to spare between two consults (issue #10321).
@@ -538,43 +561,88 @@ export function consultClock(): ConsultClock {
 }
 
 /** Asks the Brain's Worker for one calibration reading (`calibrateBrain`,
- *  `./brain-client`): milliseconds per iteration, or `null` for no reading. */
-export type Calibrator = () => Promise<number | null>;
+ *  `./brain-client`): milliseconds per iteration beside the iterations
+ *  behind it, or `null` for no reading. */
+export type Calibrator = () => Promise<CalibrationReading | null>;
+
+/** What a game's calibration log holds when its report goes out. */
+export type CalibrationSummary = {
+    /** The readings, oldest first. */
+    readings: readonly CalibrationReading[];
+    /** Readings that were due and not taken after a search that ran long
+     *  past its cap (`CALIBRATION_SKIP_OVERRUN_MS`). */
+    skipped: number;
+};
+
+const NO_CALIBRATION: CalibrationSummary = { readings: [], skipped: 0 };
 
 /** The least time between two calibration readings of one game, once it has
- *  its first `CALIBRATION_WARMUP_READINGS`. A reading costs the Worker a few
- *  tens of milliseconds; one every half minute is under a thousandth of its
- *  time, and still dates a slow stretch of a game. */
+ *  its first `CALIBRATION_WARMUP_READINGS`: often enough to date a slow
+ *  stretch of a game, rare enough to cost the Worker next to nothing. */
 export const CALIBRATION_INTERVAL_MS = 30_000;
 
 /** How many readings a game takes back to back, one after each of its first
  *  consults, before the interval applies. A browser compiles the
- *  calibration's own code paths over its first runs: three consecutive
- *  readings in a fresh process read 10.2, 4.2 and 1.7 ms per iteration
- *  (2026-11-22). Three early readings reach the steady speed inside the
- *  game's first turns, so even a short game has one. */
+ *  calibration's own code paths over its first runs, so the first readings
+ *  run colder; a few early ones reach the steady speed inside the game's
+ *  first turns, so even a short game has one
+ *  (`docs/research/calibration-reading.md`). */
 export const CALIBRATION_WARMUP_READINGS = 3;
 
 /** How far past its cap a time-stopped search may have run for a reading to
  *  follow it. A search stops at the first iteration that ends past the cap,
  *  so the overrun is one iteration's length: a long one is a board or a
  *  machine on which the NEXT consult may need the whole overrun margin of
- *  the consult timeout (1,358 of its 1,500 ms in the worst field case, issue
- *  #10408), and a calibration ahead of it in the Worker would spend some.
- *  A fifth of that margin. */
+ *  the consult timeout (issue #10408), and a calibration ahead of it in the
+ *  Worker would spend some. A fifth of that margin. */
 export const CALIBRATION_SKIP_OVERRUN_MS = 300;
+
+/** Whether the page is hidden, and how many times its visibility has
+ *  changed: what a calibration reading must not span. A hidden page's Worker
+ *  may be throttled or frozen, and a reading taken across a freeze times the
+ *  freeze. */
+export type PageVisibility = {
+    hidden: () => boolean;
+    changes: () => number;
+};
+
+let visibilityChanges = 0;
+let countingVisibility = false;
+
+/** The page's own visibility. Counts `visibilitychange` events from its
+ *  first use on; a context with no document is never hidden. */
+export const pageVisibility: PageVisibility = {
+    hidden() {
+        return (
+            typeof document !== "undefined" &&
+            document.visibilityState === "hidden"
+        );
+    },
+    changes() {
+        if (!countingVisibility && typeof document !== "undefined") {
+            countingVisibility = true;
+            document.addEventListener("visibilitychange", () => {
+                visibilityChanges += 1;
+            });
+        }
+        return visibilityChanges;
+    },
+};
 
 /** One game's calibration readings on this page (issue #10451). */
 export type CalibrationLog = {
-    /** The readings so far, oldest first, in milliseconds per iteration. */
-    readings: () => readonly number[];
+    /** The readings so far, oldest first. */
+    readings: () => readonly CalibrationReading[];
+    /** The readings and the count of skipped ones, for the game's report. */
+    summary: () => CalibrationSummary;
     /** A consult just ended, at `now` (`telemetryNow()`): ask for a reading
      *  if one is due. Never throws, and never waits. */
     after: (sample: ConsultSample, now: number) => void;
     /** How long a consult posted at `postedAt` and answered at `answeredAt`
-     *  waited in the Worker behind the latest calibration: 0 unless it was
-     *  posted while that calibration was in flight. */
-    waitedBehind: (postedAt: number, answeredAt: number) => number;
+     *  waited in the Worker behind the latest calibration: 0 when it was not
+     *  posted while that calibration was in flight, `null` when it was and
+     *  the calibration never settled, so the wait is not known. */
+    waitedBehind: (postedAt: number, answeredAt: number) => number | null;
 };
 
 /** A game's calibration log. A reading is due after a consult the WORKER
@@ -582,35 +650,53 @@ export type CalibrationLog = {
  *  that timed out or failed, where it would queue behind the search that is
  *  stuck — while the game has asked for fewer than
  *  `CALIBRATION_WARMUP_READINGS`, or once the last one was asked for
- *  `CALIBRATION_INTERVAL_MS` ago; never while one is in flight, and never
- *  after a search whose last iteration ran long past its cap
- *  (`CALIBRATION_SKIP_OVERRUN_MS`). With no `calibrate` the log stays empty.
+ *  `CALIBRATION_INTERVAL_MS` ago; never while one is in flight. A due
+ *  reading is not asked for while the page is hidden, and is SKIPPED (and
+ *  counted) after a search whose last iteration ran long past its cap
+ *  (`CALIBRATION_SKIP_OVERRUN_MS`). A reading during which the page's
+ *  visibility changed is discarded: it may have spanned a freeze. With no
+ *  `calibrate` the log stays empty.
  *
  *  A reading is asked for the moment a verdict lands. The driver posts its
- *  next consult no sooner than its think beat after the board changes
- *  (200 ms), and a calibration is capped at `CALIBRATION_CAP_MS` (50 ms), so
- *  a consult rarely finds one ahead of it; when it does, `waitedBehind` says
- *  for how long. `clock` is `telemetryNow`, injectable for a test. */
+ *  next consult no sooner than its think beat after the board changes, and a
+ *  reading lasts its budget plus one unit (`convex/gre/ai/calibration.ts`),
+ *  so a consult rarely finds one ahead of it; when it does, `waitedBehind`
+ *  says for how long. `clock` is `telemetryNow`, injectable for a test. */
 export function calibrationLog(
     calibrate?: Calibrator,
-    clock: () => number = telemetryNow
+    clock: () => number = telemetryNow,
+    visibility: PageVisibility = pageVisibility
 ): CalibrationLog {
-    const readings: number[] = [];
+    const readings: CalibrationReading[] = [];
+    let skipped = 0;
     let askedAt: number | undefined;
-    /** When the latest calibration settled; `undefined` while in flight. */
+    /** When the latest calibration settled; `undefined` while in flight, and
+     *  for good when it never settles. */
     let settledAt: number | undefined;
     let asked = 0;
     let asking = false;
     return {
         readings: () => readings,
+        summary: () => ({ readings, skipped }),
         waitedBehind(postedAt, answeredAt) {
             if (askedAt === undefined || postedAt < askedAt) return 0;
-            const until = Math.min(settledAt ?? answeredAt, answeredAt);
+            if (settledAt === undefined) return null;
+            const until = Math.min(settledAt, answeredAt);
             return until > postedAt ? until - postedAt : 0;
         },
         after(sample, now) {
             if (!calibrate || asking) return;
             if (!workerAnswered(sample)) return;
+            if (
+                asked >= CALIBRATION_WARMUP_READINGS &&
+                askedAt !== undefined &&
+                now - askedAt < CALIBRATION_INTERVAL_MS
+            ) {
+                return;
+            }
+            // A reading is due. Not on a hidden page: its Worker may be
+            // throttled, and nobody is waiting on the game.
+            if (visibility.hidden()) return;
             const search = sample.search;
             if (
                 search?.stoppedBy === "time" &&
@@ -620,19 +706,14 @@ export function calibrationLog(
                         CALIBRATION_SKIP_OVERRUN_MS
                 )
             ) {
-                return;
-            }
-            if (
-                asked >= CALIBRATION_WARMUP_READINGS &&
-                askedAt !== undefined &&
-                now - askedAt < CALIBRATION_INTERVAL_MS
-            ) {
+                skipped += 1;
                 return;
             }
             asking = true;
             asked += 1;
             askedAt = now;
             settledAt = undefined;
+            const changesBefore = visibility.changes();
             const settle = () => {
                 asking = false;
                 try {
@@ -644,7 +725,16 @@ export function calibrationLog(
             try {
                 void Promise.resolve(calibrate())
                     .then((reading) => {
-                        if (finite(reading) && reading > 0) {
+                        // A reading the page was hidden or shown during may
+                        // have spanned a freeze: it is not a measurement.
+                        if (visibility.changes() !== changesBefore) return;
+                        if (
+                            reading &&
+                            finite(reading.msPerIteration) &&
+                            reading.msPerIteration > 0 &&
+                            finite(reading.iterations) &&
+                            reading.iterations > 0
+                        ) {
                             readings.push(reading);
                         }
                     })
@@ -659,11 +749,13 @@ export function calibrationLog(
 }
 
 /** Time one consult and record its span (`./bot-consult-span`), with the
- *  game's latest calibration reading beside it. A consult posted while a
- *  calibration was running waited behind it in the Worker: that wait is
- *  taken out of its `consultMs`, and it has no idle reading (the Worker was
- *  not idle). Never throws; a consult the clock could not time is returned
- *  as it came. */
+ *  game's latest calibration reading beside it. A consult the Worker
+ *  answered that was posted while a calibration was running waited behind it
+ *  in the Worker: that wait is taken out of its `consultMs` and carried
+ *  beside it (`calibrationWaitMs`), and it has no idle reading (the Worker
+ *  was not idle). When the calibration never settled the wait is not known:
+ *  the consult keeps its time, and still has no idle reading. Never throws;
+ *  a consult the clock could not time is returned as it came. */
 function timeAndTrace(
     gameId: string,
     clock: ConsultClock,
@@ -672,12 +764,20 @@ function timeAndTrace(
 ): ConsultSample {
     try {
         const timed = clock(sample);
-        if (calibration && finite(timed.postedAt) && finite(timed.consultMs)) {
+        if (
+            calibration &&
+            workerAnswered(timed) &&
+            finite(timed.postedAt) &&
+            finite(timed.consultMs)
+        ) {
             const waited = calibration.waitedBehind(
                 timed.postedAt,
                 timed.postedAt + timed.consultMs
             );
-            if (waited > 0) {
+            if (waited === null) {
+                delete timed.idleMs;
+            } else if (waited > 0) {
+                timed.calibrationWaitMs = waited;
                 timed.consultMs = Math.max(0, timed.consultMs - waited);
                 delete timed.idleMs;
             }
@@ -686,7 +786,7 @@ function timeAndTrace(
         const latest = readings[readings.length - 1];
         emitConsultSpan(
             gameId,
-            finite(latest) ? { ...timed, calibration: latest } : timed,
+            latest ? { ...timed, calibration: latest } : timed,
             deviceClass()
         );
         return timed;
@@ -742,7 +842,7 @@ export function openBotSearchReport(
                         gameId,
                         samples,
                         deviceClass(),
-                        calibration.readings()
+                        calibration.summary()
                     )
                 );
             } catch {
