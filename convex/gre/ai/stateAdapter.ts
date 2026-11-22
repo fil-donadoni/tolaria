@@ -120,12 +120,24 @@ function makePlaceholder(
  *  opponent's hand exposed face-up by a live cross-player hand pick) pass
  *  through untouched; each null becomes an opaque placeholder, exactly as
  *  `makeLibraryPlaceholders` does for a hidden library. */
-function rebuildHand(player: PublicPlayer): CardInstanceState[] {
-    return player.hand.map((c, i) =>
-        c === null
-            ? makePlaceholder(player.id, i, "hand")
-            : (c as unknown as CardInstanceState)
-    );
+function rebuildHand(
+    player: PublicPlayer,
+    viewerId?: string
+): CardInstanceState[] {
+    // Issue #10436 — an OPPONENT hand card whose identity crossed the wire is
+    // one this viewer has been shown (ADR 0026: a `knownTo` grant, a revealed
+    // hand, a live cross-player hand pick). The projection strips the raw
+    // `knownTo` (`slimCard`), so put the wire's own statement back in the
+    // field `determinize` reads — as `overlayKnownLibraryCards` does for
+    // `library.known[]` (issue #1524). Without it every ISMCTS world pooled
+    // the shown cards with the library and the open pick saw none of them.
+    // The viewer's own hand needs no stamp: `determinizeObserver` keeps it.
+    const stamp = viewerId !== undefined && player.id !== viewerId;
+    return player.hand.map((c, i) => {
+        if (c === null) return makePlaceholder(player.id, i, "hand");
+        const card = c as unknown as CardInstanceState;
+        return stamp ? { ...card, knownTo: [viewerId] } : card;
+    });
 }
 
 /** Build `count` opaque library instances for a player (no decklist known). */
@@ -429,7 +441,7 @@ export function projectedToGameState(
             // Rebuild to the wire LENGTH: a hand's SIZE is public (CR 402.2)
             // and every hand-size read in the engine goes through this pile
             // (issue #2006 — see the header note).
-            hand: rebuildHand(p),
+            hand: rebuildHand(p, viewerId),
             // Library contents are hidden on the wire, but the simulated draw
             // step / draw spells / fetch searches need cards to take. Rebuild
             // to the wire count.

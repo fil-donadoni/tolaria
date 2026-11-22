@@ -25242,6 +25242,65 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #8271 — the same pick with the mana-light card as the temptation.",
     },
     {
+        label: "strip: Deep-Cavern Bat exiles the Shivan Dragon it looked at",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Deep-Cavern Bat",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Shivan Dragon",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 6,
+                },
+            ],
+        },
+        setup: [
+            {
+                kind: "etb-trigger",
+                card: "Deep-Cavern Bat",
+            },
+            {
+                kind: "resolve-top",
+            },
+        ],
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "resolution-choice",
+                    card: "Shivan Dragon",
+                },
+            ],
+        },
+        note: "Issue #10436 — an OPTIONAL pick out of a hand the Bot has just LOOKED at (`knownTo`, no decklist). The no-decklist determinization pooled the looked-at hand with the library, so the choice's candidates left the hand in every world and only the decline survived.",
+    },
+    {
         label: "strip: holds Thoughtseize at a hand of lands",
         classification: {
             kind: "absolute",

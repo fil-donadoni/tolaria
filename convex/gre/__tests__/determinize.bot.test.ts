@@ -126,6 +126,66 @@ describe("determinize — respects hidden zone counts (issue #112)", () => {
     });
 });
 
+// Issue #10436 (ADR 0026) — an opponent HAND card the observer has been shown
+// (`knownTo`: a look-at-hand effect, a reveal) is a fact on the no-decklist
+// path too, exactly as `fillHiddenZonesFrom` already keeps it on the informed
+// and blinded ones. Pooling it with the library is what had Deep-Cavern Bat's
+// optional pick decline every game: its candidates left the hand.
+describe("determinize — a looked-at opponent hand card stays in hand, no decklist (issue #10436)", () => {
+    const SEEDS = Array.from({ length: 20 }, (_, i) => i + 1);
+    const shownState = () => {
+        const state = fullInfoState();
+        state.players[1].hand[0].knownTo = ["p1"];
+        return state;
+    };
+
+    it("keeps the shown card in the opponent's hand with its own id, every seed", () => {
+        const state = shownState();
+        for (const seed of SEEDS) {
+            const p2 = determinize(state, "p1", makeRng(seed)).players[1];
+            const kept = p2.hand.find((c) => c.id === "p2-hand-0");
+            expect(kept?.card.id).toBe(GIANT);
+            expect(kept?.zone).toBe("hand");
+            expect(p2.library.some((c) => c.id === "p2-hand-0")).toBe(false);
+        }
+    });
+
+    it("still re-deals the hand slots the observer has NOT been shown", () => {
+        const state = shownState();
+        const unknown = ["p2-hand-1", "p2-hand-2"];
+        const leftHand = SEEDS.some((seed) => {
+            const p2 = determinize(state, "p1", makeRng(seed)).players[1];
+            return unknown.some((id) => p2.library.some((c) => c.id === id));
+        });
+        expect(leftHand).toBe(true);
+    });
+
+    it("preserves both zone sizes and never duplicates a card across them", () => {
+        const state = shownState();
+        const before = sortedIds([
+            ...state.players[1].hand,
+            ...state.players[1].library,
+        ]);
+        for (const seed of SEEDS) {
+            const p2 = determinize(state, "p1", makeRng(seed)).players[1];
+            expect(p2.hand.length).toBe(3);
+            expect(p2.library.length).toBe(4);
+            expect(sortedIds([...p2.hand, ...p2.library])).toEqual(before);
+        }
+    });
+
+    it("ignores a stamp that names only the OTHER player — the observer's own gate", () => {
+        const state = fullInfoState();
+        state.players[1].hand[0].knownTo = ["p2"];
+        const leftHand = SEEDS.some((seed) =>
+            determinize(state, "p1", makeRng(seed)).players[1].library.some(
+                (c) => c.id === "p2-hand-0"
+            )
+        );
+        expect(leftHand).toBe(true);
+    });
+});
+
 describe("determinize — purity & determinism (issue #112)", () => {
     it("does not mutate the input state", () => {
         const state = fullInfoState();
