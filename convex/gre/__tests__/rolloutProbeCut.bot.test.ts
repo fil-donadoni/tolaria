@@ -10,7 +10,6 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
-import { makeRng } from "../rng";
 import { enumerateMoves, type Move } from "../moves";
 import {
     ROLLOUT_PROBE_CAP,
@@ -71,9 +70,6 @@ const COMBAT_OPEN = {
     blockersConfirmed: false,
 };
 
-/** A stream that never ties: the cut's lot is the only draw it makes. */
-const rng = () => makeRng(7);
-
 function abilityOf(move: Move): string | undefined {
     return move.kind === "activate-ability" ? move.cardInstanceId : undefined;
 }
@@ -86,7 +82,7 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
         );
         const moves = enumerateMoves(state, "p1");
         expect(moves.length).toBeLessThanOrEqual(ROLLOUT_PROBE_CAP);
-        expect(rolloutProbeCandidates(state, moves, rng())).toEqual(moves);
+        expect(rolloutProbeCandidates(state, moves)).toEqual(moves);
     });
 
     // Two identical pump creatures enumerated before the Emperor: by kind
@@ -112,7 +108,7 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
             "leech-b",
             "emperor",
         ]);
-        const kept = rolloutProbeCandidates(state, moves, rng());
+        const kept = rolloutProbeCandidates(state, moves);
         expect(kept.map(abilityOf)).toEqual([undefined, "leech-a", "emperor"]);
     });
 
@@ -126,7 +122,7 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
             [card(MOUNTAIN, "m1", "battlefield")]
         );
         const moves = enumerateMoves(state, "p1");
-        const kept = rolloutProbeCandidates(state, moves, rng());
+        const kept = rolloutProbeCandidates(state, moves);
         expect(kept).toHaveLength(ROLLOUT_PROBE_CAP);
         expect(kept[0]).toEqual({ kind: "pass" });
         expect(
@@ -136,9 +132,10 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
     });
 
     // A declaration ply offers no `pass`: the empty declaration is the
-    // decline, and a cut that dropped it would have every mover attack and
-    // every defender block in every rollout.
-    it("never drops the empty declaration of a declaration ply", () => {
+    // decline. Every candidate is one kind, and the power set enumerates the
+    // single attackers first and the full attack last, so the pick must be
+    // handed the ply's two ends: nobody attacking and everybody attacking.
+    it("keeps the empty and the widest attack of an attack declaration ply", () => {
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -158,45 +155,60 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
         const moves = enumerateMoves(state, "p1");
         expect(moves.length).toBeGreaterThan(ROLLOUT_PROBE_CAP);
         expect(moves.some((m) => m.kind === "pass")).toBe(false);
-        for (let seed = 0; seed < 20; seed++) {
-            const kept = rolloutProbeCandidates(state, moves, makeRng(seed));
-            expect(kept.filter(isRolloutDecline)).toEqual([
-                { kind: "declare-attackers", attackerIds: [] },
-            ]);
-        }
+        const kept = rolloutProbeCandidates(state, moves);
+        expect(kept).toHaveLength(ROLLOUT_PROBE_CAP);
+        expect(kept.filter(isRolloutDecline)).toEqual([
+            { kind: "declare-attackers", attackerIds: [] },
+        ]);
+        const widths = kept.map((m) =>
+            m.kind === "declare-attackers" ? m.attackerIds.length : -1
+        );
+        expect(Math.max(...widths)).toBe(3);
     });
 
-    // Candidates of one kind are drawn by lot, not kept in enumeration order:
-    // across rollouts every one of them is probed, the last enumerated one
-    // included. In enumeration order it never would be.
-    it("draws equal kinds by lot, so the last one enumerated is probed in some rollouts", () => {
+    // The defender's side of the same ply: no block, and the block that uses
+    // every blocker, are both probed.
+    it("keeps the empty and the widest block of a block declaration ply", () => {
         const state = makeState({
             players: [
                 makePlayer("p1", {
                     battlefield: [
-                        card(BEARS, "bears-a", "battlefield"),
-                        card(LEECH, "leech-a", "battlefield"),
-                        card(EMPEROR, "emperor", "battlefield"),
+                        {
+                            ...card(EMPEROR, "attacker", "battlefield"),
+                            isTapped: true,
+                        },
                     ],
                 }),
-                makePlayer("p2"),
+                makePlayer("p2", {
+                    battlefield: [
+                        card(BEARS, "bears-a", "battlefield", "p2"),
+                        card(LEECH, "leech-a", "battlefield", "p2"),
+                    ],
+                }),
             ],
             activePlayerId: "p1",
-            priorityPlayerId: "p1",
-            phase: "DECLARE_ATTACKERS",
-            combat: COMBAT_OPEN,
+            priorityPlayerId: "p2",
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["attacker"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
         });
-        const moves = enumerateMoves(state, "p1");
-        const last = moves[moves.length - 1];
-        let probedLast = 0;
-        for (let seed = 0; seed < 40; seed++) {
-            const kept = rolloutProbeCandidates(state, moves, makeRng(seed));
-            if (kept.includes(last)) probedLast += 1;
-        }
-        expect(probedLast).toBeGreaterThan(0);
+        const moves = enumerateMoves(state, "p2");
+        expect(moves.length).toBeGreaterThan(ROLLOUT_PROBE_CAP);
+        const kept = rolloutProbeCandidates(state, moves);
+        expect(kept.filter(isRolloutDecline)).toEqual([
+            { kind: "declare-blockers", assignments: [] },
+        ]);
+        const widths = kept.map((m) =>
+            m.kind === "declare-blockers" ? m.assignments.length : -1
+        );
+        expect(Math.max(...widths)).toBe(2);
     });
 
-    it("returns the kept moves in enumeration order, the same for the same stream, and leaves the list alone", () => {
+    it("returns the kept moves in enumeration order, the same every time, and leaves the list alone", () => {
         const state = mainPhase(
             [],
             [
@@ -208,8 +220,8 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
         );
         const moves = enumerateMoves(state, "p1");
         const before = [...moves];
-        const once = rolloutProbeCandidates(state, moves, makeRng(3));
-        const twice = rolloutProbeCandidates(state, moves, makeRng(3));
+        const once = rolloutProbeCandidates(state, moves);
+        const twice = rolloutProbeCandidates(state, moves);
         expect(twice).toEqual(once);
         expect(moves).toEqual(before);
         const at = once.map((m) => moves.indexOf(m));

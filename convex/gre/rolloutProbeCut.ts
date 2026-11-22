@@ -48,10 +48,32 @@ export function rolloutMoveKindRank(move: Move): number {
     }
 }
 
+/** How wide a declaration is: its attackers, or its block assignments. */
+function declarationWidth(move: Move): number {
+    if (move.kind === "declare-attackers") return move.attackerIds.length;
+    if (move.kind === "declare-blockers") return move.assignments.length;
+    return 0;
+}
+
+/** The index of the WIDEST declaration of a declaration ply (the last one
+ *  enumerated among equals: the power set ends on the full one), or -1 on any
+ *  other ply. */
+function widestDeclarationAt(moves: readonly Move[]): number {
+    const kind = moves[0].kind;
+    if (kind !== "declare-attackers" && kind !== "declare-blockers") return -1;
+    let widestAt = 0;
+    for (let i = 1; i < moves.length; i++) {
+        if (declarationWidth(moves[i]) >= declarationWidth(moves[widestAt])) {
+            widestAt = i;
+        }
+    }
+    return widestAt;
+}
+
 /** The candidates the rollout's greedy pick probes out of `moves`, the moves
- *  a player may make at `state` (ADR 0184, issue #10473): all of them when there
- *  are `cap` or fewer; otherwise the decline, when the ply has one, and the
- *  best of the rest, `cap` in all.
+ *  a player may make at `state` (ADR 0184, issue #10473): all of them when
+ *  there are `cap` or fewer; otherwise the decline, when the ply has one, and
+ *  the best of the rest, `cap` in all.
  *
  *  "Best" is three keys, in order:
  *
@@ -60,45 +82,46 @@ export function rolloutMoveKindRank(move: Move): number {
  *     card: the second Swamp in hand, the second of two identical pump
  *     creatures, the other Bear attacking alone — does what its
  *     representative does, so its probe tells the pick nothing the
- *     representative's did not. It ranks after every
- *     candidate that does something else, whatever their kinds. Without this
- *     a kind rank fills the cut with copies of one play and drops the only
- *     other play on the ply (the blade's "rollout probe cut" entry).
+ *     representative's did not. It ranks after every candidate that does
+ *     something else, whatever their kinds.
  *  2. `rolloutMoveKindRank`.
- *  3. By lot, one `rng` draw per candidate: the kind rank cannot tell two
- *     candidates of one kind apart, and enumeration order would drop the
- *     same one — the last target in a graveyard, the last attacker on the
- *     battlefield — in every rollout. A draw drops a different one each time.
+ *  3. Between equal kinds, the WIDEST declaration of a declaration ply, then
+ *     enumeration order. On a declaration ply every candidate is one kind,
+ *     so the kind rank says nothing, and the power set enumerates the
+ *     single attackers first and the full attack last: in enumeration order
+ *     alone no mover with two creatures ever probes attacking with both,
+ *     and no defender a double block. The ply's two ends — the decline and
+ *     the widest declaration — are what the pick must always be able to
+ *     compare.
  *
- *  Draws only on a ply that is cut, from the rollout's own stream, so a search
- *  stays deterministic in its seed. Returned in enumeration order, so the
- *  pick's own tie-break reads the kept moves as it read the whole list.
- *  `moves` is not mutated. */
+ *  No draw and no state of its own: the same list at the same state keeps
+ *  the same moves. Returned in enumeration order, so the pick's own
+ *  tie-break reads the kept moves as it read the whole list. `moves` is not
+ *  mutated. */
 export function rolloutProbeCandidates(
     state: GameState,
     moves: readonly Move[],
-    rng: () => number,
     cap: number = ROLLOUT_PROBE_CAP
 ): Move[] {
     if (moves.length <= cap) return moves.slice();
     const declineAt = moves.findIndex(isRolloutDecline);
+    const widestAt = widestDeclarationAt(moves);
     const representatives = new Set(collapseInterchangeableMoves(state, moves));
-    const ranked: { at: number; repeat: boolean; rank: number; lot: number }[] =
-        [];
+    const ranked: { at: number; repeat: boolean; rank: number }[] = [];
     for (let i = 0; i < moves.length; i++) {
         if (i === declineAt) continue;
         ranked.push({
             at: i,
             repeat: !representatives.has(moves[i]),
             rank: rolloutMoveKindRank(moves[i]),
-            lot: rng(),
         });
     }
     ranked.sort(
         (a, b) =>
             Number(a.repeat) - Number(b.repeat) ||
             b.rank - a.rank ||
-            a.lot - b.lot
+            Number(b.at === widestAt) - Number(a.at === widestAt) ||
+            a.at - b.at
     );
     const keep = new Set<number>();
     if (declineAt >= 0) keep.add(declineAt);
