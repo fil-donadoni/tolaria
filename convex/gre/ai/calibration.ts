@@ -35,21 +35,25 @@ import {
 export const CALIBRATION_BOT = "calibration-bot";
 const CALIBRATION_OPPONENT = "calibration-opponent";
 
-/** Iterations of one reading. Sixteen cost 35 ms on the development machine
- *  under load (2.2 ms each, measured 2026-11-22) and about half that idle:
- *  long enough to time against a 1 ms clock, short enough that a consult
- *  posted behind it does not wait a noticeable time. */
-export const CALIBRATION_ITERATIONS = 16;
+/** Iterations of one reading. Eight cost about 18 ms on the development
+ *  machine under load (2.2 ms each, measured 2026-11-22): long enough to time
+ *  against a 1 ms clock, and few enough that a machine three times slower
+ *  still completes them all inside the cap — a reading the cap cut covers
+ *  fewer iterations and is a different workload. */
+export const CALIBRATION_ITERATIONS = 8;
 
 /** The search's seed. Fixed forever: a different seed is a different search. */
 export const CALIBRATION_SEED = 0xca11b;
 
-/** The longest one reading may run, on any device: a consult posted behind a
- *  calibration waits for it, and that wait comes out of the consult
- *  timeout's transport margin (`src/lib/ai/consult-timeout.ts`). A search
- *  this cuts short completed fewer iterations; its reading is still the time
- *  per iteration it did complete. */
-export const CALIBRATION_CAP_MS = 100;
+/** The longest one reading's search may run, on any device: a consult posted
+ *  behind a calibration waits for it, and that wait comes out of the consult
+ *  timeout's margins (`src/lib/ai/consult-timeout.ts`). The cap is checked
+ *  between iterations, so the wait can exceed it by one iteration and by
+ *  building the board. A search this cuts short completed fewer iterations;
+ *  its reading is still the time per iteration it did complete, over a
+ *  shorter and so different workload — the cold first reading of a game is
+ *  the likeliest. */
+export const CALIBRATION_CAP_MS = 50;
 
 const BEAR: TokenSpec = {
     name: "Bear",

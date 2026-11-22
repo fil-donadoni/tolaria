@@ -2,6 +2,12 @@
 // reads no catalogue card, the same every time it runs.
 
 import { describe, expect, it } from "vitest";
+import { getCardByName } from "../../../cards";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../cards/__tests__/setup.helper";
 import { handWrittenSetCodeOf } from "../../../cards/catalogue";
 import { isPackedRowId } from "../../../cards/packedCorpus";
 import { PLACEHOLDER_CARD_ID } from "../../constants";
@@ -91,6 +97,71 @@ describe("the calibration search", () => {
         expect(first.trace!.rolloutProbes).toBeGreaterThan(0);
         expect(second.trace!.rolloutProbes).toBe(first.trace!.rolloutProbes);
         expect(second.move).toEqual(first.move);
+    });
+});
+
+// The calibration runs the real search in the same module instance a game's
+// own consults use: the same token registry, the same module state. A real
+// search must read exactly the same before and after one.
+describe("a calibration between two real searches", () => {
+    const MOUNTAIN = getCardByName("Mountain").id;
+    const BOLT = getCardByName("Lightning Bolt").id;
+    const BEARS = getCardByName("Grizzly Bears").id;
+
+    function realBoard() {
+        const card = (
+            cardId: string,
+            id: string,
+            owner: string,
+            zone?: "hand"
+        ) =>
+            makeInstance(cardId, {
+                id,
+                controllerId: owner,
+                ownerId: owner,
+                isSummoningSick: false,
+                ...(zone ? { zone } : {}),
+            });
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        card(BOLT, "h1", "p1", "hand"),
+                        card(MOUNTAIN, "h2", "p1", "hand"),
+                    ],
+                    battlefield: [
+                        card(MOUNTAIN, "l1", "p1"),
+                        card(BEARS, "c1", "p1"),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [card(BEARS, "c2", "p2")],
+                }),
+            ],
+        });
+    }
+
+    it("leaves the next real search as it was: same move, same work, no randomness drawn", () => {
+        const budget = { iterations: 120 };
+        const state = realBoard();
+        const before = searchWithTrace(state, "p1", budget, 4242);
+        const rngBefore = state.rngCounter;
+
+        expect(runCalibration()).not.toBeNull();
+
+        const after = searchWithTrace(state, "p1", budget, 4242);
+        expect(after.move).toEqual(before.move);
+        expect(after.trace!.iterationsCompleted).toBe(
+            before.trace!.iterationsCompleted
+        );
+        // The rollout policy's probes are counted by one module-wide counter
+        // the calibration advances too: the second search reports its own.
+        expect(before.trace!.rolloutProbes).toBeGreaterThan(0);
+        expect(after.trace!.rolloutProbes).toBe(before.trace!.rolloutProbes);
+        expect(after.trace!.candidates.map((c) => [c.label, c.visits])).toEqual(
+            before.trace!.candidates.map((c) => [c.label, c.visits])
+        );
+        expect(state.rngCounter).toBe(rngBefore);
     });
 });
 

@@ -93,13 +93,22 @@ one candidate move the rollout cloned, applied and evaluated; on a late board
 the probes are most of an iteration. Many probes per iteration
 (`probesPerIteration.p50`) with an ordinary time per probe is a game that
 reached costly boards. A high `msPerProbe.p50` is a slow or busy machine.
+The time per probe is the search's whole time over its probes: it carries
+the tree's own work too, so it reads high on a search of few iterations
+(compare searches of similar `iterations.completed`). `idleMs` is read only
+between two consults the Worker itself answered: after a timeout, a failure
+or an in-thread consult the next one has none.
 The `calibration.*` keys hold the board still (issue #10451): the Worker
-times the same fixed search on the same small board after each of the game's
-first three consults and then at most every 30 s, in milliseconds per
-iteration. The first readings run colder (the browser is still compiling
-that code), so `.min` is the machine at its best and the number to compare
-two machines on; `.first` compares games at the same point, and `.last`
-against `.min` says whether the machine slowed down during the game.
+times the same fixed search (8 iterations, capped at 50 ms) on the same small
+board after each of the game's first three consults and then at most every
+30 s, in milliseconds per iteration. The first readings run colder (the
+browser is still compiling that code), and a cold run the cap cut short
+covered fewer iterations, a different workload: `.first` is biased high and
+says little alone. `.min` is the machine at its best and the number to
+compare two machines on; `.last` against `.min` says whether the machine
+slowed down during the game. No reading follows a search whose last
+iteration ran more than 300 ms past its cap, so a game stuck on very slow
+boards stops taking them.
 
 **One decision at a time.** Each consult also records a span named
 `bot.consult` (Explore → Traces, `span.op:bot.consult gameId:<gameId>`), in

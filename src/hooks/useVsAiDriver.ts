@@ -1497,6 +1497,9 @@ export function useVsAiDriver(
                                 consultMs: telemetryNow() - consultStartedAt,
                                 difficulty,
                                 postedAt: consultStartedAt,
+                                ...(budget.timeMs === undefined
+                                    ? {}
+                                    : { budgetMs: budget.timeMs }),
                                 ...(board ? { board } : {}),
                                 ...(trace
                                     ? {

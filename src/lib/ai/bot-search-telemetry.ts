@@ -34,7 +34,9 @@
 // (`probesPerIteration.p50`, `msPerProbe.p50`: a probe is one candidate move
 // the rollout cloned, applied and evaluated, where a late board's iteration
 // spends 67–78% of its time), and the idle time between two consults
-// (`idleMs.p50`). They are counters and durations like the rest. The owner
+// (`idleMs.p50`). The time per probe divides a search's whole time by its
+// probes, so it also carries the tree's own work and reads high on a search
+// of few iterations. They are counters and durations like the rest. The owner
 // consented on 2026-11-22 to telemetry keys of this kind being added without
 // asking per key; the boundary above is unchanged. Each consult also records
 // a span of its own (`./bot-consult-span`), under the same boundary.
@@ -116,6 +118,10 @@ export type ConsultSample = {
     /** The difficulty preset the consult's budget came from. */
     difficulty: string;
     search?: SearchStats;
+    /** The wall-clock cap of the consult's search budget, when it had one:
+     *  how far past it the search ran says how much of the consult timeout's
+     *  margin a slow iteration used. */
+    budgetMs?: number;
     /** `telemetryNow()` when the consult was posted (issue #10321): with
      *  `consultMs` it dates the consult, so the recorder can read the idle
      *  time before the next one. */
@@ -124,7 +130,11 @@ export type ConsultSample = {
     board?: BoardFacts;
     /** The time from the previous consult's verdict to this consult's post:
      *  what the Worker had to spare. Filled in by the game's recorder from
-     *  `postedAt`; a caller leaves it out. Absent on a game's first consult. */
+     *  `postedAt`; a caller leaves it out. Absent on a game's first consult,
+     *  and whenever the Worker was not known to be idle in between: after a
+     *  consult it did not answer (a timeout or a failure may leave it
+     *  searching), after one that ran in-thread, and for a consult posted
+     *  while a calibration was running. */
     idleMs?: number;
 };
 
@@ -349,7 +359,9 @@ function usableSearch(search: SearchStats | undefined): SearchStats | null {
     if (!search) return null;
     return finite(search.iterationsRequested) &&
         finite(search.iterationsCompleted) &&
-        finite(search.elapsedMs)
+        finite(search.elapsedMs) &&
+        // A clock that ran backwards measured nothing.
+        search.elapsedMs >= 0
         ? search
         : null;
 }
@@ -488,6 +500,15 @@ export function summarizeBotSearch(
  *  game and the idle time before it. */
 export type ConsultClock = (sample: ConsultSample) => TimedConsult;
 
+/** Whether the Brain's Worker itself answered this consult: it ran there and
+ *  came back with a verdict. */
+function workerAnswered(sample: ConsultSample): boolean {
+    return (
+        sample.via === "worker" &&
+        (sample.outcome === "move" || sample.outcome === "no-move")
+    );
+}
+
 /** A game's consult clock, starting at its first consult. */
 export function consultClock(): ConsultClock {
     let ordinal = 0;
@@ -499,8 +520,13 @@ export function consultClock(): ConsultClock {
             posted !== undefined && lastAnsweredAt !== undefined
                 ? posted - lastAnsweredAt
                 : undefined;
+        // The Worker is known to be idle only after a consult IT answered: a
+        // timeout or a failure may leave it searching, and a consult that
+        // ran in-thread says nothing about it.
         lastAnsweredAt =
-            posted !== undefined && finite(sample.consultMs)
+            posted !== undefined &&
+            finite(sample.consultMs) &&
+            workerAnswered(sample)
                 ? posted + sample.consultMs
                 : undefined;
         // The idle time is the clock's reading, never the caller's.
@@ -529,6 +555,15 @@ export const CALIBRATION_INTERVAL_MS = 30_000;
  *  game's first turns, so even a short game has one. */
 export const CALIBRATION_WARMUP_READINGS = 3;
 
+/** How far past its cap a time-stopped search may have run for a reading to
+ *  follow it. A search stops at the first iteration that ends past the cap,
+ *  so the overrun is one iteration's length: a long one is a board or a
+ *  machine on which the NEXT consult may need the whole overrun margin of
+ *  the consult timeout (1,358 of its 1,500 ms in the worst field case, issue
+ *  #10408), and a calibration ahead of it in the Worker would spend some.
+ *  A fifth of that margin. */
+export const CALIBRATION_SKIP_OVERRUN_MS = 300;
+
 /** One game's calibration readings on this page (issue #10451). */
 export type CalibrationLog = {
     /** The readings so far, oldest first, in milliseconds per iteration. */
@@ -536,6 +571,10 @@ export type CalibrationLog = {
     /** A consult just ended, at `now` (`telemetryNow()`): ask for a reading
      *  if one is due. Never throws, and never waits. */
     after: (sample: ConsultSample, now: number) => void;
+    /** How long a consult posted at `postedAt` and answered at `answeredAt`
+     *  waited in the Worker behind the latest calibration: 0 unless it was
+     *  posted while that calibration was in flight. */
+    waitedBehind: (postedAt: number, answeredAt: number) => number;
 };
 
 /** A game's calibration log. A reading is due after a consult the WORKER
@@ -543,19 +582,44 @@ export type CalibrationLog = {
  *  that timed out or failed, where it would queue behind the search that is
  *  stuck — while the game has asked for fewer than
  *  `CALIBRATION_WARMUP_READINGS`, or once the last one was asked for
- *  `CALIBRATION_INTERVAL_MS` ago; never while one is in flight. With no
- *  `calibrate` the log stays empty. */
-export function calibrationLog(calibrate?: Calibrator): CalibrationLog {
+ *  `CALIBRATION_INTERVAL_MS` ago; never while one is in flight, and never
+ *  after a search whose last iteration ran long past its cap
+ *  (`CALIBRATION_SKIP_OVERRUN_MS`). With no `calibrate` the log stays empty.
+ *
+ *  A reading is asked for the moment a verdict lands. The driver posts its
+ *  next consult no sooner than its think beat after the board changes
+ *  (200 ms), and a calibration is capped at `CALIBRATION_CAP_MS` (50 ms), so
+ *  a consult rarely finds one ahead of it; when it does, `waitedBehind` says
+ *  for how long. `clock` is `telemetryNow`, injectable for a test. */
+export function calibrationLog(
+    calibrate?: Calibrator,
+    clock: () => number = telemetryNow
+): CalibrationLog {
     const readings: number[] = [];
     let askedAt: number | undefined;
+    /** When the latest calibration settled; `undefined` while in flight. */
+    let settledAt: number | undefined;
     let asked = 0;
     let asking = false;
     return {
         readings: () => readings,
+        waitedBehind(postedAt, answeredAt) {
+            if (askedAt === undefined || postedAt < askedAt) return 0;
+            const until = Math.min(settledAt ?? answeredAt, answeredAt);
+            return until > postedAt ? until - postedAt : 0;
+        },
         after(sample, now) {
             if (!calibrate || asking) return;
-            if (sample.via !== "worker") return;
-            if (sample.outcome !== "move" && sample.outcome !== "no-move") {
+            if (!workerAnswered(sample)) return;
+            const search = sample.search;
+            if (
+                search?.stoppedBy === "time" &&
+                !(
+                    finite(sample.budgetMs) &&
+                    search.elapsedMs - sample.budgetMs <=
+                        CALIBRATION_SKIP_OVERRUN_MS
+                )
+            ) {
                 return;
             }
             if (
@@ -568,8 +632,14 @@ export function calibrationLog(calibrate?: Calibrator): CalibrationLog {
             asking = true;
             asked += 1;
             askedAt = now;
+            settledAt = undefined;
             const settle = () => {
                 asking = false;
+                try {
+                    settledAt = clock();
+                } catch {
+                    settledAt = askedAt;
+                }
             };
             try {
                 void Promise.resolve(calibrate())
@@ -589,17 +659,31 @@ export function calibrationLog(calibrate?: Calibrator): CalibrationLog {
 }
 
 /** Time one consult and record its span (`./bot-consult-span`), with the
- *  game's latest calibration reading beside it. Never throws; a consult the
- *  clock could not time is returned as it came. */
+ *  game's latest calibration reading beside it. A consult posted while a
+ *  calibration was running waited behind it in the Worker: that wait is
+ *  taken out of its `consultMs`, and it has no idle reading (the Worker was
+ *  not idle). Never throws; a consult the clock could not time is returned
+ *  as it came. */
 function timeAndTrace(
     gameId: string,
     clock: ConsultClock,
     sample: ConsultSample,
-    calibration: readonly number[] = []
+    calibration?: CalibrationLog
 ): ConsultSample {
     try {
         const timed = clock(sample);
-        const latest = calibration[calibration.length - 1];
+        if (calibration && finite(timed.postedAt) && finite(timed.consultMs)) {
+            const waited = calibration.waitedBehind(
+                timed.postedAt,
+                timed.postedAt + timed.consultMs
+            );
+            if (waited > 0) {
+                timed.consultMs = Math.max(0, timed.consultMs - waited);
+                delete timed.idleMs;
+            }
+        }
+        const readings = calibration?.readings() ?? [];
+        const latest = readings[readings.length - 1];
         emitConsultSpan(
             gameId,
             finite(latest) ? { ...timed, calibration: latest } : timed,
@@ -609,6 +693,16 @@ function timeAndTrace(
     } catch {
         // Monitoring never costs the game anything.
         return sample;
+    }
+}
+
+/** A consult just ended: let the game's calibration log ask for a reading if
+ *  one is due. Never throws. */
+function calibrateAfter(calibration: CalibrationLog, sample: ConsultSample) {
+    try {
+        calibration.after(sample, telemetryNow());
+    } catch {
+        // Monitoring never costs the game anything.
     }
 }
 
@@ -634,14 +728,9 @@ export function openBotSearchReport(
     let emitted = false;
     return {
         record(sample) {
-            const timed = timeAndTrace(
-                gameId,
-                clock,
-                sample,
-                calibration.readings()
-            );
+            const timed = timeAndTrace(gameId, clock, sample, calibration);
             if (!emitted) samples.push(timed);
-            calibration.after(sample, telemetryNow());
+            calibrateAfter(calibration, sample);
         },
         flush() {
             if (emitted || samples.length === 0) return;
@@ -720,8 +809,8 @@ function reportedRecorder(
 ): BotSearchRecorder {
     return {
         record(sample) {
-            timeAndTrace(gameId, clock, sample, calibration.readings());
-            calibration.after(sample, telemetryNow());
+            timeAndTrace(gameId, clock, sample, calibration);
+            calibrateAfter(calibration, sample);
         },
         flush() {},
     };
