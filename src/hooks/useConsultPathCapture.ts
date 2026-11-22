@@ -28,11 +28,15 @@ import {
 export function useConsultPathCapture(
     gameId: Id<"games">,
     botId: string | null,
-    humanId: string | null,
-    /** The tick the driver already gates on: the seats the engine waits on. */
-    owedPlayerIds: readonly string[] | undefined
+    humanId: string | null
 ): void {
     const convex = useConvex();
+    // The tick the driver gates on — Convex shares one subscription.
+    const tick = useResilientQuery(
+        api.gameReads.getGameTick,
+        botId ? { gameId } : "skip"
+    ).data;
+    const owedPlayerIds = tick?.owedPlayerIds;
 
     useEffect(() => {
         if (!botId) return;

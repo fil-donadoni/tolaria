@@ -84,6 +84,6 @@ export const BLADE_SEQUENCES: BladeSequence[] = [
         first: [{ kind: "pass" }],
         second: [{ kind: "pass" }],
         reuse: { dropped: "observation" },
-        note: "The path crosses the Bot's own draw (CR 504.1): a card it did not see at the old root is in its hand now. The tree pools every world's draw, so the kept node would fuse strategies across draws the Bot can tell apart (note § 3): dropped.",
+        note: "The path crosses the Bot's own draw (CR 504.1): a card it did not see at the old root is in its hand now. The tree pools every world's draw, so the kept node would fuse strategies across draws the Bot can tell apart (note § 3): dropped. The Ritual is the real choice that grows a tree at the upkeep; the Bot declines it in both decisions.",
     },
 ];

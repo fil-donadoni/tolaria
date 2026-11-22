@@ -118,7 +118,6 @@ import {
     noteBotMove,
     takeConsultPath,
 } from "~/lib/ai/consult-path";
-import { useConsultPathCapture } from "./useConsultPathCapture";
 import { seatKnowledge } from "~/lib/ai/seat-knowledge";
 import {
     acquireBotSearchReport,
@@ -418,9 +417,7 @@ export function useVsAiDriver(
         api.gameReads.getSeatDeckKnowledge,
         humanId ? { gameId, playerId: humanId } : "skip"
     ).data;
-    // Issue #10470 — what the human decides between two consults, so the
-    // Brain Worker can walk the tree it kept along what was played.
-    useConsultPathCapture(gameId, botId, humanId, tick?.owedPlayerIds);
+
     // A Game built before the deck was stored on its manifest rows answers
     // `null`: its stored entries are read as they are, as before issue #5617.
     const botDeck = useResilientQuery(
