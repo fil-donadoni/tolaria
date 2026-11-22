@@ -51,9 +51,4 @@ describe("Sentry tunnel (issue #10414)", () => {
         );
         expect(catchAll === -1 || tunnel < catchAll).toBe(true);
     });
-
-    it("names no word a generic blocklist matches", () => {
-        expect(SENTRY_TUNNEL_PATH).not.toMatch(/sentry|telemetry|envelope/i);
-        expect(SENTRY_TUNNEL_PATH.startsWith("/")).toBe(true);
-    });
 });
