@@ -36,4 +36,12 @@ export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
         label: "keyword relevance (protection): against a bot showing no red, protection from red does not make the Runeclaw Bear Terror's target (issue #5356)",
         issue: 10448,
     },
+    {
+        label: "keyword relevance (protection): against a bot showing no red, protection from red does not make the Runeclaw Bear Terror's target (issue #5356)",
+        issue: 10448,
+    },
+    {
+        label: "nonbasic hate: Blood Moon is cast against the opponent's nonbasic mana",
+        issue: 10449,
+    },
 ];
