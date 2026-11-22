@@ -71,7 +71,7 @@ vi.mock("../brain-request", () => ({ handleBrainRequest }));
 const handleCalibration = vi.fn((request: { id: number }) => ({
     kind: "calibration" as const,
     id: request.id,
-    msPerIteration: 2.5,
+    reading: { msPerUnit: 2.5, units: 9 },
 }));
 vi.mock("../brain-calibration", () => ({
     handleCalibration,
@@ -220,7 +220,7 @@ describe("the Brain's Worker shell", () => {
         expect(posted[1]).toEqual({
             kind: "calibration",
             id: 6,
-            msPerIteration: 2.5,
+            reading: { msPerUnit: 2.5, units: 9 },
         });
         expect(makeResident).toHaveBeenCalledTimes(2);
 

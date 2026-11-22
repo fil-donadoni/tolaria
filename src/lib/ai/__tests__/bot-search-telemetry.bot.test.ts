@@ -24,10 +24,12 @@ import {
     engineFamily,
     openBotSearchReport,
     osFamily,
+    pageVisibility,
     percentile,
     summarizeBotSearch,
     type ConsultSample,
     type DeviceClass,
+    type PageVisibility,
 } from "../bot-search-telemetry";
 import { botConsultSpanSink } from "../bot-consult-span";
 
@@ -445,7 +447,13 @@ describe("summarizeBotSearch", () => {
                 searched({ outcome, stoppedBy, via: "inline", idleMs: 4000 })
             )
         );
-        const report = summarizeBotSearch("game1", samples, DEVICE, [2.1, 3.4]);
+        const report = summarizeBotSearch("game1", samples, DEVICE, {
+            readings: [
+                { msPerUnit: 2.1, units: 9 },
+                { msPerUnit: 3.4, units: 6 },
+            ],
+            skipped: 2,
+        });
         const allowed = new Set<string>(REPORT_KEYS);
         expect(Object.keys(report).filter((k) => !allowed.has(k))).toEqual([]);
         // Every key the allowlist names is reachable: none is dead weight.
@@ -590,33 +598,56 @@ describe("what a slow game was (issue #10321)", () => {
 describe("the calibration readings (issue #10451)", () => {
     /** Let the promises a calibration settles through run. */
     const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
+    /** A reading of `ms` per unit over `units` units. */
+    const reading = (ms: number, units = 10) => ({
+        msPerUnit: ms,
+        units,
+    });
+    /** A page that is shown and stays shown. */
+    const shown: PageVisibility = { hidden: () => false, changes: () => 0 };
+    const capped = (elapsedMs: number, budgetMs?: number) => ({
+        ...searched({ elapsedMs, stoppedBy: "time" }),
+        ...(budgetMs === undefined ? {} : { budgetMs }),
+    });
 
-    it("reports the game's first reading, its latest, its best and their count, and none of them with none", () => {
-        const report = summarizeBotSearch(
-            "game1",
-            [searched()],
-            DEVICE,
-            [9.9049, 1.7349, 3.4151]
-        );
+    it("reports the first reading, the latest and the best, each beside its iterations, their count and the skipped ones", () => {
+        const report = summarizeBotSearch("game1", [searched()], DEVICE, {
+            readings: [
+                reading(9.9049, 2),
+                reading(1.7349, 11),
+                reading(3.4151, 7),
+            ],
+            skipped: 4,
+        });
         expect(report["calibration.first"]).toBe(9.9);
+        expect(report["calibration.firstUnits"]).toBe(2);
         expect(report["calibration.last"]).toBe(3.42);
+        expect(report["calibration.lastUnits"]).toBe(7);
         expect(report["calibration.min"]).toBe(1.73);
+        expect(report["calibration.minUnits"]).toBe(11);
         expect(report["calibration.count"]).toBe(3);
+        expect(report["calibration.skipped"]).toBe(4);
+    });
 
-        const none = summarizeBotSearch("game1", [searched()], DEVICE, []);
-        expect(none).not.toHaveProperty("calibration.first");
-        expect(none).not.toHaveProperty("calibration.last");
-        expect(none).not.toHaveProperty("calibration.min");
-        expect(none).not.toHaveProperty("calibration.count");
-        const noNumber = summarizeBotSearch("game1", [searched()], DEVICE, [
-            Number.NaN,
-        ]);
-        expect(noNumber).not.toHaveProperty("calibration.first");
+    it("reports none of them with no reading, and still says how many were skipped", () => {
+        const none = summarizeBotSearch("game1", [searched()], DEVICE);
+        for (const key of REPORT_KEYS) {
+            if (key.startsWith("calibration.")) {
+                expect(none).not.toHaveProperty(key);
+            }
+        }
+        const onlySkipped = summarizeBotSearch("game1", [searched()], DEVICE, {
+            readings: [reading(Number.NaN)],
+            skipped: 5,
+        });
+        expect(onlySkipped).not.toHaveProperty("calibration.first");
+        expect(onlySkipped).not.toHaveProperty("calibration.count");
+        expect(onlySkipped["calibration.skipped"]).toBe(5);
     });
 
     it("asks after each of the game's first consults, then only once the interval has passed", async () => {
-        const calibrate = vi.fn(() => Promise.resolve(2.5));
-        const log = calibrationLog(calibrate);
+        const calibrate = vi.fn(() => Promise.resolve(reading(2.5)));
+        const log = calibrationLog(calibrate, undefined, shown);
 
         // The warm-up: one reading after each of the first consults, however
         // close together they come.
@@ -633,18 +664,18 @@ describe("the calibration readings (issue #10451)", () => {
         log.after(searched(), lastAsked + CALIBRATION_INTERVAL_MS - 1);
         expect(calibrate).toHaveBeenCalledTimes(CALIBRATION_WARMUP_READINGS);
 
-        calibrate.mockReturnValue(Promise.resolve(7.5));
+        calibrate.mockReturnValue(Promise.resolve(reading(7.5, 3)));
         log.after(searched(), lastAsked + CALIBRATION_INTERVAL_MS);
         expect(calibrate).toHaveBeenCalledTimes(
             CALIBRATION_WARMUP_READINGS + 1
         );
         await settled();
-        expect(log.readings().at(-1)).toBe(7.5);
+        expect(log.readings().at(-1)).toEqual(reading(7.5, 3));
     });
 
     it("never asks after the in-thread fallback, nor behind a Worker that gave no answer", () => {
-        const calibrate = vi.fn(() => Promise.resolve(2.5));
-        const log = calibrationLog(calibrate);
+        const calibrate = vi.fn(() => Promise.resolve(reading(2.5)));
+        const log = calibrationLog(calibrate, undefined, shown);
         log.after(searched({ via: "inline" }), 1_000);
         for (const outcome of [
             "timeout",
@@ -659,56 +690,193 @@ describe("the calibration readings (issue #10451)", () => {
         expect(calibrate).toHaveBeenCalledTimes(1);
     });
 
-    it("asks for none after a search whose last iteration ran long past its cap", () => {
-        const calibrate = vi.fn(() => Promise.resolve(2.5));
-        const log = calibrationLog(calibrate);
-        const capped = (elapsedMs: number, budgetMs?: number) => ({
-            ...searched({ elapsedMs, stoppedBy: "time" }),
-            ...(budgetMs === undefined ? {} : { budgetMs }),
-        });
+    it("skips a due reading after a search whose last iteration ran long past its cap, and counts it", () => {
+        const calibrate = vi.fn(() => Promise.resolve(reading(2.5)));
+        const log = calibrationLog(calibrate, undefined, shown);
         // One iteration of 400 ms past an 8.3 s cap: the next consult may
         // need the timeout's whole margin.
         log.after(capped(8300 + CALIBRATION_SKIP_OVERRUN_MS + 100, 8300), 0);
         // A time-stopped search with no known cap cannot be judged.
         log.after(capped(8400), 0);
         expect(calibrate).not.toHaveBeenCalled();
+        expect(log.summary().skipped).toBe(2);
         // An ordinary capped search: its last iteration ended 40 ms past.
         log.after(capped(8340, 8300), 0);
         expect(calibrate).toHaveBeenCalledTimes(1);
+        expect(log.summary().skipped).toBe(2);
+    });
+
+    it("counts as skipped only a reading that was due", async () => {
+        const calibrate = vi.fn(() => Promise.resolve(reading(2.5)));
+        const log = calibrationLog(calibrate, undefined, shown);
+        for (let i = 0; i < CALIBRATION_WARMUP_READINGS; i++) {
+            log.after(searched(), i);
+            await settled();
+        }
+        // Inside the interval no reading is due: a slow search skips none.
+        log.after(capped(9_000, 8_300), 1_000);
+        expect(log.summary().skipped).toBe(0);
+        log.after(capped(9_000, 8_300), CALIBRATION_INTERVAL_MS + 10);
+        expect(log.summary().skipped).toBe(1);
+    });
+
+    it("asks for no reading while the page is hidden", () => {
+        const calibrate = vi.fn(() => Promise.resolve(reading(2.5)));
+        let hidden = true;
+        const log = calibrationLog(calibrate, undefined, {
+            hidden: () => hidden,
+            changes: () => 0,
+        });
+        log.after(searched(), 0);
+        expect(calibrate).not.toHaveBeenCalled();
+        // Not a skipped reading: nothing about the search was slow.
+        expect(log.summary().skipped).toBe(0);
+        hidden = false;
+        log.after(searched(), 1);
+        expect(calibrate).toHaveBeenCalledTimes(1);
+    });
+
+    it("discards a reading during which the page's visibility changed", async () => {
+        // A phone backgrounds the page mid-reading: the Worker freezes and
+        // the reading times the freeze.
+        let changes = 0;
+        const log = calibrationLog(
+            () => {
+                changes += 1;
+                return Promise.resolve(reading(4_000, 1));
+            },
+            undefined,
+            { hidden: () => false, changes: () => changes }
+        );
+        log.after(searched(), 0);
+        await settled();
+        expect(log.readings()).toEqual([]);
+
+        // The next one, on a page that stays shown, is kept.
+        const steady = calibrationLog(
+            () => Promise.resolve(reading(2.5)),
+            undefined,
+            shown
+        );
+        steady.after(searched(), 0);
+        await settled();
+        expect(steady.readings()).toEqual([reading(2.5)]);
+    });
+
+    it("reads the page's own visibility by default: hidden now, and every change since", async () => {
+        const state = vi.spyOn(document, "visibilityState", "get");
+        try {
+            state.mockReturnValue("visible");
+            expect(pageVisibility.hidden()).toBe(false);
+            const before = pageVisibility.changes();
+            state.mockReturnValue("hidden");
+            document.dispatchEvent(new Event("visibilitychange"));
+            expect(pageVisibility.hidden()).toBe(true);
+            expect(pageVisibility.changes()).toBe(before + 1);
+
+            // The log's default: no reading asked for on the hidden page.
+            const calibrate = vi.fn(() => Promise.resolve(reading(2.5)));
+            const log = calibrationLog(calibrate);
+            log.after(searched(), 0);
+            expect(calibrate).not.toHaveBeenCalled();
+
+            // Shown again; the page is hidden while the reading runs.
+            state.mockReturnValue("visible");
+            document.dispatchEvent(new Event("visibilitychange"));
+            const spanning = calibrationLog(() => {
+                document.dispatchEvent(new Event("visibilitychange"));
+                return Promise.resolve(reading(4_000, 1));
+            });
+            spanning.after(searched(), 0);
+            await settled();
+            expect(spanning.readings()).toEqual([]);
+        } finally {
+            state.mockRestore();
+        }
     });
 
     it("says how long a consult posted during a calibration waited behind it", async () => {
         let now = 0;
-        let release!: (reading: number | null) => void;
+        let release!: (value: ReturnType<typeof reading> | null) => void;
         const log = calibrationLog(
             () =>
-                new Promise<number | null>((resolve) => {
+                new Promise((resolve) => {
                     release = resolve;
                 }),
-            () => now
+            () => now,
+            shown
         );
         // Nothing asked yet: nobody waits.
         expect(log.waitedBehind(500, 900)).toBe(0);
 
         log.after(searched(), 1_000);
-        // Still in flight when the consult was answered: it waited throughout.
-        expect(log.waitedBehind(1_010, 1_050)).toBe(40);
+        // Still in flight: the wait is not known.
+        expect(log.waitedBehind(1_010, 1_050)).toBeNull();
+        // Posted before it was asked for: none, in flight or not.
+        expect(log.waitedBehind(900, 1_050)).toBe(0);
         now = 1_040;
-        release(2.5);
+        release(reading(2.5));
         await settled();
         // Posted at 1010, the calibration ended at 1040: 30 ms behind it.
         expect(log.waitedBehind(1_010, 4_000)).toBe(30);
-        // Posted before it was asked for, or after it ended: none.
-        expect(log.waitedBehind(900, 4_000)).toBe(0);
+        // Posted after it ended: none.
         expect(log.waitedBehind(1_040, 4_000)).toBe(0);
     });
 
-    it("takes the wait behind a calibration out of the consult's time, and gives it no idle reading", async () => {
+    it("does not know the wait behind a calibration that came back with no reading, until the Worker answers a consult posted after it", async () => {
+        // The page's own timeout fired, or the Worker died: no reading came
+        // back, and the Worker may still have been on the calibration.
+        let now = 0;
+        let release!: (value: ReturnType<typeof reading> | null) => void;
+        const log = calibrationLog(
+            () =>
+                new Promise((resolve) => {
+                    release = resolve;
+                }),
+            () => now,
+            shown
+        );
+        log.after(searched(), 1_000);
+        now = 11_300;
+        release(null);
+        await settled();
+
+        // A consult posted after the page gave up: the wait is unknown, not
+        // zero.
+        expect(log.waitedBehind(11_400, 11_900)).toBeNull();
+        // The Worker answered that consult, so its queue is past the
+        // calibration: the consults after it waited behind nothing. (A slow
+        // search, so that no new reading is asked for here.)
+        log.after(
+            { ...capped(9_000, 8_300), postedAt: 11_400, consultMs: 500 },
+            11_900
+        );
+        expect(log.waitedBehind(12_000, 12_400)).toBe(0);
+    });
+
+    it("keeps the wait unknown while the consults since were not the Worker's to answer", async () => {
+        const log = calibrationLog(
+            () => Promise.resolve(null),
+            undefined,
+            shown
+        );
+        log.after(searched(), 1_000);
+        await settled();
+        // A timeout, an in-thread consult: neither says the Worker is free.
+        log.after(
+            { ...searched(), outcome: "timeout", postedAt: 2_000 },
+            12_000
+        );
+        log.after({ ...searched(), via: "inline", postedAt: 13_000 }, 13_100);
+        expect(log.waitedBehind(14_000, 14_500)).toBeNull();
+    });
+
+    it("takes a known wait behind a calibration out of the consult's time, carries it, and gives the consult no idle reading", () => {
         const log = vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
         const span = vi
             .spyOn(botConsultSpanSink, "record")
             .mockImplementation(() => {});
-        const calibration = calibrationLog(() => Promise.resolve(2.5));
+        const calibration = calibrationLog(undefined, undefined, shown);
         // The consult below was posted at 5010 and answered at 5510; the
         // calibration in flight at 5010 kept the Worker for 30 ms of that.
         vi.spyOn(calibration, "waitedBehind").mockImplementation((postedAt) =>
@@ -727,16 +895,52 @@ describe("the calibration readings (issue #10451)", () => {
 
         const second = span.mock.calls[1]![0];
         expect(second.consultMs).toBe(470);
+        expect(second.calibrationWaitMs).toBe(30);
         expect(second).not.toHaveProperty("idleMs");
+        expect(span.mock.calls[0]![0]).not.toHaveProperty("calibrationWaitMs");
         // The next consult's idle time still starts at the real answer.
         expect(span.mock.calls[2]![0]).toMatchObject({ idleMs: 490 });
         expect(log.mock.calls[0]![0]).toMatchObject({ "consultMs.p50": 470 });
     });
 
+    it("leaves a consult's time alone when the calibration ahead of it never settled, or the Worker did not answer", () => {
+        vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
+        const span = vi
+            .spyOn(botConsultSpanSink, "record")
+            .mockImplementation(() => {});
+        const calibration = calibrationLog(undefined, undefined, shown);
+        const waitedBehind = vi
+            .spyOn(calibration, "waitedBehind")
+            .mockReturnValue(null);
+        const report = openBotSearchReport(
+            "game1",
+            undefined,
+            undefined,
+            calibration
+        );
+        report.record({ ...searched(), postedAt: 1_000, consultMs: 4_000 });
+        // The wait is not known: the time stays, the idle reading goes.
+        report.record({ ...searched(), postedAt: 5_010, consultMs: 500 });
+        expect(span.mock.calls[1]![0].consultMs).toBe(500);
+        expect(span.mock.calls[1]![0]).not.toHaveProperty("calibrationWaitMs");
+        expect(span.mock.calls[1]![0]).not.toHaveProperty("idleMs");
+
+        // A timeout is the timeout's length, whatever was in the Worker.
+        waitedBehind.mockReturnValue(30);
+        report.record({
+            ...searched(),
+            outcome: "timeout",
+            postedAt: 6_000,
+            consultMs: 10_300,
+        });
+        expect(span.mock.calls[2]![0].consultMs).toBe(10_300);
+        expect(span.mock.calls[2]![0]).not.toHaveProperty("calibrationWaitMs");
+    });
+
     it("swallows a calibration log that throws, and still folds the consult in", () => {
         const log = vi.spyOn(botSearchSink, "log").mockImplementation(() => {});
         vi.spyOn(botConsultSpanSink, "record").mockImplementation(() => {});
-        const broken = calibrationLog();
+        const broken = calibrationLog(undefined, undefined, shown);
         broken.after = () => {
             throw new Error("the log is broken");
         };
@@ -752,27 +956,37 @@ describe("the calibration readings (issue #10451)", () => {
     });
 
     it("asks for one reading at a time", async () => {
-        let release!: (reading: number | null) => void;
+        let release!: (value: ReturnType<typeof reading> | null) => void;
         const calibrate = vi.fn(
             () =>
-                new Promise<number | null>((resolve) => {
+                new Promise<ReturnType<typeof reading> | null>((resolve) => {
                     release = resolve;
                 })
         );
-        const log = calibrationLog(calibrate);
+        const log = calibrationLog(calibrate, undefined, shown);
         log.after(searched(), 0);
         // Long past the interval, and the first is still in flight.
         log.after(searched(), 10 * CALIBRATION_INTERVAL_MS);
         expect(calibrate).toHaveBeenCalledTimes(1);
-        release(4);
+        release(reading(4));
         await settled();
         log.after(searched(), 20 * CALIBRATION_INTERVAL_MS);
         expect(calibrate).toHaveBeenCalledTimes(2);
     });
 
-    it("keeps no reading that is not a positive number", async () => {
-        for (const reading of [null, 0, -1, Number.NaN]) {
-            const log = calibrationLog(() => Promise.resolve(reading));
+    it("keeps no reading that is not a positive time over a positive count", async () => {
+        for (const bad of [
+            null,
+            reading(0),
+            reading(-1),
+            reading(Number.NaN),
+            reading(2.5, 0),
+        ]) {
+            const log = calibrationLog(
+                () => Promise.resolve(bad),
+                undefined,
+                shown
+            );
             log.after(searched(), 0);
             await settled();
             expect(log.readings()).toEqual([]);
@@ -781,13 +995,13 @@ describe("the calibration readings (issue #10451)", () => {
 
     it("swallows a calibration that throws or rejects, and asks again later", async () => {
         const calibrate = vi
-            .fn<() => Promise<number | null>>()
+            .fn<() => Promise<ReturnType<typeof reading> | null>>()
             .mockImplementationOnce(() => {
                 throw new Error("no Worker");
             })
             .mockImplementationOnce(() => Promise.reject(new Error("died")))
-            .mockImplementation(() => Promise.resolve(3));
-        const log = calibrationLog(calibrate);
+            .mockImplementation(() => Promise.resolve(reading(3)));
+        const log = calibrationLog(calibrate, undefined, shown);
         expect(() => log.after(searched(), 0)).not.toThrow();
         expect(() =>
             log.after(searched(), CALIBRATION_INTERVAL_MS)
@@ -796,11 +1010,11 @@ describe("the calibration readings (issue #10451)", () => {
         log.after(searched(), 2 * CALIBRATION_INTERVAL_MS);
         await settled();
         expect(calibrate).toHaveBeenCalledTimes(3);
-        expect(log.readings()).toEqual([3]);
+        expect(log.readings()).toEqual([reading(3)]);
     });
 
     it("stays empty and asks nobody when there is no Worker to ask", () => {
-        const log = calibrationLog();
+        const log = calibrationLog(undefined, undefined, shown);
         expect(() => log.after(searched(), 0)).not.toThrow();
         expect(log.readings()).toEqual([]);
     });
@@ -814,7 +1028,11 @@ describe("the calibration readings (issue #10451)", () => {
             "game1",
             undefined,
             undefined,
-            calibrationLog(() => Promise.resolve(2.5))
+            calibrationLog(
+                () => Promise.resolve(reading(2.5, 9)),
+                undefined,
+                shown
+            )
         );
         report.record(searched());
         await settled();
@@ -822,9 +1040,13 @@ describe("the calibration readings (issue #10451)", () => {
         report.flush();
 
         expect(span.mock.calls[0]![0]).not.toHaveProperty("calibration");
-        expect(span.mock.calls[1]![0]).toMatchObject({ calibration: 2.5 });
+        expect(span.mock.calls[1]![0]).toMatchObject({
+            calibration: 2.5,
+            calibrationUnits: 9,
+        });
         expect(log.mock.calls[0]![0]).toMatchObject({
             "calibration.first": 2.5,
+            "calibration.firstUnits": 9,
             "calibration.last": 2.5,
             "calibration.min": 2.5,
             "calibration.count": 1,

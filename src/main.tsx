@@ -47,9 +47,10 @@ Sentry.init({
     integrations: [Sentry.tanstackRouterBrowserTracingIntegration(router)],
     // Which traces are kept (issue #10321): every Brain consult's span and
     // the game route in full, every other route at a fifth, and nothing from
-    // a browser driven by automation; a consult's transaction is stripped of
-    // the page URL, the user-agent header and the breadcrumbs the SDK adds
-    // to every transaction — `~/lib/diagnostics/tracing`.
+    // a browser driven by automation. No transaction leaves with the
+    // session's breadcrumbs, and a consult's is stripped further, of the
+    // page URL and the user-agent header the SDK adds to every transaction
+    // — `~/lib/diagnostics/tracing`.
     tracesSampler: tracesSamplerFor(import.meta.env.PROD),
     beforeSendTransaction: (event) => sendableTransaction(event),
 });
