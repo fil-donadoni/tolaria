@@ -344,6 +344,10 @@ export function summaryLines(reports: readonly DeckReport[]): string[] {
 /** Path of the modern metagame lists (issue #8276, PRD #8445). */
 export const MODERN_METAGAME_DECKS_PATH = "data/modern-metagame-decks.json";
 
+/** Path of the owner's further modern Preset Deck lists (issue #10515): each
+ *  deck an UNRANKED Target of its own, banded by its PRD, never by a rank. */
+export const MODERN_PRESET_DECKS_PATH = "data/modern-preset-decks.json";
+
 /** The ONE playability predicate (issue #8453): a card state counts as
  *  playable exactly when it is in `PLAYABLE_STATES`. The report rows and the
  *  Preset Deck seed's gate both call this — never a second count. */

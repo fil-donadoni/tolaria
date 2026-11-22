@@ -62,6 +62,7 @@ const PRESET_GATE_PATHS: readonly string[] = [
     "data/card-index.json",
     "data/premodern-metagame-decks.json",
     "data/modern-metagame-decks.json",
+    "data/modern-preset-decks.json",
     // The legality the payload is checked against: the generated pool maps
     // and the Formats' rules and banlist seeds.
     "data/oracle-legality.json",
