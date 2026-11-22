@@ -293,10 +293,170 @@ describe("classifyRenderInert — hunks that reach rendering stay owed (fail-clo
     });
 });
 
+// Boot files (issue #10616): `src/main.tsx` and `vite.config.ts` are global by
+// path; only their boot-configuration regions, trivia and the imports only
+// those regions read are inert — nothing else, handlers included.
+const MAIN = "src/main.tsx";
+const MAIN_BASE = `import { createRoot } from "react-dom/client";
+import * as Sentry from "@sentry/react";
+import { AppRouter } from "./app-router";
+
+Sentry.init({
+    dsn: "https://key@o1.ingest.sentry.io/2",
+    enableLogs: true,
+});
+
+const onError = () => {
+    console.warn("boot failed");
+};
+window.addEventListener("error", onError);
+
+createRoot(document.getElementById("root")!).render(<AppRouter />);
+`;
+const judgeMain = (head: string) =>
+    classifyRenderInert(MAIN, hunksOf(MAIN_BASE, head));
+
+const VITE = "vite.config.ts";
+const VITE_BASE = `import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+export default defineConfig({
+    plugins: [react()],
+    server: {
+        proxy: {
+            "/scryfall-proxy": {
+                target: "https://cards.scryfall.io",
+                changeOrigin: true,
+            },
+        },
+    },
+    build: {
+        sourcemap: true,
+    },
+});
+`;
+const judgeVite = (head: string) =>
+    classifyRenderInert(VITE, hunksOf(VITE_BASE, head));
+
+describe("classifyRenderInert — boot files (issue #10616)", () => {
+    it("a Sentry.init option plus an import only it reads is inert in src/main.tsx", () => {
+        const head = MAIN_BASE.replace(
+            `import { AppRouter } from "./app-router";`,
+            `import { AppRouter } from "./app-router";
+import { TUNNEL } from "~/lib/diagnostics/sentry-tunnel";`
+        ).replace(
+            `    enableLogs: true,`,
+            `    enableLogs: true,
+    tunnel: TUNNEL,`
+        );
+        expect(judgeMain(head).inert).toBe(true);
+    });
+
+    it("a Sentry.init line naming the feedback widget reaches rendering", () => {
+        const head = MAIN_BASE.replace(
+            `    enableLogs: true,`,
+            `    enableLogs: true,
+    integrations: [Sentry.feedbackIntegration()],`
+        );
+        expect(judgeMain(head)).toMatchObject({ inert: false });
+    });
+
+    it("an option inside a multi-line feedbackIntegration({...}) reaches rendering (review, issue #10616)", () => {
+        const withFeedback = MAIN_BASE.replace(
+            `    enableLogs: true,`,
+            `    enableLogs: true,
+    integrations: [
+        Sentry.feedbackIntegration({
+            colorScheme: "dark",
+        }),
+    ],`
+        );
+        expect(
+            classifyRenderInert(
+                MAIN,
+                hunksOf(withFeedback, withFeedback.replace(`"dark"`, `"light"`))
+            )
+        ).toMatchObject({ inert: false });
+    });
+
+    it("a Sentry.init option that writes the DOM reaches rendering", () => {
+        const head = MAIN_BASE.replace(
+            `"https://key@o1.ingest.sentry.io/2"`,
+            `(document.body.style.zoom = "2", "x")`
+        );
+        expect(judgeMain(head)).toMatchObject({ inert: false });
+    });
+
+    it("an import nothing reads reaches rendering on a boot file: its module runs at load", () => {
+        const head = MAIN_BASE.replace(
+            `import { AppRouter } from "./app-router";`,
+            `import { AppRouter } from "./app-router";
+import { unused } from "./theme-boot";`
+        );
+        expect(judgeMain(head)).toMatchObject({ inert: false });
+    });
+
+    it("a render line in src/main.tsx reaches rendering", () => {
+        const head = MAIN_BASE.replace(
+            "render(<AppRouter />)",
+            "render(<AppRouter strict />)"
+        );
+        expect(judgeMain(head)).toMatchObject({ inert: false });
+    });
+
+    it("no handler rule on a boot file: a handler-body edit in src/main.tsx stays owed", () => {
+        const head = MAIN_BASE.replace(`"boot failed"`, `"boot failed again"`);
+        expect(judgeMain(head)).toMatchObject({ inert: false });
+    });
+
+    it("an import a Sentry.init option AND module top level read stays owed", () => {
+        const head = MAIN_BASE.replace(
+            `import { AppRouter } from "./app-router";`,
+            `import { AppRouter } from "./app-router";
+import { DSN } from "./dsn";`
+        )
+            .replace(`"https://key@o1.ingest.sentry.io/2"`, "DSN")
+            .replace(
+                `window.addEventListener`,
+                `console.log(DSN);
+window.addEventListener`
+            );
+        expect(judgeMain(head)).toMatchObject({ inert: false });
+    });
+
+    it("a dev-server proxy entry is inert in vite.config.ts", () => {
+        const head = VITE_BASE.replace(
+            `        proxy: {
+`,
+            `        proxy: {
+            "^/diag/relay$": {
+                target: "https://o1.ingest.sentry.io",
+                changeOrigin: true,
+                rewrite: () => "/api/2/envelope/",
+            },
+`
+        );
+        expect(judgeVite(head).inert).toBe(true);
+    });
+
+    it("a proxy key on the bare root reaches rendering", () => {
+        const head = VITE_BASE.replace(`"/scryfall-proxy": {`, `"/": {`);
+        expect(judgeVite(head)).toMatchObject({ inert: false });
+    });
+
+    it("a build option edit in vite.config.ts reaches rendering", () => {
+        const head = VITE_BASE.replace("sourcemap: true", "sourcemap: false");
+        expect(judgeVite(head)).toMatchObject({ inert: false });
+    });
+});
+
 describe("isRenderInertCandidate", () => {
     it("clears only src/** TS modules that are not global styling inputs", () => {
         expect(isRenderInertCandidate(DIALOG)).toBe(true);
-        expect(isRenderInertCandidate("src/main.tsx")).toBe(false);
+        // The boot files, under the restricted rule set (issue #10616).
+        expect(isRenderInertCandidate("src/main.tsx")).toBe(true);
+        expect(isRenderInertCandidate("vite.config.ts")).toBe(true);
+        expect(isRenderInertCandidate("vitest.config.ts")).toBe(false);
         expect(isRenderInertCandidate("src/router.tsx")).toBe(false);
         expect(isRenderInertCandidate("src/lib/design-tokens.ts")).toBe(false);
         expect(isRenderInertCandidate("src/index.css")).toBe(false);

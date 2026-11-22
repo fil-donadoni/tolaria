@@ -26,7 +26,9 @@
  *     contributes nothing: the new route module is placed by its own closure;
  *   - in the BUILD configuration's closure (`vite.config.ts` and what it
  *     imports, e.g. `scripts/lib/build-define.ts`) → `full`: it shapes the
- *     bundle every route is served from;
+ *     bundle every route is served from — EXCEPT `vite.config.ts` itself when
+ *     every changed line is render-inert (its dev-server proxy table, issue
+ *     #10616, `ui-boot-config-regions.ts`);
  *   - NON-DOM (tests, scripts, markdown) → contributes nothing;
  *   - a RENDER-INERT module — every changed line, on both sides, a comment,
  *     an event handler's body or an import only handlers read
@@ -456,7 +458,13 @@ export function computeUiScope({
                 }`,
             };
         }
-        if (build.has(path)) {
+        // The build configuration ITSELF, every changed line in its
+        // dev-server proxy table or trivia (issue #10616): it shapes no
+        // bundle. A module in its closure stays FULL.
+        if (
+            build.has(path) &&
+            !(path === BUILD_CONFIG && renderInert.has(path))
+        ) {
             return {
                 kind: "full",
                 reason: `${path} is in the build configuration's closure (${BUILD_CONFIG})`,
