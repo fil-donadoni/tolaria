@@ -219,7 +219,7 @@ export function determinize(
             );
         } else {
             // Opponent hand + library are both hidden and interchangeable.
-            determinizeOpponent(player, rng, pinned);
+            determinizeOpponent(player, observerId, rng, pinned);
         }
     }
 
@@ -298,34 +298,55 @@ function determinizeObserver(
 }
 
 /** Pool the opponent's hand + library — indistinguishable to the observer —
- *  shuffle, then re-deal the first `handSize` cards back to the hand and the
- *  remainder to the library, preserving both counts.
+ *  shuffle, then re-deal the hand's unknown slots and the library, preserving
+ *  both counts.
  *
  *  `pinned` withholds those library positions from the pool ENTIRELY and puts
  *  their real cards straight back at their own indices: a card the observer has
  *  been shown (a CR 401.5 revealed top, a fateseal, a surveil aimed at this
  *  opponent) can neither move nor turn up in the opponent's hand (issue
  *  #1524). Every unpinned position is still pooled and re-dealt exactly as
- *  before. */
+ *  before.
+ *
+ *  A HAND card the observer has been shown (`knownTo` names it — a look-at-hand
+ *  effect, a reveal) is withheld the same way and stays in the hand with its
+ *  own instance id (issue #10436, ADR 0026): what the observer was shown is a
+ *  fact, not a guess — the entitlement `fillHiddenZonesFrom` already grants on
+ *  the informed and blinded paths. Pooling it was what had a "look at their
+ *  hand, you may take a card" pick decline every time: the open choice's
+ *  `candidateIds` named cards the world had dealt into the library. */
 function determinizeOpponent(
     player: PlayerState,
+    observerId: string,
     rng: () => number,
     pinned: ReadonlySet<number>
 ): void {
-    const handSize = player.hand.length;
-    if (pinned.size === 0) {
-        // The production norm — opponent library knowledge is rare, and this
-        // runs once per seat per ISMCTS iteration. Same short-circuit
+    const keptHand = player.hand.filter(
+        (c) => c.knownTo?.includes(observerId) === true
+    );
+    if (pinned.size === 0 && keptHand.length === 0) {
+        // The production norm — opponent library and hand knowledge are rare,
+        // and this runs once per seat per ISMCTS iteration. Same short-circuit
         // `determinizeObserver` takes.
+        const handSize = player.hand.length;
         const pool = shuffleWithRng(player.hand.concat(player.library), rng);
         player.hand = pool.slice(0, handSize).map((c) => inZone(c, "hand"));
         player.library = pool.slice(handSize).map((c) => inZone(c, "library"));
         return;
     }
+    const unknownHand =
+        keptHand.length === 0
+            ? player.hand
+            : player.hand.filter(
+                  (c) => c.knownTo?.includes(observerId) !== true
+              );
+    const handSlots = unknownHand.length;
     const { held, unpinned } = splitPinned(player.library, pinned);
-    const pool = shuffleWithRng(player.hand.concat(unpinned), rng);
-    player.hand = pool.slice(0, handSize).map((c) => inZone(c, "hand"));
-    const fill = pool.slice(handSize).map((c) => inZone(c, "library"));
+    const pool = shuffleWithRng(unknownHand.concat(unpinned), rng);
+    player.hand = keptHand
+        .concat(pool.slice(0, handSlots))
+        .map((c) => inZone(c, "hand"));
+    const fill = pool.slice(handSlots).map((c) => inZone(c, "library"));
     player.library = placeAtPinned(player.library.length, held, fill);
 }
 
