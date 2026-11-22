@@ -7,7 +7,7 @@
 > the 14 days to 2026-11-19, which all fall between 2026-11-15 09:10 and
 > 2026-11-16 16:38 Rome time. **Dated:** every number below is as of that
 > commit and those reports. Slice of PRD issue #10017. The owner's ruling
-> goes in § 6.
+> (2026-11-22) is in § 6.
 
 **Question.** The owner ruled (issue #10027, `expert-think-longer.md` § 5) that
 `expert` must reach 400 iterations per search on every engine family. The
@@ -44,8 +44,9 @@ decision?
 6. **Proposal** (§ 5): first tree reuse across the Bot's own consecutive
    consults, then pondering. Pondering runs in time slices and stops on a
    consult, on a hidden page and on a memory cap. Kept visits count toward the
-   400-iteration target. This amends ADR 0000 § 7. **The owner rules it in
-   § 6 before any implementation slice is filed.**
+   400-iteration target. This amends ADR 0000 § 7. **The owner ruled on
+   2026-11-22 (§ 6): both slices are built, and pondering runs on phones
+   too.**
 
 ## 1. How much time there is
 
@@ -313,19 +314,33 @@ reuse keeps one tree.
 
 ## 6. The owner's ruling
 
-**Pending.** This note was written in an unattended pass. The questions the
-owner rules on:
+**Ruled on 2026-11-22**, in an attended session. This note was written in an
+unattended pass, and its four questions went to the owner as written:
 
-1. Build slice 1 (tree reuse, budget counted in root visits)?
+1. Build slice 1 (tree reuse, budget counted in root visits)? **Yes.**
 2. Build slice 2 (pondering), and with `device.mobile` off by default?
+   **Yes, and on phones too.** The owner: "direi di accenderlo anche sul
+   telefono, non mi sembra un impatto cosi' grave. nessuno giochera' a tolaria
+   sul telefono per ore". This overrules the proposal of § 4 and § 5 that
+   pondering stay off when `device.mobile` is true. The other stops stand: a
+   consult, a hidden page, the node cap. No phone has been measured (§ 4), so
+   the slice reports the iterations pondered and the pondering time per
+   consult, and the `device.mobile` split of those keys is how the ruling
+   gets checked.
 3. Consent to the two coarse report keys: `idleMs.p50` (§ 1) and
-   `iterations.kept` (§ 5)? — **`idleMs.p50`: consented on 2026-11-22** and
-   shipped with issue #10321 (the owner's standing consent to telemetry keys
-   of this kind). `iterations.kept` exists only with slice 1.
-4. Accept the amendment of ADR 0000 § 7 as a new ADR?
+   `iterations.kept` (§ 5)? **Yes**, under the owner's standing consent of
+   the same day to telemetry keys of this kind. `idleMs.p50` shipped with
+   issue #10321; `iterations.kept` ships with slice 1.
+4. Accept the amendment of ADR 0000 § 7 as a new ADR? **Yes.** What the owner
+   was told it implies: the budget counts visits a kept subtree already
+   holds; the same board can yield a different move depending on what the
+   Worker kept and, with pondering, on how long the human took; a decision
+   reported from the field no longer reproduces from its board alone, so
+   every decision records the visits it kept. Tests are untouched: they
+   search a fresh tree at fixed iterations.
 
-The implementation slices are filed under PRD issue #10017 once the ruling is
-recorded here.
+The implementation slices, under PRD issue #10017: **issue #10470** (slice 1,
+with the new ADR) and **issue #10472** (slice 2, blocked by it).
 
 ## Not measured
 
