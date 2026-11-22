@@ -29,7 +29,7 @@ type BugReportConsentProps = {
  *    reporter does not hold themselves;
  * 3. Sentry, a third-party monitoring service, receives console output,
  *    uncaught errors, page-load/navigation timings (issue #10214) and the
- *    timings of the Bot's searches (issue #10321)
+ *    timings of the Bot's searches
  *    CONTINUOUSLY, report or no report. Disclosing that is not
  *    the same as consenting to it, and declining below does not stop it —
  *    saying otherwise would be the lie this gate exists to remove.

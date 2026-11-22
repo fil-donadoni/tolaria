@@ -28,7 +28,7 @@
 // derive the families and is never sent. No player, no card, no board state. `REPORT_KEYS` is the
 // allowlist; a test reds on a key outside it.
 //
-// WHAT A SLOW GAME WAS (issue #10321). Three readings say whether a slow search
+// WHAT A SLOW GAME WAS. Three readings say whether a slow search
 // was a costly board or a slow machine, and how much time the Worker had to
 // spare: the rollout policy's probes per iteration and the time per probe
 // (`probesPerIteration.p50`, `msPerProbe.p50`: a probe is one candidate move
