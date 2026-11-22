@@ -31,9 +31,7 @@ slower and kept no more (§§ 2–3). The owner ruled for K = 3 (§ 6).
 2. **The decline is never cut.** It is `pass`, or, on a declaration ply,
    which offers no `pass`, the empty attack or block declaration. The note's
    bench ranked the empty declaration just above `pass` but let it fall to
-   the cut; kept, a mover that has three attacks or blocks on offer can still
-   decline them in a playout (the owner's ruling of 2026-11-22, attended
-   session of issue #10473).
+   the cut.
 3. **"Best" is three keys, in order.**
     - **A repeat last**: a candidate `collapseInterchangeableMoves` (issue
       #3593) folds into another, the same play on another copy of the same
@@ -42,40 +40,91 @@ slower and kept no more (§§ 2–3). The owner ruled for K = 3 (§ 6).
     - **The move-kind rank the note measured**: land > cast > activation /
       attack / block > turn face up / foretell / plot / companion > other.
       What kind of move it is, never a card (ADR 0102).
-    - **By lot** between equal kinds, one draw per candidate from the
-      rollout's own stream. The kind rank cannot tell two candidates of one
-      kind apart, and enumeration order drops the same one, the last target or
-      the last attacker, in every rollout. The owner's ruling of 2026-11-22
-      (attended session of issue #10473).
+    - **Between equal kinds, the widest declaration of a declaration ply,
+      then enumeration order.** On a declaration ply every candidate is one
+      kind, so the kind rank says nothing, and the power set enumerates the
+      single attackers first and the full attack last. In enumeration order
+      alone no mover with two creatures probes attacking with both, and no
+      defender a double block: the Bot's own alpha strike and the opponent's
+      lethal crack-back both leave the playouts. The pick is handed the ply's
+      two ends, nobody and everybody, and one declaration between.
 4. **Only the rollout's use.** The greedy pick's other readers probe every
    candidate as before: `greedyRootPick` (the blade's greedy leg), the
    greedy-concordance key in `searchWithTrace`, and `controlledSeatPick`
    (CR 723.5, ADR 0181).
-5. **Determinism as before**: fixed iterations, the lot drawn from the
-   search's seeded stream, never the clock.
+5. **No draw, no state.** The cut reads the ply and nothing else: the same
+   list at the same state keeps the same moves, and the rollout's random
+   stream is consumed exactly as before the cut.
+
+## Considered and measured
+
+Four tie-breaks between equal kinds went through `blade:census` (the `must`
+tier, every entry's own seeds, against `d629e2b3d9`, 2026-11-22). A cell is
+new red entries (seeds) / fixed entries; the base has 31 red entries at 94
+iterations and 8 at 236, none at the declared budgets.
+
+| tie-break between equal kinds            | declared  | 94 iterations | 236 iterations | cost of the cut's own work |
+| ---------------------------------------- | --------- | ------------- | -------------- | -------------------------- |
+| by lot, every ply                        | 2 new red | 4 (6) / 7     | 3 (4) / 1      | one draw per candidate     |
+| enumeration order (the note's bench)     | 0         | 5 (9) / 2     | 4 (8) / 1      | none                       |
+| the search's own probe history           | 0         | 4 (5) / 2     | 3 (7) / 1      | 6–9% of an iteration       |
+| by lot, declaration plies only           | 0         | 5 (7) / 2     | 3 (4) / 0      | one draw per candidate     |
+| **widest declaration, then enumeration** | **0**     | **3 (4) / 2** | **3 (3) / 1**  | **none**                   |
+
+- **A lot on every ply** reds two `must` entries at their declared budgets
+  (a Fatal Push and a Blood Moon cast, each green again without the lot):
+  among cast variants of one spell, enumeration order kept the right one in
+  every playout and the lot only in some.
+- **The search's probe history** (a move's mean regret against the best
+  probe of its ply, optimistic for a move never probed: the move-average
+  family of Finnsson and Björnsson's MAST) buys no decision the enumeration
+  order loses and costs 6–9% of an iteration in move keys, on the field board
+  below.
+- **Enumeration order** reds "linked exile: Emperor of Bones adapts in the
+  beginning-of-combat step once Atraxa is exiled with it" on 3 seeds at 94
+  iterations and 5 at 236. The reanimated Atraxa must attack, and with two
+  creatures on the battlefield the full attack is never probed. The widest
+  declaration keeps that entry green at both budgets. It is the one
+  difference between the arms that has a mechanism.
+- **Everything else is inside the dice.** The note's `reseed` arm moves 6
+  entries and fixes 7 at 94 iterations with nothing changed but the stream.
+
+The literature agrees on the two points that decided: a subset choice
+(attackers, blockers) is where limited structure pays in Magic, and a
+playout that is deterministic in every choice loses to one that keeps some
+randomness (Cowling, Ward and Powley 2012, on Magic itself). The rollout's
+own epsilon branch is that randomness and is untouched.
 
 ## Consequences
 
-- **Speed.** At `d629e2b3d9`, on the MacBook (Apple M1 Pro), on the field
-  board `jh71n516` of the note, the shipped cut runs an iteration in 0.44 of
-  the time every-candidate probing takes over a search's first 20 iterations
-  and 0.56 over 60. The note's `topk:3` reads 0.45 and 0.53 in the same run:
-  the repeat rule and the lot cost 0–4% of what the cut buys.
-- **Every rollout's random stream moves.** The lot draws on every cut ply, so
-  entries pinned by the dice move the way the note's `reseed` arm does. The
-  census of issue #10473 lists them.
+- **Speed.** At `fe32b6d89b` against `d629e2b3d9`, on the MacBook (Apple M1
+  Pro, load average 33–88 from other sessions), 2026-11-22. On the 53
+  searched blade positions of the bench (`compare.mjs`, 200 iterations) an
+  iteration takes 0.949 of the base's CPU time at the median (p10 0.820, p90
+  1.016). On the field board `jh71n516` of the note it takes 0.48–0.49 of
+  every-candidate probing over a search's first 20 iterations and 0.51–0.53
+  over 60, where the note's `topk:3` reads 0.42–0.43 and 0.44–0.52 in the
+  same runs. The difference is the full attack: probing it, and then playing
+  it out, is more combat than three single attackers. A build without the
+  widest declaration read level with `topk:3` (0.44 against 0.45).
+- **The rollout's random stream is consumed as before.** Decisions still
+  move, because playouts play other moves: the census above lists what
+  moved.
 - **The residual blindness.** The rank reads a move's kind, never what it
-  does: among distinct candidates of one kind the lot keeps two at random, so
-  the one a line needs is probed in only some playouts. The blade's stretch
-  entry "rollout probe cut: holds Emperor of Bones' Adapt in main 1 with two
-  identical pump activations enumerated before it" reads it: every candidate
-  probed passes 12 of 14 seeds, the kind rank with enumeration ties 4, ties
-  by lot 12, the shipped cut 10, on a board noisy for every policy. A rank
-  that reads what a move does (the tree's priors, `computeActionPriors`) is
-  the next lever, and its cost is what it must buy back.
+  does: among distinct candidates of one kind on a priority or a choice ply
+  (two activations, eleven graveyard targets) the first two enumerated are
+  probed and the others only by the rollout's random branch. The blade's
+  stretch entry "rollout probe cut: holds Emperor of Bones' Adapt in main 1
+  with two identical pump activations enumerated before it" reads it on a
+  wide board: of 14 seeds, every candidate probed passes 12 and the shipped
+  cut 2. The blade's boards are narrow (2.2 candidates per probing ply at
+  the median, the note's § 3), so its census is a strong reading for narrow
+  boards and a thin one for wide ones. A rank that reads what a move does at
+  no cost per candidate is the open lever; the probe history above is not
+  it.
 - **Guarded by** `convex/gre/__tests__/rolloutProbeCut.bot.test.ts`: the
-  repeat rule, the kept decline and the lot, each proven to fail without its
-  mechanism.
+  repeat rule, the kept decline and the widest declaration, each proven to
+  fail without its mechanism.
 - **The field reading** (`probesPerIteration.p50`, `msPerProbe.p50` in the
-  per-game `bot search` report, issue #10321) is a follow-up under PRD issue
-  #10017, after a release.
+  per-game `bot search` report, issue #10321) is issue #10612, after a
+  release.
