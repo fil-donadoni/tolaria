@@ -66,7 +66,7 @@ export function isFloorless(completion: CompletionMode | undefined): boolean {
  * One registered Target List.
  *
  * `source` by kind:
- * - `deck-list` — a `{ decks }` file (60 + 15 each); `path#slug` names one
+ * - `deck-list` — a `{ decks }` file (constructed bounds: main ≥ 60, sideboard ≤ 15); `path#slug` names one
  *   deck, a bare path the union of every deck in the file;
  * - `name-list` — a text file, one card name per line, `#` comments;
  * - `set` — a vendored MTGJSON set file (`data/json/<SET>.json`);
