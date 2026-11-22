@@ -97,8 +97,10 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
                 card(EMPEROR, "emperor", "battlefield"),
             ]
         );
-        const moves = enumerateMoves(state, "p1");
-        expect(moves.some((m) => m.kind === "activate-ability")).toBe(true);
+        // Reversed, so the activations come first: the rank, not the
+        // enumerator's own order, is what puts the land and the spell ahead.
+        const moves = enumerateMoves(state, "p1").reverse();
+        expect(moves[0].kind).toBe("activate-ability");
         const kept = rolloutProbeCandidates(moves);
         expect(kept.map((m) => m.kind).sort()).toEqual([
             "cast-spell",
