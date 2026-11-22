@@ -340,7 +340,10 @@ unattended pass, and its four questions went to the owner as written:
    search a fresh tree at fixed iterations.
 
 The implementation slices, under PRD issue #10017: **issue #10470** (slice 1,
-with the new ADR) and **issue #10472** (slice 2, blocked by it).
+with the new ADR) and **issue #10472** (slice 2, blocked by it). The
+amendment is **ADR 0185**
+(`docs/adr/0185-the-search-budget-counts-root-visits-and-a-kept-tree-carries-across-consults.md`),
+landed with slice 1.
 
 ## Not measured
 

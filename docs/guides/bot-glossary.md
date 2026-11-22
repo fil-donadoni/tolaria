@@ -48,8 +48,21 @@ but `pass` to choose? When the answer is no the Bot moves instantly. Code:
 <a id="search-budget"></a>**Search budget** — how much thinking one decision
 may cost, expressed as a number of [iterations](#iteration) and/or a
 wall-clock cap in milliseconds. Tests and the [ladder](#ladder) always fix
-iterations, never time, so results are reproducible on any machine. Code:
+iterations, never time, so results are reproducible on any machine. The
+iterations are ROOT VISITS (ADR 0185): a search that continues a
+[kept tree](#kept-tree) holding 200 visits runs 200 more to reach 400. Code:
 `SearchBudget` in `convex/gre/search.ts`; presets in `convex/gre/difficulty.ts`.
+
+<a id="kept-tree"></a>**Kept tree / tree reuse** — the Brain Worker keeps the
+tree its last search grew, and the next consult continues from the subtree the
+game moved into instead of an empty tree (issue #10470, ADR 0185). The consult
+names what was played since as tree keys (`src/lib/ai/consult-path.ts`); the
+Worker walks them (`convex/gre/ai/treeReuse.ts`) and drops the tree — a fresh
+search, as before — on any doubt: another game, seat or catalogue, a step it
+cannot name, or an observation the Bot made on the way (its own draw, a
+reveal). A decision's trace says how many visits it kept (`iterationsKept`):
+one that kept none reproduces from its board; one that kept some does not.
+Tests and the blade always search a fresh tree.
 
 <a id="difficulty"></a>**Difficulty** — a named preset carrying TWO knobs
 (`convex/gre/difficulty.ts`): a [search budget](#search-budget) and the

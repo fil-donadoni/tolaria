@@ -98,7 +98,14 @@ export default function AiDecisionSummary({
                 <summary className="cursor-pointer break-words text-text-disabled">
                     Details — {trace.candidates.length} moves,{" "}
                     {trace.iterationsCompleted}/{trace.iterationsRequested}{" "}
-                    iters ({trace.stoppedBy}), {Math.round(trace.elapsedMs)}ms
+                    iters
+                    {/* Issue #10470 — visits kept from the last tree: a
+                        decision that kept some does not replay from its
+                        board alone (ADR 0185). */}
+                    {trace.iterationsKept
+                        ? ` + ${trace.iterationsKept} kept`
+                        : ""}{" "}
+                    ({trace.stoppedBy}), {Math.round(trace.elapsedMs)}ms
                     {trace.selectionRule ? `, ${trace.selectionRule}` : ""}
                 </summary>
                 <div className="mt-1 flex flex-col gap-1">
