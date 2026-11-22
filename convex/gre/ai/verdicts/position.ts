@@ -22,7 +22,11 @@ import type { Verdict } from "./types";
 // therefore the blade harness and its registry — into the client bundle.
 // Re-exported here, where every existing caller already imports them, so there
 // is one name for each.
-export { candidateMoves, buildSetupFreeVerdictState } from "./candidates";
+export {
+    candidateMoves,
+    unprunedCandidateMoves,
+    buildSetupFreeVerdictState,
+} from "./candidates";
 
 /** The verdict's position as a blade scenario, so it is built by the same
  *  `buildBladeState` a blade entry is. `budget` / `tier` / `expect` are

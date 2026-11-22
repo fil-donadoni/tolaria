@@ -1235,3 +1235,302 @@ describe("deepEqual (issue #1887)", () => {
         expect(deepEqual({ a: [{ b: 1 }] }, { a: [{ b: 2 }] })).toBe(false);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Transient marked damage (issue #9956) — the second provable shape: damage
+// that kills nothing and cannot be made lethal before cleanup removes it
+// (CR 514.2). Each case is the futile position and a negative control that
+// differs from it in the ONE input the condition under test reads.
+
+describe("isDominatedNoOpMove — marked damage that cannot become lethal (CR 120.3e / 514.2 / 704.5g, issue #9956)", () => {
+    type Extra = NonNullable<BladeScenario["spec"]["cards"]>[number];
+
+    /** The Bot holds Unholy Heat with delirium off (2 damage) and one
+     *  Mountain; the opponent has a Serra Angel (4/4). `mine` and `theirs`
+     *  add to each side. */
+    function heatPosition(
+        extras: Extra[],
+        phase: BladeScenario["spec"]["phase"] = "PRECOMBAT_MAIN"
+    ): GameState {
+        return build({
+            phase,
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Unholy Heat", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "graveyard" },
+                { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                ...extras,
+            ],
+        });
+    }
+
+    const raiders: Extra = {
+        name: "Mons's Goblin Raiders",
+        owner: "me",
+        zone: "battlefield",
+        summoningSick: false,
+    };
+
+    /** Whether the cast of `spell` at `target` is offered once dominance has
+     *  pruned. Asserts the unpruned list offers it, so "not offered" is the
+     *  prune and never a cast that was illegal to begin with. */
+    function offered(state: GameState, spell: string, target: string): boolean {
+        const aims = (m: Move): boolean =>
+            m.kind === "cast-spell" &&
+            m.targets.some((t) => cardName(state, t.id) === target);
+        expect(castsOf(state, spell, false).some(aims)).toBe(true);
+        return castsOf(state, spell, true).some(aims);
+    }
+
+    it("prunes 2 damage at a 4/4 with a lone 1/1 beside it", () => {
+        const state = heatPosition([raiders]);
+        expect(offered(state, "Unholy Heat", "Serra Angel")).toBe(false);
+    });
+
+    it("is not proved without the enumerator: the exact no-op contract is unchanged", () => {
+        const state = heatPosition([raiders]);
+        const cast = castsOf(state, "Unholy Heat", false).find(
+            (m) =>
+                m.kind === "cast-spell" &&
+                m.targets.some((t) => cardName(state, t.id) === "Serra Angel")
+        )!;
+        expect(isDominatedNoOpMove(state, me(state), cast)).toBe(false);
+        expect(
+            isDominatedNoOpMove(state, me(state), cast, enumerateMoves)
+        ).toBe(true);
+    });
+
+    it("keeps the cast when combat can finish the creature: a 3/3 and a 1-power attacker", () => {
+        const state = heatPosition([
+            raiders,
+            {
+                name: "Hill Giant",
+                owner: "opp",
+                zone: "battlefield",
+                summoningSick: false,
+            },
+        ]);
+        expect(offered(state, "Unholy Heat", "Hill Giant")).toBe(true);
+        // The Angel beside it still has 2 toughness left against 1 power.
+        expect(offered(state, "Unholy Heat", "Serra Angel")).toBe(false);
+    });
+
+    it("keeps the cast when an attacker has deathtouch", () => {
+        const state = heatPosition([
+            {
+                name: "Typhoid Rats",
+                owner: "me",
+                zone: "battlefield",
+                summoningSick: false,
+            },
+        ]);
+        expect(offered(state, "Unholy Heat", "Serra Angel")).toBe(true);
+    });
+
+    it("counts a double striker twice", () => {
+        // Fencing Ace is a 1/1: once it is 1 against the 2 toughness left
+        // (pruned, like the Raiders), twice it is 2 (kept).
+        const state = heatPosition([
+            {
+                name: "Fencing Ace",
+                owner: "me",
+                zone: "battlefield",
+                summoningSick: false,
+            },
+        ]);
+        expect(offered(state, "Unholy Heat", "Serra Angel")).toBe(true);
+    });
+
+    it("stops counting combat once its damage has been dealt", () => {
+        const bears: Extra = {
+            name: "Grizzly Bears",
+            owner: "me",
+            zone: "battlefield",
+            summoningSick: false,
+        };
+        // 2 + 2 reaches the Angel's 4 while combat is still to come.
+        expect(
+            offered(heatPosition([bears]), "Unholy Heat", "Serra Angel")
+        ).toBe(true);
+        expect(
+            offered(
+                heatPosition([bears], "END_STEP"),
+                "Unholy Heat",
+                "Serra Angel"
+            )
+        ).toBe(false);
+    });
+
+    it("keeps both burn spells while both can be cast this turn, and prunes both when only one can", () => {
+        // No creature beside them, so the only sum is 2 + 3 against the 4/4.
+        const bolt: Extra = {
+            name: "Lightning Bolt",
+            owner: "me",
+            zone: "hand",
+        };
+        const both = heatPosition([
+            bolt,
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+        ]);
+        expect(offered(both, "Unholy Heat", "Serra Angel")).toBe(true);
+        expect(offered(both, "Lightning Bolt", "Serra Angel")).toBe(true);
+
+        const one = heatPosition([bolt]);
+        expect(offered(one, "Unholy Heat", "Serra Angel")).toBe(false);
+        expect(offered(one, "Lightning Bolt", "Serra Angel")).toBe(false);
+    });
+
+    it("prunes beside a castable spell that cannot touch damage", () => {
+        const state = heatPosition([
+            raiders,
+            { name: "Plains", owner: "me", zone: "battlefield" },
+            { name: "Healing Salve", owner: "me", zone: "hand" },
+        ]);
+        expect(offered(state, "Unholy Heat", "Serra Angel")).toBe(false);
+    });
+
+    it("keeps the cast beside a castable pump", () => {
+        const state = heatPosition([
+            raiders,
+            { name: "Forest", owner: "me", zone: "battlefield" },
+            { name: "Giant Growth", owner: "me", zone: "hand" },
+        ]);
+        expect(offered(state, "Unholy Heat", "Serra Angel")).toBe(true);
+    });
+
+    it("reads a sorcery the mover can only cast after combat", () => {
+        // In the beginning-of-combat step Volcanic Hammer is not on the move
+        // list, and it is castable in the second main phase: 2 + 3 is lethal.
+        const state = heatPosition(
+            [
+                raiders,
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Volcanic Hammer", owner: "me", zone: "hand" },
+            ],
+            "BEGINNING_OF_COMBAT"
+        );
+        expect(castsOf(state, "Volcanic Hammer", false)).toHaveLength(0);
+        expect(offered(state, "Unholy Heat", "Serra Angel")).toBe(true);
+        // Control: the same step without the sorcery.
+        expect(
+            offered(
+                heatPosition([raiders], "BEGINNING_OF_COMBAT"),
+                "Unholy Heat",
+                "Serra Angel"
+            )
+        ).toBe(false);
+    });
+
+    it("keeps the cast while a triggered ability on the battlefield deals damage", () => {
+        const state = heatPosition([
+            raiders,
+            { name: "Powerstone Minefield", owner: "opp", zone: "battlefield" },
+        ]);
+        expect(offered(state, "Unholy Heat", "Serra Angel")).toBe(true);
+    });
+
+    it("keeps the cast while a triggered ability on the battlefield adds a combat phase", () => {
+        // Fear of Missing Out sits on the Angel's side, so it adds nothing to
+        // the combat bound: only its attack trigger keeps the cast.
+        const state = heatPosition([
+            raiders,
+            {
+                name: "Fear of Missing Out",
+                owner: "opp",
+                zone: "battlefield",
+                summoningSick: false,
+            },
+        ]);
+        expect(offered(state, "Unholy Heat", "Serra Angel")).toBe(true);
+    });
+
+    it("prunes non-lethal damage at the mover's own creature on the same terms", () => {
+        // The mover's Hill Giant keeps 1 toughness; nothing opposes it.
+        const state = build({
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Unholy Heat", owner: "me", zone: "hand" },
+                {
+                    name: "Hill Giant",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        });
+        expect(offered(state, "Unholy Heat", "Hill Giant")).toBe(false);
+    });
+
+    it("reads a kicked cast as kicked: 4 damage at a 3/3 is kept, the plain 2 is pruned", () => {
+        // The probe resolves the plain announcement, so a kicked cast must
+        // never be judged by the damage its unkicked form would mark.
+        const state = build({
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                ...Array.from(
+                    { length: 5 },
+                    (): Extra => ({
+                        name: "Mountain",
+                        owner: "me",
+                        zone: "battlefield",
+                    })
+                ),
+                { name: "Burst Lightning", owner: "me", zone: "hand" },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+        });
+        const atGiant = (pruned: boolean) =>
+            castsOf(state, "Burst Lightning", pruned).filter(
+                (m) =>
+                    m.kind === "cast-spell" &&
+                    m.targets.some(
+                        (t) => cardName(state, t.id) === "Hill Giant"
+                    )
+            );
+        const kicked = (m: Move) =>
+            m.kind === "cast-spell" && m.kickerPayments !== undefined;
+        expect(atGiant(false).some(kicked)).toBe(true);
+        expect(atGiant(false).some((m) => !kicked(m))).toBe(true);
+        expect(atGiant(true).some(kicked)).toBe(true);
+        expect(atGiant(true).some((m) => !kicked(m))).toBe(false);
+    });
+
+    it("keeps a spell that divides its damage: a move does not carry the split", () => {
+        // Arc Lightning's 3 at the 4/4 alone would read as the futile shape.
+        const state = heatPosition([
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+            { name: "Arc Lightning", owner: "me", zone: "hand" },
+        ]);
+        expect(offered(state, "Arc Lightning", "Serra Angel")).toBe(true);
+    });
+
+    it("never prunes damage that kills", () => {
+        const state = heatPosition([raiders]);
+        expect(offered(state, "Unholy Heat", "Mons's Goblin Raiders")).toBe(
+            true
+        );
+    });
+});
