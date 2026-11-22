@@ -184,7 +184,7 @@ describe("PoolBasicLandsBar — tile content and art (issue #5398)", () => {
         ]) {
             expect(getByLabelText(`Choose ${subtype} art`)).toBeTruthy();
             expect(
-                container.querySelector(`img[alt="{${symbol}}"]`)
+                container.querySelector(`img[data-symbol="{${symbol}}"]`)
             ).not.toBeNull();
         }
         expect(getByTestId("basic-count-Mountain").textContent).toBe("4");

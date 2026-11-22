@@ -23,7 +23,7 @@ export default function PlayerEnergyCounters({
     return (
         <div
             className={`${compact ? "" : "mt-0.5"} inline-flex items-center gap-1 text-[11px] font-semibold leading-none text-accent-strong`}
-            title={`${count} energy counter${count === 1 ? "" : "s"} ({E})`}
+            title={`${count} energy counter${count === 1 ? "" : "s"}`}
             aria-label={`${count} energy counters`}
         >
             <EnergyGlyph />

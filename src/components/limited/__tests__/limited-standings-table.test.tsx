@@ -183,7 +183,7 @@ describe("LimitedStandingsTable (issue #1643)", () => {
                 ...container.querySelectorAll(
                     `[data-seat-index="${seat}"] [data-slot="deck-colors"] img`
                 ),
-            ].map((img) => img.getAttribute("alt"));
+            ].map((img) => img.getAttribute("data-symbol"));
         expect(symbols(0)).toEqual(["{W}", "{U}"]);
         expect(symbols(1)).toEqual(["{R}"]);
     });

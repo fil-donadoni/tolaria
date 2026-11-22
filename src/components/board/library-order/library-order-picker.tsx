@@ -54,6 +54,7 @@ import {
 } from "./constants";
 import { computeLayout, insertionIndex, type Zone } from "./layout";
 import { useEdgeAutoScroll } from "./useEdgeAutoScroll";
+import { withSymbols } from "~/lib/oracle-text";
 
 /** Zone label chrome (phase 2, winner A): every picker zone declares its name
  *  + ordering hint + icon up front — the fused text labels under the strip are
@@ -796,7 +797,7 @@ export default function LibraryOrderPicker({
                     </button>
                 </div>
                 <p className="text-center text-sm text-muted-foreground">
-                    {prompt}
+                    {withSymbols(prompt)}
                 </p>
 
                 {/* Zone labels ABOVE the strip (phase 2, winner A): every zone

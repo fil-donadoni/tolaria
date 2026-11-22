@@ -4,6 +4,7 @@ import * as React from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 
 import { cn } from "@/lib/utils";
+import { withSymbols } from "~/lib/oracle-text";
 import { Button } from "@/components/ui/button";
 import { XIcon } from "lucide-react";
 
@@ -156,18 +157,26 @@ function DialogFooter({
     );
 }
 
-function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
+function DialogTitle({
+    className,
+    children,
+    ...props
+}: DialogPrimitive.Title.Props) {
+    // String titles render through the symbol parser (issue #9834).
     return (
         <DialogPrimitive.Title
             data-slot="dialog-title"
             className={cn("text-base leading-none font-medium", className)}
             {...props}
-        />
+        >
+            {withSymbols(children)}
+        </DialogPrimitive.Title>
     );
 }
 
 function DialogDescription({
     className,
+    children,
     ...props
 }: DialogPrimitive.Description.Props) {
     return (
@@ -178,7 +187,9 @@ function DialogDescription({
                 className
             )}
             {...props}
-        />
+        >
+            {withSymbols(children)}
+        </DialogPrimitive.Description>
     );
 }
 

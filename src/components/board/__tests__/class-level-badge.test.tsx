@@ -31,7 +31,7 @@ function card(over: Partial<CardInstance>): CardInstance {
 
 const symbols = (container: HTMLElement) =>
     Array.from(container.querySelectorAll("img")).map((img) =>
-        img.getAttribute("alt")
+        img.getAttribute("data-symbol")
     );
 
 describe("ClassLevelBadge (CR 716)", () => {

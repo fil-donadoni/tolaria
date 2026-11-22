@@ -1,6 +1,7 @@
 import NumberStepper from "~/components/ui/number-stepper";
 import { Checkbox } from "~/components/ui/checkbox";
 import { formatOracleText } from "~/lib/oracle-text";
+import { symbolsToSpokenText } from "~/lib/symbol-names";
 
 type CastCostKickerFieldProps = {
     /** `KickerCost.id` — keys this Kicker's entry in the payment record. */
@@ -43,7 +44,7 @@ export default function CastCostKickerField({
                 </label>
                 <NumberStepper
                     id={fieldId}
-                    aria-label={`Times to pay ${description}`}
+                    aria-label={`Times to pay ${symbolsToSpokenText(description)}`}
                     value={value}
                     onChange={onChange}
                     autoFocus={autoFocus}

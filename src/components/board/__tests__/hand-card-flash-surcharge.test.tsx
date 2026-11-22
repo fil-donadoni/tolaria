@@ -170,7 +170,7 @@ describe("cast-cost dialog gate for a card whose ONLY cost decision is the CR 60
             Array.from(notice.querySelectorAll("img")).map((img) =>
                 img.getAttribute("alt")
             )
-        ).toEqual(["{2}"]);
+        ).toEqual(["2 generic mana"]);
 
         fireEvent.click(screen.getByRole("button", { name: "Cast" }));
         expect(announceCast).toHaveBeenCalledTimes(1);

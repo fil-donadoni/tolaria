@@ -174,9 +174,9 @@ describe("LimitedVsAiPanel (issue #1115)", () => {
 
         expect(getByText("Bot 2")).toBeTruthy();
         // Deck colors render as mana symbols (project rule: never letters) —
-        // one <img alt="{R}"> per color, not an "R/G" string.
-        expect(getByAltText("{R}")).toBeTruthy();
-        expect(getByAltText("{G}")).toBeTruthy();
+        // one <img alt="red mana"> per color, not an "R/G" string.
+        expect(getByAltText("red mana")).toBeTruthy();
+        expect(getByAltText("green mana")).toBeTruthy();
 
         fireEvent.click(getByText("Play"));
 

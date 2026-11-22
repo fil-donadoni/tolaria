@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { withSymbols } from "~/lib/oracle-text";
 
 export type ActionSheetItem = {
     key: string;
@@ -140,7 +141,7 @@ export default function ActionSheet({
                                 handleClose();
                             }}
                         >
-                            {item.label}
+                            {withSymbols(item.label)}
                         </button>
                     ))}
                 </div>

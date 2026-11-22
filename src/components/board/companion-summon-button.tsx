@@ -3,6 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
 import { V4_ZONE_CTA } from "~/lib/board-chrome-v4";
+import { withSymbols } from "~/lib/oracle-text";
 
 /** CR 116.2 / 702.139a (ADR 0064) — the companion summon special action.
  *  Modeled on {@link GraveyardFlashbackButton}'s bottom-overlay affordance,
@@ -37,7 +38,7 @@ export default function CompanionSummonButton() {
             }}
             className={V4_ZONE_CTA}
         >
-            Companion {"{3}"}
+            {withSymbols("Companion {3}")}
         </button>
     );
 }

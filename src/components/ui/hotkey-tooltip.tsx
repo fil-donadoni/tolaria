@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { ariaKeyShortcuts, type Hotkey } from "~/lib/hotkeys";
 import { Keycap } from "./keycap";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
+import { withSymbols } from "~/lib/oracle-text";
 
 /** The tooltip of an ICON-ONLY control with a hotkey (issue #9833): the
  *  action's name, then its keycap. A labelled control shows its keycap after
@@ -30,7 +31,7 @@ export function HotkeyTooltip({
                 aria-keyshortcuts={ariaKeyShortcuts(hotkey)}
             />
             <TooltipContent side={side}>
-                {label}
+                {withSymbols(label)}
                 <Keycap hotkey={hotkey} />
             </TooltipContent>
         </Tooltip>
