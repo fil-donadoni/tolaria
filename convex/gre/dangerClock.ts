@@ -98,8 +98,18 @@ export function predictUnblockedThreat(
         )
         .sort((a, b) => powerOf(b) - powerOf(a));
 
+    // CR 502.3 (issue #10492) — a creature tapped on its controller's own turn
+    // untaps only in that player's NEXT untap step, which comes after the
+    // opponent's next combat: the ACTIVE player's tapped creatures block no
+    // crack-back. The non-active defender's tapped creatures do untap before
+    // the next combat they face, so this steady-state clock still counts
+    // them. An effect that untaps a creature or lets a tapped one block is
+    // outside this reading.
     const blockers = defender.battlefield.filter(
-        (c) => isCreature(c) && !isExpiringAnimatedBody(c)
+        (c) =>
+            isCreature(c) &&
+            !isExpiringAnimatedBody(c) &&
+            !(c.isTapped && defender.id === state.activePlayerId)
     );
     const usedBlocker = new Set<string>();
 
@@ -200,8 +210,9 @@ export function predictCombatOutcome(
 
     // CR 509.1a — the creatures chosen to block must be untapped. This scores
     // the ONE combat already declared, so a tapped creature is no blocker here
-    // (issue #10492); `predictUnblockedThreat` keeps reading tapped creatures
-    // as blockers on purpose, its clock being the steady state of future turns.
+    // (issue #10492). `predictUnblockedThreat` reads the steady state of the
+    // NEXT combat instead, where only the active player's tapped creatures
+    // are still tapped (CR 502.3).
     // An effect that lets a tapped creature block, or untaps one before blocks,
     // is outside this prediction.
     const blockers = defender.battlefield.filter(
