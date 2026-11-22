@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 /**
  * `bun run seed:preset <slug|--all> [--dry-run]` — register the 25 Premodern
- * metagame lists from `data/premodern-metagame-decks.json` AND the 10 Modern
- * ones from `data/modern-metagame-decks.json` as Preset Decks
+ * metagame lists from `data/premodern-metagame-decks.json`, the 10 Modern
+ * ones from `data/modern-metagame-decks.json` AND the owner's further Modern
+ * lists from `data/modern-preset-decks.json` (issue #10515) as Preset Decks
  * of their own Format (the source is the metagame file — ONE
  * source for Preset Decks — where an archetype also had a hand-curated Tier 1
  * list the mtgtop8 list replaces it on the same slug). A slug both files name
@@ -118,6 +119,7 @@ import { poolOracleIds } from "./oracle-compile";
 import {
     readMetagameDecks,
     readModernMetagameDecks,
+    readModernPresetDecks,
     type MetagameDeckFile,
 } from "./premodern-metagame-import";
 import {
@@ -152,6 +154,8 @@ export const PRESET_SOURCES: readonly PresetSource[] = [
     { format: "premodern", origin: "mtgtop8.com", read: readMetagameDecks },
     // The owner's lists of 2026-11-06 (issue #8276).
     { format: "modern", origin: "2026-11-06", read: readModernMetagameDecks },
+    // The owner's further modern lists of 2026-11-22 (issue #10515).
+    { format: "modern", origin: "2026-11-22", read: readModernPresetDecks },
 ];
 
 /** One list, the file it came from, and how much of its 75 is playable. */

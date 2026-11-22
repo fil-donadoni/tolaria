@@ -522,6 +522,11 @@ export const UNREGENERATED_DATA: readonly UnregeneratedData[] = [
         why: "the owner's ten Modern archetype lists (issue #8276)",
     },
     {
+        pattern: "data/modern-preset-decks.json",
+        kind: "human-input",
+        why: "the owner's further Modern Preset Deck lists (issue #10515)",
+    },
+    {
         pattern: "data/worklists/*",
         kind: "human-input",
         why: "card lists a person wrote for an import or a rollout",

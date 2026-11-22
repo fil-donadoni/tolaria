@@ -48,6 +48,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
     MODERN_METAGAME_DECKS_PATH,
+    MODERN_PRESET_DECKS_PATH,
     totalCopies,
     validateDecks,
     TIER1_MAIN_SIZE,
@@ -198,6 +199,13 @@ export function parseMetagameDecks(
 /** The modern lists (issue #8276): the same shape and 60 + 15 validation. */
 export function readModernMetagameDecks(root: string): MetagameDeckFile {
     const path = join(root, MODERN_METAGAME_DECKS_PATH);
+    return parseMetagameDecks(readFileSync(path, "utf8"), path);
+}
+
+/** The owner's further modern Preset Deck lists (issue #10515): same shape
+ *  and 60 + 15 validation. */
+export function readModernPresetDecks(root: string): MetagameDeckFile {
+    const path = join(root, MODERN_PRESET_DECKS_PATH);
     return parseMetagameDecks(readFileSync(path, "utf8"), path);
 }
 

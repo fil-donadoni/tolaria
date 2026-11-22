@@ -23,6 +23,56 @@
             "enforced": true
         },
         {
+            "id": "modern-living-end",
+            "kind": "deck-list",
+            "source": "data/modern-preset-decks.json#living-end"
+        },
+        {
+            "id": "modern-merfolk",
+            "kind": "deck-list",
+            "source": "data/modern-preset-decks.json#merfolk"
+        },
+        {
+            "id": "modern-neobrand",
+            "kind": "deck-list",
+            "source": "data/modern-preset-decks.json#neobrand"
+        },
+        {
+            "id": "modern-sam-combo",
+            "kind": "deck-list",
+            "source": "data/modern-preset-decks.json#sam-combo"
+        },
+        {
+            "id": "modern-boros-burn",
+            "kind": "deck-list",
+            "source": "data/modern-preset-decks.json#boros-burn"
+        },
+        {
+            "id": "modern-indomitable-creativity",
+            "kind": "deck-list",
+            "source": "data/modern-preset-decks.json#indomitable-creativity"
+        },
+        {
+            "id": "modern-dimir-midrange",
+            "kind": "deck-list",
+            "source": "data/modern-preset-decks.json#dimir-midrange"
+        },
+        {
+            "id": "modern-hardened-scales",
+            "kind": "deck-list",
+            "source": "data/modern-preset-decks.json#hardened-scales"
+        },
+        {
+            "id": "modern-hammer-time",
+            "kind": "deck-list",
+            "source": "data/modern-preset-decks.json#hammer-time"
+        },
+        {
+            "id": "modern-titan-shift",
+            "kind": "deck-list",
+            "source": "data/modern-preset-decks.json#titan-shift"
+        },
+        {
             "id": "tier1-goblin",
             "kind": "deck-list",
             "source": "data/premodern-tier1-decks.json#goblin"
