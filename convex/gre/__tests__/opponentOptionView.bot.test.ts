@@ -12,29 +12,51 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { findBladeScenario, runBladeScenario } from "../ai/blade";
+import {
+    bladeScenarioAtSeed,
+    bladeScenarioSeeds,
+    findBladeScenario,
+    runBladeScenario,
+} from "../ai/blade";
+import type { BladeScenario } from "../ai/blade";
 
 const ORACLE_FIRST =
     "Oracle combo: casts Thassa's Oracle before Demonic Consultation into a possible counterspell";
 const EITHER_ORDER =
     "Oracle combo: either order when the decklist holds no counterspell";
 
-function run(label: string) {
-    const entry = findBladeScenario(label);
-    if (!entry) throw new Error(`No blade entry "${label}"`);
-    return runBladeScenario(entry);
+function entry(label: string): BladeScenario {
+    const found = findBladeScenario(label);
+    if (!found) throw new Error(`No blade entry "${label}"`);
+    return found;
 }
 
+// One case per seed: the Oracle-first seed
+// loop in one `it` cost ~13 s idle and timed out at 60 s under a contended
+// health gate.
 describe("opponent option-set statistics (issue #8939)", () => {
-    it("casts Thassa's Oracle first into an opponent who may hold a counterspell", () => {
-        const result = run(ORACLE_FIRST);
-        expect(result.failureMessage).toBe("");
-        expect(result.seeds.map((s) => s.mechanism)).toEqual(
-            result.seeds.map(() => "mean-reward")
-        );
-    });
+    const oracleFirst = entry(ORACLE_FIRST);
+    it.each(bladeScenarioSeeds(oracleFirst))(
+        "casts Thassa's Oracle first into an opponent who may hold a counterspell (seed %i)",
+        (seed) => {
+            const result = runBladeScenario(
+                bladeScenarioAtSeed(oracleFirst, seed)
+            );
+            expect(result.failureMessage).toBe("");
+            expect(result.seeds.map((s) => s.mechanism)).toEqual([
+                "mean-reward",
+            ]);
+        }
+    );
 
-    it("still casts either half when the decklist holds no counterspell", () => {
-        expect(run(EITHER_ORDER).failureMessage).toBe("");
-    });
+    const eitherOrder = entry(EITHER_ORDER);
+    it.each(bladeScenarioSeeds(eitherOrder))(
+        "still casts either half when the decklist holds no counterspell (seed %i)",
+        (seed) => {
+            const result = runBladeScenario(
+                bladeScenarioAtSeed(eitherOrder, seed)
+            );
+            expect(result.failureMessage).toBe("");
+        }
+    );
 });

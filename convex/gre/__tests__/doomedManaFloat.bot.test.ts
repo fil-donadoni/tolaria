@@ -15,7 +15,11 @@ import type { Move } from "../moves";
 import { applyMoveInSearch } from "../search";
 import { buildPositionFromSpec } from "../ai/blade/build";
 import { findBladeScenario } from "../ai/blade/registry";
-import { runBladeScenario } from "../ai/blade/runner";
+import {
+    bladeScenarioAtSeed,
+    bladeScenarioSeeds,
+    runBladeScenario,
+} from "../ai/blade/runner";
 import type { BladeScenario } from "../ai/blade/types";
 import type { GameState } from "../state";
 
@@ -357,20 +361,40 @@ describe("doomed mana source float — search application (CR 605.3b / 106.4)", 
     });
 });
 
+const SAGA_LABEL =
+    "saga: Urza's Saga floats its mana before chapter III's search sacrifices it";
+
+/** Every declared seed of each entry, one row per (entry, seed): a whole seed
+ *  loop in one `it` timed out at 60 s under a contended health gate. */
+function seedRows(labels: string[]): [string, number][] {
+    return labels.flatMap((label) =>
+        bladeScenarioSeeds(entry(label)).map((seed): [string, number] => [
+            label,
+            seed,
+        ])
+    );
+}
+
+function runAtSeed(label: string, seed: number) {
+    return runBladeScenario(bladeScenarioAtSeed(entry(label), seed));
+}
+
 describe("doomed mana source float — blade discriminating pair", () => {
-    it.each([SPENDER_LABEL, NO_SPENDER_LABEL])("%s", (label) => {
-        const result = runBladeScenario(entry(label));
-        expect(result.ok, result.failureMessage).toBe(true);
-    });
+    it.each(seedRows([SPENDER_LABEL, NO_SPENDER_LABEL]))(
+        "%s (seed %i)",
+        (label, seed) => {
+            const result = runAtSeed(label, seed);
+            expect(result.ok, result.failureMessage).toBe(true);
+        }
+    );
 });
 
 describe("doomed mana source float — Urza's Saga chapter III (issue #9865)", () => {
-    it("blade: the Saga floats its mana before chapter III's search sacrifices it", () => {
-        const result = runBladeScenario(
-            entry(
-                "saga: Urza's Saga floats its mana before chapter III's search sacrifices it"
-            )
-        );
-        expect(result.ok, result.failureMessage).toBe(true);
-    });
+    it.each(bladeScenarioSeeds(entry(SAGA_LABEL)))(
+        "blade: the Saga floats its mana before chapter III's search sacrifices it (seed %i)",
+        (seed) => {
+            const result = runAtSeed(SAGA_LABEL, seed);
+            expect(result.ok, result.failureMessage).toBe(true);
+        }
+    );
 });

@@ -386,6 +386,23 @@ export function bladeScenarioSeeds(scenario: BladeScenario): number[] {
     return seeds;
 }
 
+/** `scenario` narrowed to ONE of its declared seeds (issue #10619), so a test
+ *  can run an entry one case per seed: each case pays a
+ *  single search, never the whole seed loop, and a contended gate cannot time
+ *  it out. Throws on a seed the entry does not declare — a split never runs a
+ *  seed the suite does not. */
+export function bladeScenarioAtSeed(
+    scenario: BladeScenario,
+    seed: number
+): BladeScenario {
+    if (!bladeScenarioSeeds(scenario).includes(seed)) {
+        throw new Error(
+            `Blade scenario "${scenario.label}" does not declare seed ${seed}.`
+        );
+    }
+    return { ...scenario, seeds: [seed] };
+}
+
 function checkExpectation(
     scenario: BladeScenario,
     state: GameState,
