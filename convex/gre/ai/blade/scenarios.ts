@@ -19164,10 +19164,20 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         // The board-aware twin of the two entries above (issue #5356): the
-        // SAME position without the bot's Mountain. The bot shows only black,
+        // same position without the bot's Mountain. The bot shows only black,
         // so protection from red protects the Runeclaw Bear from nothing it
-        // could ever face (CR 702.16a) and the two Bears are the same
-        // creature — Terror is not spent on the carrier for its keyword.
+        // could ever face (CR 702.16a) and Terror is not spent on the carrier
+        // for its keyword.
+        //
+        // The rival is a Gray Ogre, not a second 2/2 for two (issue #10448).
+        // Either kill is outcome-equal at this horizon, so the pick is the
+        // material tie-break (outcome-equal contenders ranked by material
+        // margin). With two identical Bears the discounted carrier TIED its
+        // rival on material too, and rollout order chose: green on its own
+        // seeds, red on a wide seed. The Ogre's body prices one more mana
+        // value (W_CR_MV, +5), inside the 15 of the protection row: the
+        // discounted carrier now loses the tie-break on a real difference,
+        // and the undiscounted one still wins it.
         label: "keyword relevance (protection): against a bot showing no red, protection from red does not make the Runeclaw Bear Terror's target (issue #5356)",
         classification: { kind: "absolute" },
         spec: {
@@ -19180,7 +19190,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 })),
                 { name: "Terror", owner: "me", zone: "hand" },
                 { name: "Runeclaw Bear", owner: "opp", zone: "battlefield" },
-                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Gray Ogre", owner: "opp", zone: "battlefield" },
             ],
             continuousEffects: [
                 {
@@ -19212,7 +19222,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "Terror is NOT cast on the Runeclaw Bear for a protection from red that protects it from nothing",
         },
-        note: "Issue #5356. Guards `inertKeywordDiscount` (`ai/keywordRelevance.ts`), read by `evaluateCreature`. Measured at 400 iterations over 20 seeds: Terror never takes the carrier (20/20 green), while the two Mountain entries above stay 20/20 on the carrier. Proof of failure: with the discount disabled (the flat 15 for every protection) this entry is red on all 20 seeds (Terror on the Runeclaw Bear).",
+        note: "Issue #5356. Guards `inertKeywordDiscount` (`ai/keywordRelevance.ts`), read by `evaluateCreature`. Issue #10448 swapped the rival Grizzly Bears for a Gray Ogre (one more mana value): the identical-Bears tie was settled by rollout order (the audit's default leg read 9/10). Measured at 400 iterations over seeds 0–19: Terror takes the Gray Ogre on 20/20; the robustness audit reads ROBUST (default, jitter+, jitter- each 10/10). Proof of failure: with the discount disabled (the flat 15 for every protection) this entry is red on all 20 seeds (Terror on the Runeclaw Bear).",
     },
     {
         // UTILITY LAND STANDING WORTH (issue #5155) — the bot holds a Strip
