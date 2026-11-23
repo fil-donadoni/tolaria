@@ -1,10 +1,11 @@
+import { getEffectivePower } from "./layers";
 import type { Move } from "./moves";
+import type { GameState } from "./state";
 
 /** How many candidates the rollout's greedy pick probes on one ply (ADR 0184,
  *  amending ADR 0021; issue #10473): the ply's decline and the best
  *  `ROLLOUT_PROBE_CAP - 1` of the rest. A ply with this many candidates or
- *  fewer is probed whole; an attack declaration ply keeps one probe per
- *  creature besides (`rolloutProbeCandidates`). The owner's ruling of 2026-11-22
+ *  fewer is probed whole. The owner's ruling of 2026-11-22
  *  (`docs/research/rollout-policy-cost.md` § 6): three, with four measured as
  *  the reference and two ruled out. */
 export const ROLLOUT_PROBE_CAP = 3;
@@ -69,53 +70,68 @@ function widestDeclarationAt(moves: readonly Move[]): number {
     return widestAt;
 }
 
+/** The power a LONE attacker swings with — its effective power (CR 613.4),
+ *  floored at zero as combat damage is (CR 510.1a) — or -1 for any move that
+ *  is not an attack by exactly one creature. */
+function loneAttackerPower(state: GameState, move: Move): number {
+    if (move.kind !== "declare-attackers" || move.attackerIds.length !== 1) {
+        return -1;
+    }
+    const id = move.attackerIds[0];
+    for (let i = 0; i < state.players.length; i++) {
+        const attacker = state.players[i].battlefield.find((c) => c.id === id);
+        if (attacker) return Math.max(0, getEffectivePower(state, attacker));
+    }
+    return 0;
+}
+
 /** The candidates the rollout's greedy pick probes out of `moves`, the moves
- *  of one rollout ply (ADR 0184, issue #10473): all of them when there are
- *  `cap` or fewer. Otherwise:
+ *  of one rollout ply in `state` (ADR 0184, issue #10473): all of them when
+ *  there are `cap` or fewer; otherwise the decline, when the ply has one, and
+ *  the best of the rest, `cap` in all.
  *
- *  - **An attack declaration ply** keeps the empty attack, every creature
- *    attacking ALONE and the widest attack: nobody, each one, everybody. The
- *    kind rank says nothing here (every candidate is one kind) and the power
- *    set enumerates the last creature's lone attack first and the full attack
- *    last, so three probes in any fixed order miss either the full attack (a
- *    creature that must attack beside another) or the one creature worth
- *    sending while the rest stay home (a pumped or evasive attacker: the
- *    Bot-play sweep's pump race is decided there). One probe per creature
- *    plus two, where the power set doubles with each creature.
- *  - **Every other ply** keeps the decline, when the ply has one, and the
- *    best of the rest, `cap` in all. "Best" is `rolloutMoveKindRank`, then
- *    the WIDEST declaration of a block declaration ply (the block that uses
- *    every blocker, enumerated last), then enumeration order.
+ *  "Best" is `rolloutMoveKindRank`, then, between equal kinds:
  *
- *  It reads the list and nothing else — no state, no draw, no table: the
- *  cut costs a pass over the ply's candidates, and the rollout's random
- *  stream is consumed as before it. Ranking a copy of a kept play last
- *  (`collapseInterchangeableMoves`), a draw between equal kinds and the
- *  strongest lone attacker alone were all measured and left out (ADR 0184
+ *  1. **The widest declaration of a declaration ply.** On a declaration ply
+ *     every candidate is one kind, and the power set enumerates the single
+ *     attackers first and the full attack last: in enumeration order alone
+ *     no mover with two creatures ever probes attacking with both, and no
+ *     defender a double block.
+ *  2. **On an attack ply, the strongest lone attacker.** The other end of the
+ *     same ply: one creature swings, the rest stay home to block. Without it
+ *     the pumped creature's attack on its own leaves the playouts (a sorcery
+ *     pump's race, the Bot-play sweep), and between nobody and everybody the
+ *     pick declines. Read off the attacker's power, once per lone attacker.
+ *  3. Enumeration order.
+ *
+ *  No draw, no table: the rollout's random stream is consumed as before the
+ *  cut. Ranking a copy of a kept play last (`collapseInterchangeableMoves`)
+ *  and a draw between equal kinds were both measured and left out (ADR 0184
  *  § Considered and measured). Returned in enumeration order, so the pick's
  *  own tie-break reads the kept moves as it read the whole list. `moves` is
  *  not mutated. */
 export function rolloutProbeCandidates(
     moves: readonly Move[],
+    state: GameState,
     cap: number = ROLLOUT_PROBE_CAP
 ): Move[] {
     if (moves.length <= cap) return moves.slice();
     const declineAt = moves.findIndex(isRolloutDecline);
     const widestAt = widestDeclarationAt(moves);
-    if (moves[0].kind === "declare-attackers") {
-        return moves.filter(
-            (move, i) => i === widestAt || declarationWidth(move) <= 1
-        );
-    }
-    const ranked: { at: number; rank: number }[] = [];
+    const ranked: { at: number; rank: number; lone: number }[] = [];
     for (let i = 0; i < moves.length; i++) {
         if (i === declineAt) continue;
-        ranked.push({ at: i, rank: rolloutMoveKindRank(moves[i]) });
+        ranked.push({
+            at: i,
+            rank: rolloutMoveKindRank(moves[i]),
+            lone: loneAttackerPower(state, moves[i]),
+        });
     }
     ranked.sort(
         (a, b) =>
             b.rank - a.rank ||
             Number(b.at === widestAt) - Number(a.at === widestAt) ||
+            b.lone - a.lone ||
             a.at - b.at
     );
     const keep = new Set<number>();

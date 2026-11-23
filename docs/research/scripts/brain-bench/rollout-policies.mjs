@@ -13,7 +13,8 @@
 //               it: the bundle's seam skips the source's probe cut
 //   shipped     the source's own policy since ADR 0184 (issue #10473): the
 //               probe cut `rolloutProbeCandidates` keeps the decline and the
-//               best two of the rest, the bench changes nothing
+//               best two of the rest (on an attack declaration: nobody, the
+//               strongest creature alone, everybody), the bench changes nothing
 //   topk:K      a static per-move-kind score ranks the candidates and only
 //               the best K (pass always among them) are probed
 //   prefix:N    the greedy pick for a rollout's first N greedy plies; every
