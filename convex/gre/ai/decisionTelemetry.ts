@@ -191,6 +191,9 @@ export type SearchStats = {
      *  tree. The budget counts root visits, so `iterationsCompleted +
      *  iterationsKept` is what the root holds against `iterationsRequested`. */
     iterationsKept?: number;
+    /** Set when the cap passed mid-iteration and the rollout in flight
+     *  stopped on it (issue #10408, `RolloutDeadline`); absent otherwise. */
+    rolloutCutByClock?: true;
 };
 
 /** One record per `selectRootMove` call (i.e. per real bot decision with at

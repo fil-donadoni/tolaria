@@ -1701,13 +1701,33 @@ function rolloutEpsilonFor(
 
 const FORCED_PASS: Move = { kind: "pass" };
 
+/** The search's wall-clock cap, as a rollout reads it (issue #10408).
+ *
+ *  The search loop reads its clock BETWEEN iterations, so before this the
+ *  iteration in flight when the cap passed always ran to its end — and a
+ *  Gecko iteration in the field took 1,658 ms at p90, longer than the
+ *  consult timeout's whole overrun margin
+ *  (`docs/research/bot-weak-line-weak-client.md` § 4). The rollout is the
+ *  bulk of an iteration (a full round of plies, each enumerating and
+ *  probing), so it reads this once per ply and stops at the cap: the
+ *  overshoot is bounded by one ply plus the iteration's determinize and
+ *  descent. `at` is absolute, on `now`'s scale; `cut` records that a
+ *  rollout stopped on it, reported as `SearchStats.rolloutCutByClock`. */
+export type RolloutDeadline = {
+    now: () => number;
+    at: number;
+    cut: boolean;
+};
+
 export function rollout(
     state: GameState,
     botId: string,
     rng: () => number,
     weights: EvalWeights,
     /** The search root's clock, for `scoreLeaf`'s win timing. */
-    since?: GameClock
+    since?: GameClock,
+    /** The search's wall-clock cap, read once per ply (issue #10408). */
+    deadline?: RolloutDeadline
 ): Leaf {
     const startTurn = state.turn;
     let lastTurn = state.turn;
@@ -1720,6 +1740,14 @@ export function rollout(
 
     for (let ply = 0; ply < MAX_ROLLOUT_PLIES; ply++) {
         if (state.gameOver) break;
+        // Issue #10408 — the cap passed mid-iteration: score wherever the
+        // playout got to, so the search overshoots its cap by one ply, never
+        // by a whole iteration. Read before any draw, so an uncut rollout's
+        // stream is untouched; an untimed search passes no deadline at all.
+        if (deadline && deadline.now() >= deadline.at) {
+            deadline.cut = true;
+            break;
+        }
 
         // Turn-boundary horizon: a fresh bot-turn START is the active player
         // being the bot right after a turn crossing (not the bot turn the
@@ -3895,7 +3923,8 @@ function puctDescend(
     weights: EvalWeights,
     config: ActionPriorConfig,
     since: GameClock,
-    shared: Node = node
+    shared: Node = node,
+    deadline?: RolloutDeadline
 ): boolean {
     let cache = node.policyValues;
     if (!cache) {
@@ -4007,7 +4036,11 @@ function puctDescend(
     node.children.set(opened.key, opened);
     path.push(opened);
     if (existed) return false;
-    backpropagate(path, rollout(world, botId, rng, weights, since), botId);
+    backpropagate(
+        path,
+        rollout(world, botId, rng, weights, since, deadline),
+        botId
+    );
     return true;
 }
 
@@ -4094,7 +4127,8 @@ function iterate(
     deckKnowledge?: DeckKnowledgeBySeat,
     opponentModel: OpponentModel | null = null,
     openRootByPolicy = false,
-    unlockingRootKeys?: ReadonlySet<string>
+    unlockingRootKeys?: ReadonlySet<string>,
+    deadline?: RolloutDeadline
 ): void {
     const world = determinize(
         rootState,
@@ -4226,7 +4260,8 @@ function iterate(
                     weights,
                     actionPriors,
                     since,
-                    shared
+                    shared,
+                    deadline
                 )
             ) {
                 return; // expanded + rolled out
@@ -4291,7 +4326,7 @@ function iterate(
             }
             backpropagate(
                 path,
-                rollout(world, botId, rng, weights, since),
+                rollout(world, botId, rng, weights, since, deadline),
                 botId
             );
             return;
@@ -4509,6 +4544,9 @@ export type DecisionTrace = {
     elapsedMs: number;
     /** Which bound ended the loop. */
     stoppedBy: SearchStopReason;
+    /** The cap passed mid-iteration and the rollout in flight stopped on it
+     *  (issue #10408, `RolloutDeadline`); absent otherwise. */
+    rolloutCutByClock?: true;
     /** WHICH root rule settled the pick (issue #3388) — the same
      *  `RootDecisionMechanism` the decision-telemetry sink records, surfaced on
      *  the artifact a human actually reads. `"mean-reward"` / `"material-tiebreak"`
@@ -4916,6 +4954,7 @@ export function buildTrace(
             : { iterationsKept: stats.iterationsKept }),
         elapsedMs: stats.elapsedMs,
         stoppedBy: stats.stoppedBy,
+        ...(stats.rolloutCutByClock ? { rolloutCutByClock: true } : {}),
         mechanism,
         candidates,
     };
@@ -8708,6 +8747,12 @@ function runSearchWithTrace(
     // a real game) usually cuts it short.
     let stoppedBy: SearchStopReason = "iterations";
     const probesBefore = rolloutProbeCount;
+    // Issue #10408 — the earlier of the two clock caps, absolute on `now`'s
+    // scale, read by every rollout. An untimed search builds none, so a
+    // fixed-iterations search (the blade suite) replays bit-identically.
+    const capMs = Math.min(timeMs ?? Infinity, budget.backstopMs ?? Infinity);
+    const deadline: RolloutDeadline | undefined =
+        capMs === Infinity ? undefined : { now, at: start + capMs, cut: false };
     while (kept + i < maxIter) {
         iterate(
             root,
@@ -8720,7 +8765,8 @@ function runSearchWithTrace(
             deckKnowledge,
             opponentModel,
             openRootByPolicy,
-            unlockingRootKeys
+            unlockingRootKeys,
+            deadline
         );
         i++;
         if (timeMs !== undefined && now() - start >= timeMs) {
@@ -8760,6 +8806,7 @@ function runSearchWithTrace(
         iterationsKept: kept,
         elapsedMs: now() - start,
         stoppedBy,
+        ...(deadline?.cut ? { rolloutCutByClock: true as const } : {}),
     };
 
     const picked: { mechanism: RootDecisionMechanism } = {
