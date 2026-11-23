@@ -67,3 +67,28 @@ export function gateChildEnv(
         [VITEST_FS_CACHE_ENV]: VITEST_FS_CACHE_OFF,
     };
 }
+
+/** What a native allocator prints just before aborting the process. */
+const ALLOCATION_ABORT = /memory allocation of \d+ bytes failed/;
+
+/**
+ * Did a child vitest die of the machine rather than of its own verdict?
+ * Returns the reason, or `null` when the child exited on its own.
+ *
+ * A child killed by a signal has `status === null`; a native (Rust-style)
+ * allocation abort prints `memory allocation of N bytes failed` and dies the
+ * same way, often AFTER its tests passed (issue #10656). Neither falsifies a
+ * cache claim: nothing was proven, so the caller treats it like the gate's
+ * exit-77 INFRA — retry, then skip — never as a pass and never as a red
+ * assertion. A child that exits with a number, however non-zero, has given a
+ * verdict and is never infra.
+ */
+export function childInfraDeath(
+    status: number | null,
+    out: string
+): string | null {
+    if (status === null) return "child vitest killed by a signal";
+    if (status !== 0 && ALLOCATION_ABORT.test(out))
+        return "child vitest hit a native allocation abort";
+    return null;
+}
