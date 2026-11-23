@@ -18,7 +18,11 @@ import { describe, expect, it } from "vitest";
 import { projectPublicState } from "@convex/gameProjections";
 import { buildBladeState } from "@convex/gre/ai/blade/build";
 import { findBladeScenario } from "@convex/gre/ai/blade/registry";
-import { runBladeScenario } from "@convex/gre/ai/blade/runner";
+import {
+    bladeScenarioAtSeed,
+    bladeScenarioSeeds,
+    runBladeScenario,
+} from "@convex/gre/ai/blade/runner";
 import type { BladeScenario } from "@convex/gre/ai/blade/types";
 import { chooseOwedChoiceAction } from "../brain";
 import { buildBotView } from "../bot-view";
@@ -35,6 +39,12 @@ function entry(label: string): BladeScenario {
     return scenario;
 }
 
+/** One search per case: a whole seed loop
+ *  in one `it` timed out at 60 s under a contended health gate. */
+function searchAtSeed(label: string, seed: number) {
+    return runBladeScenario(bladeScenarioAtSeed(entry(label), seed));
+}
+
 describe.each([
     ["graveyard card", GRAVEYARD],
     ["spell on the stack", STACK],
@@ -45,10 +55,13 @@ describe.each([
         expect(head?.choiceId.startsWith("cdr:target")).toBe(true);
     });
 
-    it("the search picks the valued target on every seed", () => {
-        const result = runBladeScenario(entry(label));
-        expect(result.ok, result.failureMessage).toBe(true);
-    });
+    it.each(bladeScenarioSeeds(entry(label)))(
+        "the search picks the valued target (seed %i)",
+        (seed) => {
+            const result = searchAtSeed(label, seed);
+            expect(result.ok, result.failureMessage).toBe(true);
+        }
+    );
 
     it("the live Bot view searches it and its fallback submits a legal id", () => {
         const state = buildBladeState(entry(label));
@@ -92,11 +105,15 @@ describe("free cast announcing two target groups (issue #9536)", () => {
         expect(head?.choiceId).toBe("cdr:target@1.0");
     });
 
-    it.each([FIRST_GROUP, SECOND_GROUP])(
-        "the search answers %s on every seed",
-        (label) => {
-            const result = runBladeScenario(entry(label));
-            expect(result.ok, result.failureMessage).toBe(true);
-        }
-    );
+    it.each(
+        [FIRST_GROUP, SECOND_GROUP].flatMap((label) =>
+            bladeScenarioSeeds(entry(label)).map((seed): [string, number] => [
+                label,
+                seed,
+            ])
+        )
+    )("the search answers %s (seed %i)", (label, seed) => {
+        const result = searchAtSeed(label, seed);
+        expect(result.ok, result.failureMessage).toBe(true);
+    });
 });
