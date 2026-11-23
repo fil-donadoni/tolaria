@@ -1538,8 +1538,10 @@ function stepsSince(since: GameClock, state: GameState): number {
  *  same step keep their material order
  *  exactly, and a win never leaves the band. It touches the REWARD only: the
  *  tie-break margin stays pure material, like `evaluate`'s race
- *  and combat terms. Losses and open leaves are untouched; with no `since`
- *  the leaf is the plain evaluation. */
+ *  and combat terms. A LOST leaf pays a gentler mirror: its
+ *  depth below the lost band's ceiling shrinks per turn survived
+ *  (`lossTimingDecay`), so a later loss outranks a sooner one. Open leaves are untouched; with no `since` the leaf
+ *  is the plain evaluation. */
 function scoreLeaf(
     state: GameState,
     botId: string,
@@ -1552,6 +1554,22 @@ function scoreLeaf(
         const floor = 1 - weights.terminalBand;
         return {
             reward: floor + (reward - floor) * winTimingDecay(since, state),
+            margin,
+        };
+    }
+    if (since && value <= -terminalMagnitude(weights)) {
+        // Issue #10609 — the mirror, gentler: a lost leaf's DEPTH below the
+        // lost band's ceiling shrinks per turn boundary survived
+        // (`lossTimingDecay`), so a loss on a later turn outranks a loss on
+        // this one. Every turn survived is a draw step and a turn the bot
+        // acts in with cards the search cannot see. Without it, a line that
+        // dies this combat and one that chump-blocks and dies next turn both
+        // sat at the loss floor, inside `outcomeEps`, and the material
+        // tie-break took the immediate loss for the material it kept.
+        const ceiling = weights.terminalBand;
+        return {
+            reward:
+                ceiling - (ceiling - reward) * lossTimingDecay(since, state),
             margin,
         };
     }
@@ -1606,6 +1624,27 @@ function winTimingDecay(since: GameClock, state: GameState): number {
         WIN_DECAY_FLOOR * WIN_TURN_DECAY ** turns,
         WIN_STEP_DECAY ** stepsSince(since, state)
     );
+}
+
+/** Per turn boundary crossed, the share of a lost leaf's depth below the
+ *  lost band's ceiling that survives (`scoreLeaf`, issue #10609). Turns, not
+ *  steps: two losses in the same turn are the same loss, and the material
+ *  orders them. Gentle, unlike the win's decay, because the lost band's
+ *  ceiling is the open band's floor: a loss decayed to a sliver of its depth
+ *  reads as an open position that is merely bad, and a line that throws four
+ *  life away to die two turns sooner (the Dismember-into-an-8/8 entry) then
+ *  tied the line that outlasts the opponent. Measured against both bounds
+ *  (400 iterations, 12 seeds): the Treetop Village chump (a loss now
+ *  against a loss two turns on, with issue #10492's crack-back readings) is
+ *  green at 0.85–0.95 and 400/800 iterations; the Dismember entry is 12/12
+ *  at 0.9 (and with no decay), 10/12 at 0.85, and the full mirror (the
+ *  win's per-step decay) reds it on every seed. */
+const LOSS_TURN_DECAY = 0.9;
+
+/** The share of a lost leaf's depth that survives the turns from `since` to
+ *  `state`: `LOSS_TURN_DECAY` per turn boundary crossed. */
+function lossTimingDecay(since: GameClock, state: GameState): number {
+    return LOSS_TURN_DECAY ** Math.max(0, state.turn - since.turn);
 }
 
 /** Bound on consecutive forced answers in one `advanceToDecision` call. A
