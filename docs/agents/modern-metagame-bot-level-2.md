@@ -110,13 +110,19 @@ is listed in [Not playable yet](#not-playable-yet) with the issue making it so.
 
 ## Mono-Red Combo
 
-| Card           | Right                                                               | Wrong: must not                        | Has                                                                                                                                                |
-| -------------- | ------------------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Past in Flames | a graveyard of spells, and the mana to replay them this turn: cast  | cast it with an empty graveyard        |                                                                                                                                                    |
-| Grapeshot      | storm count is lethal: cast it                                      | fire it early, one prior cast short    | `storm: Grapeshot is lethal because the search counts the spell cast before it`; wrong: `storm: does NOT reach for Grapeshot one prior cast short` |
-| Pyretic Ritual | it enables a spell this turn: cast it                               | cast it with nothing to spend on       |                                                                                                                                                    |
-| Ruby Medallion | it and a red spell both castable: Medallion first                   | cast the red spell first at full cost  |                                                                                                                                                    |
-| Manamorphose   | mana to replace: cast it, and name the colours the next spell needs | name colours its next spell cannot use |                                                                                                                                                    |
+| Card           | Right                                                               | Wrong: must not                                            | Has                                                                                                                                                                                                                              |
+| -------------- | ------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Past in Flames | a graveyard of spells, and the mana to replay them this turn: cast  | cast it without the mana to replay the graveyard this turn | `flashback grant: Past in Flames replays a graveyard of burn for lethal`; wrong: `flashback grant: Past in Flames stays in hand without the mana to replay its graveyard`                                                        |
+| Grapeshot      | storm count is lethal: cast it                                      | fire it early, one prior cast short                        | `storm: Grapeshot is lethal because the search counts the spell cast before it`; wrong: `storm: does NOT reach for Grapeshot one prior cast short`                                                                               |
+| Pyretic Ritual | it enables a spell this turn: cast it                               | cast it with nothing to spend on                           | `ritual: Pyretic Ritual makes the mana for the spell it enables`; wrong: `ritual: Pyretic Ritual stays in hand with nothing to spend on`                                                                                         |
+| Ruby Medallion | it and a red spell both castable: Medallion first                   | cast the red spell first at full cost                      | stretch (issue #10645): `cost reducer: Ruby Medallion comes down before the red spell it discounts`; wrong: `cost reducer: never casts the red spell at full cost before Ruby Medallion`                                         |
+| Manamorphose   | mana to replace: cast it, and name the colours the next spell needs | name colours its next spell cannot use                     | `colour fixing: casts Manamorphose to make the mana its hand needs`, `colour fixing: Manamorphose names green for the green spell it casts`; wrong: `colour fixing: Manamorphose never names a colour its next spell cannot use` |
+
+Past in Flames' wrong half was first written as an empty graveyard. That cast
+is no candidate: a grant that reaches no card is a proven no-op the search
+prunes, so the Bot cannot make it and no Verdict can name it. The wrong half
+pins the cast that can happen: a full graveyard with no mana left to replay
+it.
 
 ## Not playable yet
 
@@ -129,8 +135,5 @@ card lands.
 | Card                      | Issue making it playable |
 | ------------------------- | ------------------------ |
 | Emrakul, the Promised End | #8446                    |
-| Past in Flames            | #8629                    |
 
-Manamorphose is playable but the Bot ignores it today: issue #8450, with
-issue #8177, makes it reachable before its pair can be written.
 Issue #8394 tracks noise in the Thoughtseize entries that `Has` names.
