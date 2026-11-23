@@ -684,6 +684,9 @@ describe("startPairingMatch — bot pairing (PRD #1628 stories 11-12)", () => {
         expect(match.bestOf).toBe(3);
         const players = match.players as { id: string }[];
         expect(players.map((p) => p.id)).toEqual(["alice-p1", "alice-p2"]);
+        // Issue #9991: one human vs a Bot shows the plain nickname — the
+        // solo-mode "(P1)" suffix is noise here.
+        expect((match.players as { name: string }[])[0].name).toBe("Alice");
         // The bot's Auto-Built deck came from its own drafted Pool, not the
         // client: nothing in the mutation's args names a decklist for seat 1.
         // Since issue #2506 the copy is a `matchDecks` row, not an inline
