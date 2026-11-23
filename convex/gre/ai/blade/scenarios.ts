@@ -30010,6 +30010,72 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9694, CR 603.3d / 107.14. The row names a token sacrificed at end step; Ball Lightning is the same leaving attacker as a card. The counters on it die with it at the end step.",
     },
+    {
+        label: "energy: Guide of Souls grows the attacker that stays, not the Sneak-Attacked one",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            // Sneak Attack's {R}, floated: a setup activation cannot tap.
+            manaPool: { me: { R: 1 } },
+            cards: [
+                { name: "Guide of Souls", owner: "me", zone: "battlefield" },
+                { name: "Sneak Attack", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Llanowar Elves", owner: "me", zone: "battlefield" },
+                { name: "Craw Wurm", owner: "me", zone: "hand" },
+            ],
+        },
+        // Three energy from three entering creatures, the third the Craw Wurm
+        // Sneak Attack puts in (its end-step sacrifice now scheduled), then the
+        // attack with both bodies.
+        setup: [
+            {
+                kind: "etb-trigger",
+                card: "Grizzly Bears",
+                watcher: "Guide of Souls",
+            },
+            { kind: "resolve-top" },
+            {
+                kind: "etb-trigger",
+                card: "Llanowar Elves",
+                watcher: "Guide of Souls",
+            },
+            { kind: "resolve-top" },
+            { kind: "activate", card: "Sneak Attack" },
+            { kind: "resolve-top" },
+            { kind: "choose", cards: ["Craw Wurm"] },
+            { kind: "resolve-top" },
+            {
+                kind: "declare-attackers",
+                cards: ["Grizzly Bears", "Craw Wurm"],
+                haltForDefenderResponse: true,
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE, kept out of the weight fit: the claim is that the
+        // evaluation READS the scheduled sacrifice, not a preference a weight
+        // trades off.
+        expect: {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "submit-target",
+                    target: "Grizzly Bears",
+                }),
+            describe: "puts the counters on the Grizzly Bears",
+        },
+        note: "Issue #9846, CR 603.7a. Sneak Attack's delayed trigger sacrifices the Craw Wurm at the next end step, so the counters on it are gone tonight, exactly as on Ball Lightning in the row above. `scheduledEndStepDeparture` reads the delayed trigger's captured body; before it did, the Bot grew the Wurm on every seed.",
+    },
     // Esper Blink, the modern metagame's level-2 rows
     // (`docs/agents/modern-metagame-bot-level-2.md`, issue #9695). Solitude's
     // right half and both Thoughtseize halves were already in the registry.
