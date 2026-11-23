@@ -199,6 +199,7 @@ import {
 import { recordBlockedAttackers } from "./banding";
 import { findCardInAnyZone } from "./lookup";
 import type { Phase } from "./types";
+import type { WireCharacteristics } from "./wireCharacteristics";
 import { openPeekTopCount } from "./libraryKnownRuns";
 
 /** CR 106.4 / 603.3 / 502.1 (issue #3451) — stamp one battlefield entry's
@@ -4409,7 +4410,54 @@ const STACK_TRIGGER_ALLOWLIST = new Set<string>([
 ]);
 
 /**
- * The one key excluded from that comparison, with its reason.
+ * CR 613.1d / 613.1e — the layer 4/5 grant markers that DID stay on
+ * `CardInstanceState`: DERIVED OUTPUT written only by `layers2to5DerivedFields`
+ * (`gre/layers2to5.ts`), kept materialised for leaf readers with no board
+ * (`state/declarations.ts`). Same class as the wire-only keys above — another
+ * permanent's static writes them onto the source, the rebuild writes them
+ * again. Real instance state (`counters`, `damageMarked`, `attachedTo`, combat
+ * flags) is in neither list and stays compared.
+ */
+const LAYER_DERIVED_INSTANCE_KEYS: readonly (keyof CardInstanceState)[] = [
+    "grantedSupertypes",
+    "removedSupertypes",
+    "grantedColors",
+    "colorSet",
+];
+
+/**
+ * CR 613.1 — the WIRE-ONLY derived characteristics (ADR 0082 decision 4):
+ * every key `WireCharacteristics` names that `CardInstanceState` no longer
+ * has. `gre/wireCharacteristics.ts` materialises them onto a projected
+ * BATTLEFIELD card from the layer system — another permanent's static
+ * ("each land is a Forest", CR 613.1d), an aura, a resolved pump — and never
+ * onto a stack item, so a position read back from the wire (the verdict quiz)
+ * shows the source one grant ahead of its clone whenever any such effect
+ * applies to it. That is not a CR 608.2h snapshot diverging: the rebuild
+ * re-derives the grant on the loaded board, and the source's own lowering
+ * already reports what it cannot carry (`reportCardResidue`'s printed-baseline
+ * line). The `Record` over the key difference makes `tsc` red on a wire key
+ * added without its row.
+ */
+function wireOnlyDerivedKeys(): Record<
+    Exclude<keyof WireCharacteristics, keyof CardInstanceState>,
+    true
+> {
+    return {
+        temporaryPTMods: true,
+        textChanges: true,
+        grantedTypes: true,
+        suppressedTypes: true,
+        grantedSubtypes: true,
+        grantedSubtypesAdd: true,
+        printedSubtypes: true,
+        grantedStaticAbilities: true,
+        removedKeywords: true,
+    };
+}
+
+/**
+ * The keys excluded from that comparison, with their reasons.
  *
  * `buildActivatedAbilityStackItem` clones the source BEFORE `recordActivation`
  * tallies the activation, so the live item is one activation behind its source
@@ -4419,8 +4467,16 @@ const STACK_TRIGGER_ALLOWLIST = new Set<string>([
  * (`moves.ts`, `activation.ts`, `search.ts`, `evaluate.ts`), never on the stack
  * item, so the rebuilt clone carrying the source's current tally changes
  * nothing the position can be asked.
+ *
+ * The layer-derived grant markers (`wireOnlyDerivedKeys`,
+ * `LAYER_DERIVED_INSTANCE_KEYS` above) are excluded because they are not the
+ * snapshot's own state at all.
  */
-const STACK_CLONE_DIVERGENCE_IGNORED = new Set<string>(["activationsThisTurn"]);
+const STACK_CLONE_DIVERGENCE_IGNORED = new Set<string>([
+    "activationsThisTurn",
+    ...Object.keys(wireOnlyDerivedKeys()),
+    ...LAYER_DERIVED_INSTANCE_KEYS,
+]);
 
 /** The 0-based position of `instanceId` among the cards in `pool` — one
  *  seat's battlefield or graveyard — that present the SAME definition id: the

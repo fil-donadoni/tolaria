@@ -28,6 +28,8 @@ import { combatPartnerIds, findCardInAnyZone } from "../../lookup";
 import { normalizeScenarioSpec } from "../../../debugScenarioSpec";
 import { getEffectivePower, getEffectiveToughness } from "../../layers";
 import { describeMove } from "../../describeMove";
+import { projectPublicState } from "../../../gameProjections";
+import { projectedToGameState } from "../stateAdapter";
 import type { BladeSetupStep } from "../blade/types";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
 import type {
@@ -1170,5 +1172,76 @@ describe("an AUTHORED trigger event is checked against the vocabulary (issue #35
                 })
             )
         ).toThrow(/declared as "scalar"/);
+    });
+});
+
+/** CR 714.3a — Urza's Saga enters with a lore counter, so its chapter I
+ *  ability triggers on the way in; Yavimaya's CR 613.1d (layer 4) static makes
+ *  every land, the Saga included, a Forest. The position is read the way the
+ *  verdict quiz reads it: through the wire projection and back, so the Saga on
+ *  the battlefield carries the layer-derived `grantedSubtypesAdd` row its
+ *  stack clone never does. */
+function sagaUnderYavimayaPosition(): { state: GameState; botId: string } {
+    const live = engineBuilt(
+        {
+            cards: [
+                { name: "Yavimaya, Cradle of Growth", owner: "me" },
+                { name: "Urza's Saga", owner: "me", zone: "hand" },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me" },
+                { name: "Mountain", owner: "opp" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            activePlayer: "me",
+            landCount: 0,
+            libraryCount: 20,
+        },
+        [{ kind: "play-land", card: "Urza's Saga", by: "me" }]
+    );
+    const botId = live.players[0].id;
+    const state = projectedToGameState(
+        projectPublicState(live, 1, botId),
+        undefined,
+        botId
+    );
+    return { state, botId };
+}
+
+function sagaSource(state: GameState): CardInstanceState {
+    const saga = state.players[0].battlefield.find(
+        (card) => card.id === state.stack[0]?.triggerSourceId
+    );
+    if (!saga)
+        throw new Error("the Saga's chapter trigger is not on the stack");
+    return saga;
+}
+
+describe("a land-sourced trigger under a type-granting static (issue #10221)", () => {
+    it("declares the trigger: layer-derived grant drift on the source is not snapshot drift", () => {
+        const { state, botId } = sagaUnderYavimayaPosition();
+        expect(state.stack).toHaveLength(1);
+        // The premise: the projected source carries the layer-4 grant, the
+        // stack item does not — exactly the difference the quiz refused on.
+        const saga = sagaSource(state) as CardInstanceState & {
+            grantedSubtypesAdd?: unknown[];
+        };
+        expect(saga.grantedSubtypesAdd?.length ?? 0).toBeGreaterThan(0);
+        expect(
+            (state.stack[0] as { grantedSubtypesAdd?: unknown[] })
+                .grantedSubtypesAdd
+        ).toBeUndefined();
+        expectJudgeable(state, botId);
+    });
+
+    it("still refuses drift on real instance state — `counters`", () => {
+        const { state, botId } = sagaUnderYavimayaPosition();
+        const saga = sagaSource(state);
+        saga.counters = { ...(saga.counters ?? {}), "+1/+1": 1 };
+        const outcome = lower(state, botId);
+        expect(outcome.ok).toBe(false);
+        if (outcome.ok) return;
+        expect(outcome.kind).toBe("stack-not-lowerable");
+        expect(outcome.error).toContain("snapshot:counters");
     });
 });
