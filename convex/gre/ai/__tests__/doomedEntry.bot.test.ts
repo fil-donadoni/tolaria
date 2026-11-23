@@ -471,23 +471,16 @@ describe("what the evaluation credits a body a delayed trigger removes", () => {
     const creatures = (state: GameState): number =>
         evaluateBreakdown(state, seatPlayerId(state, "me")).self.creatures;
 
-    it("inside its window, no more than its printed power in life (CR 510.1a)", () => {
-        const { state, wurm } = sneakAttacked();
-        const departing = creatures(state);
-        const swing = (wurm.power ?? 0) * DEFAULT_EVAL_WEIGHTS.lifeWeight;
-        expect(departing).toBeCloseTo(swing, 6);
-        state.delayedTriggers = undefined;
-        expect(creatures(state)).toBeGreaterThan(departing);
-    });
-
-    it("in a decided game, the whole body (CR 104.1)", () => {
+    it("nothing once its combat is past, as for its own end-step trigger (CR 603.7a)", () => {
         const { state } = sneakAttacked();
-        const departing = creatures(state);
-        state.players.find((p) => p.id === seatPlayerId(state, "opp"))!.life =
-            0;
-        const decided = creatures(state);
+        const scheduled = state.delayedTriggers;
+        expect(creatures(state)).toBeGreaterThan(0);
+        state.phase = "POSTCOMBAT_MAIN";
+        expect(creatures(state)).toBe(0);
         state.delayedTriggers = undefined;
-        expect(decided).toBeGreaterThan(departing);
-        expect(decided).toBe(creatures(state));
+        expect(creatures(state)).toBeGreaterThan(0);
+        state.delayedTriggers = scheduled;
+        state.phase = "END_STEP";
+        expect(creatures(state)).toBeGreaterThan(0);
     });
 });

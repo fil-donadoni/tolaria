@@ -2070,15 +2070,7 @@ function revertedShape(perm: CardInstanceState): CardInstanceState {
  *     (`departingBodyAdditions`): counters, grants and anthems leave with it,
  *     so they are not lasting material, exactly as an until-end-of-turn buff
  *     is not (ADR 0020 §2). What they add to this combat is credited when its
- *     damage lands;
- *   - and never more than the one combat it has left can deal: its printed
- *     power (CR 510.1a) in life (`departingSwingWorth`). A line that holds the
- *     body's swing back past the horizon otherwise kept a lasting body the
- *     line that cashed the swing could only score as the damage it dealt.
- *
- *  A decided game (CR 104.1) ends before any end step: there the body is
- *  surviving material like any other, so a won line that spent its swing
- *  orders against a later win by the same measure.
+ *     damage lands.
  *
  *  Without it an 8/3 flying Ball Lightning outvalued a 4/4 flying Grizzly
  *  Bears as the target of the same counters, though the first is gone tonight. */
@@ -2090,30 +2082,11 @@ function boardCreatureWorth(
 ): number {
     const body = evaluateCreature(state, perm, weights.latent, pass, weights);
     const departure = scheduledEndStepDeparture(state, perm);
-    if (departure === undefined || isDecidedGame(state)) return body;
+    if (departure === undefined) return body;
     if (departure === "this-turn" && !expiringBodyHasCombatUse(state, perm)) {
         return 0;
     }
-    return Math.min(
-        body - departingBodyAdditions(state, perm, pass),
-        departingSwingWorth(perm, weights)
-    );
-}
-
-/** The most a departing body's one remaining combat takes from a player: its
- *  printed power as combat damage (CR 510.1a), at the evaluation's price of a
- *  life point. Printed, for the reason `departingBodyAdditions` gives. */
-function departingSwingWorth(
-    perm: CardInstanceState,
-    weights: EvalWeights
-): number {
-    return Math.max(0, perm.power ?? 0) * weights.lifeWeight;
-}
-
-/** Whether the game is over (CR 104.1), recorded or not yet: the same two
- *  readings `valueFromMargin`'s terminal detection makes. */
-function isDecidedGame(state: GameState): boolean {
-    return !!state.gameOver || state.players.some(hasLostByLifeOrPoison);
+    return body - departingBodyAdditions(state, perm, pass);
 }
 
 /** What `creatureValueRaw` credits a body for beyond its printed
