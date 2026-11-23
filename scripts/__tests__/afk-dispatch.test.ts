@@ -578,7 +578,8 @@ describe("a failure streak quarantines its host, never the loop (issue #10632)",
         // The global reading would hold: three failures since the last success.
         expect(failureStreak(runs, []).runs).toHaveLength(3);
         const s = hostStreaks(runs, [], never, hostOf, ["hw", "mbp"]);
-        expect(s.hw.runs.map((r) => r.id)).toEqual([6, 4, 3, 1]);
+        // Closed at the limit: run 1, an older failure, is never read.
+        expect(s.hw.runs.map((r) => r.id)).toEqual([6, 4, 3]);
         expect(s.mbp).toBeUndefined();
         expect(
             holdFor(holdInput({ streaks: s, onlineHosts: ["hw", "mbp"] }))
@@ -656,6 +657,61 @@ describe("a failure streak quarantines its host, never the loop (issue #10632)",
         let reads = 0;
         hostStreaks(many, [], never, () => (reads++, "hw"), ["hw", "idle"]);
         expect(reads).toBe(HOST_STREAK_MAX_READS);
+    });
+
+    it("a quarantine closes its host: the walk stops once every host is placed", () => {
+        const older = Array.from({ length: 50 }, (_, i) =>
+            at(300 + i, 200 + i, "success")
+        );
+        const asked: number[] = [];
+        const s = hostStreaks(
+            [
+                at(20, 3, "failure"),
+                at(21, 2, "failure"),
+                at(22, 1, "failure"),
+                at(23, 4, "success"),
+                ...older,
+            ],
+            [],
+            never,
+            (r) => (
+                asked.push(r.id),
+                r.id === 23 || r.id >= 300 ? "mbp" : "hw"
+            ),
+            ["hw", "mbp"]
+        );
+        expect(Object.keys(s)).toEqual(["hw"]);
+        expect(asked).toEqual([22, 21, 20, 23]);
+    });
+
+    it("probation: once the bound of newer passes ran elsewhere, the host is tried again", () => {
+        const failures = [
+            at(30, 900, "failure"),
+            at(31, 890, "failure"),
+            at(32, 880, "failure"),
+        ];
+        const healthy = (n: number) =>
+            Array.from({ length: n }, (_, i) =>
+                at(400 + i, 800 - i, "success")
+            );
+        // The healthy host is not in `known`, so its runs never stop the walk.
+        const hostOfIt = (r: WorkflowRun) => (r.id < 400 ? "hw" : "mbp");
+        const within = hostStreaks(
+            [...failures, ...healthy(HOST_STREAK_MAX_READS - 3)],
+            [],
+            never,
+            hostOfIt,
+            ["hw"]
+        );
+        expect(within.hw?.runs).toHaveLength(3);
+        const past = hostStreaks(
+            [...failures, ...healthy(HOST_STREAK_MAX_READS)],
+            [],
+            never,
+            hostOfIt,
+            ["hw"]
+        );
+        expect(past).toEqual({});
     });
 
     it("a quarantined host offers no slot, is not online, and pins every dispatch", () => {

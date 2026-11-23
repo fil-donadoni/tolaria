@@ -89,6 +89,8 @@ import {
     type HoldInput,
     holdReleases,
     hostOfRunnerName,
+    PASS_LABEL,
+    runnerHost,
     lastPassRun,
     livePassIssues,
     repairAttempted,
@@ -477,6 +479,53 @@ function hostOfRun(slug: string, runId: number): string | null {
     }
 }
 
+/** One pass run's jobs, from one REST read (issue #10632): the steps
+ *  `isLostRun` reads and the runner its `pass` job ran on. */
+interface PassJobs {
+    steps: JobStep[][];
+    runner: string | null;
+}
+
+function passJobs(slug: string, runId: number): PassJobs | null {
+    try {
+        const out = JSON.parse(
+            gh([
+                "api",
+                `repos/${slug}/actions/runs/${runId}/jobs`,
+                "--jq",
+                "[.jobs[] | {runner: .runner_name, labels, steps: [(.steps // [])[] | {name, conclusion}]}]",
+            ])
+        ) as {
+            runner: string | null;
+            labels: string[];
+            steps: { name: string; conclusion: string | null }[];
+        }[];
+        const pass = out.find((j) => j.labels.includes(PASS_LABEL));
+        return {
+            steps: out.map((j) =>
+                j.steps.map((s) => ({
+                    name: s.name,
+                    conclusion: s.conclusion || null,
+                }))
+            ),
+            runner: pass?.runner || null,
+        };
+    } catch {
+        return null;
+    }
+}
+
+/** A runner's host by the SAME authority `passSlots` uses — its `host:`
+ *  label — so a quarantine always names a host the slots can drop; the
+ *  runner-name convention only for a runner no longer listed. */
+function hostOfNamedRunner(
+    rows: readonly RunnerRow[],
+    name: string
+): string | null {
+    const row = rows.find((r) => r.name === name);
+    return row ? runnerHost(row) : hostOfRunnerName(name);
+}
+
 function labelsOf(issue: number): string[] {
     const raw = JSON.parse(
         gh(["issue", "view", String(issue), "--json", "labels"])
@@ -603,16 +652,9 @@ async function main(): Promise<void> {
         ? `lost with their runner, no record, charged nothing to the budget: run ${lost.join(", run ")}`
         : null;
     if (lostLine) say(lostLine);
-    // The streak's window is wider than the budget's: read lazily, per failed
-    // run it meets, and fail closed (an unreadable job list is not lost).
-    const lostRun = (r: WorkflowRun): boolean => {
-        const jobs = runJobSteps(r.id);
-        return jobs !== null && isLostRun(jobs);
-    };
-    // The streak is per host (issue #10632): the runners name the hosts, and
-    // each counted run's host is one jobs read, cached. Unreadable runners →
-    // no known host: the walk charges every run it cannot place to
-    // `UNKNOWN_HOST` and reads to the ack, failing closed.
+    // The streak is per host (issue #10632): the runners name the hosts.
+    // Unreadable runners → no known host: every run is charged to
+    // `UNKNOWN_HOST`, failing closed, with no jobs read for the host.
     let runnerRows: RunnerRow[] | null = null;
     try {
         runnerRows = runners(slug);
@@ -624,11 +666,22 @@ async function main(): Promise<void> {
     const onlineHosts = runnerRows
         ? passSlots(runnerRows, null, []).online
         : [];
-    const runHost = new Map<number, string | null>();
+    // The streak's window is wider than the budget's: ONE jobs read per run
+    // the walk meets, cached, answering both "lost?" and "which host?".
+    // Unreadable → not lost (fail closed) and `UNKNOWN_HOST`.
+    const jobs = new Map<number, PassJobs | null>();
+    const jobsOf = (r: WorkflowRun): PassJobs | null => {
+        if (!jobs.has(r.id)) jobs.set(r.id, passJobs(slug, r.id));
+        return jobs.get(r.id) ?? null;
+    };
+    const lostRun = (r: WorkflowRun): boolean => {
+        const j = jobsOf(r);
+        return j !== null && isLostRun(j.steps);
+    };
     const hostOfPass = (r: WorkflowRun): string | null => {
         if (runnerRows === null) return null;
-        if (!runHost.has(r.id)) runHost.set(r.id, hostOfRun(slug, r.id));
-        return runHost.get(r.id) ?? null;
+        const name = jobsOf(r)?.runner ?? null;
+        return name === null ? null : hostOfNamedRunner(runnerRows, name);
     };
     const streaks = active
         ? hostStreaks(passRuns, dispatchRuns, lostRun, hostOfPass, onlineHosts)
@@ -733,6 +786,18 @@ async function main(): Promise<void> {
             budgetLine,
         ]);
         let fail = releaseFailed;
+        // A new quarantine under another hold (RED, budget…) still mails
+        // once (issue #10632): that hold's own failed run would otherwise
+        // count as the quarantine's email.
+        if (
+            hold.kind !== "failure-streak" &&
+            quarantineToNotify(streaks).length > 0
+        ) {
+            say(
+                `${quarantine}; failing this run once so GitHub emails the owner`
+            );
+            fail = true;
+        }
         if (hold.kind === "failure-streak" && hold.notify) {
             say(
                 `failing this run once so GitHub emails the owner; acknowledge with "${ACK_MARKER}" (ack_failures=true)`

@@ -1382,7 +1382,11 @@ consecutive failed passes (a logged-out `claude` fails each in 2 s) is
 **quarantined** — its runners offer no slot and it is not counted online —
 while the other hosts keep dispatching; while any host is quarantined every
 dispatch is pinned (`host` input) to the healthy host whose slot it took, and
-a resume last run on the quarantined host goes to a healthy one. The hold
+a resume last run on the quarantined host goes to a healthy one. The ack lifts
+every quarantine; without one, a quarantined host is tried again once its
+failures sink below the walk's bound (`HOST_STREAK_MAX_READS` newer passes
+elsewhere) — still broken, it is quarantined after three more failures, with a
+new email. The hold
 stands only once no healthy host is left. The first dispatcher run that sees a
 new quarantine or the hold exits 1 — after its dispatches, under a quarantine —
 so GitHub sends ONE failure email; later runs see that failed run and stay

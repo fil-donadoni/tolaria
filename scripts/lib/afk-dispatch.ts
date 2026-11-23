@@ -381,8 +381,12 @@ export const UNKNOWN_HOST = "unknown";
 
 /** The most host reads one `hostStreaks` walk makes: a host online but
  *  idle never closes, and without a bound its walk would read every run in
- *  the window. Three hosts × a streak of three fit well inside it. */
-export const HOST_STREAK_MAX_READS = 40;
+ *  the window. It is also the quarantine's PROBATION: a quarantined host
+ *  runs no pass, so its failures sink under the healthy hosts' runs; once
+ *  this many newer passes ran elsewhere the walk no longer reaches them and
+ *  the host is tried again — still broken, it is quarantined after three
+ *  more failures, with a new email. The ack lifts it at once. */
+export const HOST_STREAK_MAX_READS = 60;
 
 /** Each host's failure streak (issue #10632), keyed by host. */
 export type HostStreaks = Record<string, FailureStreak>;
@@ -426,8 +430,15 @@ export function hostStreaks(
         reads++;
         const host = hostOf(r) ?? UNKNOWN_HOST;
         if (closed.has(host)) continue;
-        if (fails) (failed[host] ??= []).push(r);
-        else closed.add(host);
+        if (!fails) {
+            closed.add(host);
+            continue;
+        }
+        const runs = (failed[host] ??= []);
+        runs.push(r);
+        // Quarantined: a longer streak changes nothing, so the host closes
+        // and the walk can stop once every known host is placed.
+        if (runs.length >= FAILURE_STREAK_LIMIT) closed.add(host);
     }
     const out: HostStreaks = {};
     for (const [host, runs] of Object.entries(failed))
