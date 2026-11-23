@@ -6,7 +6,10 @@ _Maintenance 2026-11-08 (issue #8723): citations of the client-side ISMCTS decis
 hold-priority shapes and the instant-timing levers live in
 `convex/gre/search.ts`). The opponent-knowledge half was later re-decided per
 difficulty preset (issue #2790, `DIFFICULTY_KNOWS_OPPONENT`) and the informed
-sampling by PRD #2787 / issue #2789. Status line added 2026-11-07.
+sampling by PRD #2787 / issue #2789. Status line added 2026-11-07. Amended by
+[ADR 0184](0184-the-rollout-probes-the-decline-and-the-best-two.md)
+(2026-11-22): § 2's greedy default policy probes the decline and the best two
+candidates of a rollout ply, never every candidate.
 
 **Refines:** [ADR 0000](0000-ai-opponent-client-side-ismcts.md) (the client-side
 ISMCTS opponent), [ADR 0015](0015-rollout-terminates-at-turn-boundary.md) (the

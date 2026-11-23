@@ -2,12 +2,19 @@
 // for the rollout, installed through the seam `bundle.mjs` patches into the
 // bundled search (`rolloutHook`), and the counters every arm reads. Never the
 // default: the source tree's `selectRolloutMove` is untouched, and with no
-// policy installed the bundle plays today's greedy pick.
+// policy installed the bundle plays the source's own rollout policy, its
+// probe cut (ADR 0184) included.
 //
 // A policy is a string:
 //
-//   base        today's policy: the greedy 1-ply pick probes EVERY candidate
-//               (clone + apply + settle + evaluate), then plays the best
+//   base        the policy before ADR 0184: the greedy 1-ply pick probes
+//               EVERY candidate (clone + apply + settle + evaluate), then
+//               plays the best. Every policy below but `shipped` starts from
+//               it: the bundle's seam skips the source's probe cut
+//   shipped     the source's own policy since ADR 0184 (issue #10473): the
+//               probe cut `rolloutProbeCandidates` keeps the decline and the
+//               best two of the rest (on an attack declaration: nobody, the
+//               strongest creature alone, everybody), the bench changes nothing
 //   topk:K      a static per-move-kind score ranks the candidates and only
 //               the best K (pass always among them) are probed
 //   prefix:N    the greedy pick for a rollout's first N greedy plies; every
@@ -134,6 +141,7 @@ export function installPolicy(policy) {
     const n = Number(arg);
     globalThis.__benchMaxPlies = name === "cap" ? n : undefined;
     globalThis.__benchEpsilon = name === "epsilon" ? n : undefined;
+    globalThis.__benchProbeAll = name !== "shipped";
     globalThis.__benchPly = (kind, candidates) => {
         if (!inRollout) return;
         pliesThisRollout += 1;

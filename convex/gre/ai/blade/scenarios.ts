@@ -30678,6 +30678,103 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: 'Issue #9961, the half of "discriminating pair: holds Emperor of Bones\' Adapt in main 1 for the beginning-of-combat exile of Atraxa": Atraxa replaced by a third Faithful Mending, so no graveyard holds a creature card and the beginning-of-combat exile has nothing to fill the pile with. The +2/+2 is the whole payoff and Adapt is instant speed, so activating now and holding it are both right; the anchor forbids the activation only because of the creature card. A preference between the two is a timing judgement the leaf cannot see (measured: 7 of 8 seeds activate at the committed weights, a refit flips seed 0xb1ade to pass), so this half accepts both and is not a `pairOf` half: a verdict every legal move satisfies is vacuous, and the anchor stays out of the fit as conditional debt.',
     },
     {
+        // The rollout probe cut's same-kind blindness (ADR 0184, issue
+        // #10473), on the anchor's board above: two Andradite Leeches listed
+        // BEFORE the Emperor, so on every rollout ply in which the Bot holds
+        // priority its activations enumerate as pump, pump, Adapt. Twelve
+        // Swamps, so the pumps never starve Adapt of mana. Stretch, not must:
+        // the board is noisy at its own budget for every policy, so pinned
+        // seeds would be noise-pinned (the robustness audit), and the cut's
+        // permanent guard is the unit test in `rolloutProbeCut.bot.test.ts`.
+        label: "rollout probe cut: holds Emperor of Bones' Adapt in main 1 with two identical pump activations enumerated before it",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a creature card worth reanimating in a graveyard (Atraxa, Grand Unifier)",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 17,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 14, opp: 14 },
+            cards: [
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 12,
+                },
+                {
+                    name: "Andradite Leech",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    count: 2,
+                },
+                {
+                    name: "Emperor of Bones",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grief",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Thoughtseize", owner: "me", zone: "graveyard" },
+                {
+                    name: "Inquisition of Kozilek",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Fatal Push",
+                    owner: "me",
+                    zone: "graveyard",
+                    count: 2,
+                },
+                { name: "Polluted Delta", owner: "me", zone: "graveyard" },
+                {
+                    name: "Atraxa, Grand Unifier",
+                    owner: "opp",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Faithful Mending",
+                    owner: "opp",
+                    zone: "graveyard",
+                    count: 2,
+                },
+                { name: "Goryo's Vengeance", owner: "opp", zone: "graveyard" },
+                { name: "Polluted Delta", owner: "opp", zone: "graveyard" },
+                {
+                    name: "Solitude",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Plains",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 5,
+                },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5, 6],
+        tier: "stretch",
+        expect: { moves: [{ kind: "pass" }] },
+        note: "Issue #10473, ADR 0184. The rollout's greedy pick probes three candidates on a ply that offers more: the decline and the best two of the rest, by move kind and then enumeration order. This board is wide where that bites: eleven graveyard cards for the exile's target, and two pump activations enumerated before Adapt, so `pass` and the two pumps are the three a priority ply probes and the playout that exiles Atraxa never adapts. Measured at 400 iterations, seeds 0xb1ade and 1–13 (14 searches), passing seeds: every candidate probed, 12 (at b1e76567e8); the cut with the widest declaration, 2 (on d629e2b3d9). A lot between equal kinds read 10–12 here and was not shipped: it reds two must entries at their declared budgets (ADR 0184 § Considered and measured). The board is noisy for every policy, so it is a stretch reading of the cut's residual blindness on a wide board, never a must pin; the cut's permanent guard is `rolloutProbeCut.bot.test.ts`",
+    },
+    {
         label: "linked exile: Emperor of Bones' beginning-of-combat trigger exiles the opponent's Atraxa, not a spent card",
         classification: { kind: "absolute" },
         spec: {

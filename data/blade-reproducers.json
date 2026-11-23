@@ -5584,6 +5584,102 @@
         "landCount": 0,
         "libraryCount": 20
     },
+    "rollout probe cut: holds Emperor of Bones' Adapt in main 1 with two identical pump activations enumerated before it": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 17,
+        "landCount": 0,
+        "libraryCount": 20,
+        "life": {
+            "me": 14,
+            "opp": 14
+        },
+        "cards": [
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 12
+            },
+            {
+                "name": "Andradite Leech",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false,
+                "count": 2
+            },
+            {
+                "name": "Emperor of Bones",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Grief",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Thoughtseize",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Inquisition of Kozilek",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Fatal Push",
+                "owner": "me",
+                "zone": "graveyard",
+                "count": 2
+            },
+            {
+                "name": "Polluted Delta",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Atraxa, Grand Unifier",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Faithful Mending",
+                "owner": "opp",
+                "zone": "graveyard",
+                "count": 2
+            },
+            {
+                "name": "Goryo's Vengeance",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Polluted Delta",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Solitude",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 5
+            }
+        ]
+    },
     "sacrifice outlet: Goblin Bombardment takes the blocked creature before it dies": null,
     "sacrifice sign NEGATIVE CONTROL: still casts a genuine edict": {
         "cards": [
