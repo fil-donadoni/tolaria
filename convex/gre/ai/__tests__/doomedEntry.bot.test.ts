@@ -387,3 +387,100 @@ describe("what the evaluation credits a body leaving at an end step", () => {
         expect(creatures(state)).toBe(withBall);
     });
 });
+
+/** The `ACTIVATES` board after Sneak Attack's activation resolved: the Craw
+ *  Wurm on the battlefield, its end-step sacrifice scheduled. */
+function sneakAttacked(): { state: GameState; wurm: CardInstanceState } {
+    const state = stateOf(ACTIVATES);
+    const me = seatPlayerId(state, "me");
+    const activation = enumerateMoves(state, me).find(
+        (m) => m.kind === "activate-ability"
+    )!;
+    applyMoveInSearch(state, me, activation);
+    // Priority passes, then the hand-card choice: its first answer puts the
+    // Wurm.
+    for (let i = 0; i < 12 && !state.delayedTriggers?.length; i++) {
+        const who = state.priorityPlayerId ?? me;
+        const moves = enumerateMoves(state, who);
+        applyMoveInSearch(
+            state,
+            who,
+            moves.find((m) => m.kind === "pass") ?? moves[0]
+        );
+    }
+    return { state, wurm: onBoard(state, "Craw Wurm") };
+}
+
+describe("a body a scheduled delayed trigger removes (CR 603.7a)", () => {
+    it("reads the captured body of a resolved Sneak Attack, this turn until the end step", () => {
+        const { state, wurm } = sneakAttacked();
+        expect(scheduledEndStepDeparture(state, wurm)).toBe("this-turn");
+        state.phase = "END_STEP";
+        expect(scheduledEndStepDeparture(state, wurm)).toBe("later");
+    });
+
+    it("reads a cleanup-step removal, and one scoped to another player's turn as later", () => {
+        const { state, wurm } = sneakAttacked();
+        const [trigger] = state.delayedTriggers!;
+        trigger.timing = "next-cleanup-step";
+        state.phase = "END_STEP";
+        expect(scheduledEndStepDeparture(state, wurm)).toBe("this-turn");
+        trigger.timing = "next-end-step";
+        trigger.targetPlayerId = seatPlayerId(state, "opp");
+        state.phase = "PRECOMBAT_MAIN";
+        expect(scheduledEndStepDeparture(state, wurm)).toBe("later");
+    });
+
+    it("fails closed on a body the trigger does not remove", () => {
+        const { state, wurm } = sneakAttacked();
+        const [trigger] = state.delayedTriggers!;
+        const unread: EffectOp[][] = [
+            [{ op: "exile", target: { ref: "$captured" }, bind: "$back" }],
+            [{ op: "moveZone", target: { ref: "$captured" }, to: "hand" }],
+        ];
+        for (const effects of unread) {
+            trigger.effects = effects;
+            expect(scheduledEndStepDeparture(state, wurm)).toBeUndefined();
+        }
+        trigger.effects = [{ op: "sacrifice", target: { ref: "$captured" } }];
+        trigger.payload = { captured: "another body" };
+        expect(scheduledEndStepDeparture(state, wurm)).toBeUndefined();
+        trigger.payload = { captured: ["another body", wurm.id] };
+        expect(scheduledEndStepDeparture(state, wurm)).toBe("this-turn");
+        trigger.timing = "next-upkeep";
+        expect(scheduledEndStepDeparture(state, wurm)).toBeUndefined();
+    });
+
+    it("reads a warp exile only while the permanent is still the warped object (CR 702.185a, CR 400.7)", () => {
+        const { state, wurm } = sneakAttacked();
+        state.delayedTriggers = [
+            {
+                ...state.delayedTriggers![0],
+                effects: undefined,
+                payload: {},
+                warpCardInstanceId: wurm.id,
+            },
+        ];
+        expect(scheduledEndStepDeparture(state, wurm)).toBeUndefined();
+        wurm.warped = true;
+        expect(scheduledEndStepDeparture(state, wurm)).toBe("this-turn");
+    });
+});
+
+describe("what the evaluation credits a body a delayed trigger removes", () => {
+    const creatures = (state: GameState): number =>
+        evaluateBreakdown(state, seatPlayerId(state, "me")).self.creatures;
+
+    it("nothing once its combat is past, as for its own end-step trigger (CR 603.7a)", () => {
+        const { state } = sneakAttacked();
+        const scheduled = state.delayedTriggers;
+        expect(creatures(state)).toBeGreaterThan(0);
+        state.phase = "POSTCOMBAT_MAIN";
+        expect(creatures(state)).toBe(0);
+        state.delayedTriggers = undefined;
+        expect(creatures(state)).toBeGreaterThan(0);
+        state.delayedTriggers = scheduled;
+        state.phase = "END_STEP";
+        expect(creatures(state)).toBeGreaterThan(0);
+    });
+});

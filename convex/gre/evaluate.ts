@@ -2060,8 +2060,9 @@ function revertedShape(perm: CardInstanceState): CardInstanceState {
 }
 
 /** A creature's realized worth on the board: its `evaluateCreature` body,
- *  unless it is scheduled to leave at an end step (`scheduledEndStepDeparture`,
- *  CR 513.1a). Such a body is worth only what it does before then:
+ *  unless it is scheduled to leave at an end step (`scheduledEndStepDeparture`:
+ *  its own end-step trigger, CR 513.1a, or a delayed trigger removing it,
+ *  CR 603.7a). Such a body is worth only what it does before then:
  *
  *   - nothing once it can no longer fight before this turn's end step
  *     (`expiringBodyHasCombatUse`, the window an expiring animation reads);
