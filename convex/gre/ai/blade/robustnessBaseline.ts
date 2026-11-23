@@ -36,4 +36,10 @@ export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
         label: "nonbasic hate: Blood Moon is cast against the opponent's nonbasic mana",
         issue: 10449,
     },
+    // Passes only at its declared 400 iterations: whenever both root edges
+    // sit in the visit band, the material tie-break takes the futile cast.
+    {
+        label: "phyrexian mana: Dismember never aims at toughness above 5",
+        issue: 10665,
+    },
 ];
