@@ -3275,9 +3275,12 @@ export const startPairingMatch = mutation({
             // tagged `freeform` because it belongs to no user's own Seat — the
             // Limited ownership gate would reject it — and it is legal by
             // construction (issue #1115).
+            // One human vs the Bot: the plain nickname. The "(P1)"/"(P2)"
+            // suffix only tells apart one user's two seats in solo mode
+            // (`createSoloGame`), where it stays (issue #9991).
             const player1: PlayerInput = {
                 id: `${user._id}-p1`,
-                name: `${user.nickname} (P1)`,
+                name: user.nickname,
                 bgColor: args.bgColor ?? PLAYER_COLORS[0],
                 deck: args.deck,
             };
