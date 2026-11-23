@@ -101,7 +101,11 @@
  *     to `land-failed` with a comment carrying a link: the label is the
  *     repair pick's trigger, and `-label=land-failed` keeps the PR out. The
  *     rule must also carry a top-level `-check-failure=base-health`: a
- *     dequeue under a RED is a hold, not a repair pick.
+ *     dequeue under a RED is a hold, not a repair pick. And every check the
+ *     queue's entry reads (a required green, a refused red), bar
+ *     `base-health` and `trusted-author`, owes a rule labelling a
+ *     `ready-to-land` PR with that check red `land-failed`: a red entry
+ *     check keeps the PR out of the queue, so no dequeue ever names it.
  *   - `queue-refusal-hold` — a `pull_request_rules` entry that adds
  *     `land-failed` without the same top-level hold exemption, or no entry
  *     labelling `queue:held` a PR whose advisory lane is red while
@@ -876,6 +880,41 @@ function relabelsDequeue(rule: unknown): boolean {
     );
 }
 
+/** Checks a queue rule's entry reads that are no PR's own red, so no repair
+ *  rule owes them: a red `base-health` is the base's (a hold, issue #6110),
+ *  and an untrusted author is the owner's call, never a pass's repair. */
+const ENTRY_CHECKS_NO_REPAIR = new Set(["base-health", "trusted-author"]);
+
+/** The check names a queue rule's entry conditions read: a required green
+ *  (`check-success=X`, `status-success=X`) or a refused red
+ *  (`-check-failure=X`). */
+function entryChecks(conds: string[]): string[] {
+    return conds.flatMap((c) => {
+        const m =
+            /^(?:(?:check|status)-success|-check-failure)\s*=\s*(.+)$/.exec(c);
+        return m ? [m[1].trim()] : [];
+    });
+}
+
+/** A rule that turns a red `check` on a `ready-to-land` PR into
+ *  `land-failed` (dropping `ready-to-land`), unless held. Without one, a PR
+ *  whose entry check is red never enters the queue, is never dequeued, and is
+ *  no repair pick: it strands (issue #10633). */
+function repairsEntryCheck(rule: unknown, check: string): boolean {
+    if (!addsFailed(rule) || !holdExempt(rule)) return false;
+    const actions = rule.actions as Record<string, unknown>;
+    const relabel = isObj(actions.label) ? actions.label : {};
+    const escaped = check.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const red = new RegExp(`^check-failure\\s*=\\s*${escaped}$`);
+    return (
+        strings(rule.conditions).some((c) =>
+            labelCondition(READY_LABEL).test(c)
+        ) &&
+        strings(relabel.remove).includes(READY_LABEL) &&
+        flatConditions(rule.conditions).some((c) => red.test(c))
+    );
+}
+
 /** Top-level conditions carry the hold exemption: a RED stands it down. */
 function holdExempt(rule: Record<string, unknown>): boolean {
     const top = strings(rule.conditions);
@@ -973,6 +1012,19 @@ function checkMergify(f: SourceFile, out: Violation[]): void {
             "queue-dequeue",
             `no pull_request_rule labels a PR dequeued on ${DEQUEUE_REASONS.join("/")} \`${FAILED_LABEL}\` (removing \`${READY_LABEL}\`) with a comment carrying a link, unless held (\`-check-failure=base-health\` and \`-label=${HELD_LABEL}\`: a RED is a hold, issue #6110)`
         );
+    const entry = new Set(
+        rules.flatMap((rule) =>
+            entryChecks(isObj(rule) ? strings(rule.queue_conditions) : [])
+        )
+    );
+    for (const check of entry) {
+        if (ENTRY_CHECKS_NO_REPAIR.has(check)) continue;
+        if (!prRules.some((rule) => repairsEntryCheck(rule, check)))
+            v(
+                "queue-dequeue",
+                `queue entry reads \`${check}\`, but no pull_request_rule labels a \`${READY_LABEL}\` PR with \`check-failure=${check}\` \`${FAILED_LABEL}\` (removing \`${READY_LABEL}\`, unless held): a PR whose entry check is red never enters the queue and is no repair pick (issue #10633)`
+            );
+    }
     prRules.forEach((rule, i) => {
         if (addsFailed(rule) && !holdExempt(rule))
             v(

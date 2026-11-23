@@ -289,6 +289,9 @@ export function commentCause(body: string): LandingCause | null {
     // One of pr-check's refusal jobs: the PR.
     if (head.startsWith("**merge queue: a `land` refusal is red"))
         return "defect";
+    // The blade robustness audit on the PR's head (issue #10633).
+    if (head.startsWith("**merge queue: `blade-robustness` is red"))
+        return "defect";
     // pr-check's own lane on the PR's head (`.mergify.yml`, issue #7650).
     if (head.startsWith("**merge queue: `check:lane (advisory)` is red"))
         return "advisory";

@@ -1163,6 +1163,46 @@ describe("workflow structure guard", () => {
         }
     });
 
+    it("requires a repair rule for every check the queue entry reads (issue #10633)", () => {
+        const audit = edit(
+            MERGIFY,
+            "      - check-success=base-health\n",
+            "      - check-success=base-health\n      - check-success=blade-robustness\n"
+        );
+        // an entry check no rule turns into `land-failed` strands the PR
+        expect(rules(fixture({ mergify: audit }))).toEqual(["queue-dequeue"]);
+        const repaired = edit(
+            audit,
+            "          - check-failure=scenario\n",
+            "          - check-failure=scenario\n          - check-failure=blade-robustness\n"
+        );
+        expect(rules(fixture({ mergify: repaired }))).toEqual([]);
+        for (const [from, to] of [
+            // the rule must read a `ready-to-land` PR
+            [
+                "  - name: refusal\n    conditions:\n      - label=ready-to-land\n",
+                "  - name: refusal\n    conditions:\n",
+            ],
+            // and drop `ready-to-land`
+            [
+                "        remove: [ready-to-land]\n  - name: refusal under",
+                "        remove: []\n  - name: refusal under",
+            ],
+            // a `not:` inverts the condition looked for
+            [
+                "          - check-failure=blade-robustness\n",
+                "          - not:\n              check-failure=blade-robustness\n",
+            ],
+        ] as const) {
+            const mergify = edit(repaired, from, to);
+            expect(rules(fixture({ mergify })), from).toContain(
+                "queue-dequeue"
+            );
+        }
+        // the entry's own exemptions owe no repair rule
+        expect(rules(fixture())).toEqual([]);
+    });
+
     it("holds a PR whose lane is red under a RED, never land-failed (issue #6256)", () => {
         for (const [from, to] of [
             [
