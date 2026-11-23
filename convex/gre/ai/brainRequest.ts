@@ -163,7 +163,13 @@ export function handleBrainRequest(
                 : null;
         // Issue #10472 — what pondering grew at the node this consult
         // continues from, read before the search adopts (and prunes) it.
-        const ledger = reuse ? previous?.ponder : undefined;
+        // Only this game's and seat's: a `context` drop reports nothing.
+        const ledger =
+            reuse &&
+            previous?.gameId === reuse.gameId &&
+            previous.botId === botId
+                ? previous.ponder
+                : undefined;
         const pondered =
             ledger && continued && "node" in continued
                 ? ponderedVisits(ledger, continued.node)

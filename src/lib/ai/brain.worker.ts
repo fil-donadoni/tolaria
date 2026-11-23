@@ -95,6 +95,10 @@ const ponderer = createPonderer({
     slice: { ms: PONDER_SLICE_MS },
 });
 
+/** Bumped by every message but a prime: a ponder waiting on residency
+ *  starts only if nothing was posted after it (issue #10472). */
+let messageEpoch = 0;
+
 /** Requests, one at a time, in arrival order. */
 let chain: Promise<void> = Promise.resolve();
 
@@ -161,6 +165,9 @@ self.onmessage = (e: MessageEvent<BrainWorkerMessage>) => {
     }
     // Issue #10472 — whatever the page says now, the ponder under way ends
     // first: a consult must not wait behind it.
+    // A message also cancels a ponder still waiting on residency: one that
+    // started after a `ponder-stop` would run on a hidden page.
+    const epoch = ++messageEpoch;
     if (isBrainPonderStop(message)) {
         ponderer.stop("hidden");
         return;
@@ -172,7 +179,9 @@ self.onmessage = (e: MessageEvent<BrainWorkerMessage>) => {
         chain = chain
             .then(() => resident(message))
             .then(
-                () => ponderer.start(message),
+                () => {
+                    if (epoch === messageEpoch) ponderer.start(message);
+                },
                 (cause: unknown) =>
                     console.warn("[AI] ponder skipped", toBrainError(cause))
             );

@@ -82,9 +82,11 @@ export type Ponderer = {
     active: () => boolean;
 };
 
-/** An upper bound on the nodes one iteration opens: one child, and an
- *  option-set view per opponent node it passes — the measured maximum was
- *  1.3. Only decides when the tree is counted again, never the cap. */
+/** The nodes one iteration is assumed to open at most when deciding whether
+ *  the tree could have reached the cap — one child, and an option-set view
+ *  per opponent node it passes; the measured maximum was 1.3. An iteration
+ *  past several opponent nodes can open more, so the cap is SOFT: the tree
+ *  may overshoot it by a slice's worth before the next count. */
 const NODES_PER_ITERATION_BOUND = 2;
 
 export function createPonderer(options: PondererOptions): Ponderer {
