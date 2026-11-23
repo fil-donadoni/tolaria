@@ -1825,7 +1825,8 @@ export function rollout(
                 pid,
                 botId,
                 rolloutProbeCandidates(
-                    greedyPool.length > 0 ? greedyPool : moves
+                    greedyPool.length > 0 ? greedyPool : moves,
+                    state
                 ),
                 rng,
                 weights,

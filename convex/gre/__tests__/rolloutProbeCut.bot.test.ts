@@ -24,6 +24,8 @@ const BOLT = getCardByName("Lightning Bolt").id;
 const BEARS = getCardByName("Grizzly Bears").id;
 const LEECH = getCardByName("Andradite Leech").id;
 const EMPEROR = getCardByName("Emperor of Bones").id;
+const HILL_GIANT = getCardByName("Hill Giant").id;
+const ORNITHOPTER = getCardByName("Ornithopter").id;
 
 function card(
     cardId: string,
@@ -82,7 +84,7 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
         );
         const moves = enumerateMoves(state, "p1");
         expect(moves.length).toBeLessThanOrEqual(ROLLOUT_PROBE_CAP);
-        expect(rolloutProbeCandidates(moves)).toEqual(moves);
+        expect(rolloutProbeCandidates(moves, state)).toEqual(moves);
     });
 
     // A priority ply: `pass` is the decline, and the kind rank fills the
@@ -101,7 +103,7 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
         // enumerator's own order, is what puts the land and the spell ahead.
         const moves = enumerateMoves(state, "p1").reverse();
         expect(moves[0].kind).toBe("activate-ability");
-        const kept = rolloutProbeCandidates(moves);
+        const kept = rolloutProbeCandidates(moves, state);
         expect(kept.map((m) => m.kind).sort()).toEqual([
             "cast-spell",
             "pass",
@@ -133,7 +135,7 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
             "leech-b",
             "emperor",
         ]);
-        const kept = rolloutProbeCandidates(moves);
+        const kept = rolloutProbeCandidates(moves, state);
         expect(kept.map(abilityOf)).toEqual([undefined, "leech-a", "leech-b"]);
     });
 
@@ -161,7 +163,7 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
         const moves = enumerateMoves(state, "p1");
         expect(moves.length).toBeGreaterThan(ROLLOUT_PROBE_CAP);
         expect(moves.some((m) => m.kind === "pass")).toBe(false);
-        const kept = rolloutProbeCandidates(moves);
+        const kept = rolloutProbeCandidates(moves, state);
         expect(kept).toHaveLength(ROLLOUT_PROBE_CAP);
         expect(kept.filter(isRolloutDecline)).toEqual([
             { kind: "declare-attackers", attackerIds: [] },
@@ -170,6 +172,50 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
             m.kind === "declare-attackers" ? m.attackerIds.length : -1
         );
         expect(Math.max(...widths)).toBe(3);
+    });
+
+    // The attack ply's other end: one creature swings and the rest stay home.
+    // The power set enumerates the FIRST listed creature's lone attack after
+    // every declaration of the others, so in enumeration order the Hill
+    // Giant's attack on its own is never probed; the Bot-play sweep's sorcery
+    // pump race is lost exactly there (the pumped creature alone is the line).
+    it("keeps the strongest lone attacker of an attack declaration ply", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        card(HILL_GIANT, "giant", "battlefield"),
+                        card(BEARS, "bears-a", "battlefield"),
+                        card(ORNITHOPTER, "thopter", "battlefield"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "DECLARE_ATTACKERS",
+            combat: COMBAT_OPEN,
+        });
+        const moves = enumerateMoves(state, "p1");
+        const giantAlone = moves.findIndex(
+            (m) =>
+                m.kind === "declare-attackers" &&
+                m.attackerIds.length === 1 &&
+                m.attackerIds[0] === "giant"
+        );
+        // Beyond the cut in enumeration order: the decline plus the first
+        // two enumerated declarations would not reach it.
+        expect(giantAlone).toBeGreaterThan(ROLLOUT_PROBE_CAP);
+        const kept = rolloutProbeCandidates(moves, state);
+        expect(kept).toHaveLength(ROLLOUT_PROBE_CAP);
+        expect(kept).toContain(moves[giantAlone]);
+        expect(kept.filter(isRolloutDecline)).toHaveLength(1);
+        expect(
+            kept.some(
+                (m) =>
+                    m.kind === "declare-attackers" && m.attackerIds.length === 3
+            )
+        ).toBe(true);
     });
 
     // The defender's side of the same ply: no block, and the block that uses
@@ -204,7 +250,7 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
         });
         const moves = enumerateMoves(state, "p2");
         expect(moves.length).toBeGreaterThan(ROLLOUT_PROBE_CAP);
-        const kept = rolloutProbeCandidates(moves);
+        const kept = rolloutProbeCandidates(moves, state);
         expect(kept.filter(isRolloutDecline)).toEqual([
             { kind: "declare-blockers", assignments: [] },
         ]);
@@ -226,8 +272,8 @@ describe("rolloutProbeCandidates (ADR 0184, issue #10473)", () => {
         );
         const moves = enumerateMoves(state, "p1");
         const before = [...moves];
-        const once = rolloutProbeCandidates(moves);
-        const twice = rolloutProbeCandidates(moves);
+        const once = rolloutProbeCandidates(moves, state);
+        const twice = rolloutProbeCandidates(moves, state);
         expect(twice).toEqual(once);
         expect(moves).toEqual(before);
         const at = once.map((m) => moves.indexOf(m));
