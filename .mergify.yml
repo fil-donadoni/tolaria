@@ -203,6 +203,31 @@ pull_request_rules:
                   **merge queue: a `land` refusal is red on this PR** — labelled `land-failed`.
 
                   The red check is one of `pr-check`'s refusal jobs (`ui-receipt`, `scenario`, `retired-rows`, `robustness-baseline`, `repair-proof`, `draft-audit`): [its run on this branch](https://github.com/fil-donadoni/tolaria/actions/workflows/pr-check.yml?query=branch%3A{{ head }}) names which. Fix the PR — a body edit re-runs them — then `bun run land:ready <PR#>`.
+    # A red blade robustness audit on the PR's head is the same pick (issue
+    # #10633): `check-success=blade-robustness` keeps the PR out of the
+    # queue, so no dequeue ever names it, and `queue:plan` skips every
+    # `ready-to-land` PR — without this rule it strands, holding its target
+    # files. An entry that reds on the base too (noise-pinned, every PR's
+    # audit red on it) is not the PR's: the repair names the baseline issue
+    # owning it instead of chasing it here. The structure guard's
+    # `queue-dequeue` row reds any entry check with no such rule.
+    - name: a red blade robustness audit on a queue PR is a repair pick
+      conditions:
+          - label=ready-to-land
+          - -check-failure=base-health
+          - -label=queue:held
+          - check-failure=blade-robustness
+      actions:
+          label:
+              add:
+                  - land-failed
+              remove:
+                  - ready-to-land
+          comment:
+              message: |
+                  **merge queue: `blade-robustness` is red on this PR** — labelled `land-failed`.
+
+                  The red check is the blade robustness audit: [its run on this branch](https://github.com/fil-donadoni/tolaria/actions/workflows/blade-robustness.yml?query=branch%3A{{ head }}) names the entry and the leg in its summary. Fix the PR, then `bun run land:ready <PR#>`. An entry that also reds on the base (noise-pinned: every PR's audit red on it) is not this PR's: hand off naming the baseline issue that owns it (find it with `gh issue list --search "<entry title>"`, or file one), never re-fit it here.
     - name: a red advisory lane under a RED is a hold
       conditions:
           - label=ready-to-land
