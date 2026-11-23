@@ -207,7 +207,8 @@ export interface RetriedStep {
     retried?: string[];
     /** Set with `retried`: what the first failure was. */
     cause?: RetryCause;
-    /** Set when the step failed and was NOT re-run: why (issue #5939). */
+    /** Set when the step failed and was NOT re-run: why (issue #5939) —
+     *  including a chain script failing after a green retry (issue #10655). */
     refused?: string;
     /** Set with `retried` when the retry failed tests the first run never
      *  failed (issue #8916): why it is no reproduction. The result's output
@@ -285,9 +286,12 @@ function retrySteps(
  * exactly the failed projects (then the chain scripts that never started).
  * GREEN only when all pass; the second failure is returned as the result, so
  * RED names what failed twice — unless the retry failed tests the first run
- * never failed (`retryNotReproduction`, issue #8916): then the first run's
- * output is the result and `retryBroken` says why. A failure it refuses comes back with the
- * refusal (`refused`), logged here and named in the evidence (issue #5939).
+ * never failed (`retryNotReproduction`): then the first run's output is the
+ * result and `retryBroken` says why. A failure it refuses comes back with the
+ * refusal (`refused`), logged here and named in the evidence. A chain script
+ * that fails after a GREEN retry is not re-run — one re-run per step — and
+ * comes back as a refusal naming the spent re-run, never as `retried`
+ * (issue #10655).
  */
 export async function runStepWithRetry(
     step: HealthStep,
@@ -346,21 +350,52 @@ export async function runStepWithRetry(
         log(`health-main: ${retryBroken}\n`);
         result = { ...result, output: first.output };
     }
+    const cause = retryCauseOf(first.output);
+    if (!result.ok)
+        return {
+            result,
+            retried: plan.projects,
+            cause,
+            ...(retryBroken !== undefined ? { retryBroken } : {}),
+        };
+    // The retry passed: the step's one re-run is spent. A chain script that
+    // fails after it is a NEW failure, never re-run (issue #10655) — it is
+    // RED on its first output, and the record must not name the absorbed
+    // projects as if they had failed twice.
     for (const script of plan.remaining) {
-        if (!result.ok) break;
         result = await run({
             ...step,
             name: script,
             cmd: "bun",
             args: ["run", script],
         });
+        if (!result.ok) {
+            const refused = laterFailureRefusal(
+                script,
+                failedVitestProjects(result.output),
+                plan.projects,
+                cause
+            );
+            log(`health-main: ${refused}\n`);
+            return { result, refused };
+        }
     }
-    return {
-        result,
-        retried: plan.projects,
-        cause: retryCauseOf(first.output),
-        ...(retryBroken !== undefined ? { retryBroken } : {}),
-    };
+    return { result, retried: plan.projects, cause };
+}
+
+/** Why a chain script that failed after a green retry was not re-run
+ *  (issue #10655): the step's one re-run went to an earlier project. */
+export function laterFailureRefusal(
+    script: string,
+    failed: readonly string[] | null,
+    absorbed: readonly string[],
+    cause: RetryCause
+): string {
+    const what =
+        failed && failed.length > 0
+            ? `${failed.join(", ")} (${script})`
+            : script;
+    return `${what} not re-run: the step's one re-run was spent on ${absorbed.join(", ")}, which failed first (${cause}) and passed on its re-run`;
 }
 
 // ── the queue lane's retry (issue #5640) ────────────────────────────────────
