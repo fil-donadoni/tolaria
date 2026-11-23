@@ -286,12 +286,12 @@ function retrySteps(
  * exactly the failed projects (then the chain scripts that never started).
  * GREEN only when all pass; the second failure is returned as the result, so
  * RED names what failed twice — unless the retry failed tests the first run
- * never failed (`retryNotReproduction`, issue #8916): then the first run's
- * output is the result and `retryBroken` says why. A failure it refuses comes
- * back with the refusal (`refused`), logged here and named in the evidence
- * (issue #5939). A chain script that fails after a GREEN retry is not re-run
- * — one re-run per step — and comes back as a refusal naming the spent
- * re-run, never as `retried` (issue #10655).
+ * never failed (`retryNotReproduction`): then the first run's output is the
+ * result and `retryBroken` says why. A failure it refuses comes back with the
+ * refusal (`refused`), logged here and named in the evidence. A chain script
+ * that fails after a GREEN retry is not re-run — one re-run per step — and
+ * comes back as a refusal naming the spent re-run, never as `retried`
+ * (issue #10655).
  */
 export async function runStepWithRetry(
     step: HealthStep,
