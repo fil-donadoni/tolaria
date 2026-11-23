@@ -64,6 +64,18 @@ reveal). A decision's trace says how many visits it kept (`iterationsKept`):
 one that kept none reproduces from its board; one that kept some does not.
 Tests and the blade always search a fresh tree.
 
+<a id="pondering"></a>**Pondering** — the Brain Worker grows the
+[kept tree](#kept-tree) while the human decides (issue #10472, ADR 0185
+Amendment I): the page posts the Bot's projection of the human's decision,
+the Worker re-roots the kept tree there and searches it in 50 ms slices
+(`convex/gre/ai/ponder.ts`, `src/lib/ai/brain-ponder.ts`), and the next
+consult continues from the subtree under the move the human actually played.
+It stops on a consult, a hidden page and a node cap (lower on a phone); it
+runs on phones too. A decision's trace says what it pondered
+(`ponder.iterations`, `ponder.kept`): a decision with pondered visits also
+depended on how long the human took. Tests ponder a fixed number of
+iterations, never wall-clock.
+
 <a id="difficulty"></a>**Difficulty** — a named preset carrying TWO knobs
 (`convex/gre/difficulty.ts`): a [search budget](#search-budget) and the
 [deck knowledge](#deck-knowledge) the search may hold about the opponent.

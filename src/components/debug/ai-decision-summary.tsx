@@ -104,6 +104,12 @@ export default function AiDecisionSummary({
                         board alone (ADR 0185). */}
                     {trace.iterationsKept
                         ? ` + ${trace.iterationsKept} kept`
+                        : ""}
+                    {/* Issue #10472 — of which pondered while the human
+                        decided: the decision also depends on how long they
+                        took. */}
+                    {trace.ponder
+                        ? ` (${trace.ponder.kept} pondered of ${trace.ponder.iterations})`
                         : ""}{" "}
                     ({trace.stoppedBy}), {Math.round(trace.elapsedMs)}ms
                     {trace.selectionRule ? `, ${trace.selectionRule}` : ""}

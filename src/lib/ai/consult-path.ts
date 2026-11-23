@@ -26,6 +26,12 @@
 // that moved on with no call of theirs (the server acted for them), a call
 // with no window open, and anything that throws.
 //
+// PONDERING reads the same path (issue #10472): when a human window opens,
+// the listeners `onHumanWindow` registered are told its `seq`, and
+// `peekConsultPath` hands them the steps before it — the path from the last
+// consult to the human's decision the Worker is asked to ponder — without
+// taking them: the next consult still takes the whole path.
+//
 // Client-side and never authoritative (ADR 0074): the path only steers which
 // statistics the Bot's own search starts from. One game at a time.
 
@@ -57,6 +63,18 @@ type Path = {
 };
 
 let path: Path | null = null;
+
+/** Told the game and `seq` of each human window that opens (issue #10472). */
+type HumanWindowListener = (gameId: string, seq: number) => void;
+const windowListeners = new Set<HumanWindowListener>();
+
+/** Be told of each human window that opens; the unsubscribe. */
+export function onHumanWindow(listener: HumanWindowListener): () => void {
+    windowListeners.add(listener);
+    return () => {
+        windowListeners.delete(listener);
+    };
+}
 
 /** Begin the path of `gameId`'s Bot seat `botId`. Called on the driver's
  *  mount: the first consult has nothing kept, so the path starts empty. */
@@ -161,7 +179,16 @@ export function noteHumanView(
         p.open = { state: view, seat, calls: [] };
     } catch {
         p.broken = true;
+        return;
     }
+    // Outside the try: a listener's throw is no break of the path.
+    windowListeners.forEach((listener) => {
+        try {
+            listener(gameId, view.seq);
+        } catch {
+            // A lost ponder, never a lost path.
+        }
+    });
 }
 
 /** A mutation submitted from this client — kept when it is the human's. */
@@ -200,6 +227,33 @@ export function noteBotMove(
 export function breakConsultPath(gameId?: string): void {
     const p = gameId === undefined ? path : current(gameId);
     if (p) p.broken = true;
+}
+
+/**
+ * The steps from the last consult to the human window open at `seq`
+ * (issue #10472), without taking them: `null` when the path broke, when the
+ * window open now is not that one (the game moved on), or when a step could
+ * not be named. Never rejects.
+ */
+export async function peekConsultPath(
+    gameId: string,
+    seq: number
+): Promise<ConsultPathStep[] | null> {
+    const p = current(gameId);
+    if (!p || p.broken || p.open?.state.seq !== seq) return null;
+    const steps = p.steps.slice();
+    try {
+        const resolved = await Promise.all(steps);
+        // Re-read after the wait: the path may have broken or moved on.
+        if (current(gameId) !== p || p.broken || p.open?.state.seq !== seq) {
+            return null;
+        }
+        return resolved.every((s): s is ConsultPathStep => s !== null)
+            ? resolved
+            : null;
+    } catch {
+        return null;
+    }
 }
 
 /**

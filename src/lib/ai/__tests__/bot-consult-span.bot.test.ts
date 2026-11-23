@@ -39,6 +39,7 @@ function consult(overrides: Partial<TimedConsult> = {}): TimedConsult {
             iterationsRequested: 1320,
             iterationsCompleted: 50,
             iterationsKept: 150,
+            ponder: { iterations: 900, kept: 120, ms: 21_400.4 },
             elapsedMs: 3300,
             stoppedBy: "time",
             rolloutProbes: 2440,
@@ -65,6 +66,10 @@ describe("consultSpanAttributes", () => {
             "iterations.requested": 1320,
             "iterations.completed": 50,
             "iterations.kept": 150,
+            // Issue #10472 — pondering since the last consult.
+            "ponder.iterations": 900,
+            "ponder.kept": 120,
+            ponderMs: 21_400,
             stoppedBy: "time",
             // 3300 / 50
             msPerIteration: 66,
@@ -82,6 +87,19 @@ describe("consultSpanAttributes", () => {
             "device.cores": "5-8",
             "device.mobile": false,
         });
+    });
+
+    it("leaves pondering out of a consult nothing was pondered for", () => {
+        const search = { ...consult().search! };
+        delete search.ponder;
+        const attributes = consultSpanAttributes(
+            "game1",
+            consult({ search }),
+            DEVICE
+        );
+        expect(attributes).not.toHaveProperty("ponder.iterations");
+        expect(attributes).not.toHaveProperty("ponder.kept");
+        expect(attributes).not.toHaveProperty("ponderMs");
     });
 
     it("names every attribute its allowlist holds, and none outside it", () => {

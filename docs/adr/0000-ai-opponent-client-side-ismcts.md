@@ -9,7 +9,9 @@ the client, but on measured speed — a server search is no faster than a
 desktop browser — not on the unmeasured cost argument below. Amended by
 ADR 0185 (2026-11-22): § 7's budget counts root visits, and a kept tree
 carries across the Bot's consults, so a live decision depends on the game's
-history of consults, not only on its position, seed and clock.
+history of consults, not only on its position, seed and clock; its
+Amendment I (2026-11-23, issue #10472) adds pondering, so a live decision
+also depends on how long the human took.
 
 ## Context
 

@@ -34,6 +34,15 @@
 // the residency version of this graph, so a definition installed since drops
 // it. A respawned Worker starts with none.
 //
+// And it hosts PONDERING (issue #10472, ADR 0185 Amendment I): while the
+// human decides, the page posts a `ponder` and the Worker grows the kept
+// tree in time slices (`./brain-ponder`). Every message but a prime ends the
+// ponder BEFORE it is handled, so a consult waits at most for the slice that
+// was running when it arrived; `ponder-stop` (a hidden page) ends it too.
+// A ponder is chained behind residency like a request — its state names
+// cards the search reads — but its slices run off the chain, so nothing
+// posted after it ever waits for it.
+//
 // A residency FAILURE must not silently swallow the queue either: every
 // request it blocks gets a real `error` response, the same shape #2470 added
 // for a search that throws. A bot that answers "no move" forever is
@@ -53,6 +62,8 @@ import {
     type BrainWorkerMessage,
 } from "./brain-residency";
 import { installShards, residencyVersion } from "../catalogue/definitionShards";
+import { isBrainPonder, isBrainPonderStop } from "@convex/gre/ai/ponder";
+import { createPonderer, PONDER_SLICE_MS } from "./brain-ponder";
 import {
     hintedShardKeys,
     makeResident,
@@ -75,6 +86,14 @@ const keeper: TreeKeeper = {
     kept: null,
     catalogue: () => String(residencyVersion()),
 };
+
+/** Pondering, on the keeper's tree (issue #10472). */
+const ponderer = createPonderer({
+    keeper,
+    defer: (task) => setTimeout(task, 0),
+    now: () => performance.now(),
+    slice: { ms: PONDER_SLICE_MS },
+});
 
 /** Requests, one at a time, in arrival order. */
 let chain: Promise<void> = Promise.resolve();
@@ -104,7 +123,9 @@ let lastFailure: { at: number; cause: unknown } | null = null;
 
 /** Every shard `request` needs resident — or the failure of the last attempt,
  *  while it is cooling down. */
-function resident(request: BrainRequest): Promise<void> {
+function resident(
+    request: Pick<BrainRequest, "state" | "deckKnowledge">
+): Promise<void> {
     if (lastFailure && Date.now() - lastFailure.at < REARM_COOLDOWN_MS) {
         return Promise.reject(lastFailure.cause);
     }
@@ -136,6 +157,25 @@ self.onmessage = (e: MessageEvent<BrainWorkerMessage>) => {
             (cause: unknown) =>
                 console.warn("[AI] manifest prime failed", toBrainError(cause))
         );
+        return;
+    }
+    // Issue #10472 — whatever the page says now, the ponder under way ends
+    // first: a consult must not wait behind it.
+    if (isBrainPonderStop(message)) {
+        ponderer.stop("hidden");
+        return;
+    }
+    ponderer.stop("message");
+    if (isBrainPonder(message)) {
+        // Chained behind residency, like a request; its slices run off the
+        // chain. A residency failure is no consult's: the ponder is lost.
+        chain = chain
+            .then(() => resident(message))
+            .then(
+                () => ponderer.start(message),
+                (cause: unknown) =>
+                    console.warn("[AI] ponder skipped", toBrainError(cause))
+            );
         return;
     }
     if (isBrainCalibrate(message)) {

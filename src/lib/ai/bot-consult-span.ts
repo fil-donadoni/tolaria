@@ -44,6 +44,9 @@ export const CONSULT_SPAN_KEYS = [
     "iterations.requested",
     "iterations.completed",
     "iterations.kept",
+    "ponder.iterations",
+    "ponder.kept",
+    "ponderMs",
     "stoppedBy",
     "msPerIteration",
     "probes",
@@ -188,6 +191,21 @@ export function consultSpanAttributes(
         // Issue #10470 — the visits a kept subtree started this search with.
         if (finite(search.iterationsKept)) {
             raw["iterations.kept"] = search.iterationsKept;
+        }
+        // Issue #10472 — pondering since the last consult: the iterations
+        // grown while the human decided, the visits of this root they grew,
+        // and the time it took. With `device.mobile`, how the phone ruling
+        // of 2026-11-22 gets checked.
+        const ponder = search.ponder;
+        if (
+            ponder &&
+            finite(ponder.iterations) &&
+            finite(ponder.kept) &&
+            finite(ponder.ms)
+        ) {
+            raw["ponder.iterations"] = ponder.iterations;
+            raw["ponder.kept"] = ponder.kept;
+            raw.ponderMs = round(ponder.ms);
         }
         raw.stoppedBy = search.stoppedBy;
         if (finite(search.elapsedMs)) {

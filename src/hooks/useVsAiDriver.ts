@@ -1545,6 +1545,13 @@ export function useVsAiDriver(
                                                             iterationsKept:
                                                                 trace.iterationsKept,
                                                         }),
+                                                  // Issue #10472 — what
+                                                  // pondering grew.
+                                                  ...(trace.ponder
+                                                      ? {
+                                                            ponder: trace.ponder,
+                                                        }
+                                                      : {}),
                                                   elapsedMs: trace.elapsedMs,
                                                   stoppedBy: trace.stoppedBy,
                                                   ...(trace.rolloutProbes ===

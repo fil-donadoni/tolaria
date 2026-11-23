@@ -35,7 +35,8 @@ import { BRAIN_CONSULT_TIMEOUT_MS } from "./consult-timeout";
 import type { DeckKnowledgeBySeat } from "./state-adapter";
 import { handleBrainRequest } from "./brain-request";
 import type { RepetitionHistory } from "@convex/gre/ai/repetition";
-import type { ConsultReuse } from "@convex/gre/ai/treeReuse";
+import type { ConsultPathStep, ConsultReuse } from "@convex/gre/ai/treeReuse";
+import type { BrainPonder, BrainPonderStop } from "@convex/gre/ai/ponder";
 import type {
     BrainOutcome,
     BrainRequest,
@@ -178,6 +179,13 @@ type BrainChannel = {
         reuse?: ConsultReuse
     ) => Promise<BrainResult>;
     calibrate: () => Promise<CalibrationReading | null>;
+    ponder: (
+        state: PublicGameState,
+        gameId: string,
+        steps: ConsultPathStep[],
+        mobile: boolean
+    ) => boolean;
+    stopPondering: () => void;
     dispose: () => void;
 };
 
@@ -200,6 +208,14 @@ function createBrainChannel(): BrainChannel {
     /** Every Manifest entry primed this game, by definition id (issue #5617) —
      *  re-posted to a FRESH Worker, which starts with nothing resident. */
     const primed = new Map<string, DefinitionManifestEntry>();
+    /** The last consult that reached the Worker with a reuse context (issue
+     *  #10472): a ponder grows that consult's tree, for its seat, with its
+     *  knowledge — never a seat or a knowledge of its own. */
+    let pondering: {
+        gameId: string;
+        botId: string;
+        deckKnowledge?: DeckKnowledgeBySeat;
+    } | null = null;
 
     function getWorker(): Worker | null {
         if (typeof Worker === "undefined") return null;
@@ -363,6 +379,9 @@ function createBrainChannel(): BrainChannel {
             // inline path above has no keeper and searches fresh.
             ...(reuse ? { reuse } : {}),
         };
+        pondering = reuse
+            ? { gameId: reuse.gameId, botId, deckKnowledge }
+            : null;
         return new Promise<BrainResult>((resolve) => {
             // A consult ALWAYS settles (issue #2284) — see
             // `BRAIN_CONSULT_TIMEOUT_MS`. A reply that arrives afterwards finds no
@@ -426,7 +445,54 @@ function createBrainChannel(): BrainChannel {
         });
     }
 
+    /** Post a ponder of the human's decision `state` (issue #10472): the
+     *  Bot's own projection there, and the decisions since the last consult.
+     *  Only to a Worker already running, after a consult of the same game
+     *  reached it: pondering never spawns a Worker, never runs in-thread (it
+     *  would spend the UI's frames on the Bot's idle time), and grows only
+     *  the tree a consult kept. Whether it was posted. Never throws. */
+    function ponder(
+        state: PublicGameState,
+        gameId: string,
+        steps: ConsultPathStep[],
+        mobile: boolean
+    ): boolean {
+        const w = worker;
+        if (!w || exhausted || !pondering || pondering.gameId !== gameId) {
+            return false;
+        }
+        const message: BrainPonder = {
+            kind: "ponder",
+            state,
+            botId: pondering.botId,
+            ...(pondering.deckKnowledge
+                ? { deckKnowledge: pondering.deckKnowledge }
+                : {}),
+            reuse: { gameId, steps },
+            mobile,
+        };
+        try {
+            w.postMessage(message);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /** End the ponder under way (a hidden page). Never throws. */
+    function stopPondering(): void {
+        const w = worker;
+        if (!w) return;
+        try {
+            const message: BrainPonderStop = { kind: "ponder-stop" };
+            w.postMessage(message);
+        } catch {
+            // Nothing to stop on a channel that cannot carry a message.
+        }
+    }
+
     function dispose(): void {
+        pondering = null;
         if (worker) {
             worker.onerror = null;
             worker.terminate();
@@ -464,6 +530,8 @@ function createBrainChannel(): BrainChannel {
         prime,
         consult,
         calibrate,
+        ponder,
+        stopPondering,
         dispose,
     };
 }
@@ -659,6 +727,26 @@ export function consultBrain(
  *  Never rejects. */
 export function calibrateBrain(): Promise<CalibrationReading | null> {
     return botBrain.calibrate();
+}
+
+/** Ponder the human's decision (issue #10472, ADR 0185 Amendment I): the
+ *  Worker grows the tree the last consult kept while the human decides, in
+ *  time slices, until the next consult, a hidden page or the node cap.
+ *  `state` is the BOT's projection of the human's decision point; `steps`
+ *  the decisions since the last consult. A no-op (false) without a running
+ *  Worker or a consult of this game to grow from. */
+export function ponderBrain(
+    state: PublicGameState,
+    gameId: string,
+    steps: ConsultPathStep[],
+    mobile: boolean
+): boolean {
+    return botBrain.ponder(state, gameId, steps, mobile);
+}
+
+/** Stop pondering (the page was hidden). Never throws. */
+export function stopPonderingBrain(): void {
+    botBrain.stopPondering();
 }
 
 /** Tear the Brain down (e.g. on leaving a game). Tests may call this too.
