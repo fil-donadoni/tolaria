@@ -781,6 +781,7 @@
         "turn": 5,
         "libraryCount": 20
     },
+    "colour fixing: Manamorphose names green for the green spell it casts": null,
     "combo: activates Splinter Twin on enchanted Deceiver Exarch": {
         "cards": [
             {
@@ -983,6 +984,30 @@
         "turn": 4,
         "landCount": 2,
         "libraryCount": 20
+    },
+    "cost reducer: Ruby Medallion comes down before the red spell it discounts": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 4,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 4
+            },
+            {
+                "name": "Ruby Medallion",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Gray Ogre",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ]
     },
     "cost-modifier pricing: Disenchant takes the Trinisphere taxing the bot's hand of one-drops, not the 2-MV artifact (issue #5363)": {
         "cards": [
@@ -2987,6 +3012,44 @@
         "turn": 5,
         "landCount": 4,
         "libraryCount": 20
+    },
+    "flashback grant: Past in Flames replays a graveyard of burn for lethal": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 6,
+        "landCount": 0,
+        "libraryCount": 20,
+        "life": {
+            "me": 20,
+            "opp": 6
+        },
+        "cards": [
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 6
+            },
+            {
+                "name": "Past in Flames",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "me",
+                "zone": "graveyard"
+            }
+        ]
     },
     "flashback: Lava Dart is flashed back for the last point of life": {
         "phase": "PRECOMBAT_MAIN",
@@ -5583,6 +5646,30 @@
         "turn": 8,
         "landCount": 0,
         "libraryCount": 20
+    },
+    "ritual: Pyretic Ritual makes the mana for the spell it enables": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 4,
+        "landCount": 0,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Pyretic Ritual",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Gray Ogre",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ]
     },
     "rollout probe cut: holds Emperor of Bones' Adapt in main 1 with two identical pump activations enumerated before it": {
         "phase": "PRECOMBAT_MAIN",

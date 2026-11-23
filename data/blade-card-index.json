@@ -997,6 +997,13 @@
             "needsSetup": true
         }
     ],
+    "Past in Flames": [
+        {
+            "label": "flashback grant: Past in Flames replays a graveyard of burn for lethal",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Phantasmal Image": [
         {
             "label": "as-enters copy: casts a clone to copy the opponent's best creature",
@@ -1068,6 +1075,13 @@
             "label": "discard pump: Psychic Frog discards the spare land to win its blocked combat",
             "tier": "must",
             "needsSetup": true
+        }
+    ],
+    "Pyretic Ritual": [
+        {
+            "label": "ritual: Pyretic Ritual makes the mana for the spell it enables",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Pyroclasm": [
@@ -1143,6 +1157,13 @@
             "label": "known top: plays the creature instead when the known top is a blank",
             "tier": "must",
             "needsSetup": true
+        }
+    ],
+    "Ruby Medallion": [
+        {
+            "label": "cost reducer: Ruby Medallion comes down before the red spell it discounts",
+            "tier": "stretch",
+            "needsSetup": false
         }
     ],
     "Samite Pilgrim": [
