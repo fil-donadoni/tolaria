@@ -253,7 +253,7 @@ function delayedTriggerRemoves(
     return departingRefsIn(trigger.effects).some((ref) => {
         // The payload stores a binding without its `$` sigil
         // (`runDelayedTriggerBody` re-adds it at fire time).
-        const captured = trigger.payload[ref.slice(1)] ?? trigger.payload[ref];
+        const captured = trigger.payload[ref.slice(1)];
         return Array.isArray(captured)
             ? captured.includes(body.id)
             : captured === body.id;
@@ -269,7 +269,9 @@ function delayedEndStepDeparture(
     body: CardInstanceState
 ): EndStepDeparture | undefined {
     let departure: EndStepDeparture | undefined;
-    for (const trigger of state.delayedTriggers ?? []) {
+    const triggers = state.delayedTriggers ?? [];
+    for (let i = 0; i < triggers.length; i++) {
+        const trigger = triggers[i];
         const passed = DELAYED_DEPARTURE_PASSED[trigger.timing];
         if (!passed || !delayedTriggerRemoves(trigger, body)) continue;
         const thisTurn =
