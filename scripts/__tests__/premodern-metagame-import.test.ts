@@ -50,12 +50,12 @@ describe("parseMetagameDecks — fail-closed, same shape as Tier 1", () => {
         expect(parseMetagameDecks(file(fixtureDeck())).decks).toHaveLength(1);
     });
 
-    it("refuses a maindeck that is not 60", () => {
+    it("refuses a maindeck under 60 (CR 100.2a)", () => {
         const short = fixtureDeck({
             main: [{ count: 4, name: "Goblin Lackey" }],
         });
         expect(() => parseMetagameDecks(file(short))).toThrow(
-            /fixture is 4 \+ 15, not 60 \+ 15/
+            /fixture is 4 \+ 15, outside the constructed bounds/
         );
     });
 
