@@ -105,6 +105,14 @@ describe("commentCause — the comment posted with a `land-failed` label", () =>
         expect(commentCause(first(/no fixup row/))).toBe("defect");
     });
 
+    it("a red blade robustness audit is the PR's (issue #10633)", () => {
+        expect(
+            commentCause(
+                "**merge queue: `blade-robustness` is red on this PR** — labelled `land-failed`."
+            )
+        ).toBe("defect");
+    });
+
     it("a timed-out queue check is the machine's; other comments label nothing", () => {
         expect(
             commentCause(
