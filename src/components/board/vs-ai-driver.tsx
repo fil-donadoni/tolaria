@@ -4,11 +4,14 @@
 // Board conditionally mounts this only for vs-AI games, so the hook itself stays
 // unconditional inside the component. Beside it, the human half of the
 // consult path (issue #10470): what the human decides between two of the
-// Bot's consults, so the Brain Worker can continue from the tree it kept.
+// Bot's consults, so the Brain Worker can continue from the tree it kept —
+// and pondering (issue #10472): the Worker grows that tree while the human
+// decides.
 
 import type { Id } from "@convex/_generated/dataModel";
 import { useVsAiDriver } from "~/hooks/useVsAiDriver";
 import { useConsultPathCapture } from "~/hooks/useConsultPathCapture";
+import { useBrainPonder } from "~/hooks/useBrainPonder";
 import BotThinkingIndicator from "./bot-thinking-indicator";
 import BotStuckNotice from "./bot-stuck-notice";
 import BotConnectionNotice from "./bot-connection-notice";
@@ -26,6 +29,8 @@ export default function VsAiDriver({
     const { thinking, skipped, subscriptionError, retrySubscription } =
         useVsAiDriver(gameId, botId);
     useConsultPathCapture(gameId, botId, botId ? humanId : null);
+    // Issue #10472 — the Worker ponders the human's decisions.
+    useBrainPonder(gameId, botId);
     return (
         <>
             <BotThinkingIndicator thinking={thinking} />

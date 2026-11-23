@@ -48,6 +48,7 @@ function searched(
         stoppedBy?: "iterations" | "time" | "settled";
         probes?: number;
         kept?: number;
+        ponder?: { iterations: number; kept: number; ms: number };
     } = {}
 ): ConsultSample {
     const {
@@ -57,6 +58,7 @@ function searched(
         stoppedBy = "iterations",
         probes = 1000,
         kept,
+        ponder,
         ...rest
     } = overrides;
     return {
@@ -71,6 +73,7 @@ function searched(
             stoppedBy,
             rolloutProbes: probes,
             ...(kept === undefined ? {} : { iterationsKept: kept }),
+            ...(ponder === undefined ? {} : { ponder }),
         },
         ...rest,
     };
@@ -308,6 +311,7 @@ describe("summarizeBotSearch", () => {
                     elapsedMs: 3300,
                     stoppedBy: "time",
                     kept: 120,
+                    ponder: { iterations: 600, kept: 80, ms: 18_000 },
                 }),
                 searched({
                     requested: 1320,
@@ -339,6 +343,10 @@ describe("summarizeBotSearch", () => {
             // Issue #10470 — the one search that continued a kept subtree.
             "iterations.kept": 120,
             "iterations.ratio": 0.467,
+            // Issue #10472 — the one search a ponder fed.
+            "ponder.iterations": 600,
+            "ponder.kept": 80,
+            "ponderMs.p50": 18_000,
             "stopped.iterations": 1,
             "stopped.time": 1,
             "stopped.settled": 1,
@@ -450,7 +458,13 @@ describe("summarizeBotSearch", () => {
         const stops = ["iterations", "time", "settled"] as const;
         const samples = outcomes.flatMap((outcome) =>
             stops.map((stoppedBy) =>
-                searched({ outcome, stoppedBy, via: "inline", idleMs: 4000 })
+                searched({
+                    outcome,
+                    stoppedBy,
+                    via: "inline",
+                    idleMs: 4000,
+                    ponder: { iterations: 300, kept: 40, ms: 9000 },
+                })
             )
         );
         const report = summarizeBotSearch("game1", samples, DEVICE, {

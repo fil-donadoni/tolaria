@@ -40,7 +40,9 @@ also depends on what it kept. Read the decision's DecisionTrace first (the
 Debug panel's box, the `[AI] decision` console line): `iterationsKept: 0` is a
 fresh tree, and the spec at the same seed and budget reproduces it;
 `iterationsKept > 0` is not, and a fresh replay answers the position without
-those visits — the decision the blade asserts, not the one the game made.
+those visits — the decision the blade asserts, not the one the game made. Pondering (ADR 0185 Amendment I) adds to the kept visits while the human
+decides: `ponder.kept` says how many of them it grew, so such a decision also
+depended on how long the human took.
 
 ## When the Bot passed instead of faulting
 
@@ -80,12 +82,14 @@ message:"bot search" gameId:<gameId>
 | ------------------------------------------------------------------ | ---------------------------------------------------------------- |
 | `iterations.ratio`                                                 | completed / requested over the game's searches: 1 = as tested    |
 | `iterations.kept`                                                  | root visits the searches started from, kept from the last tree   |
+| `ponder.iterations` / `ponder.kept`                                | iterations pondered while the human decided, visits they grew    |
+| `ponderMs.p50`                                                     | pondering time before a consult that followed one                |
 | `stopped.time` / `.iterations` / `.settled`                        | how many searches the clock ended, against the other two stops   |
 | `msPerIteration.p50` / `.p90`                                      | the device's speed over every board the game reached             |
 | `msPerIteration.first`                                             | the device's speed at the game's first search: an early board    |
 | `probesPerIteration.p50`                                           | what the boards cost: candidates the rollout tried per iteration |
 | `msPerProbe.p50`                                                   | what the machine made of them: time per candidate tried          |
-| `idleMs.p50`                                                       | the time the Worker sat idle between two consults                |
+| `idleMs.p50`                                                       | the time between two consults (the Worker ponders through it)    |
 | `calibration.first` / `.last` / `.min` (+ `...Units`)              | the machine itself: fixed work on a fixed board, ms per unit     |
 | `calibration.count` / `.skipped`                                   | readings taken, and due readings skipped after a slow search     |
 | `searchMs.*` against `consultMs.*`                                 | the gap is what stood before the search (Worker start, a queue)  |
@@ -154,6 +158,7 @@ durations, the turn and step, the device class.
 | `idleMs`                                           | the time since the previous consult's verdict         |
 | `iterations.requested` / `.completed`, `stoppedBy` | what the search asked for, got, and what stopped it   |
 | `iterations.kept`                                  | the visits a kept subtree started this search with    |
+| `ponder.iterations` / `ponder.kept` / `ponderMs`   | pondered since the last consult, visits kept, time    |
 | `msPerIteration`                                   | this decision's speed                                 |
 | `probes` / `msPerProbe`                            | candidates the rollout tried, and the time per one    |
 | `turn` / `phase` / `permanents`                    | where the game was, and how many permanents stood     |
