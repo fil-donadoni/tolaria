@@ -195,7 +195,9 @@ function fold(profile) {
                 const at = stackFrames.indexOf(script);
                 const caller = stackFrames
                     .slice(at + 1)
-                    .find((f) => strings[frames[f][fs.location]].includes(" ("));
+                    .find((f) =>
+                        strings[frames[f][fs.location]].includes(" (")
+                    );
                 const name =
                     caller === undefined
                         ? "(none)"
@@ -242,7 +244,10 @@ function fold(profile) {
         nextCallers: [...nextCallers.entries()]
             .sort((a, b) => b[1] - a[1])
             .slice(0, 40)
-            .map(([name, cpu]) => ({ name, share: Number(((100 * cpu) / total).toFixed(2)) })),
+            .map(([name, cpu]) => ({
+                name,
+                share: Number(((100 * cpu) / total).toFixed(2)),
+            })),
     };
 }
 
