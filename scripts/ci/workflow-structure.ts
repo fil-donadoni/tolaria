@@ -105,8 +105,7 @@
  *     queue's entry reads (a required green, a refused red), bar
  *     `base-health` and `trusted-author`, owes a rule labelling a
  *     `ready-to-land` PR with that check red `land-failed`: a red entry
- *     check keeps the PR out of the queue, so no dequeue ever names it
- *     (issue #10633).
+ *     check keeps the PR out of the queue, so no dequeue ever names it.
  *   - `queue-refusal-hold` — a `pull_request_rules` entry that adds
  *     `land-failed` without the same top-level hold exemption, or no entry
  *     labelling `queue:held` a PR whose advisory lane is red while
