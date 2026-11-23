@@ -387,7 +387,7 @@ export function bladeScenarioSeeds(scenario: BladeScenario): number[] {
 }
 
 /** `scenario` narrowed to ONE of its declared seeds (issue #10619), so a test
- *  can run an entry one case per seed (issue #5477's split): each case pays a
+ *  can run an entry one case per seed: each case pays a
  *  single search, never the whole seed loop, and a contended gate cannot time
  *  it out. Throws on a seed the entry does not declare — a split never runs a
  *  seed the suite does not. */

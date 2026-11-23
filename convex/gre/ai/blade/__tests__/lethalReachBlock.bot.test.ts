@@ -5,7 +5,7 @@
  * proof-of-failure (the runner's budget cut to the field's ~12 root visits)
  * finishes in seconds rather than a blade shard.
  *
- * One case per seed (issue #10619, after issue #5477): the whole seed loop in
+ * One case per seed: the whole seed loop in
  * one `it` cost ~21 s idle and timed out at 60 s under a contended health gate.
  */
 

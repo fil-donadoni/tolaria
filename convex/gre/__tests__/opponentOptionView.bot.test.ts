@@ -31,7 +31,7 @@ function entry(label: string): BladeScenario {
     return found;
 }
 
-// One case per seed (issue #10619, after issue #5477): the Oracle-first seed
+// One case per seed: the Oracle-first seed
 // loop in one `it` cost ~13 s idle and timed out at 60 s under a contended
 // health gate.
 describe("opponent option-set statistics (issue #8939)", () => {

@@ -39,7 +39,7 @@ function entry(label: string): BladeScenario {
     return scenario;
 }
 
-/** One search per case (issue #10619, after issue #5477): a whole seed loop
+/** One search per case: a whole seed loop
  *  in one `it` timed out at 60 s under a contended health gate. */
 function searchAtSeed(label: string, seed: number) {
     return runBladeScenario(bladeScenarioAtSeed(entry(label), seed));

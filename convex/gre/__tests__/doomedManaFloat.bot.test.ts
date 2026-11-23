@@ -364,9 +364,8 @@ describe("doomed mana source float — search application (CR 605.3b / 106.4)", 
 const SAGA_LABEL =
     "saga: Urza's Saga floats its mana before chapter III's search sacrifices it";
 
-/** Every declared seed of each entry, one row per (entry, seed) — issue
- *  #10619, after issue #5477: a whole seed loop in one `it` timed out at 60 s
- *  under a contended health gate. */
+/** Every declared seed of each entry, one row per (entry, seed): a whole seed
+ *  loop in one `it` timed out at 60 s under a contended health gate. */
 function seedRows(labels: string[]): [string, number][] {
     return labels.flatMap((label) =>
         bladeScenarioSeeds(entry(label)).map((seed): [string, number] => [
