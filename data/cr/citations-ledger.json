@@ -46278,6 +46278,7 @@
         {"id":"107.3","line":"// (CR 107.3, e.g. Fireball) or is a \"pay X life\" additional cost","sites":1,"status":"baseline"},
         {"id":"614","line":"* honors CR 614 discard replacements (Library of Leng) and emits CARD_DISCARDED","sites":1,"status":"baseline"},
         {"id":"615.1a","line":"// CR 609.7a / 615.1a — all damage (or all combat damage) the","sites":1,"status":"confirmed","ruleHash":"85f21e0fd6114de7"},
+        {"id":"603.7a","line":"note: \"Issue #9846, CR 603.7a. Sneak Attack's delayed trigger sacrifices the Craw Wurm at the next end step, so the counters on it are gone tonight, exactly as on Ball Lightning in the row above. `scheduledEndStepDeparture` reads the delayed trigger's captured body; before it did, the Bot grew the Wurm on every seed.\",","sites":1,"status":"confirmed","ruleHash":"403031757c3b747b"},
         {"id":"606.2","line":"// CR 606.2 / 606.5 — `-2` removes two loyalty counters.","sites":1,"status":"baseline"},
         {"id":"111.1","line":"/** CR 111.1 — the noun \"token\": a permanent that is a token, not a card","sites":1,"status":"confirmed","ruleHash":"e6535d9013ecffa3"},
         {"id":"106.1b","line":"* colour (CR 202.2, 106.1b). Shared leaf between the definition-level and","sites":1,"status":"baseline"},
