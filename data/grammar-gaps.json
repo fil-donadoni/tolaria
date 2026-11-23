@@ -136,6 +136,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature [haste,trample] › sacrifice",
+            "issue": 10623
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature [haste] › lookDistribute",
             "issue": 4145
         },
@@ -331,6 +336,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Instant target:Creature [storm] › dealDamage",
+            "issue": 10624
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Instant target:Creature [storm] › pump",
             "issue": 4289
         },
@@ -388,6 +398,11 @@
             "kind": "bot",
             "key": "never-chosen › Instant target:player › (no Ops)",
             "issue": 4827
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant target:player › dealDamage+forEach",
+            "issue": 10625
         },
         {
             "kind": "bot",
