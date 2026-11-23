@@ -34,7 +34,7 @@
 // the residency version of this graph, so a definition installed since drops
 // it. A respawned Worker starts with none.
 //
-// And it hosts PONDERING (issue #10472, ADR 0185 Amendment I): while the
+// And it hosts PONDERING (ADR 0185 Amendment I): while the
 // human decides, the page posts a `ponder` and the Worker grows the kept
 // tree in time slices (`./brain-ponder`). Every message but a prime ends the
 // ponder BEFORE it is handled, so a consult waits at most for the slice that
