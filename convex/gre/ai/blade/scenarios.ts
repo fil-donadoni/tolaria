@@ -32414,6 +32414,287 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #9696, CR 702.138a. Ornithopter, a land and an instant already cover four card types: the escape exiles three cards and leaves the rest of the graveyard to grow the Nethergoyf.",
     },
+    // Mono-Red Combo, the modern metagame's level-2 rows
+    // (`docs/agents/modern-metagame-bot-level-2.md`, issue #9700). Grapeshot's
+    // pair predates the list (issue #3026); the other four rows are below.
+    {
+        label: "flashback grant: Past in Flames replays a graveyard of burn for lethal",
+        pairOf: {
+            anchor: "flashback grant: Past in Flames stays in hand over an empty graveyard",
+            discriminant: {
+                kind: "card",
+                detail: "two Lightning Bolts in the graveyard for the grant to replay",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+            // Six life: the two Bolts the grant hands flashback are exactly
+            // lethal, and Past in Flames' four mana leaves exactly their two.
+            life: { me: 20, opp: 6 },
+            cards: [
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 6,
+                },
+                { name: "Past in Flames", owner: "me", zone: "hand" },
+                { name: "Hill Giant", owner: "me", zone: "hand" },
+                { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
+                { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Past in Flames" }] },
+        note: "Issue #9700, CR 702.34a. Past in Flames grants each instant and sorcery in the graveyard flashback at its own mana cost: four mana for the grant, one for each Bolt, six to the face. The Hill Giant beside it is the fair play the grant must beat.",
+    },
+    {
+        label: "flashback grant: Past in Flames stays in hand over an empty graveyard",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "two Lightning Bolts in the graveyard for the grant to replay",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 6 },
+            cards: [
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 6,
+                },
+                { name: "Past in Flames", owner: "me", zone: "hand" },
+                { name: "Hill Giant", owner: "me", zone: "hand" },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Past in Flames" }],
+        },
+        note: "Issue #9700, CR 702.34a. The same board with nothing in the graveyard: the grant reaches no card, and the four mana it spends is the Hill Giant's.",
+    },
+    {
+        label: "ritual: Pyretic Ritual makes the mana for the spell it enables",
+        pairOf: {
+            anchor: "ritual: Pyretic Ritual stays in hand with nothing to spend on",
+            discriminant: {
+                kind: "card",
+                detail: "Gray Ogre, a spell the ritual's mana casts this turn",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                // Two Mountains: the Ritual's {1}{R} becomes {R}{R}{R}, the
+                // Ogre's {2}{R}; neither land count alone casts the Ogre.
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Pyretic Ritual", owner: "me", zone: "hand" },
+                { name: "Gray Ogre", owner: "me", zone: "hand" },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Pyretic Ritual" }] },
+        note: "Issue #9700, CR 106.4. Two lands, a three-mana spell: the Ritual nets one mana and the Ogre comes down a turn early.",
+    },
+    {
+        label: "ritual: Pyretic Ritual stays in hand with nothing to spend on",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "Gray Ogre, a spell the ritual's mana casts this turn",
+            },
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Pyretic Ritual", owner: "me", zone: "hand" },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Pyretic Ritual" }],
+        },
+        note: "Issue #9700, CR 106.4. The same lands with the Ritual alone: its mana empties from the pool at the end of the step unspent, so the cast throws the card away.",
+    },
+    {
+        label: "cost reducer: Ruby Medallion comes down before the red spell it discounts",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                // Four Mountains: Medallion (2) then the Ogre at {1}{R} casts
+                // both; the Ogre first at {2}{R} leaves one, short of {2}.
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 4,
+                },
+                { name: "Ruby Medallion", owner: "me", zone: "hand" },
+                { name: "Gray Ogre", owner: "me", zone: "hand" },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        beyondBudget: {
+            cause: "valuation",
+            note: "Issue #10645. The leaf reads Medallion then Ogre above Ogre first (307.2 vs 301.9 at the next upkeep), but the one-ply after the Medallion cast prices the Ogre it now casts at nothing (oneplyReward 0.618 vs 0.654), and the root blends that in. Measured at 400, 4000 and 12000 iterations: the Ogre first every time, the gap never flips. Promote to `must` in the PR that prices the castable follow-up.",
+        },
+        expect: { moves: [{ kind: "cast-spell", card: "Ruby Medallion" }] },
+        note: "Issue #9700, CR 601.2f. Medallion first casts both cards this turn; the Ogre first casts one.",
+    },
+    {
+        label: "cost reducer: never casts the red spell at full cost before Ruby Medallion",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                // Five Mountains: Medallion (2) then the Giant at {2}{R};
+                // the Giant first at {3}{R} leaves one, short of {2}.
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 5,
+                },
+                { name: "Ruby Medallion", owner: "me", zone: "hand" },
+                { name: "Hill Giant", owner: "me", zone: "hand" },
+                { name: "Gray Ogre", owner: "me", zone: "hand" },
+            ],
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        beyondBudget: {
+            cause: "valuation",
+            note: "Issue #10645, the same class as its twin: the one-ply after the Medallion cast reads no castable follow-up, so the Giant at full cost wins at 400, 4000 and 12000 iterations. Promote to `must` with its twin.",
+        },
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Hill Giant" }],
+        },
+        note: "Issue #9700, CR 601.2f. The red spell at full cost first strands the Medallion in hand for a turn.",
+    },
+    {
+        label: "colour fixing: Manamorphose names green for the green spell it casts",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                // Two Mountains pay Manamorphose; its two mana are all that is
+                // left, and Keen-Eyed Curator costs {G}{G}.
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Manamorphose", owner: "me", zone: "hand" },
+                { name: "Keen-Eyed Curator", owner: "me", zone: "hand" },
+            ],
+        },
+        setup: [
+            { kind: "cast", card: "Manamorphose" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "resolution-choice", option: "G" }] },
+        note: "Issue #9700, CR 106.1a. The first of the two colour picks: any colour but green leaves the {G}{G} Curator uncastable.",
+    },
+    {
+        label: "colour fixing: Manamorphose never names a colour its next spell cannot use",
+        classification: { kind: "absolute" },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+            cards: [
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Manamorphose", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+            ],
+        },
+        // The first pick already went to red, which pays the Bears' {1}: the
+        // second is the one that must be green.
+        setup: [
+            { kind: "cast", card: "Manamorphose" },
+            { kind: "resolve-top" },
+            { kind: "choose-option", option: "R" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "resolution-choice", option: "W" },
+                { kind: "resolution-choice", option: "U" },
+                { kind: "resolution-choice", option: "B" },
+                { kind: "resolution-choice", option: "R" },
+            ],
+        },
+        note: "Issue #9700, CR 106.1a. The second colour pick after a red one: only green casts the Grizzly Bears this turn.",
+    },
     // Fear of Missing Out's enter trigger (issue #9957): a mandatory own-hand
     // discard, CR 701.9b. No search node opens on it — the entry pins the one
     // answer the search's playout and the live client share,
