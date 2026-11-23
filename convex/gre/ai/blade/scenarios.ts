@@ -32192,7 +32192,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     name: "Scrubland",
                     owner: "opp",
                     zone: "battlefield",
-                    count: 4,
+                    count: 5,
                 },
                 { name: "Serra Angel", owner: "opp", zone: "hand", count: 2 },
                 {
@@ -32204,16 +32204,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         bot: "me",
-        budget: { iterations: 400 },
-        // Seed 2 re-seeded to 6 (issue #9961): the refit the Emperor of Bones
-        // verdicts oblige moves it to `pass` alone — 1 of 20 seeds, 0 of 20 at
-        // the committed weights, a noise pin rather than a valuation.
-        seeds: [0xb1ade, 1, 6, 3, 4],
+        budget: { iterations: 800 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
             moves: [{ kind: "cast-spell", card: "Blood Moon" }],
         },
-        note: "Issue #9696, CR 305.7. Four Scrublands and a hand of Serra Angels: under Blood Moon each land taps for {R} only and the Angels' {W}{W} is out of reach. The Bot's Mountains are basic, so its Hill Giant stays castable.",
+        note: "Issue #9696, CR 305.7. Five Scrublands and a hand of Serra Angels: without Blood Moon the opponent casts a {3}{W}{W} Angel next turn; under it each land taps for {R} only and the Angels' {W}{W} is out of reach. The Bot's Mountains are basic, so its Hill Giant stays castable. Issue #10449: with four Scrublands the Angel was out of reach either way, so Blood Moon bought nothing and won by rollout order (seed 2 had been re-seeded to 6 for it, issue #9961); the fifth land makes the cast worth a creature, and 800 iterations settle seed 0xb1ade on mean reward.",
     },
     {
         label: "nonbasic hate: Blood Moon never strands the Bot's own hand",
