@@ -599,6 +599,7 @@
         {"id":"118.9","line":"// CR 601.3 / 305.9 / 118.9 — the cross-player grant:","sites":1,"status":"baseline"},
         {"id":"712.21d","line":"// CR 712.21d — the redirect moved BOTH cards; a partner owned by","sites":1,"status":"confirmed","ruleHash":"2c0b34c135f202d7"},
         {"id":"116.2a","line":"// CR 305.9 / 116.2a (issue #1689) — Ragavan's oracle says \"you may CAST","sites":1,"status":"baseline"},
+        {"id":"704.5a","line":"// Still a loss: below every open leaf (CR 704.5a).","sites":1,"status":"confirmed","ruleHash":"4045c0ac98d43686"},
         {"id":"601.2b","line":"// CR 601.2b / 107.3a — the caster names X at announcement.","sites":1,"status":"confirmed","ruleHash":"b29d06932bab0594"},
         {"id":"704.5","line":"// Check SBA after combat damage (CR 704.5)","sites":1,"status":"baseline"},
         {"id":"707.2","line":"// ends a continuous effect already applying to the permanent (CR 708.2, 707.2,","sites":1,"status":"baseline"},

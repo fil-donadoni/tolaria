@@ -236,7 +236,16 @@ describe("rollout(…, since) — a sooner win outranks a later one (issue #3376
         expect(later.margin).toBe(now.margin);
     });
 
-    it("a loss is untouched by the clock", () => {
-        expect(leafAt("me", clockOf(4))).toEqual(leafAt("me"));
+    // Issue #10609 — the gentler mirror: a loss later outranks a loss now.
+    it("a loss in the root's turn scores the plain leaf; a loss a turn later scores higher, still a loss", () => {
+        const plain = leafAt("me");
+        const now = leafAt("me", clockOf(5));
+        const later = leafAt("me", clockOf(4));
+        expect(now).toEqual(plain);
+        expect(later.reward).toBeGreaterThan(now.reward);
+        // Still a loss: below every open leaf (CR 704.5a).
+        expect(later.reward).toBeLessThan(DEFAULT_EVAL_WEIGHTS.terminalBand);
+        // The tie-break margin stays pure material.
+        expect(later.margin).toBe(now.margin);
     });
 });
