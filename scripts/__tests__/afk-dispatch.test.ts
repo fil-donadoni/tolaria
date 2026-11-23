@@ -9,6 +9,11 @@ import {
     agedRepairNotice,
     budgetReading,
     failureStreak,
+    HOST_STREAK_MAX_READS,
+    hostStreaks,
+    quarantineLine,
+    quarantineToNotify,
+    UNKNOWN_HOST,
     holdAdmitsRepairs,
     holdFor,
     redHoldOf,
@@ -147,7 +152,9 @@ function facts(
     ).map((c) => ({ issue: c.issue, state: c.verdict.state, pr: c.pr }));
 }
 
-const NO_STREAK: FailureStreak = { runs: [], notify: false };
+/** One host's streak as the dispatcher's per-host reading (issue #10632):
+ *  the only online host, so its quarantine is the whole loop's hold. */
+const onHw = (s: FailureStreak): Partial<HoldInput> => ({ streaks: { hw: s } });
 
 function holdInput(over: Partial<HoldInput> = {}): HoldInput {
     return {
@@ -155,7 +162,8 @@ function holdInput(over: Partial<HoldInput> = {}): HoldInput {
         passWorkflowActive: true,
         healthError: null,
         missingRecords: 0,
-        streak: NO_STREAK,
+        streaks: {},
+        onlineHosts: ["hw"],
         red: null,
         usageLimitResetAt: null,
         budget: { budget: 10_000, maxPct: 80, hours: 5 },
@@ -285,7 +293,7 @@ describe("afk-dispatch failure streak (issue #5649)", () => {
         const s = failureStreak(runs, []);
         expect(s.runs.map((r) => r.id)).toEqual([3, 2, 1]);
         expect(s.notify).toBe(true);
-        expect(holdFor(holdInput({ streak: s }))).toMatchObject({
+        expect(holdFor(holdInput(onHw(s)))).toMatchObject({
             kind: "failure-streak",
             notify: true,
         });
@@ -346,7 +354,7 @@ describe("afk-dispatch failure streak (issue #5649)", () => {
         });
         const s = failureStreak(runs, [ack]);
         expect(s.runs).toHaveLength(0);
-        expect(holdFor(holdInput({ streak: s }))).toBeNull();
+        expect(holdFor(holdInput(onHw(s)))).toBeNull();
     });
 
     describe("runs lost with their runner (issue #8315)", () => {
@@ -359,7 +367,7 @@ describe("afk-dispatch failure streak (issue #5649)", () => {
             const runs = [failed(1, 30), failed(2, 20), failed(3, 10)];
             const s = failureStreak(runs, [], lostIds(1, 2, 3));
             expect(s.runs).toHaveLength(0);
-            expect(holdFor(holdInput({ streak: s }))).toBeNull();
+            expect(holdFor(holdInput(onHw(s)))).toBeNull();
             const slots = passSlots(
                 [runner("mbp-pass-1", "mbp")],
                 "mbp-pass-1",
@@ -387,7 +395,7 @@ describe("afk-dispatch failure streak (issue #5649)", () => {
             ];
             const s = failureStreak(runs, [], lostIds(3));
             expect(s.runs.map((r) => r.id)).toEqual([4, 2, 1]);
-            expect(holdFor(holdInput({ streak: s }))).toMatchObject({
+            expect(holdFor(holdInput(onHw(s)))).toMatchObject({
                 kind: "failure-streak",
             });
         });
@@ -401,9 +409,7 @@ describe("afk-dispatch failure streak (issue #5649)", () => {
             ];
             const s = failureStreak(runs, [], lostIds(2));
             expect(s.runs).toHaveLength(3);
-            expect(holdFor(holdInput({ streak: s }))?.kind).toBe(
-                "failure-streak"
-            );
+            expect(holdFor(holdInput(onHw(s)))?.kind).toBe("failure-streak");
         });
 
         it("a failed run whose jobs cannot be read counts as failed", () => {
@@ -538,6 +544,166 @@ describe("afk-dispatch aged repair picks (issue #5957)", () => {
                 NOW
             ).notify
         ).toBe(false);
+    });
+});
+
+describe("a failure streak quarantines its host, never the loop (issue #10632)", () => {
+    // The 2026-11-20 shape: `claude` logged out on one machine, every pass
+    // routed there exits 1 in 2 s, the other machine's passes succeed in
+    // between. The global streak paused the loop for three days.
+    const at = (id: number, minutesAgo: number, conclusion: string) =>
+        passRun(id, 100 + id, {
+            conclusion,
+            updatedAt: iso(minutesAgo),
+            createdAt: iso(minutesAgo + 1),
+        });
+    const runs = [
+        at(1, 60, "failure"),
+        at(2, 55, "success"),
+        at(3, 40, "failure"),
+        at(4, 30, "failure"),
+        at(6, 10, "failure"),
+    ];
+    const hostById: Record<number, string> = {
+        1: "hw",
+        2: "mbp",
+        3: "hw",
+        4: "hw",
+        6: "hw",
+    };
+    const hostOf = (r: WorkflowRun) => hostById[r.id] ?? null;
+    const never = () => false;
+
+    it("the logged-out host is quarantined and the healthy one is not", () => {
+        // The global reading would hold: three failures since the last success.
+        expect(failureStreak(runs, []).runs).toHaveLength(3);
+        const s = hostStreaks(runs, [], never, hostOf, ["hw", "mbp"]);
+        expect(s.hw.runs.map((r) => r.id)).toEqual([6, 4, 3, 1]);
+        expect(s.mbp).toBeUndefined();
+        expect(
+            holdFor(holdInput({ streaks: s, onlineHosts: ["hw", "mbp"] }))
+        ).toBeNull();
+        expect(quarantineLine(s)).toMatch(/^quarantined: 1 pass host\(s\)/);
+    });
+
+    it("holds once every online host is quarantined", () => {
+        const s = hostStreaks(runs, [], never, hostOf, ["hw", "mbp"]);
+        expect(
+            holdFor(holdInput({ streaks: s, onlineHosts: ["hw"] }))
+        ).toMatchObject({ kind: "failure-streak", notify: true });
+        const both = hostStreaks(
+            [
+                ...runs.slice(0, 4),
+                at(7, 25, "failure"),
+                at(8, 15, "failure"),
+                at(9, 5, "failure"),
+            ],
+            [],
+            never,
+            (r) => hostById[r.id] ?? "mbp",
+            ["hw", "mbp"]
+        );
+        expect(
+            holdFor(holdInput({ streaks: both, onlineHosts: ["hw", "mbp"] }))
+                ?.kind
+        ).toBe("failure-streak");
+    });
+
+    it("failures on runners that cannot be read hold everything (fail closed)", () => {
+        const s = hostStreaks(runs, [], never, () => null, ["hw", "mbp"]);
+        expect(Object.keys(s)).toEqual([UNKNOWN_HOST]);
+        expect(
+            holdFor(holdInput({ streaks: s, onlineHosts: ["hw", "mbp"] }))?.kind
+        ).toBe("failure-streak");
+    });
+
+    it("the quarantine mails once: a failed dispatcher run after it silences it", () => {
+        const s = hostStreaks(runs, [], never, hostOf, ["hw", "mbp"]);
+        expect(quarantineToNotify(s)).toEqual(["hw"]);
+        const emailed = run(70, "afk-dispatch", {
+            conclusion: "failure",
+            createdAt: iso(9),
+            updatedAt: iso(8),
+        });
+        expect(
+            quarantineToNotify(
+                hostStreaks(runs, [emailed], never, hostOf, ["hw", "mbp"])
+            )
+        ).toEqual([]);
+    });
+
+    it("the owner's ack lifts every quarantine", () => {
+        const ack = run(71, `afk-dispatch (${ACK_MARKER})`, {
+            createdAt: iso(5),
+        });
+        expect(hostStreaks(runs, [ack], never, hostOf, ["hw", "mbp"])).toEqual(
+            {}
+        );
+    });
+
+    it("reads a host only until every known host is closed, and never past the bound", () => {
+        const asked: number[] = [];
+        const tracking = (r: WorkflowRun) => (asked.push(r.id), hostOf(r));
+        const closedBoth = [...runs, at(10, 2, "success")];
+        hostById[10] = "hw";
+        hostStreaks(closedBoth, [], never, tracking, ["hw", "mbp"]);
+        // Newest first: 10 closes hw; 6, 4, 3 are hw's, read and passed
+        // over; 2 closes mbp — the walk stops before run 1.
+        expect(asked).toEqual([10, 6, 4, 3, 2]);
+        const many = Array.from({ length: 100 }, (_, i) =>
+            at(200 + i, 500 - i, "failure")
+        );
+        let reads = 0;
+        hostStreaks(many, [], never, () => (reads++, "hw"), ["hw", "idle"]);
+        expect(reads).toBe(HOST_STREAK_MAX_READS);
+    });
+
+    it("a quarantined host offers no slot, is not online, and pins every dispatch", () => {
+        const rows = [
+            runner("hw-pass-1", "hw"),
+            runner("hw-pass-2", "hw"),
+            runner("mbp-pass-1", "mbp"),
+            runner("mbp-pass-2", "mbp"),
+        ];
+        expect(passSlots(rows, null, []).pinned).toBeUndefined();
+        const slots = passSlots(rows, null, [], ["hw"]);
+        expect(slots).toEqual({
+            free: ["mbp", "mbp"],
+            online: ["mbp"],
+            pinned: true,
+        });
+        const labels: Record<number, string[]> = {
+            1: ["ready-for-agent"],
+            7: ["ready-for-agent", "in-progress"],
+        };
+        const plan = planDispatch(
+            pick({
+                issues: queue(labels),
+                config: CONFIG,
+                port: port(labels),
+                trust: TRUST,
+                provenance: OWNED([1, 7]),
+                claims: facts(
+                    [7],
+                    [passRun(1, 7, { conclusion: "failure" })],
+                    ["feat/issue-7"],
+                    []
+                ),
+            }),
+            slots,
+            // Issue 7's dead pass ran on the quarantined host.
+            () => "hw"
+        );
+        expect(plan.dispatch).toMatchObject([
+            { issue: 7, resume: true, host: "mbp" },
+            { issue: 1, resume: false, host: "mbp" },
+        ]);
+        // A repair under a RED hold is pinned too.
+        const repairs = planRepairsUnderHold(
+            passSlots(rows, null, [], ["hw"]),
+            [{ number: 40, pr: 400, branch: "fix/issue-40", model: "sonnet" }]
+        );
+        expect(repairs.dispatch).toMatchObject([{ issue: 40, host: "mbp" }]);
     });
 });
 

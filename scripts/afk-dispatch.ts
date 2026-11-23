@@ -79,7 +79,10 @@ import {
     budgetReading,
     isLostRun,
     type JobStep,
-    failureStreak,
+    hostStreaks,
+    quarantinedHosts,
+    quarantineLine,
+    quarantineToNotify,
     holdAdmitsRepairs,
     holdFor,
     redHoldOf,
@@ -505,14 +508,16 @@ function dispatchPass(d: Dispatch): void {
 function repairsUnderHold(
     slug: string,
     passRuns: readonly WorkflowRun[],
-    now: number
+    now: number,
+    quarantined: readonly string[]
 ): boolean {
     let plan: DispatchPlan;
     try {
         const slots = passSlots(
             runners(slug),
             process.env.RUNNER_NAME ?? null,
-            passRuns
+            passRuns,
+            quarantined
         );
         if (slots.free.length === 0) {
             say("repairs under hold: no free pass runner");
@@ -604,6 +609,32 @@ async function main(): Promise<void> {
         const jobs = runJobSteps(r.id);
         return jobs !== null && isLostRun(jobs);
     };
+    // The streak is per host (issue #10632): the runners name the hosts, and
+    // each counted run's host is one jobs read, cached. Unreadable runners →
+    // no known host: the walk charges every run it cannot place to
+    // `UNKNOWN_HOST` and reads to the ack, failing closed.
+    let runnerRows: RunnerRow[] | null = null;
+    try {
+        runnerRows = runners(slug);
+    } catch (err) {
+        say(
+            `runners unreadable (${(err as Error).message.split("\n")[0]}) — the failure streak cannot tell hosts apart`
+        );
+    }
+    const onlineHosts = runnerRows
+        ? passSlots(runnerRows, null, []).online
+        : [];
+    const runHost = new Map<number, string | null>();
+    const hostOfPass = (r: WorkflowRun): string | null => {
+        if (runnerRows === null) return null;
+        if (!runHost.has(r.id)) runHost.set(r.id, hostOfRun(slug, r.id));
+        return runHost.get(r.id) ?? null;
+    };
+    const streaks = active
+        ? hostStreaks(passRuns, dispatchRuns, lostRun, hostOfPass, onlineHosts)
+        : {};
+    const quarantined = quarantinedHosts(streaks);
+    const quarantine = quarantineLine(streaks);
     const lineage = readVerdictLineage(() => verdictStore(primaryCheckout()));
     const red = redHoldOf(lineage);
     const local = active
@@ -621,7 +652,8 @@ async function main(): Promise<void> {
         passWorkflowActive: active,
         healthError: lineage.error ?? null,
         missingRecords: missing,
-        streak: failureStreak(passRuns, dispatchRuns, lostRun),
+        streaks,
+        onlineHosts,
         red,
         usageLimitResetAt: usageLimitResetAt(records, now),
         budget,
@@ -717,21 +749,32 @@ async function main(): Promise<void> {
         if (repairsAdmitted && !DRY_RUN) {
             // Repair passes under a RED (issue #6652): a repair works on its
             // own PR's branch, never the base. New issues and resumes stay held.
-            if (repairsUnderHold(slug, passRuns, now)) fail = true;
+            if (repairsUnderHold(slug, passRuns, now, quarantined)) fail = true;
         }
         if (fail) process.exit(1);
         return;
     }
 
-    const slots = passSlots(runners(slug), selfRunner, passRuns);
+    if (quarantine) say(quarantine);
+    // A new quarantine mails the owner once (issue #10632): the run fails at
+    // its end, after the healthy hosts' dispatches.
+    const notifyQuarantine = quarantineToNotify(streaks).length > 0;
+    const slots = passSlots(
+        runnerRows ?? runners(slug),
+        selfRunner,
+        passRuns,
+        quarantined
+    );
     if (slots.free.length === 0) {
         say("nothing to do: no free pass runner");
         summary([
             "nothing to do: no free `pass` runner",
             "",
+            ...(quarantine ? [quarantine, ""] : []),
             ...(lostLine ? [lostLine, ""] : []),
             budgetLine,
         ]);
+        if (notifyQuarantine) process.exit(1);
         return;
     }
 
@@ -821,6 +864,7 @@ async function main(): Promise<void> {
     const lines = [
         // Counts and issue numbers only: host names stay off a public log.
         `free pass slots: ${slots.free.length}`,
+        ...(quarantine ? [quarantine] : []),
         depthLine,
         ...(admission.kind === "open"
             ? []
@@ -904,7 +948,11 @@ async function main(): Promise<void> {
         ...done.map((l) => `- ${l}`),
         ...(lostLine ? ["", lostLine] : []),
     ]);
-    if (failures > 0) process.exit(1);
+    if (notifyQuarantine)
+        say(
+            `failing this run once so GitHub emails the owner about the quarantined host(s); acknowledge with "${ACK_MARKER}" (ack_failures=true)`
+        );
+    if (failures > 0 || notifyQuarantine) process.exit(1);
 }
 
 if (import.meta.main) {
