@@ -69,9 +69,9 @@ interface AllowlistEntry {
 const PRINT_READER_ALLOWLIST: readonly AllowlistEntry[] = [
     {
         file: "serialize.ts",
-        count: 3,
+        count: 6,
         role: "serialisation",
-        reason: "the last-known copiable record's cosmetic print is packed and unpacked verbatim.",
+        reason: "the last-known copiable record's cosmetic print and each library card's chosen printing (issue #10461) are packed and unpacked verbatim.",
     },
     {
         file: "setup.ts",
