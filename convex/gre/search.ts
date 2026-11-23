@@ -1702,8 +1702,9 @@ function rolloutEpsilonFor(
 const FORCED_PASS: Move = { kind: "pass" };
 
 /** Called once per PROBING rollout ply (the greedy branch below) with the
- *  candidates `selectRolloutMove` is handed and whether they hold an attack or
- *  block declaration (issue #10631, `ai/rolloutWidth.ts`). A measurement seam,
+ *  ply's candidate pool (before ADR 0184's probe cut narrows what
+ *  `selectRolloutMove` is handed) and whether it holds an attack or block
+ *  declaration (issue #10631, `ai/rolloutWidth.ts`). A measurement seam,
  *  never an input: `null` in production, installed only by the blade's
  *  authoring tools around one synchronous search. */
 export type RolloutPlyRecorder = (
