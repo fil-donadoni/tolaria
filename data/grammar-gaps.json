@@ -456,6 +456,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Instant › forEach+pump",
+            "issue": 10674
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Instant › forEach+tapUntap",
             "issue": 4293
         },
