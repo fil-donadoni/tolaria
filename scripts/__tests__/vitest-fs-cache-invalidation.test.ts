@@ -1,4 +1,11 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+    afterAll,
+    beforeAll,
+    describe,
+    expect,
+    it,
+    type TestContext,
+} from "vitest";
 import { spawnSync } from "node:child_process";
 import {
     mkdtempSync,
@@ -10,7 +17,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { VITEST_FS_CACHE_ENV } from "../lib/vitest-fs-cache";
+import { VITEST_FS_CACHE_ENV, childInfraDeath } from "../lib/vitest-fs-cache";
 
 /**
  * vitest's filesystem module cache never serves a stale transform (issue
@@ -31,6 +38,8 @@ const VITEST = join(ROOT, "node_modules", ".bin", "vitest");
 const FS_CACHE_LIB = join(ROOT, "scripts", "lib", "vitest-fs-cache.ts");
 
 let dir: string;
+/** Set when the cold priming run died of the machine: every case skips. */
+let primingInfra: string | null = null;
 
 const FILES = {
     "lib.js": "export const v = 1;\n",
@@ -85,6 +94,7 @@ function run(commit = "aaa"): {
     status: number | null;
     out: string;
     transformed: string[];
+    infra: string | null;
 } {
     const log = join(dir, "transforms.log");
     rmSync(log, { force: true });
@@ -110,12 +120,31 @@ function run(commit = "aaa"): {
     } catch {
         /* nothing transformed */
     }
-    return { status: r.status, out: `${r.stdout}${r.stderr}`, transformed };
+    const out = `${r.stdout}${r.stderr}`;
+    return {
+        status: r.status,
+        out,
+        transformed,
+        infra: childInfraDeath(r.status, out),
+    };
+}
+
+/**
+ * `run`, with the gate's INFRA contract (exit 77, issue #10656): a child that
+ * died of the machine proved nothing, so it is retried once and then the case
+ * SKIPS — never a pass, never a red cache assertion. A numeric exit is a
+ * verdict and is returned as is.
+ */
+function runOrSkip(ctx: TestContext, commit = "aaa") {
+    let r = run(commit);
+    if (r.infra) r = run(commit);
+    if (r.infra) ctx.skip(r.infra);
+    return r;
 }
 
 /** A clean warm run: green, and served entirely from the cache. */
-function expectWarmGreen() {
-    const r = run();
+function expectWarmGreen(ctx: TestContext) {
+    const r = runOrSkip(ctx);
     expect(r.status, r.out).toBe(0);
     expect(r.transformed).toEqual([]);
 }
@@ -127,7 +156,10 @@ describe("vitest fs module cache — invalidation against a warm cache", () => {
         dir = realpathSync(mkdtempSync(join(tmpdir(), "tolaria-fs-cache-")));
         writeFileSync(join(dir, "vitest.config.ts"), config());
         restore();
-        const cold = run();
+        let cold = run();
+        if (cold.infra) cold = run();
+        primingInfra = cold.infra;
+        if (primingInfra) return;
         expect(cold.status, cold.out).toBe(0);
         expect(cold.transformed.length).toBeGreaterThan(0);
         expect(readdirSync(join(dir, "cache")).length).toBeGreaterThan(0);
@@ -142,15 +174,17 @@ describe("vitest fs module cache — invalidation against a warm cache", () => {
         });
     });
 
-    it("is warm: an unchanged second run transforms nothing", () => {
-        expectWarmGreen();
+    it("is warm: an unchanged second run transforms nothing", (ctx) => {
+        if (primingInfra) ctx.skip(primingInfra);
+        expectWarmGreen(ctx);
     }, 60_000);
 
-    it("an edit to a directly imported lib reds the run", () => {
-        expectWarmGreen();
+    it("an edit to a directly imported lib reds the run", (ctx) => {
+        if (primingInfra) ctx.skip(primingInfra);
+        expectWarmGreen(ctx);
         write("lib.js", "export const v = 2;\n");
         try {
-            const r = run();
+            const r = runOrSkip(ctx);
             expect(r.status, r.out).not.toBe(0);
             expect(r.out).toMatch(/expected 2 to be 1/);
         } finally {
@@ -158,11 +192,12 @@ describe("vitest fs module cache — invalidation against a warm cache", () => {
         }
     }, 120_000);
 
-    it("an edit to a module reached only transitively reds the run", () => {
-        expectWarmGreen();
+    it("an edit to a module reached only transitively reds the run", (ctx) => {
+        if (primingInfra) ctx.skip(primingInfra);
+        expectWarmGreen(ctx);
         write("deep.js", "export const deep = 2;\n");
         try {
-            const r = run();
+            const r = runOrSkip(ctx);
             expect(r.status, r.out).not.toBe(0);
             expect(r.out).toMatch(/expected 2 to be 1/);
         } finally {
@@ -170,8 +205,9 @@ describe("vitest fs module cache — invalidation against a warm cache", () => {
         }
     }, 120_000);
 
-    it("an edit to the test file itself reds the run", () => {
-        expectWarmGreen();
+    it("an edit to the test file itself reds the run", (ctx) => {
+        if (primingInfra) ctx.skip(primingInfra);
+        expectWarmGreen(ctx);
         write(
             "fx.test.js",
             FILES["fx.test.js"].replace(
@@ -180,7 +216,7 @@ describe("vitest fs module cache — invalidation against a warm cache", () => {
             )
         );
         try {
-            const r = run();
+            const r = runOrSkip(ctx);
             expect(r.status, r.out).not.toBe(0);
             expect(r.out).toMatch(/expected 1 to be 3/);
         } finally {
@@ -188,9 +224,31 @@ describe("vitest fs module cache — invalidation against a warm cache", () => {
         }
     }, 120_000);
 
-    it("a new commit is seen fresh: a define value is never baked into a cached transform", () => {
-        expectWarmGreen();
-        const r = run("bbb");
+    it("a new commit is seen fresh: a define value is never baked into a cached transform", (ctx) => {
+        if (primingInfra) ctx.skip(primingInfra);
+        expectWarmGreen(ctx);
+        const r = runOrSkip(ctx, "bbb");
         expect(r.status, r.out).toBe(0);
     }, 120_000);
+});
+
+describe("childInfraDeath — a child that died of the machine proved nothing", () => {
+    const green = "Test Files  1 passed (1)\n";
+    const abort =
+        "memory allocation of 128 bytes failed\nmemory allocation of 64 bytes failed\n";
+
+    it("a signal-killed child (status null) is infra, whatever it printed", () => {
+        expect(childInfraDeath(null, green)).toMatch(/signal/);
+    });
+
+    it("a native allocation abort is infra", () => {
+        expect(childInfraDeath(134, green + abort)).toMatch(/allocation/);
+    });
+
+    it("a clean exit and a real red verdict are never infra", () => {
+        expect(childInfraDeath(0, green)).toBeNull();
+        expect(
+            childInfraDeath(1, "AssertionError: expected 2 to be 1\n")
+        ).toBeNull();
+    });
 });
