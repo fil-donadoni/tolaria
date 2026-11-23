@@ -38,6 +38,7 @@ function consult(overrides: Partial<TimedConsult> = {}): TimedConsult {
         search: {
             iterationsRequested: 1320,
             iterationsCompleted: 50,
+            iterationsKept: 150,
             elapsedMs: 3300,
             stoppedBy: "time",
             rolloutProbes: 2440,
@@ -63,6 +64,7 @@ describe("consultSpanAttributes", () => {
             searchMs: 3300,
             "iterations.requested": 1320,
             "iterations.completed": 50,
+            "iterations.kept": 150,
             stoppedBy: "time",
             // 3300 / 50
             msPerIteration: 66,

@@ -623,6 +623,7 @@ export default function Board({
                                                     <VsAiDriver
                                                         gameId={gameId}
                                                         botId={botId}
+                                                        humanId={playerId}
                                                     />
                                                 )}
                                                 <TurnControlNotice

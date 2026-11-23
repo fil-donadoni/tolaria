@@ -200,8 +200,12 @@ vi.mock("convex/react", async () => {
         useQuery: resolve,
         useQueries: mockUseQueries(resolve),
         useMutation,
+        // Issue #10470 — the consult path's mutation tap: one stable client,
+        // which no test here submits through.
+        useConvex: () => convexClient,
     };
 });
+const convexClient = {};
 
 // The Brain Worker, stubbed. `brainResult` is what a consult resolves with;
 // `{ move: null }` is NOT hypothetical — `brain-client.ts`'s `worker.onerror`
@@ -703,7 +707,13 @@ describe("bot liveness invariant (issue #2284)", () => {
         // version until the version itself changes. Every mutation here resolves
         // successfully and the published state never moves.
         publish(priorityBoard());
-        render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
+        render(
+            createElement(VsAiDriver, {
+                gameId: GAME,
+                botId: BOT,
+                humanId: HUMAN,
+            })
+        );
         await runToHandOff();
 
         // It did not go quiet after the first accepted-but-inert submission: it
@@ -962,7 +972,13 @@ describe("bot liveness invariant (issue #2284)", () => {
         // `reportStall` by itself, carrying the driver's telemetry.
         mutationsThrow = true;
         publish(targetBoard(), 4);
-        render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
+        render(
+            createElement(VsAiDriver, {
+                gameId: GAME,
+                botId: BOT,
+                humanId: HUMAN,
+            })
+        );
         // One round per rung: a settled submission re-renders from a microtask
         // at the END of the previous round, so a single long advance would
         // leave the freshly-scheduled timer unfired.
@@ -1002,7 +1018,13 @@ describe("bot liveness invariant (issue #2284)", () => {
         reportStallImpl = () =>
             Promise.resolve({ advanced: false, reason: "stale-seq" });
         publish(targetBoard());
-        render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
+        render(
+            createElement(VsAiDriver, {
+                gameId: GAME,
+                botId: BOT,
+                humanId: HUMAN,
+            })
+        );
         await runToHandOff();
 
         expect(calls.map((c) => c.ref)).toContain("reportStall");
@@ -1044,7 +1066,13 @@ describe("bot liveness invariant (issue #2284)", () => {
             return result;
         };
         publish(board, 3);
-        render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
+        render(
+            createElement(VsAiDriver, {
+                gameId: GAME,
+                botId: BOT,
+                humanId: HUMAN,
+            })
+        );
         await runToHandOff();
 
         expect(calls.filter((c) => c.ref === "reportStall")).toHaveLength(1);
@@ -1075,7 +1103,13 @@ describe("a throw in the driver's decision path (issue #8999)", () => {
         stubDecideThrows = true;
         publish(priorityBoard(), 5);
 
-        render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
+        render(
+            createElement(VsAiDriver, {
+                gameId: GAME,
+                botId: BOT,
+                humanId: HUMAN,
+            })
+        );
         // Well inside the watchdog interval: a throw is a known defect, like
         // `unanswered`, never a slow think.
         await advance(50);
@@ -1102,7 +1136,13 @@ describe("a throw in the driver's decision path (issue #8999)", () => {
         throwRunnerOnce = true;
         publish(attackManaTaxBoard(), 3);
 
-        render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
+        render(
+            createElement(VsAiDriver, {
+                gameId: GAME,
+                botId: BOT,
+                humanId: HUMAN,
+            })
+        );
         await advance(50);
 
         expect(calls.map((c) => c.ref)).toContain("cancelAttackTax");
@@ -1121,7 +1161,13 @@ describe("a throw in the driver's decision path (issue #8999)", () => {
         stubViewThrows = true;
         publish(priorityBoard(), 9);
 
-        render(createElement(VsAiDriver, { gameId: GAME, botId: BOT }));
+        render(
+            createElement(VsAiDriver, {
+                gameId: GAME,
+                botId: BOT,
+                humanId: HUMAN,
+            })
+        );
         await advance(50);
 
         const handOff = calls.find((c) => c.ref === "reportStall");

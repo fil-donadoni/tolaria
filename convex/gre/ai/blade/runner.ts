@@ -466,7 +466,7 @@ export function runBladeScenario(
  *  answer" would then pass for the wrong reason. */
 export function bladeDeckKnowledge(
     state: GameState,
-    scenario: BladeScenario
+    scenario: Pick<BladeScenario, "deckKnowledge">
 ): DeckKnowledgeBySeat | undefined {
     if (!scenario.deckKnowledge?.length) return undefined;
     return scenario.deckKnowledge.map(({ seat, cards }) => ({

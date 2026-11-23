@@ -34,6 +34,14 @@ filed outside a game, or with diagnostics declined) — nothing to lower.
 
 It works on user-button rows too (`/admin/bug-reports` shows their id).
 
+**A decision on a kept tree does not replay from its board** (ADR 0185). The
+Brain Worker continues from the tree its last search grew, so a live decision
+also depends on what it kept. Read the decision's DecisionTrace first (the
+Debug panel's box, the `[AI] decision` console line): `iterationsKept: 0` is a
+fresh tree, and the spec at the same seed and budget reproduces it;
+`iterationsKept > 0` is not, and a fresh replay answers the position without
+those visits — the decision the blade asserts, not the one the game made.
+
 ## When the Bot passed instead of faulting
 
 A Brain consult that gives no answer (`search-error`, `worker-error`,
@@ -71,6 +79,7 @@ message:"bot search" gameId:<gameId>
 | Attribute                                                          | Reads as                                                         |
 | ------------------------------------------------------------------ | ---------------------------------------------------------------- |
 | `iterations.ratio`                                                 | completed / requested over the game's searches: 1 = as tested    |
+| `iterations.kept`                                                  | root visits the searches started from, kept from the last tree   |
 | `stopped.time` / `.iterations` / `.settled`                        | how many searches the clock ended, against the other two stops   |
 | `msPerIteration.p50` / `.p90`                                      | the device's speed over every board the game reached             |
 | `msPerIteration.first`                                             | the device's speed at the game's first search: an early board    |
@@ -144,6 +153,7 @@ durations, the turn and step, the device class.
 | `consultMs` / `searchMs`                           | posting to verdict, and the search inside it          |
 | `idleMs`                                           | the time since the previous consult's verdict         |
 | `iterations.requested` / `.completed`, `stoppedBy` | what the search asked for, got, and what stopped it   |
+| `iterations.kept`                                  | the visits a kept subtree started this search with    |
 | `msPerIteration`                                   | this decision's speed                                 |
 | `probes` / `msPerProbe`                            | candidates the rollout tried, and the time per one    |
 | `turn` / `phase` / `permanents`                    | where the game was, and how many permanents stood     |

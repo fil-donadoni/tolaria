@@ -32,6 +32,11 @@ import { actedSeatFor } from "../expectedInput";
 import { recordRepetition, type RepetitionHistory } from "./repetition";
 import { projectedToGameState } from "./stateAdapter";
 import type { DeckKnowledgeBySeat } from "../deckKnowledge";
+import {
+    continueKeptTree,
+    type ConsultReuse,
+    type KeptTree,
+} from "./treeReuse";
 
 export type BrainRequest = {
     id: number;
@@ -55,6 +60,21 @@ export type BrainRequest = {
      *  repeated. Plain data, so it survives `postMessage`. Omitted, nothing is
      *  remembered and the search is exactly what it was before. */
     repetition?: RepetitionHistory;
+    /** Tree reuse (issue #10470, ADR 0185): the game this consult belongs to
+     *  and the decisions played since the last one, as tree keys. Omitted —
+     *  the server judge, every test, a caller that cannot say — and the
+     *  search grows a fresh tree and keeps nothing, exactly as before. */
+    reuse?: ConsultReuse;
+};
+
+/** Where the tree of the last search lives between two consults (issue
+ *  #10470): the Brain Worker's own module state. `catalogue` names what the
+ *  Worker has resident now — a tree grown against other definitions is
+ *  dropped. The handler takes the kept tree out on EVERY request, so a
+ *  tree is never offered twice and a failed consult keeps nothing. */
+export type TreeKeeper = {
+    kept: KeptTree | null;
+    catalogue: () => string;
 };
 
 /** A search failure, lowered to plain data for the `postMessage` hop. */
@@ -100,10 +120,15 @@ export type BrainOutcome =
  *  only alternative is to die and take every pending consult with it. */
 export function handleBrainRequest(
     req: BrainRequest,
-    search: typeof searchWithTrace = searchWithTrace
+    search: typeof searchWithTrace = searchWithTrace,
+    keeper?: TreeKeeper
 ): BrainResponse {
     const { id, state, botId, budget, deckKnowledge, repetition } = req;
     const seed = req.seed ?? (Math.random() * 0x100000000) | 0;
+    // Taken out before anything can throw: whatever happens below, the tree
+    // the last consult kept is offered to this one only.
+    const previous = keeper?.kept ?? null;
+    if (keeper) keeper.kept = null;
     try {
         // `botId` is the seat this projection was made for, so the wire's
         // `library.known[]` can be restored as `knownTo` and survive
@@ -121,7 +146,24 @@ export function handleBrainRequest(
                 trace: null,
             };
         }
-        const { move, trace } = search(
+        // Issue #10470 — continue from the subtree the game moved into, or
+        // from a fresh root when the kept tree is dropped.
+        const reuse = keeper && req.reuse ? req.reuse : undefined;
+        const catalogue = reuse && keeper ? keeper.catalogue() : "";
+        const continued =
+            reuse && previous
+                ? continueKeptTree(
+                      previous,
+                      { gameId: reuse.gameId, botId, catalogue },
+                      reuse.steps,
+                      state
+                  )
+                : null;
+        const {
+            move,
+            trace,
+            root: grown,
+        } = search(
             root,
             botId,
             budget ?? DEFAULT_BUDGET,
@@ -132,8 +174,24 @@ export function handleBrainRequest(
             // it to one and not the other is how the two would drift into
             // disagreeing about which seat the search is allowed to know.
             deckKnowledge,
-            repetition
+            repetition,
+            reuse
+                ? {
+                      ...(continued && "node" in continued
+                          ? { kept: continued.node }
+                          : {}),
+                  }
+                : undefined
         );
+        if (keeper && reuse && grown && move) {
+            keeper.kept = {
+                gameId: reuse.gameId,
+                botId,
+                catalogue,
+                root: grown,
+                projection: state,
+            };
+        }
         return {
             id,
             move,

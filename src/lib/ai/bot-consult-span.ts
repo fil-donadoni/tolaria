@@ -43,6 +43,7 @@ export const CONSULT_SPAN_KEYS = [
     "searchMs",
     "iterations.requested",
     "iterations.completed",
+    "iterations.kept",
     "stoppedBy",
     "msPerIteration",
     "probes",
@@ -184,6 +185,10 @@ export function consultSpanAttributes(
     if (search) {
         raw["iterations.requested"] = search.iterationsRequested;
         raw["iterations.completed"] = search.iterationsCompleted;
+        // Issue #10470 — the visits a kept subtree started this search with.
+        if (finite(search.iterationsKept)) {
+            raw["iterations.kept"] = search.iterationsKept;
+        }
         raw.stoppedBy = search.stoppedBy;
         if (finite(search.elapsedMs)) {
             raw.searchMs = round(search.elapsedMs);

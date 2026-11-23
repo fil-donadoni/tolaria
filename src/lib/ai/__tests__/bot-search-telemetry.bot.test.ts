@@ -47,6 +47,7 @@ function searched(
         elapsedMs?: number;
         stoppedBy?: "iterations" | "time" | "settled";
         probes?: number;
+        kept?: number;
     } = {}
 ): ConsultSample {
     const {
@@ -55,6 +56,7 @@ function searched(
         elapsedMs = 500,
         stoppedBy = "iterations",
         probes = 1000,
+        kept,
         ...rest
     } = overrides;
     return {
@@ -68,6 +70,7 @@ function searched(
             elapsedMs,
             stoppedBy,
             rolloutProbes: probes,
+            ...(kept === undefined ? {} : { iterationsKept: kept }),
         },
         ...rest,
     };
@@ -304,6 +307,7 @@ describe("summarizeBotSearch", () => {
                     completed: 330,
                     elapsedMs: 3300,
                     stoppedBy: "time",
+                    kept: 120,
                 }),
                 searched({
                     requested: 1320,
@@ -332,6 +336,8 @@ describe("summarizeBotSearch", () => {
             searches: 3,
             "iterations.requested": 3960,
             "iterations.completed": 1850,
+            // Issue #10470 — the one search that continued a kept subtree.
+            "iterations.kept": 120,
             "iterations.ratio": 0.467,
             "stopped.iterations": 1,
             "stopped.time": 1,

@@ -50795,6 +50795,7 @@
         {"id":"701.65a","line":"* against. `\"exile\"` is airbend's (CR 701.65a). */","sites":1,"status":"confirmed","ruleHash":"c9760df5d7a0e5b0"},
         {"id":"603.8","line":"/** Scans all battlefield permanents for state-triggered abilities (CR 603.8)","sites":1,"status":"baseline"},
         {"id":"614.1a","line":"// half-effect). A move INTO a graveyard is not recorded — a CR 614.1a","sites":1,"status":"confirmed","ruleHash":"ca07410f64122ff2"},
+        {"id":"504.1","line":"note: \"The path crosses the Bot's own draw (CR 504.1): a card it did not see at the old root is in its hand now. The tree pools every world's draw, so the kept node would fuse strategies across draws the Bot can tell apart (note § 3): dropped. The Ritual is the real choice that grows a tree at the upkeep; the Bot declines it in both decisions.\",","sites":1,"status":"confirmed","ruleHash":"a1ff1ea4fc916c95"},
         {"id":"611.3d","line":"it(\"keeps animating until end of turn after it LEAVES the battlefield (CR 611.3d)\", () => {","sites":1,"status":"confirmed","ruleHash":"a2621ab6fc62d30d"},
         {"id":"508.1b","line":"// Issue #9500 — CR 508.1b: an attacker is announced against one player or","sites":1,"status":"confirmed","ruleHash":"5a23d5d1a5455ed1"},
         {"id":"712","line":"* its BACK face, under its OWNER's control (CR 712 / 400.7, issue","sites":1,"status":"baseline"},

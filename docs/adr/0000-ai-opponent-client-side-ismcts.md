@@ -6,7 +6,10 @@ Date: 2026-06-13
 
 Accepted (2026-06-13). Amended by ADR 0183 (2026-11-16): the Brain stays on
 the client, but on measured speed — a server search is no faster than a
-desktop browser — not on the unmeasured cost argument below.
+desktop browser — not on the unmeasured cost argument below. Amended by
+ADR 0185 (2026-11-22): § 7's budget counts root visits, and a kept tree
+carries across the Bot's consults, so a live decision depends on the game's
+history of consults, not only on its position, seed and clock.
 
 ## Context
 
@@ -87,6 +90,7 @@ Concretely:
    auto-passes immediately using the existing auto-pass mechanism.
 7. **Difficulty = search budget.** `search(state, budget)` is parametric from
    day one; difficulty presets scale iterations/time. One engine, one knob.
+   (ADR 0185: the iterations are ROOT VISITS, a kept subtree's included.)
 
 ## Consequences
 
