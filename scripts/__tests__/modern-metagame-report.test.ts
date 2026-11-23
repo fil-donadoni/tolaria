@@ -86,7 +86,7 @@ describe("modern metagame report rows", () => {
         );
     });
 
-    it("refuses a list that is not 60 + 15", () => {
+    it("refuses a main deck under 60 (CR 100.2a)", () => {
         const text = JSON.stringify({
             source: { supplier: "x", format: "MO", note: "" },
             decks: [
@@ -98,6 +98,8 @@ describe("modern metagame report rows", () => {
                 },
             ],
         });
-        expect(() => parseMetagameDecks(text)).toThrow(/not 60 \+ 15/);
+        expect(() => parseMetagameDecks(text)).toThrow(
+            /59 \+ 0, outside the constructed bounds/
+        );
     });
 });

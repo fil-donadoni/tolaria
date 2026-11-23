@@ -494,10 +494,11 @@ describe("seed:preset over the Modern lists (issue #8453)", () => {
             LOCK,
             POOL
         );
-        // Ten modern-metagame archetypes + the owner's ten further lists of
-        // data/modern-preset-decks.json, none refused for a shared slug.
+        // Ten modern-metagame archetypes + the owner's eleven further lists of
+        // data/modern-preset-decks.json (Tron joined with issue #10608), none
+        // refused for a shared slug.
         const modern = all.filter((d) => d.source.format === "modern");
-        expect(modern).toHaveLength(20);
+        expect(modern).toHaveLength(21);
         expect(modern.filter((d) => d.refusal !== undefined)).toEqual([]);
     });
 });
