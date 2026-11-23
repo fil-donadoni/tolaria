@@ -129,8 +129,82 @@ const ROLLOUT_HOOK_PATCHES = [
     ],
 ];
 
-/** A plugin applying `patches` to `search.ts`, each exactly once. */
-function searchPatchPlugin(name, patches) {
+/**
+ * The leaf-parallel prototype's seam (issue #10450), patched into
+ * `convex/gre/search.ts` AT BUNDLE TIME like the two seams above: one tree,
+ * its rollouts handed to `globalThis.__benchLeaf` (`leaf-parallel.mjs`).
+ *
+ *   - the two rollout sites (`puctDescend`'s and `iterate`'s expansion) call
+ *     `__benchLeaf(path, world, botId, rng, weights, since)` when one is
+ *     installed: it may roll out at once, or put a virtual loss on `path`,
+ *     dispatch the rollout and backpropagate it later;
+ *   - `iterate` reports its start to `__benchIterStart(rootState, botId,
+ *     deckKnowledge, opponentModel)` and determinizes from
+ *     `__benchWorldRng(rng)` when one is set: a world drawn from its own
+ *     seed, so a helper can draw the same world again;
+ *   - the three moves the descent applies are reported to
+ *     `__benchTrail(pid, move)`: the path a helper replays on that world;
+ *   - after the iteration loop, `__benchDrain(stoppedBy)` backpropagates or
+ *     drops what is still in flight and returns the number dropped, which
+ *     leaves the completed count;
+ *   - the module's own `rollout`, `backpropagate`, `applyMoveInSearch`,
+ *     `advanceToDecision`, `determinize` and `makeRng` are left on
+ *     `globalThis.__benchSearchApi` for the driver and the helpers.
+ *
+ * With no global installed the patched bundle searches byte-identically to an
+ * unpatched one. Each replacement must match its stated count (once when
+ * none is stated).
+ */
+const LEAF_HOOK_PATCHES = [
+    [
+        "    backpropagate(path, rollout(world, botId, rng, weights, since), botId);\n    return true;\n",
+        "    if (globalThis.__benchLeaf) {\n" +
+            "        globalThis.__benchLeaf(path, world, botId, rng, weights, since);\n" +
+            "        return true;\n" +
+            "    }\n" +
+            "    backpropagate(path, rollout(world, botId, rng, weights, since), botId);\n" +
+            "    return true;\n",
+    ],
+    [
+        "            backpropagate(\n                path,\n                rollout(world, botId, rng, weights, since),\n                botId\n            );\n            return;\n",
+        "            if (globalThis.__benchLeaf) {\n" +
+            "                globalThis.__benchLeaf(path, world, botId, rng, weights, since);\n" +
+            "                return;\n" +
+            "            }\n" +
+            "            backpropagate(\n                path,\n                rollout(world, botId, rng, weights, since),\n                botId\n            );\n            return;\n",
+    ],
+    [
+        "    const world = determinize(\n        rootState,\n        botId,\n        rng,\n",
+        "    globalThis.__benchIterStart?.(rootState, botId, deckKnowledge, opponentModel);\n" +
+            "    const world = determinize(\n        rootState,\n        botId,\n" +
+            "        globalThis.__benchWorldRng ? globalThis.__benchWorldRng(rng) : rng,\n",
+    ],
+    [
+        "applyMoveInSearch(world, pid, bestKeyed!.move);",
+        "globalThis.__benchTrail?.(pid, bestKeyed!.move);\n" +
+            "    applyMoveInSearch(world, pid, bestKeyed!.move);",
+        2,
+    ],
+    [
+        "applyMoveInSearch(world, pid, pick.move);",
+        "globalThis.__benchTrail?.(pid, pick.move);\n" +
+            "            applyMoveInSearch(world, pid, pick.move);",
+    ],
+    [
+        "    // Read here, before the root pick below probes candidates of its own.\n",
+        "    i -= globalThis.__benchDrain?.(stoppedBy) ?? 0;\n" +
+            "    // Read here, before the root pick below probes candidates of its own.\n",
+    ],
+];
+
+/** Appended to `search.ts` under the leaf seam: the module's own functions,
+ *  for the driver and the helper Workers. */
+const LEAF_API =
+    "\nglobalThis.__benchSearchApi = { rollout, backpropagate, applyMoveInSearch, advanceToDecision, determinize, makeRng };\n";
+
+/** A plugin applying `patches` to `search.ts`, each exactly as many times as
+ *  its third element says (once when it has none); `append` goes at the end. */
+function searchPatchPlugin(name, patches, append = "") {
     return {
         name,
         setup(b) {
@@ -138,16 +212,16 @@ function searchPatchPlugin(name, patches) {
                 { filter: /convex[\\/]gre[\\/]search\.ts$/ },
                 async (args) => {
                     let source = await readFile(args.path, "utf8");
-                    for (const [from, to] of patches) {
+                    for (const [from, to, expected = 1] of patches) {
                         const count = source.split(from).length - 1;
-                        if (count !== 1) {
+                        if (count !== expected) {
                             throw new Error(
-                                `${name}: expected one ${JSON.stringify(from)} in search.ts, found ${count}`
+                                `${name}: expected ${expected} ${JSON.stringify(from)} in search.ts, found ${count}`
                             );
                         }
-                        source = source.replace(from, to);
+                        source = source.split(from).join(to);
                     }
-                    return { contents: source, loader: "ts" };
+                    return { contents: source + append, loader: "ts" };
                 }
             );
         },
@@ -156,13 +230,14 @@ function searchPatchPlugin(name, patches) {
 
 /** Bundle `entry` (an `entry.mjs`) into the single script `outfile`.
  *  `rootHook` adds the root-parallel seam above (issue #10135),
- *  `rolloutHook` the rollout-policy seam (issue #10134); not both. */
+ *  `rolloutHook` the rollout-policy seam (issue #10134), `leafHook` the
+ *  leaf-parallel seam (issue #10450); one of them at most. */
 export async function bundleBench(
     entry,
     outfile,
-    { rootHook = false, rolloutHook = false } = {}
+    { rootHook = false, rolloutHook = false, leafHook = false } = {}
 ) {
-    if (rootHook && rolloutHook) {
+    if ([rootHook, rolloutHook, leafHook].filter(Boolean).length > 1) {
         throw new Error("bundleBench: one search.ts seam per bundle");
     }
     await build({
@@ -181,6 +256,8 @@ export async function bundleBench(
             ? [searchPatchPlugin("root hook", ROOT_HOOK_PATCHES)]
             : rolloutHook
               ? [searchPatchPlugin("rollout hook", ROLLOUT_HOOK_PATCHES)]
-              : [],
+              : leafHook
+                ? [searchPatchPlugin("leaf hook", LEAF_HOOK_PATCHES, LEAF_API)]
+                : [],
     });
 }
