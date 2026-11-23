@@ -4,7 +4,7 @@
         "grammarVersion": "v0",
         "compilerHash": "sha256:440d2fce0f492ea93032ab0013e9bf5ab3fe9f70dfe6524f03f4a8adfbe09846",
         "registryHash": "sha256:fa20dcdf1e2bc78f19b0a250ebdc2d499da951341baabba8c5bac189abc45a9e",
-        "botHash": "sha256:5c974704ccddb7a473990b140e26ceec206ff9af663f56923b292a8415f2f3cb",
+        "botHash": "sha256:9a255db265c060c02b02f6374a8cf815b7b1956da9472e1e249e905ded8b5799",
         "poolHash": "sha256:81d0b644ec8341d814d37ddb2f5974b9fbb163c201bfe27f77d1aa1c7510aa14",
         "corpus": {
             "source": "https://api.scryfall.com/bulk-data/oracle-cards",
@@ -29068,6 +29068,7 @@
         {"key":"never-chosen › Sorcery › choice+libraryLook+moveZone","outcome":"ignored","cards":5},
         {"key":"position-unmodelled › Instant target:spell","outcome":"ignored","cards":5},
         {"key":"never-chosen › Creature › addMana","outcome":"ignored","cards":4},
+        {"key":"never-chosen › Creature [haste,trample] › sacrifice","outcome":"ignored","cards":3},
         {"key":"never-chosen › Instant › addMana","outcome":"ignored","cards":3},
         {"key":"never-chosen › Sorcery › addMana","outcome":"ignored","cards":3},
         {"key":"never-chosen › Sorcery › destroy+forEach","outcome":"ignored","cards":3},
@@ -29090,7 +29091,6 @@
         {"key":"never-chosen › Creature [haste,lifelink,trample] › sacrifice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature [haste,trample] › delayedTrigger+exile+exileOnLeave+grantAbility+moveZone+sacrifice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature [haste,trample] › draw+sacrifice","outcome":"ignored","cards":1},
-        {"key":"never-chosen › Creature [haste,trample] › sacrifice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › addMana+optionChoice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › choice+libraryLook+moveZone+regenerate","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › counters","outcome":"ignored","cards":1},
@@ -29104,7 +29104,9 @@
         {"key":"never-chosen › Creature › if+mayPay+pump+sacrifice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › revealUntilMatch","outcome":"ignored","cards":1},
         {"key":"never-chosen › Enchantment › (no Ops)","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Instant target:Creature [storm] › dealDamage","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:Creature › delayedTrigger+exile+moveZone","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Instant target:player › dealDamage+forEach","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:spell › choice+counter+libraryLook+moveZone+reveal","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:spell › counter","outcome":"ignored","cards":1},
         {"key":"never-chosen › Instant target:spell-or-permanent › setColor","outcome":"ignored","cards":1},
@@ -34320,7 +34322,7 @@
 
         {"oracleId":"128e0bd1-ed1d-4f53-8dae-83ee95f6fa2a","name":"Unravel the Aether","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e4142963ce4d"]},
 
-        {"oracleId":"128e201a-f520-4917-a1a4-2f3836f1f92d","name":"Simoon","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["dealDamage","forEach"],"definition":{"name":"Simoon","types":["Instant"],"manaCost":{"R":1,"G":1},"oracleText":"Simoon deals 1 damage to each creature target opponent controls.","effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"type":"Creature"},"controller":{"target":0}},"effects":[{"op":"dealDamage","amount":1,"to":{"ref":"$each"}}]}],"targetRequirement":{"type":"player","count":1,"controller":"opponent"}},"botReach":"played"},
+        {"oracleId":"128e201a-f520-4917-a1a4-2f3836f1f92d","name":"Simoon","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["dealDamage","forEach"],"definition":{"name":"Simoon","types":["Instant"],"manaCost":{"R":1,"G":1},"oracleText":"Simoon deals 1 damage to each creature target opponent controls.","effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"type":"Creature"},"controller":{"target":0}},"effects":[{"op":"dealDamage","amount":1,"to":{"ref":"$each"}}]}],"targetRequirement":{"type":"player","count":1,"controller":"opponent"}},"botReach":"ignored","botGap":"never-chosen › Instant target:player › dealDamage+forEach"},
 
         {"oracleId":"128ec451-97f6-4f01-8929-689fd4c45f40","name":"Phyrexian Prowler","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["pump"],"definition":{"name":"Phyrexian Prowler","types":["Creature"],"subtypes":["Phyrexian","Zombie","Mercenary"],"manaCost":{"X":3,"B":1},"power":3,"toughness":3,"oracleText":"Fading 3 (This creature enters with three fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)\nRemove a fade counter from this creature: This creature gets +1/+1 until end of turn.","staticAbilities":["fading 3"],"activatedAbilities":[{"id":"phyrexian-prowler-ability","oracleText":"Remove a fade counter from this creature: This creature gets +1/+1 until end of turn.","cost":{"removeCounter":{"type":"fade","count":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
@@ -61192,7 +61194,7 @@
 
         {"oracleId":"74858500-8943-4ea7-894f-0cd022510bbe","name":"Devil K. Nevil","state":"unparsed","gaps":["e9428cd9cf44"]},
 
-        {"oracleId":"7485cf25-eb41-4397-be13-7f0b8c10c70a","name":"Ball Lightning","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["sacrifice"],"definition":{"name":"Ball Lightning","types":["Creature"],"subtypes":["Elemental"],"manaCost":{"R":3},"power":6,"toughness":1,"oracleText":"Trample (This creature can deal excess combat damage to the player or planeswalker it's attacking.)\nHaste (This creature can attack and {T} as soon as it comes under your control.)\nAt the beginning of the end step, sacrifice this creature.","staticAbilities":["trample","haste"],"compiledTriggeredAbilities":[{"id":"ball-lightning-trigger","oracleText":"At the beginning of the end step, sacrifice this creature.","head":{"kind":"phase","phase":"END_STEP","scope":"each"},"effects":[{"op":"sacrifice","target":{"ref":"$source"}}]}]},"botReach":"played"},
+        {"oracleId":"7485cf25-eb41-4397-be13-7f0b8c10c70a","name":"Ball Lightning","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["sacrifice"],"definition":{"name":"Ball Lightning","types":["Creature"],"subtypes":["Elemental"],"manaCost":{"R":3},"power":6,"toughness":1,"oracleText":"Trample (This creature can deal excess combat damage to the player or planeswalker it's attacking.)\nHaste (This creature can attack and {T} as soon as it comes under your control.)\nAt the beginning of the end step, sacrifice this creature.","staticAbilities":["trample","haste"],"compiledTriggeredAbilities":[{"id":"ball-lightning-trigger","oracleText":"At the beginning of the end step, sacrifice this creature.","head":{"kind":"phase","phase":"END_STEP","scope":"each"},"effects":[{"op":"sacrifice","target":{"ref":"$source"}}]}]},"botReach":"ignored","botGap":"never-chosen › Creature [haste,trample] › sacrifice"},
 
         {"oracleId":"74868bc0-6081-4f46-a2c6-9521cd5465aa","name":"Tender Wildguide","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","keyword-line","mana-ability"],"opsUsed":["counters","createTokenCopy","if"],"definition":{"name":"Tender Wildguide","types":["Creature"],"subtypes":["Possum","Druid"],"manaCost":{"X":1,"G":1},"power":2,"toughness":2,"oracleText":"Offspring {2} (You may pay an additional {2} as you cast this spell. If you do, when this creature enters, create a 1/1 token copy of it.)\n{T}: Add one mana of any color.\n{T}: Put a +1/+1 counter on this creature.","activatedAbilities":[{"id":"tender-wildguide-mana","oracleText":"{T}: Add one mana of any color.","cost":{"tap":true},"useStack":false,"manaChoices":[{"W":1},{"U":1},{"B":1},{"R":1},{"G":1}]},{"id":"tender-wildguide-ability-2","oracleText":"{T}: Put a +1/+1 counter on this creature.","cost":{"tap":true},"useStack":true,"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}],"compiledTriggeredAbilities":[{"id":"offspring-token-copy-offspring","oracleText":"When Tender Wildguide enters, if its offspring cost was paid, create a token that's a copy of it, except it's 1/1.","head":{"kind":"entered","scope":"self"},"condition":{"kind":"kicker-paid","kickerId":"offspring"},"effects":[{"op":"if","predicate":{"left":{"additionalCostPaid":"offspring"},"op":"ge","right":1},"then":[{"op":"createTokenCopy","source":{"ref":"$source"},"controller":"controller","except":{"basePower":1,"baseToughness":1}}]}],"additionalCostTwin":{"keyword":"offspring","costId":"offspring"}}],"kickers":[{"id":"offspring","keyword":"offspring","description":"Offspring {2}","mana":{"X":2}}]},"botReach":"played"},
 
@@ -73578,7 +73580,7 @@
 
         {"oracleId":"a14d89b6-23eb-4337-8dee-93c39b0efbf1","name":"Territory Forge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2a7444285d20","6c86367e1027"]},
 
-        {"oracleId":"a14dc46f-b790-458e-8821-0c5646188680","name":"Groundbreaker","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["sacrifice"],"definition":{"name":"Groundbreaker","types":["Creature"],"subtypes":["Elemental"],"manaCost":{"G":3},"power":6,"toughness":1,"oracleText":"Trample, haste\nAt the beginning of the end step, sacrifice this creature.","staticAbilities":["trample","haste"],"compiledTriggeredAbilities":[{"id":"groundbreaker-trigger","oracleText":"At the beginning of the end step, sacrifice this creature.","head":{"kind":"phase","phase":"END_STEP","scope":"each"},"effects":[{"op":"sacrifice","target":{"ref":"$source"}}]}]},"botReach":"played"},
+        {"oracleId":"a14dc46f-b790-458e-8821-0c5646188680","name":"Groundbreaker","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["sacrifice"],"definition":{"name":"Groundbreaker","types":["Creature"],"subtypes":["Elemental"],"manaCost":{"G":3},"power":6,"toughness":1,"oracleText":"Trample, haste\nAt the beginning of the end step, sacrifice this creature.","staticAbilities":["trample","haste"],"compiledTriggeredAbilities":[{"id":"groundbreaker-trigger","oracleText":"At the beginning of the end step, sacrifice this creature.","head":{"kind":"phase","phase":"END_STEP","scope":"each"},"effects":[{"op":"sacrifice","target":{"ref":"$source"}}]}]},"botReach":"ignored","botGap":"never-chosen › Creature [haste,trample] › sacrifice"},
 
         {"oracleId":"a151c45f-0b9e-41af-90b3-fafa12e3bbce","name":"Canopy Surge","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["2463890145d5"]},
 
@@ -94586,7 +94588,7 @@
 
         {"oracleId":"ed347609-15f9-4d57-9523-63a33a9dccbc","name":"Nyx Herald","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2e4a998458e1"]},
 
-        {"oracleId":"ed3652da-0127-4c9e-9913-f20becdd0ba9","name":"Scattershot","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["dealDamage"],"definition":{"name":"Scattershot","types":["Instant"],"manaCost":{"X":2,"R":1},"oracleText":"Scattershot deals 1 damage to target creature.\nStorm (When you cast this spell, copy it for each spell cast before it this turn. You may choose new targets for the copies.)","staticAbilities":["storm"],"effects":[{"op":"dealDamage","amount":1,"to":{"target":0}}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
+        {"oracleId":"ed3652da-0127-4c9e-9913-f20becdd0ba9","name":"Scattershot","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["dealDamage"],"definition":{"name":"Scattershot","types":["Instant"],"manaCost":{"X":2,"R":1},"oracleText":"Scattershot deals 1 damage to target creature.\nStorm (When you cast this spell, copy it for each spell cast before it this turn. You may choose new targets for the copies.)","staticAbilities":["storm"],"effects":[{"op":"dealDamage","amount":1,"to":{"target":0}}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"ignored","botGap":"never-chosen › Instant target:Creature [storm] › dealDamage"},
 
         {"oracleId":"ed36b1f6-2922-46a9-b48d-b9ebedb9a142","name":"Sifter Wurm","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["72af03518413"]},
 
