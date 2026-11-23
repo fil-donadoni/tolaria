@@ -30,12 +30,11 @@ import type { RobustnessBaselineRow } from "./robustness";
 // (base 258d11289) found two more, pre-existing; both are retired (issues
 // #10449, #10448). Blood Moon re-pinned after its refit (PR #10637): the
 // full audits of PR #10659 and PR #10660 (2026-11-23) both read jitter+ 9/10
-// on the same base — issue #10449 owns it again.
+// on the same base — issue #10449 owned it again, until the base tip
+// 46f69c4b11 (after PR #10620's lost-leaf turn timing) read it ROBUST on every
+// leg (own 5/5, default/jitter+/jitter- 10/10): PR #10446's audit, reproduced
+// on the bare base tip, retires the row a second time.
 export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
-    {
-        label: "nonbasic hate: Blood Moon is cast against the opponent's nonbasic mana",
-        issue: 10449,
-    },
     // Passes only at its declared 400 iterations: whenever both root edges
     // sit in the visit band, the material tie-break takes the futile cast.
     {

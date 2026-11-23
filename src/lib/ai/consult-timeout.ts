@@ -5,12 +5,19 @@
 
 import { HARDEST_SEARCH_TIME_MS } from "@convex/gre/difficulty";
 
-/** How far past its wall-clock cap a search may legitimately run (issue
- *  #10115). The search reads the clock BETWEEN iterations, so the iteration in
- *  flight when the cap passes always completes. The field's worst consult
- *  overran its 3300 ms cap by 1358 ms (Gecko, late game, ~1 s per iteration:
- *  `docs/research/expert-think-longer.md` § 2, `brain-search-in-the-field.md`
- *  § 1); this margin covers it with headroom. */
+/** How far past its wall-clock cap a search may legitimately run (issues
+ *  #10115, #10408). The search reads the clock between iterations AND, since
+ *  issue #10408, once per rollout ply (`RolloutDeadline`,
+ *  `convex/gre/search.ts`): the iteration in flight when the cap passes stops
+ *  its playout there, so the overshoot is one ply plus that iteration's
+ *  determinize and tree descent — never a whole iteration.
+ *
+ *  It used to have to cover a whole iteration, and could not: Gecko clients
+ *  in the field ran 1,658 ms per iteration at p90 and 3,567 ms for a first
+ *  one, against this 1,500 ms, and the slowest consult took 5,046 ms of the
+ *  5,300 ms timeout (2026-11-21, `docs/research/bot-weak-line-weak-client.md`
+ *  § 4). The value is unchanged: what it covers shrank, so the same 1,500 ms
+ *  is now headroom over a ply rather than a bet on an iteration. */
 export const BRAIN_CONSULT_OVERRUN_MARGIN_MS = 1500;
 
 /** The Worker round-trip around the search (issue #10115): `postMessage` of
