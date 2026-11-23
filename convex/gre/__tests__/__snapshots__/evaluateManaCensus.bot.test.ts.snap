@@ -673,7 +673,7 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
   "search": {
     "candidates": [
       {
-        "avail": 96,
+        "avail": 92,
         "eval": {
           "danger": 0,
           "margin": 216.2603565,
@@ -746,7 +746,7 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
         "visits": 17,
       },
       {
-        "avail": 93,
+        "avail": 89,
         "eval": {
           "danger": 0,
           "margin": 221.4912645,
@@ -789,17 +789,17 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
           "total": 221.4912645,
         },
         "label": "pass",
-        "meanMargin": 211.45818375,
-        "meanReward": 0.7985643971354214,
+        "meanMargin": 189.02008606249998,
+        "meanReward": 0.6234353388203131,
         "move": {
           "kind": "pass",
         },
         "oneplyReward": 0.61074563225,
-        "score": 0.7797825206468793,
-        "visits": 12,
+        "score": 0.6221663681632819,
+        "visits": 8,
       },
       {
-        "avail": 92,
+        "avail": 88,
         "eval": {
           "danger": 0,
           "margin": 209.4912645,
@@ -869,7 +869,7 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
         "visits": 8,
       },
       {
-        "avail": 91,
+        "avail": 87,
         "eval": {
           "danger": 0,
           "margin": 208.2603565,
@@ -942,7 +942,7 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
         "visits": 8,
       },
       {
-        "avail": 90,
+        "avail": 86,
         "eval": {
           "danger": 0,
           "margin": 202.2603565,
@@ -985,8 +985,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
           "total": 202.2603565,
         },
         "label": "cast Fireball (X=1) → Blade P2",
-        "meanMargin": 175.84690506249999,
-        "meanReward": 0.5879234525312501,
+        "meanMargin": 173.216412,
+        "meanReward": 0.5866082060000001,
         "move": {
           "cardInstanceId": "164",
           "chosenX": 1,
@@ -1005,11 +1005,11 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
           ],
         },
         "oneplyReward": 0.60113017825,
-        "score": 0.5892441251031251,
+        "score": 0.5880604032250001,
         "visits": 8,
       },
       {
-        "avail": 88,
+        "avail": 85,
         "eval": {
           "danger": 0,
           "margin": 194.2603565,
@@ -1052,8 +1052,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
           "total": 194.2603565,
         },
         "label": "cast Fireball (X=0) → Blade P1",
-        "meanMargin": 170.47739812499998,
-        "meanReward": 0.5852386990624999,
+        "meanMargin": 167.84690506249999,
+        "meanReward": 0.5839234525312499,
         "move": {
           "cardInstanceId": "164",
           "chosenX": 0,
@@ -1072,11 +1072,11 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
           ],
         },
         "oneplyReward": 0.59713017825,
-        "score": 0.58642784698125,
+        "score": 0.585244125103125,
         "visits": 8,
       },
       {
-        "avail": 86,
+        "avail": 83,
         "eval": {
           "danger": 0,
           "margin": 193.4912645,
@@ -1146,7 +1146,7 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
         "visits": 7,
       },
       {
-        "avail": 87,
+        "avail": 84,
         "eval": {
           "danger": 0,
           "margin": 194.2603565,
@@ -1213,7 +1213,7 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
         "visits": 7,
       },
       {
-        "avail": 85,
+        "avail": 82,
         "eval": {
           "danger": 0,
           "margin": 186.2603565,
@@ -1280,7 +1280,7 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
         "visits": 7,
       },
       {
-        "avail": 84,
+        "avail": 81,
         "eval": {
           "danger": 0,
           "margin": 176.2603565,
@@ -1323,8 +1323,8 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
           "total": 176.2603565,
         },
         "label": "cast Fireball (X=2) → Blade P1",
-        "meanMargin": 149.216412,
-        "meanReward": 0.5746082059999998,
+        "meanMargin": 152.22268978571427,
+        "meanReward": 0.5761113448928571,
         "move": {
           "cardInstanceId": "164",
           "chosenX": 2,
@@ -1349,11 +1349,11 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
           ],
         },
         "oneplyReward": 0.58813017825,
-        "score": 0.5759604032249999,
+        "score": 0.5773132282285715,
         "visits": 7,
       },
       {
-        "avail": 83,
+        "avail": 80,
         "eval": {
           "danger": 0,
           "margin": 168.2603565,
@@ -1427,7 +1427,7 @@ exports[`evaluation values and reactive priors are census-cache invariant (issue
       },
     ],
     "chosen": "cast Fireball (X=3) → Blade P2",
-    "iterationsCompleted": 96,
+    "iterationsCompleted": 92,
   },
 }
 `;

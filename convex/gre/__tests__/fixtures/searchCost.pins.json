@@ -1,34 +1,34 @@
 {
     "small (4 moves)": {
         "iterationsCompleted": 94,
-        "clones": 446,
+        "clones": 443,
         "enumerations": 2072,
-        "evaluations": 425,
-        "sbaSweeps": 2792,
-        "ptWalkVisits": 8103,
-        "censuses": 1198,
+        "evaluations": 422,
+        "sbaSweeps": 2783,
+        "ptWalkVisits": 8067,
+        "censuses": 1192,
         "rngDraws": 0,
         "searchDraws": 5750
     },
     "medium (13 moves)": {
-        "iterationsCompleted": 96,
-        "clones": 490,
-        "enumerations": 600,
-        "evaluations": 393,
-        "sbaSweeps": 2251,
+        "iterationsCompleted": 92,
+        "clones": 416,
+        "enumerations": 574,
+        "evaluations": 319,
+        "sbaSweeps": 2046,
         "ptWalkVisits": 0,
-        "censuses": 958,
+        "censuses": 802,
         "rngDraws": 0,
-        "searchDraws": 5466
+        "searchDraws": 5406
     },
     "large (49 moves)": {
         "iterationsCompleted": 100,
-        "clones": 1199,
+        "clones": 1107,
         "enumerations": 483,
-        "evaluations": 836,
-        "sbaSweeps": 3695,
-        "ptWalkVisits": 36068,
-        "censuses": 2453,
+        "evaluations": 744,
+        "sbaSweeps": 3419,
+        "ptWalkVisits": 33492,
+        "censuses": 2269,
         "rngDraws": 0,
         "searchDraws": 6880
     }

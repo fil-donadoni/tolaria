@@ -160,29 +160,29 @@
         },
         "rollouts": [
             {
-                "reward": 0.9290650891250116,
-                "margin": 216.2603565
+                "reward": 0.5962236599999999,
+                "margin": 192.44732
             },
             {
-                "reward": 0.9290650891250116,
-                "margin": 216.2603565
+                "reward": 0.5962236599999999,
+                "margin": 192.44732
             },
             {
-                "reward": 0.9290650891250116,
-                "margin": 216.2603565
+                "reward": 0.5962236599999999,
+                "margin": 192.44732
             },
             {
-                "reward": 0.9290650891250116,
-                "margin": 216.2603565
+                "reward": 0.5962236599999999,
+                "margin": 192.44732
             },
             {
-                "reward": 0.9290650891250116,
-                "margin": 216.2603565
+                "reward": 0.5962236599999999,
+                "margin": 192.44732
             }
         ],
         "search": {
             "chosen": "cast Fireball (X=3) → Blade P2",
-            "iterationsCompleted": 96,
+            "iterationsCompleted": 92,
             "candidates": [
                 {
                     "label": "cast Fireball (X=3) → Blade P2",
@@ -192,9 +192,9 @@
                 },
                 {
                     "label": "pass",
-                    "visits": 12,
-                    "meanReward": 0.7985643971354214,
-                    "meanMargin": 211.45818375
+                    "visits": 8,
+                    "meanReward": 0.6234353388203131,
+                    "meanMargin": 189.02008606249998
                 },
                 {
                     "label": "cast Fireball (X=1) → Blade P2",
@@ -211,14 +211,14 @@
                 {
                     "label": "cast Fireball (X=1) → Blade P2",
                     "visits": 8,
-                    "meanReward": 0.5879234525312501,
-                    "meanMargin": 175.84690506249999
+                    "meanReward": 0.5866082060000001,
+                    "meanMargin": 173.216412
                 },
                 {
                     "label": "cast Fireball (X=0) → Blade P1",
                     "visits": 8,
-                    "meanReward": 0.5852386990624999,
-                    "meanMargin": 170.47739812499998
+                    "meanReward": 0.5839234525312499,
+                    "meanMargin": 167.84690506249999
                 },
                 {
                     "label": "cast Fireball (X=1) → Blade P1",
@@ -241,8 +241,8 @@
                 {
                     "label": "cast Fireball (X=2) → Blade P1",
                     "visits": 7,
-                    "meanReward": 0.5746082059999998,
-                    "meanMargin": 149.216412
+                    "meanReward": 0.5761113448928571,
+                    "meanMargin": 152.22268978571427
                 },
                 {
                     "label": "cast Fireball (X=3) → Blade P1",
