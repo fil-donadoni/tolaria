@@ -464,6 +464,15 @@ at `topk:3`'s two iteration counts.
   quarter on 122. On the four field boards `topk:3` drops 55–63% of the
   probes. "No flip" is therefore a strong statement about narrow boards and a
   thin one about wide ones (Not measured).
+- **Dated 2026-11-23, at `987c6995c0`** (issue #10631, MacBook, `blade:census`
+  of the `must` tier at declared budgets, 3105 searches, 0 red; counted by the
+  search's own rollout width seam, `ai/rolloutWidth.ts`, not by the bench):
+  candidates per probing ply, each entry's mean read over entries, **before**
+  the five wide-board entries p50 2.16 / p90 3.40 / mean 2.55 (636 entries;
+  pooled over every probing ply 2.76, declaration plies 21.4%), **after**
+  p50 2.16 / p90 3.51 / mean 2.58 (641; pooled 2.80, 21.7%). The five read
+  5.84 at the median of their means (pooled 5.82, p90 16, declaration plies
+  52%): field width, on five positions out of 641.
 
 ### 4. The probe memo
 
@@ -603,7 +612,9 @@ In browsers on `jh7bkzta` at 10 iterations (two measured rounds), wall clock
   iterations `base` picks the same move as its own `reseed` on 2 of the 4
   boards, `topk:3` agrees with `base` on 2 of 4 and `topk:2` on 3 of 4. The
   blade's narrow boards carry the quality reading (§ 3, last bullet); wide
-  `must` entries are the implementation slice's to add.
+  `must` entries are the implementation slice's to add. Issue #10631 added
+  the first five and the authoring check that admits them (`blade:probe`,
+  § 3 dated line).
 - **Every seed.** One seed per entry (the first declared), as issue #10135's
   quality run; `blade:census` runs each entry's own seeds. The `reseed` rows
   bound what one seed can hide, they do not replace the census: the
