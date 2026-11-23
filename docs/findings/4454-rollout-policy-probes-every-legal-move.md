@@ -1,7 +1,8 @@
 ---
 title: The rollout policy clones, applies and scores EVERY legal move on 75 % of plies — 8 to 117 probes per iteration
 discoveredBy: 4454
-status: draft
+status: triaged
+issue: 10473
 confidence: high
 ---
 

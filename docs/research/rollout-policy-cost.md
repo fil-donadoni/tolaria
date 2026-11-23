@@ -552,7 +552,12 @@ owner the same day. The three questions, and the owner's words:
 3. **A new ADR amending ADR 0021** (the rollout's default policy no longer
    probes every candidate)? _"adr si"._
 
-The implementation slice is issue #10473, under PRD issue #10017.
+The implementation slice is issue #10473, under PRD issue #10017, shipped by
+PR #10613 (ADR 0184). It keeps the decline (`pass`, or the empty declaration)
+and, on a declaration ply, the widest declaration; on an attack ply the third
+probe is the strongest creature attacking alone. ADR 0184 has the census of
+the alternatives. The bench's `shipped` policy runs
+it, and every policy above keeps probing every candidate.
 
 ## Appendix: the first pass (Huawei runner, 2026-11-19)
 
