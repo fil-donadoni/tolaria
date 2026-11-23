@@ -4,6 +4,7 @@ import {
     compactState,
     expandState,
     PERSISTED_OPTIONAL_KEYS,
+    splitCompactState,
     TRANSIENT_KEYS,
 } from "../serialize";
 import {
@@ -34,6 +35,7 @@ import { projectPublicState } from "../../gameProjections";
 import { checkStateBasedActions } from "../sba";
 import { turnFaceDown } from "../faceDown";
 import { getDefinition } from "../../cards/index";
+import { createInitialGameState } from "../setup";
 
 const crusade = () => getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
 
@@ -1041,6 +1043,29 @@ describe("gameStates serialize round-trip", () => {
         expect(expanded.players[0].library[1].knownTo).toBeUndefined();
     });
 
+    // ADR 0140 §6 (issue #10461) — a deck entry's chosen printing is pinned on
+    // its library instance at setup; the library tuple must carry it, or every
+    // copy still in the library at the first save draws with the default art.
+    it("preserves imagePrintId on library cards across the round trip", () => {
+        const state = freshState();
+        state.players[0].library[0].imagePrintId = "custom-mountain-print";
+        state.players[0].library[1].imagePrintId = "custom-mountain-print";
+        state.players[0].library[1].knownTo = ["p1"];
+        const inline = expandState(compactState(state));
+        const { hot, libraries } = splitCompactState(state);
+        const split = expandState(hot, libraries);
+        for (const expanded of [inline, split]) {
+            const [first, second, bolt] = expanded.players[0].library;
+            expect(first.imagePrintId).toBe("custom-mountain-print");
+            expect(first.knownTo).toBeUndefined();
+            expect(first.libraryPositionKnownTo).toBeUndefined();
+            expect(second.imagePrintId).toBe("custom-mountain-print");
+            expect(second.knownTo).toEqual(["p1"]);
+            expect(bolt.imagePrintId).toBeUndefined();
+            expect(first.card.id).toBe(mountain().id);
+        }
+    });
+
     // ADR 0026 slice 2 (#340) — a REVEALED library card carries every player in
     // knownTo; the multi-element array must survive the 3-tuple round trip.
     it("preserves a reveal-to-all knownTo (multiple viewers) across the round trip", () => {
@@ -1696,6 +1721,55 @@ const BASE_KEYS = new Set([
     "rngSeed",
     "rngCounter",
 ]);
+
+// Issue #10461 — a deck's chosen basic-land printing reaches play on EVERY
+// copy, not only the copies drawn before the first save. Full path from the
+// deck entries through game setup (`deckPrintPin`) and the storage boundary
+// (`saveGameState` writes the split document).
+describe("chosen printing survives game setup + save (issue #10461)", () => {
+    it("pins the deck entry's print on every instance after a split round trip", () => {
+        const custom = "custom-mountain-print";
+        const deckCards = [
+            ...Array.from({ length: 17 }, () => ({
+                cardId: custom,
+                cardName: "Mountain",
+                definitionId: mountain().id,
+            })),
+            ...Array.from({ length: 23 }, () => ({
+                cardId: lightningBolt().id,
+                cardName: "Lightning Bolt",
+            })),
+        ];
+        const player = (id: string) => ({
+            id,
+            name: id,
+            bgColor: "#000",
+            deck: {
+                id: `${id}-deck`,
+                name: "deck",
+                format: "limited",
+                cards: deckCards,
+            },
+        });
+        const state = createInitialGameState([player("p1"), player("p2")], 7);
+        const { hot, libraries } = splitCompactState(state);
+        const reloaded = expandState(hot, libraries);
+        for (const p of reloaded.players) {
+            const mountains = [...p.library, ...p.hand].filter(
+                (c) => c.card.id === mountain().id
+            );
+            expect(mountains).toHaveLength(17);
+            expect(mountains.every((c) => c.imagePrintId === custom)).toBe(
+                true
+            );
+            expect(
+                [...p.library, ...p.hand]
+                    .filter((c) => c.card.id !== mountain().id)
+                    .every((c) => c.imagePrintId === undefined)
+            ).toBe(true);
+        }
+    });
+});
 
 describe("schema drift guard", () => {
     it("every optional GameState key is in PERSISTED_OPTIONAL_KEYS or TRANSIENT_KEYS", () => {

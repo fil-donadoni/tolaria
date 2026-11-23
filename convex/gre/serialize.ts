@@ -80,10 +80,15 @@ type CompactCard = Record<string, unknown>;
 // `cardId` is a v2 cardPool index (number) going forward; legacy v1 rows
 // stored the raw string there (issue #1780 — `resolveCardId` is a passthrough
 // when there is no ExpandCtx, so the v1 shape still expands unchanged).
+// A fifth element is the deck entry's chosen printing (`imagePrintId`, ADR
+// 0140 §6), interned like `cardId`: the one non-derivable field a library card
+// carries from game setup on (issue #10461 — dropping it here gave every
+// card still in the library at the first save the default art).
 type LibraryEntry =
     | readonly [string, string | number]
     | readonly [string, string | number, string[]]
-    | readonly [string, string | number, string[], string[]];
+    | readonly [string, string | number, string[], string[]]
+    | readonly [string, string | number, string[], string[], string | number];
 
 const MANA_KEYS = ["W", "U", "B", "R", "G", "C"] as const;
 
@@ -515,6 +520,18 @@ function compactLibrary(
     return library.map((c) => {
         const cardId = (c.card as { id?: string }).id ?? "";
         const idx = internCardIdForCompact(ctx, cardId);
+        // ADR 0140 §6 (issue #10461) — the chosen printing outlives the
+        // library: a drawn card shows it. Trailing, so a default-art card
+        // pays nothing; the knowledge slots before it are filled with `[]`.
+        if (c.imagePrintId) {
+            return [
+                c.id,
+                idx,
+                c.knownTo ?? [],
+                c.libraryPositionKnownTo ?? [],
+                internCardIdForCompact(ctx, c.imagePrintId),
+            ] as const;
+        }
         // ADR 0026 — preserve persistent knowledge across the DB boundary;
         // omit the third element for the overwhelmingly common unknown card,
         // the fourth (who saw it placed) for every card with no such record.
@@ -547,12 +564,14 @@ function expandLibrary(
                 ctx
             );
         }
-        const [id, rawCardId, knownTo, positionKnownTo] = entry as readonly [
-            string,
-            string | number,
-            string[]?,
-            string[]?,
-        ];
+        const [id, rawCardId, knownTo, positionKnownTo, rawPrintId] =
+            entry as readonly [
+                string,
+                string | number,
+                string[]?,
+                string[]?,
+                (string | number)?,
+            ];
         const cardId = resolveCardId(rawCardId, ctx);
         const def = tryGetDefinition(cardId);
         // CR 113.6c (issue #3278) — the library tuple stores only
@@ -585,6 +604,9 @@ function expandLibrary(
         if (knownTo?.length) card.knownTo = knownTo.slice();
         if (positionKnownTo?.length) {
             card.libraryPositionKnownTo = positionKnownTo.slice();
+        }
+        if (rawPrintId !== undefined) {
+            card.imagePrintId = resolveCardId(rawPrintId, ctx);
         }
         return card;
     });
