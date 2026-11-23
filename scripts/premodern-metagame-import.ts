@@ -181,7 +181,7 @@ function fail(path: string, message: string): never {
     throw new Error(`${path}: ${message}`);
 }
 
-/** Parse and VALIDATE the metagame file — same 60 + 15 discipline as Tier 1. */
+/** Parse and VALIDATE the metagame file — same constructed bounds as Tier 1. */
 export function parseMetagameDecks(
     text: string,
     path = METAGAME_DECKS_PATH
@@ -196,14 +196,14 @@ export function parseMetagameDecks(
     return doc;
 }
 
-/** The modern lists (issue #8276): the same shape and 60 + 15 validation. */
+/** The modern lists (issue #8276): the same shape and validation. */
 export function readModernMetagameDecks(root: string): MetagameDeckFile {
     const path = join(root, MODERN_METAGAME_DECKS_PATH);
     return parseMetagameDecks(readFileSync(path, "utf8"), path);
 }
 
 /** The owner's further modern Preset Deck lists (issue #10515): same shape
- *  and 60 + 15 validation. */
+ *  and validation. */
 export function readModernPresetDecks(root: string): MetagameDeckFile {
     const path = join(root, MODERN_PRESET_DECKS_PATH);
     return parseMetagameDecks(readFileSync(path, "utf8"), path);
