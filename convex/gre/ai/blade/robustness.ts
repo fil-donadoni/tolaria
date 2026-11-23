@@ -42,13 +42,18 @@ import {
 import type { SearchVariant } from "../searchVariant";
 import { bladeScenarioSeeds, runBladeScenario } from "./runner";
 import type { BladeScenario } from "./types";
-
-/** The wide seed list every entry is re-run over. Fixed forever — changing it
- *  re-rolls the whole audit and invalidates the baseline. */
-export const ROBUSTNESS_SEEDS: readonly number[] = Array.from(
-    { length: 10 },
-    (_, i) => i
-);
+import {
+    ROBUSTNESS_SEEDS,
+    classifyRobustness,
+    type RobustnessLeg,
+    type RobustnessVerdict,
+} from "./robustnessClassify";
+export {
+    ROBUSTNESS_SEEDS,
+    classifyRobustness,
+    type RobustnessLeg,
+    type RobustnessVerdict,
+} from "./robustnessClassify";
 
 /** How far each weight moves in a jittered vector: ±1%. Twenty times the
  *  movement of issue #4756's refit, which already flipped an entry. */
@@ -123,21 +128,6 @@ export function robustnessVectors(): RobustnessVector[] {
     ];
 }
 
-/** One vector's leg of an entry: how many of the wide seeds pass, and which
- *  root mechanism decided each run. */
-export type RobustnessLeg = {
-    vector: string;
-    seeds: number;
-    passed: number;
-    /** `RootDecisionMechanism` → runs it settled. `material-tiebreak` on a
-     *  failing entry is the usual noise signature (a near-tie). */
-    mechanisms: Record<string, number>;
-    /** The failing seeds with the move chosen, for the report line. */
-    failures: { seed: number; move: string }[];
-};
-
-export type RobustnessVerdict = "robust" | "noise-pinned" | "wrong";
-
 export type RobustnessRow = {
     label: string;
     iterations: number;
@@ -147,16 +137,6 @@ export type RobustnessRow = {
     legs: RobustnessLeg[];
     verdict: RobustnessVerdict;
 };
-
-export function classifyRobustness(
-    own: RobustnessRow["own"],
-    legs: readonly RobustnessLeg[]
-): RobustnessVerdict {
-    if (own.passed < own.seeds) return "wrong";
-    return legs.every((leg) => leg.passed === leg.seeds)
-        ? "robust"
-        : "noise-pinned";
-}
 
 /**
  * Whether an entry's note admits, in the present tense, that the entry is green

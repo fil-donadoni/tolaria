@@ -25,6 +25,8 @@ import {
     type CensusRow,
 } from "../census";
 import { resolveBladeVariant } from "../variant";
+import { withRolloutWidth } from "../rolloutWidthRun";
+import { claimPath as claim, loadWorkFs } from "./workClaims.helper";
 
 const ENV: Record<string, string | undefined> =
     (globalThis as { process?: { env?: Record<string, string | undefined> } })
@@ -50,13 +52,6 @@ describe("blade census — job list", () => {
     });
 });
 
-type Fs = {
-    readFileSync: (p: string, enc: "utf8") => string;
-    writeFileSync: (p: string, d: string) => void;
-    mkdirSync: (p: string, o?: { recursive?: boolean }) => void;
-    existsSync: (p: string) => boolean;
-};
-
 const DIR = ENV.BLADE_CENSUS_DIR;
 
 /** A key safe as a directory name for an entry label. */
@@ -68,17 +63,6 @@ function labelKey(label: string): string {
     return `${(h >>> 0).toString(16)}-${label.length}`;
 }
 
-/** `mkdir` as an atomic claim: true for the one caller that created it. */
-function claim(fs: Fs, path: string): boolean {
-    try {
-        fs.mkdirSync(path);
-        return true;
-    } catch (e) {
-        if ((e as { code?: string }).code === "EEXIST") return false;
-        throw e;
-    }
-}
-
 describe.runIf(DIR !== undefined && DIR !== "")("blade census (worker)", () => {
     // A worker runs for as long as there are jobs to claim; its verdicts depend
     // on iterations and seeds only (the `NO_WALL_CLOCK_CEILING` rule of the
@@ -87,7 +71,7 @@ describe.runIf(DIR !== undefined && DIR !== "")("blade census (worker)", () => {
         "claims and runs (entry, seed) jobs until none is left",
         { timeout: 0 },
         async () => {
-            const fs = (await import(/* @vite-ignore */ "node" + ":fs")) as Fs;
+            const fs = await loadWorkFs();
             const config = JSON.parse(
                 fs.readFileSync(`${DIR}/config.json`, "utf8")
             ) as CensusConfig;
@@ -128,13 +112,15 @@ describe.runIf(DIR !== undefined && DIR !== "")("blade census (worker)", () => {
                 } else {
                     const scenario = byLabel.get(job.label)!;
                     const started = Date.now();
-                    const result = runBladeScenario(
-                        {
-                            ...scenario,
-                            seeds: [job.seed],
-                            budget: { iterations: job.iterations },
-                        },
-                        variant
+                    const { value: result, width } = withRolloutWidth(() =>
+                        runBladeScenario(
+                            {
+                                ...scenario,
+                                seeds: [job.seed],
+                                budget: { iterations: job.iterations },
+                            },
+                            variant
+                        )
                     );
                     const seed = result.seeds[0];
                     row = {
@@ -144,6 +130,7 @@ describe.runIf(DIR !== undefined && DIR !== "")("blade census (worker)", () => {
                         reason: seed.reason,
                         mechanism: seed.mechanism ?? null,
                         ms: Date.now() - started,
+                        width,
                     };
                     if (!seed.ok) claim(fs, redMarker);
                 }
