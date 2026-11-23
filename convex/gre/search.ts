@@ -2941,6 +2941,84 @@ export function keyedMovesFor(
     return keyed;
 }
 
+/** The tree key `move` is stored under at `pid`'s decision in a search for
+ *  `botId` (issue #10470) — the key `iterate` itself gives it: the choice
+ *  candidate's stable identity at a live choice, else `priorityMoveKey`
+ *  (a non-observer's hand card folded to its definition id). `null` when
+ *  `move` is none of `pid`'s moves in `state`. Read on the deciding seat's
+ *  OWN view, so the fold sees the card the seat actually held: that is how a
+ *  consult names the moves played since the last one, and walks the kept
+ *  tree with the search's own keying. */
+export function treeKeyOf(
+    state: GameState,
+    pid: string,
+    botId: string,
+    move: Move
+): string | null {
+    const want = moveKey(move);
+    const headChoice = state.pendingChoices?.[0];
+    if (headChoice && headChoice.playerId === pid) {
+        const hit = keyedMovesFor(state, pid, botId).find(
+            (k) => moveKey(k.move) === want
+        );
+        return hit ? hit.key : null;
+    }
+    const legal = enumerateMoves(state, pid).some((m) => moveKey(m) === want);
+    return legal ? priorityMoveKey(state, pid, botId, move) : null;
+}
+
+/** The kept subtree `node`, made the ROOT of a search at `state` for `botId`
+ *  (issue #10470, `docs/research/brain-pondering-tree-reuse.md` § 3), or
+ *  `null` when it cannot be the root of this decision.
+ *
+ *  The node was grown BELOW a root, so two things about it are wrong for a
+ *  root, and both are corrected here, in place (the caller gave the tree up):
+ *
+ *  - the ROOT-ONLY rules never ran on it — dominance pruning, the collapse of
+ *    interchangeable copies and the repetition deny-set (`deniedRootKeys`,
+ *    decided on the real root state). Denied edges are REMOVED with their
+ *    statistics, not skipped: `selectRootMove` reads the root's child edges;
+ *  - the BELOW-ROOT pruning did. `iterate`'s depth > 0 filters (deferrable
+ *    sacrifices, the conversion shapes, misdirected variants) run per visit
+ *    and reach no edge at depth 0, so a move they dropped is simply an
+ *    unopened edge here, and the search opens it. The two node caches decided
+ *    below the root are cleared: `dominatedTargetKeys`, decided with the beam
+ *    a root does not apply, and `opposingGateArmKeys`. `dominatedBlockKeys`
+ *    (public board, same rule at every depth) and `policyValues` (shared
+ *    across worlds already) stand.
+ *
+ *  A node any world handed to the other seat (option-set views), an edge some
+ *  other seat chose, or an edge that is no move of `botId` at `state` says
+ *  the node is not this position: `null`, and the search starts fresh. */
+export function adoptKeptRoot(
+    node: Node,
+    state: GameState,
+    botId: string,
+    deniedRootKeys: ReadonlySet<string>
+): Node | null {
+    if (node.optionViews || node.childNodes) return null;
+    const legal = new Set(keyedMovesFor(state, botId, botId).map((k) => k.key));
+    let foreign = false;
+    node.children.forEach((edge, key) => {
+        if (edge.mover !== botId || !legal.has(key)) foreign = true;
+    });
+    if (foreign) return null;
+    deniedRootKeys.forEach((key) => node.children.delete(key));
+    delete node.dominatedTargetKeys;
+    delete node.opposingGateArmKeys;
+    return node;
+}
+
+/** The visits a root holds: the sum over its child edges, the counts
+ *  `selectRootMove` reads. */
+export function rootVisits(root: Node): number {
+    let visits = 0;
+    root.children.forEach((edge) => {
+        visits += edge.visits;
+    });
+    return visits;
+}
+
 /** `keyed` without the multi-blocks `pruneDominatedBlocks` judges dominated
  *  (issue #5951): the defender's node stops exploring blocks that only feed
  *  the attacker a creature, whose mean backup otherwise credited the attack
@@ -4410,6 +4488,14 @@ export type DecisionTrace = {
     /** The budget's target iteration count (`SearchBudget.iterations`, or the
      *  completed count itself when the budget left `iterations` unset). */
     iterationsRequested: number;
+    /** Root visits KEPT from the Bot's previous consult (issue #10470): the
+     *  visits of the subtree the game moved into, which the search continued
+     *  from instead of an empty tree. 0 on a fresh tree. The budget counts
+     *  root visits, so a decision that kept 200 of 400 ran 200 iterations.
+     *  What tells a bug report a decision on a kept tree from one on a fresh
+     *  tree: only the second reproduces from its board, seed and budget
+     *  alone. Set by every search; absent only on a trace built outside one. */
+    iterationsKept?: number;
     /** Wall-clock milliseconds the search loop actually took. */
     elapsedMs: number;
     /** Which bound ended the loop. */
@@ -4816,6 +4902,9 @@ export function buildTrace(
         chosen: describeMove(chosen, rootState),
         iterationsCompleted: stats.iterationsCompleted,
         iterationsRequested: stats.iterationsRequested,
+        ...(stats.iterationsKept === undefined
+            ? {}
+            : { iterationsKept: stats.iterationsKept }),
         elapsedMs: stats.elapsedMs,
         stoppedBy: stats.stoppedBy,
         mechanism,
@@ -6198,9 +6287,11 @@ export function rootIsStarved(
     candidateCount: number,
     searchStats: SearchStats | undefined
 ): boolean {
+    // Root visits, not iterations run (issue #10470): a kept subtree's visits
+    // are evidence the root already holds.
     return (
         searchStats !== undefined &&
-        searchStats.iterationsCompleted <
+        searchStats.iterationsCompleted + (searchStats.iterationsKept ?? 0) <
             STARVED_ROOT_VISITS_PER_CHILD * candidateCount
     );
 }
@@ -8366,8 +8457,11 @@ export function searchWithTrace(
     // Issue #3590 — the seat's own decision history this turn: the positions
     // it has already stood in and what it chose there (`ai/repetition.ts`).
     // Omitted, nothing is denied and the search is byte-identical to before.
-    repetition?: RepetitionHistory
-): { move: Move | null; trace: DecisionTrace | null } {
+    repetition?: RepetitionHistory,
+    // Issue #10470 — tree reuse. Omitted, the search is byte-identical to
+    // before and returns no tree.
+    reuse?: SearchReuse
+): SearchResult {
     // The DECISION scope for `dominance.ts`' choice-level probe (PR #1914
     // review finding 1). The cast-level probe is already once-per-decision by
     // construction (it runs at the root only, below); the choice-level one is
@@ -8383,12 +8477,29 @@ export function searchWithTrace(
             budget,
             seed,
             deckKnowledge,
-            repetition
+            repetition,
+            reuse
         );
     } finally {
         endDominanceDecision();
     }
 }
+
+/** Tree reuse across the Bot's consults (issue #10470, ADR 0185). `kept` is
+ *  the subtree of the previous consult's tree the game moved into
+ *  (`ai/treeReuse.ts` walks it); the search makes it its root
+ *  (`adoptKeptRoot`) and continues from it, the budget counting ROOT visits.
+ *  Passing `reuse` at all also asks for the grown tree back
+ *  (`SearchResult.root`), for the caller to keep for the next consult. */
+export type SearchReuse = { kept?: Node };
+
+export type SearchResult = {
+    move: Move | null;
+    trace: DecisionTrace | null;
+    /** The searched root, returned only when the caller passed `reuse` and a
+     *  tree was grown: never on a forced move or a window owed to nobody. */
+    root?: Node;
+};
 
 function runSearchWithTrace(
     rootState: GameState,
@@ -8396,8 +8507,9 @@ function runSearchWithTrace(
     budget: SearchBudget,
     seed: number,
     deckKnowledge?: DeckKnowledgeBySeat,
-    repetition?: RepetitionHistory
-): { move: Move | null; trace: DecisionTrace | null } {
+    repetition?: RepetitionHistory,
+    reuse?: SearchReuse
+): SearchResult {
     const decider = decidingPlayer(rootState);
     if (decider !== playerId) return { move: null, trace: null };
 
@@ -8519,7 +8631,6 @@ function runSearchWithTrace(
         : undefined;
 
     const rng = makeRng(seed);
-    const root = newNode();
 
     const maxIter = budget.iterations ?? Infinity;
     const timeMs = budget.timeMs;
@@ -8539,6 +8650,16 @@ function runSearchWithTrace(
     const deniedRootKeys = new Set(
         deniedAtRoot.map((m) => priorityMoveKey(state, playerId, playerId, m))
     );
+    // Issue #10470 — a kept subtree becomes the root, with the root-only
+    // rules applied to it; anything that cannot be this root starts fresh.
+    const root =
+        (reuse?.kept &&
+            adoptKeptRoot(reuse.kept, state, playerId, deniedRootKeys)) ||
+        newNode();
+    // The budget counts ROOT visits (ADR 0185): a kept subtree holding 200
+    // visits needs 200 more iterations to reach 400. The time cap is not
+    // touched — it bounds this consult's wall clock, whatever was kept.
+    const kept = rootVisits(root);
     // The root moves whose subtree prunes misdirected variants
     // (`withoutMisdirectedVariants`), read once on the real root state.
     const unlockingRootKeys = new Set(
@@ -8578,7 +8699,7 @@ function runSearchWithTrace(
     // a real game) usually cuts it short.
     let stoppedBy: SearchStopReason = "iterations";
     const probesBefore = rolloutProbeCount;
-    while (i < maxIter) {
+    while (kept + i < maxIter) {
         iterate(
             root,
             state,
@@ -8613,8 +8734,8 @@ function runSearchWithTrace(
         // override a settled pick.
         if (
             !extraTurnGrantAtRoot &&
-            i >= minIter &&
-            rootDecisionSettled(root, maxIter - i, weights)
+            kept + i >= minIter &&
+            rootDecisionSettled(root, maxIter - kept - i, weights)
         ) {
             stoppedBy = "settled";
             break;
@@ -8625,8 +8746,9 @@ function runSearchWithTrace(
     const stats: SearchStats = {
         iterationsCompleted: i,
         // No `iterations` bound → nothing was "requested" beyond what ran;
-        // report the completed count so the field never reads as Infinity.
-        iterationsRequested: maxIter === Infinity ? i : maxIter,
+        // report the root's visits so the field never reads as Infinity.
+        iterationsRequested: maxIter === Infinity ? kept + i : maxIter,
+        iterationsKept: kept,
         elapsedMs: now() - start,
         stoppedBy,
     };
@@ -8678,6 +8800,7 @@ function runSearchWithTrace(
             ...(truncations.length > 0 ? { truncations } : {}),
             rolloutProbes,
         },
+        ...(reuse ? { root } : {}),
     };
 }
 

@@ -186,6 +186,11 @@ export type SearchStats = {
     iterationsRequested: number;
     elapsedMs: number;
     stoppedBy: SearchStopReason;
+    /** Root visits the search started from (issue #10470): the visits of a
+     *  subtree kept from the Bot's previous consult. Absent or 0 on a fresh
+     *  tree. The budget counts root visits, so `iterationsCompleted +
+     *  iterationsKept` is what the root holds against `iterationsRequested`. */
+    iterationsKept?: number;
 };
 
 /** One record per `selectRootMove` call (i.e. per real bot decision with at

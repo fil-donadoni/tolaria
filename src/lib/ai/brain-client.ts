@@ -35,6 +35,7 @@ import { BRAIN_CONSULT_TIMEOUT_MS } from "./consult-timeout";
 import type { DeckKnowledgeBySeat } from "./state-adapter";
 import { handleBrainRequest } from "./brain-request";
 import type { RepetitionHistory } from "@convex/gre/ai/repetition";
+import type { ConsultReuse } from "@convex/gre/ai/treeReuse";
 import type {
     BrainOutcome,
     BrainRequest,
@@ -173,7 +174,8 @@ type BrainChannel = {
         botId: string,
         budget?: SearchBudget,
         deckKnowledge?: DeckKnowledgeBySeat,
-        repetition?: RepetitionHistory
+        repetition?: RepetitionHistory,
+        reuse?: ConsultReuse
     ) => Promise<BrainResult>;
     calibrate: () => Promise<CalibrationReading | null>;
     dispose: () => void;
@@ -325,7 +327,8 @@ function createBrainChannel(): BrainChannel {
         botId: string,
         budget: SearchBudget = DEFAULT_BUDGET,
         deckKnowledge?: DeckKnowledgeBySeat,
-        repetition?: RepetitionHistory
+        repetition?: RepetitionHistory,
+        reuse?: ConsultReuse
     ): Promise<BrainResult> {
         const w = getWorker();
         if (!w) {
@@ -356,6 +359,9 @@ function createBrainChannel(): BrainChannel {
             budget,
             deckKnowledge,
             repetition,
+            // Issue #10470 — the Worker keeps its tree between consults; the
+            // inline path above has no keeper and searches fresh.
+            ...(reuse ? { reuse } : {}),
         };
         return new Promise<BrainResult>((resolve) => {
             // A consult ALWAYS settles (issue #2284) — see
@@ -622,15 +628,25 @@ export function primeBrain(entries: readonly DefinitionManifestEntry[]): void {
  *  optional `budget` scales the search by the chosen difficulty (issue #114);
  *  omitted, it falls back to the default preset. `deckKnowledge` names which
  *  seats (if any) the search may know the real deck contents of (issue #2788);
- *  omitted, every seat is blind. */
+ *  omitted, every seat is blind. `reuse` (ADR 0185) names the game and
+ *  the decisions played since the last consult, so the Worker continues from
+ *  the tree it kept; omitted, it searches fresh and keeps nothing. */
 export function consultBrain(
     state: PublicGameState,
     botId: string,
     budget: SearchBudget = DEFAULT_BUDGET,
     deckKnowledge?: DeckKnowledgeBySeat,
-    repetition?: RepetitionHistory
+    repetition?: RepetitionHistory,
+    reuse?: ConsultReuse
 ): Promise<BrainResult> {
-    return botBrain.consult(state, botId, budget, deckKnowledge, repetition);
+    return botBrain.consult(
+        state,
+        botId,
+        budget,
+        deckKnowledge,
+        repetition,
+        reuse
+    );
 }
 
 /** Take a calibration reading in the Bot's Worker (issue #10451): the same

@@ -72,6 +72,8 @@ import type { CalibrationReading } from "./brain-calibration";
 export type SearchStats = {
     iterationsRequested: number;
     iterationsCompleted: number;
+    /** Root visits kept from the previous consult's tree (issue #10470). */
+    iterationsKept?: number;
     elapsedMs: number;
     stoppedBy: DecisionTrace["stoppedBy"];
     /** Candidates the rollout policy probed in this search (issue #10321). */
@@ -168,6 +170,7 @@ export const REPORT_KEYS = [
     "searches",
     "iterations.requested",
     "iterations.completed",
+    "iterations.kept",
     "iterations.ratio",
     "stopped.iterations",
     "stopped.time",
@@ -463,6 +466,14 @@ export function summarizeBotSearch(
     );
     raw["iterations.requested"] = requested;
     raw["iterations.completed"] = completed;
+    // Issue #10470 — the root visits the game's searches started from: a
+    // kept subtree's. `completed + kept` is what the roots held.
+    raw["iterations.kept"] = searches.reduce(
+        (sum, s) =>
+            sum +
+            (finite(s.iterationsKept) ? Math.max(0, s.iterationsKept) : 0),
+        0
+    );
     if (requested > 0)
         raw["iterations.ratio"] = round(completed / requested, 3);
 

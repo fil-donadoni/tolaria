@@ -27,6 +27,13 @@
 // catalogue card, so it needs nothing resident and decides nothing. Chained,
 // it never overlaps a search, and a request posted after it waits for it.
 //
+// It also owns the KEPT TREE (ADR 0185): the tree the last
+// search grew, held here between consults so the next one continues from the
+// subtree the game moved into. `handleBrainRequest` decides whether it can;
+// this shell only holds it, and names the catalogue it was grown against —
+// the residency version of this graph, so a definition installed since drops
+// it. A respawned Worker starts with none.
+//
 // A residency FAILURE must not silently swallow the queue either: every
 // request it blocks gets a real `error` response, the same shape #2470 added
 // for a search that throws. A bot that answers "no move" forever is
@@ -34,7 +41,7 @@
 
 /// <reference lib="webworker" />
 import { handleBrainRequest } from "./brain-request";
-import type { BrainRequest, BrainResponse } from "./brain-request";
+import type { BrainRequest, BrainResponse, TreeKeeper } from "./brain-request";
 import {
     handleCalibration,
     isBrainCalibrate,
@@ -45,7 +52,7 @@ import {
     requestDefinitionIds,
     type BrainWorkerMessage,
 } from "./brain-residency";
-import { installShards } from "../catalogue/definitionShards";
+import { installShards, residencyVersion } from "../catalogue/definitionShards";
 import {
     hintedShardKeys,
     makeResident,
@@ -63,11 +70,17 @@ const post = (response: BrainResponse | BrainCalibration) =>
 /** The Set codes of every Manifest entry this worker was primed with. */
 const hints: ShardHints = new Map();
 
+/** The tree the last search grew, for the next consult (issue #10470). */
+const keeper: TreeKeeper = {
+    kept: null,
+    catalogue: () => String(residencyVersion()),
+};
+
 /** Requests, one at a time, in arrival order. */
 let chain: Promise<void> = Promise.resolve();
 
 function serve(request: BrainRequest): void {
-    const response = handleBrainRequest(request);
+    const response = handleBrainRequest(request, undefined, keeper);
     // Free console.log: readable from DevTools (select the worker context, or
     // it surfaces in the main console). The structured trace also goes to the
     // Debug panel via the response below.

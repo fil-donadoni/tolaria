@@ -113,6 +113,11 @@ import {
     warmBrain,
 } from "~/lib/ai/brain-client";
 import { BRAIN_CONSULT_TIMEOUT_MS } from "~/lib/ai/consult-timeout";
+import {
+    breakConsultPath,
+    noteBotMove,
+    takeConsultPath,
+} from "~/lib/ai/consult-path";
 import { seatKnowledge } from "~/lib/ai/seat-knowledge";
 import {
     acquireBotSearchReport,
@@ -412,6 +417,7 @@ export function useVsAiDriver(
         api.gameReads.getSeatDeckKnowledge,
         humanId ? { gameId, playerId: humanId } : "skip"
     ).data;
+
     // A Game built before the deck was stored on its manifest rows answers
     // `null`: its stored entries are read as they are, as before issue #5617.
     const botDeck = useResilientQuery(
@@ -962,10 +968,15 @@ export function useVsAiDriver(
                 outcome?: AiDecisionOutcome;
                 moveKind?: Move["kind"];
                 actionKind?: BotAction["kind"];
+                /** Issue #10470 — the runner names the move it submits to
+                 *  the consult path itself (`noteBotMove`). Any other
+                 *  submission is no move the search keys, and breaks it. */
+                namesItsMove?: true;
             }
         ) => {
             if (inFlight.current) return;
             inFlight.current = true;
+            if (!meta?.namesItsMove) breakConsultPath();
             lastSignature.current = signature;
             // The version this submission is being made against, captured ONCE:
             // the rejection below fires from a promise callback, by which time the
@@ -1007,6 +1018,9 @@ export function useVsAiDriver(
             }
             void pending
                 .catch((e: unknown) => {
+                    // A rejected move never happened: the consult path no
+                    // longer says where the game is (issue #10470).
+                    breakConsultPath();
                     // Stale/illegal submissions are rejected server-side; allow
                     // the next state change to re-drive this state. A rejection is
                     // one of the two ways a decision dies silently (the other is a
@@ -1401,11 +1415,19 @@ export function useVsAiDriver(
             // suppresses records nothing (review finding 4).
             dispatch(
                 signature,
-                () => mutations.passPriority({ gameId, playerId: seatId }),
+                () => {
+                    if (seatId === botId) {
+                        noteBotMove(gameId, botState, { kind: "pass" });
+                    } else {
+                        breakConsultPath(gameId);
+                    }
+                    return mutations.passPriority({ gameId, playerId: seatId });
+                },
                 {
                     expectedKind: view.owedInput!.kind,
                     outcome: "skip-pass",
                     moveKind: "pass",
+                    namesItsMove: true,
                 }
             );
             return;
@@ -1465,156 +1487,178 @@ export function useVsAiDriver(
             dispatch(
                 signature,
                 () =>
-                    consultBrain(
-                        botState,
-                        botId,
-                        budget,
-                        knowledge,
-                        repetition.current
-                    ).then(
-                        ({
-                            move,
-                            trace,
-                            outcome,
-                            via,
-                            message,
-                            repetition: remembered,
-                            disposed,
-                        }) => {
-                            // Issue #10006 — the player left or swapped the
-                            // game mid-consult: no Brain verdict to record or
-                            // report, and no move for a game nobody drives.
-                            if (disposed) return undefined;
-                            // Issue #3590 — keep the seat's decision history
-                            // for the next consult, so an optional loop is not
-                            // walked twice through the same position.
-                            if (remembered) repetition.current = remembered;
-                            // Issue #9526 — this consult, for the game's
-                            // search report.
-                            report?.record({
+                    // Issue #10470 — the decisions played since the last
+                    // consult, so the Worker continues from its kept tree.
+                    takeConsultPath(gameId)
+                        .then((steps) =>
+                            consultBrain(
+                                botState,
+                                botId,
+                                budget,
+                                knowledge,
+                                repetition.current,
+                                { gameId, steps }
+                            )
+                        )
+                        .then(
+                            ({
+                                move,
+                                trace,
                                 outcome,
                                 via,
-                                consultMs: telemetryNow() - consultStartedAt,
-                                difficulty,
-                                postedAt: consultStartedAt,
-                                ...(budget.timeMs === undefined
-                                    ? {}
-                                    : { budgetMs: budget.timeMs }),
-                                ...(board ? { board } : {}),
-                                ...(trace
-                                    ? {
-                                          search: {
-                                              iterationsRequested:
-                                                  trace.iterationsRequested,
-                                              iterationsCompleted:
-                                                  trace.iterationsCompleted,
-                                              elapsedMs: trace.elapsedMs,
-                                              stoppedBy: trace.stoppedBy,
-                                              ...(trace.rolloutProbes ===
-                                              undefined
-                                                  ? {}
-                                                  : {
-                                                        rolloutProbes:
-                                                            trace.rolloutProbes,
-                                                    }),
-                                          },
-                                      }
-                                    : {}),
-                            });
-                            // Surface the reasoning to the Debug panel
-                            // (client-only). `via` travels with it: a trace the
-                            // Worker did not produce came from the degraded
-                            // inline path, and the box says so rather than
-                            // presenting it as an ordinary decision.
-                            //
-                            // The consult's own INPUTS travel with it since
-                            // issue #3405 — the projection, the seat and the
-                            // knowledge. `projectedToGameState` is a pure
-                            // function of exactly those three, so the verdict
-                            // quiz can reproduce the board the search ran on
-                            // and lower it into the `ScenarioSpec` a judgement
-                            // is stored as. Captured here, before the driver's
-                            // fallbacks move the game on: by the time a tester
-                            // opens the box, nothing else still holds the
-                            // position this decision was made on.
-                            pushAiTrace(trace, via, {
-                                state: botState,
-                                botId,
-                                ...(knowledge ? { knowledge } : {}),
-                            });
-                            // issue #2470 — the consult's own verdict, recorded
-                            // BEFORE the fallbacks below rewrite what happens
-                            // next: `no-move` after a healthy search and
-                            // `worker-error` after a dead one both arrive here
-                            // as `move === null`, and only this says which.
-                            note(
-                                outcome,
-                                {
-                                    expectedKind: view.owedInput!.kind,
+                                message,
+                                repetition: remembered,
+                                disposed,
+                            }) => {
+                                // Issue #10006 — the player left or swapped the
+                                // game mid-consult: no Brain verdict to record or
+                                // report, and no move for a game nobody drives.
+                                if (disposed) return undefined;
+                                // Issue #3590 — keep the seat's decision history
+                                // for the next consult, so an optional loop is not
+                                // walked twice through the same position.
+                                if (remembered) repetition.current = remembered;
+                                // Issue #9526 — this consult, for the game's
+                                // search report.
+                                report?.record({
+                                    outcome,
                                     via,
-                                    message,
-                                    ...(move ? { moveKind: move.kind } : {}),
-                                },
-                                at
-                            );
-                            // Issue #9502 — the same verdict, for the server,
-                            // when it says the Brain gave NO answer: the
-                            // fallbacks below pass legally, which leaves no
-                            // other server trace. Fire-and-forget: a throw or
-                            // a rejection is swallowed and changes nothing
-                            // about what the bot does next.
-                            if (isConsultFailureOutcome(outcome)) {
-                                try {
-                                    void reportConsultFailureRef
-                                        .current({
-                                            gameId,
-                                            seq: at.seq,
-                                            outcome,
-                                            ...(message ? { message } : {}),
-                                        })
-                                        .catch(() => {});
-                                } catch {
-                                    // A lost report, never a lost move.
+                                    consultMs:
+                                        telemetryNow() - consultStartedAt,
+                                    difficulty,
+                                    postedAt: consultStartedAt,
+                                    ...(budget.timeMs === undefined
+                                        ? {}
+                                        : { budgetMs: budget.timeMs }),
+                                    ...(board ? { board } : {}),
+                                    ...(trace
+                                        ? {
+                                              search: {
+                                                  iterationsRequested:
+                                                      trace.iterationsRequested,
+                                                  iterationsCompleted:
+                                                      trace.iterationsCompleted,
+                                                  ...(trace.iterationsKept ===
+                                                  undefined
+                                                      ? {}
+                                                      : {
+                                                            iterationsKept:
+                                                                trace.iterationsKept,
+                                                        }),
+                                                  elapsedMs: trace.elapsedMs,
+                                                  stoppedBy: trace.stoppedBy,
+                                                  ...(trace.rolloutProbes ===
+                                                  undefined
+                                                      ? {}
+                                                      : {
+                                                            rolloutProbes:
+                                                                trace.rolloutProbes,
+                                                        }),
+                                              },
+                                          }
+                                        : {}),
+                                });
+                                // Surface the reasoning to the Debug panel
+                                // (client-only). `via` travels with it: a trace the
+                                // Worker did not produce came from the degraded
+                                // inline path, and the box says so rather than
+                                // presenting it as an ordinary decision.
+                                //
+                                // The consult's own INPUTS travel with it since
+                                // issue #3405 — the projection, the seat and the
+                                // knowledge. `projectedToGameState` is a pure
+                                // function of exactly those three, so the verdict
+                                // quiz can reproduce the board the search ran on
+                                // and lower it into the `ScenarioSpec` a judgement
+                                // is stored as. Captured here, before the driver's
+                                // fallbacks move the game on: by the time a tester
+                                // opens the box, nothing else still holds the
+                                // position this decision was made on.
+                                pushAiTrace(trace, via, {
+                                    state: botState,
+                                    botId,
+                                    ...(knowledge ? { knowledge } : {}),
+                                });
+                                // issue #2470 — the consult's own verdict, recorded
+                                // BEFORE the fallbacks below rewrite what happens
+                                // next: `no-move` after a healthy search and
+                                // `worker-error` after a dead one both arrive here
+                                // as `move === null`, and only this says which.
+                                note(
+                                    outcome,
+                                    {
+                                        expectedKind: view.owedInput!.kind,
+                                        via,
+                                        message,
+                                        ...(move
+                                            ? { moveKind: move.kind }
+                                            : {}),
+                                    },
+                                    at
+                                );
+                                // Issue #9502 — the same verdict, for the server,
+                                // when it says the Brain gave NO answer: the
+                                // fallbacks below pass legally, which leaves no
+                                // other server trace. Fire-and-forget: a throw or
+                                // a rejection is swallowed and changes nothing
+                                // about what the bot does next.
+                                if (isConsultFailureOutcome(outcome)) {
+                                    try {
+                                        void reportConsultFailureRef
+                                            .current({
+                                                gameId,
+                                                seq: at.seq,
+                                                outcome,
+                                                ...(message ? { message } : {}),
+                                            })
+                                            .catch(() => {});
+                                    } catch {
+                                        // A lost report, never a lost move.
+                                    }
                                 }
+                                // Safety net for a searched pending choice (issue #1506)
+                                // and for a searched engine-raised TARGET selection
+                                // (issue #2283): either window suppresses every other
+                                // move, so if the search surfaced none the bot would sit
+                                // on the frozen priority. Fall back to the minimal-legal
+                                // answer the gate already enumerated through the same
+                                // authority the search reads. (The watchdog is the
+                                // general backstop — this is the cheap local one.)
+                                const chosen =
+                                    move ??
+                                    (action.kind === "search-choice" &&
+                                    view.owedChoice
+                                        ? botActionToMove(
+                                              chooseOwedChoiceAction(
+                                                  view.owedChoice
+                                              ),
+                                              botState,
+                                              seatId
+                                          )
+                                        : action.kind === "search-target" &&
+                                            view.owedTarget
+                                          ? botActionToMove(
+                                                chooseOwedTargetAction(
+                                                    view.owedTarget
+                                                ),
+                                                botState,
+                                                seatId
+                                            )
+                                          : null);
+                                if (!chosen) return undefined;
+                                if (seatId === botId) {
+                                    noteBotMove(gameId, botState, chosen);
+                                } else {
+                                    breakConsultPath(gameId);
+                                }
+                                return executeMove(chosen, {
+                                    gameId,
+                                    botId: seatId,
+                                    mutations,
+                                });
                             }
-                            // Safety net for a searched pending choice (issue #1506)
-                            // and for a searched engine-raised TARGET selection
-                            // (issue #2283): either window suppresses every other
-                            // move, so if the search surfaced none the bot would sit
-                            // on the frozen priority. Fall back to the minimal-legal
-                            // answer the gate already enumerated through the same
-                            // authority the search reads. (The watchdog is the
-                            // general backstop — this is the cheap local one.)
-                            const chosen =
-                                move ??
-                                (action.kind === "search-choice" &&
-                                view.owedChoice
-                                    ? botActionToMove(
-                                          chooseOwedChoiceAction(
-                                              view.owedChoice
-                                          ),
-                                          botState,
-                                          seatId
-                                      )
-                                    : action.kind === "search-target" &&
-                                        view.owedTarget
-                                      ? botActionToMove(
-                                            chooseOwedTargetAction(
-                                                view.owedTarget
-                                            ),
-                                            botState,
-                                            seatId
-                                        )
-                                      : null);
-                            if (!chosen) return undefined;
-                            return executeMove(chosen, {
-                                gameId,
-                                botId: seatId,
-                                mutations,
-                            });
-                        }
-                    ),
-                { expectedKind: view.owedInput!.kind }
+                        ),
+                { expectedKind: view.owedInput!.kind, namesItsMove: true }
             );
         }, actDelayMs);
 
