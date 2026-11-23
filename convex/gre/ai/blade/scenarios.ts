@@ -32419,13 +32419,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     // pair predates the list (issue #3026); the other four rows are below.
     {
         label: "flashback grant: Past in Flames replays a graveyard of burn for lethal",
-        pairOf: {
-            anchor: "flashback grant: Past in Flames stays in hand over an empty graveyard",
-            discriminant: {
-                kind: "card",
-                detail: "two Lightning Bolts in the graveyard for the grant to replay",
-            },
-        },
+        classification: { kind: "absolute" },
         spec: {
             phase: "PRECOMBAT_MAIN",
             turn: 6,
@@ -32455,14 +32449,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #9700, CR 702.34a. Past in Flames grants each instant and sorcery in the graveyard flashback at its own mana cost: four mana for the grant, one for each Bolt, six to the face. The Hill Giant beside it is the fair play the grant must beat.",
     },
     {
-        label: "flashback grant: Past in Flames stays in hand over an empty graveyard",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "card",
-                detail: "two Lightning Bolts in the graveyard for the grant to replay",
-            },
-        },
+        label: "flashback grant: Past in Flames stays in hand without the mana to replay its graveyard",
+        classification: { kind: "absolute" },
         spec: {
             phase: "PRECOMBAT_MAIN",
             turn: 6,
@@ -32470,14 +32458,18 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             libraryCount: 20,
             life: { me: 20, opp: 6 },
             cards: [
+                // Four Mountains: the grant itself, and nothing left to
+                // replay what it grants before its flashback ends this turn.
                 {
                     name: "Mountain",
                     owner: "me",
                     zone: "battlefield",
-                    count: 6,
+                    count: 4,
                 },
                 { name: "Past in Flames", owner: "me", zone: "hand" },
                 { name: "Hill Giant", owner: "me", zone: "hand" },
+                { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
+                { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
             ],
         },
         bot: "me",
@@ -32487,7 +32479,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             forbidden: [{ kind: "cast-spell", card: "Past in Flames" }],
         },
-        note: "Issue #9700, CR 702.34a. The same board with nothing in the graveyard: the grant reaches no card, and the four mana it spends is the Hill Giant's.",
+        note: "Issue #9700, CR 702.34a. The same graveyard on four Mountains: the grant's flashback lasts until end of turn and no mana is left to use it, so the four mana belong to the Hill Giant. The empty-graveyard shape the list first named is no candidate at all: a grant that reaches no card is a proven no-op the search prunes, so it cannot be a Verdict.",
     },
     {
         label: "ritual: Pyretic Ritual makes the mana for the spell it enables",
