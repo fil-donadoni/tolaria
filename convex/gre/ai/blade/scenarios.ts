@@ -33430,7 +33430,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     {
         // DOUBLE BLOCK. A Giant Spider (2/4) attacks into four possible
         // blockers. Hill Giant + Hurloon Minotaur deal 5 (kills it, CR
-        // 510.1c) and its 2 damage kills neither (toughness 3 each): a free
+        // 704.5g) and its 2 damage kills neither (toughness 3 each): a free
         // kill. Every other block that kills it holds a 1-toughness body the
         // Spider's damage assignment takes (CR 510.1c), no single blocker
         // kills it, and no block lets it live.
