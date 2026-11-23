@@ -28,5 +28,12 @@ import type { RobustnessBaselineRow } from "./robustness";
 // three, pre-existing: no full audit had completed since 2026-10-11. All
 // three are retired (issues #10335, #10336, #10337). PR #10392's full audit
 // (base 258d11289) found two more, pre-existing; both are retired (issues
-// #10449, #10448).
-export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [];
+// #10449, #10448). Blood Moon re-pinned after its refit (PR #10637): the
+// full audits of PR #10659 and PR #10660 (2026-11-23) both read jitter+ 9/10
+// on the same base — issue #10449 owns it again.
+export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
+    {
+        label: "nonbasic hate: Blood Moon is cast against the opponent's nonbasic mana",
+        issue: 10449,
+    },
+];
