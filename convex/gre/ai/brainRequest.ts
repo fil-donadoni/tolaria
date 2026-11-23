@@ -27,6 +27,7 @@ import {
     DEFAULT_BUDGET,
     type SearchBudget,
     type DecisionTrace,
+    type PonderStats,
 } from "../search";
 import { actedSeatFor } from "../expectedInput";
 import { recordRepetition, type RepetitionHistory } from "./repetition";
@@ -34,6 +35,7 @@ import { projectedToGameState } from "./stateAdapter";
 import type { DeckKnowledgeBySeat } from "../deckKnowledge";
 import {
     continueKeptTree,
+    ponderedVisits,
     type ConsultReuse,
     type KeptTree,
 } from "./treeReuse";
@@ -159,9 +161,22 @@ export function handleBrainRequest(
                       state
                   )
                 : null;
+        // Issue #10472 — what pondering grew at the node this consult
+        // continues from, read before the search adopts (and prunes) it.
+        // Only this game's and seat's: a `context` drop reports nothing.
+        const ledger =
+            reuse &&
+            previous?.gameId === reuse.gameId &&
+            previous.botId === botId
+                ? previous.ponder
+                : undefined;
+        const pondered =
+            ledger && continued && "node" in continued
+                ? ponderedVisits(ledger, continued.node)
+                : 0;
         const {
             move,
-            trace,
+            trace: searched,
             root: grown,
         } = search(
             root,
@@ -183,6 +198,13 @@ export function handleBrainRequest(
                   }
                 : undefined
         );
+        const trace =
+            searched && ledger
+                ? {
+                      ...searched,
+                      ponder: ponderStats(ledger, pondered, searched),
+                  }
+                : searched;
         if (keeper && reuse && grown && move) {
             keeper.kept = {
                 gameId: reuse.gameId,
@@ -213,6 +235,21 @@ export function handleBrainRequest(
     } catch (e) {
         return { id, move: null, trace: null, error: toBrainError(e) };
     }
+}
+
+/** The trace's account of pondering (issue #10472): the visits pondering
+ *  grew at the node the consult continued from, capped by what the search
+ *  actually kept (a refused adoption keeps nothing). */
+function ponderStats(
+    ledger: NonNullable<KeptTree["ponder"]>,
+    pondered: number,
+    trace: DecisionTrace
+): PonderStats {
+    return {
+        iterations: ledger.iterations,
+        kept: Math.min(pondered, trace.iterationsKept ?? 0),
+        ms: Math.round(ledger.ms),
+    };
 }
 
 /** Lower an unknown thrown value to the plain `{ name, message }` shape that

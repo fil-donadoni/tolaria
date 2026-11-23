@@ -13,6 +13,8 @@ import {
     noteBotMove,
     noteHumanCall,
     noteHumanView,
+    onHumanWindow,
+    peekConsultPath,
     startConsultPath,
     takeConsultPath,
 } from "../consult-path";
@@ -121,5 +123,64 @@ describe("the consult path", () => {
         noteBotMove("other", p.botView, { kind: "pass" });
         expect(await takeConsultPath("other")).toBeNull();
         expect(await takeConsultPath(GAME)).toEqual([]);
+    });
+});
+
+// Issue #10472 — pondering reads the path up to the human's open window
+// without taking it.
+describe("the path a ponder reads", () => {
+    let p: ReturnType<typeof position>;
+    beforeEach(() => {
+        p = position();
+        startConsultPath(GAME, p.botId);
+    });
+
+    it("tells each opened human window, and peeks the steps before it", async () => {
+        const opened: [string, number][] = [];
+        const off = onHumanWindow((game, seq) => opened.push([game, seq]));
+        noteBotMove(GAME, p.botView, { kind: "pass" });
+        noteHumanView(GAME, p.humanView, p.humanId);
+        // The same view again opens nothing new.
+        noteHumanView(GAME, p.humanView, p.humanId);
+        off();
+        expect(opened).toEqual([[GAME, p.humanView.seq]]);
+        expect(await peekConsultPath(GAME, p.humanView.seq)).toEqual([
+            { seat: p.botId, key: PASS },
+        ]);
+        // Peeked, not taken: the consult still gets the whole path.
+        noteHumanCall(GAME, {
+            name: "game:passPriority",
+            args: { gameId: GAME, playerId: p.humanId },
+        });
+        expect(await takeConsultPath(GAME)).toEqual([
+            { seat: p.botId, key: PASS },
+            { seat: p.humanId, key: PASS },
+        ]);
+    });
+
+    it("peeks nothing for a window that is not the one open", async () => {
+        noteBotMove(GAME, p.botView, { kind: "pass" });
+        noteHumanView(GAME, p.humanView, p.humanId);
+        expect(await peekConsultPath(GAME, p.humanView.seq + 1)).toBeNull();
+        expect(await peekConsultPath("other", p.humanView.seq)).toBeNull();
+    });
+
+    it("peeks nothing on a broken path", async () => {
+        noteBotMove(GAME, p.botView, { kind: "pass" });
+        breakConsultPath(GAME);
+        noteHumanView(GAME, p.humanView, p.humanId);
+        expect(await peekConsultPath(GAME, p.humanView.seq)).toBeNull();
+    });
+
+    it("a listener that throws breaks nothing", async () => {
+        const off = onHumanWindow(() => {
+            throw new Error("listener");
+        });
+        noteBotMove(GAME, p.botView, { kind: "pass" });
+        noteHumanView(GAME, p.humanView, p.humanId);
+        off();
+        expect(await peekConsultPath(GAME, p.humanView.seq)).toEqual([
+            { seat: p.botId, key: PASS },
+        ]);
     });
 });

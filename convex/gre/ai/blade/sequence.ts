@@ -20,17 +20,27 @@
 // at the same budget and seed. Both must satisfy the expectation, and the
 // kept leg must have kept visits — or must have dropped the tree for the
 // reason the entry names.
+//
+// PONDERING (issue #10472, ADR 0185 Amendment I): an entry that names
+// `ponder` grows the kept tree at the opponent's first real choice (more than
+// one move) for a fixed number of iterations — never wall-clock — through the
+// Worker's own entry (`startPonder`), and the opponent then plays `reply`
+// there. The second decision is then asserted three times: on the pondered
+// tree, on the kept tree WITHOUT pondering, and on a fresh one; the pondered
+// leg must carry visits pondering grew.
 
 import type { ScenarioSpec } from "../../../debugScenarioSpec";
 import { projectPublicState } from "../../../gameProjections";
 import type { Move } from "../../moves";
 import type { GameState } from "../../state";
+import { enumerateMoves } from "../../moves";
 import { advanceToDecision, applyMoveInSearch, treeKeyOf } from "../../search";
 import {
     handleBrainRequest,
     type BrainResponse,
     type TreeKeeper,
 } from "../brainRequest";
+import { startPonder } from "../ponder";
 import { projectedToGameState } from "../stateAdapter";
 import {
     continueKeptTree,
@@ -57,8 +67,15 @@ export type BladeSequence = {
     /** The second decision, on the kept tree AND on a fresh one. */
     second: MoveMatcher[];
     /** `kept`: the second decision continues from the kept subtree, with
-     *  visits. Otherwise the reason the tree must be dropped. */
-    reuse: "kept" | { dropped: TreeDrop };
+     *  visits. `pondered`: and some of them grown by pondering (needs
+     *  `ponder`). Otherwise the reason the tree must be dropped. */
+    reuse: "kept" | "pondered" | { dropped: TreeDrop };
+    /** Ponder the opponent's first real choice for this many iterations
+     *  (issue #10472). */
+    ponder?: { iterations: number };
+    /** The opponent's move at its first real choice; every other decision
+     *  of its, and this one when omitted, is a pass. */
+    reply?: MoveMatcher;
     note: string;
 };
 
@@ -67,6 +84,8 @@ export type BladeSequenceSeedResult = {
     ok: boolean;
     reason: string;
     kept: number;
+    /** Root visits of the second decision grown by pondering. */
+    pondered: number;
 };
 
 /** The longest walk between the two decisions before the entry is called
@@ -99,7 +118,8 @@ function consult(
     );
 }
 
-/** The step `move` is, keyed on `pid`'s own view as the live client keys it. */
+/** The step `move` is, keyed on `pid`'s own view as the live client keys it
+ *  — with the hand card an opponent's move shows (`consult-path.ts`). */
 function stepFor(
     state: GameState,
     seq: number,
@@ -116,7 +136,34 @@ function stepFor(
     if (key === null) {
         throw new Error(`no tree key for ${JSON.stringify(move)} of ${pid}`);
     }
-    return { seat: pid, key };
+    const fromHand =
+        pid !== botId &&
+        (move.kind === "cast-spell" ||
+            move.kind === "play-land" ||
+            move.kind === "activate-ability") &&
+        view.players
+            .find((p) => p.id === pid)
+            ?.hand.some((c) => c.id === move.cardInstanceId);
+    return fromHand && "cardInstanceId" in move
+        ? { seat: pid, key, shows: move.cardInstanceId }
+        : { seat: pid, key };
+}
+
+/** The opponent's move at a decision: `reply` at the pondered one, else a
+ *  pass. */
+function opponentMove(
+    state: GameState,
+    pid: string,
+    matcher: MoveMatcher | undefined
+): Move {
+    if (!matcher) return { kind: "pass" };
+    const move = enumerateMoves(state, pid).find((m) =>
+        matchesMove(state, m, matcher)
+    );
+    if (!move) {
+        throw new Error(`no opponent move matches ${JSON.stringify(matcher)}`);
+    }
+    return move;
 }
 
 function matches(
@@ -128,11 +175,12 @@ function matches(
 }
 
 function runSeed(entry: BladeSequence, seed: number): BladeSequenceSeedResult {
-    const fail = (reason: string, kept = 0) => ({
+    const fail = (reason: string, kept = 0, pondered = 0) => ({
         seed,
         ok: false,
         reason,
         kept,
+        pondered,
     });
     const state = buildPositionFromSpec(entry.spec, undefined, entry.label);
     const botId = seatPlayerId(state, entry.bot);
@@ -148,12 +196,19 @@ function runSeed(entry: BladeSequence, seed: number): BladeSequenceSeedResult {
         );
     }
     if (!keeper.kept) return fail("the first decision kept no tree");
+    // The same first decision, kept by a keeper nobody ponders into: the
+    // pondered entry's third leg.
+    const unpondered: TreeKeeper = { kept: null, catalogue: () => "blade" };
+    if (entry.ponder) {
+        consult(state, seq, entry, botId, seed, unpondered, []);
+    }
 
     // The game moves on, every decision named as the live client names it.
     const steps: ConsultPathStep[] = [
         stepFor(state, seq, botId, botId, first.move!),
     ];
     applyMoveInSearch(state, botId, first.move!);
+    let pondered = false;
     for (let n = 0; ; n++) {
         const pid = advanceToDecision(state);
         if (pid === botId) break;
@@ -163,9 +218,36 @@ function runSeed(entry: BladeSequence, seed: number): BladeSequenceSeedResult {
             );
         }
         seq++;
-        const pass: Move = { kind: "pass" };
-        steps.push(stepFor(state, seq, pid, botId, pass));
-        applyMoveInSearch(state, pid, pass);
+        // Issue #10472 — the opponent's first real choice is pondered, then
+        // answered with the entry's reply.
+        const choice =
+            !pondered && enumerateMoves(state, pid).length > 1
+                ? entry.ponder
+                : undefined;
+        if (choice) {
+            pondered = true;
+            const session = startPonder(
+                {
+                    kind: "ponder",
+                    state: projectPublicState(state, seq, botId),
+                    botId,
+                    deckKnowledge: bladeDeckKnowledge(state, entry),
+                    reuse: { gameId: GAME, steps: [...steps] },
+                    seed,
+                },
+                keeper
+            );
+            if (!session) return fail("nothing to ponder at the reply");
+            session.slice(choice.iterations);
+        }
+        const move = opponentMove(state, pid, choice ? entry.reply : undefined);
+        steps.push(stepFor(state, seq, pid, botId, move));
+        applyMoveInSearch(state, pid, move);
+    }
+    if (entry.ponder && !pondered) {
+        throw new Error(
+            `Blade sequence "${entry.label}": the opponent had no real choice to ponder`
+        );
     }
     seq++;
 
@@ -187,13 +269,20 @@ function runSeed(entry: BladeSequence, seed: number): BladeSequenceSeedResult {
         null
     );
     const keptVisits = kept.trace?.iterationsKept ?? 0;
+    const ponderVisits = kept.trace?.ponder?.kept ?? 0;
     if (kept.error || fresh.error) {
-        return fail(`second decision threw`, keptVisits);
+        return fail(`second decision threw`, keptVisits, ponderVisits);
     }
-    const legs = [
-        ["kept", kept],
+    const legs: [string, BrainResponse][] = [
+        [entry.ponder ? "pondered" : "kept", kept],
         ["fresh", fresh],
-    ] as const;
+    ];
+    if (entry.ponder) {
+        legs.push([
+            "kept, unpondered",
+            consult(state, seq, entry, botId, seed, unpondered, steps),
+        ]);
+    }
     for (let i = 0; i < legs.length; i++) {
         const [leg, res] = legs[i];
         if (!matches(state, res.move, entry.second)) {
@@ -203,10 +292,16 @@ function runSeed(entry: BladeSequence, seed: number): BladeSequenceSeedResult {
             );
         }
     }
-    if (entry.reuse === "kept") {
+    if (entry.reuse === "kept" || entry.reuse === "pondered") {
         if (keptVisits <= 0) {
             const why = "dropped" in verdict ? verdict.dropped : "adopt";
             return fail(`the kept tree was dropped (${why})`, keptVisits);
+        }
+        if (entry.reuse === "pondered" && ponderVisits <= 0) {
+            return fail(
+                `no visit of the second decision was pondered`,
+                keptVisits
+            );
         }
     } else {
         if (keptVisits !== 0) {
@@ -223,7 +318,13 @@ function runSeed(entry: BladeSequence, seed: number): BladeSequenceSeedResult {
             );
         }
     }
-    return { seed, ok: true, reason: "", kept: keptVisits };
+    return {
+        seed,
+        ok: true,
+        reason: "",
+        kept: keptVisits,
+        pondered: ponderVisits,
+    };
 }
 
 /** Run one sequence entry at every declared seed. Never throws on a failed

@@ -35,7 +35,7 @@
 
 import type { PublicGameState } from "../../gameProjections";
 import { PLACEHOLDER_CARD_ID } from "../constants";
-import type { Node } from "../search";
+import { forEachTreeNode, rootVisits, type Node } from "../search";
 
 /** One decision played since the last consult: which seat made it, and the
  *  tree key of the move (`treeKeyOf`, on that seat's own view). `shows` names
@@ -61,6 +61,23 @@ export type KeptTree = {
     root: Node;
     /** The Bot's projection the tree was grown from — what the Bot saw. */
     projection: PublicGameState;
+    /** A PONDERED tree's place on the path (issue #10472): the steps from
+     *  the last consult to the human's decision `root` stands for. The next
+     *  consult's steps start with them, and only the rest is walked. Absent
+     *  on a tree a consult grew: its root IS the last consult's. */
+    prefix?: readonly ConsultPathStep[];
+    /** What pondering has grown since the last consult. */
+    ponder?: PonderLedger;
+};
+
+/** Pondering since the last consult (issue #10472): the iterations and
+ *  wall-clock time it took, and each node's root visits BEFORE the first
+ *  ponder — so the consult can tell the visits pondering grew from the ones
+ *  the last consult left. A node pondering opened reads 0. */
+export type PonderLedger = {
+    iterations: number;
+    ms: number;
+    before: WeakMap<Node, number>;
 };
 
 export type TreeDrop = "context" | "no-path" | "mismatch" | "observation";
@@ -160,15 +177,40 @@ export function crossesObservation(
     return observed;
 }
 
+/** Whether two steps name the same decision. */
+function sameStep(a: ConsultPathStep, b: ConsultPathStep): boolean {
+    return a.seat === b.seat && a.key === b.key && a.shows === b.shows;
+}
+
+/** `steps` past a pondered tree's `prefix`, or `null` when they do not
+ *  start with it: the game left the path the ponder stood on. */
+function pastPrefix(
+    kept: KeptTree,
+    steps: readonly ConsultPathStep[]
+): readonly ConsultPathStep[] | null {
+    const prefix = kept.prefix ?? [];
+    if (steps.length < prefix.length) return null;
+    for (let i = 0; i < prefix.length; i++) {
+        if (!sameStep(prefix[i], steps[i])) return null;
+    }
+    return steps.slice(prefix.length);
+}
+
 /** Where the consult at `projection` continues from, given the tree kept
  *  after the last one: the node reached, or why the tree is dropped. The
  *  node is not yet a root — `adoptKeptRoot` (search.ts) makes it one, and
- *  may still refuse it. */
+ *  may still refuse it. `steps` are every decision since the last CONSULT;
+ *  a pondered tree walks only those past its `prefix` (issue #10472).
+ *
+ *  `ponder` — the walk is a PONDER's, to the human's decision it grows
+ *  (issue #10472): an empty path is no drop there, it is the same decision
+ *  pondered again. */
 export function continueKeptTree(
     kept: KeptTree,
     context: { gameId: string; botId: string; catalogue: string },
     steps: readonly ConsultPathStep[] | null,
-    projection: PublicGameState
+    projection: PublicGameState,
+    ponder = false
 ): TreeContinuation {
     if (
         kept.gameId !== context.gameId ||
@@ -177,15 +219,34 @@ export function continueKeptTree(
     ) {
         return { dropped: "context" };
     }
-    if (!steps || steps.length === 0) return { dropped: "no-path" };
+    if (!steps || (!ponder && steps.length === 0)) {
+        return { dropped: "no-path" };
+    }
+    const rest = pastPrefix(kept, steps);
+    if (!rest) return { dropped: "mismatch" };
     const shown = new Set<string>();
-    for (let i = 0; i < steps.length; i++) {
-        const step = steps[i];
+    for (let i = 0; i < rest.length; i++) {
+        const step = rest[i];
         if (step.seat !== context.botId && step.shows) shown.add(step.shows);
     }
     if (crossesObservation(kept.projection, projection, shown)) {
         return { dropped: "observation" };
     }
-    const node = walkKeptTree(kept.root, steps, context.botId);
+    const node = walkKeptTree(kept.root, rest, context.botId);
     return node ? { node } : { dropped: "mismatch" };
+}
+
+/** A fresh ponder ledger for a tree about to be pondered from `root`: every
+ *  node's root visits now, before pondering adds any (issue #10472). */
+export function openPonderLedger(root: Node): PonderLedger {
+    const before = new WeakMap<Node, number>();
+    forEachTreeNode(root, (node) => before.set(node, rootVisits(node)));
+    return { iterations: 0, ms: 0, before };
+}
+
+/** The root visits pondering grew at `node`, read BEFORE the consult adopts
+ *  it as its root (adoption may drop denied edges): what it holds now less
+ *  what it held before the first ponder. */
+export function ponderedVisits(ledger: PonderLedger, node: Node): number {
+    return Math.max(0, rootVisits(node) - (ledger.before.get(node) ?? 0));
 }

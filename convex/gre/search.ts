@@ -4505,6 +4505,13 @@ export type DecisionTrace = {
      *  tree: only the second reproduces from its board, seed and budget
      *  alone. Set by every search; absent only on a trace built outside one. */
     iterationsKept?: number;
+    /** Pondering since the previous consult (issue #10472, ADR 0185
+     *  Amendment I): the iterations the Worker grew while the human decided,
+     *  the root visits of THIS decision that came from them (a part of
+     *  `iterationsKept`), and the wall-clock time it pondered. Absent when
+     *  nothing was pondered. A decision with pondered visits depends on how
+     *  long the human took: it does not replay from its board alone. */
+    ponder?: PonderStats;
     /** Wall-clock milliseconds the search loop actually took. */
     elapsedMs: number;
     /** Which bound ended the loop. */
@@ -8509,6 +8516,120 @@ export type SearchResult = {
      *  tree was grown: never on a forced move or a window owed to nobody. */
     root?: Node;
 };
+
+/** What pondering contributed to one consult (`DecisionTrace.ponder`). */
+export type PonderStats = {
+    /** Iterations pondered since the previous consult. */
+    iterations: number;
+    /** Root visits of this decision grown by those iterations. */
+    kept: number;
+    /** Wall-clock milliseconds spent pondering since the previous consult. */
+    ms: number;
+};
+
+/** A tree the Brain grows while the HUMAN decides (issue #10472, ADR 0185
+ *  Amendment I): rooted at the human's decision point, searched from the
+ *  Bot's point of view. `iterate` already handles an opponent's node at any
+ *  depth — at the root it selects through the option-set views (issue
+ *  #8939) — so pondering is the search loop without a root decision: no
+ *  move is picked, no trace is built, the statistics are the product. */
+export type PonderSearch = {
+    /** The tree's root: the human's decision. */
+    root: Node;
+    /** Run iterations until `iterations` ran or `stop()` says so (asked
+     *  after each one); the iterations run. Deterministic for a fixed
+     *  count: the rng stream continues across calls. */
+    run: (iterations: number, stop?: () => boolean) => number;
+};
+
+/** A ponder search on `rootState` for `botId`, growing `root` in place, or
+ *  `null` when the position is no other seat's decision — nothing to ponder:
+ *  the Bot's own decision is a consult's, and a window owed to nobody moves
+ *  on by itself. Set up like `runSearchWithTrace` (the same weights, priors,
+ *  opponent model and decklist colour evidence), so a pondered visit is
+ *  the visit a consult would have grown there; the root-only rules are a
+ *  Bot root's and do not apply to the human's decision (`adoptKeptRoot`
+ *  re-applies them where the consult continues). */
+export function createPonderSearch(
+    rootState: GameState,
+    botId: string,
+    seed: number,
+    root: Node,
+    deckKnowledge?: DeckKnowledgeBySeat
+): PonderSearch | null {
+    const decider = decidingPlayer(rootState);
+    if (decider === null || decider === botId) return null;
+    const weights = resolveEvalWeights(getSearchVariant());
+    const actionPriors = resolveActionPriors(getSearchVariant());
+    const opponentModel = resolveOpponentModel(getSearchVariant());
+    const deckColors =
+        opponentModel === "blind"
+            ? undefined
+            : deckColorsForSearch(deckKnowledge, botId);
+    const state: GameState = deckColors
+        ? { ...rootState, deckColorKnowledge: deckColors }
+        : rootState;
+    const rng = makeRng(seed);
+    return {
+        root,
+        run(iterations, stop) {
+            let i = 0;
+            // One dominance scope per slice: the memo is per position, and a
+            // slice never interleaves with another search (one thread).
+            beginDominanceDecision();
+            try {
+                while (i < iterations) {
+                    iterate(
+                        root,
+                        state,
+                        botId,
+                        rng,
+                        weights,
+                        undefined,
+                        actionPriors,
+                        deckKnowledge,
+                        opponentModel
+                    );
+                    i++;
+                    if (stop?.()) break;
+                }
+            } finally {
+                endDominanceDecision();
+            }
+            return i;
+        },
+    };
+}
+
+/** `node` as the root of a ponder (issue #10472), or `null` when it holds an
+ *  edge the Bot chose: some world handed that node to the Bot, so it is not
+ *  the human's decision the ponder state is. A node the opponent decides
+ *  keeps its edges in the option-set views, never in `children`. */
+export function adoptPonderRoot(node: Node): Node | null {
+    return node.children.size === 0 ? node : null;
+}
+
+/** A fresh, empty tree node — the root of a ponder with nothing kept. */
+export function freshNode(): Node {
+    return newNode();
+}
+
+/** Every node reachable from `root`, each once: the Bot's edges, the
+ *  option-set views and the children they share. What the ponder's node cap
+ *  counts (issue #10472). */
+export function forEachTreeNode(root: Node, visit: (node: Node) => void): void {
+    const seen = new Set<Node>();
+    const stack: Node[] = [root];
+    while (stack.length > 0) {
+        const node = stack.pop()!;
+        if (seen.has(node)) continue;
+        seen.add(node);
+        visit(node);
+        node.children.forEach((edge) => stack.push(edge.node));
+        node.optionViews?.forEach((view) => stack.push(view));
+        node.childNodes?.forEach((child) => stack.push(child));
+    }
+}
 
 function runSearchWithTrace(
     rootState: GameState,

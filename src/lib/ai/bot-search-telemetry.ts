@@ -74,6 +74,10 @@ export type SearchStats = {
     iterationsCompleted: number;
     /** Root visits kept from the previous consult's tree (issue #10470). */
     iterationsKept?: number;
+    /** Pondering since the previous consult (issue #10472): iterations
+     *  grown while the human decided, the root visits of this search they
+     *  grew (part of `iterationsKept`), and the time spent pondering. */
+    ponder?: { iterations: number; kept: number; ms: number };
     elapsedMs: number;
     stoppedBy: DecisionTrace["stoppedBy"];
     /** Candidates the rollout policy probed in this search (issue #10321). */
@@ -172,6 +176,9 @@ export const REPORT_KEYS = [
     "iterations.completed",
     "iterations.kept",
     "iterations.ratio",
+    "ponder.iterations",
+    "ponder.kept",
+    "ponderMs.p50",
     "stopped.iterations",
     "stopped.time",
     "stopped.settled",
@@ -476,6 +483,34 @@ export function summarizeBotSearch(
     );
     if (requested > 0)
         raw["iterations.ratio"] = round(completed / requested, 3);
+
+    // Issue #10472 — pondering: the game's iterations grown while the human
+    // decided, the root visits they grew at the Bot's next decisions, and the
+    // median pondering time of a consult that followed one. Left out when
+    // nothing was pondered. Split by `device.mobile`, these check the
+    // owner's ruling that pondering runs on phones too.
+    const pondered = searches.flatMap((s) => {
+        const p = s.ponder;
+        return p && finite(p.iterations) && finite(p.kept) && finite(p.ms)
+            ? [p]
+            : [];
+    });
+    if (pondered.length > 0) {
+        raw["ponder.iterations"] = pondered.reduce(
+            (sum, p) => sum + Math.max(0, p.iterations),
+            0
+        );
+        raw["ponder.kept"] = pondered.reduce(
+            (sum, p) => sum + Math.max(0, p.kept),
+            0
+        );
+        raw["ponderMs.p50"] = round(
+            percentile(
+                pondered.map((p) => p.ms),
+                50
+            )!
+        );
+    }
 
     for (const search of searches) count(`stopped.${search.stoppedBy}`);
 

@@ -343,7 +343,41 @@ The implementation slices, under PRD issue #10017: **issue #10470** (slice 1,
 with the new ADR) and **issue #10472** (slice 2, blocked by it). The
 amendment is **ADR 0185**
 (`docs/adr/0185-the-search-budget-counts-root-visits-and-a-kept-tree-carries-across-consults.md`),
-landed with slice 1.
+landed with slice 1. Slice 2 is its **Amendment I**: pondering runs on phones
+too, with the node cap of § 7.
+
+## 7. Tree memory, for the node cap (issue #10472)
+
+> **Measured at** `ae09bfe927`, 2026-11-23, on the development MacBook, in
+> Node under vitest (`--expose-gc`, heap read after two forced collections).
+
+Pondering needs a node cap (§ 4). 27 blade `must` entries (every twelfth entry
+of the registry with no setup) were each searched once at 3,000 iterations
+with the tree kept (`searchWithTrace` with `reuse`), and the grown tree's
+nodes counted (`forEachTreeNode`: the Bot's edges, the option-set views and
+the children they share). The gc'd heap delta across the search, divided by
+the nodes, is the memory per node.
+
+| Reading                    | Low  | Typical   | High  |
+| -------------------------- | ---- | --------- | ----- |
+| Nodes per iteration        | 0.03 | 0.13–0.25 | 1.3   |
+| Bytes per node             | 390  | 900–3,000 | 6,100 |
+| Counting the tree (per 1k) |      | 0.25 ms   |       |
+
+Narrow boards saturate: their trees stop growing well before the budget (78
+nodes after 3,000 iterations on one). A wide one opens more than one node per
+iteration, because an opponent's node adds an option-set view as well as a
+child (3,973 nodes after 3,000). The heap delta is noisy: four of the 27 read
+negative (a collection the search itself triggered), one tree of 78 nodes read
+30 KB a node (the search's own caches, not the tree), and the high end of the
+table includes such caches too. So the cap is set against the high
+end: **12,000 nodes on a desktop** (about 72 MB at 6 KB a node, about 15 MB at
+1.2 KB) and **4,000 on a phone** (about 24 MB at worst), on a device whose
+memory nobody has measured. At the field's Chromium speed (about 100
+iterations a second, § 2's arithmetic) a desktop reaches the cap only after
+a minute and a half or more of thought. The Worker counts the tree between
+slices only when it could have reached the cap (two nodes per iteration as the
+bound), so a count costs a few milliseconds at most, once in a while.
 
 ## Not measured
 
@@ -354,8 +388,8 @@ landed with slice 1.
 - What a kept visit is worth against a fresh one. A kept subtree's
   statistics were grown under the old root's world distribution and clock.
   The blade sequence entry of slice 1 is the first reading.
-- Tree memory per iteration, phone CPU and battery, and throttling of a
-  Worker in a hidden page (§ 4).
+- Phone CPU and battery, and throttling of a Worker in a hidden page (§ 4).
+  Tree memory per node is § 7's reading.
 
 ## Reproduce
 

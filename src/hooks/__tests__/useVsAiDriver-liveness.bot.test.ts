@@ -252,6 +252,9 @@ vi.mock("~/lib/ai/brain-client", () => ({
     // Spawns the Worker early so its catalogue fetch is not charged to the
     // first consult (issue #3053); a no-op here, where consults are stubbed.
     warmBrain: () => {},
+    // Pondering (issue #10472) mounts beside the driver; nothing to grow here.
+    ponderBrain: () => false,
+    stopPonderingBrain: () => {},
 }));
 
 // The stub. `importOriginal` keeps every OTHER export real — the escalation
