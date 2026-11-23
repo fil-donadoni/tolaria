@@ -332,7 +332,8 @@ export interface FailureStreak {
 }
 
 /**
- * The failure streak: completed pass runs, newest first, after the owner's
+ * The failure streak of ONE host's runs (`hostStreaks` is the dispatcher's
+ * reading, per host): completed pass runs, newest first, after the owner's
  * last acknowledgement (a dispatcher run whose name carries `ACK_MARKER`),
  * counted until the first that did not fail; a neutral conclusion is passed
  * over. A run LOST with its runner (`isLost`, issue #8315) is passed over the
@@ -349,21 +350,21 @@ export function failureStreak(
     dispatchRuns: readonly WorkflowRun[],
     isLost: (run: WorkflowRun) => boolean = () => false
 ): FailureStreak {
-    const acks = dispatchRuns
-        .filter((r) => r.title.includes(ACK_MARKER))
-        .map((r) => ms(r.createdAt));
-    const ackMs = acks.length ? Math.max(...acks) : -Infinity;
-    const completed = passRuns
-        .filter((r) => !isActive(r) && ms(r.updatedAt) > ackMs)
-        .sort((a, b) => ms(b.updatedAt) - ms(a.updatedAt));
-    const runs: WorkflowRun[] = [];
-    for (const r of completed) {
-        const c = r.conclusion ?? "";
-        if (FAILED_CONCLUSIONS.has(c)) {
-            if (c === "failure" && isLost(r)) continue;
-            runs.push(r);
-        } else if (!NEUTRAL_CONCLUSIONS.has(c)) break;
-    }
+    // One host: the per-host walk (issue #10632) with every run on it.
+    const one = "all";
+    return (
+        hostStreaks(passRuns, dispatchRuns, isLost, () => one, [one])[one] ?? {
+            runs: [],
+            notify: false,
+        }
+    );
+}
+
+/** A streak's `notify`, from its failed runs (newest first). */
+function streakOf(
+    runs: WorkflowRun[],
+    dispatchRuns: readonly WorkflowRun[]
+): FailureStreak {
     if (runs.length < FAILURE_STREAK_LIMIT) return { runs, notify: false };
     const reachedMs = ms(runs[runs.length - FAILURE_STREAK_LIMIT].updatedAt);
     // By COMPLETION time: the dispatcher run a failing pass sends at its end
@@ -372,6 +373,91 @@ export function failureStreak(
         (r) => r.conclusion === "failure" && ms(r.updatedAt) >= reachedMs
     );
     return { runs, notify: !notified };
+}
+
+/** The host a pass run is charged to when its runner cannot be read: fails
+ *  closed — three such failures hold every host, as before issue #10632. */
+export const UNKNOWN_HOST = "unknown";
+
+/** The most host reads one `hostStreaks` walk makes: a host online but
+ *  idle never closes, and without a bound its walk would read every run in
+ *  the window. It is also the quarantine's PROBATION: a quarantined host
+ *  runs no pass, so its failures sink under the healthy hosts' runs; once
+ *  this many newer passes ran elsewhere the walk no longer reaches them and
+ *  the host is tried again — still broken, it is quarantined after three
+ *  more failures, with a new email. The ack lifts it at once. */
+export const HOST_STREAK_MAX_READS = 60;
+
+/** Each host's failure streak (issue #10632), keyed by host. */
+export type HostStreaks = Record<string, FailureStreak>;
+
+/**
+ * The failure streak PER HOST (issue #10632): one machine logged out of
+ * `claude` failed every pass it ran in 2 s, and the global streak paused the
+ * two healthy machines with it for three days. The same rules as
+ * `failureStreak` — after the last ack, a neutral conclusion and a lost run
+ * passed over, counted until the first run that did not fail — applied to
+ * each host's own runs. `hostOf` is the caller's (a jobs read), asked only
+ * for the runs the walk counts or that close a host; the walk stops once
+ * every host in `known` is closed, or after `HOST_STREAK_MAX_READS` reads.
+ * An unreadable host charges `UNKNOWN_HOST`.
+ */
+export function hostStreaks(
+    passRuns: readonly WorkflowRun[],
+    dispatchRuns: readonly WorkflowRun[],
+    isLost: (run: WorkflowRun) => boolean,
+    hostOf: (run: WorkflowRun) => string | null,
+    known: readonly string[]
+): HostStreaks {
+    const acks = dispatchRuns
+        .filter((r) => r.title.includes(ACK_MARKER))
+        .map((r) => ms(r.createdAt));
+    const ackMs = acks.length ? Math.max(...acks) : -Infinity;
+    const completed = passRuns
+        .filter((r) => !isActive(r) && ms(r.updatedAt) > ackMs)
+        .sort((a, b) => ms(b.updatedAt) - ms(a.updatedAt));
+    const failed: Record<string, WorkflowRun[]> = {};
+    const closed = new Set<string>();
+    const allKnownClosed = () =>
+        known.length > 0 && known.every((h) => closed.has(h));
+    let reads = 0;
+    for (const r of completed) {
+        if (allKnownClosed() || reads >= HOST_STREAK_MAX_READS) break;
+        const c = r.conclusion ?? "";
+        const fails = FAILED_CONCLUSIONS.has(c);
+        if (!fails && NEUTRAL_CONCLUSIONS.has(c)) continue;
+        if (fails && c === "failure" && isLost(r)) continue;
+        reads++;
+        const host = hostOf(r) ?? UNKNOWN_HOST;
+        if (closed.has(host)) continue;
+        if (!fails) {
+            closed.add(host);
+            continue;
+        }
+        const runs = (failed[host] ??= []);
+        runs.push(r);
+        // Quarantined: a longer streak changes nothing, so the host closes
+        // and the walk can stop once every known host is placed.
+        if (runs.length >= FAILURE_STREAK_LIMIT) closed.add(host);
+    }
+    const out: HostStreaks = {};
+    for (const [host, runs] of Object.entries(failed))
+        out[host] = streakOf(runs, dispatchRuns);
+    return out;
+}
+
+/** The hosts whose streak reached `FAILURE_STREAK_LIMIT`, sorted. */
+export function quarantinedHosts(streaks: HostStreaks): string[] {
+    return Object.entries(streaks)
+        .filter(([, s]) => s.runs.length >= FAILURE_STREAK_LIMIT)
+        .map(([h]) => h)
+        .sort();
+}
+
+/** Quarantined hosts whose streak has sent no email yet: the run fails once
+ *  for them even when the healthy hosts keep dispatching. */
+export function quarantineToNotify(streaks: HostStreaks): string[] {
+    return quarantinedHosts(streaks).filter((h) => streaks[h].notify);
 }
 
 export type Hold =
@@ -406,11 +492,60 @@ export interface HoldInput {
     missingRecords: number;
     /** `afk-pass.yml` exists and is enabled on the default branch. */
     passWorkflowActive: boolean;
-    streak: FailureStreak;
+    /** Each host's failure streak (`hostStreaks`, issue #10632). */
+    streaks: HostStreaks;
+    /** Hosts with an online `pass` runner: the hold stands only once every
+     *  one of them is quarantined. */
+    onlineHosts: readonly string[];
     red: HealthMarker | null;
     usageLimitResetAt: string | null;
     budget: BudgetConfig;
     reading: BudgetReading;
+}
+
+/** The run ids a quarantine names: each host's newest three. */
+function streakRunIds(streaks: HostStreaks, hosts: readonly string[]): string {
+    return hosts
+        .flatMap((h) =>
+            streaks[h].runs.slice(0, FAILURE_STREAK_LIMIT).map((r) => r.id)
+        )
+        .join(", ");
+}
+
+/**
+ * The `failure-streak` hold (issue #10632): only when no healthy host is
+ * left — every online `pass` host quarantined — or when the streak sits on
+ * `UNKNOWN_HOST` (fail closed: those failures may be any host's). One
+ * quarantined host among healthy ones is no hold: `passSlots` drops its
+ * runners and the healthy hosts keep dispatching. Host names stay off the
+ * public log: counts and run ids only.
+ */
+function streakHold(
+    streaks: HostStreaks,
+    onlineHosts: readonly string[]
+): Hold | null {
+    const quarantined = quarantinedHosts(streaks);
+    if (quarantined.length === 0) return null;
+    const healthy = onlineHosts.filter((h) => !quarantined.includes(h));
+    if (!quarantined.includes(UNKNOWN_HOST) && healthy.length > 0) return null;
+    return {
+        kind: "failure-streak",
+        notify: quarantined.some((h) => streaks[h].notify),
+        message:
+            `${FAILURE_STREAK_LIMIT} consecutive failed passes on ${quarantined.includes(UNKNOWN_HOST) ? "runners that cannot be read" : `every pass host (${quarantined.length})`} (runs ${streakRunIds(streaks, quarantined)}) — paused. ` +
+            `Read the runs, then \`gh workflow run afk-dispatch.yml -f ack_failures=true\` to resume`,
+    };
+}
+
+/** The log line for hosts quarantined while others dispatch (issue #10632),
+ *  or null. */
+export function quarantineLine(streaks: HostStreaks): string | null {
+    const q = quarantinedHosts(streaks);
+    if (q.length === 0) return null;
+    return (
+        `quarantined: ${q.length} pass host(s), ${FAILURE_STREAK_LIMIT} consecutive failed passes each (runs ${streakRunIds(streaks, q)}) — no pass goes there; ` +
+        `fix the machine, then \`gh workflow run afk-dispatch.yml -f ack_failures=true\``
+    );
 }
 
 /**
@@ -434,18 +569,8 @@ export function holdFor(input: HoldInput): Hold | null {
             kind: "no-pass-workflow",
             message: `${PASS_WORKFLOW} is absent or disabled on the default branch — nothing to dispatch to`,
         };
-    const { streak } = input;
-    if (streak.runs.length >= FAILURE_STREAK_LIMIT)
-        return {
-            kind: "failure-streak",
-            notify: streak.notify,
-            message:
-                `${streak.runs.length} consecutive failed passes (runs ${streak.runs
-                    .slice(0, FAILURE_STREAK_LIMIT)
-                    .map((r) => r.id)
-                    .join(", ")}) — paused. ` +
-                `Read the runs, then \`gh workflow run afk-dispatch.yml -f ack_failures=true\` to resume`,
-        };
+    const hold = streakHold(input.streaks, input.onlineHosts);
+    if (hold) return hold;
     if (input.healthError !== null)
         return {
             kind: "unknown-health",
@@ -798,6 +923,10 @@ export interface Slots {
     free: string[];
     /** Hosts with at least one ONLINE `pass` runner, busy or not. */
     online: string[];
+    /** A host is quarantined (issue #10632): every dispatch names the host
+     *  of the slot it took, or an unpinned `runs-on: pass` could land on the
+     *  quarantined host's idle runner. */
+    pinned?: boolean;
 }
 
 /**
@@ -805,15 +934,21 @@ export interface Slots {
  * dispatcher's own runner when it is a `pass` one (it frees within seconds),
  * minus the `afk-pass` runs already waiting for a runner — each will take one
  * of these slots, on a host nobody can predict, so the LAST slots go.
+ * A `quarantined` host (issue #10632) offers no slot and does not count as
+ * online: a resume last run there goes unpinned to a healthy host.
  */
 export function passSlots(
     runners: readonly RunnerRow[],
     selfName: string | null,
-    passRuns: readonly WorkflowRun[]
+    passRuns: readonly WorkflowRun[],
+    quarantined: readonly string[] = []
 ): Slots {
-    const pass = runners.filter(
-        (r) => r.labels.includes(PASS_LABEL) && r.status === "online"
-    );
+    const pass = runners.filter((r) => {
+        if (!r.labels.includes(PASS_LABEL) || r.status !== "online")
+            return false;
+        const host = runnerHost(r);
+        return host === null || !quarantined.includes(host);
+    });
     const free: string[] = [];
     for (const r of pass) {
         const host = runnerHost(r);
@@ -826,6 +961,7 @@ export function passSlots(
         online: [
             ...new Set(pass.map(runnerHost).filter((h) => h !== null)),
         ] as string[],
+        ...(quarantined.length > 0 ? { pinned: true } : {}),
     };
 }
 
@@ -833,7 +969,9 @@ export interface Dispatch {
     issue: number;
     model: string;
     resume: boolean;
-    /** The host a resume is pinned to; `null` = any `pass` runner. */
+    /** The host the pass is pinned to — a resume's last host, or any
+     *  dispatch's slot under a quarantine (issue #10632); `null` = any `pass`
+     *  runner. */
     host: string | null;
     /** A resume's open PR, when it has one. */
     pr: number | null;
@@ -871,11 +1009,14 @@ export function planDispatch(
     admission: Admission = OPEN_ADMISSION
 ): DispatchPlan {
     const free = [...slots.free];
-    const take = (host: string | null): boolean => {
+    // The host a dispatch names: the one asked for, else — under a
+    // quarantine (`slots.pinned`) — the host of the slot it took; `undefined`
+    // = no slot.
+    const take = (host: string | null): string | null | undefined => {
         const i = host === null ? 0 : free.indexOf(host);
-        if (i === -1 || free.length === 0) return false;
-        free.splice(i, 1);
-        return true;
+        if (i === -1 || free.length === 0) return undefined;
+        const got = free.splice(i, 1)[0];
+        return host ?? (slots.pinned ? got : null);
     };
     const dispatch: Dispatch[] = [];
     const waiting: number[] = [];
@@ -886,8 +1027,10 @@ export function planDispatch(
             continue;
         }
         const last = hostOf(r.number);
-        const host = last !== null && slots.online.includes(last) ? last : null;
-        if (take(host))
+        const host = take(
+            last !== null && slots.online.includes(last) ? last : null
+        );
+        if (host !== undefined)
             dispatch.push({
                 issue: r.number,
                 model: r.model,
@@ -905,13 +1048,14 @@ export function planDispatch(
     );
     for (const r of repairs) {
         if (seen.has(r.number)) continue;
-        if (!take(null)) break;
+        const host = take(null);
+        if (host === undefined) break;
         seen.add(r.number);
         dispatch.push({
             issue: r.number,
             model: r.model,
             resume: true,
-            host: null,
+            host,
             pr: r.pr,
         });
     }
@@ -920,12 +1064,13 @@ export function planDispatch(
             held.push(p.number);
             continue;
         }
-        if (!take(null)) break;
+        const host = take(null);
+        if (host === undefined) break;
         dispatch.push({
             issue: p.number,
             model: p.model,
             resume: false,
-            host: null,
+            host,
             pr: null,
         });
     }
