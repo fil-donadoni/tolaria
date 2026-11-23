@@ -240,11 +240,11 @@ export async function peekConsultPath(
     seq: number
 ): Promise<ConsultPathStep[] | null> {
     const p = current(gameId);
-    if (!p || p.broken || p.open?.state.seq !== seq) return null;
+    if (!p) return null;
     const steps = p.steps.slice();
     try {
         const resolved = await Promise.all(steps);
-        // Re-read after the wait: the path may have broken or moved on.
+        // Read after the wait: the path may have broken or moved on in it.
         if (current(gameId) !== p || p.broken || p.open?.state.seq !== seq) {
             return null;
         }
