@@ -195,6 +195,73 @@ describe("runStepWithRetry — the health-main seam", () => {
 });
 
 /**
+ * The `ace36757281b` shape (issue #10655): `test:app` failed one
+ * `node-tooling` file, its re-run PASSED, then `test:bot` failed in
+ * `bot-node`. The evidence said "re-ran node-tooling once … failed again" —
+ * the retry of a project that passed, beside a failure never re-run. Policy:
+ * one re-run per step; a chain script failing after a green retry is RED on
+ * its first output, and the record says it was not re-run and why.
+ */
+describe("a chain script failing after a green retry (issue #10655)", () => {
+    const TOOLING = `${APP_CMD}\n FAIL  |node-tooling| scripts/__tests__/vitest-fs-cache-invalidation.test.ts > cache > invalidates\nAssertionError: expected 1 to be 2\n Test Files  1 failed (1)\n`;
+    const BOT = `${BOT_CMD}\n FAIL  |bot-node| convex/gre/ai/__tests__/search.bot.test.ts > search > picks\nError: Test timed out in 5000ms.\n Test Files  1 failed (1)\n`;
+
+    async function aceShape() {
+        const f = fakeRunner([
+            result(false, TOOLING),
+            result(true, " Test Files  1 passed (1)\n"),
+            result(false, BOT),
+        ]);
+        const lines: string[] = [];
+        const out = await runStepWithRetry(TEST_STEP, f.run, (l) =>
+            lines.push(l)
+        );
+        return { f, out, lines };
+    }
+
+    it("is a refusal naming the spent re-run, never `retried`", async () => {
+        const { f, out, lines } = await aceShape();
+        expect(out.result.ok).toBe(false);
+        expect(out.result.output).toBe(BOT);
+        expect(out.retried).toBeUndefined();
+        expect(out.cause).toBeUndefined();
+        expect(out.refused).toBe(
+            "bot-node (test:bot) not re-run: the step's one re-run was spent on node-tooling, which failed first (assertion) and passed on its re-run"
+        );
+        expect(lines.at(-1)).toContain(out.refused!);
+        // test:blade never starts after a red test:bot.
+        expect(f.ran.map((s) => s.name)).toEqual([
+            "test",
+            "test retry",
+            "test:bot",
+        ]);
+    });
+
+    it("the evidence names bot-node's failure, never node-tooling failing again", async () => {
+        const { out } = await aceShape();
+        // As `health-main.ts` maps a run onto `RetryFields`.
+        const ev = buildEvidence({
+            sha: "ace36757281ba1177f23bcc736f4c1e1a6081127",
+            step: "test",
+            machine: "m",
+            logPath: "/l.log",
+            ...out.result,
+            retried: out.retried,
+            retryCause: out.cause,
+            retryRefused: out.refused,
+            retryBroken: out.retryBroken,
+            at: "2026-11-23T00:00:00Z",
+        });
+        expect(ev.projects).toEqual(["bot-node"]);
+        expect(ev.body).not.toContain("failed again");
+        expect(ev.body).not.toMatch(/re-ran node-tooling/);
+        expect(ev.body).toContain(
+            "- **retry:** none — bot-node (test:bot) not re-run: the step's one re-run was spent on node-tooling"
+        );
+    });
+});
+
+/**
  * The `c0980cd465fa` shape (issue #8916, run 42404465368): the first run
  * failed ONE test of `bot-dom`; the retry, broken by a second
  * `@vitest/expect` instance (issue #8915), failed every test of 14 files with
