@@ -3578,3 +3578,89 @@ describe("search — win timing across turns (issue #9900)", () => {
         }
     });
 });
+
+// ---------------------------------------------------------------------------
+// Issue #10609 — a loss later outranks a loss now.
+//
+// The gentler mirror of the win timing above: `scoreLeaf` shrinks a LOST
+// leaf's depth below the lost band's ceiling per turn boundary survived.
+// Without it, a line that dies this combat and one that chump-blocks and dies
+// on the opponent's next turn both sat at the loss floor, inside
+// `outcomeEps`, and the material tie-break took the immediate loss for the
+// material it kept (the Treetop Village blade entry).
+// ---------------------------------------------------------------------------
+
+describe("search — loss timing (issue #10609)", () => {
+    const W = DEFAULT_EVAL_WEIGHTS;
+
+    /** A game the bot (p1) has lost, with the opponent's board intact, at
+     *  `turn` / `phase`. */
+    function lostLeaf(turn: number, phase: GameState["phase"]): GameState {
+        const state = botMainPhase([], [], {
+            life: 20,
+            battlefield: Array.from({ length: 3 }, (_, i) =>
+                creature(GIANT, "p2", `g${i}`)
+            ),
+        });
+        state.players[0].life = 0;
+        state.turn = turn;
+        state.phase = phase;
+        state.gameOver = { winnerId: "p2", loserId: "p1", reason: "life" };
+        return state;
+    }
+
+    function leafReward(
+        root: { turn: number; phase: GameState["phase"] },
+        leaf: GameState
+    ): number {
+        const since = {
+            turn: root.turn,
+            step: PHASE_ORDER.indexOf(root.phase),
+        };
+        return rollout(leaf, "p1", makeRng(1), W, since).reward;
+    }
+
+    it("a loss with no game time elapsed is the plain loss reward", () => {
+        const leaf = lostLeaf(5, "DECLARE_ATTACKERS");
+        const plain = rollout(
+            lostLeaf(5, "DECLARE_ATTACKERS"),
+            "p1",
+            makeRng(1),
+            W
+        ).reward;
+        expect(leafReward({ turn: 5, phase: "DECLARE_ATTACKERS" }, leaf)).toBe(
+            plain
+        );
+        expect(plain).toBeLessThan(W.terminalBand);
+    });
+
+    it("a loss on the opponent's next turn scores above a loss this combat", () => {
+        const root = { turn: 5, phase: "DECLARE_ATTACKERS" as const };
+        const plain = rollout(
+            lostLeaf(5, "COMBAT_DAMAGE"),
+            "p1",
+            makeRng(1),
+            W
+        ).reward;
+        const now = leafReward(root, lostLeaf(5, "COMBAT_DAMAGE"));
+        const later = leafReward(root, lostLeaf(7, "COMBAT_DAMAGE"));
+        // Same turn: the same loss, ordered by material alone.
+        expect(now).toBe(plain);
+        expect(later).toBeGreaterThan(now);
+        // Still a loss: below the ceiling of the lost band.
+        expect(later).toBeLessThan(W.terminalBand);
+    });
+
+    it("never scores a sooner loss above a later one", () => {
+        const root = { turn: 3, phase: "PRECOMBAT_MAIN" as const };
+        let previous = -Infinity;
+        for (const turn of [3, 4, 5, 6]) {
+            for (const phase of PHASE_ORDER) {
+                if (turn === 3 && PHASE_ORDER.indexOf(phase) < 3) continue;
+                const r = leafReward(root, lostLeaf(turn, phase));
+                expect(r).toBeGreaterThanOrEqual(previous);
+                previous = r;
+            }
+        }
+    });
+});
