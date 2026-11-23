@@ -27,7 +27,7 @@
  * Exit 0: the census completed (its reds are the answer, not a failure).
  * Exit 2: a worker crashed or a job wrote no row — nothing to conclude.
  */
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import {
     existsSync,
     mkdirSync,
@@ -50,6 +50,10 @@ import {
     type CensusRow,
 } from "../convex/gre/ai/blade/census";
 import { BRAIN_CONSULT_TIMEOUT_MS } from "../src/lib/ai/consult-timeout";
+import {
+    crashedWorkerTails,
+    runBladeWorkerPool,
+} from "./lib/blade-worker-pool";
 
 const SPEC = "convex/gre/ai/blade/__tests__/census.spec.ts";
 
@@ -175,32 +179,6 @@ function headSha(): string | null {
     return r.status === 0 ? r.stdout.trim() : null;
 }
 
-function runWorker(dir: string, k: number): Promise<number> {
-    return new Promise((done) => {
-        const log = join(dir, `worker-${k}.log`);
-        const child = spawn(
-            "bunx",
-            ["vitest", "run", "--config", "vitest.blade.config.ts", SPEC],
-            {
-                env: {
-                    ...process.env,
-                    BLADE_CENSUS_DIR: dir,
-                    // One vitest worker per process: the pool is the processes.
-                    TOLARIA_VITEST_WORKERS: "1",
-                },
-                stdio: ["ignore", "pipe", "pipe"],
-            }
-        );
-        const chunks: Buffer[] = [];
-        child.stdout.on("data", (c: Buffer) => chunks.push(c));
-        child.stderr.on("data", (c: Buffer) => chunks.push(c));
-        child.on("close", (code) => {
-            writeFileSync(log, Buffer.concat(chunks));
-            done(code ?? 1);
-        });
-    });
-}
-
 async function runArm(args: Args): Promise<void> {
     const dir = mkdtempSync(join(tmpdir(), "blade-census-"));
     writeFileSync(join(dir, "config.json"), JSON.stringify(args.config));
@@ -220,21 +198,18 @@ async function runArm(args: Args): Promise<void> {
             `blade:census: ${rows}/${plan} jobs, ${Math.round((Date.now() - started) / 1000)}s`
         );
     }, 30_000);
-    const codes = await Promise.all(
-        Array.from({ length: args.jobs }, (_, k) => runWorker(dir, k))
+    const codes = await runBladeWorkerPool(
+        SPEC,
+        "BLADE_CENSUS_DIR",
+        dir,
+        args.jobs
     );
     clearInterval(progress);
     const wallMs = Date.now() - started;
 
     const crashed = codes.map((c, k) => ({ c, k })).filter(({ c }) => c !== 0);
     if (!existsSync(join(dir, "plan.json")) || crashed.length > 0) {
-        for (const { k } of crashed.length ? crashed : [{ k: 0 }]) {
-            const log = join(dir, `worker-${k}.log`);
-            const tail = existsSync(log)
-                ? readFileSync(log, "utf8").split("\n").slice(-30).join("\n")
-                : "(no log)";
-            console.error(`--- worker ${k} (exit ${codes[k]}) ---\n${tail}`);
-        }
+        console.error(crashedWorkerTails(dir, codes));
         fail(`worker failure; logs in ${dir}`, 2);
     }
     const plan = (

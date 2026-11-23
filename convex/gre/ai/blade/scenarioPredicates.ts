@@ -17,7 +17,12 @@ import { enumerateMoves, enumerateRaisedTargetMoves } from "../../moves";
 import { applyMoveInSearch, isDiscouragedRolloutMove } from "../../search";
 import { raisedPendingTargetOwedBy } from "../../pendingTargetOrigin";
 import { cloneGameState } from "../../clone";
-import { instanceIdsForName, matchesMove, seatPlayerId } from "./matcher";
+import {
+    instanceIdsForName,
+    matchesMove,
+    movingCardIds,
+    seatPlayerId,
+} from "./matcher";
 import { materialMargin } from "../../evaluate";
 import { isLand, manaValue } from "../../constants";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
@@ -560,6 +565,51 @@ export function timingMeasurement(
             move === null ? hold : matchesMove(state, move, expected) !== hold,
         describe: `${hold ? "does NOT choose" : "chooses"} ${expected.kind} ${expected.card ?? ""}${expected.target ? ` → ${expected.target}` : ""}`,
     };
+}
+
+/** Issue #10631 — the declaration names EXACTLY these creatures: every one of
+ *  them, and nothing else. A `moves` matcher's `cards` is partial (extra
+ *  cards allowed), which on a wide board accepts the very declaration the
+ *  entry exists to refuse: one more attacker sent into a lethal crack-back,
+ *  one more blocker thrown under a damage assignment that kills it. Each name
+ *  must resolve to one creature on the built board. */
+export function declaresExactly(
+    kind: "declare-attackers" | "declare-blockers",
+    cards: readonly string[],
+    /** When set, every one of them attacks (or blocks) this card NAME. */
+    target?: string
+): BladeScenario["expect"] {
+    return {
+        predicate: (move, state) => {
+            if (move === null || move.kind !== kind) return false;
+            const acting = new Set(movingCardIds(move));
+            if (acting.size !== cards.length) return false;
+            const named = cards.every((name) => {
+                const ids = instanceIdsForName(state, name);
+                return [...ids].some((id) => acting.has(id));
+            });
+            if (!named || target === undefined) return named;
+            const aimed = instanceIdsForName(state, target);
+            const targets = targetsByActor(move);
+            return [...acting].every((id) => aimed.has(targets.get(id) ?? ""));
+        },
+        describe:
+            `${kind} with exactly [${cards.join(", ")}]` +
+            (target ? ` → ${target}` : ""),
+    };
+}
+
+/** Each declared attacker's attack target (a planeswalker or battle id; the
+ *  defending player is absent), or each blocker's attacker. */
+function targetsByActor(
+    move: Extract<Move, { kind: "declare-attackers" | "declare-blockers" }>
+): Map<string, string> {
+    if (move.kind === "declare-blockers") {
+        return new Map(
+            move.assignments.map((a) => [a.blockerId, a.attackerId])
+        );
+    }
+    return new Map(Object.entries(move.attackTargets ?? {}));
 }
 
 /** The exact MIRROR of {@link activationStaysAvailable} — the activation is
