@@ -392,3 +392,77 @@ describe("canonicalMoveKey — a handle embedded in a choiceId (issue #9119)", (
         );
     });
 });
+
+describe("canonicalMoveKey — an answer to an abstract-option choice (CR 107.14)", () => {
+    /** Seat p1 holding `cards` (id → definition id), a spell on the stack
+     *  under `stackId`, and an open "pay any amount" option-pick whose ids
+     *  are the amounts "0".."2" — tokens, not zone members. */
+    const board = (
+        stackId: string,
+        cards: Record<string, string>
+    ): GameState => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: Object.entries(cards).map(([id, def]) =>
+                        makeInstance(def, {
+                            id,
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        })
+                    ),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...makeInstance(sealOfFire().id, {
+                id: stackId,
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            zone: "stack",
+            castById: "p1",
+        } as GameState["stack"][number]);
+        state.pendingChoices = [
+            {
+                stackItemId: stackId,
+                step: 1,
+                choiceId: `pay-${stackId}`,
+                playerId: "p1",
+                kind: "option-pick",
+                count: 1,
+                options: ["0", "1", "2"].map((n) => ({
+                    id: n,
+                    label: `Pay ${n}`,
+                })),
+                prompt: "Pay any amount.",
+            } as NonNullable<GameState["pendingChoices"]>[number],
+        ];
+        return state;
+    };
+    const pay = (stackItemId: string, amount: string): Move => ({
+        kind: "resolution-choice",
+        stackItemId,
+        step: 1,
+        choiceId: `pay-${stackItemId}`,
+        cardInstanceIds: [amount],
+    });
+
+    it("keys the same amount alike when one build numbered a card with that id", () => {
+        // The live build's instances sit at large ids; the rebuild numbers a
+        // Hill Giant "1". "Pay 1" is the same answer on both.
+        const live = board("161", { "140": hillGiant().id });
+        const rebuilt = board("125", { "1": hillGiant().id });
+        expect(canonicalMoveKey(pay("161", "1"), live, "p1")).toBe(
+            canonicalMoveKey(pay("125", "1"), rebuilt, "p1")
+        );
+    });
+
+    it("keeps two different amounts apart", () => {
+        const state = board("161", { "1": hillGiant().id });
+        expect(canonicalMoveKey(pay("161", "1"), state, "p1")).not.toBe(
+            canonicalMoveKey(pay("161", "2"), state, "p1")
+        );
+    });
+});
