@@ -41,7 +41,11 @@
 // every move the mover holds after A (pass aside, the tap plan aside) must
 // also be held after B — anything A still casts, activates or plays is a
 // reason to keep X searchable, R itself included (X first then R is then the
-// same line as B, and the search will find it).
+// same line as B, and the search will find it). And since what is legal NOW
+// is not all the leftover mana pays for — a combat trick, an activation gated
+// to another step — a line that keeps more untapped lands than B is refused
+// outright while the mover holds any instant-speed option at all
+// (`holdsInstantSpeedOption`).
 //
 // ── Why R on the battlefield is never worse than R in hand ────────────────
 // R's only text is static cost reductions that apply to spells its controller
@@ -58,7 +62,9 @@ import type { CardDefinition } from "../../cards/types";
 import { tryGetDefinition } from "../../cards";
 import { checkStateBasedActions } from "../sba";
 import { cloneGameState } from "../clone";
-import { isLand } from "../constants";
+import { hasInstantSpeed, isLand, isManaAbilityDefinition } from "../constants";
+import { getEffectiveActivatedAbilities } from "../activatedAbilities";
+import { hasCardSelfFlashPermission } from "../../cards/castRestrictions";
 import { STATIC_EFFECT_CTX } from "../layers";
 import { getEffectiveStaticEffects, resolveTopOfStack } from "../state";
 import type { CardInstanceState, GameState } from "../state";
@@ -249,6 +255,56 @@ function optionsCovered(
     return true;
 }
 
+/** Untapped lands `pid` controls in `state`. */
+function untappedLandCount(state: GameState, pid: string): number {
+    const mover = state.players.find((p) => p.id === pid);
+    return mover
+        ? mover.battlefield.filter((c) => isLand(c) && !c.isTapped).length
+        : 0;
+}
+
+/** True when `pid` holds anything mana left untapped could pay for at
+ *  instant speed later this turn, outside what is legal right now: an
+ *  instant or flash card in hand, graveyard or exile, any card in hand
+ *  carrying an activated ability, or a non-mana activated ability on any
+ *  card it holds. `except` names the two cards the proof is about. Coarse on
+ *  purpose — fail-closed: what it cannot rule out keeps the spell searchable. */
+function holdsInstantSpeedOption(
+    state: GameState,
+    pid: string,
+    except: ReadonlySet<string>
+): boolean {
+    const mover = state.players.find((p) => p.id === pid);
+    if (!mover) return true;
+    const zones = [mover.hand, mover.battlefield, mover.graveyard, mover.exile];
+    for (let z = 0; z < zones.length; z++) {
+        const zone = zones[z];
+        for (let i = 0; i < zone.length; i++) {
+            const card = zone[i];
+            if (except.has(card.id)) continue;
+            const abilities = getEffectiveActivatedAbilities(card);
+            if (zone === mover.hand && !isLand(card) && abilities.length > 0) {
+                return true;
+            }
+            if (
+                abilities.some(
+                    ({ ability }) => !isManaAbilityDefinition(ability)
+                )
+            ) {
+                return true;
+            }
+            if (
+                zone !== mover.battlefield &&
+                !isLand(card) &&
+                (hasInstantSpeed(card) || hasCardSelfFlashPermission(card))
+            ) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 /** Is `spell` dominated by casting `reducer` first? The proof in the module
  *  header. Any doubt, or a probe that throws, answers `false`. */
 function reducerFirstDominates(
@@ -285,6 +341,19 @@ function reducerFirstDominates(
             untapped
         );
         if (!left || !right || !deepEqual(left, right)) return false;
+        // The mana the spell-first line keeps beyond the reducer line's can
+        // pay for something that is not legal yet (a combat trick, an
+        // activation with a timing gate): `optionsCovered` sees only now.
+        if (
+            untappedLandCount(a, pid) > untappedLandCount(b, pid) &&
+            holdsInstantSpeedOption(
+                state,
+                pid,
+                new Set([reducer.cardInstanceId, spell.cardInstanceId])
+            )
+        ) {
+            return false;
+        }
         return optionsCovered(a, b, pid, enumerate);
     } catch {
         return false;

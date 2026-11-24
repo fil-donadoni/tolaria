@@ -90,6 +90,21 @@ describe("a spell at full cost is dominated by the cost reducer cast first (issu
         expect(castsOf(state, moves, "Gray Ogre").length).toBeGreaterThan(0);
     });
 
+    it("keeps the spell when the mana it leaves pays for a trick not legal yet", () => {
+        // Four Mountains and a Plains: the Giant first leaves one land, the
+        // Medallion then the Giant leaves none. Righteousness ({W}, target
+        // blocking creature) has no target now, so it is not a move now; it
+        // is one in combat, and only the Giant-first line can pay for it.
+        const { state, bot } = position(
+            4,
+            ["Ruby Medallion", "Hill Giant", "Righteousness"],
+            [{ name: "Plains", owner: "me", zone: "battlefield" }]
+        );
+        const { moves } = rootMoves(state, bot);
+        expect(castsOf(state, moves, "Righteousness")).toEqual([]);
+        expect(castsOf(state, moves, "Hill Giant").length).toBeGreaterThan(0);
+    });
+
     it("keeps the spell before a symmetric reducer, which discounts the opponent's spells too", () => {
         // Helm of Awakening: "Spells cost {1} less to cast", every player's.
         const { state, bot } = position(4, ["Helm of Awakening", "Gray Ogre"]);
