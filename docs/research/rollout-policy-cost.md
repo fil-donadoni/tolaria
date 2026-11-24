@@ -473,6 +473,11 @@ at `topk:3`'s two iteration counts.
   p50 2.16 / p90 3.51 / mean 2.58 (641; pooled 2.80, 21.7%). The five read
   5.84 at the median of their means (pooled 5.82, p90 16, declaration plies
   52%): field width, on five positions out of 641.
+- **Dated 2026-11-24, at `60d692e6d7`** (issue #10631 re-landed on a base
+  that moved; same census, 3156 searches, 0 red): per-entry means p50 2.16 /
+  p90 3.54 / mean 2.59 over 650 entries (pooled 2.85, declaration plies 21%).
+  The one-attacker entry now attacks with a shadow creature at 800
+  iterations; its own width reads 6.29 mean, p50 3, p90 8.
 
 ### 4. The probe memo
 
