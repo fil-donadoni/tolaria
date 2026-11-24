@@ -3,9 +3,9 @@
  * under, when the spell's own self reduction is conditional on its targets
  * ("This spell costs {2} less to cast if it targets a blue spell").
  *
- * The enumerator prices a cast BEFORE it picks targets (CR 601.2c precedes
- * 601.2f only at the real commit; the move list needs a tap plan per target
- * tuple), so a target-conditional reduction has two possible totals. Priced
+ * At the real commit targets are announced (CR 601.2c) before the total cost
+ * is determined, but the enumerator prices a cast BEFORE it picks targets,
+ * so a target-conditional reduction has two possible totals. Priced
  * once, without targets, the reduction is granted whenever ANY matching spell
  * is on the stack — and then neither answer alone is right: the reduced plan
  * is short for a target that does not earn the reduction, and a plan priced
