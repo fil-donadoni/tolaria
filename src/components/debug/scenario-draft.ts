@@ -238,6 +238,7 @@ export type SpecDraft = {
     speed: SeatPairDraft;
     life: SeatPairDraft;
     experience: SeatPairDraft;
+    energy: SeatPairDraft;
     /** CR 305.2 (issue #3446) — lands already played this turn, per seat. */
     landsPlayed: SeatPairDraft;
     /** CR 601.2i / 118.9 (issue #3449) — what each seat has already cast:
@@ -297,6 +298,7 @@ export function emptySpecDraft(): SpecDraft {
         speed: { ...EMPTY_SEAT_PAIR },
         life: { ...EMPTY_SEAT_PAIR },
         experience: { ...EMPTY_SEAT_PAIR },
+        energy: { ...EMPTY_SEAT_PAIR },
         landsPlayed: { ...EMPTY_SEAT_PAIR },
         spellsCastThisTurn: { ...EMPTY_SEAT_PAIR },
         spellsCastThisGame: { ...EMPTY_SEAT_PAIR },
@@ -354,6 +356,7 @@ export function specToDraft(spec: ScenarioSpec | null): SpecDraft {
     draft.speed = seatPairToDraft(spec.speed);
     draft.life = seatPairToDraft(spec.life);
     draft.experience = seatPairToDraft(spec.experience);
+    draft.energy = seatPairToDraft(spec.energy);
     draft.landsPlayed = seatPairToDraft(spec.landsPlayed);
     draft.spellsCastThisTurn = seatPairToDraft(spec.spellsCastThisTurn);
     draft.spellsCastThisGame = seatPairToDraft(spec.spellsCastThisGame);
@@ -450,6 +453,8 @@ export function draftToSpec(draft: SpecDraft): Omit<ScenarioSpec, "cards"> {
     if (life) spec.life = life;
     const experience = seatPairFromDraft(draft.experience);
     if (experience) spec.experience = experience;
+    const energy = seatPairFromDraft(draft.energy);
+    if (energy) spec.energy = energy;
     const landsPlayed = seatPairFromDraft(draft.landsPlayed);
     if (landsPlayed) spec.landsPlayed = landsPlayed;
     const castThisTurn = seatPairFromDraft(draft.spellsCastThisTurn);

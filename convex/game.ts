@@ -15646,6 +15646,14 @@ export const debugSetupScenario = mutation({
                 opp: v.optional(v.number()),
             })
         ),
+        /** Seed energy counters (CR 107.14) on a player — the pool a {E}
+         *  cost is paid from. Absent / zero leaves none. */
+        energy: v.optional(
+            v.object({
+                me: v.optional(v.number()),
+                opp: v.optional(v.number()),
+            })
+        ),
         /** CR 305.2 / 305.2a (issue #3446) — land drops already spent this
          *  turn, so a scenario can place a main-phase decision taken AFTER the
          *  land was played (the most common decision there is) instead of

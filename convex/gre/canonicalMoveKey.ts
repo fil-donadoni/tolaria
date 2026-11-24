@@ -271,5 +271,46 @@ export function canonicalMoveKey(
     state: GameState,
     deciderId: string
 ): string {
-    return JSON.stringify(canonicalise(move, substitution(state, deciderId)));
+    const subst = substitution(state, deciderId);
+    return JSON.stringify(
+        canonicalise(abstractOptionAnswers(move, state, subst), subst)
+    );
+}
+
+/** Prefix for an answer to an abstract-option choice, keyed by its label. */
+const OPTION = "option#";
+
+/**
+ * A `resolution-choice` answering a choice that carries `options` submits
+ * option ids, which are abstract tokens minted by the raising site — "0".."3"
+ * for "pay any amount" (CR 107.14) — not zone members. Read through the handle
+ * map they collide with whichever card instance a build numbered "1", so the
+ * same answer keys two ways on two builds. Each answer is keyed by its option
+ * LABEL instead, the world-independent half of the option. An id that is a
+ * seat stays an id (the seat substitution already places it, and a label
+ * naming a player would carry a per-build nickname). An id the open choice
+ * does not list is left verbatim — fail-closed.
+ */
+function abstractOptionAnswers(
+    move: Move,
+    state: GameState,
+    subst: (s: string) => string
+): Move {
+    if (move.kind !== "resolution-choice") return move;
+    const pending = (state.pendingChoices ?? []).find(
+        (choice) =>
+            choice.stackItemId === move.stackItemId &&
+            choice.step === move.step &&
+            choice.choiceId === move.choiceId
+    );
+    const options = pending?.options;
+    if (!options) return move;
+    return {
+        ...move,
+        cardInstanceIds: move.cardInstanceIds.map((id) => {
+            if (subst(id).startsWith(SEAT)) return id;
+            const option = options.find((o) => o.id === id);
+            return option ? `${OPTION}${option.label}` : id;
+        }),
+    };
 }

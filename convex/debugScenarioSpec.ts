@@ -748,6 +748,15 @@ export const scenarioSpecValidator = v.object({
             opp: v.optional(v.number()),
         })
     ),
+    // CR 107.14 — seed energy counters, so a saved scenario can start with
+    // the pool an {E} cost is paid from. Mirrors `debugSetupScenario`'s
+    // matching arg (`convex/game.ts`).
+    energy: v.optional(
+        v.object({
+            me: v.optional(v.number()),
+            opp: v.optional(v.number()),
+        })
+    ),
     // CR 305.2 (issue #3446) — land drops already spent this turn. Without it
     // every rebuild opens with the drop unused, so a MAIN-PHASE decision taken
     // after the land was played rebuilds as a position that still offers
@@ -1401,6 +1410,10 @@ export type ScenarioSpec = {
      *  scenario can start at the SCALING state a card's "for each experience
      *  counter you have" reads (Otharri, Suns' Glory). */
     experience?: { me?: number; opp?: number };
+    /** CR 107.14 — seed energy counters on a player, so a scenario can start
+     *  with the pool a "pay any amount of {E}" choice draws from (Galvanic
+     *  Discharge) instead of an empty one. */
+    energy?: { me?: number; opp?: number };
     /** CR 305.2 / 305.2a (issue #3446) — lands this seat has already played
      *  this turn. Omitted means none: the builder CLEARS the tally like the
      *  other per-turn ones (the `drawnThisTurn` precedent, issue #3240), so a
@@ -2639,6 +2652,12 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
         set(experience, "me", pickNumber(raw.experience.me));
         set(experience, "opp", pickNumber(raw.experience.opp));
         spec.experience = experience;
+    }
+    if (isRecord(raw.energy)) {
+        const energy: { me?: number; opp?: number } = {};
+        set(energy, "me", pickNumber(raw.energy.me));
+        set(energy, "opp", pickNumber(raw.energy.opp));
+        spec.energy = energy;
     }
     if (isRecord(raw.landsPlayed)) {
         const landsPlayed: { me?: number; opp?: number } = {};
