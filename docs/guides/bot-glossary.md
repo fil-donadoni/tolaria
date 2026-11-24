@@ -317,7 +317,12 @@ root's candidates because it is _provably_ no better than passing: casting a
 board wipe on an empty board, an edict with nothing to sacrifice. One case is
 dominated by a sibling instead of by passing: a planeswalker's tick-up whose
 resolution changes nothing (re-elking an Elk) loses to another of its loyalty
-abilities that costs at least as much and does something (`#8729`). "Provably"
+abilities that costs at least as much and does something (`#8729`). Another
+is dominated by a LINE: a spell cast at full cost loses to a pure self cost
+reducer cast first when the reducer then the same spell reaches the same board
+plus the reducer, with nothing the full-cost line could still cast (Ruby
+Medallion before Gray Ogre on four Mountains, `#10645`,
+`convex/gre/ai/sequencingDominance.ts`). "Provably"
 is the contract — a proof from the effect's own semantics, never a heuristic
 guess. Code: `enumerateMoves(…, { pruneDominatedNoOps })` in
 `convex/gre/moves.ts`; applied at the root only (per-node cost measured at
