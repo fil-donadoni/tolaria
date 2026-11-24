@@ -137,7 +137,7 @@ export function giftDeliveryOps(kind: GiftKind): EffectOp[] {
         case "card":
             return [{ op: "draw", player: "opponent", count: 1 }];
         case "tapped-fish":
-            // CR 111.10 — "tapped" is the creating effect's own modification.
+            // CR 702.174f — "a TAPPED 1/1 blue Fish creature token".
             return [
                 {
                     op: "createToken",

@@ -162,7 +162,7 @@ describe("Gift — lowering places the second ability (CR 702.174b/j)", () => {
         });
     });
 
-    it("a permanent's gift is a twin trigger, and the tapped Fish enters tapped (CR 111.10)", () => {
+    it("a permanent's gift is a twin trigger, and the tapped Fish enters tapped (CR 702.174f)", () => {
         const def = compiled(
             oracleCard({
                 name: "Test Gift Bear",

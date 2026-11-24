@@ -4,7 +4,7 @@
 // `GIFT_GIVEN` is emitted by the resolver as an instant or sorcery whose gift
 // cost was paid, or a permanent's gift trigger, resolves (`gre/gift.ts`), so
 // this factory only narrows the event and gates the giver's relation to the
-// trigger's source (CR 109.2).
+// trigger's controller (CR 109.5: "you" is the triggered ability's controller).
 
 import type {
     EffectOp,

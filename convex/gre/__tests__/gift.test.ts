@@ -252,7 +252,7 @@ describe("Gift on an instant or sorcery (CR 702.174b/c/d/f/h)", () => {
                         getDefinition(c.card.id).name === tokenName
                 );
                 expect(gifted).toHaveLength(1);
-                // CR 111.10 — the Fish enters tapped; the others untapped.
+                // CR 702.174f — the Fish enters tapped; the others untapped.
                 expect(gifted[0]!.isTapped).toBe(kind === "tapped-fish");
                 // 3 from the spell, 1 from the give-a-gift trigger.
                 expect(life(state, "p1")).toBe(before + 4);

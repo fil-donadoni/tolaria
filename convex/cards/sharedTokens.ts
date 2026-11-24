@@ -200,7 +200,7 @@ export const RABBIT_TOKEN: EffectTokenSpec = {
 
 /** Fish token (CR 111.3) — "a 1/1 blue Fish creature token", the token a
  *  "Gift a tapped Fish" delivers (CR 702.174f; `cards/abilities/gift.ts`
- *  adds the creating effect's "tapped", CR 111.10). Vanilla, so
+ *  adds the creating effect's "tapped"). Vanilla, so
  *  `EffectTokenSpec`. Unpinned art, the {@link RABBIT_TOKEN} treatment: the
  *  producing card's own printing names the token. */
 export const FISH_TOKEN: EffectTokenSpec = {
