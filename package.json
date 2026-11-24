@@ -42,7 +42,6 @@
         "bot:reach": "bun scripts/gate.ts job 'bun scripts/target-bot-reach.ts'",
         "blade:audit-census": "bun scripts/blade-audit-census.ts",
         "blade:census": "bun scripts/blade-census.ts",
-        "blade:probe": "bun scripts/blade-probe.ts",
         "blade:card-index": "bun scripts/build-blade-card-index.ts",
         "blade:robustness": "bun scripts/gate.ts heavy 'BLADE_ROBUSTNESS=1 vitest run --config vitest.blade.config.ts robustness.shard'",
         "gaps:sync": "bun scripts/gaps-sync.ts",
