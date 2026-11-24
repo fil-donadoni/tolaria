@@ -134,7 +134,7 @@
 //     reading it, CR 603.4) is prunable too; any OTHER card the resolution
 //     exiled is still a zone difference, and a leaves-the-graveyard trigger
 //     still resolves inside the probe and blocks the prune on its own.
-// All are accepted, and both are worth exactly one card's worth of value in
+// All are accepted, and each is worth exactly one card's worth of value in
 // positions the search can reach a turn later anyway; the alternative is a
 // prune that never fires.
 
