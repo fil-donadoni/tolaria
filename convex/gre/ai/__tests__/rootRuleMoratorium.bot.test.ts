@@ -396,29 +396,31 @@ describe("a blade entry that depends on a rule flips when the rule is disabled",
     it("`hold-trick` is what holds the sacrifice engine in its own main phase", () => {
         const entry = BLADE_SCENARIOS.find((s) => s.label === LABEL);
         if (!entry) throw new Error(`blade entry "${LABEL}" not found`);
-        // ONE seed, not the entry's five: the blade suite owns the full run,
-        // and this test owns the DIFFERENCE between two configs. Fixed
-        // iterations, never wall-clock, so the verdict is byte-reproducible.
-        const [seed] = entry.seeds ?? [];
-        if (seed === undefined) {
-            throw new Error(`${LABEL}: entry declares no seed`);
-        }
-        const oneSeed = { ...entry, seeds: [seed] };
+        // The entry's own seeds, every one: the knob is read the way
+        // `BLADE_VARIANT=no-rule:<mechanism>` reads it, as the ENTRY turning
+        // red. One seed is a coin a refit of the fitted weights can flip
+        // while the rule stays load-bearing on the others (every new blade
+        // entry moves the fit, issue #10631). Fixed iterations, never
+        // wall-clock, so the verdict is byte-reproducible.
         // Both arms run with the Saturation Prior off (issue #9095): with it
-        // the search holds the engine on its own on every seed of the entry,
+        // the search holds the engine on its own on most seeds of the entry,
         // so the rule would no longer be what the difference measures. The
         // plumbing under test is the same either way.
         const priorOff = LADDER_VARIANTS["no-saturation-prior"];
 
-        const baseline = runBladeScenario(oneSeed, priorOff);
+        const baseline = runBladeScenario(entry, priorOff);
         expect(baseline.ok, baseline.failureMessage).toBe(true);
-        expect(baseline.seeds[0]?.move?.kind).toBe("pass");
+        expect(baseline.seeds.map((s) => s.move?.kind)).toEqual(
+            baseline.seeds.map(() => "pass")
+        );
 
-        const withoutRule = runBladeScenario(oneSeed, {
+        const withoutRule = runBladeScenario(entry, {
             ...noRuleVariant(`${NO_RULE_VARIANT_PREFIX}hold-trick`),
             evalWeights: priorOff.evalWeights,
         });
         expect(withoutRule.ok).toBe(false);
-        expect(withoutRule.seeds[0]?.move?.kind).toBe("activate-ability");
+        expect(withoutRule.seeds.map((s) => s.move?.kind)).toContain(
+            "activate-ability"
+        );
     });
 });
