@@ -24,21 +24,15 @@
 
 import type { RobustnessBaselineRow } from "./robustness";
 
-// The first FULL PR-side audit to finish (issue #10319, PR #10333) found
-// three, pre-existing: no full audit had completed since 2026-10-11. All
-// three are retired (issues #10335, #10336, #10337). PR #10392's full audit
-// (base 258d11289) found two more, pre-existing; both are retired (issues
-// #10449, #10448). Blood Moon re-pinned after its refit (PR #10637): the
-// full audits of PR #10659 and PR #10660 (2026-11-23) both read jitter+ 9/10
-// on the same base — issue #10449 owned it again, until the base tip
-// 46f69c4b11 (after PR #10620's lost-leaf turn timing) read it ROBUST on every
-// leg (own 5/5, default/jitter+/jitter- 10/10): PR #10446's audit, reproduced
-// on the bare base tip, retires the row a second time.
+// A row follows the audit of the tree it lands on: the audit is deterministic
+// per tree, and a fragile entry flips between ROBUST and NOISE-PINNED as
+// unrelated Bot changes move its root visits. History of each row lives in
+// git and in its owning issue.
 export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
-    // Passes only at its declared 400 iterations: whenever both root edges
-    // sit in the visit band, the material tie-break takes the futile cast.
+    // jitter+ 9/10: the one failing seed is decided by the material
+    // tie-break, every passing one by mean reward.
     {
-        label: "phyrexian mana: Dismember never aims at toughness above 5",
-        issue: 10665,
+        label: "nonbasic hate: Blood Moon is cast against the opponent's nonbasic mana",
+        issue: 10449,
     },
 ];

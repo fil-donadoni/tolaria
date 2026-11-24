@@ -66,6 +66,7 @@ import {
 import {
     expiringBodyHasCombatUse,
     isDeferrableStackAbility,
+    selfAnimateOp,
 } from "./ai/abilityTiming";
 import { loyaltyRealizationRatio } from "./ai/loyaltyValue";
 import { scheduledEndStepDeparture } from "./ai/doomedEntry";
@@ -2857,6 +2858,26 @@ function blockersByAttacker(
     return out;
 }
 
+/** Whether the defending (non-active) player could still block the declared
+ *  attack — CR 509.1a: only untapped creatures can be chosen to block, so
+ *  without one a declared attack goes unblocked. An untapped permanent with an
+ *  activation that animates ITSELF (a manland; a Vehicle's crew, CR 702.122a)
+ *  can become a creature before blocks, so it counts as a possible blocker:
+ *  the pre-block window under-reports, never over-fires. */
+function defenderMayBlock(state: GameState): boolean {
+    const defender = state.players.find((p) => p.id !== state.activePlayerId);
+    return !!defender?.battlefield.some(
+        (c) =>
+            !c.isTapped &&
+            (isCreature(c) ||
+                getEffectiveActivatedAbilities(c).some(
+                    ({ ability }) =>
+                        ability.animatesSelf === true ||
+                        selfAnimateOp(ability) !== undefined
+                ))
+    );
+}
+
 /** The combat damage a CONFIRMED block leaves headed at the defending PLAYER,
  *  plus who that player is: `damage` reaches their life, `poison` is the part
  *  dealt by infect sources, which reaches their poison counters instead
@@ -2881,16 +2902,27 @@ function declaredFaceDamage(
     // a broad, common-position false `∓WIN_SCORE`. DECLARE_BLOCKERS is the only
     // PRE-damage phase in which `blockersConfirmed` can be true, so it is the
     // term's entire support window (CR 509 → 510).
-    if (state.phase !== "DECLARE_BLOCKERS") return null;
+    //
+    // Issue #10492 — a second, PRE-block window: a declared attack the
+    // defender cannot block AT ALL, because it controls no untapped creature
+    // (CR 509.1a), is the same locked-in damage as a confirmed empty block,
+    // one declaration early. It opens in DECLARE_ATTACKERS and in
+    // DECLARE_BLOCKERS before the defender confirms. A permanent that can
+    // animate itself keeps it shut (`defenderMayBlock`); a creature flashed in
+    // before blocks, or an effect letting a tapped creature block, is outside
+    // this reading; the term recomputes on the state that holds it.
     const combat = state.combat;
-    if (
-        !combat ||
-        !combat.confirmed ||
-        !combat.blockersConfirmed ||
-        combat.attackerIds.length === 0
-    ) {
+    if (!combat || !combat.confirmed || combat.attackerIds.length === 0) {
         return null;
     }
+    const confirmedBlock =
+        state.phase === "DECLARE_BLOCKERS" && combat.blockersConfirmed;
+    const unblockableAttack =
+        (state.phase === "DECLARE_ATTACKERS" ||
+            state.phase === "DECLARE_BLOCKERS") &&
+        !combat.blockersConfirmed &&
+        !defenderMayBlock(state);
+    if (!confirmedBlock && !unblockableAttack) return null;
     // CR 615 / 615.12 — a resolved Fog. `applyAllCombatDamage` returns
     // immediately on this flag UNLESS a source-side unpreventable-combat-damage
     // static is on the board (Questing Beast), in which case its controller's

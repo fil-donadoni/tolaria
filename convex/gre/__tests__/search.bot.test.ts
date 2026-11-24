@@ -3277,6 +3277,17 @@ describe("isWastefulAttack — the structural rule-out (issue #2436)", () => {
         expect(isWastefulAttack(state, swing("g"))).toBe(false);
     });
 
+    it("does NOT fire on a swing into a TAPPED would-be blocker (CR 509.1a, issue #10492)", () => {
+        // The Spider that absorbs the 3/5 above is tapped here: it cannot
+        // block this combat, so the swing deals its three damage and is
+        // productive. Read with the tapped Spider as a blocker, it fired.
+        const state = attackWith(
+            [creature(IRONROOT, "p1", "ir")],
+            [creature(SPIDER, "p2", "spider", { isTapped: true })]
+        );
+        expect(isWastefulAttack(state, swing("ir"))).toBe(false);
+    });
+
     it("does NOT fire on the empty attack declaration — there is nothing to waste", () => {
         const state = attackWith(
             [creature(IRONROOT, "p1", "ir")],

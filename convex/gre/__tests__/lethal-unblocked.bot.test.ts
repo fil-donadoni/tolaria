@@ -150,6 +150,65 @@ describe("lethalUnblockedDelta — ON-PATTERN (CR 510.1c / 704.5a)", () => {
     });
 });
 
+describe("lethalUnblockedDelta — a declared attack nothing can block (CR 509.1a, issue #10492)", () => {
+    /** Four 6/4s declared into 20 life, blocks not yet declared, the
+     *  defender's only creature tapped or untapped as asked. */
+    function unblockable(phase: GameState["phase"], blockerTapped: boolean) {
+        const state = position({
+            attackers: Array.from({ length: 4 }, () => ({
+                power: 6,
+                toughness: 4,
+            })),
+            blockers: [{ power: 2, toughness: 2 }],
+            defenderLife: 20,
+            blockersConfirmed: false,
+        });
+        state.players[1].battlefield[0].isTapped = blockerTapped;
+        state.phase = phase;
+        return state;
+    }
+
+    it("fires before blocks when the defender controls no untapped creature", () => {
+        for (const phase of [
+            "DECLARE_ATTACKERS",
+            "DECLARE_BLOCKERS",
+        ] as const) {
+            const state = unblockable(phase, true);
+            expect(lethalUnblockedDelta(state, DEFENDER)).toBe(-WIN_SCORE);
+            expect(lethalUnblockedDelta(state, ATTACKER)).toBe(WIN_SCORE);
+        }
+    });
+
+    it("is zero before blocks while one untapped creature can still block", () => {
+        expect(
+            lethalUnblockedDelta(
+                unblockable("DECLARE_ATTACKERS", false),
+                DEFENDER
+            )
+        ).toBe(0);
+    });
+
+    it("is zero before blocks while an untapped permanent can animate itself into a blocker", () => {
+        // Mishra's Factory's `animatesSelf` activation makes it a creature
+        // before blocks (CR 509.1a reads the creature it has become), so the
+        // tapped 2/2 alone does not lock the damage in.
+        const state = unblockable("DECLARE_ATTACKERS", true);
+        state.players[1].battlefield.push(
+            makeInstance(getCardByName("Mishra's Factory").id, {
+                id: "factory",
+                controllerId: DEFENDER,
+            })
+        );
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
+    });
+
+    it("is zero past the block windows (the damage is no longer pending)", () => {
+        expect(
+            lethalUnblockedDelta(unblockable("COMBAT_DAMAGE", true), DEFENDER)
+        ).toBe(0);
+    });
+});
+
 describe("lethalUnblockedDelta — EXACTLY ZERO off-pattern (ADR 0070 §5)", () => {
     it("is zero with no combat at all", () => {
         const state = position({
@@ -162,11 +221,14 @@ describe("lethalUnblockedDelta — EXACTLY ZERO off-pattern (ADR 0070 §5)", () 
     });
 
     it("is zero before blockers are confirmed (CR 509.1 — the defender has not answered yet)", () => {
+        // The defender holds an untapped creature, so the block is still its
+        // to choose; without one the pre-block window below opens instead.
         const state = position({
             attackers: Array.from({ length: 4 }, () => ({
                 power: 6,
                 toughness: 4,
             })),
+            blockers: [{ power: 2, toughness: 2 }],
             defenderLife: 20,
             blockersConfirmed: false,
         });
