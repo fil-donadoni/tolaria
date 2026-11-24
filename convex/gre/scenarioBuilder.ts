@@ -1553,6 +1553,14 @@ export function buildStateFromScenario(
         if (spec.experience.opp) p2.experienceCounters = spec.experience.opp;
     }
 
+    // Seed energy counters (CR 107.14): the pool a {E} cost is paid from, so a
+    // rebuilt "pay any amount of {E}" choice offers every payable amount
+    // instead of only 0. Truthy-checked like experience: 0 is the default.
+    if (spec.energy) {
+        if (spec.energy.me) p1.energyCounters = spec.energy.me;
+        if (spec.energy.opp) p2.energyCounters = spec.energy.opp;
+    }
+
     // Seed land drops already spent (CR 305.2 / 305.2a, issue #3446). Playing
     // a land is a special action (CR 116.2a) gated on this tally, so this is
     // the whole difference between a rebuilt main phase that still offers the
@@ -5304,6 +5312,8 @@ export const PLAYER_STATE_ALLOWLIST = new Set<string>([
     "poisonCounters",
     "speed",
     "experienceCounters",
+    // CR 107.14 — lowered into the spec's `energy` pair and rebuilt from it.
+    "energyCounters",
     // CR 305.2 (issue #3446) — lowered by `specFromState` into `landsPlayed`
     // and rebuilt from it, so it is no longer live-only residue.
     "landsPlayedThisTurn",
@@ -6220,6 +6230,11 @@ export function specFromState(
         if (opp.experienceCounters) {
             spec.experience.opp = opp.experienceCounters;
         }
+    }
+    if (me.energyCounters || opp.energyCounters) {
+        spec.energy = {};
+        if (me.energyCounters) spec.energy.me = me.energyCounters;
+        if (opp.energyCounters) spec.energy.opp = opp.energyCounters;
     }
     // CR 305.2 (issue #3446) — omitted when neither seat has played a land,
     // unlike `life` above: 0 is not a coincidence here but exactly what the

@@ -58,6 +58,8 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     speed: "form-owned",
     life: "form-owned",
     experience: "form-owned",
+    // CR 107.14 — the pool an {E} cost is paid from.
+    energy: "form-owned",
     // CR 305.2 (issue #3446) — lands already played this turn. `form-owned`
     // like its per-seat siblings: an admin pinning a post-land-drop main phase
     // must be able to type it, not only capture it.
@@ -353,6 +355,13 @@ export const SCENARIO_SPEC_FIELD_INPUT = {
     experience: {
         kind: "per-seat",
         label: "experience",
+        min: 0,
+        group: "other",
+        section: "players",
+    },
+    energy: {
+        kind: "per-seat",
+        label: "energy",
         min: 0,
         group: "other",
         section: "players",
