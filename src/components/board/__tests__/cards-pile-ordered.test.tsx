@@ -171,4 +171,34 @@ describe("CardsPile — ordered pile fan (issue #9874)", () => {
         const chip = baseElement.querySelector("[data-ordered-pile-top]");
         expect(slotElement(baseElement, "bear-c").contains(chip)).toBe(true);
     });
+
+    // Issue #10223: dimmed (ineligible) tiles must never paint over selectable
+    // ones in a filtered fan; unfiltered fan carries no eligibility z-index.
+    it("filtered fan: every eligible tile stacks above every ineligible tile", () => {
+        const { baseElement } = render(
+            <CardsPile
+                cards={PILE}
+                layout="fan"
+                ordered
+                forceOpen
+                title="Graveyard"
+                onCardClick={() => {}}
+                eligibleIds={new Set(["bolt-a", "bear-a"])}
+            />
+        );
+        const z = (id: string) =>
+            Number(slotElement(baseElement, id).style.zIndex);
+        for (const eligible of ["bolt-a", "bear-a"]) {
+            for (const ineligible of ["bear-b", "bolt-b", "bear-c"]) {
+                expect(z(eligible)).toBeGreaterThan(z(ineligible));
+            }
+        }
+    });
+
+    it("unfiltered fan: tiles carry no eligibility z-index", () => {
+        const { baseElement } = renderOrdered();
+        for (const id of ["bolt-a", "bear-a", "bear-c"]) {
+            expect(slotElement(baseElement, id).style.zIndex).toBe("");
+        }
+    });
 });
