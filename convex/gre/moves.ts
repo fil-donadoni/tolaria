@@ -22,6 +22,7 @@ import { outsideGamePlaysRemaining, outsideGamePool } from "./outsideGame";
 import { isAlreadySelectedTarget } from "./targetFilters";
 import { activationEvidenceUnpayable } from "./collectEvidence";
 import { findPermanent } from "./lookup";
+import { targetConditionalCostPricings } from "./targetConditionalCostPricing";
 import type {
     ActivatedAbility,
     AlternativeCost,
@@ -4337,6 +4338,13 @@ function enumerateCastMovesFromZone(
               // cross-player exile cast, not the announcing player.
               getCostModifiers(state, card, "spell", undefined, player.id)
             : undefined;
+    const costPricings = targetConditionalCostPricings(
+        state,
+        card,
+        player.id,
+        def,
+        costModifiers
+    );
     // CR 702.119a / 601.2f — an emerge cast's reduction by its victim's mana
     // value. The Move names the LARGEST-mana-value victim
     // (`planCastCostPicks`), so the tap plan is priced with that victim's
@@ -4494,8 +4502,11 @@ function enumerateCastMovesFromZone(
                       kickerPayments
                   )
                 : xValues;
-        for (let k = 0; k < variantXValues.length; k++) {
-            const x = variantXValues[k];
+        const pricedVariants = variantXValues.flatMap((x) =>
+            costPricings.map((pricing) => ({ x, pricing }))
+        );
+        for (let k = 0; k < pricedVariants.length; k++) {
+            const { x, pricing } = pricedVariants[k];
             const normCost = normalizeManaCost(rawCost, { chosenX: x ?? 0 });
             // CR 107.3a / 601.2h (issue #4506) — this variant's caster-chosen
             // DISTINCT colours for X (Emblazoned Golem's Kicker), picked the
@@ -4569,9 +4580,11 @@ function enumerateCastMovesFromZone(
             // same carve-out in `canPotentiallyPayCost`). `costModifiers` is
             // hoisted above the loop (see comment there) — only
             // `applyCostModifiers` (mutating the per-iteration `normCost`)
-            // stays here.
-            if (costModifiers) {
-                applyCostModifiers(normCost, costModifiers);
+            // stays here. `pricing.modifiers` is `costModifiers` itself, or —
+            // for a target-conditional self reduction — one of its two
+            // pricings (`targetConditionalCostPricings`).
+            if (pricing.modifiers) {
+                applyCostModifiers(normCost, pricing.modifiers);
             }
             // CR 702.119a — after the modifiers, as the commit applies it.
             reduceGenericCost(normCost, emergeReduction);
@@ -4791,20 +4804,19 @@ function enumerateCastMovesFromZone(
                     ) {
                         continue;
                     }
-                    // CR 601.2f — the tap plan above was priced without
-                    // targets, so a target-conditional self reduction was
-                    // granted optimistically. A target that does not earn it
-                    // would be charged more at the commit than this plan
-                    // pays, parking an unpayable cast: not enumerated.
-                    const conditionalReduction =
-                        def?.selfCostReduction?.ifTargetsSpell;
+                    // CR 601.2f — the tap plan above was priced for ONE
+                    // answer to "do the targets earn the target-conditional
+                    // self reduction?"; a tuple answering the other way is
+                    // charged a different total at the commit (more: an
+                    // unpayable cast parked; less: mana overpaid), so it
+                    // belongs to the other pricing's plan, not this one.
                     if (
-                        conditionalReduction !== undefined &&
-                        !targetsMatchingSpellExist(
+                        pricing.earnsReduction !== undefined &&
+                        targetsMatchingSpellExist(
                             state,
-                            conditionalReduction,
+                            pricing.earnsReduction.filter,
                             targets
-                        )
+                        ) !== pricing.earnsReduction.earned
                     ) {
                         continue;
                     }

@@ -271,10 +271,26 @@ describe("debugLoadBladeScenario — loaded position matches the harness's built
     }
 
     it("normalizes active/priority player to the 'me' seat and life to the starting total", () => {
-        // An entry declaring no life of its own: a `spec.life` is the position
-        // under test and overrides the starting total this block asserts.
-        const scenario = BLADE_SCENARIOS.find((s) => s.spec.life === undefined);
-        if (!scenario) throw new Error("every blade entry declares a life");
+        // An entry declaring none of the fields this block asserts defaults
+        // for: a `spec.life`, a seat handed the turn or priority, or a
+        // per-player counter is the position under test and overrides the
+        // default — the first entry of the registry is whatever was added
+        // last, so the pick must not depend on its order.
+        const scenario = BLADE_SCENARIOS.find(
+            (s) =>
+                s.spec.life === undefined &&
+                (s.spec.activePlayer ?? "me") === "me" &&
+                (s.spec.priority ?? "me") === "me" &&
+                s.spec.turnControl === undefined &&
+                s.spec.landsPlayed === undefined &&
+                s.spec.manaPool === undefined &&
+                s.spec.restrictedMana === undefined &&
+                s.spec.spellsCastThisTurn === undefined &&
+                s.spec.poison === undefined &&
+                s.spec.energy === undefined &&
+                s.spec.turnsTaken === undefined
+        );
+        if (!scenario) throw new Error("no blade entry keeps the defaults");
         const harnessState = buildBladeState(scenario);
         const loaderState = runMutationBody(
             arbitraryCurrentGameBaseState(),
