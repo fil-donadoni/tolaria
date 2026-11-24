@@ -292,7 +292,7 @@ describe("Gift on an instant or sorcery (CR 702.174b/c/d/f/h)", () => {
     });
 });
 
-describe("Whenever you give a gift — scope (CR 702.174c / 109.2)", () => {
+describe("Whenever you give a gift — scope (CR 702.174c / 109.5)", () => {
     it("an opponent's gift does not trigger a 'you' watcher", () => {
         const def = spellProbe("card");
         withProbes([def, watcher], () => {
