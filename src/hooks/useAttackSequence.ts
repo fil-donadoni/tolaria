@@ -42,6 +42,16 @@ export type AttackSequence = {
     undecidedAttackerIds: string[];
     /** True while any attacker still needs its target chosen. */
     choosingTarget: boolean;
+    /** Creatures the block declarer clicked during DECLARE_BLOCKERS (CR 509.1a:
+     *  blockers are declared together). Client-only and NOT yet declared: one
+     *  attacker click sends every one of them at that attacker. They carry no
+     *  combat arrow until it does. */
+    awaitingBlockers: string[];
+    /** Add the creature to the awaiting-blockers set, or remove it if there. */
+    toggleAwaitingBlocker: (id: string) => void;
+    /** Drop the given creatures from the awaiting-blockers set (their
+     *  assignment landed). */
+    resolveAwaitingBlockers: (ids: string[]) => void;
 };
 
 /** Inactive singleton returned when no provider is mounted (tests, classic
@@ -59,6 +69,9 @@ const INACTIVE: AttackSequence = {
     resolveAwaiting: () => {},
     undecidedAttackerIds: [],
     choosingTarget: false,
+    awaitingBlockers: [],
+    toggleAwaitingBlocker: () => {},
+    resolveAwaitingBlockers: () => {},
 };
 
 export const AttackSequenceContext = createContext<AttackSequence | null>(null);
@@ -99,6 +112,7 @@ export function useAttackSequenceState(
     const [index, setIndex] = useState(0);
     const [active, setActive] = useState(false);
     const [awaiting, setAwaiting] = useState<string[]>([]);
+    const [awaitingBlockers, setAwaitingBlockers] = useState<string[]>([]);
 
     // Reset when the relevance key changes (setState during render — the
     // official React "adjust state when a prop changes" pattern).
@@ -109,6 +123,7 @@ export function useAttackSequenceState(
         setIndex(0);
         setActive(false);
         setAwaiting([]);
+        setAwaitingBlockers([]);
     }
 
     const toggleAwaiting = useCallback(
@@ -121,6 +136,19 @@ export function useAttackSequenceState(
     const resolveAwaiting = useCallback(
         (ids: string[]) =>
             setAwaiting((prev) => prev.filter((x) => !ids.includes(x))),
+        []
+    );
+
+    const toggleAwaitingBlocker = useCallback(
+        (id: string) =>
+            setAwaitingBlockers((prev) =>
+                prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+            ),
+        []
+    );
+    const resolveAwaitingBlockers = useCallback(
+        (ids: string[]) =>
+            setAwaitingBlockers((prev) => prev.filter((x) => !ids.includes(x))),
         []
     );
 
@@ -167,6 +195,9 @@ export function useAttackSequenceState(
         resolveAwaiting,
         undecidedAttackerIds,
         choosingTarget: undecidedAttackerIds.length > 0,
+        awaitingBlockers,
+        toggleAwaitingBlocker,
+        resolveAwaitingBlockers,
         active: stillActive,
         order,
         index: liveIndex,

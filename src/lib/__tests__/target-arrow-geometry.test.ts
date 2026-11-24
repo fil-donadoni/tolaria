@@ -170,7 +170,7 @@ function combat(partial: Partial<Combat>): Combat {
 
 describe("buildCombatArrows — blocker → attacker", () => {
     it("draws one arrow per blocker, from blocker to the attacker it blocks", () => {
-        const c = combat({ blockerAssignments: { att: ["b1", "b2"] } });
+        const c = combat({ blockerAssignments: { b1: ["att"], b2: ["att"] } });
         const map = anchors({
             permanent: {
                 att: { x: 500, y: 100 },
@@ -189,9 +189,28 @@ describe("buildCombatArrows — blocker → attacker", () => {
         expect(arrows[0].clusterId).toBe(arrows[1].clusterId);
     });
 
+    it("N blockers on one attacker are N distinct arrows converging on it (issue #10373)", () => {
+        const c = combat({
+            blockerAssignments: { b1: ["att"], b2: ["att"], b3: ["att"] },
+        });
+        const map = anchors({
+            permanent: {
+                att: { x: 500, y: 100 },
+                b1: { x: 300, y: 400 },
+                b2: { x: 500, y: 400 },
+                b3: { x: 700, y: 400 },
+            },
+        });
+        const arrows = buildCombatArrows(c, map);
+        expect(arrows.map((a) => a.fromId).sort()).toEqual(["b1", "b2", "b3"]);
+        expect(new Set(arrows.map((a) => a.key)).size).toBe(3);
+        expect(new Set(arrows.map((a) => a.path)).size).toBe(3);
+        for (const a of arrows) expect(a.toId).toBe("att");
+    });
+
     it("unions a band sharing blockers into one cluster", () => {
         const c = combat({
-            blockerAssignments: { att1: ["b1"], att2: ["b2"] },
+            blockerAssignments: { b1: ["att1"], b2: ["att2"] },
             bands: [{ bandId: "band", memberIds: ["att1", "att2"] }],
         });
         const map = anchors({
@@ -263,7 +282,7 @@ describe("buildCombatArrows — attacker → attack target (QA / CR 508.1a)", ()
     it("the attack arrow joins its attacker's combat cluster (hover lights blocker + attacker + target)", () => {
         const c = combat({
             attackerIds: ["att"],
-            blockerAssignments: { att: ["b1"] },
+            blockerAssignments: { b1: ["att"] },
         });
         const map = anchors({
             permanent: {
@@ -284,7 +303,7 @@ describe("buildCombatArrows — attacker → attack target (QA / CR 508.1a)", ()
 });
 
 describe("resolveArrowHighlight — combat is transitive", () => {
-    const c = combat({ blockerAssignments: { att: ["b1", "b2"] } });
+    const c = combat({ blockerAssignments: { b1: ["att"], b2: ["att"] } });
     const map = anchors({
         permanent: {
             att: { x: 5, y: 1 },

@@ -56,6 +56,7 @@ import {
 } from "~/lib/targeting";
 import { activeSacrificeSelection } from "~/lib/sacrifice-selection";
 import { outstandingDamageAssigner } from "~/lib/priority";
+import { useBlockerBatch } from "~/hooks/useBlockerBatch";
 import {
     hasPendingGameIntent,
     trackGameIntent,
@@ -213,6 +214,7 @@ export function useBattlefieldInteraction(player: Player) {
     const activateManaAbility = useMutation(api.game.activateManaAbility);
     const bufferCtx = usePendingChoiceBuffer();
     const attackSequence = useAttackSequence();
+    const blockerBatch = useBlockerBatch();
     const attackTargetChooser = useAttackTargetChooser();
 
     // CR 602.1 / 118.8 / 605.3c (issue #2371) — a NON-stack mana ability's
@@ -636,7 +638,8 @@ export function useBattlefieldInteraction(player: Player) {
         phase === "DECLARE_BLOCKERS" &&
         !!combat &&
         !combat.blockersConfirmed &&
-        !!combat.pendingBlockerId &&
+        (!!combat.pendingBlockerId ||
+            attackSequence.awaitingBlockers.length > 0) &&
         playerId === blockDeclarerId &&
         player.id !== defenderId;
 
@@ -827,12 +830,26 @@ export function useBattlefieldInteraction(player: Player) {
             return;
         }
         if (isSelectingBlockers && isCreature(card)) {
+            // CR 509.1a — blockers are declared together: a click on an
+            // undeclared creature only marks it awaiting its attacker (no
+            // mutation, no arrow). An already-assigned blocker keeps its
+            // unassign click, and a server-pending one its deselect.
+            const assigned =
+                (combat?.blockerAssignments[card.id]?.length ?? 0) > 0;
+            if (!assigned && combat?.pendingBlockerId !== card.id) {
+                attackSequence.toggleAwaitingBlocker(card.id);
+                return;
+            }
             guardMutation(
                 selectBlocker({ gameId, playerId, cardInstanceId: card.id })
             );
             return;
         }
         if (isBlockerTarget && card.isAttacking) {
+            if (attackSequence.awaitingBlockers.length > 0) {
+                blockerBatch.assign(card.id);
+                return;
+            }
             guardMutation(
                 assignBlockerTarget({
                     gameId,

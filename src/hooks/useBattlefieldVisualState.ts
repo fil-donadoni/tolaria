@@ -111,6 +111,7 @@ export function useBattlefieldVisualState(
         pendingTarget,
         pendingChoices,
         combat,
+        blocksDeclaredByAttacker,
         allPlayers,
         emblems,
         stackItems,
@@ -354,20 +355,29 @@ export function useBattlefieldVisualState(
         // CR 508.1b — candidates only while a creature awaits its target.
         attackSequence.choosingTarget;
 
+    // Melee (#669) — under `blocksDeclaredByAttacker` the attacking (active)
+    // player declares blocks, still picking from the DEFENDING player's
+    // creatures; the same derivation `useBattlefieldInteraction` routes clicks
+    // with, so what the board lights up and what a click does can't drift.
+    const defenderId = allPlayers.find((p) => p.id !== activePlayerId)?.id;
+    const blockDeclarerId = blocksDeclaredByAttacker
+        ? activePlayerId
+        : defenderId;
     const isSelectingBlockers =
         phase === "DECLARE_BLOCKERS" &&
         !!combat &&
         !combat.blockersConfirmed &&
-        isMe &&
-        playerId !== activePlayerId;
+        playerId === blockDeclarerId &&
+        player.id === defenderId;
 
     const isBlockerTarget =
-        !isMe &&
         phase === "DECLARE_BLOCKERS" &&
         !!combat &&
         !combat.blockersConfirmed &&
-        !!combat.pendingBlockerId &&
-        playerId !== activePlayerId;
+        (!!combat.pendingBlockerId ||
+            attackSequence.awaitingBlockers.length > 0) &&
+        playerId === blockDeclarerId &&
+        player.id !== defenderId;
 
     // --- Combat derived state ---
 
@@ -464,11 +474,20 @@ export function useBattlefieldVisualState(
     /** CR 509.1b — the pair a click would declare, against this attacker's own
      *  turn-scoped evasion grant. The server re-validates every assignment. */
     function isBlockablePendingTarget(attacker: CardInstance): boolean {
-        const pendingBlocker = allPlayers
-            .flatMap((p) => p.battlefield)
-            .find((c) => c.id === pendingBlockerId);
+        // The server-pending blocker plus every awaiting one: the attacker is a
+        // candidate unless it is barred for ALL of them (the server still
+        // refuses each barred pair on its own).
+        const pendingIds = [
+            ...(pendingBlockerId ? [pendingBlockerId] : []),
+            ...attackSequence.awaitingBlockers,
+        ];
+        const battlefield = allPlayers.flatMap((p) => p.battlefield);
+        const pendingBlockers = pendingIds
+            .map((id) => battlefield.find((c) => c.id === id))
+            .filter((c): c is CardInstance => !!c);
         return (
-            !pendingBlocker || !isTurnEvasionBarred(attacker, pendingBlocker)
+            pendingBlockers.length === 0 ||
+            pendingBlockers.some((b) => !isTurnEvasionBarred(attacker, b))
         );
     }
 
@@ -795,8 +814,9 @@ export function useBattlefieldVisualState(
               : (isMe &&
                     (manaSource ||
                         isImproviseArtifact ||
-                        (isSelectingAttackers && creature) ||
-                        (isSelectingBlockers && creature))) ||
+                        (isSelectingAttackers && creature))) ||
+                // The declarer's click, on the DEFENDER's board under Melee.
+                (isSelectingBlockers && creature) ||
                 (isBlockerTarget &&
                     !!card.isAttacking &&
                     isBlockablePendingTarget(card)) ||
@@ -877,7 +897,12 @@ export function useBattlefieldVisualState(
         const isAwaitingAttackTarget = attackSequence.awaiting.includes(
             card.id
         );
-        if (isAwaitingAttackTarget) {
+        // CR 509.1a — a clicked creature still waiting for its attacker wears
+        // the same ring (client-only; no arrow yet).
+        const isAwaitingBlocker = attackSequence.awaitingBlockers.includes(
+            card.id
+        );
+        if (isAwaitingAttackTarget || isAwaitingBlocker) {
             // Pulse as well as the static heavy ring: the banner says "the
             // highlighted creatures", so the awaiting attacker must read as
             // live, the way the "Attack with all" cursor below does (issue #9150).
