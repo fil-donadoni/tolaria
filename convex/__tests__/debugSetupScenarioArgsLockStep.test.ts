@@ -144,6 +144,7 @@ describe("debugSetupScenario args validator declares `life` (issue #2147, sixth 
             speed: { me: 1 },
             life: { me: 4, opp: 17 },
             experience: { me: 1 },
+            energy: { me: 1 },
             landsPlayed: { me: 1 },
             spellsCastThisTurn: { me: 1 },
             spellsCastThisGame: { me: 1 },

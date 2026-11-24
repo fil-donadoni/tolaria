@@ -149,6 +149,39 @@ describe("buildStateFromScenario (issue #1424)", () => {
         expect(state.players[1].experienceCounters).toBeUndefined();
     });
 
+    // CR 107.14 — the pool an {E} cost is paid from. A rebuild that drops it
+    // turns "pay any amount of {E}" into "pay 0", a decision with one answer.
+    it("round-trips energy counters on both seats through specFromState (CR 107.14)", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [],
+            energy: { me: 4, opp: 2 },
+        });
+        expect(state.players[0].energyCounters).toBe(4);
+        expect(state.players[1].energyCounters).toBe(2);
+        expect(state.players[0].experienceCounters).toBeUndefined();
+
+        const { spec, dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+        expect(spec.energy).toEqual({ me: 4, opp: 2 });
+        expect(dropped.some((note) => note.includes("energyCounters"))).toBe(
+            false
+        );
+
+        const rebuilt = buildStateFromScenario(base, spec);
+        expect(rebuilt.players[0].energyCounters).toBe(4);
+        expect(rebuilt.players[1].energyCounters).toBe(2);
+    });
+
+    it("leaves energy counters absent when the spec omits them", () => {
+        const state = buildStateFromScenario(makeState(), { cards: [] });
+        expect(state.players[0].energyCounters).toBeUndefined();
+        expect(
+            specFromState(state, { mySeatId: state.players[0].id }).spec.energy
+        ).toBeUndefined();
+    });
+
     // CR 119.1 (issue #2147) — every blade entry depending on a life total
     // (chump-block vs. race, burn the creature vs. the face, any lethal
     // check) was unpinnable before this: the built board always opened at
@@ -1696,17 +1729,16 @@ describe("specFromState (issue #2148)", () => {
         ]) {
             expect(gameStateResidue).toContain(field);
         }
-        for (const field of [
-            "energyCounters",
-            "maxHandSizeOverride",
-            "skipNextTurn",
-        ]) {
+        for (const field of ["maxHandSizeOverride", "skipNextTurn"]) {
             expect(playerResidue).toContain(field);
         }
         // …and `spellsCastThisTurn` is no longer among them: issue #3449 gave
         // the spec a field for it, so it is carried rather than reported.
         expect(playerResidue).not.toContain("spellsCastThisTurn");
         expect(spec.spellsCastThisTurn).toEqual({ me: 3, opp: 0 });
+        // `energyCounters` likewise: the spec's `energy` pair (CR 107.14).
+        expect(playerResidue).not.toContain("energyCounters");
+        expect(spec.energy).toEqual({ me: 5 });
     });
 
     it("reports a Continuous Effects Registry entry as unrepresentable (PRD #2064 S3)", () => {

@@ -149,6 +149,17 @@ export const SCENARIO_JSON_SCHEMA = {
             description:
                 "Experience counters on a player, if the description names them (default none).",
         },
+        // CR 107.14 — the pool an {E} cost is paid from.
+        energy: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                me: { type: "integer" },
+                opp: { type: "integer" },
+            },
+            description:
+                "Energy counters on a player, if the description names them (default none).",
+        },
         // CR 305.2 (issue #3446) — "you've already played your land this
         // turn" is a board a description names, and the only way to get it.
         landsPlayed: {
@@ -504,7 +515,7 @@ export function buildScenarioSystemPrompt(
         "- If the description names a life total ('me at 4 life', 'opp at 2'),",
         "  set `life.me` / `life.opp` to that exact number; omit `life` entirely",
         "  when no life total is mentioned (default 20 each).",
-        "- The same omit-unless-named discipline applies to `experience`,",
+        "- The same omit-unless-named discipline applies to `experience`, `energy`,",
         "  `landsPlayed`, `companion`, `outsideGame`, `markLastDrawn`, `activePlayer`,",
         "  `priority`, `passCount`, `spellsCastThisTurn`,",
         "  `spellsCastThisGame`, `stormCount`,",
