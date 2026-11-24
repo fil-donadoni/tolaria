@@ -428,7 +428,7 @@ describe("Suspend — the creature spell's haste (CR 702.62a, 611.2b)", () => {
             const card = creature(state);
             expect(card?.controllerId).toBe("p1");
             expect(card?.staticAbilities).toContain("haste");
-            expect(card?.hasteWhileControlledBy).toBeUndefined();
+            expect(card).not.toHaveProperty("hasteWhileControlledBy");
         });
     });
 
@@ -514,7 +514,7 @@ describe("Suspend — full path: mutation, wire, Bot (CR 702.62a)", () => {
             expect(mine[0]).toMatchObject({ id: "card", canSuspend: true });
             p1(state).battlefield.find((l) => l.id === "m")!.isTapped = true;
             const tapped = projectPublicState(state, 1, "p1").players[0].hand;
-            expect(tapped[0].canSuspend).toBeUndefined();
+            expect(tapped[0]?.canSuspend).toBeUndefined();
         });
     });
 
@@ -524,7 +524,7 @@ describe("Suspend — full path: mutation, wire, Bot (CR 702.62a)", () => {
                 gameStateSeed(board(SORCERY)),
             ]);
             await runMutation<CardArgs, void>(
-                suspendCard as Handler<CardArgs, void>,
+                suspendCard as unknown as Handler<CardArgs, void>,
                 harness.ctx,
                 {
                     gameId: "game-1" as Id<"games">,
@@ -543,7 +543,7 @@ describe("Suspend — full path: mutation, wire, Bot (CR 702.62a)", () => {
             // A second suspend of a card no longer in hand is refused.
             await expect(
                 runMutation<CardArgs, void>(
-                    suspendCard as Handler<CardArgs, void>,
+                    suspendCard as unknown as Handler<CardArgs, void>,
                     harness.ctx,
                     {
                         gameId: "game-1" as Id<"games">,
