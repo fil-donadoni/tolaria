@@ -39,6 +39,8 @@ import { pyroclasm } from "../../../cards/sets/ice/red.cards";
 import { hibernation } from "../../../cards/sets/usg/blue.cards";
 import { forceOfVigor } from "../../../cards/sets/mh1/green.cards";
 import { getDefinition } from "../../../cards";
+import { breakTheIce } from "../../../cards/sets/mh2/black.cards";
+import { snowCoveredForest } from "../../../cards/sets/ice/colorless.cards";
 const shivanDragon = () =>
     getDefinition("fefbf149-f988-4f8b-9f53-56f5878116a6");
 const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
@@ -879,5 +881,29 @@ describe("a recoverable sweep's swing is credited in part (issue #4880)", () => 
                 )
             ).toBeCloseTo(elvesBody + PER_POINT * elvesAggregate, 6);
         });
+    });
+});
+
+describe("a forEach over its announced targets reads each target's slot (issue #10607)", () => {
+    // CR 115.1 — `forEach { set: "targets" }` iterates the spell's announced
+    // targets, so `$each` is slot 0 here: priced at the board's best legal
+    // victim of that slot, never at the creature-sized representative.
+    it("prices Break the Ice exactly as the single-target Stone Rain against one land", () => {
+        const expected =
+            DEFAULT_EVAL_WEIGHTS.latent.boardRemoval *
+            (LAND_ON_BOARD / representativeVictimLoss(DEFAULT_EVAL_WEIGHTS));
+        expect(
+            latentInHand(breakTheIce().id, [snowCoveredForest().id])
+        ).toBeCloseTo(expected, 6);
+    });
+
+    it("prices Break the Ice BELOW the snow land it destroys, so announcing it is not a loss", () => {
+        expect(
+            latentInHand(breakTheIce().id, [snowCoveredForest().id])
+        ).toBeLessThan(LAND_ON_BOARD);
+    });
+
+    it("is ZERO when no land on the board is a legal victim", () => {
+        expect(latentInHand(breakTheIce().id, [forest().id])).toBe(0);
     });
 });
