@@ -403,6 +403,8 @@ export const EVENT_FIELD_KINDS: {
     // zone (issue #3242). Same nested shape as CARDS_EXILED, same refusal.
     CARDS_PUT_INTO_LIBRARY: { cards: "residue" },
     LIBRARY_SEARCHED: { playerId: "player", libraryOwnerId: "player" },
+    // CR 702.174c — the player who gave the gift.
+    GIFT_GIVEN: { playerId: "player" },
 };
 
 /** What the lowering needs from its caller to name the ids in an event: the

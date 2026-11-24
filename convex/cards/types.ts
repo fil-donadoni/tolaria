@@ -423,7 +423,15 @@ export interface EscapeCost {
  *  evidence N" is this family's cost half: optional, announced, paid on top of
  *  the printed cost, and read back by a linked ability ("if evidence was
  *  collected", CR 607). Never kicked (CR 702.33d), no twin trigger the keyword
- *  itself demands, not repeatable. */
+ *  itself demands, not repeatable.
+ *
+ *  Gift (CR 702.174a) is a member on the same terms: "As an additional cost to
+ *  cast this spell, you may choose an opponent" is an optional additional cost
+ *  with no legs to pay (choosing is the whole cost; this engine is two-player,
+ *  so the chosen opponent is the one opponent). Never kicked (CR 702.33d), not
+ *  repeatable, and its second ability is a twin TRIGGER only on a permanent
+ *  (CR 702.174b) — on an instant or sorcery it is the spell's first spell
+ *  ability instead, so its row's `requiresTrigger` says `"on-permanent"`. */
 export type AdditionalCostKeyword =
     | "kicker"
     | "offspring"
@@ -432,7 +440,8 @@ export type AdditionalCostKeyword =
     | "splice"
     | "escalate"
     | "conspire"
-    | "collect-evidence";
+    | "collect-evidence"
+    | "gift";
 
 /** CR 702.175a / 702.157a — the LINK between the two halves of an additional-cost
  *  keyword that "represents two abilities": the `kickers[]` cost entry and the
@@ -12777,7 +12786,8 @@ export type GameEventType =
     | "LIBRARY_SEARCHED"
     | "LEVEL_GAINED"
     | "PERMANENT_BECAME_MONSTROUS"
-    | "MIRACLE_REVEALED";
+    | "MIRACLE_REVEALED"
+    | "GIFT_GIVEN";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -14132,6 +14142,20 @@ export interface LibrarySearchedEvent {
     libraryOwnerId: string;
 }
 
+/** CR 702.174c — "Some effects trigger whenever a player gives a gift. Such an
+ *  ability triggers whenever an instant or sorcery spell that player controls
+ *  whose gift cost was paid resolves. It also triggers whenever the gift
+ *  triggered ability of a permanent that player controls resolves." Emitted by
+ *  the engine at those two resolutions (`emitGiftGivenIfGiven`, `gre/gift.ts`),
+ *  never by an Op: the event is defined by the resolution, not by what the
+ *  gift delivered (a card gifted to a player with an empty library is still
+ *  given). Read by `giftGivenTrigger`. */
+export interface GiftGivenEvent {
+    type: "GIFT_GIVEN";
+    /** The player who gave the gift — the resolving object's controller. */
+    playerId: string;
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | DamagePreventedEvent
@@ -14172,7 +14196,8 @@ export type GameEvent =
     | CardsExiledEvent
     | CardsPutIntoLibraryEvent
     | LibrarySearchedEvent
-    | MiracleRevealedEvent;
+    | MiracleRevealedEvent
+    | GiftGivenEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can

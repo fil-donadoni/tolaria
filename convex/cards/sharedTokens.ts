@@ -198,6 +198,32 @@ export const RABBIT_TOKEN: EffectTokenSpec = {
     colors: ["W"],
 };
 
+/** Fish token (CR 111.3) — "a 1/1 blue Fish creature token", the token a
+ *  "Gift a tapped Fish" delivers (CR 702.174f; `cards/abilities/gift.ts`
+ *  adds the creating effect's "tapped", CR 111.10). Vanilla, so
+ *  `EffectTokenSpec`. Unpinned art, the {@link RABBIT_TOKEN} treatment: the
+ *  producing card's own printing names the token. */
+export const FISH_TOKEN: EffectTokenSpec = {
+    name: "Fish",
+    types: ["Creature"],
+    subtypes: ["Fish"],
+    power: 1,
+    toughness: 1,
+    colors: ["U"],
+};
+
+/** Octopus token (CR 111.3) — "an 8/8 blue Octopus creature token", the token
+ *  a "Gift an Octopus" delivers (CR 702.174i; `cards/abilities/gift.ts`).
+ *  Vanilla, unpinned art, the {@link RABBIT_TOKEN} treatment. */
+export const OCTOPUS_TOKEN: EffectTokenSpec = {
+    name: "Octopus",
+    types: ["Creature"],
+    subtypes: ["Octopus"],
+    power: 8,
+    toughness: 8,
+    colors: ["U"],
+};
+
 /** Knight token (CR 111 / 707.2, ADR 0078). "2/2 white Knight creature token
  *  with vigilance" — created today by History of Benalia's chapters I and II
  *  (`sets/dom/white.cards.ts`). Vanilla apart from the keyword, so `EffectTokenSpec`
