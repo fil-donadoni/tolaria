@@ -316,7 +316,7 @@ function canBlockADeclaredAttacker(
 
 /** The `animate` Op an `animatesSelf` ability applies to its own source, if
  *  its script spells one out at top level. */
-function selfAnimateOp(
+export function selfAnimateOp(
     ability: ActivatedAbility
 ): Extract<EffectOp, { op: "animate" }> | undefined {
     return ability.effects?.find(

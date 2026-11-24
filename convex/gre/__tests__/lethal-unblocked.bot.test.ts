@@ -188,6 +188,20 @@ describe("lethalUnblockedDelta — a declared attack nothing can block (CR 509.1
         ).toBe(0);
     });
 
+    it("is zero before blocks while an untapped permanent can animate itself into a blocker", () => {
+        // Mishra's Factory's `animatesSelf` activation makes it a creature
+        // before blocks (CR 509.1a reads the creature it has become), so the
+        // tapped 2/2 alone does not lock the damage in.
+        const state = unblockable("DECLARE_ATTACKERS", true);
+        state.players[1].battlefield.push(
+            makeInstance(getCardByName("Mishra's Factory").id, {
+                id: "factory",
+                controllerId: DEFENDER,
+            })
+        );
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
+    });
+
     it("is zero past the block windows (the damage is no longer pending)", () => {
         expect(
             lethalUnblockedDelta(unblockable("COMBAT_DAMAGE", true), DEFENDER)
