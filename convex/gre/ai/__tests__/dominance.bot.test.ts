@@ -1155,6 +1155,93 @@ describe("isDominatedNoOpMove — self-sacrifice activations (CR 608.2b, issue #
     });
 });
 
+describe("isDominatedNoOpMove — a whole-graveyard exile naming the mover's own graveyard (CR 406.2, issue #10219)", () => {
+    // Tormod's Crypt — "{T}, Sacrifice this artifact: Exile target player's
+    // graveyard." With both graveyards empty, aimed at the OPPONENT it settles
+    // to the plain cost (the source in the mover's graveyard) and was already
+    // proved a no-op. Aimed at the mover THEMSELF the resolution also exiles
+    // the just-sacrificed source (CR 601.2h pays the cost before CR 608.2
+    // resolution), so the source ends in EXILE rather than the graveyard —
+    // still nothing but the mover's own spent card relocated, and still a
+    // pure loss against `pass`.
+    const emptyGraveyards = {
+        cards: [
+            {
+                name: "Tormod's Crypt",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        turn: 5,
+        landCount: 2,
+        libraryCount: 20,
+    };
+
+    function aimedAtPlayer(moves: Move[], playerId: string): Move | undefined {
+        return moves.find(
+            (m) =>
+                m.kind === "activate-ability" &&
+                m.targets.length === 1 &&
+                m.targets[0].type === "player" &&
+                m.targets[0].id === playerId
+        );
+    }
+
+    it("proves BOTH targets dominated when every graveyard is empty", () => {
+        const state = build(emptyGraveyards);
+        const raw = activationsOf(state, "Tormod's Crypt", false);
+        const atSelf = aimedAtPlayer(raw, me(state));
+        const atOpp = aimedAtPlayer(raw, state.players[1].id);
+        expect(atSelf).toBeDefined();
+        expect(atOpp).toBeDefined();
+        expect(isDominatedNoOpMove(state, me(state), atOpp as Move)).toBe(true);
+        expect(isDominatedNoOpMove(state, me(state), atSelf as Move)).toBe(
+            true
+        );
+        expect(activationsOf(state, "Tormod's Crypt", true)).toHaveLength(0);
+    });
+
+    it("NEGATIVE CONTROL: an opposing graveyard card keeps the opponent target, the own target still goes", () => {
+        const state = build({
+            ...emptyGraveyards,
+            cards: [
+                ...emptyGraveyards.cards,
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp" as const,
+                    zone: "graveyard" as const,
+                },
+            ],
+        });
+        const pruned = activationsOf(state, "Tormod's Crypt", true);
+        expect(aimedAtPlayer(pruned, state.players[1].id)).toBeDefined();
+        expect(aimedAtPlayer(pruned, me(state))).toBeUndefined();
+    });
+
+    it("NEGATIVE CONTROL: a card in the mover's own graveyard is a real exile, left searchable", () => {
+        const state = build({
+            ...emptyGraveyards,
+            cards: [
+                ...emptyGraveyards.cards,
+                {
+                    name: "Grizzly Bears",
+                    owner: "me" as const,
+                    zone: "graveyard" as const,
+                },
+            ],
+        });
+        const atSelf = aimedAtPlayer(
+            activationsOf(state, "Tormod's Crypt", false),
+            me(state)
+        );
+        expect(atSelf).toBeDefined();
+        expect(isDominatedNoOpMove(state, me(state), atSelf as Move)).toBe(
+            false
+        );
+    });
+});
+
 describe("the last deferral window, end to end (issue #3424)", () => {
     // The prune is what this pair measures, at the one window where the bot
     // actively WANTS to spend a deferred activation rather than hold it: the
