@@ -6566,6 +6566,82 @@
             }
         ]
     },
+    "Target-conditional reduction: counters a non-blue spell at the full cost": {
+        "cards": [
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Mystical Dispute",
+                "owner": "opp",
+                "zone": "hand"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "activePlayer": "me",
+        "turn": 6,
+        "priority": "opp",
+        "passCount": 1,
+        "landsPlayed": {
+            "me": 1
+        },
+        "libraryCount": 20,
+        "stack": [
+            {
+                "kind": "spell",
+                "name": "Craw Wurm",
+                "controller": "me"
+            }
+        ]
+    },
     "this-turn tap activations: Dega Disciple pumps its own blocked attacker to kill the blocker": {
         "cards": [
             {

@@ -968,6 +968,13 @@
             "needsSetup": false
         }
     ],
+    "Mystical Dispute": [
+        {
+            "label": "Target-conditional reduction: counters a non-blue spell at the full cost",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Nantuko Shade": [
         {
             "label": "wide board, four pumps of one kind: the one Swamp pumps the unblocked Shade for lethal, enumerated last (issue #10631)",
