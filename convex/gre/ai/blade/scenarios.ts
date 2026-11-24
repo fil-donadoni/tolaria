@@ -33963,7 +33963,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             kind: "conditional",
             discriminant: {
                 kind: "card",
-                detail: "the opponent's Snow-Covered Forest — a legal victim on the opponent's side",
+                detail: "the opponent's Snow-Covered Forest — without it the bot's own snow land is the only legal victim",
             },
         },
         spec: {
@@ -34012,7 +34012,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             anchor: "land destruction: casts Break the Ice on the opponent's snow land (issue #10607 pair, anchor)",
             discriminant: {
                 kind: "card",
-                detail: "the opponent's Snow-Covered Forest removed — the bot's own snow land is the only legal victim",
+                detail: "the opponent's Snow-Covered Forest — without it the bot's own snow land is the only legal victim",
             },
         },
         spec: {
@@ -34035,6 +34035,6 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         tier: "must",
-        expect: { forbidden: [{ kind: "cast-spell", card: "Break the Ice" }] },
+        expect: { moves: [{ kind: "pass" }] },
     },
 ];
