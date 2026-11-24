@@ -77,6 +77,76 @@ import {
 
 export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     {
+        // CR 601.2f — a target-conditional self reduction ("costs {2} less if
+        // it targets a blue spell") is priced per target: a target that does
+        // not earn it is offered at the full cost. Three Islands pay
+        // Mystical Dispute's full {2}{U} against a green spell.
+        label: "Target-conditional reduction: counters a non-blue spell at the full cost",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                { name: "Island", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield" },
+                { name: "Island", owner: "opp", zone: "battlefield" },
+                { name: "Mystical Dispute", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "me",
+            turn: 6,
+            priority: "opp",
+            passCount: 1,
+            landsPlayed: { me: 1 },
+            libraryCount: 20,
+            // The opponent tapped out for Craw Wurm and passed: the bot
+            // holds priority over it.
+            stack: [{ kind: "spell", name: "Craw Wurm", controller: "me" }],
+        },
+        bot: "opp",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Mystical Dispute" }],
+        },
+        note: "Issue #10514: the enumerator priced the tap plan without targets and then dropped every target that did not earn the reduction, even when no matching spell was on the stack and the plan already paid the full cost, so Mystical Dispute was never offered against a non-blue spell (`bot:reach` read it `frozen`, `no-legal-move`). `targetConditionalCostPricings` prices each answer to the condition separately.",
+    },
+    {
         // CONSPIRE reachability (CR 702.78a, issue #4012). The bot's main phase,
         // the opponent at 6 with two walls that stop both Hill Giants, and Burn
         // Trail in hand: 3 to the face wins nothing, tapping the two red
