@@ -249,7 +249,8 @@ describe("Gift on an instant or sorcery (CR 702.174b/c/d/f/h)", () => {
                 const gifted = getPlayer(state, "p2").battlefield.filter(
                     (c) =>
                         c.isToken === true &&
-                        getDefinition(c.card.id).name === tokenName
+                        getDefinition((c.card as { id: string }).id).name ===
+                            tokenName
                 );
                 expect(gifted).toHaveLength(1);
                 // CR 702.174f — the Fish enters tapped; the others untapped.
