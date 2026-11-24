@@ -494,40 +494,11 @@ flips. Each arm (and `--merge`) also prints three readings, carried in its
 JSON: correctness (red entries and rows), performance (the distributions of
 search ms and ms per iteration, rows over `--threshold-ms`, default
 `BRAIN_CONSULT_TIMEOUT_MS`) and saturation (rows green but over the threshold,
-red under it), plus the arm's [rollout width](#rollout-width) when its rows
-measured one. Timing only reports — budgets stay iterations-only — and its ms
+red under it). Timing only reports — budgets stay iterations-only — and its ms
 are a lab proxy for the trend, never a field figure. Off the owner's machines: the
 [`blade-census`](github-pipeline.md#blade-census) workflow runs the same arm
 on sixteen GitHub-hosted slices. Code: `scripts/blade-census.ts`,
 `convex/gre/ai/blade/census.ts`.
-
-<a id="authoring-probe"></a>**Authoring probe** — the check a NEW test
-position passes before it is committed (issue #10631): is its answer clear, or
-green only on the seeds it was written with? `bun run blade:probe <label>`
-runs one entry (any tier) and prints one table: the pass count over 20 wide
-seeds (`--seeds N`) at half, the declared and double budget; the
-[robustness audit](github-pipeline.md#blade-robustness)'s own verdict
-(`ROBUST` / `NOISE-PINNED` / `WRONG`, its own seeds then the default and both
-jittered weight vectors over seeds 0–9) with the deciding root mechanism of
-every run; the same count under `--variant <name>`, so a discriminating pair
-reads "base 20/20, variant 0/20" in one run; and the position's
-[rollout width](#rollout-width). Its last line is the `must` admission bar:
-`ROBUST` and at least 19 of 20 wide seeds at the declared budget. An entry
-clear to a human that misses the bar goes to `stretch` with cause `branching`
-and its measured counts in its note, never re-seeded into `must`. One entry
-costs about half a minute at 400 iterations on seven workers. Code:
-`scripts/blade-probe.ts`, `convex/gre/ai/blade/probe.ts`.
-
-<a id="rollout-width"></a>**Rollout width** — how many candidates the
-rollout's greedy policy probes per PROBING ply (a ply where it clones, applies
-and evaluates every candidate; the epsilon draw and the forced pass probe
-nothing), and the share of those plies that hold an attack or block
-declaration. Read through a measurement seam (`setRolloutPlyRecorder` in
-`convex/gre/search.ts`, `null` in production) by the census and the probe. A
-narrow board leaves a change to how the search treats a WIDE ply thinly
-tested: the blade's median was 2.2 candidates per probing ply against 5–8 on
-late-game field boards (`docs/research/rollout-policy-cost.md` § 3). Code:
-`convex/gre/ai/rolloutWidth.ts`.
 
 <a id="admission"></a>**Admission** — a human's decision that a test position
 joins `must`, made against the ADR 0070 criterion: the wrong move loses

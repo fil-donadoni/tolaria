@@ -19,14 +19,6 @@
  * (`censusReadings`), never asserted and never a ceiling.
  */
 
-import {
-    mergeRolloutWidth,
-    summarizeRolloutWidth,
-    formatRolloutWidth,
-    type RolloutWidth,
-    type RolloutWidthSummary,
-} from "../rolloutWidth";
-
 /** What the job list reads of a blade entry. */
 export type CensusEntry = {
     label: string;
@@ -69,9 +61,6 @@ export type CensusRow = CensusJob & {
     reason: string;
     mechanism: string | null;
     ms: number;
-    /** The search's rollout width (issue #10631): absent on a skipped row
-     *  and on rows written before it. A measurement, never a verdict. */
-    width?: RolloutWidth;
 };
 
 export type CensusMeta = {
@@ -307,13 +296,6 @@ export type CensusReadings = {
         redUnder: number;
         redOver: number;
     };
-    /** How wide the arm's rollout plies are (issue #10631): every row's
-     *  probing plies pooled, and each entry's own mean candidates per probing
-     *  ply read over entries. Absent when no row carries a width. */
-    width?: {
-        pooled: RolloutWidthSummary;
-        perEntryMean: CensusDistribution;
-    };
 };
 
 export const CENSUS_MS_NOTE =
@@ -362,35 +344,6 @@ export function censusReadings(
             greenOver: count((r) => r.ok && over(r)),
             redUnder: count((r) => !r.ok && !over(r)),
             redOver: count((r) => !r.ok && over(r)),
-        },
-        ...censusWidth(ran),
-    };
-}
-
-/** The width reading of the rows that carry one. */
-function censusWidth(
-    rows: readonly CensusRow[]
-): Pick<CensusReadings, "width"> {
-    const measured = rows.filter((r) => r.width !== undefined);
-    if (measured.length === 0) return {};
-    const byLabel = new Map<string, RolloutWidth[]>();
-    for (let i = 0; i < measured.length; i++) {
-        const r = measured[i];
-        const list = byLabel.get(r.label) ?? [];
-        list.push(r.width!);
-        byLabel.set(r.label, list);
-    }
-    const means: number[] = [];
-    byLabel.forEach((ws) => {
-        const s = summarizeRolloutWidth(mergeRolloutWidth(ws));
-        if (s.plies > 0) means.push(s.mean);
-    });
-    return {
-        width: {
-            pooled: summarizeRolloutWidth(
-                mergeRolloutWidth(measured.map((r) => r.width))
-            ),
-            perEntryMean: distribution(means),
         },
     };
 }
@@ -483,14 +436,7 @@ export function formatCensusReadings(r: CensusReadings): string[] {
         `             rows over ${t}: ${p.overThreshold}/${c.rows}`,
         `saturation (threshold ${t}): green over ${s.greenOver}, red under ${s.redUnder}, green under ${s.greenUnder}, red over ${s.redOver}`,
         `note: ${r.note}`,
-    ].concat(
-        r.width
-            ? [
-                  `rollout width: pooled ${formatRolloutWidth(r.width.pooled)}`,
-                  `               per-entry mean candidates per probing ply ${formatDistribution(r.width.perEntryMean, 2)}`,
-              ]
-            : []
-    );
+    ];
 }
 
 /** The human summary of one arm: totals, timing, the readings when
