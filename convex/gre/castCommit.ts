@@ -195,11 +195,13 @@ export type CastCommitPlacement =
      *  resolving item so it becomes the new top once that item pops and
      *  resolves next, with no priority in between. The resolver owns the
      *  trigger pass and the priority that follows. `exilesOnResolve` is the
-     *  resolving effect's own "exile it instead" rider (CR 614.1a). */
+     *  resolving effect's own "exile it instead" rider (CR 614.1a);
+     *  `hasteUntilControlLost` is Suspend's haste rider (CR 702.62a). */
     | {
           kind: "during-resolution";
           resolvingItemId: string;
           exilesOnResolve?: boolean;
+          hasteUntilControlLost?: boolean;
       };
 
 /** Everything a Cast Commit applies. Built by the announcement paths, which
@@ -620,6 +622,17 @@ export function commitCast(
     // CR 712.8f (issue #7200) — "while a modal double-faced spell is on the
     // stack … it has only the characteristics of the face that's up."
     if (mode.castAsModalBack) castAsModalBack(state, stackItem);
+    // CR 702.62a — "If you cast a creature spell this way, it gains haste
+    // until you lose control of the spell or the permanent it becomes."
+    // Read off the built item, so the spell's own stack characteristics (a
+    // face, an Adventure half) decide whether it is a creature spell.
+    if (
+        placement.kind === "during-resolution" &&
+        placement.hasteUntilControlLost === true &&
+        stackItem.types.includes("Creature")
+    ) {
+        stackItem.hasteWhileControlledBy = plan.casterId;
+    }
 
     if (placement.kind === "during-resolution") {
         // The resolving item is on top of the stack and is popped by

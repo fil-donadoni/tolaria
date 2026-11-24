@@ -210,6 +210,7 @@ export function mapMoveCardRefs(
         case "activate-mana-ability":
         case "plot":
         case "foretell":
+        case "suspend":
             return { ...move, cardInstanceId: one(move.cardInstanceId) };
         case "cast-spell": {
             const picks = move.castCostPicks;

@@ -3104,6 +3104,18 @@ function isControlCondition(value: unknown): boolean {
  *  (issue #783). A single key holding the literal `true`; the cards it names are
  *  read at resolution from `getCardsExiledWith(ctx.sourceInstanceId)`, so it
  *  carries no other data and needs no ref pass. */
+/** CR 702.62a (issue #10495) — `{ thisCard: true }`, the resolving ability's
+ *  own source card (`EffectThisCardSelector`). */
+function isThisCardSelector(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    return (
+        keys.length === 1 &&
+        keys[0] === "thisCard" &&
+        (value as { thisCard: unknown }).thisCard === true
+    );
+}
+
 function isExiledWithSourceSelector(value: unknown): boolean {
     if (typeof value !== "object" || value === null) return false;
     const keys = Object.keys(value);
@@ -4928,7 +4940,9 @@ const OP_SCHEMAS: OpSchemaTable = {
         },
         optional: {
             card: (v: unknown) =>
-                isExiledWithSourceSelector(v) || isBarePicksRef(v),
+                isExiledWithSourceSelector(v) ||
+                isThisCardSelector(v) ||
+                isBarePicksRef(v),
             source: (v: unknown) =>
                 v === "graveyard" || v === "exile" || v === "hand",
             fromTopOfLibrary: (v: unknown) => v === true,
@@ -4951,6 +4965,9 @@ const OP_SCHEMAS: OpSchemaTable = {
             // names, asked of each face; and the rider's own type scope.
             spellTypes: isCardTypeList,
             exilesOnResolveForTypes: isCardTypeList,
+            // CR 702.62a — Suspend's "it gains haste until you lose control of
+            // the spell or the permanent it becomes" rider.
+            hasteUntilControlLost: (v: unknown) => v === true,
         },
         check: (entry) => {
             const errors: string[] = [];
@@ -5002,6 +5019,7 @@ const OP_SCHEMAS: OpSchemaTable = {
                     "alternativeCost",
                     "exilesOnResolve",
                     "exilesOnResolveForTypes",
+                    "hasteUntilControlLost",
                 ] as const;
                 for (let i = 0; i < fieldList.length; i++) {
                     const field = fieldList[i];
@@ -5033,7 +5051,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             } else {
                 if (!hasCard) {
                     errors.push(
-                        'requires "card" (a bare picks ref or { exiledWithSource: true }) unless "fromTopOfLibrary: true" is set'
+                        'requires "card" (a bare picks ref, { exiledWithSource: true } or { thisCard: true }) unless "fromTopOfLibrary: true" is set'
                     );
                 }
                 if (!("source" in entry)) {

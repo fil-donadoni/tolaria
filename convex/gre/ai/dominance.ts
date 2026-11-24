@@ -1609,6 +1609,7 @@ function applyProbeChoice(
         case "turn-face-up":
         case "plot":
         case "foretell":
+        case "suspend":
         case "cast-spell":
         case "activate-ability":
         case "activate-granted-ability":
@@ -2328,6 +2329,7 @@ function probeEligible(
         case "turn-face-up":
         case "plot":
         case "foretell":
+        case "suspend":
         case "activate-granted-ability":
         case "activate-mana-ability":
         case "submit-target":

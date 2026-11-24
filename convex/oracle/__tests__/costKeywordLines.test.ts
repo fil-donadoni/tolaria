@@ -169,6 +169,78 @@ describe("Madness [cost] (CR 702.35a)", () => {
     });
 });
 
+const RIFT_BOLT_TEXT =
+    "Rift Bolt deals 3 damage to any target.\nSuspend 1—{R} (Rather than cast this card from your hand, you may pay {R} and exile it with a time counter on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)";
+
+describe("Suspend N—[cost] (CR 702.62a, issue #10495)", () => {
+    it("Rift Bolt: the cost lands on `suspend`, N on the keyword string", () => {
+        expect(
+            compiled(
+                oracleCard({
+                    name: "Rift Bolt",
+                    manaCost: "{2}{R}",
+                    typeLine: "Sorcery",
+                    power: undefined,
+                    toughness: undefined,
+                    oracleText: RIFT_BOLT_TEXT,
+                })
+            )
+        ).toEqual({
+            name: "Rift Bolt",
+            types: ["Sorcery"],
+            manaCost: { X: 2, R: 1 },
+            oracleText: RIFT_BOLT_TEXT,
+            staticAbilities: ["suspend 1"],
+            suspend: { R: 1 },
+            effects: [{ op: "dealDamage", amount: 3, to: { target: 0 } }],
+            targetRequirement: { type: "any", count: 1 },
+        });
+    });
+
+    it.each([
+        ["Living End's line", "Suspend 3—{2}{B}{B}", 3, { X: 2, B: 2 }],
+        [
+            "Inevitable Betrayal's line",
+            "Suspend 3—{1}{U}{U}",
+            3,
+            { X: 1, U: 2 },
+        ],
+        ["the empty cost", "Suspend 3—{0}", 3, {}],
+    ])("reads %s", (_why, line, count, cost) => {
+        const parsed = readLine(line);
+        expect(parsed.ok).toBe(true);
+        if (parsed.ok)
+            expect(parsed.value).toEqual({ kind: "suspend", count, cost });
+    });
+
+    it("a suspend card with no mana cost is refused whole (CR 118.6)", () => {
+        // Lotus Bloom — an ARTIFACT, so the instant/sorcery leg alone let it
+        // compile into a card the engine would cast from hand for {0}.
+        const outcome = compileCard(
+            oracleCard({
+                name: "Lotus Bloom",
+                manaCost: "",
+                typeLine: "Artifact",
+                power: undefined,
+                toughness: undefined,
+                oracleText:
+                    "Suspend 3—{0} (Rather than cast this card from your hand, pay {0} and exile it with three time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)\n{T}, Sacrifice this artifact: Add three mana of any one color.",
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+
+    it.each([
+        ["no time counter", "Suspend 0—{R}"],
+        ["a variable N", "Suspend X—{X}{X}{R}"],
+        ["a variable cost", "Suspend 4—{X}{R}"],
+        ["a hybrid pip", "Suspend 2—{R/G}"],
+        ["a missing dash", "Suspend 2 {R}"],
+    ])("REFUSES %s", (_why, line) => {
+        expect(readLine(line).ok).toBe(false);
+    });
+});
+
 describe("Plot [cost] (CR 702.170a)", () => {
     it("Djinn of Fool's Fall: the cost lands on `plot`", () => {
         expect(

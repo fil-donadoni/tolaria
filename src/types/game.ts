@@ -409,6 +409,10 @@ export interface CardInstance {
      *  this own-hand card right now. Mirrors `SlimHandCard.canForetell` in
      *  `convex/gameProjections.ts`. */
     canForetell?: true;
+    /** CR 116.2f / 702.62a — the suspend special action is available on this
+     *  own-hand card right now. Mirrors `SlimHandCard.canSuspend` in
+     *  `convex/gameProjections.ts`. */
+    canSuspend?: true;
     /** Two basic land types chosen as a permanent entered and stored for the
      *  rest of the game (CR 603.6b / 614.12 — Illusionary Terrain). Forwarded by
      *  `slimCard` (the projection only strips `card`/`knownTo`); read by the
@@ -624,6 +628,10 @@ export interface CardInstance {
      *  the board can pin the exiled card to that permanent (Arena treatment).
      *  Present for all viewers when the host permanent is on a battlefield. */
     exiledByPermanentId?: string;
+    /** CR 702.62b — this exiled card is suspended (has suspend and a time
+     *  counter; `counters.time` is the clock). Mirrors
+     *  `SlimExileCard.suspended` in `convex/gameProjections.ts`. */
+    suspended?: true;
     /** Per-ability-id activation tally for this turn (CR 602.5 — `oncePerTurn`
      *  activated abilities like Gate to Phyrexia's "Activate only once each
      *  turn"). Mirrors `CardInstanceState.activationsThisTurn`

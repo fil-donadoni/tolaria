@@ -307,7 +307,7 @@ describe("forced-pass fast path: lockstep against the unconditional path", () =>
 });
 
 describe("onlyPassIsLegal names every move source of the priority window", () => {
-    it("the ordinary window of `enumerateMoves` has the twenty `moves.push` sites the probe was written against", () => {
+    it("the ordinary window of `enumerateMoves` has the twenty-one `moves.push` sites the probe was written against", () => {
         const source = readFileSync(
             fileURLToPath(new URL("../moves.ts", import.meta.url)),
             "utf8"
@@ -320,8 +320,10 @@ describe("onlyPassIsLegal names every move source of the priority window", () =>
         expect(end).toBeGreaterThan(start);
         // A new site is a new way to act with priority: teach
         // `onlyPassIsLegal` (gre/moves.ts) to rule it out, then move this.
+        // Twenty-one since the suspend special action (CR 702.62a, issue
+        // #10495), which `onlyPassIsLegal` rules out via `suspendableHandCards`.
         expect(source.slice(start, end).split("moves.push(").length - 1).toBe(
-            20
+            21
         );
     });
 });

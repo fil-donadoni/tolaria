@@ -903,6 +903,36 @@ export const impendingRule: Rule<SlotIR> = rule("impending", (span) => {
     });
 });
 
+// ── Suspend N—[cost] (CR 702.62a) ─────────────────────────────────────────
+
+const SUSPEND = /^Suspend (\d+)—(.+)$/;
+
+/**
+ * CR 702.62a — "Suspend N—[cost]": the cost of the suspend special action
+ * (exile the card from hand with N time counters, CR 116.2f) and two
+ * exile-zone triggered abilities keyed on N. The rule emits the cost (read by
+ * {@link costParameter}, so the same mana-only narrowing applies; "{0}" is
+ * the empty cost) and N; the lowering writes `CardDefinition.suspend` and the
+ * `"suspend N"` keyword string the `getDefinition` seam expands (ADR 0054).
+ *
+ * Refused: "Suspend 0" (a card exiled with no time counter is never
+ * suspended, CR 702.62b — no printed shape), "Suspend X—…" (a variable N is a
+ * different printed shape the keyword's binding pattern does not carry), every
+ * cost {@link costParameter} refuses.
+ */
+export const suspendRule: Rule<SlotIR> = rule("suspend", (span) => {
+    const match = SUSPEND.exec(span);
+    if (match === null)
+        return fail('a suspend line is "Suspend N—[cost]"', span);
+    const count = Number(match[1]);
+    if (count < 1) return fail("suspend counts from 1", span);
+    const cost = costParameter("", match[2]!);
+    if (!cost.ok) return cost;
+    if (KEYWORD_VOCABULARY.get("suspend") === undefined)
+        return fail("the Mechanics Registry names no suspend row", span);
+    return ok({ kind: "suspend" as const, count, cost: cost.value });
+});
+
 // ── Warp [cost] (CR 702.185a) ─────────────────────────────────────────────
 
 const WARP_HEAD = "Warp ";
@@ -1107,7 +1137,7 @@ export const giftRule: Rule<SlotIR> = rule("gift", (span) => {
 /**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
  * one kicker or replicate line, or one cost-parameter keyword (cycling, madness, plot,
- * foretell, miracle, harmonize, splice, overload, morph, fading, mobilize, firebending, hideaway, ward life, impending, warp, equip,
+ * foretell, miracle, harmonize, splice, overload, morph, fading, mobilize, firebending, hideaway, ward life, impending, suspend, warp, equip,
  * reconfigure, crew,
  * saddle, ninjutsu, transmute, offspring, gift). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
@@ -1138,6 +1168,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     hideawayRule,
     wardLifeRule,
     impendingRule,
+    suspendRule,
     warpRule,
     equipRule,
     reconfigureRule,

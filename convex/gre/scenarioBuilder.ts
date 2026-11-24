@@ -5451,6 +5451,9 @@ export const CONTINUOUS_EFFECT_EXPIRY_DISPOSITION = {
     counter: "rebuilt",
     source: "rebuilt",
     "while-source-tapped": "rebuilt",
+    // CR 702.62a — Suspend's haste: nothing on the rebuilt board re-derives
+    // it, so a persisted entry is reported, never silently carried.
+    "while-controlled-by": "rebuilt",
 } as const satisfies Record<
     ContinuousEffectExpiry["kind"],
     "lowered" | "rebuilt"

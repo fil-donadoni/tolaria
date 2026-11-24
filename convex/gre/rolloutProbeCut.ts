@@ -41,6 +41,7 @@ export function rolloutMoveKindRank(move: Move): number {
         case "turn-face-up":
         case "foretell":
         case "plot":
+        case "suspend":
         case "summon-companion":
             return 3;
         default:

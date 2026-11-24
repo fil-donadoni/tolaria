@@ -59,6 +59,7 @@ import {
 } from "./modalBackCast";
 import { isSorceryTimingFor } from "./phases";
 import { hasRebound } from "./rebound";
+import { parseSuspend, SUSPEND_TIME_COUNTER } from "../cards/abilities/suspend";
 import {
     canCastFromGraveyardByPermission,
     graveyardPlayPermissionCovers,
@@ -1220,12 +1221,36 @@ export function exileCastOpensOnTurn(
  *  unknown, and the card is banked either way. */
 export function exileCastOpensLater(
     state: GameState,
-    card: ExileCastWindowFields,
+    card: ExileCastWindowFields & SuspendedFields,
     casterId: string
 ): boolean {
     return (
         exileCastOpensOnTurn(card, casterId, state.turn) !== undefined ||
-        exileOwnTurnWindowPending(state, card, casterId)
+        exileOwnTurnWindowPending(state, card, casterId) ||
+        suspendedFor(card, casterId)
+    );
+}
+
+/** The fields {@link suspendedFor} reads. Optional, so a caller holding only
+ *  the cast-window record (a wire view) simply reads "not suspended". */
+type SuspendedFields = Partial<
+    Pick<CardInstanceState, "counters" | "staticAbilities">
+>;
+
+/** CR 702.62a/b (issue #10495) — an exiled card SUSPENDED for its owner: when
+ *  the last time counter is removed, its owner may play it without paying its
+ *  mana cost. No permission is stamped (the play happens during the trigger's
+ *  resolution, CR 608.2g), but the card is banked exactly like a plotted one —
+ *  latent material for the evaluator's hand term and a banking special action
+ *  for the search's tie-break. The caller vouches the card is in exile. */
+function suspendedFor(
+    card: SuspendedFields & Pick<CardInstanceState, "ownerId">,
+    casterId: string
+): boolean {
+    return (
+        card.ownerId === casterId &&
+        parseSuspend(card.staticAbilities) !== null &&
+        (card.counters?.[SUSPEND_TIME_COUNTER] ?? 0) > 0
     );
 }
 
@@ -1236,7 +1261,7 @@ export function exileCastOpensLater(
  *  has one answer. */
 export function exileCastLatent(
     state: GameState,
-    card: ExileCastFields,
+    card: ExileCastFields & SuspendedFields,
     casterId: string
 ): boolean {
     return (
