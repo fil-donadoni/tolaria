@@ -323,7 +323,7 @@ export default function Board({
     const attackSequence = useAttackSequenceState(
         `${state?.turn ?? 0}:${state?.phase ?? ""}:${
             state?.combat?.confirmed ? "confirmed" : "open"
-        }`,
+        }:${state?.combat?.blockersConfirmed ? "blocked" : "blocking"}`,
         // Issue #9500 — a walk member that is no longer a declared attacker
         // (or an awaiting creature no longer on the battlefield) is skipped.
         {
