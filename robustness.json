@@ -1,0 +1,11 @@
+{
+  "sha": "6b7dcde4696729a15171119d61888734d218b98d",
+  "mode": "blade:robustness full — weekly: never audited",
+  "startedAt": "2026-11-24T14:59:14.790Z",
+  "pid": 61468,
+  "machine": "Filippos-MacBook-Pro.local",
+  "log": "/Users/filippo/code/mtg/tolaria/.claude/telemetry/health/6b7dcde46967.robustness.log",
+  "status": "clean",
+  "finishedAt": "2026-11-24T17:05:22.151Z",
+  "filed": []
+}
