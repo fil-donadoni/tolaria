@@ -12467,6 +12467,7 @@
         {"id":"601.2f","line":"/** CR 716.2a / 601.2f — the grant for a cost modifier: both `appliesTo*`","sites":1,"status":"confirmed","ruleHash":"0e5bab9baa20723d"},
         {"id":"702.16k","line":"// 702.16k carve-out is a property of THAT quality, not of","sites":1,"status":"baseline"},
         {"id":"115.7","line":"/** CR 603.3d / 115.7 / 707.10c (issue #2283) — every legal answer to the","sites":1,"status":"confirmed","ruleHash":"585b79186486e396"},
+        {"id":"702.62a","line":"// CR 702.62a — suspend functions in the hand and in exile: its worth is","sites":1,"status":"confirmed","ruleHash":"ec3de4272530d0f5"},
         {"id":"707.5","line":"* token mid-choice\" assertions (CR 707.5 / 704.5f). */","sites":1,"status":"baseline"},
         {"id":"117.3d","line":"note: \"Issue #7705 (c). No attack is declared yet: the defender gets priority again in the declare-attackers step (CR 117.3a, 117.3d) and can animate then, knowing what attacks; the deterrence value of animating early is deliberately not credited. Already passing on the pre-fix engine (`last-window-deferral` / `material-tiebreak`), so NOT discriminating: it pins the window the rewritten guardrail now names pointless.\",","sites":1,"status":"confirmed","ruleHash":"357c641790fde5c9"},
         {"id":"608.2h","line":"* read CR 608.2h last-known information). A `.controller` capture still","sites":1,"status":"baseline"},
