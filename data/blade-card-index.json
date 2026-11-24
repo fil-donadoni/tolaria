@@ -542,6 +542,11 @@
             "label": "source of your choice: shields itself from the attacking red creature, not the first red one listed",
             "tier": "must",
             "needsSetup": true
+        },
+        {
+            "label": "wide board, full attack: five attackers into two blockers is lethal, any four is not (issue #10631)",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Green Sun's Zenith": [
@@ -593,6 +598,11 @@
             "label": "flanking pair: a vanilla 2/2 attacker is still blocked by a 2/2",
             "tier": "must",
             "needsSetup": true
+        },
+        {
+            "label": "wide board, full attack: five attackers into two blockers is lethal, any four is not (issue #10631)",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Gryff Rider": [
@@ -641,6 +651,11 @@
             "label": "trample overflow: never double-blocks a trampler with two chumps whose overflow is lethal (issue #5785)",
             "tier": "must",
             "needsSetup": true
+        },
+        {
+            "label": "wide board, full attack: five attackers into two blockers is lethal, any four is not (issue #10631)",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Hurloon Minotaur": [
@@ -793,6 +808,11 @@
         },
         {
             "label": "sunglasses of urza: spends white mana as red for exact lethal (CR 609.4b)",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
+            "label": "wide board, target choice: Lightning Bolt to the face is lethal among eight legal targets (issue #10631)",
             "tier": "must",
             "needsSetup": false
         }
@@ -948,6 +968,13 @@
             "needsSetup": false
         }
     ],
+    "Nantuko Shade": [
+        {
+            "label": "wide board, four pumps of one kind: the one Swamp pumps the unblocked Shade for lethal, enumerated last (issue #10631)",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Natural Order": [
         {
             "label": "tutor: Natural Order sacrifices the Elves for the Craw Wurm",
@@ -1005,6 +1032,13 @@
     "Past in Flames": [
         {
             "label": "flashback grant: Past in Flames replays a graveyard of burn for lethal",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
+    "Pearled Unicorn": [
+        {
+            "label": "wide board, full attack: five attackers into two blockers is lethal, any four is not (issue #10631)",
             "tier": "must",
             "needsSetup": false
         }
@@ -1197,6 +1231,11 @@
             "label": "poison-lethal: chump-blocks the infect attacker whose damage is the tenth poison counter (issue #5153)",
             "tier": "must",
             "needsSetup": true
+        },
+        {
+            "label": "wide board, full attack: five attackers into two blockers is lethal, any four is not (issue #10631)",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Seal of Doom": [

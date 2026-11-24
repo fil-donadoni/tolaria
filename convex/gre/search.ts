@@ -1740,6 +1740,28 @@ function rolloutEpsilonFor(
 
 const FORCED_PASS: Move = { kind: "pass" };
 
+/** Called once per PROBING rollout ply (the greedy branch below) with the
+ *  ply's candidate pool (before ADR 0184's probe cut narrows what
+ *  `selectRolloutMove` is handed) and whether it holds an attack or block
+ *  declaration (issue #10631, `ai/rolloutWidth.ts`). A measurement seam,
+ *  never an input: `null` in production, installed only by the blade's
+ *  authoring tools around one synchronous search. */
+export type RolloutPlyRecorder = (
+    candidates: number,
+    declaration: boolean
+) => void;
+let rolloutPlyRecorder: RolloutPlyRecorder | null = null;
+
+/** Install (or, with `null`, remove) the rollout width recorder; returns the
+ *  one it replaced, so a caller restores it. */
+export function setRolloutPlyRecorder(
+    recorder: RolloutPlyRecorder | null
+): RolloutPlyRecorder | null {
+    const previous = rolloutPlyRecorder;
+    rolloutPlyRecorder = recorder;
+    return previous;
+}
+
 /** The search's wall-clock cap, as a rollout reads it (issue #10408).
  *
  *  The search loop reads its clock BETWEEN iterations, so before this the
@@ -1887,14 +1909,24 @@ export function rollout(
             // never every candidate. Only here: the root's own reads of the
             // greedy pick (`greedyRootPick`, the concordance key in
             // `searchWithTrace`) and `controlledSeatPick` probe every one.
+            // The width recorder (issue #10631) reads the ply's pool BEFORE
+            // that cut: the width is the board's, not the probe's.
+            const pool = greedyPool.length > 0 ? greedyPool : moves;
+            if (rolloutPlyRecorder) {
+                rolloutPlyRecorder(
+                    pool.length,
+                    pool.some(
+                        (m) =>
+                            m.kind === "declare-attackers" ||
+                            m.kind === "declare-blockers"
+                    )
+                );
+            }
             chosen = selectRolloutMove(
                 state,
                 pid,
                 botId,
-                rolloutProbeCandidates(
-                    greedyPool.length > 0 ? greedyPool : moves,
-                    state
-                ),
+                rolloutProbeCandidates(pool, state),
                 rng,
                 weights,
                 memo
