@@ -93,3 +93,29 @@ export const COMBAT_GROUP_ROLE: readonly CardRingRole[] = [
  *  `z-index` of its own, so a tile's own `hover:z-10` / `focus-visible:z-20` /
  *  selected `z-10` lift cues keep ordering it against its pile-mates. */
 export const CARD_RING_TILE_CLASS = "isolate";
+
+/** Stacking rank of a fan tile in an eligibility-FILTERED pile (issue #10223).
+ *
+ *  Fan tiles overlap by a negative margin and paint by DOM order, so an
+ *  ineligible tile (dimmed to 40% opacity) to the right of an eligible one
+ *  painted translucently over it and the eligible art bled through. In a
+ *  filtered fan every eligible tile outranks every ineligible one; among tiles
+ *  of the same rank DOM order — the pile order — still decides. The tile is
+ *  already its own stacking context (`CARD_RING_TILE_CLASS`), so this
+ *  `z-index` orders it against its pile-mates only; the within-card badges
+ *  (`Top` chip) stay inside it.
+ *
+ *  No `eligibleIds` (a plain browse) → `undefined`: no `z-index` at all, the
+ *  unfiltered fan is unchanged. `isEligible` is the caller's
+ *  `isEligibleCard` verdict — the one predicate that also decides
+ *  clickable-vs-dimmed — never a second one. */
+export const FILTERED_FAN_ELIGIBLE_Z = 1;
+export const FILTERED_FAN_INELIGIBLE_Z = 0;
+
+export function filteredFanTileZIndex(
+    filtered: boolean,
+    isEligible: boolean
+): number | undefined {
+    if (!filtered) return undefined;
+    return isEligible ? FILTERED_FAN_ELIGIBLE_Z : FILTERED_FAN_INELIGIBLE_Z;
+}

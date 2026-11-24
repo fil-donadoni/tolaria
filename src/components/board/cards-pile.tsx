@@ -32,7 +32,7 @@ import {
     type PileCategory,
 } from "~/lib/categorized-pile";
 import { pickerRingClass } from "~/lib/picker-ring";
-import { CARD_RING_TILE_CLASS } from "~/lib/card-ring";
+import { CARD_RING_TILE_CLASS, filteredFanTileZIndex } from "~/lib/card-ring";
 import { actionableRingClass } from "~/lib/card-actionable";
 import { PileActionableContext } from "~/lib/pile-actionable-context";
 import {
@@ -506,7 +506,16 @@ function FanLayout({
                                 // negative margin, so the ringed tile must contain
                                 // its own ring's `z-index` (issue #3426).
                                 className={`relative w-(--pile-card-w) aspect-5/7 shrink-0 ${CARD_RING_TILE_CLASS}`}
-                                style={{ marginLeft }}
+                                style={{
+                                    marginLeft,
+                                    // Filtered fan: eligible tiles above dimmed
+                                    // ones, whatever their pile position (issue
+                                    // #10223).
+                                    zIndex: filteredFanTileZIndex(
+                                        !!eligibleIds,
+                                        isEligible
+                                    ),
+                                }}
                             >
                                 {clickable ? (
                                     <button
