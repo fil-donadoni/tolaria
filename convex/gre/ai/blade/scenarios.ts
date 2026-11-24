@@ -29842,6 +29842,12 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     zone: "battlefield",
                     summoningSick: false,
                 },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
             ],
         },
         bot: "me",
@@ -29857,7 +29863,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #9690, CR 107.4f. The Bot's own main phase and no combat to shrink it for: -5/-5 leaves the 8/8 a 3/3 until end of turn, for 4 life and a card.",
+        note: "Issue #9690, CR 107.4f. The Bot's own main phase and no combat to shrink it for: -5/-5 leaves the 8/8 a 3/3 until end of turn, for 4 life and a card, while the same cast kills the Hill Giant for good. Issue #10665: with the Force of Nature alone, the futile cast and `pass` read as the same lost position (mean rewards about 0.01 apart, inside the outcome band), so the material tie-break picked the cast on most wide seeds at 300, 600 and 800 iterations. With the Hill Giant beside it, the cast on the Force of Nature has the lowest mean reward and the lowest material margin of the three root edges (about 0.250 and −580, against about −470 for `pass` and −370 for the cast on the Giant at 400 iterations), so neither the mean-reward rule nor the tie-break picks it: ROBUST at 200, 300, 400, 600 and 800 iterations on every wide seed under all three vectors.",
     },
     // Boros Energy, the modern metagame's level-2 rows
     // (`docs/agents/modern-metagame-bot-level-2.md`, issue #9694). Goblin
