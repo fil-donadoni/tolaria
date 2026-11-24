@@ -33,12 +33,17 @@ import type { RobustnessBaselineRow } from "./robustness";
 // on the same base — issue #10449 owned it again, until the base tip
 // 46f69c4b11 (after PR #10620's lost-leaf turn timing) read it ROBUST on every
 // leg (own 5/5, default/jitter+/jitter- 10/10): PR #10446's audit, reproduced
-// on the bare base tip, retires the row a second time.
+// on the bare base tip, retires the row a second time. PR #10681's full
+// audit (issue #10492's tapped-blocker prediction, run 45320245639, base
+// 5739d451d7) swapped the two fragile entries: Blood Moon jitter+ 9/10
+// (material-tiebreak ×1) — issue #10449 owns it a third time — and the
+// Dismember entry ROBUST on every leg, so its row (issue #10665, which still
+// owns the entry's fragility at other budgets) is retired.
 export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
-    // Passes only at its declared 400 iterations: whenever both root edges
-    // sit in the visit band, the material tie-break takes the futile cast.
+    // jitter+ 9/10: the one failing seed is decided by the material
+    // tie-break, every passing one by mean reward.
     {
-        label: "phyrexian mana: Dismember never aims at toughness above 5",
-        issue: 10665,
+        label: "nonbasic hate: Blood Moon is cast against the opponent's nonbasic mana",
+        issue: 10449,
     },
 ];
