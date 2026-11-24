@@ -648,6 +648,11 @@
             "label": "free attack: swings everything into an empty board",
             "tier": "must",
             "needsSetup": false
+        },
+        {
+            "label": "free damage into a tapped board: attacks with the creature the crack-back does not need",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Impulse": [

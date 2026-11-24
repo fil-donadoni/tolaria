@@ -619,6 +619,37 @@ describe("dangerClock — race term, net of blockers (ADR 0018)", () => {
         expect(predictUnblockedDamage(state, "p1", "p2")).toBe(3);
     });
 
+    it("the ACTIVE player's tapped creature blocks no crack-back — CR 502.3 (issue #10492)", () => {
+        // p2 is active and its 3/3 is tapped: it untaps only in p2's next
+        // untap step, after p1's next combat, so p1's 3/3 gets through.
+        const tappedHome = makeState({
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [attacker(GIANT, "g")] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        oppCreature(GIANT, "wall", { isTapped: true }),
+                    ],
+                }),
+            ],
+        });
+        expect(predictUnblockedDamage(tappedHome, "p1", "p2")).toBe(3);
+        // The NON-active defender's tapped creature untaps before the next
+        // combat it faces: still a blocker in the steady-state clock.
+        const nonActive = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [attacker(GIANT, "g")] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        oppCreature(GIANT, "wall", { isTapped: true }),
+                    ],
+                }),
+            ],
+        });
+        expect(predictUnblockedDamage(nonActive, "p1", "p2")).toBe(0);
+    });
+
     it("is symmetric: a mirrored board nets to a zero clock", () => {
         const state = makeState({
             players: [
@@ -846,6 +877,19 @@ describe("predictCombatOutcome — crude declared-combat resolution (issue #208)
         expect(out.deadAttackerIds).toEqual(["g"]);
         expect(out.deadBlockerIds).toEqual(["wall"]);
         expect(out.faceDamage).toBe(0);
+    });
+
+    it("a TAPPED creature is no blocker — CR 509.1a (issue #10492)", () => {
+        // The 3/3 that kills the 2/2 above is tapped: it cannot block this
+        // declared combat, so nothing dies and the 2/2 connects.
+        const state = declaredCombat(
+            [atk(BEARS, "g")],
+            [blk(GIANT, "wall", { isTapped: true })]
+        );
+        const out = predictCombatOutcome(state, "p1", "p2");
+        expect(out.deadAttackerIds).toEqual([]);
+        expect(out.deadBlockerIds).toEqual([]);
+        expect(out.faceDamage).toBe(2);
     });
 });
 
