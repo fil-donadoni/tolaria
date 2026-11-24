@@ -3198,6 +3198,61 @@
             "opp": 14
         }
     },
+    "free damage into a tapped board: attacks with the creature the crack-back does not need": {
+        "cards": [
+            {
+                "name": "Two-Headed Giant of Foriys",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Hurloon Minotaur",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": true
+            },
+            {
+                "name": "Craw Wurm",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": true,
+                "summoningSick": false
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "zone": "hand",
+                "count": 4
+            }
+        ],
+        "phase": "DECLARE_ATTACKERS",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "life": {
+            "me": 6,
+            "opp": 14
+        }
+    },
     "free put: the caster puts a permanent in off its own Show and Tell": null,
     "free put: the second chooser still puts its creature in after the opponent's bigger one": null,
     "granted flashback: casts Stingcaster Mage to flash back Lightning Bolt for lethal": {
