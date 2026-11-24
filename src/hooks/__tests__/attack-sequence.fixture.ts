@@ -21,6 +21,9 @@ export function makeAttackSequence(
         resolveAwaiting: vi.fn(),
         undecidedAttackerIds: [],
         choosingTarget: false,
+        awaitingBlockers: [],
+        toggleAwaitingBlocker: vi.fn(),
+        resolveAwaitingBlockers: vi.fn(),
         ...overrides,
     };
     if (overrides.undecidedAttackerIds === undefined) {

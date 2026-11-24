@@ -457,7 +457,7 @@ describe("BoardArrows — quiet at rest, hovered relationship above a focus veil
     it("a combat arrow keeps its filament at rest and never raises the veil", () => {
         const combat = {
             attackerIds: ["atk"],
-            blockerAssignments: { atk: ["blk"] },
+            blockerAssignments: { blk: ["atk"] },
         } as unknown as Combat;
         const { container, getByTestId } = render(
             <div data-board-root data-testid="board-root">

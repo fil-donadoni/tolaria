@@ -311,9 +311,11 @@ export function buildCombatArrows(
     const union = (a: string, b: string) => {
         parent[find(a)] = find(b);
     };
-    for (const [attacker, blockers] of Object.entries(assignments)) {
-        find(attacker);
-        for (const blocker of blockers) union(blocker, attacker);
+    // `blockerAssignments` is keyed by BLOCKER (blocker → the attackers it
+    // blocks), the GRE's own shape (`applyBlockerAssignment`).
+    for (const [blocker, attackers] of Object.entries(assignments)) {
+        find(blocker);
+        for (const attacker of attackers) union(blocker, attacker);
     }
     for (const band of combat.bands ?? []) {
         const [first, ...rest] = band.memberIds;
@@ -321,12 +323,14 @@ export function buildCombatArrows(
     }
 
     const arrows: TargetArrow[] = [];
-    for (const [attacker, blockers] of Object.entries(assignments)) {
-        const to = anchors.permanent[attacker];
-        if (!to) continue;
-        for (const blocker of blockers) {
-            const from = anchors.permanent[blocker];
-            if (!from) continue;
+    // One arrow per (blocker, attacker) pair, drawn blocker → attacker, so N
+    // blockers on one attacker are N distinct arrows converging on it.
+    for (const [blocker, attackers] of Object.entries(assignments)) {
+        const from = anchors.permanent[blocker];
+        if (!from) continue;
+        for (const attacker of attackers) {
+            const to = anchors.permanent[attacker];
+            if (!to) continue;
             arrows.push({
                 key: `block:${blocker}->${attacker}`,
                 kind: "combat",
