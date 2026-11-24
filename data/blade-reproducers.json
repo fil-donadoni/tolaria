@@ -3928,6 +3928,77 @@
     },
     "known top: digs with a cantrip because it knows the Bolt is there": null,
     "known top: plays the creature instead when the known top is a blank": null,
+    "land destruction: casts Break the Ice on the opponent's snow land (issue #10607 pair, anchor)": {
+        "cards": [
+            {
+                "name": "Break the Ice",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Snow-Covered Swamp",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Snow-Covered Forest",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 3,
+        "landCount": 0,
+        "libraryCount": 20
+    },
+    "land destruction: holds Break the Ice when its only legal victim is its own snow land (issue #10607 pair, twin)": {
+        "cards": [
+            {
+                "name": "Break the Ice",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Snow-Covered Swamp",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 3,
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "land search: fetches the basic that is the only source of the hand's colour": null,
     "land search: fetches the utility land when the hand's colours are covered": null,
     "land search: Primeval Titan searches when it attacks": null,
