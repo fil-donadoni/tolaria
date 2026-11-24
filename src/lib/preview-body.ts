@@ -657,18 +657,22 @@ export function buildPreviewBody(
     // unchanged for the ability block below, whose native rows it still hides.
     const oracleParagraphs =
         showOracleText && !isSplitCard(def ?? undefined)
-            ? resolveChosenName(
-                  resolveChosenMode(
-                      resolveChosenSubtypes(
-                          def!
-                              .oracleText!.split("\n")
-                              .filter((p) => p.length > 0),
-                          cardInstance?.chosenSubtypes
+            ? resolveChosenPlayer(
+                  resolveChosenName(
+                      resolveChosenMode(
+                          resolveChosenSubtypes(
+                              def!
+                                  .oracleText!.split("\n")
+                                  .filter((p) => p.length > 0),
+                              cardInstance?.chosenSubtypes
+                          ),
+                          def ?? undefined,
+                          cardInstance?.chosenModeId
                       ),
-                      def ?? undefined,
-                      cardInstance?.chosenModeId
+                      cardInstance?.chosenName
                   ),
-                  cardInstance?.chosenName
+                  cardInstance?.chosenPlayerId,
+                  gameCtx?.allPlayers
               )
             : null;
     const basePower = def?.power;
@@ -1114,6 +1118,37 @@ function resolveChosenName(
     }
     if (paragraphs.some((p) => /\bchosen\b/i.test(p))) {
         return [...paragraphs, `Chosen: ${chosenName}`];
+    }
+    return paragraphs;
+}
+
+/** CR 614.12 / 800.2 — names the opponent a PERMANENT locked in as it entered
+ *  ("As this artifact enters, choose an opponent": The Rack, Black Vise), in
+ *  its own printed oracle text. The pick is stored on the instance as
+ *  `chosenPlayerId` (an opaque seat handle) and resolved to the player's
+ *  nickname through the game context: "At the beginning of the chosen player
+ *  (Bob)'s upkeep, …". Falls back to a trailing "Chosen: <nickname>" line when
+ *  the text speaks of a choice the phrase-match didn't catch. With no id, or no
+ *  player list to resolve it against, the text is left alone. */
+function resolveChosenPlayer(
+    paragraphs: string[],
+    chosenPlayerId: string | undefined,
+    players: ReadonlyArray<Pick<Player, "id" | "name">> | undefined
+): string[] {
+    if (!chosenPlayerId) return paragraphs;
+    const name = players?.find((p) => p.id === chosenPlayerId)?.name;
+    if (!name) return paragraphs;
+    const phrase = /chosen player/i;
+    if (paragraphs.some((p) => phrase.test(p))) {
+        return paragraphs.map((p) =>
+            p.replace(
+                new RegExp(phrase.source, "gi"),
+                (match) => `${match} (${name})`
+            )
+        );
+    }
+    if (paragraphs.some((p) => /\bchosen\b/i.test(p))) {
+        return [...paragraphs, `Chosen: ${name}`];
     }
     return paragraphs;
 }
