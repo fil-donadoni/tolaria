@@ -111,6 +111,7 @@ export function useBattlefieldVisualState(
         pendingTarget,
         pendingChoices,
         combat,
+        blocksDeclaredByAttacker,
         allPlayers,
         emblems,
         stackItems,
@@ -354,21 +355,29 @@ export function useBattlefieldVisualState(
         // CR 508.1b — candidates only while a creature awaits its target.
         attackSequence.choosingTarget;
 
+    // Melee (#669) — under `blocksDeclaredByAttacker` the attacking (active)
+    // player declares blocks, still picking from the DEFENDING player's
+    // creatures; the same derivation `useBattlefieldInteraction` routes clicks
+    // with, so what the board lights up and what a click does can't drift.
+    const defenderId = allPlayers.find((p) => p.id !== activePlayerId)?.id;
+    const blockDeclarerId = blocksDeclaredByAttacker
+        ? activePlayerId
+        : defenderId;
     const isSelectingBlockers =
         phase === "DECLARE_BLOCKERS" &&
         !!combat &&
         !combat.blockersConfirmed &&
-        isMe &&
-        playerId !== activePlayerId;
+        playerId === blockDeclarerId &&
+        player.id === defenderId;
 
     const isBlockerTarget =
-        !isMe &&
         phase === "DECLARE_BLOCKERS" &&
         !!combat &&
         !combat.blockersConfirmed &&
         (!!combat.pendingBlockerId ||
             attackSequence.awaitingBlockers.length > 0) &&
-        playerId !== activePlayerId;
+        playerId === blockDeclarerId &&
+        player.id !== defenderId;
 
     // --- Combat derived state ---
 
@@ -805,8 +814,9 @@ export function useBattlefieldVisualState(
               : (isMe &&
                     (manaSource ||
                         isImproviseArtifact ||
-                        (isSelectingAttackers && creature) ||
-                        (isSelectingBlockers && creature))) ||
+                        (isSelectingAttackers && creature))) ||
+                // The declarer's click, on the DEFENDER's board under Melee.
+                (isSelectingBlockers && creature) ||
                 (isBlockerTarget &&
                     !!card.isAttacking &&
                     isBlockablePendingTarget(card)) ||

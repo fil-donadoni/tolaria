@@ -269,7 +269,7 @@ describe("board combat declaration parity with the classic board (#281)", () => 
         expect(toggleAttacker).not.toHaveBeenCalled();
     });
 
-    it("(b) blocker select dispatches the SAME selectBlocker args on both boards", () => {
+    it("(b) clicking an assigned blocker dispatches selectBlocker (unassign); an undeclared one only awaits (issue #10373)", () => {
         // Defender's perspective: viewer == defender, attacker is the opponent.
         // A legal blocker must be able to block at least one declared attacker,
         // so the opponent fields an attacker that `blk1` can block.
@@ -285,7 +285,10 @@ describe("board combat declaration parity with the classic board (#281)", () => 
             phase: "DECLARE_BLOCKERS",
             activePlayerId: "opp", // the attacking player
             priorityPlayerId: "me",
-            combat: attackCombat(["atk1"]),
+            combat: {
+                ...attackCombat(["atk1"]),
+                blockerAssignments: { blk1: ["atk1"] },
+            },
             allPlayers: [opp, me],
         };
 
