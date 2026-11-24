@@ -33949,4 +33949,92 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #10219. Partner: `discriminating pair: graveyard-exile artifact never names the bot's own empty graveyard over the opponent's reachable one (issue #10219)`. A floor, green with and without the change.",
     },
+    {
+        // CR 115.1 / CR 701.8a (issue #10607). A `forEach { set: "targets" }`
+        // removal's members ARE its announced targets, so the hand term prices
+        // the held card at the board's best legal victim of its slot. It used
+        // to price `$each` as the creature-sized representative victim: the
+        // held land-destruction sorcery was worth a creature kill, the one
+        // land it could destroy was worth a tenth of that, and casting always
+        // read as a loss — Break the Ice was never chosen. Here the opponent
+        // is on two lands, one of them snow: destroying it is the play.
+        label: "land destruction: casts Break the Ice on the opponent's snow land (issue #10607 pair, anchor)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "the opponent's Snow-Covered Forest — a legal victim on the opponent's side",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Break the Ice", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                {
+                    name: "Snow-Covered Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                {
+                    name: "Snow-Covered Forest",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Break the Ice",
+                    target: "Snow-Covered Forest",
+                },
+            ],
+        },
+    },
+    {
+        // The twin: the opponent's snow land removed, the bot's own
+        // Snow-Covered Swamp is the only legal victim. The board reading
+        // prices that slot as the bot's own loss, so the held card is worth
+        // nothing to cast — a fix that credited any legal target blindly
+        // would destroy its own land here.
+        label: "land destruction: holds Break the Ice when its only legal victim is its own snow land (issue #10607 pair, twin)",
+        pairOf: {
+            anchor: "land destruction: casts Break the Ice on the opponent's snow land (issue #10607 pair, anchor)",
+            discriminant: {
+                kind: "card",
+                detail: "the opponent's Snow-Covered Forest removed — the bot's own snow land is the only legal victim",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Break the Ice", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                {
+                    name: "Snow-Covered Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: { forbidden: [{ kind: "cast-spell", card: "Break the Ice" }] },
+    },
 ];

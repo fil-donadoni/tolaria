@@ -30,6 +30,7 @@ import type {
     EffectPredicate,
     EffectRef,
     EffectCaptureSource,
+    EffectForEachSelector,
     EffectValue,
     PlayerCounterKind,
     RevealRouteDestination,
@@ -396,7 +397,10 @@ function sweptForEachValue(
                 isEachRef(e.target)
         );
     if (removesEachOnly) {
-        const units = ctx.latent.sweepUnits(op.select);
+        const units =
+            op.select.set === "targets"
+                ? announcedMemberUnits(op.select, ctx)
+                : ctx.latent.sweepUnits(op.select);
         if (units === undefined) return undefined;
         const per = valueEffectScript(op.effects, ctx, scope);
         return { points: per.points * units, tags: per.tags };
@@ -414,6 +418,30 @@ function sweptForEachValue(
         ),
         tags: [outcome.tag, "board-scaling"],
     };
+}
+
+/** Issue #10607 — the `boardRemoval` units a `forEach { set: "targets" }`
+ *  takes off THIS board. Its members ARE the announced targets (CR 115.1), so
+ *  member `i` is slot `i` and the lens prices it as `victimUnitsFor` prices a
+ *  `{ target: i }` — the best legal victim of that slot, never the
+ *  creature-sized representative a bare `$each` reads. Without it a
+ *  land-destruction sorcery held in hand was worth a creature kill while its
+ *  only legal victim was one land, and casting it always read as a loss.
+ *  Counts as many members as the grounding assumes (`forEachCount`).
+ *  `undefined` when any slot is unreadable (no board attached, a modal
+ *  card) — the caller keeps the representative-count valuation. */
+function announcedMemberUnits(
+    select: EffectForEachSelector,
+    ctx: GroundingContext
+): number | undefined {
+    const members = ctx.forEachCount(select).amount;
+    let units = 0;
+    for (let slot = 0; slot < members; slot++) {
+        const slotUnits = ctx.latent.victimUnits(slot);
+        if (slotUnits === undefined) return undefined;
+        units += slotUnits;
+    }
+    return units;
 }
 
 /** The `SweepOutcome` of a one-Op `forEach` body on `$each` that
