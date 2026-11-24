@@ -254,11 +254,11 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     },
     // CR 702.174a — "As an additional cost to cast this spell, you may choose
     // an opponent": an optional cost with no legs, read back by "the gift was
-    // promised" (CR 702.174k) through `{ additionalCostPaid }`. Never kicked
-    // (CR 702.33d), paid at most once (no "any number of times" clause). Its
-    // second ability is a twin trigger on a permanent only (CR 702.174b);
-    // on an instant or sorcery it is the spell's first spell ability
-    // (`giftSpellOps`, `cards/abilities/gift.ts`).
+    // promised" (CR 702.174k) through `{ additionalCostPaid }`.
+    // Never kicked (CR 702.33d), paid at most once (no "any number of times"
+    // clause). Its second ability is a twin trigger on a permanent only
+    // (CR 702.174b); on an instant or sorcery it is the spell's first spell
+    // ability (`giftSpellOps`, `cards/abilities/gift.ts`).
     gift: {
         countsAsKicked: false,
         requiresTrigger: "on-permanent",
