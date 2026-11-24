@@ -1201,7 +1201,7 @@
     "Ruby Medallion": [
         {
             "label": "cost reducer: Ruby Medallion comes down before the red spell it discounts",
-            "tier": "stretch",
+            "tier": "must",
             "needsSetup": false
         }
     ],

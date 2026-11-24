@@ -289,6 +289,7 @@ import {
     isProbeEligibleMove,
     tickOnlyLoyaltyMovesDominated,
 } from "./ai/dominance";
+import { reducerFirstDominatedCasts } from "./ai/sequencingDominance";
 import {
     isFutileThisTurnMove,
     isMisdirectedThisTurnMove,
@@ -7214,9 +7215,27 @@ export function enumerateMoves(
     // only a pass over the SURVIVING set can see: the sibling has to still be
     // on offer.
     const dominatedTicks = tickOnlyLoyaltyMovesDominated(state, playerId, kept);
-    if (dominatedTicks.size === 0) return kept;
-    return kept.filter((m) => {
-        if (!dominatedTicks.has(m)) return true;
+    const ticked =
+        dominatedTicks.size === 0
+            ? kept
+            : kept.filter((m) => {
+                  if (!dominatedTicks.has(m)) return true;
+                  options.onPruned?.(m);
+                  return false;
+              });
+    // CR 601.2f (issue #10645) — a cast a pure self cost reducer cast first
+    // provably dominates: the same spell after the reducer reaches the same
+    // board plus the reducer. Also a pass over the surviving set: the reducer's
+    // cast has to still be on offer.
+    const sequenced = reducerFirstDominatedCasts(
+        state,
+        playerId,
+        ticked,
+        enumerateMoves
+    );
+    if (sequenced.size === 0) return ticked;
+    return ticked.filter((m) => {
+        if (!sequenced.has(m)) return true;
         options.onPruned?.(m);
         return false;
     });

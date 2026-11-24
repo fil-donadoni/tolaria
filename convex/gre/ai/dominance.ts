@@ -1898,6 +1898,17 @@ function normalize(
     spent: SpentCost,
     side: "base" | "probe"
 ): GameState | null {
+    stripBookkeeping(state, moverId);
+    return forgiveSpentCost(state, moverId, spent, side);
+}
+
+/** Delete, in place, every key the ignore lists name: the state's
+ *  (`IGNORED_STATE_KEYS`), the mover's (`IGNORED_MOVER_PLAYER_KEYS`) and every
+ *  card instance's in every zone and on the stack (`IGNORED_INSTANCE_KEYS`).
+ *  What is left is what a fail-closed `deepEqual` compares. Shared with the
+ *  sequencing proof (`sequencingDominance.ts`, issue #10645), which compares
+ *  two lines of play under the same bookkeeping argument. */
+export function stripBookkeeping(state: GameState, moverId: string): void {
     const bag = state as unknown as Record<string, unknown>;
     for (let j = 0; j < IGNORED_STATE_KEYS.length; j++) {
         const key = IGNORED_STATE_KEYS[j];
@@ -1942,7 +1953,16 @@ function normalize(
             delete ibag[key];
         }
     }
+}
 
+/** The spent-cost half of `normalize`: the cast card or the sacrificed source
+ *  taken off both sides. `null` when what was spent cannot be accounted for. */
+function forgiveSpentCost(
+    state: GameState,
+    moverId: string,
+    spent: SpentCost,
+    side: "base" | "probe"
+): GameState | null {
     const { cardId: spentCardId, permanentId: spentPermanentId } = spent;
     if (spentCardId === undefined && spentPermanentId === undefined) {
         return state;
