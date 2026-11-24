@@ -1122,7 +1122,7 @@ function resolveChosenName(
     return paragraphs;
 }
 
-/** CR 614.12 / 800.2 — names the opponent a PERMANENT locked in as it entered
+/** CR 614.12 — names the opponent a PERMANENT locked in as it entered
  *  ("As this artifact enters, choose an opponent": The Rack, Black Vise), in
  *  its own printed oracle text. The pick is stored on the instance as
  *  `chosenPlayerId` (an opaque seat handle) and resolved to the player's
