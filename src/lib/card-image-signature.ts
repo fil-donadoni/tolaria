@@ -70,6 +70,18 @@ export function cardImageSignature(card: CardLike): string {
     // pick its Token Print off this, so a different source is a different face.
     if (card.sourcePrintId) parts.push(`src:${card.sourcePrintId}`);
 
+    // Persistent as-enters choices (CR 614.12): the preview annotates them in
+    // place (`resolveChosenName` / `Mode` / `Subtypes` / `Player`). The choice
+    // lands on a permanent that is ALREADY on the board (the pick is answered
+    // at a later stable point), so a memoized CardImage that ignored these
+    // fields kept the pre-choice instance and the Live text never named it.
+    if (card.chosenName) parts.push(`cn:${card.chosenName}`);
+    if (card.chosenModeId) parts.push(`cm:${card.chosenModeId}`);
+    if (card.chosenSubtypes?.length) {
+        parts.push(`ct:${card.chosenSubtypes.join(",")}`);
+    }
+    if (card.chosenPlayerId) parts.push(`cp:${card.chosenPlayerId}`);
+
     // Keyword grants/losses (landwalk and every other keyword): the resolved
     // `staticAbilities` array already reflects both, so it covers the diff
     // getDisplayAbilities computes against the def.

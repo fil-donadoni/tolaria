@@ -80,3 +80,31 @@ describe("announcement baseline (reload never replays)", () => {
         expect(trackPileNotice(same.tracker, true, next).confirm).toBe(next);
     });
 });
+
+// Issue #10224 — a name locked in by the OPPOSING seat (or the Bot) arrives in
+// a LATER snapshot than the baseline one and must yield exactly one confirm.
+describe("named-card announcement from the opposing seat", () => {
+    const named: ChoiceAnnouncement = {
+        key: "2:s:0:c",
+        seq: 2,
+        chooserId: "p2",
+        kind: "named-card",
+        cardName: "Plains",
+    };
+
+    it("confirms once when it shows up after the baseline snapshot", () => {
+        const baseline = trackPileNotice(
+            INITIAL_PILE_NOTICE_TRACKER,
+            true,
+            undefined
+        );
+        expect(baseline.confirm).toBeNull();
+        const later = trackPileNotice(baseline.tracker, true, named);
+        expect(later.confirm).toBe(named);
+        expect(formatChoiceAnnouncement(named, players)).toBe(
+            "Bob named Plains"
+        );
+        const again = trackPileNotice(later.tracker, true, named);
+        expect(again.confirm).toBeNull();
+    });
+});

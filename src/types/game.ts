@@ -451,6 +451,10 @@ export interface CardInstance {
      *  instead of the printed wording alone. Mirrors
      *  `CardInstanceState.chosenName` in `convex/gre/state.ts`. */
     chosenName?: string;
+    /** CR 614.12 as-enters OPPONENT choice (The Rack, Black Vise: "choose an
+     *  opponent"). Forwarded by `slimCard`; read by `resolveChosenPlayer` in
+     *  `src/lib/preview-body.ts`. Mirrors `CardInstanceState.chosenPlayerId`. */
+    chosenPlayerId?: string;
     /** Layer 5 color override (CR 305.7, 613.1d). Set by lace instants. */
     colorOverride?: string[];
     /** CR 707.2 / 202.3 — instance-level mana-cost override, set by a copy
