@@ -33759,4 +33759,124 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
     },
+    {
+        // WHOLE-GRAVEYARD EXILE ON EMPTY GRAVEYARDS (CR 406.2, issue #10219).
+        // The bot holds an untapped "{T}, Sacrifice this artifact: Exile target
+        // player's graveyard." artifact, both graveyards are empty, and an
+        // unrelated opposing enters trigger (a draw) is on the stack. Either
+        // target exiles nothing but the artifact itself: aimed at the
+        // opponent it lands in the bot's graveyard, aimed at the bot it is
+        // exiled with the bot's own graveyard. Both are pure losses.
+        label: "graveyard-exile self-sacrifice artifact, both graveyards empty, in response to an unrelated opposing trigger: pass (issue #10219)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Tormod's Crypt", owner: "me", zone: "battlefield" },
+                { name: "Quantum Riddler", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 6,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "etb-trigger", card: "Quantum Riddler", controller: "opp" },
+            // The active player passes on their own trigger: the bot now
+            // holds priority with it still on the stack (CR 117.3d).
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Tormod's Crypt" }],
+        },
+        note: "Issue #10219. Before the change the dominance probe proved only the opponent-target activation a no-op: aimed at the bot itself the resolution exiles the just-sacrificed source too, the source sat in exile rather than the graveyard and `normalize` answered unproven, so the self-target was the one surviving activation and tied `pass`. Unit proof: `dominance.bot.test.ts` § issue #10219.",
+    },
+    {
+        // The same artifact on the bot's own main phase with an empty stack
+        // (issue #10219): nothing to exile anywhere, so activating is a pure
+        // loss whoever it names.
+        label: "graveyard-exile self-sacrifice artifact, both graveyards empty, own main phase: does not activate (issue #10219)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Tormod's Crypt", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Tormod's Crypt" }],
+        },
+        note: "Issue #10219. Partner of the in-response entry above: the no-stack window, where the self-target activation was equally unproven.",
+    },
+    {
+        // DISCRIMINATING PAIR, half 1 (issue #10219): the opponent's graveyard
+        // holds a reachable flashback spell, the bot's own is empty. Exiling
+        // the opponent's graveyard is a real (if small) gain the bot may
+        // take; naming itself exiles only its own artifact and is never the
+        // pick.
+        label: "discriminating pair: graveyard-exile artifact never names the bot's own empty graveyard over the opponent's reachable one (issue #10219)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Tormod's Crypt", owner: "me", zone: "battlefield" },
+                { name: "Faithless Looting", owner: "opp", zone: "graveyard" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Tormod's Crypt",
+                    target: "me",
+                },
+            ],
+        },
+        note: "Issue #10219. Partner: `discriminating pair: graveyard-exile artifact keeps the bot's own reachable graveyard (issue #10219)` — the same card moved to the bot's graveyard flips which target is the loss.",
+    },
+    {
+        // DISCRIMINATING PAIR, half 2 (issue #10219): the flashback spell is
+        // in the BOT's graveyard and the opponent's is empty. Naming the
+        // opponent exiles nothing (a pure loss of the artifact); naming the
+        // bot exiles its own reachable card. Neither is a gain: pass.
+        label: "discriminating pair: graveyard-exile artifact keeps the bot's own reachable graveyard (issue #10219)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Tormod's Crypt", owner: "me", zone: "battlefield" },
+                { name: "Faithless Looting", owner: "me", zone: "graveyard" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Tormod's Crypt" }],
+        },
+        note: "Issue #10219. Partner: `discriminating pair: graveyard-exile artifact never names the bot's own empty graveyard over the opponent's reachable one (issue #10219)`.",
+    },
 ];

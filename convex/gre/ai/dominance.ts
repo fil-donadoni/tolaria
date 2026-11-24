@@ -126,7 +126,15 @@
 //     which is what revolt reads — an ability word with no rules entry of its
 //     own (CR 207.2c), Fatal Push's gate. Also stripped, so sacrificing purely
 //     to turn revolt on is prunable too.
-// Both are accepted, and both are worth exactly one card's worth of value in
+//   * Issue #10219 — a resolution that exiles the mover's OWN graveyard
+//     (CR 406.2) takes the just-sacrificed source on to exile, raising the
+//     mover's "a card left your graveyard this turn" tally by one. The source
+//     is accepted in exile and that one departure is un-counted, so exiling
+//     nothing but the spent source purely to raise the tally (an intervening-if
+//     reading it, CR 603.4) is prunable too; any OTHER card the resolution
+//     exiled is still a zone difference, and a leaves-the-graveyard trigger
+//     still resolves inside the probe and blocks the prune on its own.
+// All are accepted, and both are worth exactly one card's worth of value in
 // positions the search can reach a turn later anyway; the alternative is a
 // prune that never fires.
 
@@ -1974,14 +1982,22 @@ function forgiveSpentCost(
         // activation cost. Symmetric with the cast card below: the source sits
         // on the mover's battlefield before the announcement and in their
         // graveyard after paying, so removing it from BOTH sides leaves exactly
-        // what the RESOLUTION did. Anywhere else on the probe (exiled instead,
-        // regenerated back, still on the battlefield because a replacement
-        // effect took it) is not the plain cost this forgives: `null`, and the
-        // move is left searchable.
-        const from = side === "base" ? mover.battlefield : mover.graveyard;
-        const i = from.findIndex((c) => c.id === spentPermanentId);
-        if (i === -1) return null;
-        from.splice(i, 1);
+        // what the RESOLUTION did. Issue #10219 — the mover's EXILE is also
+        // accepted on the probe, when the resolution exiled the mover's own
+        // graveyard (CR 406.2) and the spent source with it: see the module
+        // header's narrowings. Anywhere else on the probe (regenerated back,
+        // bounced, still on the battlefield because a replacement effect took
+        // it) is not the plain cost this forgives: `null`, and the move is
+        // left searchable.
+        if (
+            side === "base" ||
+            !removeSpentSourceOnProbe(mover, spentPermanentId)
+        ) {
+            const from = side === "base" ? mover.battlefield : mover.graveyard;
+            const i = from.findIndex((c) => c.id === spentPermanentId);
+            if (i === -1) return null;
+            from.splice(i, 1);
+        }
         // The three side effects that departure writes, dropped for the reason
         // `ECHOED_BOOKKEEPING_KEYS` gives one level up: each sits one line from
         // the zone move just forgiven, and the PRIMARY change any of them could
@@ -2049,6 +2065,26 @@ function forgiveSpentCost(
         }
     }
     return null;
+}
+
+/** Issue #10219 — the probe-side reading of a self-sacrificed source that the
+ *  resolution moved on from the mover's graveyard to their exile (an "exile
+ *  target player's graveyard" aimed at the mover, CR 406.2): strip it from
+ *  exile and un-count its one graveyard departure (`noteGraveyardDeparture`
+ *  bumped `leftGraveyardThisTurn` for it), so what is left is exactly what
+ *  else the resolution did. `false` when the source is not in the mover's
+ *  exile — the caller then reads the graveyard as before. */
+function removeSpentSourceOnProbe(
+    mover: GameState["players"][number],
+    spentPermanentId: string
+): boolean {
+    const i = mover.exile.findIndex((c) => c.id === spentPermanentId);
+    if (i === -1) return false;
+    mover.exile.splice(i, 1);
+    const left = (mover.leftGraveyardThisTurn ?? 0) - 1;
+    if (left > 0) mover.leftGraveyardThisTurn = left;
+    else delete mover.leftGraveyardThisTurn;
+    return true;
 }
 
 /** Structural deep equality treating `undefined` and an absent key as the same
