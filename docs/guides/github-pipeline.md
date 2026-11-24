@@ -1824,7 +1824,12 @@ PR #10333 (run 44746367265): parts took 21–30 min, the one holding the Oko
 loyalty entry (1914 s alone) 61 min, so the timeout is ~2× the slowest part;
 an entry's own timeout allows 200 ms a search iteration (137 ms measured on
 the Oko board). A part cut by the timeout reads `cancelled` in the verdict,
-never red; its per-entry rows stay in the job log (`tee`).
+never red; its per-entry rows stay in the job log (`tee`). Each part first
+re-packs `data/catalogue/*` from the tree's lockfile rows
+(`bun run catalogue:pack`, ~7 s): the PR head carries the merge-base's
+catalogue (ADR 0157), so a `must` entry naming a card the PR graduates threw
+`Card not found by name` (PR #10701). The lockfile header and the Bot refit
+artefacts stay the merge-base's.
 `verdict`, named `blade-robustness`, is the check `.mergify.yml` requires in
 `queue_conditions`. NONE runs no search and reports green; a finding reds the
 check and the run summary names the entry and the leg. The queue's draft
