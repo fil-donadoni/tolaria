@@ -32445,13 +32445,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         bot: "me",
-        budget: { iterations: 800 },
+        budget: { iterations: 1600 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
             moves: [{ kind: "cast-spell", card: "Blood Moon" }],
         },
-        note: "Issue #9696, CR 305.7. Five Scrublands and a hand of Serra Angels: without Blood Moon the opponent casts a {3}{W}{W} Angel next turn; under it each land taps for {R} only and the Angels' {W}{W} is out of reach. The Bot's Mountains are basic, so its Hill Giant stays castable. Issue #10449: with four Scrublands the Angel was out of reach either way, so Blood Moon bought nothing and won by rollout order (seed 2 had been re-seeded to 6 for it, issue #9961); the fifth land makes the cast worth a creature, and 800 iterations settle seed 0xb1ade on mean reward.",
+        note: "Issue #9696, CR 305.7. Five Scrublands and a hand of Serra Angels: without Blood Moon the opponent casts a {3}{W}{W} Angel next turn; under it each land taps for {R} only and the Angels' {W}{W} is out of reach. The Bot's Mountains are basic, so its Hill Giant stays castable. Issue #10449: with four Scrublands the Angel was out of reach either way, so Blood Moon bought nothing and won by rollout order (seed 2 had been re-seeded to 6 for it, issue #9961); the fifth land makes the cast worth a creature, and 800 iterations settled seed 0xb1ade on mean reward — but jitter+ seed 0 and jitter- seed 4 still fell to the material tie-break against pass at 800 (the Angel's arrival sits deep in the tree); 1600 iterations decide every audit run on mean reward.",
     },
     {
         label: "nonbasic hate: Blood Moon never strands the Bot's own hand",
