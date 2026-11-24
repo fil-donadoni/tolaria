@@ -110,6 +110,7 @@ const STORED: Required<ScenarioSpec> = {
     speed: { me: 4, opp: 1 },
     life: { me: 5, opp: 2 },
     experience: { me: 2, opp: 0 },
+    energy: { me: 3, opp: 0 },
     // CR 305.2 (issue #3446) — a curated row whose "me" has already used its
     // land drop, the post-drop main phase PRD #3397 exists to judge.
     landsPlayed: { me: 1, opp: 0 },
