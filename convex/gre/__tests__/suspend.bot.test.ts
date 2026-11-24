@@ -88,6 +88,16 @@ describe("Suspend — reachable (CR 116.2f)", () => {
         });
     });
 
+    it("is not enumerated once the suspend cost cannot be paid", () => {
+        withBolt(() => {
+            const state = board();
+            state.players[0].battlefield[0].isTapped = true;
+            expect(
+                enumerateMoves(state, "p1").some((m) => m.kind === "suspend")
+            ).toBe(false);
+        });
+    });
+
     it("a suspend that is the only alternative to passing is not a forced pass", () => {
         withBolt(() => {
             const state = board();

@@ -31,7 +31,6 @@ import {
 } from "../../__tests__/gameMutationHarness.fixture";
 import type { Id } from "../../_generated/dataModel";
 import { projectPublicState } from "../../gameProjections";
-import { enumerateMoves } from "../moves";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { compactState, expandState } from "../serialize";
 import {
@@ -506,7 +505,7 @@ type CardArgs = {
     cardInstanceId: string;
 };
 
-describe("Suspend — full path: mutation, wire, Bot (CR 702.62a)", () => {
+describe("Suspend — full path: mutation, wire (CR 702.62a)", () => {
     it("the hand card carries canSuspend for its owner only, while suspending is legal", () => {
         withCards(() => {
             const state = board(SORCERY);
@@ -552,21 +551,6 @@ describe("Suspend — full path: mutation, wire, Bot (CR 702.62a)", () => {
                     }
                 )
             ).rejects.toThrow();
-        });
-    });
-
-    it("the Bot's enumerator offers the suspend action exactly when canSuspend holds", () => {
-        withCards(() => {
-            const state = board(NO_COST);
-            const moves = enumerateMoves(state, "p1");
-            expect(moves).toContainEqual({
-                kind: "suspend",
-                cardInstanceId: "card",
-            });
-            p1(state).battlefield.find((l) => l.id === "m")!.isTapped = true;
-            expect(
-                enumerateMoves(state, "p1").some((m) => m.kind === "suspend")
-            ).toBe(false);
         });
     });
 });
