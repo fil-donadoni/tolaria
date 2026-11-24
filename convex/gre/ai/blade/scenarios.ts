@@ -33788,13 +33788,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             { kind: "pass", seat: "opp" },
         ],
         bot: "me",
-        budget: { iterations: 400 },
+        budget: { iterations: 100 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
             forbidden: [{ kind: "activate-ability", card: "Tormod's Crypt" }],
         },
-        note: "Issue #10219. Before the change the dominance probe proved only the opponent-target activation a no-op: aimed at the bot itself the resolution exiles the just-sacrificed source too, the source sat in exile rather than the graveyard and `normalize` answered unproven, so the self-target was the one surviving activation and tied `pass`. Unit proof: `dominance.bot.test.ts` § issue #10219.",
+        note: "Issue #10219. Before the change the dominance probe proved only the opponent-target activation a no-op: aimed at the bot itself the resolution exiles the just-sacrificed source too, the source sat in exile rather than the graveyard and `normalize` answered unproven, so the self-target was the one surviving activation and tied `pass`. Proof of failure: replacing `!removeSpentSourceOnProbe(mover, spentPermanentId)` with `true` (`dominance.ts`) turns this entry red on every seed at this budget (chose the Crypt targeting `me`); at 400 iterations rollouts happen to find `pass` without the prune, so the budget is part of the entry. Unit proof: `dominance.bot.test.ts` § issue #10219.",
     },
     {
         // The same artifact on the bot's own main phase with an empty stack
@@ -33818,7 +33818,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             forbidden: [{ kind: "activate-ability", card: "Tormod's Crypt" }],
         },
-        note: "Issue #10219. Partner of the in-response entry above: the no-stack window, where the self-target activation was equally unproven.",
+        note: "Issue #10219. Partner of the in-response entry above: the no-stack window, where the self-target activation was equally unproven. A floor: green with and without the change on 12 seeds at 25/100/400 iterations.",
     },
     {
         // DISCRIMINATING PAIR, half 1 (issue #10219): the opponent's graveyard
@@ -33851,7 +33851,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #10219. Partner: `discriminating pair: graveyard-exile artifact keeps the bot's own reachable graveyard (issue #10219)` — the same card moved to the bot's graveyard flips which target is the loss.",
+        note: "Issue #10219. Partner: `discriminating pair: graveyard-exile artifact keeps the bot's own reachable graveyard (issue #10219)` — the same card moved to the bot's graveyard flips which target is the loss. A floor: green with and without the change (12 seeds, 25/100/400 iterations).",
     },
     {
         // DISCRIMINATING PAIR, half 2 (issue #10219): the flashback spell is
@@ -33877,6 +33877,6 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             forbidden: [{ kind: "activate-ability", card: "Tormod's Crypt" }],
         },
-        note: "Issue #10219. Partner: `discriminating pair: graveyard-exile artifact never names the bot's own empty graveyard over the opponent's reachable one (issue #10219)`.",
+        note: "Issue #10219. Partner: `discriminating pair: graveyard-exile artifact never names the bot's own empty graveyard over the opponent's reachable one (issue #10219)`. A floor, green with and without the change.",
     },
 ];
