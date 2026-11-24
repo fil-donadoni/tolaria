@@ -742,7 +742,11 @@ export type KickedRefIR =
     /** CR 701.59c — "if evidence was collected": the card's collect-evidence
      *  cost entry, linked by CR 607. It names no object, so every subject guard
      *  below is moot. */
-    | { readonly kind: "evidence" };
+    | { readonly kind: "evidence" }
+    /** CR 702.174k — "if the gift was promised": the card's gift cost entry,
+     *  whose payment IS the promise. Read only on the permanent form (the gift
+     *  trigger's sibling ETB); a spell's promised clause is not this rule's. */
+    | { readonly kind: "gift" };
 
 /** Nouns naming the kicked object — the spell itself (CR 702.33e). */
 const KICKED_SUBJECTS: ReadonlySet<string> = new Set([
@@ -753,6 +757,8 @@ const KICKED_SUBJECTS: ReadonlySet<string> = new Set([
 const KICKED = /^if (.+?) was kicked(?: with its (\{[^ ]+\}) kicker)?$/;
 
 const EVIDENCE_COLLECTED = "if evidence was collected";
+
+const GIFT_PROMISED = "if the gift was promised";
 
 /**
  * `"if this spell was kicked"` / `"if this spell was kicked with its {2}{R}
@@ -772,11 +778,14 @@ const EVIDENCE_COLLECTED = "if evidence was collected";
  */
 function kickedConditionRuleFor(
     label: string,
-    subjects: ReadonlySet<string>
+    subjects: ReadonlySet<string>,
+    readsGiftPromise: boolean
 ): Rule<KickedRefIR> {
     return rule<KickedRefIR>(label, (span) => {
         if (span === EVIDENCE_COLLECTED)
             return ok({ kind: "evidence" as const });
+        if (readsGiftPromise && span === GIFT_PROMISED)
+            return ok({ kind: "gift" as const });
         const match = span.match(KICKED);
         if (match === null)
             return fail("not a kicked condition this grammar knows", span);
@@ -794,7 +803,8 @@ function kickedConditionRuleFor(
 
 export const kickedConditionRule: Rule<KickedRefIR> = kickedConditionRuleFor(
     KICKED_CONDITION,
-    KICKED_SUBJECTS
+    KICKED_SUBJECTS,
+    false
 );
 
 /**
@@ -805,7 +815,7 @@ export const kickedConditionRule: Rule<KickedRefIR> = kickedConditionRuleFor(
  * someone else's), so this rule only widens the subject.
  */
 export const kickedPermanentConditionRule: Rule<KickedRefIR> =
-    kickedConditionRuleFor("kicked permanent condition", new Set(["it"]));
+    kickedConditionRuleFor("kicked permanent condition", new Set(["it"]), true);
 
 /**
  * CR 702.33e — the permanent form as a trigger's intervening-if (CR 603.4):

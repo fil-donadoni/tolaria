@@ -70,6 +70,7 @@ import {
 } from "./abilities/triggers/leftTrigger";
 import { entersOrLeavesTrigger } from "./abilities/triggers/entersOrLeavesTrigger";
 import { librarySearchedTrigger } from "./abilities/triggers/librarySearchedTrigger";
+import { giftGivenTrigger } from "./abilities/triggers/giftGivenTrigger";
 import { graveyardEntryTrigger } from "./abilities/triggers/graveyardEntryTrigger";
 import { libraryToGraveyardTrigger } from "./abilities/triggers/libraryToGraveyardTrigger";
 import { creatureCardDirectlyAboveInGraveyard } from "./graveyardOrder";
@@ -349,6 +350,8 @@ export type CompiledTriggerHead =
      * (`librarySearchedTrigger`).
      */
     | { readonly kind: "library-searched"; readonly scope: "opponents" }
+    /** CR 702.174c — "whenever you give a gift" (`giftGivenTrigger`). */
+    | { readonly kind: "gift-given"; readonly scope: "you" }
     /**
      * CR 603.6c — "when this Aura is put into a graveyard from the battlefield"
      * (`toZone` narrows the exit, as `leftTrigger`'s own field does), and its
@@ -809,6 +812,8 @@ function resolveCompiledTriggerHead(
         }
         case "library-searched":
             return librarySearchedTrigger({ ...common, scope: head.scope });
+        case "gift-given":
+            return giftGivenTrigger({ ...common, scope: head.scope });
         case "left-to-graveyard": {
             // CR 404.1 — the owner of the card, which `PERMANENT_LEFT` carries
             // as last-known information; the departure's cause is the

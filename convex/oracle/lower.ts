@@ -64,6 +64,7 @@ import { readManaCost } from "./manaCost";
 import { manaValue } from "../gre/constants";
 import { spliceCardIsSupported } from "../gre/splice";
 import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
+import { readTypeLine } from "./typeLine";
 import type { KeywordIR, LineParse, SlotIR } from "./grammar/ir";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
 import { CYCLING_ABILITY_ID, cyclingAbility } from "../cards/abilities/cycling";
@@ -79,6 +80,12 @@ import {
 import { unearthAbility } from "../cards/abilities/unearth";
 import { CONSPIRE_KEYWORD, conspireCost } from "../cards/abilities/conspire";
 import { offspringTriggerParts } from "../cards/abilities/offspring";
+import {
+    giftCost,
+    giftSpellOps,
+    giftTriggerParts,
+    type GiftKind,
+} from "../cards/abilities/gift";
 import { crewAbility, crewKeyword } from "../cards/abilities/vehicle";
 import { saddleAbility, saddleKeyword } from "../cards/abilities/mount";
 import { keywordVocabulary } from "./grammar/shared/keywordVocabulary";
@@ -271,6 +278,13 @@ interface Accumulator {
      * reason `offspring` is: `lowerCard`'s kicker pre-pass and its rider checks
      * read that field. */
     conspire?: KickerCost;
+    /**
+     * CR 702.174a — the gift cost entry and the [something] it gives, kept
+     * apart from `kickers` for the reason `offspring` is. A permanent's twin
+     * trigger is pushed as the line is lowered; an instant or sorcery's gift
+     * ability opens its Effect Script at assembly (CR 702.174j).
+     */
+    gift?: { cost: KickerCost; kind: GiftKind };
 }
 
 /**
@@ -629,7 +643,7 @@ function lowerLine(
                     ? { maxTriggersPerTurn: ir.maxTriggersPerTurn }
                     : {}),
                 effects: ir.effects,
-                ...(acc.kickers !== undefined ? { kickers: acc.kickers } : {}),
+                ...linkedCostKickers(acc),
             });
             if (!lowered.ok) return lowered.reason;
             acc.compiledTriggeredAbilities.push(lowered.ability);
@@ -653,7 +667,7 @@ function lowerLine(
                 cardName: card.name,
                 head: ir.head,
                 effects: [],
-                ...(acc.kickers !== undefined ? { kickers: acc.kickers } : {}),
+                ...linkedCostKickers(acc),
             });
             if (!lowered.ok) return lowered.reason;
             const modes: AbilityMode[] = [];
@@ -665,9 +679,7 @@ function lowerLine(
                     cardName: card.name,
                     head: ir.head,
                     effects: mode.effects,
-                    ...(acc.kickers !== undefined
-                        ? { kickers: acc.kickers }
-                        : {}),
+                    ...linkedCostKickers(acc),
                 });
                 if (!body.ok) return body.reason;
                 // CR 201.5 — the marker in both display strings becomes the
@@ -1272,11 +1284,57 @@ function lowerLine(
             });
             return null;
         }
+        case "gift": {
+            if (acc.gift !== undefined)
+                return "a card declares gift twice (CR 702.174a)";
+            acc.gift = { cost: giftCost(ir.gift), kind: ir.gift };
+            const printed = readTypeLine(card.typeLine);
+            if (!printed.ok) return printed.reason;
+            if (
+                printed.parsed.types.includes("Instant") ||
+                printed.parsed.types.includes("Sorcery")
+            )
+                return null;
+            // CR 702.174b — on a permanent the second ability is "When this
+            // permanent enters, if its gift cost was paid, [effect]."
+            const trigger = giftTriggerParts({
+                cardName: card.name,
+                kind: ir.gift,
+            });
+            acc.compiledTriggeredAbilities.push({
+                id: trigger.id,
+                oracleText: trigger.oracleText,
+                head: { kind: "entered", scope: "self" },
+                // CR 603.4 — an unpaid gift cost announces nothing; the
+                // resolution-time check is the body's own `if`.
+                condition: { kind: "kicker-paid", kickerId: trigger.costId },
+                effects: trigger.effects,
+                additionalCostTwin: {
+                    keyword: "gift",
+                    costId: trigger.costId,
+                },
+            });
+            return null;
+        }
         default: {
             const never: never = ir;
             return `no lowering for slot IR ${JSON.stringify(never)}`;
         }
     }
+}
+
+/**
+ * The cost entries a triggered ability's intervening-if may read: the card's
+ * kickers plus its gift entry — "if the gift was promised" (CR 702.174k) is
+ * read off the gift entry's payment record, as "if it was kicked" is off a
+ * kicker's.
+ */
+function linkedCostKickers(acc: Accumulator): { kickers?: KickerCost[] } {
+    const kickers = [
+        ...(acc.kickers ?? []),
+        ...(acc.gift !== undefined ? [acc.gift.cost] : []),
+    ];
+    return kickers.length > 0 ? { kickers } : {};
 }
 
 /**
@@ -1611,7 +1669,7 @@ export function lowerCard(
     }
     // CR 702.175a — the offspring cost rides the same `kickers[]` the cast
     // path reads; its `keyword` keeps it out of every "kicked" read.
-    const keywordCosts = [acc.offspring, acc.conspire].filter(
+    const keywordCosts = [acc.offspring, acc.conspire, acc.gift?.cost].filter(
         (cost): cost is KickerCost => cost !== undefined
     );
     const castKickers =
@@ -1968,6 +2026,20 @@ export function lowerCard(
             };
         acc.spellEffects = swept.value;
         definition.overload = acc.overload;
+    }
+    if (acc.gift !== undefined && isSpellCard) {
+        // CR 702.174b/j — "If this spell's gift cost was paid, [effect]",
+        // before any other spell ability of the card.
+        if (acc.spellEffects === undefined)
+            return {
+                ok: false,
+                reason: "a gift on an instant or sorcery with no Effect Script to open (CR 702.174j)",
+                fragment: card.oracleText,
+            };
+        acc.spellEffects = [
+            ...giftSpellOps(acc.gift.kind, acc.gift.cost.id),
+            ...acc.spellEffects,
+        ];
     }
     if (acc.spellEffects !== undefined) {
         definition.effects = acc.spellEffects;

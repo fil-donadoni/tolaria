@@ -205,7 +205,7 @@ export function giftTriggerParts(args: GiftTriggerArgs): {
 } {
     const costId = args.costId ?? GIFT_COST_ID;
     return {
-        id: `gift-${costId}`,
+        id: `gift-delivery-${costId}`,
         costId,
         oracleText: `When ${args.cardName} enters, if its gift cost was paid, ${GIFT_EFFECT_TEXT[args.kind]}.`,
         // CR 603.4, check 2 — the resolving item's own snapshot.

@@ -7688,6 +7688,15 @@ export function kickedValue(
               )
             : lowered({ additionalCostPaid: entry.id });
     }
+    if (kicked.kind === "gift") {
+        // CR 702.174k — the gift was promised iff its cost entry was paid.
+        const entry = kickers.find((k) => k.keyword === "gift");
+        return entry === undefined
+            ? unlowerable(
+                  '"if the gift was promised" on a card with no gift (CR 702.174k)'
+              )
+            : lowered({ additionalCostPaid: entry.id });
+    }
     if (kicked.kind === "any") return lowered({ kickerCount: true });
     if (kickers.length < 2)
         return unlowerable(
