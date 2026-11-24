@@ -32713,13 +32713,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
-        beyondBudget: {
-            cause: "valuation",
-            note: "Issue #10645. The leaf reads Medallion then Ogre above Ogre first (307.2 vs 301.9 at the next upkeep), but the one-ply after the Medallion cast prices the Ogre it now casts at nothing (oneplyReward 0.618 vs 0.654), and the root blends that in. Measured at 400, 4000 and 12000 iterations: the Ogre first every time, the gap never flips. Promote to `must` in the PR that prices the castable follow-up.",
-        },
+        tier: "must",
         expect: { moves: [{ kind: "cast-spell", card: "Ruby Medallion" }] },
-        note: "Issue #9700, CR 601.2f. Medallion first casts both cards this turn; the Ogre first casts one.",
+        note: "Issue #9700, CR 601.2f. Medallion first casts both cards this turn; the Ogre first casts one. Issue #10645: the Ogre at full cost is dominated by the Medallion then the Ogre (`ai/sequencingDominance.ts`) and is pruned at the root; the leaf alone reads the two lines 5 points apart, under rollout noise.",
     },
     {
         label: "cost reducer: never casts the red spell at full cost before Ruby Medallion",
@@ -32746,15 +32742,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
-        beyondBudget: {
-            cause: "valuation",
-            note: "Issue #10645, the same class as its twin: the one-ply after the Medallion cast reads no castable follow-up, so the Giant at full cost wins at 400, 4000 and 12000 iterations. Promote to `must` with its twin.",
-        },
+        tier: "must",
         expect: {
             forbidden: [{ kind: "cast-spell", card: "Hill Giant" }],
         },
-        note: "Issue #9700, CR 601.2f. The red spell at full cost first strands the Medallion in hand for a turn.",
+        note: "Issue #9700, CR 601.2f. The red spell at full cost first strands the Medallion in hand for a turn. Issue #10645: the Giant first is dominated by the Medallion then the Giant and pruned at the root; the Ogre first stays (the Medallion is still castable after it).",
     },
     {
         label: "colour fixing: Manamorphose names green for the green spell it casts",
