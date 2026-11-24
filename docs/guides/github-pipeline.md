@@ -1826,10 +1826,10 @@ an entry's own timeout allows 200 ms a search iteration (137 ms measured on
 the Oko board). A part cut by the timeout reads `cancelled` in the verdict,
 never red; its per-entry rows stay in the job log (`tee`). Each part first
 re-packs `data/catalogue/*` from the tree's lockfile rows
-(`bun run catalogue:pack`, ~7 s): the PR head carries the merge-base's
-catalogue (ADR 0157), so a `must` entry naming a card the PR graduates threw
-`Card not found by name` (PR #10701). The lockfile header and the Bot refit
-artefacts stay the merge-base's.
+(`bun run catalogue:pack`, ~7 s): a PR carries no catalogue bytes (ADR 0157),
+so the audited merge ref holds the base's, and a `must` entry naming a card
+the PR graduates threw `Card not found by name` (PR #10701). The lockfile
+header (unread by the audit) and the Bot refit artefacts stay the base's.
 `verdict`, named `blade-robustness`, is the check `.mergify.yml` requires in
 `queue_conditions`. NONE runs no search and reports green; a finding reds the
 check and the run summary names the entry and the leg. The queue's draft
