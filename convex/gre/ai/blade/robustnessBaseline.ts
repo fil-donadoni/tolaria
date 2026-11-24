@@ -28,11 +28,4 @@ import type { RobustnessBaselineRow } from "./robustness";
 // per tree, and a fragile entry flips between ROBUST and NOISE-PINNED as
 // unrelated Bot changes move its root visits. History of each row lives in
 // git and in its owning issue.
-export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
-    // jitter+ 9/10: the one failing seed is decided by the material
-    // tie-break, every passing one by mean reward.
-    {
-        label: "nonbasic hate: Blood Moon is cast against the opponent's nonbasic mana",
-        issue: 10449,
-    },
-];
+export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [];
