@@ -128,6 +128,13 @@
             "needsSetup": false
         }
     ],
+    "Break the Ice": [
+        {
+            "label": "land destruction: casts Break the Ice on the opponent's snow land (issue #10607 pair, anchor)",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Brightglass Gearhulk": [
         {
             "label": "free put: the caster puts a permanent in off its own Show and Tell",
