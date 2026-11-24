@@ -33486,18 +33486,20 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // three 2/2s hold them off only if all three stay home to block (one
         // unblocked 3/3 is lethal, CR 704.5a). A ground attacker is either
         // blocked and killed by a 3/3 or left tapped (CR 508.1f) — either
-        // way one blocker short, and the crack-back kills. The Air Elemental
-        // flies over every blocker (CR 702.9b) and is not needed at home: it
-        // attacks Garruk Wildspeaker (loyalty 3) and its 4 damage removes
-        // him (CR 306.8, 704.5i), a permanent lost for nothing. Measured
-        // first against the defender's FACE at 8: the flyer's 4 damage was
-        // a tempo preference, the bot kept it home on 17 of 20 seeds.
-        label: "wide board, one attacker: only the flyer attacks, killing the planeswalker, while three ground bodies stay home against a lethal crack-back (issue #10631)",
+        // way one blocker short, and the crack-back kills. Dauthi Voidwalker
+        // has shadow: no blocker here can block it, and it can block none of
+        // the 3/3s (CR 702.28b), so staying home is worth nothing. It
+        // attacks Garruk Wildspeaker (loyalty 3) and its 3 damage removes
+        // him (CR 306.8, 704.5i), a permanent lost for nothing. An earlier
+        // shape attacked with a flyer, which CAN block a ground 3/3: once
+        // the crack-back read that a creature tapped on its controller's own
+        // turn stays tapped (CR 502.3), keeping it home was a fair answer.
+        label: "wide board, one attacker: only the shadow creature attacks, killing the planeswalker, while three ground bodies stay home against a lethal crack-back (issue #10631)",
         classification: { kind: "absolute" },
         spec: {
             cards: [
                 {
-                    name: "Air Elemental",
+                    name: "Dauthi Voidwalker",
                     owner: "me",
                     zone: "battlefield",
                     summoningSick: false,
@@ -33552,12 +33554,12 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             life: { me: 3, opp: 20 },
         },
         bot: "me",
-        budget: { iterations: 400 },
+        budget: { iterations: 800 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: declaresExactly(
             "declare-attackers",
-            ["Air Elemental"],
+            ["Dauthi Voidwalker"],
             "Garruk Wildspeaker"
         ),
     },
