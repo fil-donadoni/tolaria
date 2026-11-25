@@ -192,6 +192,10 @@ describe("Discard this card: … (CR 113.6m)", () => {
         ["a companion leg beyond mana", "{T}, Discard this card: Draw a card."],
         ["a life leg", "Pay 2 life, Discard this card: Draw a card."],
         ["a name in the card's place", "{2}, Discard Test Card: Draw a card."],
+        [
+            "an announced X (CR 107.3a)",
+            "{X}{R}, Discard this card: It deals X damage to each creature without flying.",
+        ],
         ["a mana ability", "Discard this card: Add {G}."],
         ["a drawing mana line", "Discard this card: Add {G}. Draw a card."],
     ])("refuses %s", (_label, oracleText) => {

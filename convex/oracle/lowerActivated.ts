@@ -295,8 +295,17 @@ export function lowerActivatedAbility(input: {
         ability.activateFromGraveyard = true;
     // CR 113.6m / 701.9a — a card is discarded from the hand, so the ability
     // is offered and paid only while the card is there.
-    if (input.cost.atoms.some((a) => a.kind === "discard-self"))
+    if (input.cost.atoms.some((a) => a.kind === "discard-self")) {
+        // CR 107.3a — the hand's activation path announces no X (the client
+        // opens its X dialog for a battlefield source only): offering the
+        // ability there would be an entry the server always refuses.
+        if (announcesX)
+            return {
+                ok: false,
+                reason: "an ability activated from the hand announces no X (CR 107.3a)",
+            };
         ability.activateFromHand = true;
+    }
     // CR 702.178a / 702.178b — behind "Max speed —" the ability exists only
     // while the activator (CR 109.5) has max speed.
     if (input.maxSpeed === true) ability.requiresMaxSpeed = true;
