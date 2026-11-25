@@ -784,8 +784,8 @@ function readSubjectOfEitherSide(
 const OTHER_PREFIX = "Other ";
 
 /**
- * CR 201.5 — "Other <plural descriptor> you control": the set without the
- * source itself, which is `excludeSource`. The descriptor grammar has no
+ * "Other <plural descriptor> you control": the set without the source itself,
+ * which is `excludeSource`. The descriptor grammar has no
  * "other" adjective, so the word is read here, at the frames that owe it.
  */
 function readOtherSubject(

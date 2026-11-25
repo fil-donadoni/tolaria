@@ -1,5 +1,5 @@
 // "Other <subtype> you control get +N/+N" — CR 613.4c layer 7c lord, with the
-// source excluded (CR 201.5 names the source apart from other objects), over
+// source excluded, over
 // an invariant-plural creature type ("Merfolk", CR 205.3m).
 
 import { describe, expect, it } from "vitest";
@@ -84,7 +84,7 @@ describe("refused neighbours stay unparsed", () => {
     });
 });
 
-describe("a compiled 'Other Merfolk' lord (CR 613.4c, CR 201.5)", () => {
+describe("a compiled 'Other Merfolk' lord (CR 613.4c)", () => {
     const context: StaticEffectContext = {
         getColors: () => [],
         isCreature: (card) => card.types.includes("Creature"),
