@@ -78,7 +78,7 @@ describe("This creature can't attack unless … — refusals (fail-closed neighb
     const refused = [
         "This creature can't attack unless you control fewer creatures than defending player.",
         "This creature can't attack unless you control more lands than defending player.",
-        "This creature can't attack unless defending player controls an Island.",
+        "This creature can't attack unless defending player controls a blue permanent.",
         "This creature can't attack unless you control more creatures than defending player",
         "Creatures you control can't attack unless you control more creatures than defending player.",
         "Target creature can't attack unless you control more creatures than defending player.",

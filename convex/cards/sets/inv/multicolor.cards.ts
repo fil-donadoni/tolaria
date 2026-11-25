@@ -795,7 +795,7 @@ export const urborgDrake = defineCard(() => ({
         {
             kind: "attack-requirement",
             id: "urborg-drake-attacks-if-able",
-            oracleText: "Urborg Drake attacks each combat if able.",
+            oracleText: "This creature attacks each combat if able.",
         },
     ],
 }));

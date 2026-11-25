@@ -32,6 +32,10 @@
  *   "<self> doesn't untap during your untap step"   → the `does-not-untap` marker
  *   "<self> can't be blocked except by N or more creatures"
  *                                                   → the `minimum-blockers:N` marker
+ *   "<self> can't be blocked by <colour> creatures" → CR 509.1b `block-restriction`
+ *   "<self> can't attack unless defending player controls a <basic land type>"
+ *                                                   → CR 508.1c `attack-restriction`
+ *   "<self> attacks each combat if able"            → CR 508.1d `attack-requirement`
  *   "Skip your draw step"                          → CR 614.10 `drawStepReplacement`
  *   "If you would draw a card during your draw step, instead you may skip
  *    that draw. If you do, <body>", "If you would begin your draw step, you
@@ -139,6 +143,7 @@ import {
     type StaticFilterEvaluation,
 } from "./targetFilter";
 import { keywordVocabulary } from "./keywordVocabulary";
+import { BASIC_LAND_SUBTYPE_ORDER } from "./subtypes";
 import { registerQuotedAbilityReader } from "./quotedAbilityReader";
 import type { KeywordIR, SlotIR } from "../ir";
 import { activatedSlot } from "../slots/activated";
@@ -151,7 +156,10 @@ import type {
     ManaCost,
 } from "../../../cards/types";
 import { readManaCost } from "../../manaCost";
-import type { CompiledSpellFilter } from "../../../cards/compiledStatics";
+import type {
+    CompiledAttackCondition,
+    CompiledSpellFilter,
+} from "../../../cards/compiledStatics";
 import type { EffectCardFilter, PermanentFilter } from "../../../cards/types";
 import {
     fail,
@@ -420,15 +428,27 @@ export type StaticClauseIR =
           readonly unlessControlMoreCreatures?: true;
           /** CR 509.1b — "… can block only creatures with flying": the block
            *  is legal only against an attacker matching this filter. */
-          readonly onlyAgainst?: CombatCounterpartFilter;
+          readonly onlyAgainst?: { readonly keyword: "flying" };
       }
+    /**
+     * CR 509.1b — "This creature can't be blocked by <colour> creatures": the
+     * source's own printed evasion restriction, naming who may NOT block it.
+     */
+    | {
+          readonly kind: "self-evasion-restriction";
+          readonly sentence: string;
+          readonly neverAgainst: CombatCounterpartFilter;
+      }
+    /** CR 508.1d — "This creature attacks each combat if able": the source's
+     *  own printed attack requirement. */
+    | { readonly kind: "self-attack-requirement"; readonly sentence: string }
     /**
      * CR 508.1c — "This creature can't attack unless <condition>": the
      * source's own printed attack restriction, lifted when `unless` holds.
      */
     | {
           readonly kind: "self-attack-restriction";
-          readonly unless: "more-creatures-than-defender";
+          readonly unless: CompiledAttackCondition;
           readonly sentence: string;
       }
     /**
@@ -2162,6 +2182,78 @@ const selfCantAttackUnlessMoreCreaturesRule: Rule<StaticClauseIR> = pattern(
             : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
 );
 
+const SELF_CANT_ATTACK_UNLESS_DEFENDER_CONTROLS =
+    /^(.+) can't attack unless defending player controls an? ([A-Z][a-z]+)$/;
+
+/**
+ * "<self> can't attack unless defending player controls an Island" (Sea
+ * Monster, Vodalian Serpent) — CR 508.1c. The argument is one basic land type
+ * (CR 205.3i); any other noun ("a blue permanent", "a snow land", "a creature
+ * with flying") is a condition the descriptor does not state and stays refused.
+ */
+const selfCantAttackUnlessDefenderControlsRule: Rule<StaticClauseIR> = pattern(
+    "self can't attack unless defending player controls a land type",
+    SELF_CANT_ATTACK_UNLESS_DEFENDER_CONTROLS,
+    (match): RuleResult<StaticClauseIR> => {
+        if (!isSelfPhrase(uncapitalise(match[1]!)))
+            return fail(
+                `"${match[1]}" is not this permanent (CR 109.2)`,
+                match[1]!
+            );
+        if (!BASIC_LAND_SUBTYPE_ORDER.includes(match[2]!))
+            return fail(
+                `"${match[2]}" is not a basic land type (CR 205.3i)`,
+                match[2]!
+            );
+        return ok({
+            kind: "self-attack-restriction" as const,
+            unless: { defenderControlsSubtype: match[2]! },
+            sentence: `${match[0]}.`,
+        });
+    }
+);
+
+// ── Frame: the printed attack requirement (CR 508.1d) ──────────────────────
+
+/**
+ * "<self> attacks each combat if able" (Urborg Drake, Juggernaut) — CR 508.1d.
+ * Only the bare sentence on the source itself: a rider ("… unless you control
+ * another Ally", "… and can't attack its owner"), a granted form ("Enchanted
+ * creature …") and a named player to attack do not match and stay refused.
+ */
+const selfAttackRequirementRule: Rule<StaticClauseIR> = pattern(
+    "self attacks each combat if able",
+    /^(.+) attacks each combat if able$/,
+    (match): RuleResult<StaticClauseIR> =>
+        isSelfPhrase(uncapitalise(match[1]!))
+            ? ok({
+                  kind: "self-attack-requirement" as const,
+                  sentence: `${match[0]}.`,
+              })
+            : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
+);
+
+// ── Frame: the colour evasion restriction (CR 509.1b) ──────────────────────
+
+/**
+ * "<self> can't be blocked by blue creatures" (Lightning Mare, Metathran
+ * Transport) — CR 509.1b. The argument is one colour word (CR 105.1); "black
+ * and/or red creatures", "Walls", "artifact creatures" and every power- or
+ * ability-qualified blocker stay refused.
+ */
+const selfCantBeBlockedByColourRule: Rule<StaticClauseIR> = pattern(
+    "self can't be blocked by a colour",
+    /^(.+) can't be blocked by (white|blue|black|red|green) creatures$/,
+    (match): RuleResult<StaticClauseIR> =>
+        isSelfPhrase(uncapitalise(match[1]!))
+            ? ok({
+                  kind: "self-evasion-restriction" as const,
+                  sentence: `${match[0]}.`,
+                  neverAgainst: { color: COLOR_WORDS.get(match[2]!)! },
+              })
+            : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
+);
+
 // ── Frames: untap-step locks over a set (CR 502.3) ─────────────────────────
 
 /**
@@ -3465,6 +3557,9 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         selfCantBlockUnlessMoreCreaturesRule,
         selfBlocksOnlyFlyersRule,
         selfCantAttackUnlessMoreCreaturesRule,
+        selfCantAttackUnlessDefenderControlsRule,
+        selfAttackRequirementRule,
+        selfCantBeBlockedByColourRule,
         setDoesNotUntapRule,
         landUntapCapRule,
         nonManaAbilityLandLockRule,

@@ -70,11 +70,40 @@ import type {
     StaticTargetChoiceRequirement,
 } from "./types";
 import type { CompiledControlsCondition } from "./compiledTriggers";
-import type { StaticLoyaltyActivationAllowance } from "./types";
+import type {
+    StaticAttackRestriction,
+    StaticLoyaltyActivationAllowance,
+} from "./types";
 
 /** Creatures among a set of permanents. */
 function countCreatures(permanents: readonly PermanentView[]): number {
     return permanents.filter((c) => c.types.includes("Creature")).length;
+}
+
+/**
+ * CR 508.1c — the condition lifting a compiled "can't attack unless …".
+ *
+ * - `more-creatures-than-defender`: the attacker's controller controls more
+ *   creatures than the defending player.
+ * - `defenderControlsSubtype`: the defending player controls a permanent of
+ *   this subtype ("an Island"), read live (layer 4), so a land whose type
+ *   changed counts as what it is now.
+ */
+export type CompiledAttackCondition =
+    | "more-creatures-than-defender"
+    | { readonly defenderControlsSubtype: string };
+
+function attackConditionPredicate(
+    unless: CompiledAttackCondition | undefined
+): StaticAttackRestriction["predicate"] {
+    if (unless === undefined) return () => false;
+    if (unless === "more-creatures-than-defender")
+        return (_self, defenderBattlefield, controllerBattlefield) =>
+            countCreatures(controllerBattlefield ?? []) >
+            countCreatures(defenderBattlefield);
+    const subtype = unless.defenderControlsSubtype;
+    return (_self, defenderBattlefield) =>
+        defenderBattlefield.some((c) => c.subtypes.includes(subtype));
 }
 
 /**
@@ -398,13 +427,24 @@ export type CompiledStaticEffect =
            *  carried onto the effect as data (no closure), so Guard C
            *  compares it (issue #3315). Exclusive with `unlessControlMoreCreatures`. */
           readonly onlyAgainst?: CombatCounterpartFilter;
-          /**
-           * CR 508.1c — "can't attack unless <condition>": the attack is legal
-           * only while the condition holds. Absent = unconditional.
-           * `more-creatures-than-defender`: its controller controls more
-           * creatures than the defending player. Attack side only.
-           */
-          readonly unless?: "more-creatures-than-defender";
+          /** CR 509.1b — `block-restriction` only: "can't be blocked by blue
+           *  creatures". The restriction is on the creature AS an attacker
+           *  (`side: "attacker"`) and the block is legal only when the blocker
+           *  does NOT match; carried onto the effect as data. Exclusive with
+           *  the two fields above. */
+          readonly neverAgainst?: CombatCounterpartFilter;
+          /** CR 508.1c — "can't attack unless <condition>": the attack is
+           *  legal only while the condition holds. Absent = unconditional.
+           *  Attack side only. */
+          readonly unless?: CompiledAttackCondition;
+      }
+    /** CR 508.1d — "This creature attacks each combat if able": the source's
+     *  own printed requirement, rebuilt into the engine's `attack-requirement`
+     *  (`hasAttackRequirement`, `gre/combat.ts`). */
+    | {
+          readonly kind: "attack-requirement";
+          readonly id: string;
+          readonly oracleText: string;
       }
     /**
      * CR 601.3a / 201.2a — "Spells with the chosen name can't be cast": the
@@ -995,12 +1035,13 @@ export function resolveCompiledStatic(
             return {
                 kind: "attack-restriction",
                 id: descriptor.id,
-                predicate:
-                    descriptor.unless === "more-creatures-than-defender"
-                        ? (_self, defenderBattlefield, controllerBattlefield) =>
-                              countCreatures(controllerBattlefield ?? []) >
-                              countCreatures(defenderBattlefield)
-                        : () => false,
+                predicate: attackConditionPredicate(descriptor.unless),
+                oracleText: descriptor.oracleText,
+            };
+        case "attack-requirement":
+            return {
+                kind: "attack-requirement",
+                id: descriptor.id,
                 oracleText: descriptor.oracleText,
             };
         case "block-restriction":
@@ -1010,6 +1051,14 @@ export function resolveCompiledStatic(
                     id: descriptor.id,
                     side: "blocker",
                     onlyAgainst: descriptor.onlyAgainst,
+                    oracleText: descriptor.oracleText,
+                };
+            if (descriptor.neverAgainst !== undefined)
+                return {
+                    kind: "block-restriction",
+                    id: descriptor.id,
+                    side: "attacker",
+                    neverAgainst: descriptor.neverAgainst,
                     oracleText: descriptor.oracleText,
                 };
             return {
