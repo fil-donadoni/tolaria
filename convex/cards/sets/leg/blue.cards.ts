@@ -978,7 +978,6 @@ export const inTheEyeOfChaos = defineCard(() => ({
 // Block clause: CR 509.1b `block-restriction`, read against the candidate
 // blocker's EFFECTIVE colour (layer 5, CR 613.1e).
 // compiler-gap: "At the beginning of your upkeep, unless you sacrifice an Island, sacrifice this creature and it deals 6 damage to you." (#2693)
-// compiler-gap: "This creature can't be blocked by red creatures." (#2693)
 export const elderSpawn = defineCard(() => ({
     id: "99cc045e-01a8-4f14-a86d-0a67ec35d6b7",
     rarity: "rare",

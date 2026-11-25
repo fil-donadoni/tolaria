@@ -10477,7 +10477,7 @@ interface StaticBlockRestrictionBase {
     oracleText: string;
 }
 
-/** The two ways to state WHICH blocks the restriction allows — exactly one
+/** The three ways to state WHICH blocks the restriction allows — exactly one
  *  per restriction, so a closure and a descriptor can never disagree.
  *
  *  - `predicate`: a closure, for a rule the descriptor vocabulary cannot state.
@@ -10485,6 +10485,9 @@ interface StaticBlockRestrictionBase {
  *    only when the OTHER creature (`opponent` below) matches. What the Oracle
  *    compiler emits (a closure cannot reach a serialized catalogue row), and
  *    what Guard C compares as data rather than as an opaque closure.
+ *  - `neverAgainst`: its complement, equally JSON-pure — the block is legal
+ *    only when the OTHER creature does NOT match ("can't be blocked by blue
+ *    creatures").
  *
  *  Every reader evaluates through `blockRestrictionAllows`
  *  (`cards/abilities/static/blockRestriction.ts`), never `predicate` directly. */
@@ -10500,21 +10503,30 @@ export type StaticBlockRestriction = StaticBlockRestrictionBase &
                   state?: StaticEffectStateView
               ) => boolean;
               onlyAgainst?: never;
+              neverAgainst?: never;
           }
         | {
               onlyAgainst: CombatCounterpartFilter;
               predicate?: never;
+              neverAgainst?: never;
+          }
+        | {
+              neverAgainst: CombatCounterpartFilter;
+              predicate?: never;
+              onlyAgainst?: never;
           }
     );
 
-/** What a combat restriction requires of the OTHER creature in a block
- *  (CR 509.1b): "can block only creatures with flying". A CLOSED vocabulary —
- *  a restriction it cannot state exactly stays a hand-written closure (and the
- *  compiler leaves its card unparsed) rather than being approximated. */
-export interface CombatCounterpartFilter {
-    /** CR 702.9 — the other creature must have this keyword. */
-    readonly keyword: "flying";
-}
+/** Which OTHER creature in a block a combat restriction names (CR 509.1b):
+ *  "can block only creatures with flying", "can't be blocked by blue
+ *  creatures". A CLOSED vocabulary, one property per filter — a restriction it
+ *  cannot state exactly stays a hand-written closure (and the compiler leaves
+ *  its card unparsed) rather than being approximated. */
+export type CombatCounterpartFilter =
+    /** CR 702.9 — the other creature has this keyword. */
+    | { readonly keyword: "flying" }
+    /** CR 105.2 — the other creature is this color (effective, layer 5). */
+    | { readonly color: Color };
 
 /** Card-level attack restriction (CR 508.1c). Declares that a creature
  *  cannot attack unless a condition on the defending player's battlefield
