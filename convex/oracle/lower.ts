@@ -38,6 +38,7 @@ import type {
     CompiledControlsCondition,
     CompiledTriggeredAbility,
 } from "../cards/compiledTriggers";
+import { affinity } from "../cards/abilities/affinity";
 import { asEntersColorModes } from "../cards/abilities/chooseColor";
 import { lowerActivatedAbility, lowerManaAbility } from "./lowerActivated";
 import {
@@ -369,6 +370,9 @@ function censusGrantedKeywords(
                     : undefined;
         if (granted === undefined) continue;
         censusGrantedKeyword(granted, acc);
+        if (sentence.kind === "grant-ability")
+            for (const keyword of sentence.orKeywords ?? [])
+                censusGrantedKeyword(keyword, acc);
     }
 }
 
@@ -529,6 +533,23 @@ function lowerLine(
                 if (kw.status !== "implemented")
                     acc.plannedMechanics.push(kw.ability);
             }
+            return null;
+        }
+        case "affinity": {
+            // CR 702.41b — every instance applies; the definition carries one
+            // reduction, so a second is refused rather than dropped.
+            if (acc.selfCostReduction !== undefined)
+                return "a card declares two self cost reductions (one field)";
+            const declared = affinity({
+                quality: ir.quality,
+                filter: { subtypes: ir.subtype },
+            });
+            acc.staticAbilities.push(...declared.staticAbilities);
+            acc.selfCostReduction = declared.selfCostReduction;
+            // CR 702.1 — the Guard A shape: a keyword the engine does not
+            // implement is quarantined by the gates, never shipped inert.
+            if (keywordVocabulary().get("affinity")?.status !== "implemented")
+                acc.plannedMechanics.push("affinity");
             return null;
         }
         case "kicker":
@@ -837,8 +858,11 @@ function lowerLine(
             if (out.castAsThoughFlash === true) acc.castAsThoughFlash = true;
             if (out.flashSurcharge !== undefined)
                 acc.flashSurcharge = out.flashSurcharge;
-            if (out.selfCostReduction !== undefined)
+            if (out.selfCostReduction !== undefined) {
+                if (acc.selfCostReduction !== undefined)
+                    return "a card declares two self cost reductions (one field)";
                 acc.selfCostReduction = out.selfCostReduction;
+            }
             if (out.playsFromLibraryTop === true)
                 acc.playsFromLibraryTop = true;
             acc.compiledTriggeredAbilities.push(

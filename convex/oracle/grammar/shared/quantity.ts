@@ -22,7 +22,11 @@
 import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
 import { SELF_MARKER } from "../../normalize";
 import type { PlayerRefIR } from "./playerRef";
-import { descriptorRule, type DescriptorIR } from "./targetFilter";
+import {
+    countedDescriptorRule,
+    descriptorRule,
+    type DescriptorIR,
+} from "./targetFilter";
 
 export const QUANTITY = "quantity";
 
@@ -76,7 +80,10 @@ export function readNumberWord(word: string): number | null {
 export const forEachRule: Rule<QuantityIR> = rule("for-each", (span, ctx) => {
     if (!span.startsWith("for each "))
         return fail('not a "for each" phrase', span);
-    const descriptor = descriptorRule.run(span.slice("for each ".length), ctx);
+    const descriptor = countedDescriptorRule.run(
+        span.slice("for each ".length),
+        ctx
+    );
     if (!descriptor.ok) return descriptor;
     if (descriptor.value.plural === true)
         return fail('"for each" counts a singular descriptor', span);
@@ -190,7 +197,7 @@ export const countedSetRule: Rule<CountedSetIR> = subGrammar(
 /**
  * CR 107.1 — "the number of Mountains you control": the same counted set as
  * "for each Mountain you control", printed as a plural noun phrase after
- * "equal to". The descriptor is `descriptorRule`'s read whole and must be
+ * "equal to". The descriptor is `countedDescriptorRule`'s read whole and must be
  * plural (a singular "the number of Mountain" is a phrase we have misread);
  * whether the engine's `count` can express every clause it carries is the
  * LOWERING's refusal to make, as for `countedSetRule`.
@@ -229,7 +236,7 @@ export const numberOfSetRule: Rule<CountedSetIR> = subGrammar(
             });
         }
         const wholeBoard = noun.endsWith(ON_THE_BATTLEFIELD);
-        const descriptor = descriptorRule.run(
+        const descriptor = countedDescriptorRule.run(
             wholeBoard ? noun.slice(0, -ON_THE_BATTLEFIELD.length) : noun,
             ctx
         );

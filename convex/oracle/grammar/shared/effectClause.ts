@@ -883,6 +883,12 @@ export type EffectSentenceIR =
           readonly kind: "grant-ability";
           readonly subject: SubjectIR;
           readonly keyword: KeywordIR;
+          /**
+           * CR 608.2d — "your choice of double strike or trample": the OTHER
+           * printed keywords, the controller picking one of the whole list as
+           * the sentence resolves. Absent for a plain grant.
+           */
+          readonly orKeywords?: readonly KeywordIR[];
           readonly duration: DurationIR;
       }
     | {
@@ -5796,6 +5802,13 @@ const SET_COLORLESS = /^(.+) becomes colorless(?: (.+))?$/;
  */
 const GAINS_PROTECTION_COLOR_OF_CHOICE =
     /^(.+) gains protection from the color of your choice (until .+)$/;
+/**
+ * CR 608.2d + CR 613.1f — "<one object> gains your choice of <keyword> or
+ * <keyword> until <duration>", two keywords or a serial list. A parameterised
+ * keyword ("protection from red") is in no vocabulary row and refuses the list.
+ */
+const GAINS_KEYWORD_OF_CHOICE =
+    /^(.+) gains your choice of (.+) (until end of turn)$/;
 // CR 305.7 — "<subject> becomes <land types> <duration>". The duration half is
 // spelled into the pattern rather than left to a trailing `(.+)`: every
 // land-type change in the corpus prints one, and a pattern that made it
@@ -6053,6 +6066,8 @@ const DAMAGE_THEN_GAIN =
  */
 const DAMAGE_TARGET_AND_EACH =
     /^(.+ deals )(\d+ damage to any target) and (\d+ damage to each creature)$/;
+/** CR 122.1 + CR 107.1 — "Put N <kind> counters on <object> for each <set>". */
+const COUNTERS_FOR_EACH = /^Put (\S+) (\S+) counters? on (.+?) (for each .+)$/;
 const COUNTERS = /^Put (\S+) (\S+) counters? on (.+)$/;
 const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
 /** CR 603.7a — "You draw a card at the beginning of the next turn's upkeep". */
@@ -8339,6 +8354,18 @@ export function whereXAmount(tail: string, ctx: unknown): RuleResult<AmountIR> {
     return ok({ kind: "counted" as const, times: 1, set: set.value });
 }
 
+/** "a or b", "a, b, or c" — the members of a printed or-list, else `null`. */
+function readOrList(span: string): string[] | null {
+    const serial = span.match(/^([^,]+(?:, [^,]+)+), or ([^,]+)$/);
+    const members =
+        serial !== null
+            ? [...serial[1]!.split(", "), serial[2]!]
+            : span.split(" or ");
+    if (members.length < 2 || members.some((m) => /,| or /.test(m)))
+        return null;
+    return new Set(members).size === members.length ? members : null;
+}
+
 /**
  * CR 107.3 — replace every printed X of a draw / life-change sentence (or a
  * conjunction of them) with the amount its "where X is …" tail defines.
@@ -8742,6 +8769,49 @@ function effectSentence(
             subject: subject.value,
             duration: duration.value,
             ofYourChoice: true as const,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── grant a keyword of your choice (CR 608.2d, CR 613.1f) ──────────────
+    //
+    // Ahead of the plain grant, whose closed vocabulary would refuse the list.
+    const keywordOfChoice = span.match(GAINS_KEYWORD_OF_CHOICE);
+    if (keywordOfChoice !== null) {
+        const subject = subjectRule.run(keywordOfChoice[1]!, ctx);
+        if (!subject.ok) return subject;
+        const names = readOrList(keywordOfChoice[2]!);
+        if (names === null)
+            return fail(`"${keywordOfChoice[2]}" is not an or-list`, span);
+        const keywords = names.map((name) => KEYWORDS.get(name));
+        if (keywords.some((k) => k === undefined))
+            return fail(
+                `"${keywordOfChoice[2]}" is not a list of Mechanics Registry keywords`,
+                span
+            );
+        // The grant is one permanent's: a sweep or several announced objects
+        // would make one pick for all of them, another printed form.
+        const { value } = subject;
+        if (
+            value.kind !== "self" &&
+            !(
+                value.kind === "target" &&
+                value.requirement.count === 1 &&
+                value.requirement.zone === undefined
+            )
+        )
+            return fail(
+                "a keyword of your choice is read on one permanent",
+                span
+            );
+        const duration = durationRule.run(keywordOfChoice[3]!, ctx);
+        if (!duration.ok) return duration;
+        const [keyword, ...orKeywords] = keywords as KeywordIR[];
+        return ok({
+            kind: "grant-ability" as const,
+            subject: value,
+            keyword: keyword!,
+            orKeywords,
+            duration: duration.value,
         } satisfies EffectSentenceIR);
     }
 
@@ -9995,6 +10065,29 @@ function effectSentence(
             action: life[2]!.startsWith("gain") ? "gain" : "lose",
             player,
             amount,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── counters per counted set (CR 122.1, CR 107.1) ──────────────────────
+    //
+    // A clause `countedSetRule` does not read ("for each flip you won") is
+    // some other rule's, so it falls through.
+    const countersEach = span.match(COUNTERS_FOR_EACH);
+    const counterSet =
+        countersEach === null
+            ? null
+            : countedSetRule.run(countersEach[4]!, ctx);
+    if (countersEach !== null && counterSet?.ok === true) {
+        const times = readNumberWord(countersEach[1]!);
+        if (times === null)
+            return fail(`"${countersEach[1]}" is not a printed number`, span);
+        const subject = subjectRule.run(countersEach[3]!, ctx);
+        if (!subject.ok) return subject;
+        return ok({
+            kind: "counters" as const,
+            subject: subject.value,
+            counter: countersEach[2]!,
+            count: { kind: "counted" as const, times, set: counterSet.value },
         } satisfies EffectSentenceIR);
     }
 

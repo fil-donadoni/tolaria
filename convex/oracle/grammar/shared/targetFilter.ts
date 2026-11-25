@@ -74,8 +74,10 @@ import {
     ARTIFACT_SUBTYPES,
     CREATURE_SUBTYPES,
     ENCHANTMENT_SUBTYPES,
+    isPermanentSubtype,
     LAND_SUBTYPES,
 } from "./subtypes";
+import { readSubtypeList } from "./subtypeList";
 
 export const TARGET_FILTER = "target filter";
 export const DESCRIPTOR = "object descriptor";
@@ -100,6 +102,12 @@ export interface DescriptorIR {
      *  Only `targetDescriptorRule` reads one, and it lowers only to a
      *  `TargetRequirement`; every other reader refuses the list. */
     readonly typeOrSubtype?: TypeOrSubtypeFilter;
+    /** `subtypes` came from ONE printed "and" / "and/or" list ("Squirrels, Bats,
+     *  Lizards, and Rats"): an object with ANY of them, never a stack of
+     *  adjectives an object must have ALL of ("Elf Warriors"). Only
+     *  `countedDescriptorRule` reads one; every other reader refuses the list,
+     *  and a consumer that names its fields refuses the mark. */
+    readonly subtypeUnion?: true;
     /** CR 205.3m (issue #3721) — "of that type" / "of the chosen type": the
      *  subtype is not printed, it is whatever a `Choose a creature type.`
      *  sentence EARLIER IN THE SAME line picked. Kept as a marker rather than
@@ -270,6 +278,8 @@ export interface DescriptorState {
     typeAdjectivesDisjunctive?: true;
     subtypes: string[];
     typeOrSubtype?: TypeOrSubtypeFilter;
+    /** See `DescriptorIR.subtypeUnion`. */
+    subtypeUnion?: true;
     /** issue #3721 — see `DescriptorIR.chosenType`. */
     chosenType?: true;
     supertypes: CardSupertype[];
@@ -419,7 +429,10 @@ function readAdjective(
             // enchantments"). Only the NEGATIVE reads the enchantment table:
             // a bare positive "Aura" noun stays unread (it implies no card
             // type this reader has a fixture for).
-            if (isSubtype(subtype) || ENCHANTMENT_SUBTYPES.has(subtype)) {
+            if (
+                isPermanentSubtype(subtype) ||
+                ENCHANTMENT_SUBTYPES.has(subtype)
+            ) {
                 into.excludeSubtypes.push(subtype);
                 return null;
             }
@@ -443,7 +456,7 @@ function readAdjective(
         into.combatRole.push(lower);
         return null;
     }
-    if (isSubtype(token)) {
+    if (isPermanentSubtype(token)) {
         into.subtypes.push(token);
         return null;
     }
@@ -466,14 +479,6 @@ function readAdjective(
 function singleType(word: string): CardType | undefined {
     const types = TYPE_NOUNS.get(word);
     return types !== undefined && types.length === 1 ? types[0] : undefined;
-}
-
-function isSubtype(token: string): boolean {
-    return (
-        CREATURE_SUBTYPES.has(token) ||
-        LAND_SUBTYPES.has(token) ||
-        ARTIFACT_SUBTYPES.has(token)
-    );
 }
 
 /** The card types a set of bare subtype nouns implies (CR 205.3g / 205.3i / 205.3m). */
@@ -733,9 +738,48 @@ function lastKeywordQualifier(
 function readNoun(
     tokens: readonly string[],
     into: DescriptorState,
-    admitsTypeOrSubtype = false
+    admits: {
+        readonly typeOrSubtype?: true;
+        readonly subtypeUnion?: true;
+    } = {}
 ): string | null {
     let phrase = tokens.join(" ");
+    // CR 205.3 — "Squirrels, Bats, Lizards, and Rats", "Squirrel and/or Food":
+    // one set, every object with any of the subtypes. "and" joins plurals; the
+    // singular "Scout, Pirate, and Rogue" is the sweep's ("each …").
+    if (admits.subtypeUnion === true) {
+        const list = readSubtypeList(phrase);
+        if (list !== null && list.conjunction !== "or") {
+            if (list.conjunction === "and" && list.number === "singular")
+                return 'a singular "and" list is not a counted noun';
+            if (into.subtypes.length > 0)
+                return "a subtype adjective before a subtype list";
+            if (into.typeAdjectives.length > 0)
+                return "a card-type adjective before a subtype list";
+            into.subtypes.push(...list.subtypes);
+            into.subtypeUnion = true;
+            if (list.number === "plural") into.plural = true;
+            return null;
+        }
+    }
+    // CR 205.3 — "Bat, Bird, Mouse, or Rabbit card": the serial form of the
+    // shared-"card" list below, three subtypes or more.
+    const serialCard = phrase.match(/^(\S+(?:, \S+)+, or \S+) (cards?)$/);
+    if (serialCard !== null) {
+        const list = readSubtypeList(serialCard[1]!);
+        if (list === null || list.number !== "singular")
+            return `"${serialCard[1]}" is not a list of CR 205.3 subtypes`;
+        if (into.subtypes.length > 0)
+            return "a subtype adjective before a subtype list";
+        // "artifact Bat, Bird, or Mouse card" — no card prints an adjective of
+        // another card type over the list, so its reach is not guessed.
+        if (into.typeAdjectives.length > 0)
+            return "a card-type adjective before a subtype list";
+        into.subtypes.push(...list.subtypes);
+        into.card = true;
+        if (serialCard[2] === "cards") into.plural = true;
+        return null;
+    }
     // CR 205.3 — "Forest or Plains card": a subtype or-list sharing ONE
     // "card" noun. The noun is peeled off before the split so each element is
     // the one word the loop below reads; "artifact or enchantment card" never
@@ -752,7 +796,7 @@ function readNoun(
         // A list mixing a type and a subtype ("Elf or land card") has no OR
         // filter shape — the consumers AND types with subtypes — so only an
         // all-subtype list is read here.
-        if (!elements.every((w) => isSubtype(w)))
+        if (!elements.every((w) => isPermanentSubtype(w)))
             return `"${sharedCard[1]}" mixes card types and subtypes in one or-list`;
         phrase = sharedCard[1]!;
         into.card = true;
@@ -833,11 +877,11 @@ function readNoun(
         // `PermanentFilter` is not so it does not. Pushing it here instead
         // would state in the cost filter what the subtype already implies, and
         // the hand-written catalogue does not.
-        if (isSubtype(part)) {
+        if (isPermanentSubtype(part)) {
             subtypes.push(part);
             continue;
         }
-        if (part.endsWith("s") && isSubtype(part.slice(0, -1))) {
+        if (part.endsWith("s") && isPermanentSubtype(part.slice(0, -1))) {
             into.plural = true;
             subtypes.push(part.slice(0, -1));
             continue;
@@ -862,7 +906,7 @@ function readNoun(
         return null;
     }
     if (subtypes.length > 0) {
-        if (!admitsTypeOrSubtype)
+        if (admits.typeOrSubtype !== true)
             return `"${phrase}" mixes card types and subtypes in one or-list`;
         // "Goblin creature or Vehicle": no card prints it, and the adjective's
         // reach over the list is not something a union can say.
@@ -1118,7 +1162,18 @@ export const targetDescriptorRule: Rule<DescriptorIR> = subGrammar(
     DESCRIPTOR,
     descriptorRuleWith({
         adjective: readAdjective,
-        noun: (tokens, into) => readNoun(tokens, into, true),
+        noun: (tokens, into) => readNoun(tokens, into, { typeOrSubtype: true }),
+    })
+);
+
+/** The descriptor rule of a COUNTED set ("for each …", "the number of …"), the
+ *  place an "and" / "and/or" subtype list names a union (CR 205.3):
+ *  `lowerCountedSet` counts it. Every other reader refuses the list. */
+export const countedDescriptorRule: Rule<DescriptorIR> = subGrammar(
+    DESCRIPTOR,
+    descriptorRuleWith({
+        adjective: readAdjective,
+        noun: (tokens, into) => readNoun(tokens, into, { subtypeUnion: true }),
     })
 );
 
@@ -1158,6 +1213,7 @@ function finish(
     if (state.subtypes.length > 0) out.subtypes = state.subtypes;
     if (state.typeOrSubtype !== undefined)
         out.typeOrSubtype = state.typeOrSubtype;
+    if (state.subtypeUnion === true) out.subtypeUnion = true;
     if (state.chosenType === true) out.chosenType = true;
     if (state.supertypes.length > 0) out.supertypes = state.supertypes;
     if (state.excludeTypes.length > 0) out.excludeTypes = state.excludeTypes;

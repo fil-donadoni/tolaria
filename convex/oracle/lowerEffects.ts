@@ -541,6 +541,18 @@ function lowerCountedSet(
                     : [...(value as CardSupertype[])];
         else if (key === "subtypes" && (value as string[]).length === 1)
             filter.subtype = (value as string[])[0]!;
+        // CR 205.3 — an "and" / "and/or" list ("Squirrels, Bats, Lizards, and
+        // Rats"): any of them, the OR `EffectCardFilter.subtype` reads an
+        // array as. Without the list mark several subtypes are a stack of
+        // adjectives, an intersection, and stay refused.
+        else if (key === "subtypes" && descriptor.subtypeUnion === true)
+            filter.subtype = [...(value as string[])];
+        else if (key === "subtypeUnion") continue;
+        // CR 201.5 — "other": every member but the source itself. A source
+        // stands on the battlefield its controller's permanents do; a
+        // graveyard or whole-board count has no fixture for the word.
+        else if (key === "excludeSource" && !inGraveyard && !wholeBoard)
+            filter.excludeSource = true;
         // CR 205.3m (issue #3721) — "for each permanent you control of that
         // type" (Luminescent Rain): the subtype is the answer a
         // `chooseCreatureType` Op bound earlier in this same script, read back
@@ -609,6 +621,26 @@ function lowerLifeAmount(
             walk
         );
     return lowerAmount(amount, site);
+}
+
+/**
+ * How many counters a put places (CR 122.6): everything `lowerAmount` reads,
+ * plus a counted set ("a +1/+1 counter … for each Elf you control").
+ */
+function lowerCounterAmount(
+    amount: AmountIR,
+    slots: TargetSlots,
+    site: SiteOptions
+): Lowered<EffectValue> {
+    if (amount.kind !== "counted") return lowerAmount(amount, site);
+    const spec = lowerCountedSet(amount.set, slots, site);
+    if (!spec.ok) return spec;
+    return lowered({
+        count:
+            amount.times === 1
+                ? spec.value
+                : { ...spec.value, times: amount.times },
+    });
 }
 
 /** CR 110.4a — the card types "that permanent" can name. */
@@ -2424,6 +2456,33 @@ function lowerSentenceBody(
                 }));
             const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
+            // CR 608.2d — "your choice of <keyword> or <keyword>": the pick is
+            // made as the ability resolves, one mode per printed keyword.
+            if (sentence.orKeywords !== undefined)
+                return lowered([
+                    {
+                        op: "optionChoice",
+                        prompt: `Choose an ability (${site.selfName}).`,
+                        modes: [sentence.keyword, ...sentence.orKeywords].map(
+                            ({ ability }) => ({
+                                id: ability.replace(/ /g, "-"),
+                                label:
+                                    ability[0]!.toUpperCase() +
+                                    ability.slice(1),
+                                effects: [
+                                    {
+                                        op: "grantAbility" as const,
+                                        target: target.value,
+                                        ability,
+                                        duration: durationSpec(
+                                            sentence.duration
+                                        ),
+                                    },
+                                ],
+                            })
+                        ),
+                    },
+                ]);
             return lowered([
                 {
                     op: "grantAbility",
@@ -3548,7 +3607,7 @@ function lowerSentenceBody(
         case "counters": {
             const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
-            const count = lowerAmount(sentence.count, site);
+            const count = lowerCounterAmount(sentence.count, slots, site);
             if (!count.ok) return count;
             return lowered([
                 {

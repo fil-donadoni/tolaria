@@ -366,6 +366,16 @@ export type SlotIR =
      */
     | { readonly kind: "harmonize"; readonly cost: ManaCost }
     /**
+     * CR 702.41a — an "Affinity for [text]" line whose text is one subtype
+     * noun: the printed plural and the subtype it counts, lowered through the
+     * `affinity` factory onto the declared keyword AND its self cost reduction.
+     */
+    | {
+          readonly kind: "affinity";
+          readonly quality: string;
+          readonly subtype: string;
+      }
+    /**
      * CR 702.94a — a "Miracle [cost]" line: the cost a card revealed as its
      * owner's first draw of the turn is cast for, lowered onto
      * `CardDefinition.miracle`.
