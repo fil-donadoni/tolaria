@@ -98,6 +98,8 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             };
         case "library-searched":
             return { kind: "library-searched", scope: head.scope };
+        case "gift-given":
+            return { kind: "gift-given", scope: head.scope };
         case "left-to-graveyard":
             return {
                 kind: "left-to-graveyard",
@@ -380,6 +382,8 @@ function lowerCondition(
                 return '"if it was kicked" needs a head that fires when this permanent enters';
             if (condition.kicked.kind === "evidence" && casting)
                 return '"if evidence was collected" is no gate behind a cast head';
+            if (condition.kicked.kind === "gift" && casting)
+                return '"if the gift was promised" is no gate behind a cast head';
             const value = kickedValue(condition.kicked, kickers);
             if (!value.ok) return value.reason;
             if (condition.kicked.kind === "any") {

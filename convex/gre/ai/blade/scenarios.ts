@@ -191,6 +191,90 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "CR 702.78a Conspire reachability — the deterministic halves (enumeration, sandbox charge, tap-plan reservation) are in `conspire.bot.test.ts`.",
     },
     {
+        // GIFT as a COST (CR 702.174a/b/k). The bot's main phase, three Forests
+        // and Scrapshooter in hand; the opponent's only threat is a Juggernaut.
+        // Promising the gift costs a card to the opponent and buys "if the gift
+        // was promised, destroy target artifact or enchantment an opponent
+        // controls" — the 5/3 attacking every turn is worth far more than the
+        // card. Half 1 of a discriminating pair with the entry below.
+        label: "Gift: Scrapshooter promises the gift when it buys a Juggernaut",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "an artifact or enchantment the opponent controls",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Scrapshooter", owner: "me", zone: "hand" },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Forest",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                })),
+                { name: "Juggernaut", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE, like the other additional-cost entries: the claim is the
+        // cost decision, kept out of the weight fit.
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                (move.kickerPayments?.gift ?? 0) > 0,
+            describe: "casts Scrapshooter promising the gift",
+        },
+        note: "CR 702.174 Gift — the promise is worth paying only when it buys something. Pair with the entry below.",
+    },
+    {
+        // GIFT as a COST (CR 702.174a/b/k), half 2. The same board with the
+        // Juggernaut swapped for a Grizzly Bears: no artifact or enchantment to
+        // destroy, so the promised ETB has no target and the gift is a card
+        // handed to the opponent for nothing. The bot casts the 4/4 unpromised.
+        label: "Gift: Scrapshooter keeps the gift when it buys nothing",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no artifact or enchantment the opponent controls",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Scrapshooter", owner: "me", zone: "hand" },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Forest",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                })),
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                (move.kickerPayments?.gift ?? 0) === 0,
+            describe: "casts Scrapshooter without promising the gift",
+        },
+        note: "CR 702.174 Gift — paying the gift valuates as a cost (the opponent draws). Pair with the entry above.",
+    },
+    {
         // ORDERED TARGET GROUP reachability (CR 601.2c / 702.33g, issue
         // #4193). Kicked Jilt announces TWO targets through one widened
         // requirement and reads them positionally: slot 0 is returned to its

@@ -510,6 +510,84 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 702.174a/b/k — "Gift a card" on a permanent: the twin trigger and the
+    // card's own "if the gift was promised" ETB both read whether the gift
+    // cost was paid, which the canned scenario (it casts unkicked) cannot
+    // stage.
+    {
+        rule: "gift",
+        card: {
+            oracleId: "235e3231-c5e5-4696-a867-705b2c4158fe",
+            name: "Scrapshooter",
+            manaCost: "{1}{G}{G}",
+            typeLine: "Creature — Raccoon Archer",
+            oracleText:
+                "Gift a card (You may promise an opponent a gift as you cast this spell. If you do, when it enters, they draw a card.)\nReach\nWhen this creature enters, if the gift was promised, destroy target artifact or enchantment an opponent controls.",
+            power: "4",
+            toughness: "4",
+            layout: "normal",
+        },
+        expected: {
+            name: "Scrapshooter",
+            types: ["Creature"],
+            subtypes: ["Raccoon", "Archer"],
+            manaCost: { X: 1, G: 2 },
+            power: 4,
+            toughness: 4,
+            oracleText:
+                "Gift a card (You may promise an opponent a gift as you cast this spell. If you do, when it enters, they draw a card.)\nReach\nWhen this creature enters, if the gift was promised, destroy target artifact or enchantment an opponent controls.",
+            staticAbilities: ["reach"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "gift-delivery-gift",
+                    oracleText:
+                        "When Scrapshooter enters, if its gift cost was paid, the chosen player draws a card.",
+                    head: { kind: "entered", scope: "self" },
+                    condition: { kind: "kicker-paid", kickerId: "gift" },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { additionalCostPaid: "gift" },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                { op: "draw", player: "opponent", count: 1 },
+                            ],
+                        },
+                    ],
+                    additionalCostTwin: { keyword: "gift", costId: "gift" },
+                },
+                {
+                    id: "scrapshooter-trigger-2",
+                    oracleText:
+                        "When this creature enters, if the gift was promised, destroy target artifact or enchantment an opponent controls.",
+                    head: { kind: "entered", scope: "self" },
+                    condition: { kind: "kicker-paid", kickerId: "gift" },
+                    targetRequirement: {
+                        type: ["Artifact", "Enchantment"],
+                        count: 1,
+                        controller: "opponent",
+                    },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { additionalCostPaid: "gift" },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [{ op: "destroy", target: { target: 0 } }],
+                        },
+                    ],
+                },
+            ],
+            kickers: [
+                { id: "gift", keyword: "gift", description: "Gift a card" },
+            ],
+        },
+    },
     // CR 701.71a (issue #7198) — "Empower Jace N": the keyword action's whole
     // composition (`empowerJaceOps`, cards/abilities/empowerJace.ts). Exhibits
     // an `if` over a runtime count of Jace planeswalker tokens, a `forEach`

@@ -23,6 +23,7 @@
  */
 
 import { parseWard } from "../../../cards/abilities/ward";
+import { giftKindOfLine, type GiftKind } from "../../../cards/abilities/gift";
 import type {
     ManaCost,
     PermanentFilter,
@@ -1076,11 +1077,39 @@ export const offspringRule: Rule<SlotIR> = rule("offspring", (span) => {
 });
 
 /**
+ * CR 702.174a — "Gift a [something]": "As an additional cost to cast this
+ * spell, you may choose an opponent" plus the second ability CR 702.174d–i
+ * defines for the [something]. Both halves are lowered from this one line.
+ *
+ * Accepted: the four gifts this cluster's cards print — a card (CR 702.174e),
+ * a Food (d), a tapped Fish (f), a Treasure (h). Refused: "Gift an extra turn"
+ * and "Gift an Octopus" (the engine template delivers both; no golden fixture
+ * reads them yet), and any [something] no CR subrule defines.
+ */
+const GIFT_ACCEPTED: ReadonlySet<GiftKind> = new Set<GiftKind>([
+    "card",
+    "food",
+    "tapped-fish",
+    "treasure",
+]);
+
+export const giftRule: Rule<SlotIR> = rule("gift", (span) => {
+    if (!span.startsWith("Gift "))
+        return fail('a gift line is "Gift a [something]"', span);
+    const gift = giftKindOfLine(span);
+    if (gift === null)
+        return fail("a gift no CR 702.174 subrule defines", span);
+    if (!GIFT_ACCEPTED.has(gift))
+        return fail("a gift this grammar has no fixture for", span);
+    return ok({ kind: "gift" as const, gift });
+});
+
+/**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
  * one kicker or replicate line, or one cost-parameter keyword (cycling, madness, plot,
  * foretell, miracle, harmonize, splice, overload, morph, fading, mobilize, firebending, hideaway, ward life, impending, warp, equip,
  * reconfigure, crew,
- * saddle, ninjutsu, transmute, offspring). They are disjoint by construction — no registry keyword name
+ * saddle, ninjutsu, transmute, offspring, gift). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
  * object, and each parameterised rule reads only its own head — and `oneOf`
  * enforces it rather than trusting it.
@@ -1118,6 +1147,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     transmuteRule,
     unearthRule,
     offspringRule,
+    giftRule,
 ]);
 
 /** Guard: keyword lines are only meaningful on an object with a text box. */

@@ -19,6 +19,7 @@ import type {
     PermanentFilter,
     TargetRequirement,
 } from "../../cards/types";
+import type { GiftKind } from "../../cards/abilities/gift";
 import type { ActivationCostIR } from "./shared/cost";
 import type { TriggerConditionIR } from "./shared/condition";
 import type { EffectSentenceIR, RestrictionIR } from "./shared/effectClause";
@@ -482,7 +483,13 @@ export type SlotIR =
           readonly kind: "offspring";
           readonly cost: ManaCost;
           readonly description: string;
-      };
+      }
+    /**
+     * CR 702.174a — a "Gift a [something]" line: the optional choose-an-
+     * opponent cost (a `kickers[]` entry with `keyword: "gift"`) and its
+     * second ability, which lowering places by the card's type (CR 702.174b).
+     */
+    | { readonly kind: "gift"; readonly gift: GiftKind };
 
 /** A line, the slot that consumed it, and what it means. */
 export interface LineParse {

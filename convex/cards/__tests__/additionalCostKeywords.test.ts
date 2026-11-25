@@ -235,6 +235,15 @@ describe("shipped kickers[] entries obey their keyword's table row (ADR 0085)", 
     // cost entry itself (`collectCastTriggers`, CR 702.56a), so no card authors
     // it and no card can carry its marker; `replicate.test.ts` is what proves
     // the engine puts it on the stack.
+    // CR 702.174b — gift's second ability is a TRIGGER on a permanent only;
+    // on an instant or sorcery it is a spell ability.
+    const demandsTwin = (
+        requires: boolean | "on-permanent",
+        card: (typeof shippedEntries)[number]["card"]
+    ): boolean =>
+        requires === "on-permanent"
+            ? !card.types.some((t) => t === "Instant" || t === "Sorcery")
+            : requires;
     const twinsOf = (card: (typeof shippedEntries)[number]["card"]) =>
         (card.triggeredAbilities ?? []).flatMap((ability) =>
             ability.additionalCostTwin ? [ability.additionalCostTwin] : []
@@ -243,7 +252,11 @@ describe("shipped kickers[] entries obey their keyword's table row (ADR 0085)", 
     it("every cost entry whose keyword demands a twin has one naming IT (CR 702.175a/b)", () => {
         const offenders = shippedEntries.filter((e) => {
             const row = ADDITIONAL_COST_KEYWORDS[e.keyword];
-            if (!row.requiresTrigger || row.castCopyTrigger) return false;
+            if (
+                !demandsTwin(row.requiresTrigger, e.card) ||
+                row.castCopyTrigger
+            )
+                return false;
             // CR 702.175b — the link is per ENTRY id, not per keyword, so a
             // card with two instances needs two triggers and one matching the
             // OTHER entry does not satisfy this one.
@@ -267,7 +280,10 @@ describe("shipped kickers[] entries obey their keyword's table row (ADR 0085)", 
             shippedEntries
                 .filter((e) => {
                     const row = ADDITIONAL_COST_KEYWORDS[e.keyword];
-                    return row.requiresTrigger && !row.castCopyTrigger;
+                    return (
+                        demandsTwin(row.requiresTrigger, e.card) &&
+                        !row.castCopyTrigger
+                    );
                 })
                 .map((e) => e.keyword)
         ).not.toEqual([]);
