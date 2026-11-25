@@ -16,6 +16,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup.helper";
 import { getCardByName } from "../../cards";
+import type { CardType } from "../../cards/types";
 import { beginApplyingStaticEffects, type PendingCast } from "../state";
 import type { Phase } from "../types";
 
@@ -286,9 +287,11 @@ describe("buildCastPermanentAbilityDemands — the permanent being cast (issue #
             board?: string[];
             oppBoard?: string[];
             pending?: Partial<PendingCast>;
+            types?: CardType[];
         } = {}
     ) {
         const card = inHand(getCardByName(name).id, "cast");
+        if (opts.types) card.types = opts.types;
         const state = makeState({
             phase: MAIN,
             activePlayerId: "p1",
@@ -377,8 +380,10 @@ describe("buildCastPermanentAbilityDemands — the permanent being cast (issue #
         expect(castDemands("Barkhide Mauler")).toEqual([]);
     });
 
-    it("an instant or sorcery, and a face-down cast, yield nothing", () => {
-        expect(castDemands("Counterspell")).toEqual([]);
+    it("a spell that is no permanent, and a face-down cast, yield nothing", () => {
+        expect(castDemands("Shivan Dragon", { types: ["Instant"] })).toEqual(
+            []
+        );
         // CR 708.2a — a face-down permanent has no abilities.
         expect(
             castDemands("Shivan Dragon", { pending: { morphed: true } })
