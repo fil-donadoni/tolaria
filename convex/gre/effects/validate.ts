@@ -5292,8 +5292,16 @@ const OP_SCHEMAS: OpSchemaTable = {
                         'field "bind" is only valid with "cards" and to: "battlefield"'
                     );
                 }
-                if ("controller" in entry) {
-                    errors.push('field "controller" is not valid with "cards"');
+                // CR 110.2a — "under your control" names the controller of
+                // the permanent the pick becomes; a hand pick is the owner's
+                // own put (Sneak Attack), never another player's.
+                if (
+                    "controller" in entry &&
+                    (entry.to !== "battlefield" || entry.from === "hand")
+                ) {
+                    errors.push(
+                        'field "controller" is only valid with "cards", to: "battlefield" and a from other than "hand"'
+                    );
                 }
                 // issue #1947 — `linkToSource` stamps `linkExileToSource` on
                 // every moved card; only meaningful when the destination

@@ -5627,6 +5627,10 @@ export interface SpellContext {
             faceDown?: FaceDownProducer;
             /** CR 110.5b — see `returnToBattlefield`'s `authoredEntry`. */
             authoredEntry?: AuthoredEntryState;
+            /** CR 110.2a — the player the card enters under the control of
+             *  when the effect names one other than the library's owner;
+             *  omitted = `playerId`. */
+            controllerId?: string;
         }
     ) => boolean;
     /** Puts a card from `playerId`'s HAND onto their battlefield (CR 400.7 — a
@@ -19405,6 +19409,14 @@ export type EffectOp =
           to: EffectMoveZone | "library-top";
           tapped?: boolean;
           bind?: string;
+          /** CR 110.2a — the player the picked card enters the battlefield
+           *  under the control of, when the effect states one other than the
+           *  zone's owner ("search target opponent's library for a creature
+           *  card and put that card onto the battlefield under your
+           *  control"). Valid ONLY with `to: "battlefield"` and a `from` other
+           *  than `"hand"` (validator-enforced); omitted, the card enters
+           *  under `player`'s control. The card keeps its owner. */
+          controller?: EffectPlayerRef;
           /** CR 400.7 / 607 (issue #1947) — stamp `linkExileToSource` on
            *  every moved card, valid ONLY alongside `to: "exile"`
            *  (validator-enforced). "Search your library for any number of

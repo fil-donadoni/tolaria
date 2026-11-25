@@ -4,6 +4,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup.helper";
 import type { GameState, StackItem } from "../../../../gre/state";
 import {
@@ -17,6 +18,17 @@ import { finalizeTargetSelection } from "../../../../game";
 import type { TargetSelection } from "../../../types";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition, getCardByName } from "../../../index";
+import { preloadDefinitions } from "../../../registry";
+import { resolveCardExport } from "../../../defineCard";
+import { inevitableBetrayal as betrayalModuleExport } from "../blue.cards";
+
+// The PR head carries no `definition-index.json` row for the card (ADR 0157:
+// derived state is regenerated post-merge), so register the module's own
+// definition rather than depend on the lazy catalogue source.
+preloadDefinitions([resolveCardExport(betrayalModuleExport)!]);
+const inevitableBetrayal = getDefinition(
+    "71725895-38cd-4017-bbf0-0b7dc9b5db60"
+);
 
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 const subtlety = getDefinition("701256d5-1389-48b7-9581-d6037209bd06");
@@ -234,5 +246,74 @@ describe("Thought Monitor — Affinity for artifacts + flying + ETB draw (CR 702
         expect(costWithArtifacts(2)).toEqual({ X: 4, U: 1 });
         expect(costWithArtifacts(6)).toEqual({ U: 1 });
         expect(costWithArtifacts(9)).toEqual({ U: 1 });
+    });
+});
+
+// Inevitable Betrayal — "Search target opponent's library for a creature card
+// and put that card onto the battlefield under your control. Then that player
+// shuffles." CR 701.23b (the find is optional), CR 110.2a (the effect names the
+// controller; the card keeps its owner).
+describe("Inevitable Betrayal (CR 701.23b, CR 110.2a)", () => {
+    function castBetrayal(): GameState {
+        const creature = makeInstance(thoughtMonitor.id, {
+            id: "their-creature",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const artifact = makeInstance(solRing.id, {
+            id: "their-artifact",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { library: [artifact, creature] }),
+            ],
+        });
+        pushSpell(state, inevitableBetrayal.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("searches only the opponent's creature cards, for the caster", () => {
+        const state = castBetrayal();
+        const head = state.pendingChoices?.[0];
+        expect(head?.playerId).toBe("p1");
+        expect(head?.zoneOwnerId).toBe("p2");
+        expect(head?.candidateIds).toEqual(["their-creature"]);
+    });
+
+    it("puts the found creature onto the battlefield under the caster's control, owned by the opponent", () => {
+        const state = castBetrayal();
+        submitChoice(state, ["their-creature"]);
+        const [p1, p2] = state.players;
+        const stolen = p1.battlefield.find((c) => c.id === "their-creature");
+        expect(stolen?.controllerId).toBe("p1");
+        expect(stolen?.ownerId).toBe("p2");
+        expect(p2.battlefield).toEqual([]);
+        expect(p2.library.map((c) => c.id)).toEqual(["their-artifact"]);
+
+        // The wire carries it on the caster's side of the board.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "their-creature"
+        );
+        expect(slim?.controllerId).toBe("p1");
+        expect(slim?.ownerId).toBe("p2");
+    });
+
+    it("may find nothing: the creature stays in the opponent's library", () => {
+        const state = castBetrayal();
+        submitChoice(state, []);
+        expect(state.players[0].battlefield).toEqual([]);
+        expect(state.players[1].library.map((c) => c.id).sort()).toEqual([
+            "their-artifact",
+            "their-creature",
+        ]);
     });
 });
