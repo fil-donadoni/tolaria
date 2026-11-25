@@ -49,6 +49,11 @@ vi.mock("~/lib/useDeckPrintResolver", async () => ({
         await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
     ).useDeckPrintResolverStub,
 }));
+vi.mock("~/hooks/useBasicLandArtPreference", async () => ({
+    useBasicLandArtPreference: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandArtPreferenceStub,
+}));
 vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
     useBasicLandPreferenceRows: (
         await import("~/components/deckbuilder/__tests__/basicLandPrintRows")

@@ -15,17 +15,19 @@ import {
 import {
     applyBasicLandArtPreference,
     basicLandArtCardIdsToRemap,
+    clearLegacyBasicLandArt,
     countBasicLandCopies,
     findBasicLandRemovalIndex,
     isBasicLandCardId,
+    legacyBasicLandArt,
     legalBasicLandPrintings,
-    recordBasicLandArtChoice,
+    planBasicLandArtMigration,
     resolveBasicLandCardIds,
     resolveCanonicalBasicLandCardIds,
     rewriteBasicLandArt,
     rewriteBasicLandArtInDeck,
-    seededBasicLandArt,
 } from "../basicLands";
+import { saveBasicLandPrintId } from "~/lib/deckViewPrefs";
 
 const BOLT_LEA = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
 const PLAINS = "b1623d57-4729-4796-b3f7-f1837a05c6ed";
@@ -533,17 +535,60 @@ describe("rewriteBasicLandArtInDeck (issue #1629 AC5: rewrites BOTH Maindeck and
     });
 });
 
-describe("seededBasicLandArt / recordBasicLandArtChoice (issue #1629, mirrors deckViewPrefs's storage discipline)", () => {
-    it("seeds nothing for a subtype never chosen", () => {
-        expect(seededBasicLandArt(makeStorage())).toEqual({});
+describe("legacyBasicLandArt / clearLegacyBasicLandArt (issue #10462: the per-device keys, read once to migrate)", () => {
+    it("reads nothing for a subtype never chosen", () => {
+        expect(legacyBasicLandArt(makeStorage())).toEqual({});
     });
 
-    it("round-trips a recorded choice back out for its own subtype only", () => {
+    it("reads a stored choice back for its own subtype only, and clears every key", () => {
         const storage = makeStorage();
-        recordBasicLandArtChoice("Mountain", LEB_MOUNTAIN_PRINT, storage);
-        expect(seededBasicLandArt(storage)).toEqual({
+        saveBasicLandPrintId("Mountain", LEB_MOUNTAIN_PRINT, storage);
+        expect(legacyBasicLandArt(storage)).toEqual({
             Mountain: LEB_MOUNTAIN_PRINT,
         });
+        clearLegacyBasicLandArt(storage);
+        expect(legacyBasicLandArt(storage)).toEqual({});
+    });
+});
+
+describe("planBasicLandArtMigration (issue #10462)", () => {
+    const rows = [
+        { printId: LEB_MOUNTAIN_PRINT, cardId: MOUNTAIN, set: "leb" },
+    ];
+
+    it("writes a legacy choice, with its row's Set code, for a subtype the table has no row for", () => {
+        expect(
+            planBasicLandArtMigration(
+                { Mountain: LEB_MOUNTAIN_PRINT },
+                () => false,
+                rows
+            )
+        ).toEqual([
+            {
+                subtype: "Mountain",
+                printing: { printId: LEB_MOUNTAIN_PRINT, setCode: "leb" },
+            },
+        ]);
+    });
+
+    it("never overwrites a subtype the table already holds a row for", () => {
+        expect(
+            planBasicLandArtMigration(
+                { Mountain: LEB_MOUNTAIN_PRINT },
+                (subtype) => subtype === "Mountain",
+                rows
+            )
+        ).toEqual([]);
+    });
+
+    it("drops a stale legacy id (no cardPrints row) silently", () => {
+        expect(
+            planBasicLandArtMigration(
+                { Mountain: "not-a-real-printing-anymore" },
+                () => false,
+                rows
+            )
+        ).toEqual([]);
     });
 });
 

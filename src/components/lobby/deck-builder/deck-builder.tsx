@@ -1,3 +1,5 @@
+import type { CardPrinting } from "@convex/cards/catalogue";
+import { useBasicLandArtPreference } from "~/hooks/useBasicLandArtPreference";
 import { useBasicLandPreferenceRows } from "~/lib/useBasicLandPreferenceRows";
 import { useDeckPrintResolver } from "~/lib/useDeckPrintResolver";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -26,10 +28,8 @@ import {
     basicLandArtCardIdsToRemap,
     countBasicLandCopies,
     findBasicLandRemovalIndex,
-    recordBasicLandArtChoice,
     resolveCanonicalBasicLandCardIds,
     rewriteBasicLandArtInDeck,
-    seededBasicLandArt,
     type BasicLandSubtype,
 } from "~/components/deckbuilder/basicLands";
 import PoolBasicLandsBar from "~/components/deckbuilder/pool-basic-lands-bar";
@@ -905,14 +905,12 @@ export default function DeckBuilder({
     // off the live Maindeck exactly like the Limited variant's.
     //
     // The user's basic-land art preference (issue #1629, ADR 0075 § "Basic-
-    // land art") is held here, seeded from `localStorage` on mount and
-    // updated on every pick — mirrors `mainView`/`sideView`'s
-    // `seededColumnView`/`recordGroupingChange` split above. Layered on top
+    // land art") is read from the per-user `userCardPrints` table, so it
+    // follows the user across devices (issue #10462,
+    // `useBasicLandArtPreference`). Layered on top
     // of the base resolution by `applyBasicLandArtPreference`, which silently
     // ignores a stale or now-illegal stored printing (AC8).
-    const [basicLandArt, setBasicLandArt] = useState(() =>
-        seededBasicLandArt()
-    );
+    const { basicLandArt, recordBasicLandArt } = useBasicLandArtPreference();
     const { rows: basicLandArtRows, loading: basicLandArtLoading } =
         useBasicLandPreferenceRows(basicLandArt);
     const basicCardIds = useMemo(
@@ -948,9 +946,9 @@ export default function DeckBuilder({
      *  of them onto the new `printId`, in both Zones' Layouts, so the deck
      *  row never persists an orphaned key. */
     const handlePickBasicArt = useCallback(
-        (subtype: BasicLandSubtype, printId: string) => {
-            recordBasicLandArtChoice(subtype, printId);
-            setBasicLandArt((prev) => ({ ...prev, [subtype]: printId }));
+        (subtype: BasicLandSubtype, printing: CardPrinting) => {
+            const { printId } = printing;
+            recordBasicLandArt(subtype, printing);
             const rewritten = rewriteBasicLandArtInDeck(deck, subtype, printId);
             if (
                 rewritten.cards === deck.cards &&
@@ -1019,7 +1017,7 @@ export default function DeckBuilder({
                 };
             });
         },
-        [updateDeck, deck, mainView, sideView]
+        [updateDeck, deck, mainView, sideView, recordBasicLandArt]
     );
 
     return (

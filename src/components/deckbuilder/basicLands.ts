@@ -7,8 +7,8 @@ import { printingsWithHome } from "@convex/cards/printingList";
 import type { LimitedPoolCard } from "@convex/limited/eventTypes";
 import { BASIC_LAND_SUBTYPES, type BasicLandSubtype } from "~/lib/basicLands";
 import {
+    clearBasicLandPrintId,
     loadBasicLandPrintId,
-    saveBasicLandPrintId,
 } from "~/lib/deckViewPrefs";
 
 /** Re-exported for this module's own consumers (`pool-basic-lands-bar.tsx`)
@@ -195,14 +195,14 @@ export function findBasicLandRemovalIndex(
 //
 // Every basic's fifteen printings differ ONLY by art (`lea×2, leb×3, ice,
 // 2ed×3, 3ed×3, 4ed×3`), so the per-card edition dropdown of the time
-// (`src/lib/editions.ts`, since replaced by the visual `PrintingPicker`,
-// issue #4122) was unusable here — a bare `LEB
+// (`src/lib/editions.ts`, since replaced by the visual `PrintingPicker`)
+// was unusable here — a bare `LEB
 // #3` tells the player nothing about what they're picking. The functions
 // below are the pure half of the picker; the tile UI lives in
-// `basic-land-tile.tsx`, and the two builders own the React state that
-// seeds from and writes through `recordBasicLandArtChoice`/
-// `seededBasicLandArt` (mirrors `deckZoneColumnView.ts`'s
-// `seededColumnView`/`recordGroupingChange` split for Grouping/Ordering).
+// `basic-land-tile.tsx`, and both builders read and write the preference
+// through `useBasicLandArtPreference` — the per-user `userCardPrints` table,
+// with the old per-device `localStorage` keys read only once,
+// to migrate them (`legacyBasicLandArt` / `planBasicLandArtMigration`).
 
 /** The `cardPrints` row fields the art picker keys on — `getByPrintIds` /
  *  `listByCardId` rows satisfy it. */
@@ -274,31 +274,48 @@ function isLegalBasicLandPrinting(
     );
 }
 
-/** The subtype→printId preference to SEED a builder's held state from on
- *  mount (issue #1629) — the user's stored choice per subtype, or omitted
- *  entirely for a subtype never chosen. Pure read; callers own the state
- *  (mirrors `seededColumnView`). */
-export function seededBasicLandArt(
+/** The per-device basic-land art preference that predates the per-user
+ *  table (issue #1629 → issue #10462): the stored printId per subtype, or
+ *  omitted for a subtype never chosen. Read ONLY to migrate it
+ *  (`useBasicLandArtPreference`), never as the preference itself. */
+export function legacyBasicLandArt(
     storage: Storage = window.localStorage
 ): Partial<Record<BasicLandSubtype, string>> {
-    const seed: Partial<Record<BasicLandSubtype, string>> = {};
+    const legacy: Partial<Record<BasicLandSubtype, string>> = {};
     for (const subtype of BASIC_LAND_SUBTYPES) {
         const stored = loadBasicLandPrintId(subtype, storage);
-        if (stored !== null) seed[subtype] = stored;
+        if (stored !== null) legacy[subtype] = stored;
     }
-    return seed;
+    return legacy;
 }
 
-/** Persists a picked printing for `subtype` (issue #1629). Callers still
- *  apply the choice to their own held preference state AND rewrite the open
- *  deck's copies separately (`rewriteBasicLandArtInDeck`) — this only writes
- *  the per-user preference (mirrors `recordGroupingChange`). */
-export function recordBasicLandArtChoice(
-    subtype: BasicLandSubtype,
-    printId: string,
+/** Drops every legacy per-device key once migrated, so it is never read again. */
+export function clearLegacyBasicLandArt(
     storage: Storage = window.localStorage
 ): void {
-    saveBasicLandPrintId(subtype, printId, storage);
+    for (const subtype of BASIC_LAND_SUBTYPES)
+        clearBasicLandPrintId(subtype, storage);
+}
+
+/** The table writes one migration owes (issue #10462): a legacy choice is
+ *  written only for a subtype the user has no table row for — a row already
+ *  stored (another device's pick) is never overwritten — and only when its
+ *  `cardPrints` row still exists, which also supplies its Set code. A stale
+ *  legacy id (no row) is dropped silently, as a stale preference always was. */
+export function planBasicLandArtMigration(
+    legacy: Partial<Record<BasicLandSubtype, string>>,
+    hasStoredRow: (subtype: BasicLandSubtype) => boolean,
+    rows: readonly BasicLandPrintRow[]
+): { subtype: BasicLandSubtype; printing: CardPrinting }[] {
+    const writes: { subtype: BasicLandSubtype; printing: CardPrinting }[] = [];
+    for (const subtype of BASIC_LAND_SUBTYPES) {
+        const printId = legacy[subtype];
+        if (printId === undefined || hasStoredRow(subtype)) continue;
+        const row = rows.find((r) => r.printId === printId);
+        if (row === undefined) continue;
+        writes.push({ subtype, printing: { printId, setCode: row.set } });
+    }
+    return writes;
 }
 
 /**
