@@ -12,6 +12,7 @@ import type { ActivatedAbility, EffectOp, ManaCost } from "../cards/types";
 import { hasFilteredGiveUpCost, MANA_COLORS } from "../gre/constants";
 import { COLORED_MANA_COLORS } from "../gre/manaColors";
 import {
+    isHandSelfMove,
     lowerActivationCost,
     type ActivationCostIR,
     type CostAtomIR,
@@ -182,6 +183,7 @@ function mayRemoveSource(atom: CostAtomIR): boolean {
         case "sacrifice-self":
         case "exile-self":
         case "exile-self-from-hand":
+        case "discard-self":
         case "exile-self-from-graveyard":
         case "return-self":
             return true;
@@ -220,9 +222,8 @@ export function lowerActivatedAbility(input: {
     const cost = lowerActivationCost(input.cost);
     if (!cost.ok) return { ok: false, reason: cost.reason };
     // CR 113.6m — a hand-exile cost makes the ability a HAND ability. Only the
-    // mana slot reads that zone (`lowerManaAbility`); on this slot the
-    // ability would lower without `activateFromHand` and be offered on the
-    // battlefield, where its cost cannot be paid.
+    // mana slot reads that cost (`lowerManaAbility`); no stack ability in the
+    // corpus prints it, so the form stays refused here.
     if (input.cost.atoms.some(isHandExile))
         return {
             ok: false,
@@ -292,6 +293,10 @@ export function lowerActivatedAbility(input: {
     // ability: offered and paid only while the card is there.
     if (input.cost.atoms.some(isGraveyardExile))
         ability.activateFromGraveyard = true;
+    // CR 113.6m / 701.9a — a card is discarded from the hand, so the ability
+    // is offered and paid only while the card is there.
+    if (input.cost.atoms.some((a) => a.kind === "discard-self"))
+        ability.activateFromHand = true;
     // CR 702.178a / 702.178b — behind "Max speed —" the ability exists only
     // while the activator (CR 109.5) has max speed.
     if (input.maxSpeed === true) ability.requiresMaxSpeed = true;
@@ -425,10 +430,10 @@ function lowerDrawingManaShape(
     },
     cost: ActivatedAbility["cost"]
 ): LowerAbilityResult {
-    if (input.cost.atoms.some(isHandExile))
+    if (input.cost.atoms.some(isHandSelfMove))
         return {
             ok: false,
-            reason: "a stack ability activated from the hand is not in grammar v0 (CR 113.6m)",
+            reason: "a drawing mana line activated from the hand is not in grammar v0 (CR 113.6m)",
         };
     const others = (input.produces.riders ?? []).filter(
         (r) => r.kind !== "draw-card" && r.kind !== "instant-only"

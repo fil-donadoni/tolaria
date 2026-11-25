@@ -148,6 +148,7 @@ function namesSource(atom: CostAtomIR): boolean {
         case "sacrifice-self":
         case "exile-self":
         case "exile-self-from-hand":
+        case "discard-self":
         case "return-self":
         case "remove-counter":
             return true;
@@ -188,10 +189,10 @@ const maxSpeedActivated: Rule<SlotIR> = rule(
 /**
  * CR 113.3b — the sentence ends in a full stop, which belongs to the ability.
  *
- * Restricted to permanents for the same reason the mana slot is: grammar v0
- * has no vocabulary for an ability activated from hand or graveyard (cycling,
- * flashback), and a cost that taps or sacrifices the source has no meaning on
- * an instant or sorcery.
+ * Restricted to permanents for the same reason the mana slot is: a cost that
+ * taps or sacrifices the source has no meaning on an instant or sorcery. An
+ * ability a card activates from the hand or graveyard is read on a permanent
+ * card only ("Discard this card", "Exile this card from your graveyard").
  */
 export const activatedSlot: Rule<SlotIR> = rule(ACTIVATED_SLOT, (span, ctx) => {
     const context = ctx as ParseContext;
