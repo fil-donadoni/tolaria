@@ -641,18 +641,24 @@ describe("subtype lists — golden fixtures", () => {
         expect(sortKeys(outcome.definition)).toEqual(sortKeys(expected));
     });
 
-    it.each(["Shifting Ceratops", "Raucous Entertainer"])(
-        "%s compiles to its registered fixture",
-        (name) => {
-            const fixture = GOLDEN_FIXTURES.find((f) => f.card.name === name)!;
-            const outcome = compileCard(fixture.card);
-            expect(outcome.state).toBe("ready");
-            if (outcome.state === "unparsed") return;
-            expect(sortKeys(outcome.definition)).toEqual(
-                sortKeys(fixture.expected)
-            );
-        }
-    );
+    it.each([
+        "Shifting Ceratops",
+        "Raucous Entertainer",
+        "Butcher of the Horde",
+        "Assassin Initiate",
+        "Lunar Avenger",
+        "Ezrim, Agency Chief",
+        "Novijen, Heart of Progress",
+        "Oran-Rief, the Vastwood",
+    ])("%s compiles to its registered fixture", (name) => {
+        const fixture = GOLDEN_FIXTURES.find((f) => f.card.name === name)!;
+        const outcome = compileCard(fixture.card);
+        expect(outcome.state).toBe("ready");
+        if (outcome.state === "unparsed") return;
+        expect(sortKeys(outcome.definition)).toEqual(
+            sortKeys(fixture.expected)
+        );
+    });
 });
 
 describe("subtype lists — lines whose printer has another gap", () => {
