@@ -390,11 +390,21 @@ describe("ControllerPod render beats", () => {
                         { id: "a1", power: 2, toughness: 2 } as never,
                     ],
                 }),
+                makeTestPlayer({
+                    id: "opp",
+                    battlefield: [
+                        { id: "b1", power: 1, toughness: 1 } as never,
+                        { id: "b2", power: 1, toughness: 1 } as never,
+                    ],
+                }),
             ],
             combat: {
+                // CR 510.1c: a1 is double-blocked, its damage goes to b1 and b2.
+                attackerIds: ["a1"],
+                blockerAssignments: { b1: ["a1"], b2: ["a1"] },
                 damageConfirmed: false,
                 damageAssignerIds: { a1: "me" },
-                damageAssignments: { a1: { opp: 2 } },
+                damageAssignments: { a1: { b1: 1, b2: 1 } },
                 damageAssignmentConfirmedBy: [],
             } as never,
         });

@@ -322,7 +322,9 @@ import {
     phyrexianPipCount,
 } from "./gre/phyrexian";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./gre/layers";
+import { isAssignableDamageTarget } from "./gre/assignableDamage";
 import {
+    assignableDamageTargetsForSource,
     attackTargetExcessSink,
     damageAssignmentLethalViolation,
 } from "./gre/damageAssignment";
@@ -565,7 +567,7 @@ import {
     applyManaAbilityEffects,
     reverseManaAbilityEffectsOnUntap,
 } from "./gre/manaAbilityEffects";
-import { getEffectiveBlockGraph, isLegalBandComposition } from "./gre/banding";
+import { isLegalBandComposition } from "./gre/banding";
 import {
     checkStateBasedActions,
     checkStateBasedActionsAfterSpecialAction,
@@ -12719,45 +12721,32 @@ export const setDamageAssignment = mutation({
             );
         }
 
-        const hasTrample = source.staticAbilities.includes("trample");
-        const activePlayerId = state.activePlayerId;
-        const defenderId = getOpponentId(state, activePlayerId);
-        const graph = getEffectiveBlockGraph(state);
-        const isAttacker = state.combat.attackerIds.includes(sourceId);
-        // Legal targets: an attacker hits its blockers (or the defender with
-        // trample); a blocker hits the band members it is blocking.
-        const legalTargets = new Set(
-            isAttacker
-                ? (graph.blockersByAttacker[sourceId] ?? [])
-                : (graph.attackersByBlocker[sourceId] ?? [])
-        );
-
-        // CR 702.19b — trample excess goes to "the player, planeswalker, or
-        // battle the creature is attacking", which is ONE object: per
-        // CR 702.19f a creature without trample-over-planeswalkers attacking a
-        // planeswalker may assign NONE of its combat damage to the defending
-        // player. So the sink is the attacked planeswalker when it is still on
-        // the battlefield, else the defending player — the same id the seed
-        // builders put in the pre-filled default (`attackTargetExcessSink`), so
-        // the assigner can always edit its own default.
-        const excessSinkIds = isAttacker
-            ? [attackTargetExcessSink(state, sourceId, defenderId)]
-            : [];
-
-        for (const targetId of Object.keys(assignments)) {
-            if (isAttacker && excessSinkIds.includes(targetId)) {
-                if (!hasTrample) {
-                    throw new Error(
-                        "Only creatures with trample can assign damage to the defending player"
-                    );
-                }
-                continue;
-            }
-            if (!legalTargets.has(targetId)) {
+        // CR 510.1c/d, CR 702.19b — the same targets the seed, the completeness
+        // gate and the assigner UI read: partners still on the battlefield (a
+        // departed combatant's tombstone slot stays in the block graph but
+        // takes no damage), plus, for a trampling attacker only, the ONE object
+        // its excess may go to (`attackTargetExcessSink`).
+        const targets = assignableDamageTargetsForSource(state, sourceId);
+        const targetIds = Object.keys(assignments);
+        for (let i = 0; i < targetIds.length; i++) {
+            const targetId = targetIds[i];
+            if (isAssignableDamageTarget(targets, targetId)) continue;
+            if (
+                state.combat.attackerIds.includes(sourceId) &&
+                targetId ===
+                    attackTargetExcessSink(
+                        state,
+                        sourceId,
+                        getOpponentId(state, state.activePlayerId)
+                    )
+            ) {
                 throw new Error(
-                    `${targetId} is not a legal damage target for ${sourceId}`
+                    "Only creatures with trample can assign damage to the defending player"
                 );
             }
+            throw new Error(
+                `${targetId} is not a legal damage target for ${sourceId}`
+            );
         }
 
         // CR 702.19b — "The attacking creature's controller need not assign
@@ -12775,7 +12764,7 @@ export const setDamageAssignment = mutation({
             state,
             sourceId,
             assignments,
-            excessSinkIds
+            targets.excessSinkId === undefined ? [] : [targets.excessSinkId]
         );
         if (violation) {
             throw new Error(
