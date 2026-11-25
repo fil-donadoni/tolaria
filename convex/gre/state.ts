@@ -199,6 +199,7 @@ import {
     hasCityBlessing,
 } from "./cityBlessing";
 import { resolveSpeedIncrease, speedOf, speedTriggerController } from "./speed";
+import { emitGiftGivenIfGiven } from "./gift";
 import { SPEED_DESIGNATION } from "../cards/designations";
 import { effectivePermanentView, permanentManaValue } from "./permanentView";
 import { resolveGrantedActivatedAbility } from "./activatedAbilities";
@@ -3170,6 +3171,15 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     ) {
         grantCityBlessingIfThreshold(state, top.castById);
     }
+
+    // --- Gift given (CR 702.174c) ---
+    // An instant or sorcery whose gift cost was paid, or a permanent's gift
+    // trigger, resolving IS a player giving a gift. Past the target-legality
+    // gate (an object countered on resolution gives nothing, CR 608.2b) and
+    // once per resolution (`resolutionStep === undefined`: a resumed pass is
+    // the same resolution).
+    if (top.resolutionStep === undefined)
+        emitGiftGivenIfGiven(state, top, cardDef, isSpell);
 
     // --- Stepped spell resolve (CR 608.2, 101.4) ---
     // Peek-and-pop: the item stays on the stack while steps run so that

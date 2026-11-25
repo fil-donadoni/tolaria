@@ -45332,6 +45332,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Jolly Gerbils",
+        "scryfallId": "0eab51d6-ba17-4a8c-8834-25db363f2b6b",
+        "oracleId": "8e22bf51-1b1b-459b-af78-91188b6e3f09",
+        "firstSet": "blb",
+        "firstPrintId": "0eab51d6-ba17-4a8c-8834-25db363f2b6b",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Jolrael's Centaur",
         "scryfallId": "31588ea3-31d2-4118-9b9f-4ce820c16a15",
         "oracleId": "39b699e1-79c6-4960-97dc-d58574181bbe",
@@ -73850,6 +73860,16 @@
         "firstPrintId": "12ccd555-60d4-49a1-b022-1e119344172a",
         "firstPrintSet": "dft",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Scrapshooter",
+        "scryfallId": "c42ab407-e72d-4c48-9a9e-2055b5e71c69",
+        "oracleId": "235e3231-c5e5-4696-a867-705b2c4158fe",
+        "firstSet": "blb",
+        "firstPrintId": "c42ab407-e72d-4c48-9a9e-2055b5e71c69",
+        "firstPrintSet": "blb",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

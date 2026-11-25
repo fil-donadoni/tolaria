@@ -121,6 +121,8 @@ export type TriggerHeadIR =
      * searching, whatever it finds; the searcher is "that player".
      */
     | { readonly kind: "library-searched"; readonly scope: "opponents" }
+    /** CR 702.174c — "whenever you give a gift". */
+    | { readonly kind: "gift-given"; readonly scope: "you" }
     /**
      * CR 603.6c — "when this <permanent> is put into a graveyard from the
      * battlefield": the battlefield exit that ends in a graveyard, for ANY
@@ -656,6 +658,9 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
         "whenever an opponent searches their library",
         { kind: "library-searched", scope: "opponents" },
     ],
+    // CR 702.174c — a gift-paid instant or sorcery of yours, or a gift
+    // trigger of a permanent you control, resolving.
+    ["whenever you give a gift", { kind: "gift-given", scope: "you" }],
 ]);
 
 /** Self-subject heads: `<opener> <self phrase> <tail>` (CR 109.2). */
@@ -954,6 +959,7 @@ export function headPronounReferent(
         case "spell-cast":
         case "sacrificed":
         case "library-searched":
+        case "gift-given":
             return null;
     }
 }

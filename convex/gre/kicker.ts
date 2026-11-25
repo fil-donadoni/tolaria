@@ -80,6 +80,9 @@ export type KickerPayments = Record<string, number>;
  *    ("When this permanent enters, if its offspring cost was paid, create a
  *    token that's a copy of it, except it's 1/1"); CR 702.33a gives kicker
  *    none. Read by the catalogue guard that refuses to let one half ship alone.
+ *    `"on-permanent"` — CR 702.174b gives gift a twin trigger only on a
+ *    permanent card; on an instant or sorcery the second ability is a spell
+ *    ability, the first of the spell's effects (CR 702.174j).
  *  - `castCopyTrigger` — is that twin the engine's synthesized CAST-COPY
  *    trigger (ADR 0052) rather than one the card authors in
  *    `triggeredAbilities`? CR 702.56a gives replicate exactly that: "copy it
@@ -115,7 +118,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     AdditionalCostKeyword,
     {
         countsAsKicked: boolean;
-        requiresTrigger: boolean;
+        requiresTrigger: boolean | "on-permanent";
         castCopyTrigger: boolean;
         allowsMulti: boolean;
         printedLabel: { single?: string; repeated?: string };
@@ -247,6 +250,21 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
         castCopyTrigger: false,
         allowsMulti: false,
         printedLabel: { single: "Collect evidence" },
+        paidPerExtraMode: false,
+    },
+    // CR 702.174a — "As an additional cost to cast this spell, you may choose
+    // an opponent": an optional cost with no legs, read back by "the gift was
+    // promised" (CR 702.174k) through `{ additionalCostPaid }`.
+    // Never kicked (CR 702.33d), paid at most once (no "any number of times"
+    // clause). Its second ability is a twin trigger on a permanent only
+    // (CR 702.174b); on an instant or sorcery it is the spell's first spell
+    // ability (`giftSpellOps`, `cards/abilities/gift.ts`).
+    gift: {
+        countsAsKicked: false,
+        requiresTrigger: "on-permanent",
+        castCopyTrigger: false,
+        allowsMulti: false,
+        printedLabel: { single: "Gift" },
         paidPerExtraMode: false,
     },
 };

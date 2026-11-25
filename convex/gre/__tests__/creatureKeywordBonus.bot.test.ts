@@ -105,6 +105,7 @@ const NOT_A_BODY_KEYWORD = new Set([
     "companion",
     "squad",
     "offspring",
+    "gift",
     "escalate",
     "warp",
     // CR 702.176a — a cast mode; the not-yet-a-creature body is priced by
