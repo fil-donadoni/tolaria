@@ -12,8 +12,13 @@
 import { describe, it, expect } from "vitest";
 import { evaluate, evaluateBreakdown } from "../evaluate";
 import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
-import type { GameState } from "../state";
-import { makePlayer, makeState } from "../../cards/__tests__/setup.helper";
+import { getCardByName } from "../../cards";
+import type { CardInstanceState, GameState } from "../state";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup.helper";
 
 const ME = "p1";
 const OPP = "p2";
@@ -47,5 +52,26 @@ describe("the energy term (CR 107.14)", () => {
         expect(evaluate(board({ opp: 3 }), ME)).toBeLessThan(
             evaluate(board({}), ME)
         );
+    });
+
+    it("prices a held energy-fuelled removal spell well above the energy its lethal payment spends", () => {
+        const held = getCardByName("Galvanic Discharge");
+        // The two ends of one exchange: one spell kills and the other stays in
+        // hand, or both kill the same creature and three energy stay.
+        const end = (hand: CardInstanceState[], energyCounters: number) =>
+            makeState({
+                players: [
+                    makePlayer(ME, { hand, energyCounters }),
+                    makePlayer(OPP, {}),
+                ],
+                activePlayerId: ME,
+            });
+        const oneCard = end(
+            [makeInstance(held.id, { id: "held", ownerId: ME })],
+            0
+        );
+        const energyPrice = 3 * DEFAULT_EVAL_WEIGHTS.energyWeight;
+        const gap = evaluate(oneCard, ME) - evaluate(end([], 3), ME);
+        expect(gap).toBeGreaterThan(energyPrice);
     });
 });
