@@ -40,6 +40,7 @@ import {
     sacrificeSnapshotFromSelection,
 } from "./activation";
 import { castAsAdventure } from "./adventure";
+import { announceChosenX } from "./chosenXAnnouncement";
 import { castExileCostPickIds } from "./alternativeCost";
 import { applyBestowCharacteristics } from "./bestow";
 import {
@@ -658,6 +659,7 @@ export function commitCast(
         );
         if (idx === -1) state.stack.push(stackItem);
         else state.stack.splice(idx, 0, stackItem);
+        announceChosenX(state, stackItem);
         // CR 601.2i — the spell is cast: make it a public object and let
         // cast triggers fire. The resolver runs the trigger pass once its own
         // resolution completes.
@@ -666,6 +668,7 @@ export function commitCast(
     }
 
     state.stack.push(stackItem);
+    announceChosenX(state, stackItem);
     // CR 117.3c — the caster receives priority after casting. Unless asked to
     // keep it, a single auto-pass hands the response window to the opponent.
     state.passCount = 0;
