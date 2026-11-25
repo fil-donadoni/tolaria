@@ -219,7 +219,9 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
                 const subject: MatchablePermanent = {
                     id: event.instanceId,
                     types: event.types,
-                    subtypes: [],
+                    // CR 205.3 — snapshotted by `emitPermanentEntered`; an
+                    // event without it matches no subtype filter.
+                    subtypes: event.subtypes ? event.subtypes.slice() : [],
                     staticAbilities: [],
                     controllerId: event.controllerId,
                     // CR 603.2 / 613.4 — the entering permanent's EFFECTIVE
