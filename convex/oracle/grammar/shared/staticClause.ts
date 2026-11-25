@@ -734,6 +734,35 @@ function readSubject(
     return staticFilterFromDescriptor(value, evaluation);
 }
 
+/** " your opponents control" — the opponents' battlefield, plural. */
+const YOUR_OPPONENTS_CONTROL = " your opponents control";
+
+/**
+ * CR 109.5 + CR 102.2 — "Creatures your opponents control": the set read by
+ * {@link readSubject}, on the opponents' side. "Your" is the ability's
+ * controller.
+ *
+ * Read by the frame that owes it and not by the descriptor's qualifier table,
+ * for the reason `opponentsPluralRule` is not a qualifier either: every other
+ * reader of a descriptor (a target, a cost, an entry lock) has no fixture for
+ * the opponents' plural and must keep refusing it.
+ */
+function readSubjectOfEitherSide(
+    span: string,
+    evaluation: StaticFilterEvaluation
+): RuleResult<PermanentFilter> {
+    if (!span.endsWith(YOUR_OPPONENTS_CONTROL))
+        return readSubject(span, evaluation);
+    const filter = readSubject(
+        span.slice(0, -YOUR_OPPONENTS_CONTROL.length),
+        evaluation
+    );
+    if (!filter.ok) return filter;
+    if (filter.value.controllerRelation !== undefined)
+        return fail("two controller clauses", span);
+    return ok({ ...filter.value, controllerRelation: "opponents" });
+}
+
 /** `pair`-style unique split, over a separator that may occur several times. */
 function splitOnce<T>(
     span: string,
@@ -796,7 +825,7 @@ export const anthemRule: Rule<StaticClauseIR> = rule(
         uniqueSplit("anthem", span, " get ", (subject, modifier) => {
             const pt = modifier.match(PT_MODIFIER);
             if (pt === null) return null;
-            const filter = readSubject(subject, "recomputed");
+            const filter = readSubjectOfEitherSide(subject, "recomputed");
             if (!filter.ok) return filter;
             return ok({
                 kind: "pt-buff" as const,

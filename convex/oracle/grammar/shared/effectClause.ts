@@ -2393,8 +2393,9 @@ export type LibraryRouteIR =
           readonly count: AmountIR;
           readonly rest: LibraryRestIR;
           /**
-           * "… and the OTHER on the bottom": the rest is exactly one card, so
-           * the window must be two cards wide (CR 401.4 — one kept, one left).
+           * "… and the OTHER on the bottom | into your graveyard": the rest
+           * is exactly one card, so the window must be one card wider than the
+           * pick.
            */
           readonly other?: true;
       }
@@ -4829,9 +4830,13 @@ function foldLibraryRoute(
     if (
         route.kind === "take" &&
         route.other === true &&
-        !(window.count.kind === "fixed" && window.count.value === 2)
+        !(
+            window.count.kind === "fixed" &&
+            route.count.kind === "fixed" &&
+            window.count.value === route.count.value + 1
+        )
     )
-        return '"the other" names the single card left of a two-card window';
+        return '"the other" names the single card left of a two-card window, or of a three-card one that keeps two';
     return {
         kind: "look-distribute",
         reveal: window.reveal,
@@ -6263,6 +6268,14 @@ const ROUTE_REST_ALONE =
 /** The two-card window's routing: "Put one of them into your hand and the other on the bottom of your library". */
 const ROUTE_TAKE_OTHER =
     /^Put one of them into your hand and the other on the bottom of your library$/;
+
+/**
+ * The same routing, the left-over card going to the graveyard: "Put one [of
+ * them | of those cards] into your hand and the other into your graveyard", and
+ * the three-card window's "Put two of them …".
+ */
+const ROUTE_TAKE_OTHER_TO_GRAVEYARD =
+    /^Put (one|two of them|one of them|one of those cards) into your hand and the other into your graveyard$/;
 
 const ROUTE_REST: ReadonlyMap<
     string,
@@ -8138,6 +8151,20 @@ function libraryHalf(span: string, ctx: unknown) {
                 kind: "take" as const,
                 count: { kind: "fixed" as const, value: 1 },
                 rest: "bottom-any-order" as const,
+                other: true as const,
+            },
+        } satisfies SentenceIR);
+    const otherToGraveyard = span.match(ROUTE_TAKE_OTHER_TO_GRAVEYARD);
+    if (otherToGraveyard !== null)
+        return ok({
+            role: "library-route" as const,
+            route: {
+                kind: "take" as const,
+                count: {
+                    kind: "fixed" as const,
+                    value: otherToGraveyard[1] === "two of them" ? 2 : 1,
+                },
+                rest: "graveyard" as const,
                 other: true as const,
             },
         } satisfies SentenceIR);
