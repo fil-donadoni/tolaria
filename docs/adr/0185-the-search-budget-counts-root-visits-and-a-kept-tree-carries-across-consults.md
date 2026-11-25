@@ -65,7 +65,7 @@ and, in live play, the clock.
   longer reproduces from its board alone when its trace shows
   `iterationsKept > 0`; one with `iterationsKept: 0` still does.
 - **Tests and the blade are untouched.** Every test, every blade `must` entry
-  and the server's game-end judge search a fresh tree at fixed iterations: no
+  and the game-end Verdict judge search a fresh tree at fixed iterations: no
   caller but the Worker holds a keeper, and a request without `reuse` keeps
   nothing. The new guard is the blade SEQUENCE entry
   (`convex/gre/ai/blade/sequences.ts`): two consecutive Bot decisions through

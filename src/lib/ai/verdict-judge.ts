@@ -1,96 +1,62 @@
-// The game-end Verdict Proposal judge, client half: one server action call per
-// sampled decision (`convex/verdictJudge.ts`).
+// The game-end Verdict Proposal judge: the Brain's move on each sampled
+// position, asked on this device (`judge-brain.ts`) — ADR 0183 Amendment I.
 //
-// The judge runs on the server, never on the player's device: its search is
-// an ITERATION-only budget with a fixed seed, so the same position gets the
-// same answer on any machine, and a slow device neither grinds through it
-// after the game nor leaves a backlog in front of the next game's Bot. The
-// client sends the captured position and gets the move back; it opens no
-// Brain Worker.
-//
-// A failed call costs that one decision, never the review: a rejection by the
-// server's guard (`ConvexError`) or any other failure (network, deploy, an
-// action that threw) settles the consult as "no answer", counted in the tally
-// the proposal-count report carries. Each answered call also records the
-// server's own search time and the client's round trip — their difference is
-// cold start, module load and network — for the same report.
+// Its Workers are its own, so a judge consult never queues in front of the
+// Bot's, and they answer at a fixed iteration budget and seed, so the same
+// position gets the same answer on any device. A consult that fails costs that
+// one decision, never the review and never the game: it settles as "no answer"
+// and is counted in the tally the proposal-count report carries, beside the
+// timings of every answered one.
 
-import { ConvexError } from "convex/values";
-import type { ConvexReactClient } from "convex/react";
-import { api } from "@convex/_generated/api";
-import type { Id } from "@convex/_generated/dataModel";
+import type { DefinitionManifestEntry } from "@convex/definitionManifestEntry";
 import type { BrainJudge } from "./verdict-proposals";
 import type {
     JudgeOutcomeTally,
     JudgeTimings,
 } from "./verdict-proposal-telemetry";
-
-/** The slice of the Convex client the judge calls. */
-export type JudgeClient = Pick<ConvexReactClient, "action">;
+import { isMobileDevice } from "./bot-search-telemetry";
+import { judgeWorkerCount, openJudgeBrain } from "./judge-brain";
 
 export type VerdictJudge = {
     /** The `BrainJudge` `proposeVerdicts` consults. */
     judge: BrainJudge;
     /** How each consult ended, for the proposal-count report (issue #8732). */
     tally: JudgeOutcomeTally;
-    /** Per answered consult: server search time and round trip. */
+    /** Per answered consult: the search's own time, and the wait for it. */
     timings: JudgeTimings;
-    /** End this game's judging: a consult started afterwards is not sent.
-     *  Idempotent. */
+    /** Hand the judge the game's Definition Manifest. */
+    prime: (entries: readonly DefinitionManifestEntry[]) => void;
+    /** End this game's judging: the Workers stop at once, and a consult in
+     *  flight or started afterwards has no answer. Idempotent. */
     close: () => void;
 };
 
-/** Open the server judge for one game end. */
-export function openVerdictJudge(
-    client: JudgeClient,
-    gameId: Id<"games">
-): VerdictJudge {
+/** Open the judge for one game. No Worker starts before the first consult. */
+export function openVerdictJudge(): VerdictJudge {
     const tally: JudgeOutcomeTally = {};
-    const timings: JudgeTimings = { serverMs: [], roundTripMs: [] };
-    let closed = false;
-    const count = (outcome: keyof JudgeOutcomeTally) => {
-        tally[outcome] = (tally[outcome] ?? 0) + 1;
-    };
+    const timings: JudgeTimings = { searchMs: [], waitMs: [] };
+    const nav = typeof navigator === "undefined" ? undefined : navigator;
+    const brain = openJudgeBrain(
+        judgeWorkerCount(nav?.hardwareConcurrency, isMobileDevice(nav))
+    );
     const judge: BrainJudge = async (source, budget, seed) => {
-        if (closed) return null;
         const start = performance.now();
-        try {
-            const r = await client.action(api.verdictJudge.judgePosition, {
-                gameId,
-                state: source.state,
-                botId: source.botId,
-                // Exactly the validator's fields: a stray property on a
-                // knowledge entry would fail the call's argument validation.
-                ...(source.knowledge
-                    ? {
-                          knowledge: source.knowledge.map((k) => ({
-                              playerId: k.playerId,
-                              cardIds: k.cardIds,
-                          })),
-                      }
-                    : {}),
-                iterations: budget.iterations,
-                seed,
-            });
-            timings.roundTripMs.push(performance.now() - start);
-            timings.serverMs.push(r.searchMs);
-            count(r.outcome);
-            return r.outcome === "move" ? r.move : null;
-        } catch (cause: unknown) {
-            count(
-                cause instanceof ConvexError
-                    ? "server-rejected"
-                    : "server-error"
-            );
-            return null;
+        const answer = await brain.consult({
+            state: source.state,
+            botId: source.botId,
+            iterations: budget.iterations,
+            seed,
+            deckKnowledge: source.knowledge,
+        });
+        // The game was left: nobody reads this, and it is no failure.
+        if (answer.closed) return null;
+        tally[answer.outcome] = (tally[answer.outcome] ?? 0) + 1;
+        if (answer.outcome !== "move") return null;
+        timings.waitMs.push(performance.now() - start);
+        if (answer.searchMs !== undefined) {
+            timings.searchMs.push(answer.searchMs);
         }
+        return answer.move;
     };
-    return {
-        judge,
-        tally,
-        timings,
-        close: () => {
-            closed = true;
-        },
-    };
+    return { judge, tally, timings, prime: brain.prime, close: brain.close };
 }

@@ -165,8 +165,8 @@ export const WORKER_SCRIPT_LOAD_FAILURE = "worker script failed to load";
  *  primed Manifest. The Bot's turn-by-turn play is its only consumer: a Worker
  *  serves its requests ONE AT A TIME in arrival order (`brain.worker.ts`) and
  *  never cancels a consult that timed out, so anything else queued here would
- *  stand between the Bot and its next decision — the game-end Verdict
- *  Proposal judge runs on the server instead (`verdict-judge.ts`). */
+ *  stand between the Bot and its next decision — the Verdict Proposal judge
+ *  has Workers of its own (`judge-brain.ts`). */
 type BrainChannel = {
     warm: () => void;
     prime: (entries: readonly DefinitionManifestEntry[]) => void;
@@ -186,6 +186,8 @@ type BrainChannel = {
         mobile: boolean
     ) => boolean;
     stopPondering: () => void;
+    busy: () => boolean;
+    onBusyChange: (listener: (busy: boolean) => void) => () => void;
     dispose: () => void;
 };
 
@@ -216,6 +218,37 @@ function createBrainChannel(): BrainChannel {
         botId: string;
         deckKnowledge?: DeckKnowledgeBySeat;
     } | null = null;
+
+    /** Consults asked for and not settled yet — the busy signal. */
+    let consulting = 0;
+    const busyListeners = new Set<(busy: boolean) => void>();
+
+    function emitBusy(busy: boolean): void {
+        for (const listener of [...busyListeners]) {
+            try {
+                listener(busy);
+            } catch (cause: unknown) {
+                // Whoever waits for an idle Bot never costs the Bot its move.
+                console.error("[AI] busy listener failed", cause);
+            }
+        }
+    }
+
+    /** Run one consult with the busy signal raised: up before the search can
+     *  start, down once the consult settles, however it settles. Overlapping
+     *  consults are one busy stretch. */
+    async function whileBusy(
+        ask: () => Promise<BrainResult>
+    ): Promise<BrainResult> {
+        consulting += 1;
+        if (consulting === 1) emitBusy(true);
+        try {
+            return await ask();
+        } finally {
+            consulting -= 1;
+            if (consulting === 0) emitBusy(false);
+        }
+    }
 
     function getWorker(): Worker | null {
         if (typeof Worker === "undefined") return null;
@@ -528,10 +561,15 @@ function createBrainChannel(): BrainChannel {
     return {
         warm: () => void getWorker(),
         prime,
-        consult,
+        consult: (...args) => whileBusy(() => consult(...args)),
         calibrate,
         ponder,
         stopPondering,
+        busy: () => consulting > 0,
+        onBusyChange: (listener) => {
+            busyListeners.add(listener);
+            return () => void busyListeners.delete(listener);
+        },
         dispose,
     };
 }
@@ -747,6 +785,23 @@ export function ponderBrain(
 /** Stop pondering (the page was hidden). Never throws. */
 export function stopPonderingBrain(): void {
     botBrain.stopPondering();
+}
+
+/** Whether the Bot is searching: a consult was asked for and has not settled.
+ *  Pondering and calibration do not raise it. A consult that TIMED OUT lowers
+ *  it while its search may still be running in the Worker for a moment. */
+export function isBrainBusy(): boolean {
+    return botBrain.busy();
+}
+
+/** Be told each time {@link isBrainBusy} changes: `true` before a consult's
+ *  search starts, `false` once the last one in flight settled. Returns the
+ *  unsubscribe. Survives {@link disposeBrain}, which settles what was in
+ *  flight and so lowers the signal. */
+export function onBrainBusyChange(
+    listener: (busy: boolean) => void
+): () => void {
+    return botBrain.onBusyChange(listener);
 }
 
 /** Tear the Brain down (e.g. on leaving a game). Tests may call this too.

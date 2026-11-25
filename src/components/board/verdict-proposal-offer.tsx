@@ -1,7 +1,6 @@
 // The game-over offer of the post-game review queue (issue #3986): one button,
 // shown only to an account that may give a Verdict. While the game-end judge
-// runs (the Brain judges the sampled decisions after the last move, ~25 s
-// each) it reads as a disabled progress line (issue #10229); once the finished
+// runs (the Brain judges the sampled decisions after the last move) it reads as a disabled progress line (issue #10229); once the finished
 // game's Verdict Proposals land it becomes the review CTA. Leaving never waits
 // for either.
 
