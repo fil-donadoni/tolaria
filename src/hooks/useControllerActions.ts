@@ -716,11 +716,18 @@ export function useControllerActions(): ControllerState {
         }
     };
 
+    // A press on a standing intent's own button cancels it (issue #10457).
+    const passTurnDescription = hasPassTurnIntent
+        ? "Stop passing the turn"
+        : "Auto-pass priority until the turn ends";
+
     // Pass Until Action (issue #5782) rides beside every Pass Turn offer; the
     // command row gives it its own slot next to Pass Turn.
     const passUntilActionDescriptor: ControllerAction = {
         key: "pass-until-action",
-        description: "Keep passing until something needs you",
+        description: hasPassUntilActionIntent
+            ? "Stop passing until action"
+            : "Keep passing until something needs you",
         label: "Pass Until Action",
         tone: "destructive",
         // Same as Enter: cancels a standing Pass Until Action, switches a
@@ -790,7 +797,7 @@ export function useControllerActions(): ControllerState {
         // server auto-confirms the current declaration on the way out.
         actions.push({
             key: "pass-turn-attackers",
-            description: "Auto-pass priority until the turn ends",
+            description: passTurnDescription,
             label: "Pass Turn",
             tone: "destructive",
             disabled: isBusy || pendingChoiceAction !== null,
@@ -838,7 +845,7 @@ export function useControllerActions(): ControllerState {
         }
         actions.push({
             key: "pass-turn-attackers",
-            description: "Auto-pass priority until the turn ends",
+            description: passTurnDescription,
             label: "Pass Turn",
             tone: "destructive",
             disabled: isBusy || pendingChoiceAction !== null,
@@ -864,7 +871,7 @@ export function useControllerActions(): ControllerState {
         });
         actions.push({
             key: "pass-turn-blockers",
-            description: "Auto-pass priority until the turn ends",
+            description: passTurnDescription,
             label: "Pass Turn",
             tone: "destructive",
             disabled: isBusy || pendingChoiceAction !== null,
@@ -899,7 +906,7 @@ export function useControllerActions(): ControllerState {
         });
         actions.push({
             key: "pass-turn",
-            description: "Auto-pass priority until the turn ends",
+            description: passTurnDescription,
             label: "Pass Turn",
             tone: "destructive",
             disabled: isBusy || pendingChoiceAction !== null,
