@@ -73,12 +73,18 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
                               : {}),
                       },
                   }
-                : head.subtype !== undefined
-                  ? // CR 205.3i — a land-subtype narrowing rides the filter.
+                : head.subtypes !== undefined
+                  ? // CR 205.3 — a subtype narrowing rides the filter, and
+                    // CR 111.1's "nontoken" beside it.
                     {
                         kind: "entered",
                         scope: head.scope,
-                        filter: { subtypes: [head.subtype] },
+                        filter: {
+                            subtypes: [...head.subtypes],
+                            ...(head.nontoken === true
+                                ? { isToken: false }
+                                : {}),
+                        },
                     }
                   : { kind: "entered", scope: head.scope };
         case "dies":
@@ -106,6 +112,10 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
                 scope: head.scope,
                 ...(head.permanentType !== undefined
                     ? { filter: { types: [head.permanentType] } }
+                    : {}),
+                // CR 205.3 — the subtype the head names ("a Food").
+                ...(head.subtypes !== undefined
+                    ? { filter: { subtypes: [...head.subtypes] } }
                     : {}),
                 ...(head.ownedBy !== undefined
                     ? { ownedBy: head.ownedBy }

@@ -12968,6 +12968,11 @@ export interface PermanentEnteredEvent {
     controllerId: string;
     cardId?: string;
     types: ReadonlyArray<CardType>;
+    /** CR 205.3 — the entering permanent's subtypes as it stands on the
+     *  battlefield, for a subtype-filtered enters trigger ("whenever another
+     *  Frog or Rabbit you control enters", "a Forest you control"). Absent when
+     *  it has none, so a subtype filter fails CLOSED on it. */
+    subtypes?: ReadonlyArray<string>;
     /** CR 601.2i — true only when this permanent entered by resolving as a
      *  CAST spell (`finalizeSpellResolution`). Every non-cast zone change onto
      *  the battlefield (reanimation, tutor-to-battlefield, hand-cheat, a land

@@ -33,6 +33,8 @@ import type { CardType, Color } from "../../../cards/types";
 import type { Phase } from "../../../gre/types";
 import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
 import { isSelfPhrase } from "./cost";
+import { readSubtypeList } from "./subtypeList";
+import { ARTIFACT_SUBTYPES, CREATURE_SUBTYPES } from "./subtypes";
 import { COLOR_WORDS } from "./targetFilter";
 
 export const TRIGGER_HEAD = "trigger head";
@@ -84,12 +86,16 @@ export type TriggerHeadIR =
            */
           readonly powerAtLeast?: number;
           /**
-           * CR 205.3i + CR 305.6 — "a Forest you control": narrows the
-           * entering permanent by a land SUBTYPE rather than a card type (a
-           * Forest is any permanent with that land type, Dryad Arbor
-           * included). Lowers to `PermanentFilter.subtypes`.
+           * CR 205.3 — "a Forest you control", "another Frog, Rabbit, Raccoon,
+           * or Squirrel you control": narrows the entering permanent by
+           * SUBTYPE rather than card type, any of the listed (a Forest is any
+           * permanent with that land type, Dryad Arbor included, CR 305.6).
+           * Lowers to `PermanentFilter.subtypes`.
            */
-          readonly subtype?: "Forest";
+          readonly subtypes?: readonly string[];
+          /** CR 111.1 — "another NONTOKEN Bird": the entering permanent is
+           *  not a token. Lowers to `PermanentFilter.isToken: false`. */
+          readonly nontoken?: true;
       }
     /** CR 603.6 — "when [this / a creature] dies". */
     | { readonly kind: "dies"; readonly scope: TriggerSubjectScope }
@@ -139,6 +145,9 @@ export type TriggerHeadIR =
           readonly kind: "left-to-graveyard";
           readonly scope: "self" | "any";
           readonly permanentType?: "Land";
+          /** CR 205.3 — "a Food is put into a graveyard": the permanent's
+           *  subtype, read from its last-known information (CR 603.10a). */
+          readonly subtypes?: readonly string[];
           readonly ownedBy?: "you";
           readonly causedBy?: "opponent";
       }
@@ -438,7 +447,7 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
             kind: "enters",
             scope: "yours",
             creaturesOnly: false,
-            subtype: "Forest",
+            subtypes: ["Forest"],
         },
     ],
     // CR 603.6 — a creature dying. The event is `CREATURE_DIED`, so the type
@@ -1048,6 +1057,104 @@ const YOURS_ENTERS_POWER_FLOOR =
     /^whenever a creature you control with power (\d+) or greater enters$/;
 
 /**
+ * CR 603.6a + 205.3 — "whenever another [nontoken] <subtypes> you control
+ * enters": the entering permanent of yours, other than the source, narrowed by
+ * the subtype words between. Only the frame is a pattern; the middle must BE
+ * one creature or artifact type (CR 205.3m / 205.3g) or an "or" list of them
+ * (`readSubtypeList`), so "another creature or artifact", "another Shrine" (an
+ * enchantment type), "another Forest" (a land type, no fixture here) and a
+ * plural "one or more other Elves … enter" (CR 603.2c) stay refused.
+ */
+const ANOTHER_SUBTYPE_YOURS_ENTERS =
+    /^whenever another (nontoken )?(.+) you control enters$/i;
+
+/**
+ * CR 603.2 + 205.3m — "whenever you cast a <creature type> spell": ONE creature
+ * subtype narrowing the cast spell (`SpellFilter.subtypes`). A spell subtype
+ * ("a Spirit or Arcane spell", "an Adventure spell"), a list and the other
+ * casters are neighbours with no fixture here and stay refused.
+ */
+const YOU_CAST_SUBTYPE_SPELL = /^whenever you cast an? (\S+) spell$/i;
+
+/**
+ * CR 603.2 + 205.2a + 205.3m — "whenever you cast a noncreature or <creature
+ * type> spell": a union over two filter dimensions, so it is `SpellFilter.any`
+ * (a creature spell of the type qualifies, a noncreature spell of any type).
+ */
+const YOU_CAST_NONCREATURE_OR_SUBTYPE_SPELL =
+    /^whenever you cast a noncreature or (\S+) spell$/i;
+
+/**
+ * CR 603.6c + 205.3 — "whenever a <subtype> is put into a graveyard from the
+ * battlefield": ANY player's permanent of that subtype (a token included —
+ * it goes to the graveyard before it ceases to exist, CR 111.7).
+ */
+const SUBTYPE_LEFT_TO_GRAVEYARD =
+    /^whenever an? (\S+) is put into a graveyard from the battlefield$/i;
+
+/** CR 205.3m / 205.3g — a creature type or an artifact type. */
+function isCreatureOrArtifactType(word: string): boolean {
+    return CREATURE_SUBTYPES.has(word) || ARTIFACT_SUBTYPES.has(word);
+}
+
+/** One creature or artifact type, or an "or" list of singular ones; else null. */
+function readSubtypeOrList(phrase: string): readonly string[] | null {
+    if (isCreatureOrArtifactType(phrase)) return [phrase];
+    const list = readSubtypeList(phrase);
+    return list !== null &&
+        list.conjunction === "or" &&
+        list.number === "singular" &&
+        list.subtypes.every(isCreatureOrArtifactType)
+        ? list.subtypes
+        : null;
+}
+
+/** The subtype-narrowed heads above, or null when the span is none of them. */
+function matchSubtypeHead(span: string): TriggerHeadIR | null {
+    const entering = ANOTHER_SUBTYPE_YOURS_ENTERS.exec(span);
+    if (entering !== null) {
+        const subtypes = readSubtypeOrList(entering[2]!);
+        if (subtypes === null) return null;
+        return {
+            kind: "enters",
+            scope: "another-yours",
+            creaturesOnly: false,
+            subtypes,
+            ...(entering[1] !== undefined ? { nontoken: true as const } : {}),
+        };
+    }
+    const union = YOU_CAST_NONCREATURE_OR_SUBTYPE_SPELL.exec(span);
+    if (union !== null)
+        return CREATURE_SUBTYPES.has(union[1]!)
+            ? {
+                  kind: "spell-cast",
+                  scope: "you",
+                  filter: {
+                      any: [
+                          { excludeTypes: ["Creature"] },
+                          { subtypes: [union[1]!] },
+                      ],
+                  },
+              }
+            : null;
+    const cast = YOU_CAST_SUBTYPE_SPELL.exec(span);
+    if (cast !== null)
+        return CREATURE_SUBTYPES.has(cast[1]!)
+            ? {
+                  kind: "spell-cast",
+                  scope: "you",
+                  filter: { subtypes: [cast[1]!] },
+              }
+            : null;
+    const left = SUBTYPE_LEFT_TO_GRAVEYARD.exec(span);
+    if (left !== null)
+        return isCreatureOrArtifactType(left[1]!)
+            ? { kind: "left-to-graveyard", scope: "any", subtypes: [left[1]!] }
+            : null;
+    return null;
+}
+
+/**
  * The head of a triggered ability, consumed whole.
  *
  * The self branch is tried first and returns immediately, but that is NOT a
@@ -1076,6 +1183,9 @@ export const triggerHeadRule: Rule<TriggerHeadIR> = subGrammar(
                 creaturesOnly: true,
                 manaValueAtLeast: Number(floor[1]),
             });
+        // CR 205.3 — a head narrowed by subtype words.
+        const subtyped = matchSubtypeHead(span);
+        if (subtyped !== null) return ok(subtyped);
         // CR 603.6a + 208.1 — the power floor, read the same way.
         const powerFloor = YOURS_ENTERS_POWER_FLOOR.exec(span.toLowerCase());
         if (powerFloor !== null)
