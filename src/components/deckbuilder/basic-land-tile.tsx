@@ -1,3 +1,4 @@
+import type { CardPrinting } from "@convex/cards/catalogue";
 import { useMemo } from "react";
 import { LAND_SUBTYPE_MANA } from "@convex/gre/constants";
 import CardImage from "~/components/cards/card-image";
@@ -22,7 +23,7 @@ interface BasicLandTileProps {
     allowedSets: string[] | null;
     onAdd: (cardId: string, cardName: string, count: number) => void;
     onRemove: (subtype: BasicLandSubtype) => void;
-    onPickArt: (subtype: BasicLandSubtype, printId: string) => void;
+    onPickArt: (subtype: BasicLandSubtype, printing: CardPrinting) => void;
     disabled: boolean;
 }
 
@@ -67,7 +68,7 @@ export default function BasicLandTile({
                 basePrintings={basePrintings}
                 allowedSets={allowedSets}
                 selected={selected}
-                onSelect={(p) => onPickArt(subtype, p.printId)}
+                onSelect={(p) => onPickArt(subtype, p)}
                 renderTrigger={(open) => (
                     <button
                         type="button"

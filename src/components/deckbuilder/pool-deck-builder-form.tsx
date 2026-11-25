@@ -1,3 +1,5 @@
+import type { CardPrinting } from "@convex/cards/catalogue";
+import { useBasicLandArtPreference } from "~/hooks/useBasicLandArtPreference";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { DragDropManager } from "@dnd-kit/dom";
@@ -53,11 +55,9 @@ import {
     type BasicLandIdentity,
     countBasicLandCopies,
     findBasicLandRemovalIndex,
-    recordBasicLandArtChoice,
     resolveBasicLandCardIds,
     basicLandEntryDefinitionId,
     rewriteBasicLandArtInDeck,
-    seededBasicLandArt,
     type BasicLandSubtype,
 } from "./basicLands";
 import AutoBuildButton from "./auto-build-button";
@@ -813,17 +813,15 @@ export default function PoolDeckBuilderForm(props: PoolDeckBuilderFormProps) {
     );
 
     // The user's basic-land art preference (issue #1629, ADR 0075 § "Basic-
-    // land art") — seeded from `localStorage` on mount, updated on every
-    // pick (mirrors `mainView`/`sideView`'s `seededColumnView`/
-    // `recordGroupingChange` split above). Layered on top of the Pool/
+    // land art") — the per-user `userCardPrints` table, so it follows the
+    // user across devices (issue #10462, `useBasicLandArtPreference`).
+    // Layered on top of the Pool/
     // catalogue resolution by `applyBasicLandArtPreference`, which leaves a
     // subtype untouched when its stored printing is stale or now-illegal
     // (AC8) — with `allowedSets: null` for `limited` (Pool-scoped legality
     // never restricts by set), every printing is always legal here, so the
     // only way a stored choice is skipped is if it no longer exists at all.
-    const [basicLandArt, setBasicLandArt] = useState(() =>
-        seededBasicLandArt()
-    );
+    const { basicLandArt, recordBasicLandArt } = useBasicLandArtPreference();
     const { rows: basicLandArtRows, loading: basicLandArtLoading } =
         useBasicLandPreferenceRows(basicLandArt);
     const basicCardIds = useMemo(
@@ -864,9 +862,9 @@ export default function PoolDeckBuilderForm(props: PoolDeckBuilderFormProps) {
      *  precisely so a re-arted Basic still finds its `poolIndex` back — see
      *  `convex/limited/poolArrangement.ts`. */
     const handlePickBasicArt = useCallback(
-        (subtype: BasicLandSubtype, printId: string) => {
-            recordBasicLandArtChoice(subtype, printId);
-            setBasicLandArt((prev) => ({ ...prev, [subtype]: printId }));
+        (subtype: BasicLandSubtype, printing: CardPrinting) => {
+            const { printId } = printing;
+            recordBasicLandArt(subtype, printing);
             const rewritten = rewriteBasicLandArtInDeck(deck, subtype, printId);
             if (
                 rewritten.cards === deck.cards &&
@@ -882,7 +880,7 @@ export default function PoolDeckBuilderForm(props: PoolDeckBuilderFormProps) {
                 ...rewriteBasicLandArtInDeck(d, subtype, printId),
             }));
         },
-        [updateDeck, deck]
+        [updateDeck, deck, recordBasicLandArt]
     );
 
     // Live legality (issue #1111): the same pure `validateDeck` the server

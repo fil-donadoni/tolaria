@@ -18,7 +18,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { dragOnto, installDndJsdomShims } from "./dragHarness";
 import { cardsIn, columnLabelsIn, paneOf } from "./zoneQueries";
-import { ICE_MOUNTAIN_PRINT } from "./basicLandPrintRows";
+import {
+    ICE_MOUNTAIN_PRINT,
+    LEB_MOUNTAIN_PRINT,
+    storedBasicLandArt,
+} from "./basicLandPrintRows";
 import PoolDeckBuilderForm from "../pool-deck-builder-form";
 
 const navigate = vi.fn();
@@ -48,6 +52,11 @@ vi.mock("~/lib/useScryfallSetNames", async () => ({
     useScryfallSetNames: (
         await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
     ).useScryfallSetNamesStub,
+}));
+vi.mock("~/hooks/useBasicLandArtPreference", async () => ({
+    useBasicLandArtPreference: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandArtPreferenceStub,
 }));
 vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
     useBasicLandPreferenceRows: (
@@ -92,6 +101,7 @@ afterEach(() => {
     // mount is supposed to pick up. Cleared file-wide so no test's seed
     // depends on which tests ran before it.
     window.localStorage.clear();
+    storedBasicLandArt.value = {};
 });
 
 // Real registry ids — the shared surface groups via the card registry.
@@ -757,6 +767,40 @@ describe("PoolDeckBuilderForm — Add Basic bar (issue #1576)", () => {
         };
         expect(payload.cards).toEqual([
             { cardId: MOUNTAIN_ID, cardName: "Mountain" },
+        ]);
+    });
+});
+
+describe("PoolDeckBuilderForm — basic-land art read from the per-user preference (issue #10462)", () => {
+    it("a stored Mountain printing is the one the bar adds", () => {
+        setup();
+        storedBasicLandArt.value = { Mountain: LEB_MOUNTAIN_PRINT };
+        const { getByLabelText } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={[
+                    {
+                        scryfallId: "s1",
+                        cardId: BOLT_ID,
+                        cardName: "Lightning Bolt",
+                    },
+                ]}
+                existingDeck={null}
+                eventType="sealed"
+                packSlots={["lea"]}
+                poolArrangement={[]}
+            />
+        );
+        fireEvent.click(getByLabelText("Add one Mountain"));
+        cleanup();
+
+        expect(createMock).toHaveBeenCalledTimes(1);
+        const payload = createMock.mock.calls[0][0] as {
+            cards: { cardId: string; cardName: string }[];
+        };
+        expect(payload.cards).toEqual([
+            { cardId: LEB_MOUNTAIN_PRINT, cardName: "Mountain" },
         ]);
     });
 });

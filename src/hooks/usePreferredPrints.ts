@@ -56,5 +56,5 @@ export function usePreferredPrints() {
         [save]
     );
 
-    return { preferredFor, prefer };
+    return { preferredFor, prefer, loaded: saved !== undefined };
 }
