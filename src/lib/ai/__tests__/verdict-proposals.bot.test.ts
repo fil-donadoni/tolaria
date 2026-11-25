@@ -521,7 +521,7 @@ describe("issue #3984 — quotas per Decision Class, from config", () => {
         expect(list.proposals.some((p) => p.agrees)).toBe(false);
     });
 
-    it("asks about every sampled decision at once, and lists the answers in game order whichever ends first", async () => {
+    it("asks about every sampled decision at once, and keeps each answer with its decision whichever ends first", async () => {
         const answer: ((move: Move | null) => void)[] = [];
         const progress: [number, number][] = [];
         const listed = proposeVerdicts(
@@ -532,8 +532,8 @@ describe("issue #3984 — quotas per Decision Class, from config", () => {
         );
         await vi.waitFor(() => expect(answer).toHaveLength(3));
         expect(progress).toEqual([[0, 3]]);
-        answer[2]({ kind: "pass" });
-        answer[0]({ kind: "pass" });
+        answer[2](landDropMove());
+        answer[1]({ kind: "pass" });
         await vi.waitFor(() =>
             expect(progress).toEqual([
                 [0, 3],
@@ -541,13 +541,17 @@ describe("issue #3984 — quotas per Decision Class, from config", () => {
                 [2, 3],
             ])
         );
-        answer[1](null);
+        answer[0](null);
         const list = await listed;
         expect(progress[progress.length - 1]).toEqual([3, 3]);
         expect(list.unjudged).toBe(1);
-        const order = list.proposals.map((p) => p.source.state.seq);
-        expect(order).toHaveLength(2);
-        expect(order).toEqual([...order].sort((a, b) => a - b));
+        // Each answer stays with the decision it was asked about: the first
+        // has none, the second disagreed, the last agreed.
+        const [disagreed, agreed] = list.proposals;
+        expect(list.proposals.map((p) => p.agrees)).toEqual([false, true]);
+        expect(disagreed.source.state.seq).toBeLessThan(
+            agreed.source.state.seq
+        );
     });
 
     it("puts disagreements first, then the agreeing share", () => {
