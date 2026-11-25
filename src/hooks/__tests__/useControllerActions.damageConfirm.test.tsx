@@ -128,9 +128,15 @@ function renderCtrl(
         emblems,
         continuousEffects,
         combat: {
-            attackerIds: [],
+            // Every creature of mine attacks, blocked by every one of theirs.
+            attackerIds: me.battlefield.map((c) => c.id),
             confirmed: true,
-            blockerAssignments: {},
+            blockerAssignments: Object.fromEntries(
+                opp.battlefield.map((b) => [
+                    b.id,
+                    me.battlefield.map((c) => c.id),
+                ])
+            ),
             blockersConfirmed: true,
             damageConfirmed: false,
             damageAssignerIds: {},

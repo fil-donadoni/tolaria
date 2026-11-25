@@ -7,9 +7,10 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { getDefinition } from "@convex/cards";
 import {
-    getEffectiveBlockGraph,
-    damageSourcesForPlayer,
-} from "~/lib/combat-graph";
+    assignableEntries,
+    damageAssignmentProgress,
+} from "@convex/gre/assignableDamage";
+import { damageSourcesForPlayer } from "~/lib/combat-graph";
 import { effectivePower } from "~/lib/effective-stats";
 import { displayCardId } from "~/lib/card-utils";
 import {
@@ -139,8 +140,6 @@ export default function DamageAssignmentPanel({
 
     const allCards: CardInstance[] = allPlayers.flatMap((p) => p.battlefield);
     const findCard = (id: string) => allCards.find((c) => c.id === id);
-    const { blockersByAttacker, attackersByBlocker } =
-        getEffectiveBlockGraph(combat);
 
     const sourceIds = damageSourcesForPlayer(combat, playerId);
     if (sourceIds.length === 0) return null;
@@ -167,21 +166,10 @@ export default function DamageAssignmentPanel({
                             continuousEffects
                         )
                     );
-                    const hasTrample =
-                        source.staticAbilities?.includes("trample") ?? false;
-                    const isAttacker = combat.attackerIds.includes(sourceId);
-                    const targetIds = isAttacker
-                        ? (blockersByAttacker[sourceId] ?? [])
-                        : (attackersByBlocker[sourceId] ?? []);
-                    const assignments =
-                        combat.damageAssignments?.[sourceId] ?? {};
-                    const assigned = Object.values(assignments).reduce(
-                        (s, n) => s + n,
-                        0
-                    );
-                    // CR 702.19b / CR 702.2c — the lethal-damage thresholds and
-                    // the excess sink, from the SAME shared arithmetic
-                    // `setDamageAssignment` validates with. Every +/- below is
+                    // CR 510.1c / 702.19b / 702.2c — the assignable targets, the
+                    // lethal-damage thresholds and the excess sink, from the
+                    // SAME shared modules `setDamageAssignment` and
+                    // `confirmDamage` validate with. Every +/- below is
                     // gated on the assignment it would produce, so the modal can
                     // never offer a click the mutation refuses.
                     const plan = damageAssignmentPlan(
@@ -191,6 +179,17 @@ export default function DamageAssignmentPanel({
                         defenderId,
                         emblems,
                         continuousEffects
+                    );
+                    // Only entries naming a currently assignable target count,
+                    // and only they are sent back.
+                    const assignments = assignableEntries(
+                        plan,
+                        combat.damageAssignments?.[sourceId] ?? {}
+                    );
+                    const { complete, assigned } = damageAssignmentProgress(
+                        plan,
+                        assignments,
+                        power
                     );
                     const rowGating = (targetId: string, dmg: number) => ({
                         decDisabled: assignmentIsRejected(plan, {
@@ -205,9 +204,14 @@ export default function DamageAssignmentPanel({
                     // CR 702.19f — a trampler attacking a planeswalker assigns
                     // its excess to that planeswalker, never to the defending
                     // player, so the row is labelled for whichever it is.
-                    const sinkId = plan.excessSinkId ?? defenderId;
+                    const { targetIds, excessSinkId } = plan;
                     const sinkCard =
-                        sinkId === defenderId ? undefined : findCard(sinkId);
+                        excessSinkId === undefined
+                            ? undefined
+                            : findCard(excessSinkId);
+                    // CR 510.1c — nothing left in combat with this source: it
+                    // has no assignment to make.
+                    const noTargets = targetIds.length === 0;
 
                     return (
                         <div key={sourceId} className="mb-2 last:mb-0">
@@ -217,18 +221,26 @@ export default function DamageAssignmentPanel({
                                         .name ?? "Source"}{" "}
                                     ({power} dmg)
                                 </span>
-                                <span
-                                    className={
-                                        assigned === power
-                                            ? "text-success-strong"
-                                            : "text-danger-strong"
-                                    }
-                                >
-                                    {assigned}/{power}
-                                </span>
+                                {!noTargets && (
+                                    <span
+                                        className={
+                                            complete
+                                                ? "text-success-strong"
+                                                : "text-danger-strong"
+                                        }
+                                    >
+                                        {assigned}/{power}
+                                    </span>
+                                )}
                             </div>
+                            {noTargets && (
+                                <div className="ml-4 text-text-muted">
+                                    No creatures left to assign damage to
+                                </div>
+                            )}
                             {targetIds.map((targetId) => {
                                 const target = findCard(targetId);
+                                if (!target) return null;
                                 const dmg = assignments[targetId] ?? 0;
                                 return (
                                     <DamageRow
@@ -243,11 +255,8 @@ export default function DamageAssignmentPanel({
                                             // can be face-down morphs; repoint
                                             // for the same reason `source`
                                             // above is.
-                                            target
-                                                ? getDefinition(
-                                                      displayCardId(target)
-                                                  ).name
-                                                : "Target"
+                                            getDefinition(displayCardId(target))
+                                                .name
                                         }
                                         dmg={dmg}
                                         assigned={assigned}
@@ -263,9 +272,9 @@ export default function DamageAssignmentPanel({
                                     />
                                 );
                             })}
-                            {isAttacker && hasTrample && (
+                            {!noTargets && excessSinkId !== undefined && (
                                 <DamageRow
-                                    targetId={sinkId}
+                                    targetId={excessSinkId}
                                     label={
                                         sinkCard
                                             ? getDefinition(
@@ -273,7 +282,7 @@ export default function DamageAssignmentPanel({
                                               ).name
                                             : "Defending Player"
                                     }
-                                    dmg={assignments[sinkId] ?? 0}
+                                    dmg={assignments[excessSinkId] ?? 0}
                                     assigned={assigned}
                                     power={power}
                                     assignments={assignments}
@@ -283,8 +292,8 @@ export default function DamageAssignmentPanel({
                                     setDamageAssignment={setDamageAssignment}
                                     highlight
                                     {...rowGating(
-                                        sinkId,
-                                        assignments[sinkId] ?? 0
+                                        excessSinkId,
+                                        assignments[excessSinkId] ?? 0
                                     )}
                                 />
                             )}
