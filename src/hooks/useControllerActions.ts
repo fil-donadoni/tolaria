@@ -17,7 +17,7 @@ import { eligibleAttackerIds } from "~/lib/attacker-eligibility";
 import { isPlaneswalker } from "~/lib/card-utils";
 import { anyAttackerOffersEnlist } from "~/lib/enlist-offer";
 import { anyAttackerOffersExert } from "~/lib/exert-offer";
-import { effectivePower } from "~/lib/effective-stats";
+import { damageAssignmentProgressForSource } from "~/lib/damage-assignment";
 import {
     computeHasPriority,
     isAssigningDamage as isAssigningDamageFn,
@@ -313,34 +313,37 @@ export function useControllerActions(): ControllerState {
 
     // Every multi-target source THIS player is responsible for (CR 702.22j-k
     // can split authority between attacker and defender) must have its full
-    // power assigned before the player can confirm. Budget is the source's
-    // EFFECTIVE power (CR 613.4c, CR 510.1a) — the same value the server's
-    // `setDamageAssignment` validator and the `DamageAssignmentPanel` modal
-    // already use; reading the raw `power` field here deadlocked the button
-    // for any buffed multi-blocked attacker (#2873).
+    // power assigned before the player can confirm. The same predicate
+    // `confirmDamage` enforces and the `DamageAssignmentPanel` counter shows:
+    // effective power (CR 613.4c, CR 510.1a), counted over currently assignable
+    // targets only, and zero once none is left (CR 510.1c).
     const allDamageAssigned = useMemo(() => {
         if (!isAssigningDamage || !combat) return false;
         const assigners = combat.damageAssignerIds ?? {};
+        const defenderId =
+            allPlayers.find((p) => p.id !== activePlayerId)?.id ?? "";
         for (const [sourceId, assignerId] of Object.entries(assigners)) {
             if (assignerId !== playerId) continue;
             const source = allPlayers
                 .flatMap((p) => p.battlefield)
                 .find((c) => c.id === sourceId);
             if (!source) continue;
-            const power = Math.max(
-                0,
-                effectivePower(allPlayers, source, emblems, continuousEffects)
+            const { complete } = damageAssignmentProgressForSource(
+                combat,
+                allPlayers,
+                source,
+                defenderId,
+                emblems,
+                continuousEffects
             );
-            const total = Object.values(
-                combat.damageAssignments?.[sourceId] ?? {}
-            ).reduce((s, n) => s + n, 0);
-            if (total !== power) return false;
+            if (!complete) return false;
         }
         return true;
     }, [
         isAssigningDamage,
         combat,
         allPlayers,
+        activePlayerId,
         emblems,
         continuousEffects,
         playerId,
