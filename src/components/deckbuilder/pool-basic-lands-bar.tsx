@@ -1,3 +1,4 @@
+import type { CardPrinting } from "@convex/cards/catalogue";
 import BasicLandTile from "./basic-land-tile";
 import CompactChromeDisclosure from "./compact-chrome-disclosure";
 import { useCompactChromeFold } from "./useCompactChromeFold";
@@ -34,7 +35,7 @@ interface PoolBasicLandsBarProps {
     /** A printing was picked from a subtype's art grid (issue #1629) — the
      *  caller persists the preference AND rewrites the open deck's copies;
      *  this bar only forwards the gesture. */
-    onPickArt: (subtype: BasicLandSubtype, printId: string) => void;
+    onPickArt: (subtype: BasicLandSubtype, printing: CardPrinting) => void;
     disabled: boolean;
 }
 

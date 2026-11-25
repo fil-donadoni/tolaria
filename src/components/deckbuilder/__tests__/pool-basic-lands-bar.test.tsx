@@ -213,7 +213,10 @@ describe("PoolBasicLandsBar — tile content and art (issue #5398)", () => {
             (t) => t.dataset.printId === LEB_MOUNTAIN_PRINT
         )!;
         fireEvent.click(leb);
-        expect(onPickArt).toHaveBeenCalledWith("Mountain", LEB_MOUNTAIN_PRINT);
+        expect(onPickArt).toHaveBeenCalledWith(
+            "Mountain",
+            expect.objectContaining({ printId: LEB_MOUNTAIN_PRINT })
+        );
     });
 });
 

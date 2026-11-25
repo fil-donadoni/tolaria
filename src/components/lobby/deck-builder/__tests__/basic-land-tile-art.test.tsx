@@ -15,10 +15,12 @@ import {
     afterEach,
 } from "vitest";
 import { render, fireEvent, waitFor, cleanup } from "@testing-library/react";
-import { saveBasicLandPrintId } from "~/lib/deckViewPrefs";
 import type { LobbyDeck } from "~/lib/deckTypes";
 import type { StoredDeckColumnLayout } from "@convex/deckLayout";
-import { MOUNTAIN_PRINT_ROWS } from "~/components/deckbuilder/__tests__/basicLandPrintRows";
+import {
+    MOUNTAIN_PRINT_ROWS,
+    storedBasicLandArt,
+} from "~/components/deckbuilder/__tests__/basicLandPrintRows";
 import DeckBuilder from "../deck-builder";
 
 vi.mock("~/lib/useEarliestPrintFetcher", () => ({
@@ -33,6 +35,11 @@ vi.mock("~/lib/useScryfallSetNames", async () => ({
     useScryfallSetNames: (
         await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
     ).useScryfallSetNamesStub,
+}));
+vi.mock("~/hooks/useBasicLandArtPreference", async () => ({
+    useBasicLandArtPreference: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useBasicLandArtPreferenceStub,
 }));
 vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
     useBasicLandPreferenceRows: (
@@ -143,6 +150,7 @@ beforeAll(() => {
 
 beforeEach(() => {
     window.localStorage.clear();
+    storedBasicLandArt.value = {};
     vi.clearAllMocks();
 });
 
@@ -290,7 +298,7 @@ describe("Card Pin re-key wiring — full path through the real DeckBuilder (iss
 
 describe("Basic-land tile art — a stale or illegal stored preference falls back silently (issue #1629 AC8)", () => {
     it("a preference for a printing that no longer exists falls back to the catalogue default", () => {
-        saveBasicLandPrintId("Mountain", "not-a-real-printing-anymore");
+        storedBasicLandArt.value = { Mountain: "not-a-real-printing-anymore" };
         const rendered = renderBuilder(deck("freeform", []));
         fireEvent.click(rendered.getByLabelText("Add one Mountain"));
         expect(sinks.user.update).not.toHaveBeenCalled(); // nothing async yet
@@ -306,7 +314,7 @@ describe("Basic-land tile art — a stale or illegal stored preference falls bac
     });
 
     it("a preference illegal under the CURRENT Format (e.g. an ICE printing under Alpha 40) falls back — added copies use the base resolution, not the stale pick", async () => {
-        saveBasicLandPrintId("Mountain", ICE_MOUNTAIN_PRINT);
+        storedBasicLandArt.value = { Mountain: ICE_MOUNTAIN_PRINT };
         const rendered = renderBuilder(deck("alpha-40", []));
         fireEvent.click(rendered.getByLabelText("Add one Mountain"));
 
@@ -321,6 +329,21 @@ describe("Basic-land tile art — a stale or illegal stored preference falls bac
         // canonical (LEA) printing.
         expect(payload.cards).toEqual([
             { cardId: MOUNTAIN_ID, cardName: "Mountain" },
+        ]);
+    });
+});
+
+describe("Basic-land tile art — read from the per-user preference (issue #10462)", () => {
+    it("a stored Mountain printing is the one the bar adds", async () => {
+        storedBasicLandArt.value = { Mountain: LEB_MOUNTAIN_PRINT };
+        const rendered = renderBuilder(deck("freeform", []));
+        fireEvent.click(rendered.getByLabelText("Add one Mountain"));
+
+        rendered.unmount();
+        await waitFor(() => expect(sinks.user.update).toHaveBeenCalled());
+        const [, payload] = sinks.user.update.mock.calls.at(-1)!;
+        expect(payload.cards).toEqual([
+            { cardId: LEB_MOUNTAIN_PRINT, cardName: "Mountain" },
         ]);
     });
 });

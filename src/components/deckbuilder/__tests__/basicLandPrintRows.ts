@@ -6,7 +6,12 @@
 // The table never holds a definition's own printing, so the 14 rows below plus
 // the canonical LEA Mountain are the 15 the art grid shows:
 // `lea×2, leb×3, ice×1, 2ed×3, 3ed×3, 4ed×3`.
-import { type BasicLandPrintRow } from "~/components/deckbuilder/basicLands";
+import { useCallback, useState } from "react";
+import type { CardPrinting } from "@convex/cards/catalogue";
+import {
+    type BasicLandPrintRow,
+    type BasicLandSubtype,
+} from "~/components/deckbuilder/basicLands";
 import { resolveCardViaDefinitionIds } from "@convex/formats";
 
 export const MOUNTAIN_ID = "eace2c85-976c-425e-9800-5a6ccbd91b56";
@@ -79,6 +84,32 @@ export function useBasicLandPreferenceRowsStub(
         rows: MOUNTAIN_PRINT_ROWS.filter((row) => stored.has(row.printId)),
         loading: false,
     };
+}
+
+/** The user's `userCardPrints` rows for the basics, as the stub below reads
+ *  them on mount: a test sets `value` to stand for what the server holds. */
+export const storedBasicLandArt: {
+    value: Partial<Record<BasicLandSubtype, string>>;
+} = { value: {} };
+
+/** Stands in for `useBasicLandArtPreference` (issue #10462): seeded from
+ *  `storedBasicLandArt`, and a pick is held for the session. */
+export function useBasicLandArtPreferenceStub(): {
+    basicLandArt: Partial<Record<BasicLandSubtype, string>>;
+    recordBasicLandArt: (
+        subtype: BasicLandSubtype,
+        printing: CardPrinting
+    ) => void;
+} {
+    const [basicLandArt, setArt] = useState(() => ({
+        ...storedBasicLandArt.value,
+    }));
+    const recordBasicLandArt = useCallback(
+        (subtype: BasicLandSubtype, printing: CardPrinting) =>
+            setArt((prev) => ({ ...prev, [subtype]: printing.printId })),
+        []
+    );
+    return { basicLandArt, recordBasicLandArt };
 }
 
 const printRowsByQuery = new Map<string, unknown[]>();
