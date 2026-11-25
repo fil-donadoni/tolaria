@@ -18380,4 +18380,79 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 122.1 + CR 205.3 — "a +1/+1 counter on it for each other Squirrel
+    // and/or Food you control": the counted set filters on subtypes the canned
+    // smoke scenario does not model on its `$source`, so the predicted count
+    // is a guess there. The same card's "another Squirrel or Food you control
+    // enters" is the subtype-narrowed trigger head (issue #10345).
+    {
+        rule: "for-each",
+        card: {
+            name: "Honored Dreyleader",
+            manaCost: "{2}{G}",
+            typeLine: "Creature — Squirrel Warrior",
+            oracleText:
+                "Trample\nWhen this creature enters, put a +1/+1 counter on it for each other Squirrel and/or Food you control.\nWhenever another Squirrel or Food you control enters, put a +1/+1 counter on this creature.",
+            power: "1",
+            toughness: "1",
+            oracleId: "44bffa3e-4d31-4f9b-829c-e2066ab2f641",
+            layout: "normal",
+        },
+        expected: {
+            name: "Honored Dreyleader",
+            types: ["Creature"],
+            subtypes: ["Squirrel", "Warrior"],
+            manaCost: { X: 2, G: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "Trample\nWhen this creature enters, put a +1/+1 counter on it for each other Squirrel and/or Food you control.\nWhenever another Squirrel or Food you control enters, put a +1/+1 counter on this creature.",
+            staticAbilities: ["trample"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "honored-dreyleader-trigger",
+                    oracleText:
+                        "When this creature enters, put a +1/+1 counter on it for each other Squirrel and/or Food you control.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "+1/+1",
+                            target: { ref: "$source" },
+                            count: {
+                                count: {
+                                    zone: "battlefield",
+                                    controller: "controller",
+                                    filter: {
+                                        subtype: ["Squirrel", "Food"],
+                                        excludeSource: true,
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                },
+                {
+                    id: "honored-dreyleader-trigger-2",
+                    oracleText:
+                        "Whenever another Squirrel or Food you control enters, put a +1/+1 counter on this creature.",
+                    head: {
+                        kind: "entered",
+                        scope: "another-yours",
+                        filter: { subtypes: ["Squirrel", "Food"] },
+                    },
+                    effects: [
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "+1/+1",
+                            target: { ref: "$source" },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
