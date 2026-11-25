@@ -309,6 +309,185 @@ describe("computeUiScope — render-inert modules select nothing (issue #10393)"
     });
 });
 
+// Issue #10474: a module the shell reaches only through an import the
+// Sentry.init options alone read (PR #10452's `~/lib/diagnostics/tracing`)
+// renders around no surface. Each case writes its own `src/main.tsx` over a
+// shared tree: a router, one route, the tracing module and its helper.
+describe("computeUiScope — a module only the Sentry.init options reach (issue #10474)", () => {
+    const bootRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ui-scope-boot-"));
+    afterAll(() => fs.rmSync(bootRoot, { recursive: true, force: true }));
+    const TRACING = "src/lib/diagnostics/tracing.ts";
+    const BASE_TREE: Record<string, string> = {
+        "src/app-router.tsx": `import { router } from "./router";\n`,
+        "src/router.tsx": `import Lobby from "./routes/lobby.route";\n`,
+        "src/routes/lobby.route.tsx": `export default 1;\n`,
+        [TRACING]: `import { rate } from "./rate";\nexport const tracesSamplerFor = () => () => rate;\nexport const sendableTransaction = (e: unknown) => e;\n`,
+        "src/lib/diagnostics/rate.ts": `export const rate = 0.2;\n`,
+        "src/lib/diagnostics/feedback-widget.tsx": `export const widgetOptions = () => ({});\n`,
+        "src/lib/diagnostics/styled.ts": `import "./styled.css";\nexport const styled = () => 1;\n`,
+        "src/lib/diagnostics/styled.css": `.x{}`,
+    };
+    const MAIN_HEAD = `import { createRoot } from "react-dom/client";
+import * as Sentry from "@sentry/react";
+import { AppRouter } from "./app-router";
+import {
+    sendableTransaction,
+    tracesSamplerFor,
+} from "~/lib/diagnostics/tracing";
+
+Sentry.init({
+    dsn: "https://key@o1.ingest.sentry.io/2",
+    tracesSampler: tracesSamplerFor(import.meta.env.PROD),
+    beforeSendTransaction: (event) => sendableTransaction(event),
+});
+
+createRoot(document.getElementById("root")!).render(<AppRouter />);
+`;
+    const scopeWithMain = (
+        main: string,
+        changed: string[],
+        renderInert: string[] = ["src/main.tsx"],
+        extra: Record<string, string> = {}
+    ) => {
+        fs.rmSync(path.join(bootRoot, "src"), { recursive: true, force: true });
+        const tree = { ...BASE_TREE, ...extra, "src/main.tsx": main };
+        for (const [rel, body] of Object.entries(tree)) {
+            fs.mkdirSync(path.join(bootRoot, path.dirname(rel)), {
+                recursive: true,
+            });
+            fs.writeFileSync(path.join(bootRoot, rel), body);
+        }
+        return computeUiScope({
+            changed,
+            surfaces: [
+                { id: "lobby", entries: ["src/routes/lobby.route.tsx"] },
+            ],
+            graph: createImportGraph({ root: bootRoot }),
+            renderInert: new Set(renderInert),
+            additiveRegistrations: new Set(),
+            stylesheetOwners: new Map(),
+        });
+    };
+
+    it("PR #10452: main.tsx (inert) + the new tracing module select nothing", () => {
+        expect(scopeWithMain(MAIN_HEAD, ["src/main.tsx", TRACING])).toEqual({
+            kind: "scoped",
+            surfaces: [],
+        });
+        // ...and so does a module only the tracing module imports.
+        expect(
+            scopeWithMain(MAIN_HEAD, ["src/lib/diagnostics/rate.ts"])
+        ).toEqual({ kind: "scoped", surfaces: [] });
+    });
+
+    it("the same module, read at the shell's top level too, stays FULL", () => {
+        const main = MAIN_HEAD.replace(
+            "createRoot(",
+            "tracesSamplerFor(true);\ncreateRoot("
+        );
+        expect(scopeWithMain(main, [TRACING])).toMatchObject({
+            kind: "full",
+            reason: expect.stringContaining("imported by the app shell"),
+        });
+    });
+
+    it("a module a Sentry.init option that mounts UI reads stays FULL", () => {
+        const main = MAIN_HEAD.replace(
+            `import { AppRouter } from "./app-router";`,
+            `import { AppRouter } from "./app-router";\nimport { widgetOptions } from "~/lib/diagnostics/widget";`
+        ).replace(
+            `    dsn:`,
+            `    integrations: [Sentry.feedbackIntegration(widgetOptions())],\n    dsn:`
+        );
+        const widget = "src/lib/diagnostics/widget.ts";
+        expect(
+            scopeWithMain(main, [widget], [], {
+                [widget]: `export const widgetOptions = () => ({});\n`,
+            })
+        ).toMatchObject({ kind: "full" });
+    });
+
+    it("a new module the shell imports for anything else stays FULL", () => {
+        const ring = "src/lib/diagnostics/ring.ts";
+        const main = MAIN_HEAD.replace(
+            `import { AppRouter } from "./app-router";`,
+            `import { AppRouter } from "./app-router";\nimport { installRing } from "~/lib/diagnostics/ring";\ninstallRing();`
+        );
+        expect(
+            scopeWithMain(main, [ring], [], {
+                [ring]: `export const installRing = () => {};\n`,
+            })
+        ).toMatchObject({
+            kind: "full",
+            reason: `${ring} is imported by the app shell (src/main.tsx) outside any route module`,
+        });
+    });
+
+    it("a module also reached through another shell path stays FULL", () => {
+        expect(
+            scopeWithMain(MAIN_HEAD, ["src/lib/diagnostics/rate.ts"], [], {
+                "src/app-router.tsx": `import { router } from "./router";\nimport { rate } from "~/lib/diagnostics/rate";\n`,
+            })
+        ).toMatchObject({ kind: "full" });
+    });
+
+    it("the target itself, imported by another shell module too, stays FULL", () => {
+        expect(
+            scopeWithMain(MAIN_HEAD, [TRACING], [], {
+                "src/app-router.tsx": `import { router } from "./router";\nimport { tracesSamplerFor } from "~/lib/diagnostics/tracing";\n`,
+            })
+        ).toMatchObject({ kind: "full" });
+    });
+
+    it("the router, read by a Sentry.init integration AND mounted by the app router, does not void the rule", () => {
+        // The real shell's shape: `tanstackRouterBrowserTracingIntegration(router)`.
+        const main = MAIN_HEAD.replace(
+            `import { AppRouter } from "./app-router";`,
+            `import { AppRouter } from "./app-router";\nimport { router } from "./router";`
+        ).replace(
+            `    dsn:`,
+            `    integrations: [Sentry.tanstackRouterBrowserTracingIntegration(router)],\n    dsn:`
+        );
+        expect(scopeWithMain(main, [TRACING])).toEqual({
+            kind: "scoped",
+            surfaces: [],
+        });
+        expect(
+            scopeWithMain(main, ["src/router.tsx"], ["src/main.tsx"])
+        ).toMatchObject({ kind: "full" });
+    });
+
+    it("a component file or a stylesheet in the boot-only closure keeps it all FULL", () => {
+        const viaTsx = MAIN_HEAD.replace(
+            `"~/lib/diagnostics/tracing"`,
+            `"~/lib/diagnostics/feedback-widget"`
+        )
+            .replace(/tracesSamplerFor\(/, "widgetOptions(")
+            .replace("    tracesSamplerFor,", "    widgetOptions,");
+        expect(
+            scopeWithMain(viaTsx, ["src/lib/diagnostics/feedback-widget.tsx"])
+        ).toMatchObject({ kind: "full" });
+        const viaCss = MAIN_HEAD.replace(
+            `"~/lib/diagnostics/tracing"`,
+            `"~/lib/diagnostics/styled"`
+        )
+            .replace(/tracesSamplerFor\(/, "styled(")
+            .replace("    tracesSamplerFor,", "    styled,");
+        expect(
+            scopeWithMain(viaCss, ["src/lib/diagnostics/styled.ts"])
+        ).toMatchObject({ kind: "full" });
+    });
+
+    it("a changed line at the shell's top level (the render call) stays FULL", () => {
+        expect(
+            scopeWithMain(MAIN_HEAD, ["src/main.tsx", TRACING], [])
+        ).toMatchObject({
+            kind: "full",
+            reason: "src/main.tsx is the app shell",
+        });
+    });
+});
+
 describe("computeUiScope — the catalogue gate (issue #5379)", () => {
     it("a set module only the gate loads selects the registry's readers — not full", () => {
         expect(scopeOf("convex/cards/sets/lea/index.cards.ts")).toEqual({
