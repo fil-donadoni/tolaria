@@ -1,15 +1,32 @@
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
-import type { EffectOp } from "../cards/types";
+import {
+    CASTABLE_PERMANENT_TYPES,
+    type ActivatedAbility,
+    type EffectOp,
+} from "../cards/types";
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
+import { activationPreconditionViolation } from "./activationPrecondition";
 import type { Demand } from "./autoTap";
-import { abilitiesSuppressed, hasInstantSpeed } from "./constants";
+import { stampCastFace } from "./castCommit";
+import {
+    abilitiesSuppressed,
+    hasInstantSpeed,
+    isManaAbilityForRules,
+    isTapLockedBySummoningSickness,
+} from "./constants";
+import { totalKickerCount } from "./kicker";
 import type { Phase } from "./types";
-import type { CardInstanceState, GameState } from "./state";
+import type { CardInstanceState, GameState, PendingCast } from "./state";
 import {
     applyCostModifiers,
+    applyEntersWithCounters,
+    applyExistingGrantsTo,
+    beginApplyingStaticEffects,
     getCostModifiers,
+    markEnteredThisTurn,
     normalizeManaCost,
+    shouldEnterTapped,
 } from "./state";
 
 /**
@@ -94,6 +111,15 @@ export function buildHandSpellDemands(
     return demands;
 }
 
+/** The timing facts an ability Demand is filtered by (CR 602.5), read once by
+ *  the caller off the live state. */
+export interface AbilityDemandTiming {
+    phase: Phase;
+    isControllersTurn: boolean;
+    /** The paying player's sorcery window (CR 307.1, `isSorceryTimingFor`). */
+    isSorceryTiming: boolean;
+}
+
 /**
  * Build the **on-board-ability Demands** for smart auto-tap (PRD #472, ADR
  * 0034, issue #476).
@@ -132,7 +158,12 @@ export function buildHandSpellDemands(
  *    counts only while the current `phase` is in that list. This is what makes
  *    a combat-only ability *not* held for during a main phase even though it is
  *    its controller's turn.
- * The two restrictions compose (an ability with both must satisfy both). This
+ *  - `sorcerySpeedOnly` ("Activate only as a sorcery", Equip) counts only in
+ *    the paying player's own sorcery window (`isSorceryTiming`).
+ *  - a {T} cost on a tapped or summoning-sick creature, an ability that
+ *    functions only outside the battlefield, a once-per-turn ability already
+ *    used and a printed restriction that fails right now do not count.
+ * The restrictions compose (an ability with several must satisfy all). This
  * mirrors the hand-spell timing filter so auto-tap never hoards mana for a
  * play the player cannot legally make right now (PRD user stories 5 & 17).
  *
@@ -158,78 +189,184 @@ export function buildHandSpellDemands(
 export function buildBoardAbilityDemands(
     state: GameState,
     battlefield: CardInstanceState[],
-    timing: { phase: Phase; isControllersTurn: boolean }
+    timing: AbilityDemandTiming
 ): Demand[] {
     const demands: Demand[] = [];
     for (let i = 0; i < battlefield.length; i++) {
-        const perm = battlefield[i];
-        // CR 613.1f — a permanent that has lost all abilities exposes none of
-        // its printed activated abilities.
-        if (abilitiesSuppressed(perm)) continue;
-        // CR 113.1 / 611.2a (issue #1880) — POST-LAYER set: an ability GRANTED
-        // to this permanent competes for mana exactly like a printed one, so
-        // auto-tap must reserve for it too.
-        const entries = getEffectiveActivatedAbilities(perm);
-        for (let j = 0; j < entries.length; j++) {
-            const { ability } = entries[j];
-            // Mana abilities (CR 605.1a) PRODUCE mana — they're sources, not
-            // Demands (handled by `buildAutoTapSources`).
-            if (!ability.useStack && ability.manaProduced) continue;
-            if (!ability.cost.mana) continue;
-            // Timing filter (CR 602.5b, issue #475): only count abilities legal
-            // to activate at the current timing.
-            if (
-                ability.controllerTurnOnly === true &&
-                !timing.isControllersTurn
-            )
-                continue;
-            // CR 702.142a (Boast, issue #2375) — "Activate only if this
-            // creature attacked this turn". Same class as the
-            // `controllerTurnOnly` filter above: an ability the player cannot
-            // legally activate right now must not reserve mana for itself.
-            // Read straight off the permanent (no new `timing` field needed —
-            // the flag is per-permanent, not per-turn). Absence IS "did not
-            // attack": the engine only ever writes it `true`
-            // (`recordAttackerDeclared`, gre/combat.ts).
-            if (
-                ability.requiresAttackedThisTurn === true &&
-                perm.hasAttackedThisTurn !== true
-            )
-                continue;
-            // CR 716.2a (issue #3234) — the class level gates, same class as
-            // the Boast filter above: a level bar the Class's current level
-            // does not admit must not reserve mana for itself.
-            if (classLevelActivationViolation(perm, ability) !== null) continue;
-            if (
-                ability.activationPhaseRestriction &&
-                ability.activationPhaseRestriction.length > 0 &&
-                !ability.activationPhaseRestriction.includes(timing.phase)
-            ) {
-                continue;
-            }
-            const cost = normalizeManaCost(ability.cost.mana);
-            // CR 601.2f (ADR 0096) — reserve the REDUCED total, through the
-            // same collector + apply pair the `activateAbility` mutation uses.
-            applyCostModifiers(
-                cost,
-                getCostModifiers(state, perm, "ability", ability)
-            );
-            // A free (no-mana) ability can never be stranded by auto-tap.
-            if (Object.keys(cost).length === 0) continue;
-            // Counted once per (permanent, ability) — repeatable activations do
-            // NOT multiply the Demand (PRD user story 12).
-            demands.push({
-                id: `${perm.id}#${ability.id}`,
-                cost,
-                // The untap-price gate never buys a source's tap with the
-                // ability that untaps that very source.
-                ...(scriptUntapsItsSource(ability.effects)
-                    ? { untapsSourceId: perm.id }
-                    : {}),
-            });
-        }
+        demands.push(...permanentAbilityDemands(state, battlefield[i], timing));
     }
     return demands;
+}
+
+/** The Demands of one permanent's activated abilities: the shared body of
+ *  `buildBoardAbilityDemands` and `buildCastPermanentAbilityDemands`. */
+function permanentAbilityDemands(
+    state: GameState,
+    perm: CardInstanceState,
+    timing: AbilityDemandTiming
+): Demand[] {
+    // CR 613.1f — a permanent that has lost all abilities exposes none of
+    // its printed activated abilities.
+    if (abilitiesSuppressed(perm)) return [];
+    const demands: Demand[] = [];
+    // CR 113.1 / 611.2a (issue #1880) — POST-LAYER set: an ability GRANTED
+    // to this permanent competes for mana exactly like a printed one, so
+    // auto-tap must reserve for it too.
+    const entries = getEffectiveActivatedAbilities(perm);
+    for (let j = 0; j < entries.length; j++) {
+        const { ability } = entries[j];
+        if (!ability.cost.mana) continue;
+        // Mana abilities (CR 605.1a) PRODUCE mana — they're sources, not
+        // Demands (handled by `buildAutoTapSources`).
+        if (isManaAbilityForRules(ability)) continue;
+        if (!isActivatableNow(state, perm, ability, timing)) continue;
+        const cost = normalizeManaCost(ability.cost.mana);
+        // CR 601.2f (ADR 0096) — reserve the REDUCED total, through the
+        // same collector + apply pair the `activateAbility` mutation uses.
+        applyCostModifiers(
+            cost,
+            getCostModifiers(state, perm, "ability", ability)
+        );
+        // A free (no-mana) ability can never be stranded by auto-tap.
+        if (Object.keys(cost).length === 0) continue;
+        // Counted once per (permanent, ability) — repeatable activations do
+        // NOT multiply the Demand (PRD user story 12).
+        demands.push({
+            id: `${perm.id}#${ability.id}`,
+            cost,
+            // The untap-price gate never buys a source's tap with the
+            // ability that untaps that very source.
+            ...(scriptUntapsItsSource(ability.effects)
+                ? { untapsSourceId: perm.id }
+                : {}),
+        });
+    }
+    return demands;
+}
+
+/** True when `perm`'s controller could activate `ability` at the current
+ *  timing, mana aside (CR 602.5): an ability they cannot activate must not
+ *  reserve mana for itself. */
+function isActivatableNow(
+    state: GameState,
+    perm: CardInstanceState,
+    ability: ActivatedAbility,
+    timing: AbilityDemandTiming
+): boolean {
+    // CR 113.6 — Cycling and its kin function only outside the battlefield.
+    if (ability.activateFromHand || ability.activateFromGraveyard) return false;
+    // CR 602.1b — "Only your opponents may activate this ability".
+    if (ability.activatableByOpponentsOnly) return false;
+    if (ability.controllerTurnOnly === true && !timing.isControllersTurn)
+        return false;
+    // CR 602.5d — "activate only as a sorcery" (Equip).
+    if (ability.sorcerySpeedOnly === true && !timing.isSorceryTiming)
+        return false;
+    if (
+        ability.activationPhaseRestriction &&
+        ability.activationPhaseRestriction.length > 0 &&
+        !ability.activationPhaseRestriction.includes(timing.phase)
+    ) {
+        return false;
+    }
+    // CR 702.142a (Boast, issue #2375) — "Activate only if this creature
+    // attacked this turn". Absence IS "did not attack": the engine only ever
+    // writes the flag `true` (`recordAttackerDeclared`, gre/combat.ts).
+    if (
+        ability.requiresAttackedThisTurn === true &&
+        perm.hasAttackedThisTurn !== true
+    )
+        return false;
+    // CR 716.2a (issue #3234) — a level bar the Class's current level does not
+    // admit.
+    if (classLevelActivationViolation(perm, ability) !== null) return false;
+    if (
+        ability.oncePerTurn === true &&
+        (perm.activationsThisTurn?.[ability.id] ?? 0) > 0
+    )
+        return false;
+    // CR 302.6 — a {T} cost of a tapped or summoning-sick creature.
+    if (
+        ability.cost.tap === true &&
+        (perm.isTapped || isTapLockedBySummoningSickness(perm))
+    )
+        return false;
+    // CR 602.1b / 602.5 — the ability's own printed restriction, through the
+    // predicate the mutation and the Bot read.
+    return activationPreconditionViolation(state, perm, ability) === null;
+}
+
+/**
+ * Build the Demands of **the permanent being cast**: the mana-costed activated
+ * abilities it will have once it resolves, when they are activatable this turn
+ * ("{R}, Sacrifice this artifact: …", usable at the next priority after it
+ * resolves, CR 117.3b). Paying for the spell must not strand the ability
+ * it was cast for.
+ *
+ * The permanent is read as it WILL be, never as the card in hand: on a clone of
+ * the state the card leaves its zone, takes the face its cast mode gives it
+ * (CR 601.2b), and enters under its caster's control — tapped or not
+ * (CR 614.1d), summoning sick (CR 302.6), with its entry counters (CR 122.6a)
+ * and under every live continuous effect (CR 613.1). Its abilities then pass
+ * the very gates a board ability passes, so a {T} ability on a creature without
+ * haste is no Demand. An instant or sorcery, whatever the card's other face,
+ * yields nothing.
+ *
+ * `timing` is the window of the payment. A spell cast at sorcery timing hands
+ * that same window back when it resolves (CR 117.3b: the active player receives
+ * priority, on an empty stack); one cast in any other window does not, so a
+ * sorcery-speed ability counts only in the former.
+ *
+ * Not modelled: what a player chooses as the permanent enters (CR 614.12a — a
+ * copy, a named type), what the mana still being paid would give it (a Sunburst
+ * count, a haste rider) and what its enters triggers would do (CR 603.6a).
+ */
+export function buildCastPermanentAbilityDemands(
+    state: GameState,
+    pending: PendingCast,
+    castCard: CardInstanceState,
+    timing: AbilityDemandTiming
+): Demand[] {
+    const sim = structuredClone(state);
+    const perm = structuredClone(castCard);
+    stampCastFace(sim, perm, pending);
+    const permanentTypes: readonly string[] = CASTABLE_PERMANENT_TYPES;
+    if (!perm.types.some((t) => permanentTypes.includes(t))) return [];
+    const playerList = sim.players;
+    for (let i = 0; i < playerList.length; i++) {
+        const player = playerList[i];
+        const others = (c: CardInstanceState) => c.id !== perm.id;
+        player.hand = player.hand.filter(others);
+        player.library = player.library.filter(others);
+        player.graveyard = player.graveyard.filter(others);
+        player.exile = player.exile.filter(others);
+    }
+    const caster = playerList.find((p) => p.id === pending.playerId);
+    if (!caster) return [];
+    perm.zone = "battlefield";
+    perm.controllerId = caster.id;
+    const def = tryGetDefinition((perm.card as { id?: string }).id ?? "");
+    // The entry funnel's order (`finalizeSpellResolution`, state.ts).
+    perm.isTapped = shouldEnterTapped(sim, perm);
+    markEnteredThisTurn(perm, sim.turn);
+    if (pending.chosenX !== undefined) perm.chosenXOnCast = pending.chosenX;
+    if (totalKickerCount(pending.kickerPayments) >= 1) perm.wasKicked = true;
+    caster.battlefield.push(perm);
+    applyEntersWithCounters(
+        perm,
+        def ?? undefined,
+        {
+            chosenX: pending.chosenX,
+            kickerCount: totalKickerCount(pending.kickerPayments),
+            kickerPayments: pending.kickerPayments,
+            impended: pending.impended,
+            manaSpentToCast: {},
+        },
+        sim
+    );
+    applyExistingGrantsTo(sim, perm);
+    beginApplyingStaticEffects(sim, perm);
+    return permanentAbilityDemands(sim, perm, timing);
 }
 
 /** The ManaCost keys a static untap price is read from (CR 202.1): a cost

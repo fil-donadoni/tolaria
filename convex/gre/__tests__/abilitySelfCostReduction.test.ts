@@ -391,6 +391,7 @@ describe("cost.selfReduction — auto-tap reserves the reduced cost (issue #2288
     const timing = {
         phase: "PRECOMBAT_MAIN" as const,
         isControllersTurn: true,
+        isSorceryTiming: true,
     };
 
     it("a board-ability Demand carries the REDUCED cost, not the printed one", () => {
