@@ -846,12 +846,13 @@ export type {
     MulliganState,
     PendingActivation,
     PendingCast,
-    PendingChoice,
     PendingChoiceKind,
     PassUntilActionIntent,
     PendingTarget,
     RevealNotification,
 } from "@convex/gre/state";
+// The client's Pending Choice is the projected one.
+export type { PublicPendingChoice as PendingChoice } from "@convex/gameProjections";
 export type { RestrictedMana };
 export type {
     SacrificeSelection,

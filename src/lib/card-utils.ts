@@ -4455,7 +4455,8 @@ export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
 }
 
 /** UI affordability gate for a `may-pay` cost union (CR 118.3). The mana leg
- *  must be coverable by `pool`; `life` must be ≤ the chooser's life; the
+ *  must be coverable by `pool`, or by `pool` plus the sources an Auto-Tap plan
+ *  would tap (`manaAutoTappable`); `life` must be ≤ the chooser's life; the
  *  sacrifice leg needs at least `count` candidate permanents. Life / sacrifice
  *  candidate counts come from the caller (the UI knows the chooser's life and a
  *  precomputed candidate count). A cost with no constraining leg is affordable. */
@@ -4491,7 +4492,11 @@ export function mayPayCanAfford(
      *  graveyard leg — affordable iff at least `count` cards match its filter,
      *  priced through the engine's `mayPayGraveyardCandidates`. The graveyard
      *  is public, so the projected pile is the whole pile. */
-    graveyard?: readonly MayPayHandCard[]
+    graveyard?: readonly MayPayHandCard[],
+    /** CR 608.2g — an Auto-Tap plan covers what the pool is short of on the
+     *  mana leg: the wire's `manaAutoTappable`, the server planner's own
+     *  verdict. Accepting taps and pays in the one mutation. */
+    manaAutoTappable?: boolean
 ): boolean {
     if (!cost) return true;
     const norm = normalizeMayPayCost(cost);
@@ -4501,7 +4506,13 @@ export function mayPayCanAfford(
             effectivePool[c] = (effectivePool[c] ?? 0) + (n ?? 0);
         }
     }
-    if (norm.mana && !isManaCostCovered(effectivePool, norm.mana)) return false;
+    if (
+        norm.mana &&
+        !manaAutoTappable &&
+        !isManaCostCovered(effectivePool, norm.mana)
+    ) {
+        return false;
+    }
     if (norm.life !== undefined && chooserLife < norm.life) return false;
     if (norm.permanent) {
         if (typeof norm.permanent.count === "object") {

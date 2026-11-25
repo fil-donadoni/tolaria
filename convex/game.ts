@@ -125,6 +125,7 @@ import {
     type AutoTapSource,
     type Demand,
 } from "./gre/autoTap";
+import { mayPayAutoTapInputs } from "./gre/mayPayAutoTap";
 import { evaluateAutoTapPosition } from "./gre/evaluate";
 import {
     buildBoardAbilityDemands,
@@ -9370,6 +9371,92 @@ export function scoreAutoTapPlanPosition(
     return evaluateAutoTapPosition(sim, playerId);
 }
 
+/** The timing every Auto-Tap Demand of `playerId` is filtered by (CR 307 /
+ *  601.3a): sorcery-speed plays count only at that player's sorcery timing. */
+function autoTapDemandTiming(
+    state: GameState,
+    playerId: string
+): AbilityDemandTiming {
+    return {
+        phase: state.phase,
+        isControllersTurn: state.activePlayerId === playerId,
+        isSorceryTiming: isSorceryTimingFor(state, playerId),
+    };
+}
+
+/**
+ * The Demands a smart Auto-Tap (PRD #472, ADR 0034) preserves whatever is being
+ * paid for: the paying player's other castable hand spells — their own hand, so
+ * no hidden-info leak and the same for every seat — and the mana-costed
+ * activated abilities on their battlefield (CR 602.1). Each ability is counted
+ * ONCE per (permanent, ability): repeatable activations don't multiply the
+ * Demand. `payingForId` is the hand card being paid for, excluded.
+ */
+function standingAutoTapDemands(
+    state: GameState,
+    player: PlayerState,
+    timing: AbilityDemandTiming,
+    payingForId?: string
+): Demand[] {
+    return [
+        ...buildHandSpellDemands(
+            player.hand,
+            payingForId,
+            timing.isSorceryTiming
+        ),
+        ...buildBoardAbilityDemands(state, player.battlefield, timing),
+    ];
+}
+
+/** CR 608.2g / 605.3a — the Auto-Tap leg of accepting the head `may-pay`: taps
+ *  the smart plan for whatever the pool is short of, through the manual-tap
+ *  primitive, so every tap rider applies. Taps nothing when the pool already
+ *  covers the mana leg or when no plan does — `applyMayPaySubmit` then refuses
+ *  the payment. */
+function autoTapForMayPay(state: GameState, playerId: string): void {
+    const head = state.pendingChoices?.[0];
+    if (!head || head.playerId !== playerId) return;
+    const inputs = mayPayAutoTapInputs(state, head);
+    if (!inputs) return;
+    const { pool, cost, substitutions, sources } = inputs;
+    const player = getPlayer(state, playerId);
+    const plan = solveSmartAutoTap(
+        pool,
+        cost,
+        substitutions,
+        sources,
+        standingAutoTapDemands(
+            state,
+            player,
+            autoTapDemandTiming(state, playerId)
+        ),
+        undefined,
+        (candidate) =>
+            scoreAutoTapPlanPosition(
+                state,
+                playerId,
+                pool,
+                cost,
+                substitutions,
+                sources,
+                candidate
+            )
+    );
+    // Paid in the same mutation: no tap is left to undo.
+    const untracked: string[] = [];
+    for (const step of plan ?? []) {
+        const card = player.battlefield.find((c) => c.id === step.cardId);
+        if (!card) continue;
+        tapSourceIntoPayment(
+            state,
+            player,
+            card,
+            step.manaChoiceIndex,
+            untracked
+        );
+    }
+}
+
 /**
  * Auto-tap mana sources to pay the pending cast or activation in one action
  * (issue #154). Finds a minimal valid combination of untapped pure-mana
@@ -9561,39 +9648,14 @@ export const autoTapForPayment = mutation({
                 combatWindow: autoTapCombatWindow(state, player.id),
             }
         );
-        // Smart auto-tap (PRD #472, ADR 0034): among all minimal-tap plans that
-        // cover the cost, prefer the one that best preserves the paying
-        // player's other castable hand spells (their Demands). Reads the
-        // *paying* player's own hand — no hidden-info leak, works for every
-        // seat including the AI bot's own casts. The card being paid for is
-        // excluded from the Demand set.
-        // Timing-aware Demand filter (issue #475, CR 307 / 601.3a): sorcery-
-        // speed hand spells count as preservable Demands only at sorcery timing
-        // (own main, empty stack, holding priority); instant-speed spells count
-        // in any window. Asked of the paying player via `isSorceryTimingFor`.
-        // On-board activated-ability Demands (issue #476, CR 602.1): a
-        // firebreathing creature's "{R}: +1/+0" and other mana-costed activated
-        // abilities on the paying player's battlefield are also plays they
-        // might still make this turn. Each is counted ONCE per (permanent,
-        // ability) — repeatable activations don't multiply the Demand (PRD
-        // user story 12) — and is timing-filtered the same way (sorcery-speed
-        // abilities count only at sorcery timing).
-        const sorceryTiming = isSorceryTimingFor(state, player.id);
-        const abilityTiming: AbilityDemandTiming = {
-            phase: state.phase,
-            isControllersTurn: state.activePlayerId === player.id,
-            isSorceryTiming: sorceryTiming,
-        };
+        // The card being paid for is excluded from the Demand set.
+        const abilityTiming = autoTapDemandTiming(state, player.id);
         const demands: Demand[] = [
-            ...buildHandSpellDemands(
-                player.hand,
-                pending.cardInstanceId,
-                sorceryTiming
-            ),
-            ...buildBoardAbilityDemands(
+            ...standingAutoTapDemands(
                 state,
-                player.battlefield,
-                abilityTiming
+                player,
+                abilityTiming,
+                pending.cardInstanceId
             ),
             // The permanent being cast is neither in hand nor on the
             // battlefield: its own abilities, once it resolves, are Demands too.
@@ -12940,11 +13002,11 @@ export const submitResolutionChoice = mutation({
 /** Submits a yes/no decision to a pending `may-pay` choice (CR 608.2g — "If an
  *  effect gives a player the option to pay mana, they may activate mana
  *  abilities before taking that action").
- *  When `accept` is true and the choice carries a mana cost, the cost is
- *  validated against the player's mana pool and paid; if the pool can't
- *  cover, the call throws (forcing the player to either tap mana abilities
- *  before submitting or decline). Lands tapped to make mana for this
- *  payment go through the normal `tapForPayment` flow. */
+ *  When `accept` is true and the choice carries a mana cost, the pool is spent
+ *  first; what it is short of is made by a smart Auto-Tap in this same
+ *  mutation (`autoTapForMayPay`), so no saved state has sources tapped and the
+ *  choice unanswered. When no plan covers the cost the call throws and nothing
+ *  is tapped. Sources tapped by hand before submitting keep working. */
 export const submitMayPay = mutation({
     args: {
         gameId: v.id("games"),
@@ -12976,6 +13038,7 @@ export const submitMayPay = mutation({
             expect: "choice",
         });
 
+        if (args.accept) autoTapForMayPay(state, args.playerId);
         applyMayPaySubmit(state, {
             playerId: args.playerId,
             accept: args.accept,
