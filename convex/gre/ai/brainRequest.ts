@@ -64,7 +64,7 @@ export type BrainRequest = {
     repetition?: RepetitionHistory;
     /** Tree reuse (issue #10470, ADR 0185): the game this consult belongs to
      *  and the decisions played since the last one, as tree keys. Omitted —
-     *  the server judge, every test, a caller that cannot say — and the
+     *  the Verdict judge, every test, a caller that cannot say — and the
      *  search grows a fresh tree and keeps nothing, exactly as before. */
     reuse?: ConsultReuse;
 };
