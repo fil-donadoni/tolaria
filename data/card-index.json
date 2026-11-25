@@ -5686,6 +5686,16 @@
         "source": "compiled"
     },
     {
+        "name": "Azorius Skyguard",
+        "scryfallId": "c2fddecd-e660-43de-bccc-52f60a089052",
+        "oracleId": "bbfdb5eb-2140-4d50-a667-1b4ac75d03a5",
+        "firstSet": "rna",
+        "firstPrintId": "c2fddecd-e660-43de-bccc-52f60a089052",
+        "firstPrintSet": "rna",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Azra Smokeshaper",
         "scryfallId": "f627e521-2b8f-4d0f-a9d3-cc4e331ce57d",
         "oracleId": "6f6e0abb-18d0-4a15-9b21-0a72542998ac",
@@ -15744,6 +15754,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Codecracker Hound",
+        "scryfallId": "6723b891-6013-4ec6-b439-2233d270dc48",
+        "oracleId": "ae791b61-5825-4987-a8c2-80813758d3f7",
+        "firstSet": "eoe",
+        "firstPrintId": "6723b891-6013-4ec6-b439-2233d270dc48",
+        "firstPrintSet": "eoe",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Codex Shredder",
         "scryfallId": "8f7b632b-ee20-4082-8376-1dae53f91b70",
         "oracleId": "ef7b11ab-24e7-4e7c-91a7-920bade6e60b",
@@ -18542,6 +18562,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cumber Stone",
+        "scryfallId": "7963ff52-1897-4f62-a91d-b0eaf155fce9",
+        "oracleId": "49199997-65cd-4cb9-bdd6-74c93c1f6b5a",
+        "firstSet": "con",
+        "firstPrintId": "7963ff52-1897-4f62-a91d-b0eaf155fce9",
+        "firstPrintSet": "con",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Cunning Breezedancer",
         "scryfallId": "bdbfe3b0-3b1d-4b0c-9d98-07f1cecce4b7",
         "oracleId": "ba997e44-fc80-4463-ad3f-6497be26df0f",
@@ -19078,6 +19108,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dampening Pulse",
+        "scryfallId": "4a4393f6-54d7-4963-a3c0-b3a083c2440c",
+        "oracleId": "fe3c81b8-9bca-4760-b677-02bfa7e6137b",
+        "firstSet": "bfz",
+        "firstPrintId": "4a4393f6-54d7-4963-a3c0-b3a083c2440c",
+        "firstPrintSet": "bfz",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Damping Sphere",
         "scryfallId": "a5c7d16b-8f4e-42b9-be24-3cb091932d7c",
         "oracleId": "fd50d76c-7654-47b9-a5b6-d075874e4357",
@@ -19240,6 +19280,16 @@
         "firstSet": "ice",
         "firstPrintId": "f7dc2716-ed62-4797-ad2b-227eca5408d0",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Dark Bargain",
+        "scryfallId": "71cbedc6-482e-42de-b310-22d3a955ad7e",
+        "oracleId": "2f872417-3dbe-40ec-ac91-e3132c0b7514",
+        "firstSet": "dom",
+        "firstPrintId": "71cbedc6-482e-42de-b310-22d3a955ad7e",
+        "firstPrintSet": "dom",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Dark Betrayal",
@@ -39734,6 +39784,16 @@
         "source": "compiled"
     },
     {
+        "name": "Haunter of Nightveil",
+        "scryfallId": "438683f5-adfa-42ae-a6fb-c4649a8a30ab",
+        "oracleId": "496c852b-ec62-4320-afbb-e19f534954c9",
+        "firstSet": "dgm",
+        "firstPrintId": "438683f5-adfa-42ae-a6fb-c4649a8a30ab",
+        "firstPrintSet": "dgm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Haunting Echoes",
         "scryfallId": "aca4c571-48b8-4150-93f8-4cb5c8e797c4",
         "oracleId": "3abd345a-69a5-486e-ada9-dd1ca0decc28",
@@ -57371,6 +57431,16 @@
         "source": "compiled"
     },
     {
+        "name": "Nagging Thoughts",
+        "scryfallId": "a8a6d6e4-e91f-444f-9eed-88fceaf1a4b8",
+        "oracleId": "e74c70be-2b70-4b04-9909-161d6f41a156",
+        "firstSet": "soi",
+        "firstPrintId": "a8a6d6e4-e91f-444f-9eed-88fceaf1a4b8",
+        "firstPrintSet": "soi",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Nahiri's Machinations",
         "scryfallId": "a9ba0f1c-8641-4f5a-8f2e-f969fc7a058a",
         "oracleId": "b119e0de-6af4-4b5b-9920-187f0a414231",
@@ -60439,6 +60509,16 @@
         "firstSet": "rix",
         "firstPrintId": "00c81160-192c-4077-8ed1-3643919a2025",
         "firstPrintSet": "rix",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Orazca Puzzle-Door",
+        "scryfallId": "27acf726-52f5-493d-8678-c12485f67747",
+        "oracleId": "6bcf21ef-6641-4752-a0da-937a9277c812",
+        "firstSet": "lci",
+        "firstPrintId": "27acf726-52f5-493d-8678-c12485f67747",
+        "firstPrintSet": "lci",
         "rarity": "common",
         "source": "compiled"
     },
@@ -67001,6 +67081,16 @@
         "firstSet": "mh3",
         "firstPrintId": "438d8a26-ddc9-4829-8aff-22d6af6575cf",
         "firstPrintSet": "mh3"
+    },
+    {
+        "name": "Ral's Outburst",
+        "scryfallId": "6be3dd3e-50d2-4729-9caa-b2cd984f4c97",
+        "oracleId": "5e715875-28e0-44b4-af25-f6bb8ddec823",
+        "firstSet": "war",
+        "firstPrintId": "6be3dd3e-50d2-4729-9caa-b2cd984f4c97",
+        "firstPrintSet": "war",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Ral's Reinforcements",
@@ -77373,6 +77463,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Sibsig Appraiser",
+        "scryfallId": "670c5b96-bac6-449b-a2bd-cb43750d3911",
+        "oracleId": "5b51958d-533a-45e4-aac1-3c157670978b",
+        "firstSet": "tdm",
+        "firstPrintId": "670c5b96-bac6-449b-a2bd-cb43750d3911",
+        "firstPrintSet": "tdm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Sibsig Muckdraggers",
         "scryfallId": "f88297c1-c612-47bf-80b7-374099b00e07",
         "oracleId": "423c1079-bdba-42fc-8732-59cb83ebafc3",
@@ -86969,6 +87069,16 @@
         "source": "compiled"
     },
     {
+        "name": "Talas Lookout",
+        "scryfallId": "0a4b9afe-aeb7-4c56-8a22-96e19a7a938c",
+        "oracleId": "68bde9ff-3206-4a9c-9233-4b2387dcd306",
+        "firstSet": "dmu",
+        "firstPrintId": "0a4b9afe-aeb7-4c56-8a22-96e19a7a938c",
+        "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Talas Merchant",
         "scryfallId": "2f779d7e-6e37-49bc-b76d-3bb490ff142b",
         "oracleId": "6469f61d-1b4c-4813-bb4a-99f6e6388d7b",
@@ -91385,6 +91495,16 @@
         "firstSet": "ala",
         "firstPrintId": "10504d1b-8d3e-411a-bf40-51a8e7a863a0",
         "firstPrintSet": "ala",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Tower Geist",
+        "scryfallId": "c9e9f552-34b6-43a5-8ef8-9d5208f4cae0",
+        "oracleId": "10e19453-84fb-4845-8db0-c9da52847e09",
+        "firstSet": "dka",
+        "firstPrintId": "c9e9f552-34b6-43a5-8ef8-9d5208f4cae0",
+        "firstPrintSet": "dka",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -97556,6 +97676,16 @@
         "firstPrintId": "52420b80-7f34-4426-ac97-a6e15167c7a9",
         "firstPrintSet": "vis",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Waker of Waves",
+        "scryfallId": "abb47990-a5a9-4a22-a8bb-d229b17132c6",
+        "oracleId": "3a19a959-ea83-404b-89f7-e5dbf4cb7995",
+        "firstSet": "m21",
+        "firstPrintId": "abb47990-a5a9-4a22-a8bb-d229b17132c6",
+        "firstPrintSet": "m21",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
