@@ -267,14 +267,17 @@ describe("behaviour: the compiled debuff (CR 613.4c)", () => {
         return { state, mine, theirs, waker };
     };
     const withCards = <T>(fn: () => T): T =>
-        withTemporaryDefinition({ ...compiled(WAKER), id: WAKER_ID }, () =>
-            withTemporaryDefinition(
-                {
-                    ...compiled(oracleCard({ name: "Waker Bear" })),
-                    id: BEAR_ID,
-                },
-                fn
-            )
+        withTemporaryDefinition(
+            { ...compiled(WAKER), id: WAKER_ID, rarity: "rare" },
+            () =>
+                withTemporaryDefinition(
+                    {
+                        ...compiled(oracleCard({ name: "Waker Bear" })),
+                        id: BEAR_ID,
+                        rarity: "common",
+                    },
+                    fn
+                )
         );
 
     it("shrinks an opponent's creature, never its controller's", () => {
