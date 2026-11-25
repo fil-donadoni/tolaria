@@ -42,6 +42,7 @@ import {
     tokenDefinitionId,
     tryGetCardByName,
 } from "../../../cards";
+import { collapseInterchangeableMoves } from "../interchangeable";
 import { findTokenSpec } from "../../../cards/tokenCatalogue";
 // Both PURE (issue #3479). `activateAbilityOnState` used to live in
 // `convex/game.ts`, whose line-4 `./auth` import made this whole file
@@ -752,7 +753,8 @@ function applyPlayLand(
  *     byte-for-byte the one the search reasons about after that cast — not a
  *     setup-side approximation of it.
  *
- * The step must resolve to EXACTLY ONE legal cast. It throws when the name
+ * The step must resolve to EXACTLY ONE legal cast, two interchangeable copies
+ * counting as one (`collapseInterchangeableMoves`). It throws when the name
  * matches no legal cast (wrong seat, no priority, unpayable, no legal target),
  * when `target`/`x` narrow it to none, and — rather than silently pick one —
  * when more than one legal cast still matches after narrowing.
@@ -839,6 +841,8 @@ function applyCast(
         }
     }
 
+    // Two copies of one card offer the same cast twice: not an ambiguity.
+    candidates = collapseInterchangeableMoves(state, candidates).filter(isCast);
     if (candidates.length > 1) {
         throw new BladeSetupError(
             label,

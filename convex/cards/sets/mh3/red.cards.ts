@@ -41,6 +41,11 @@ export const galvanicDischarge = defineCard(() => ({
         type: ["Creature", "Planeswalker"],
         count: 1,
     },
+    // The valuation shadow the resolve closure needs: the three energy the
+    // spell makes, all paid, are three damage. Without it the card in hand
+    // reads at the no-script floor, below the three energy a lethal payment
+    // spends.
+    aiEffects: [{ op: "dealDamage", amount: 3, to: { target: 0 } }],
     resolveSteps: [
         // Step 0 — "You get {E}{E}{E}" (CR 122.1). Runs exactly once; the pay
         // choice below suspends in a LATER step, so this energy gain is never

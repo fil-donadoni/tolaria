@@ -315,9 +315,10 @@ export type BladeSetupStep =
      *  priority in a freshly built board). `target` pins WHICH legal target the
      *  cast takes — a seat (`me`/`opp`) for a player target, else a card NAME for
      *  a permanent/spell target — and `x` pins the {X} value (CR 107.3). The step
-     *  must resolve to EXACTLY ONE legal cast: it throws when the name matches no
-     *  legal cast, when `target`/`x` match none, and — rather than guess — when
-     *  more than one legal cast still matches (narrow it with `target`/`x`). */
+     *  must resolve to EXACTLY ONE legal cast (interchangeable copies in hand
+     *  are one): it throws when the name matches no legal cast, when
+     *  `target`/`x` match none, and — rather than guess — when more than one
+     *  legal cast still matches (narrow it with `target`/`x`). */
     | {
           kind: "cast";
           card: string;

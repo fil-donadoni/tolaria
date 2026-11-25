@@ -954,6 +954,35 @@ describe("blade setup — `cast` runs the real cast pipeline (ADR 0070 §4)", ()
         ).toThrow(/no legal cast with X = 99/);
     });
 
+    it("casts one of two interchangeable copies: the same cast offered twice is not an ambiguity", () => {
+        const state = build({
+            cards: [
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Lightning Bolt", owner: "me", zone: "hand", count: 2 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+        });
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [
+                {
+                    kind: "cast",
+                    card: "Lightning Bolt",
+                    by: "me",
+                    target: "opp",
+                },
+            ],
+        });
+        expect(state.stack).toHaveLength(1);
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+
     it("THROWS on an ambiguous cast rather than guessing (many X / targets match)", () => {
         const state = build({
             cards: [
