@@ -3583,10 +3583,18 @@ function lowerSentenceBody(
             return lowered([{ op: "attach", target: target.value }]);
         }
         case "life": {
-            const player =
+            // CR 102.2 — in a two-player game "each opponent" is the one other
+            // player, as at the damage recipient. Read for a loss of a COUNTED
+            // amount only ("each opponent loses X life …, where X is the number
+            // of …"); a printed number is its own form, refused by `playerRef`.
+            const player: Lowered<EffectPlayerRef> =
                 sentence.player.kind === "acted-on-controller"
                     ? lowerActedOnController(sentence.player.noun, walk)
-                    : playerRef(sentence.player, slots, site);
+                    : sentence.player.kind === "each-opponent" &&
+                        sentence.action === "lose" &&
+                        sentence.amount.kind === "counted"
+                      ? lowered("opponent")
+                      : playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
             const amount = lowerLifeAmount(sentence.amount, walk, site);
             if (!amount.ok) return amount;
@@ -3605,6 +3613,18 @@ function lowerSentenceBody(
             ]);
         }
         case "counters": {
+            // CR 122.1 — a swept put is the same Op over each member.
+            if (sentence.subject.kind === "mass") {
+                const each = lowerAmount(sentence.count, site);
+                if (!each.ok) return each;
+                return sweepOps(sentence.subject, site, slots, (target) => ({
+                    op: "counters",
+                    action: "add",
+                    counter: sentence.counter,
+                    target,
+                    count: each.value,
+                }));
+            }
             const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
             const count = lowerCounterAmount(sentence.count, slots, site);

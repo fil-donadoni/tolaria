@@ -17666,4 +17666,144 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 608.2d + CR 613.1f — "your choice of <keyword>, <keyword>, or
+    // <keyword>" granted to the SOURCE inside an `optionChoice`, which the
+    // canned scenario cannot stage (issue #10344).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "6cac6f76-f3c6-4b00-a468-166b07853401",
+            name: "Shifting Ceratops",
+            manaCost: "{2}{G}{G}",
+            typeLine: "Creature — Dinosaur",
+            oracleText:
+                "This spell can't be countered.\nProtection from blue (This creature can't be blocked, targeted, dealt damage, enchanted, or equipped by anything blue.)\n{G}: This creature gains your choice of reach, trample, or haste until end of turn.",
+            layout: "normal",
+            power: "5",
+            toughness: "4",
+        },
+        expected: {
+            name: "Shifting Ceratops",
+            types: ["Creature"],
+            subtypes: ["Dinosaur"],
+            manaCost: { X: 2, G: 2 },
+            power: 5,
+            toughness: 4,
+            oracleText:
+                "This spell can't be countered.\nProtection from blue (This creature can't be blocked, targeted, dealt damage, enchanted, or equipped by anything blue.)\n{G}: This creature gains your choice of reach, trample, or haste until end of turn.",
+            staticAbilities: ["protection from blue"],
+            activatedAbilities: [
+                {
+                    id: "shifting-ceratops-ability",
+                    oracleText:
+                        "{G}: This creature gains your choice of reach, trample, or haste until end of turn.",
+                    cost: { mana: { G: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "optionChoice",
+                            prompt: "Choose an ability (Shifting Ceratops).",
+                            modes: [
+                                {
+                                    id: "reach",
+                                    label: "Reach",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "reach",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                                {
+                                    id: "trample",
+                                    label: "Trample",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "trample",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                                {
+                                    id: "haste",
+                                    label: "Haste",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "haste",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            cantBeCountered: true,
+        },
+    },
+    // CR 400.7 — "each creature you control that entered this turn": a put on
+    // a sweep, runtime-selected and acting on `$each` (issue #10344).
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "534e74f6-52f4-4824-9178-cce5e4bcbcc2",
+            name: "Raucous Entertainer",
+            manaCost: "{1}{G}",
+            typeLine: "Creature — Plant Bard",
+            oracleText:
+                "{1}, {T}: Put a +1/+1 counter on each creature you control that entered this turn.",
+            layout: "normal",
+            power: "2",
+            toughness: "2",
+        },
+        expected: {
+            name: "Raucous Entertainer",
+            types: ["Creature"],
+            subtypes: ["Plant", "Bard"],
+            manaCost: { X: 1, G: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "{1}, {T}: Put a +1/+1 counter on each creature you control that entered this turn.",
+            activatedAbilities: [
+                {
+                    id: "raucous-entertainer-ability",
+                    oracleText:
+                        "{1}, {T}: Put a +1/+1 counter on each creature you control that entered this turn.",
+                    cost: { mana: { X: 1 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: {
+                                    type: "Creature",
+                                    enteredThisTurn: true,
+                                },
+                            },
+                            effects: [
+                                {
+                                    op: "counters",
+                                    action: "add",
+                                    counter: "+1/+1",
+                                    target: { ref: "$each" },
+                                    count: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

@@ -5111,6 +5111,21 @@ function sweepableSubject(span: string, ctx: unknown) {
 }
 
 /**
+ * CR 122.1 + CR 400.7 — "each <permanent> that entered this turn", the one sweep
+ * a counter put reads. `null` = another subject ("each creature you control"
+ * included: a put on an unqualified sweep is its own printed form).
+ */
+function enteredThisTurnSweep(
+    span: string,
+    ctx: unknown
+): RuleResult<SubjectIR> | null {
+    const mass = massSubjectRule.run(span, ctx);
+    if (!mass.ok || mass.value.select.filter?.enteredThisTurn !== true)
+        return null;
+    return ok({ kind: "mass" as const, ...mass.value } as SubjectIR);
+}
+
+/**
  * The subject of a GROUP verb ("get", "become"): a sweep and nothing else —
  * "all <plural>", "each <singular>" or a plural qualified by whose permanents
  * it names ("Creatures you control", "Creatures target player controls").
@@ -10098,6 +10113,7 @@ function effectSentence(
         if (count === null)
             return fail(`"${counters[1]}" is not a count`, span);
         const subject =
+            enteredThisTurnSweep(counters[3]!, ctx) ??
             equippedHostSubject(counters[3]!, ctx) ??
             subjectRule.run(counters[3]!, ctx);
         if (!subject.ok) return subject;
