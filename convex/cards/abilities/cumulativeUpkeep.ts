@@ -21,7 +21,7 @@
 // 1 offers the scaled may-pay and sacrifices on decline / inability.
 
 import type { CostLegs, ManaCost, MayPayCost } from "../types";
-import type { TriggeredAbility } from "../types";
+import type { SpellContext, TriggeredAbility } from "../types";
 import { phaseTrigger } from "./triggers/phaseTrigger";
 
 /** The printed (one-age-counter) cumulative-upkeep cost. A bare `ManaCost`
@@ -146,6 +146,12 @@ export interface CumulativeUpkeepArgs {
     keywordLine?: string;
 }
 
+/** Whether the resolving ability's source has left the battlefield since the
+ *  ability went on the stack. */
+function sourceHasLeft(ctx: SpellContext): boolean {
+    return ctx.sourceLkiMatchesFilter({}) !== undefined;
+}
+
 /** Builds the cumulative-upkeep triggered ability (CR 702.24). A printed card
  *  declares `cumulativeUpkeep: <cost>` and `expandEchoCumulativeUpkeep`
  *  (ADR 0155) calls this; the GRANT sites (`grantTriggeredAbilityPermanent`)
@@ -187,6 +193,10 @@ export function cumulativeUpkeepTrigger(
         // when step 1's may-pay suspends), step 1 offers the scaled payment.
         resolveSteps: [
             (ctx) => {
+                // CR 702.24a — "if this permanent is on the battlefield": a
+                // source that left (a same-id permanent that re-entered is a
+                // new object) gets no counter and owes no payment.
+                if (sourceHasLeft(ctx)) return;
                 // CR 702.24a — put an age counter on the permanent.
                 ctx.addCounter(
                     { type: "permanent", id: ctx.sourceInstanceId },
@@ -199,6 +209,7 @@ export function cumulativeUpkeepTrigger(
                     type: "permanent" as const,
                     id: ctx.sourceInstanceId,
                 };
+                if (sourceHasLeft(ctx)) return;
                 // CR 702.24b — pay the upkeep cost once per age counter.
                 const ageCount = ctx.getCounterCount(self, "age");
                 if (ageCount <= 0) return;

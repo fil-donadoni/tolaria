@@ -1829,6 +1829,9 @@ export const tetravus = defineCard(() => ({
                     type: "permanent" as const,
                     id: ctx.sourceInstanceId,
                 };
+                // A departed Tetravus has no counter left to remove: its last
+                // known tally opens no prompt.
+                if (ctx.sourceLkiMatchesFilter({}) !== undefined) return;
                 const available = ctx.getCounterCount(self, "+1/+1");
                 // CR 608.2b — nothing to remove; no real choice, no prompt.
                 if (available <= 0) return;

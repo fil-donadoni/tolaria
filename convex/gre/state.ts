@@ -16080,6 +16080,16 @@ export function buildSpellContext(
             const exiled = exiledCounterHolder(state, target);
             if (exiled) return exiled.counters?.[type] ?? 0;
             if (target.type !== "permanent") return 0;
+            // CR 608.2h / 400.7 — the resolving ability's own source, gone since
+            // the ability went on the stack: its departure-time counters answer,
+            // even when a same-id permanent (a new object) has re-entered. The
+            // same gate `getChosenSubtypes` reads.
+            if (
+                item.sourceLki &&
+                target.id === (item.triggerSourceId ?? item.id)
+            ) {
+                return item.sourceLki.counters?.[type] ?? 0;
+            }
             const found = findOnBattlefield(state, target.id);
             if (found) return found.card.counters?.[type] ?? 0;
             // CR 608.2h last-known information: a "Sacrifice this artifact:

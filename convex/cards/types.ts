@@ -16439,7 +16439,10 @@ export interface EffectCardFilter {
      *  "generalize, don't add" — a symmetric sibling field, not a new
      *  primitive): a FIXED literal or a DYNAMIC `{ X: true }` (the chosen-cost
      *  X, resolved via `ctx.getX()` at the same `resolveValue` site
-     *  `manaValueAtMost` already uses). Metathran Aerostat's "a creature card
+     *  `manaValueAtMost` already uses). A third shape is a counter tally
+     *  (`{ counters: { of: { ref: "$source" }, type } }`, CR 122.1, issue
+     *  #10505) — "with mana value equal to the number of charge counters on
+     *  this artifact", read as the filter is applied. Metathran Aerostat's "a creature card
      *  with mana value X from your hand" is `manaValueEquals: { X: true }`
      *  paired with `type: "Creature"` on a `choice(zone: "hand")` Op. An
      *  unresolvable dynamic value fails the filter closed (CR 608.2b),
@@ -16447,7 +16450,7 @@ export interface EffectCardFilter {
      *  every other field, including `manaValueAtMost` itself (an unlikely but
      *  not-forbidden combination — the two are independent ceiling/exact
      *  constraints). */
-    manaValueEquals?: number | EffectXValue;
+    manaValueEquals?: number | EffectXValue | EffectCountersValue;
     /** Exact structural MANA-COST match (CR 202, issue #1881, ADR 0078
      *  decision 8) — distinct from `manaValueEquals`, which folds a cost down
      *  to one number. Urza's Saga III reads "an artifact card with **mana

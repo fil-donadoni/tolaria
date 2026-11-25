@@ -992,17 +992,9 @@ function resolveValue(
         // count ("Destroy each … with mana value equal to the number of fuse
         // counters on it" reads that count as last-known info).
         //
-        // CAVEAT — this LKI re-read is faithful only for ACTIVATED / native
-        // stack items, where the resolving item id EQUALS `ctx.sourceInstanceId`
-        // (getCounterCount's LKI branch keys off the resolving item id). For a
-        // TRIGGERED ability `ctx.sourceInstanceId` is the `triggerSourceId`, NOT
-        // the resolving item id, so if the trigger's source has ALSO left play
-        // the LKI re-read misses and returns 0 rather than a true last-known
-        // count. No shipping card hits that path today — Powder Keg's activated
-        // sweep is the only counter-after-leave reader, and its fuse trigger
-        // keeps the source alive. Generalise the LKI read (thread the resolving
-        // item id, not just `sourceInstanceId`) when a triggered counter-reader
-        // whose source leaves first ever ships.
+        // A source that left AFTER the ability went on the stack — activated or
+        // triggered — answers from the item's departure-time `sourceLki` inside
+        // getCounterCount (CR 608.2h).
         //
         // Scoped to `$source` only — an announced target or a `$each` member
         // that left play stays unresolvable (the Op is skipped, CR 608.2b).
