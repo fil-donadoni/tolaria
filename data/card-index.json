@@ -4460,6 +4460,16 @@
         "firstPrintSet": "blb"
     },
     {
+        "name": "Arvad the Cursed",
+        "scryfallId": "e811f37a-f381-42e7-9b4a-15b2241eb10d",
+        "oracleId": "d561dcff-0a19-46ac-9dee-f374c840d532",
+        "firstSet": "dom",
+        "firstPrintId": "e811f37a-f381-42e7-9b4a-15b2241eb10d",
+        "firstPrintSet": "dom",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Arwen, Mortal Queen",
         "scryfallId": "547f92d4-cd1d-4ca7-a6e2-6473b4d3c832",
         "oracleId": "9519a4ea-c4a0-4127-b06a-aac9ffaf7a32",
@@ -5253,6 +5263,16 @@
         "firstPrintId": "b0060e75-a5a4-4d9a-894c-45bb7e2feffc",
         "firstPrintSet": "ori",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Aven Brigadier",
+        "scryfallId": "da24ef56-8d54-4146-97e9-4abded807545",
+        "oracleId": "910ae0ca-257d-4b45-b039-f26e7b2f3d5c",
+        "firstSet": "ons",
+        "firstPrintId": "da24ef56-8d54-4146-97e9-4abded807545",
+        "firstPrintSet": "ons",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -6073,6 +6093,16 @@
         "firstPrintId": "529c5440-e31f-40be-9e66-699d17049fb4",
         "firstPrintSet": "ody",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Balthor the Stout",
+        "scryfallId": "e81ecdc5-d2c7-4292-9b59-fd6bf3ba29d5",
+        "oracleId": "23669721-fe9e-49d7-9504-ae6164de723a",
+        "firstSet": "tor",
+        "firstPrintId": "e81ecdc5-d2c7-4292-9b59-fd6bf3ba29d5",
+        "firstPrintSet": "tor",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -6994,6 +7024,16 @@
         "source": "compiled"
     },
     {
+        "name": "Battleground Geist",
+        "scryfallId": "129905ef-5b3b-4860-923c-109a7d7cad80",
+        "oracleId": "2450d35b-7d87-4885-b396-f8e1d3ac0b22",
+        "firstSet": "isd",
+        "firstPrintId": "129905ef-5b3b-4860-923c-109a7d7cad80",
+        "firstPrintSet": "isd",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Battlegrowth",
         "scryfallId": "2b34e76b-86b3-464e-93e7-c3f2074028fb",
         "oracleId": "650bf82e-7f83-470c-bf4a-34281bfe9341",
@@ -7534,6 +7574,16 @@
         "firstSet": "inv",
         "firstPrintId": "3a38d40a-e745-4fee-b179-f8c27e9b2fbd",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Benalish Marshal",
+        "scryfallId": "6dd1a7fc-5dbd-4ed2-9b02-9fd5c55bb629",
+        "oracleId": "2cc439e8-d112-44e6-bc5a-6e99333c519a",
+        "firstSet": "dom",
+        "firstPrintId": "6dd1a7fc-5dbd-4ed2-9b02-9fd5c55bb629",
+        "firstPrintSet": "dom",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Benalish Sleeper",
@@ -8252,6 +8302,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bladestitched Skaab",
+        "scryfallId": "b8a73f77-aab5-47e3-bfc1-97f6374f40fc",
+        "oracleId": "d72b8254-3df8-431b-955a-ec2aea493e2b",
+        "firstSet": "mid",
+        "firstPrintId": "b8a73f77-aab5-47e3-bfc1-97f6374f40fc",
+        "firstPrintSet": "mid",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Bladetusk Boar",
         "scryfallId": "1558dfaf-15ed-4220-9051-bf0bf442b2e9",
         "oracleId": "f640a102-7ee8-4605-9e15-09938fb229b2",
@@ -8459,6 +8519,16 @@
         "firstPrintId": "4cf3eb65-0f52-49c1-8243-14ce05de9f3b",
         "firstPrintSet": "dom",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Blessed Orator",
+        "scryfallId": "5654575e-0849-4e7f-98f2-0074ac8e0faa",
+        "oracleId": "c0856fea-cbdc-427b-ae00-bfd9311f284f",
+        "firstSet": "ody",
+        "firstPrintId": "5654575e-0849-4e7f-98f2-0074ac8e0faa",
+        "firstPrintSet": "ody",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -9537,6 +9607,16 @@
         "firstPrintId": "186adacf-434b-475b-9b85-749615ae002b",
         "firstPrintSet": "cmr",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Boartusk Liege",
+        "scryfallId": "318338f8-f52b-4b9a-8d38-08291bcc2e98",
+        "oracleId": "4fcffb56-5ab6-44e2-804e-8b3c55cc5415",
+        "firstSet": "shm",
+        "firstPrintId": "318338f8-f52b-4b9a-8d38-08291bcc2e98",
+        "firstPrintSet": "shm",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -13534,6 +13614,16 @@
         "firstPrintSet": "wwk"
     },
     {
+        "name": "Celestial Crusader",
+        "scryfallId": "7f5624d6-2c27-4c7a-8001-73edb2512ffb",
+        "oracleId": "af06a811-7a57-4f68-9d87-7903e043f36d",
+        "firstSet": "tsp",
+        "firstPrintId": "7f5624d6-2c27-4c7a-8001-73edb2512ffb",
+        "firstPrintSet": "tsp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Celestial Force",
         "scryfallId": "0d51a3f0-2546-43c1-9a92-625997a24e9b",
         "oracleId": "8add6996-6c5c-4aa2-93d4-a39efcfd22b2",
@@ -13569,6 +13659,16 @@
         "firstPrintId": "4a7b2cc1-cb0b-4cb8-963f-453a1d5b0e3c",
         "firstPrintSet": "hml",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Cemetery Reaper",
+        "scryfallId": "639b48f0-3426-46cf-b857-4611f7de4826",
+        "oracleId": "70fa209f-5e79-44de-81ce-1d8d0d8c1006",
+        "firstSet": "m10",
+        "firstPrintId": "639b48f0-3426-46cf-b857-4611f7de4826",
+        "firstPrintSet": "m10",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -14386,6 +14486,26 @@
         "firstSet": "grn",
         "firstPrintId": "0e13a295-0d51-4b56-8c58-0896eb41c567",
         "firstPrintSet": "grn",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Chief of the Edge",
+        "scryfallId": "28822a9a-97fa-4784-ad97-072fcfc7b9ed",
+        "oracleId": "636a9364-54a6-4f67-ad96-731646e8bde7",
+        "firstSet": "ktk",
+        "firstPrintId": "28822a9a-97fa-4784-ad97-072fcfc7b9ed",
+        "firstPrintSet": "ktk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Chief of the Scale",
+        "scryfallId": "a227b8cc-cbe5-4955-ad1b-a354704a82e8",
+        "oracleId": "32e4de02-8437-4ffc-acc9-a3736652d282",
+        "firstSet": "ktk",
+        "firstPrintId": "a227b8cc-cbe5-4955-ad1b-a354704a82e8",
+        "firstPrintSet": "ktk",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -17284,6 +17404,16 @@
         "source": "compiled"
     },
     {
+        "name": "Corsair Captain",
+        "scryfallId": "a9b016d4-ddf6-47d6-b934-a0b979b60680",
+        "oracleId": "a7ec13c6-7ade-433a-b5a2-047854eef486",
+        "firstSet": "jmp",
+        "firstPrintId": "a9b016d4-ddf6-47d6-b934-a0b979b60680",
+        "firstPrintSet": "jmp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Coruscation Mage",
         "scryfallId": "dc2c1de0-6233-469a-be72-a050b97d2c8f",
         "oracleId": "88bb91b5-2ccd-4ce9-8cd4-e54d63c12abf",
@@ -17735,6 +17865,16 @@
         "firstPrintId": "3d4e94d3-0df5-4d2b-a5d9-178fe1350ceb",
         "firstPrintSet": "eve",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Creakwood Liege",
+        "scryfallId": "906ddeb6-4021-4e16-b0b9-dfe087673944",
+        "oracleId": "1e67b4eb-e5d2-4368-8284-4ba5c4c42455",
+        "firstSet": "eve",
+        "firstPrintId": "906ddeb6-4021-4e16-b0b9-dfe087673944",
+        "firstPrintSet": "eve",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -19728,6 +19868,16 @@
         "source": "compiled"
     },
     {
+        "name": "Darling of the Masses",
+        "scryfallId": "52aa9815-6b47-4c80-87c7-4277166ea0df",
+        "oracleId": "96818698-c104-48f4-b73f-c8722d1d1be4",
+        "firstSet": "snc",
+        "firstPrintId": "52aa9815-6b47-4c80-87c7-4277166ea0df",
+        "firstPrintSet": "snc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Darting Merfolk",
         "scryfallId": "438e15f7-59bb-4047-af1f-ef92cc1866b8",
         "oracleId": "2f33e684-a4e4-4528-9a20-3df902bc2cde",
@@ -20721,6 +20871,16 @@
         "firstPrintId": "cbe3a68e-c29e-48a8-a2d7-49c8bff3dd8a",
         "firstPrintSet": "shm",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Deepchannel Duelist",
+        "scryfallId": "1b742172-7118-45e7-9945-62bd77d94e85",
+        "oracleId": "c892d28c-4a78-4a7f-b8d5-c3663b819c5e",
+        "firstSet": "ecl",
+        "firstPrintId": "1b742172-7118-45e7-9945-62bd77d94e85",
+        "firstPrintSet": "ecl",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -25760,6 +25920,16 @@
         "source": "compiled"
     },
     {
+        "name": "Elesh Norn, Grand Cenobite",
+        "scryfallId": "b66390d6-1649-4bfa-92d3-77664650d552",
+        "oracleId": "958d71ff-c9f7-46f0-96ca-79e7f4d65a16",
+        "firstSet": "nph",
+        "firstPrintId": "b66390d6-1649-4bfa-92d3-77664650d552",
+        "firstPrintSet": "nph",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Elf Replica",
         "scryfallId": "b92cce55-22ee-40a7-bb94-4889093f142c",
         "oracleId": "2dda5011-aaa1-48d0-afa8-76998278ab75",
@@ -26018,6 +26188,16 @@
         "firstSet": "drk",
         "firstPrintId": "f395278e-6d74-4f35-af9d-21bad7b19763",
         "firstPrintSet": "drk"
+    },
+    {
+        "name": "Elvish Archdruid",
+        "scryfallId": "544bc214-e32d-4370-a15f-62812a0420be",
+        "oracleId": "6e2c2423-d854-4478-99e6-64f29851f026",
+        "firstSet": "m10",
+        "firstPrintId": "544bc214-e32d-4370-a15f-62812a0420be",
+        "firstPrintSet": "m10",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Elvish Archers",
@@ -28597,6 +28777,16 @@
         "firstPrintId": "d350ebd7-afcf-4d67-8173-b07cad3fa9bc",
         "firstPrintSet": "con",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Faerie Noble",
+        "scryfallId": "00f8931e-6402-483c-a9e8-63ee344c36a7",
+        "oracleId": "6172e5b9-2a01-429c-a140-e9b22fbab56e",
+        "firstSet": "hml",
+        "firstPrintId": "00f8931e-6402-483c-a9e8-63ee344c36a7",
+        "firstPrintSet": "hml",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -33622,6 +33812,16 @@
         "source": "compiled"
     },
     {
+        "name": "Gallows Warden",
+        "scryfallId": "15947b20-8c8e-42ed-9599-8b180a382d21",
+        "oracleId": "06157e34-dbe1-4936-a718-3b1d70726794",
+        "firstSet": "isd",
+        "firstPrintId": "15947b20-8c8e-42ed-9599-8b180a382d21",
+        "firstPrintSet": "isd",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Galvanic Arc",
         "scryfallId": "64d816df-51e5-46f8-ad9a-68f3f656dbcd",
         "oracleId": "72a8620e-1ba2-40a8-9b22-11cc57864adf",
@@ -35408,6 +35608,16 @@
         "source": "compiled"
     },
     {
+        "name": "Glen Elendra Liege",
+        "scryfallId": "94cc72b7-b593-438f-a07a-35f2452e1c48",
+        "oracleId": "946bba74-0951-408c-b06f-167739b10934",
+        "firstSet": "shm",
+        "firstPrintId": "94cc72b7-b593-438f-a07a-35f2452e1c48",
+        "firstPrintSet": "shm",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Glider Kids",
         "scryfallId": "0613afb5-4cee-4132-8adf-404767ed8d07",
         "oracleId": "ff5ce28b-25be-4136-a7b2-8f25c08a6455",
@@ -36809,6 +37019,16 @@
         "firstPrintId": "152b2d16-bdf5-4249-9dc1-bb51498aa33b",
         "firstPrintSet": "rix",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Goblin Trashmaster",
+        "scryfallId": "2bc69988-3c2d-4b76-a8c0-05926b9bbd08",
+        "oracleId": "0283bf5e-ddf2-4a4a-a7cf-d3e27eed7e7d",
+        "firstSet": "m19",
+        "firstPrintId": "2bc69988-3c2d-4b76-a8c0-05926b9bbd08",
+        "firstPrintSet": "m19",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -44100,6 +44320,16 @@
         "firstPrintSet": "kld"
     },
     {
+        "name": "Inspiring Veteran",
+        "scryfallId": "0c3f372d-259d-4a31-9491-2d369b3f3f8b",
+        "oracleId": "aa1a63dd-acb1-465f-8970-667b8d7c57c9",
+        "firstSet": "eld",
+        "firstPrintId": "0c3f372d-259d-4a31-9491-2d369b3f3f8b",
+        "firstPrintSet": "eld",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Instant Ramen",
         "scryfallId": "ef7011f4-fc08-4b15-973d-d15357cbe744",
         "oracleId": "2283e409-c6c7-4de9-899b-2b3caea5f35e",
@@ -46032,6 +46262,16 @@
         "source": "compiled"
     },
     {
+        "name": "Kaervek, the Spiteful",
+        "scryfallId": "b0fd1009-cd3d-4b53-b9f1-dbc47e8708ab",
+        "oracleId": "b338d879-189d-4b74-9d63-42920fdb9855",
+        "firstSet": "m21",
+        "firstPrintId": "b0fd1009-cd3d-4b53-b9f1-dbc47e8708ab",
+        "firstPrintSet": "m21",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Kaito, Bane of Nightmares",
         "scryfallId": "55a14f30-4ff9-4472-90a6-c3139f1c18e5",
         "oracleId": "fa43077b-5d8b-4fb1-8dda-2a9185e6715e",
@@ -46163,6 +46403,16 @@
         "firstPrintId": "bc036932-38c2-42df-9922-2d901028f2b8",
         "firstPrintSet": "bng",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Kargan Warleader",
+        "scryfallId": "6f921dca-ce93-42d1-87b1-149973558467",
+        "oracleId": "63324e72-e580-456a-91be-766c9f07b7b3",
+        "firstSet": "znr",
+        "firstPrintId": "6f921dca-ce93-42d1-87b1-149973558467",
+        "firstPrintSet": "znr",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -46980,6 +47230,16 @@
         "source": "compiled"
     },
     {
+        "name": "King of the Pride",
+        "scryfallId": "c4e83abd-6f15-491e-9253-90af9f6f1025",
+        "oracleId": "96d0e4dd-6cc2-4349-ac44-785b50f8dd90",
+        "firstSet": "mh1",
+        "firstPrintId": "c4e83abd-6f15-491e-9253-90af9f6f1025",
+        "firstPrintSet": "mh1",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "King Suleiman",
         "scryfallId": "4d3dce0f-2168-4f63-b2f9-156a11beeea7",
         "oracleId": "97f548b1-6398-4dc7-b5eb-da5a3f24ddb7",
@@ -47775,6 +48035,16 @@
         "firstPrintId": "e2b84af1-b40b-476a-87b2-ee8e3a018171",
         "firstPrintSet": "tle",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Kongming, \"Sleeping Dragon\"",
+        "scryfallId": "f4ae0a05-1870-4f4a-b8a2-bfb5381acacb",
+        "oracleId": "21e9e1a9-5d6d-473e-adab-6a1e8e2b0ebd",
+        "firstSet": "ptk",
+        "firstPrintId": "f4ae0a05-1870-4f4a-b8a2-bfb5381acacb",
+        "firstPrintSet": "ptk",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -49209,6 +49479,16 @@
         "firstSet": "grn",
         "firstPrintId": "b03423b2-faca-4b2e-8328-8b9b7fdb7ce3",
         "firstPrintSet": "grn",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Legion Lieutenant",
+        "scryfallId": "33f7ff99-65d6-4e97-bdfa-b6e6eac0588f",
+        "oracleId": "5fa1b2f0-3ba4-49db-9cb5-b6130e4c255e",
+        "firstSet": "rix",
+        "firstPrintId": "33f7ff99-65d6-4e97-bdfa-b6e6eac0588f",
+        "firstPrintSet": "rix",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -50765,6 +51045,16 @@
         "source": "compiled"
     },
     {
+        "name": "Lord of the Accursed",
+        "scryfallId": "3941562d-3e39-4746-9a18-d3aa6d3468b0",
+        "oracleId": "3f372107-6c52-4f1f-8bf0-7b3fa21b2cae",
+        "firstSet": "akh",
+        "firstPrintId": "3941562d-3e39-4746-9a18-d3aa6d3468b0",
+        "firstPrintSet": "akh",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Lord of the Pit",
         "scryfallId": "2926777a-4f6e-4965-ba83-22cf7df02602",
         "oracleId": "ea152809-85a2-4fde-8251-3b1f267e4443",
@@ -51472,6 +51762,16 @@
         "firstPrintId": "8451ab3f-5d61-4f35-ab70-5a5060caf53d",
         "firstPrintSet": "lgn",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Mad Auntie",
+        "scryfallId": "39b1655b-ab0a-40d9-8d4d-55d13310ede1",
+        "oracleId": "b582b696-17fa-4eea-8124-293f9bd3a208",
+        "firstSet": "lrw",
+        "firstPrintId": "39b1655b-ab0a-40d9-8d4d-55d13310ede1",
+        "firstPrintSet": "lrw",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -52843,6 +53143,16 @@
         "source": "compiled"
     },
     {
+        "name": "Markov Baron",
+        "scryfallId": "a1dc6b0f-09bb-4489-8022-42c700eb1191",
+        "oracleId": "bafc2e11-5f1c-46f1-a852-2330e099b8e2",
+        "firstSet": "mat",
+        "firstPrintId": "a1dc6b0f-09bb-4489-8022-42c700eb1191",
+        "firstPrintSet": "mat",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Markov Blademaster",
         "scryfallId": "122163dd-e070-48af-8036-e9850541d138",
         "oracleId": "774e474a-f2a1-4b62-8cfe-40ad509f9062",
@@ -52955,6 +53265,16 @@
         "firstSet": "drk",
         "firstPrintId": "109cce7a-96f7-4e67-878a-bd5c93ea8643",
         "firstPrintSet": "drk"
+    },
+    {
+        "name": "Marshal of Zhalfir",
+        "scryfallId": "c2418f5c-a85f-4249-8a53-c94b011b9714",
+        "oracleId": "9ad01fb2-2ba7-447a-a5ef-e57d46421635",
+        "firstSet": "mom",
+        "firstPrintId": "c2418f5c-a85f-4249-8a53-c94b011b9714",
+        "firstPrintSet": "mom",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Marshdrinker Giant",
@@ -53735,6 +54055,16 @@
         "source": "compiled"
     },
     {
+        "name": "Meng Huo, Barbarian King",
+        "scryfallId": "e340647c-fb6d-45a6-9f42-235390b40337",
+        "oracleId": "ea7fdff3-9d45-4a4a-b7fe-84b334f04291",
+        "firstSet": "ptk",
+        "firstPrintId": "e340647c-fb6d-45a6-9f42-235390b40337",
+        "firstPrintSet": "ptk",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Meng Huo's Horde",
         "scryfallId": "e1642802-055e-44d2-a261-c2a45ad515e8",
         "oracleId": "27e6de72-68c4-4154-807f-5944fe97c92b",
@@ -53919,6 +54249,16 @@
         "source": "compiled"
     },
     {
+        "name": "Merfolk Mistbinder",
+        "scryfallId": "2935b829-23fb-415e-90f2-2e0016b5cde9",
+        "oracleId": "be56dfea-1ece-4f06-b1cc-d7425b5018b4",
+        "firstSet": "rix",
+        "firstPrintId": "2935b829-23fb-415e-90f2-2e0016b5cde9",
+        "firstPrintSet": "rix",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Merfolk of the Depths",
         "scryfallId": "bddb2e15-a53e-4647-a627-6c7032429fca",
         "oracleId": "263df914-aea1-48dc-b517-7d515307789e",
@@ -53984,6 +54324,16 @@
         "firstPrintId": "63139890-e860-4791-9bb6-b79bb361ef8b",
         "firstPrintSet": "mir",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Merfolk Sovereign",
+        "scryfallId": "b9826a2e-361e-4701-9177-0907c0c6dc9f",
+        "oracleId": "16aba9af-7a12-4c3d-87eb-06278921cb7c",
+        "firstSet": "m10",
+        "firstPrintId": "b9826a2e-361e-4701-9177-0907c0c6dc9f",
+        "firstPrintSet": "m10",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -54839,6 +55189,16 @@
         "firstSet": "sth",
         "firstPrintId": "ebe796e1-97f9-469a-a6b6-a09161058e12",
         "firstPrintSet": "sth",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Mindwrack Liege",
+        "scryfallId": "0b412a60-b49e-42ea-9547-03e4ef44ffea",
+        "oracleId": "c24b3135-5f23-461c-9e57-de747ca8978a",
+        "firstSet": "eve",
+        "firstPrintId": "0b412a60-b49e-42ea-9547-03e4ef44ffea",
+        "firstPrintSet": "eve",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -57235,6 +57595,16 @@
         "firstSet": "som",
         "firstPrintId": "b0ae94ed-7314-470b-baba-f2f58bbc894a",
         "firstPrintSet": "som"
+    },
+    {
+        "name": "Myr Galvanizer",
+        "scryfallId": "e55ca835-b7f3-497c-b0bc-50a182cabecf",
+        "oracleId": "e070028e-468a-41e9-9ddd-a8cd01551266",
+        "firstSet": "som",
+        "firstPrintId": "e55ca835-b7f3-497c-b0bc-50a182cabecf",
+        "firstPrintSet": "som",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Myr Kinsmith",
@@ -61811,6 +62181,56 @@
         "firstSet": "kld",
         "firstPrintId": "17e50157-bf49-4c5f-9b8a-bf73484e63a5",
         "firstPrintSet": "kld"
+    },
+    {
+        "name": "Paragon of Eternal Wilds",
+        "scryfallId": "97c3fcca-480f-4acf-b74f-0f37b46fa799",
+        "oracleId": "942a461a-49aa-4eeb-b399-a2afba41ade9",
+        "firstSet": "m15",
+        "firstPrintId": "97c3fcca-480f-4acf-b74f-0f37b46fa799",
+        "firstPrintSet": "m15",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Paragon of Fierce Defiance",
+        "scryfallId": "3ad97067-2b6b-4e60-817c-6414e2739806",
+        "oracleId": "0f94d1a7-351f-4d37-8dab-1ebf2e8ee213",
+        "firstSet": "m15",
+        "firstPrintId": "3ad97067-2b6b-4e60-817c-6414e2739806",
+        "firstPrintSet": "m15",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Paragon of Gathering Mists",
+        "scryfallId": "5afc32ed-c1a9-4c37-bfe0-562818c046fc",
+        "oracleId": "38212d24-40fd-404f-a8bb-24ed0d023fe8",
+        "firstSet": "m15",
+        "firstPrintId": "5afc32ed-c1a9-4c37-bfe0-562818c046fc",
+        "firstPrintSet": "m15",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Paragon of New Dawns",
+        "scryfallId": "361c66c3-b4eb-48aa-a967-255a8db60977",
+        "oracleId": "f064e5e3-4772-4f6d-b8fa-4f36d4fcdb42",
+        "firstSet": "m15",
+        "firstPrintId": "361c66c3-b4eb-48aa-a967-255a8db60977",
+        "firstPrintSet": "m15",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Paragon of Open Graves",
+        "scryfallId": "33d7de75-b6e1-44f5-ae1c-e095b41e8d0b",
+        "oracleId": "39375b5d-f509-4482-8d34-797dae17d38b",
+        "firstSet": "m15",
+        "firstPrintId": "33d7de75-b6e1-44f5-ae1c-e095b41e8d0b",
+        "firstPrintSet": "m15",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Parallax Tide",
@@ -68837,6 +69257,16 @@
         "source": "compiled"
     },
     {
+        "name": "Regal Imperiosaur",
+        "scryfallId": "36f569cc-ed09-4c27-b753-18b22ad7f425",
+        "oracleId": "83a76601-ef59-4888-af70-5088dd1f504c",
+        "firstSet": "dft",
+        "firstPrintId": "36f569cc-ed09-4c27-b753-18b22ad7f425",
+        "firstPrintSet": "dft",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Regal Unicorn",
         "scryfallId": "daa1fb8c-12fa-4e9c-979f-55e89356acaf",
         "oracleId": "2b856a43-ca6b-4f08-b610-9794ee6d7fcf",
@@ -74045,6 +74475,16 @@
         "source": "compiled"
     },
     {
+        "name": "Scion of Oona",
+        "scryfallId": "f75fc1eb-09ac-4800-a55d-c0e723f5786b",
+        "oracleId": "b34601d2-2aeb-4649-9d73-d0895611bd69",
+        "firstSet": "lrw",
+        "firstPrintId": "f75fc1eb-09ac-4800-a55d-c0e723f5786b",
+        "firstPrintSet": "lrw",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Scion of Ugin",
         "scryfallId": "302d62d6-8abf-4693-974c-bef6841b394f",
         "oracleId": "7422f43d-0c1e-42cb-864d-1c63f2ec533a",
@@ -76212,6 +76652,16 @@
         "firstPrintId": "fb725914-1b0f-4efc-808b-9fe2eaa7f17d",
         "firstPrintSet": "tsp",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Shadow-Rite Priest",
+        "scryfallId": "c9e43116-a489-4557-a47f-623d915a2b79",
+        "oracleId": "cf42a7e3-71ee-40b8-a6ca-0368c746e128",
+        "firstSet": "dmu",
+        "firstPrintId": "c9e43116-a489-4557-a47f-623d915a2b79",
+        "firstPrintSet": "dmu",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -83177,6 +83627,16 @@
         "firstPrintSet": "ody"
     },
     {
+        "name": "Squirrel Sovereign",
+        "scryfallId": "8f739d55-30d6-4879-872a-82c6778113de",
+        "oracleId": "f43d1ea5-8127-4b64-a87b-ee5cc9b9e9fa",
+        "firstSet": "mh2",
+        "firstPrintId": "8f739d55-30d6-4879-872a-82c6778113de",
+        "firstPrintSet": "mh2",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Squirrel Wrangler",
         "scryfallId": "7094be2a-454e-4e4d-a540-c5c80e37468a",
         "oracleId": "4021b6b4-9b87-4dd5-a5df-79540bedbe87",
@@ -84753,6 +85213,16 @@
         "firstPrintSet": "tdm"
     },
     {
+        "name": "Stormscale Wurm",
+        "scryfallId": "57332bc4-cc0a-467a-afb1-1b24445c9552",
+        "oracleId": "4f7e67ac-4e02-4d0c-aca0-3405bf4b1c04",
+        "firstSet": "unk",
+        "firstPrintId": "57332bc4-cc0a-467a-afb1-1b24445c9552",
+        "firstPrintSet": "unk",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Stormscape Apprentice",
         "scryfallId": "1eb42f39-9187-44e4-aa34-14ab31977199",
         "oracleId": "cf2bacd3-b1ac-4863-b9c7-1e0a8d4854f3",
@@ -85251,6 +85721,16 @@
         "firstSet": "nem",
         "firstPrintId": "d3567b4e-6e31-40b0-83ea-4a2a58bd637c",
         "firstPrintSet": "nem",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Stronghold Taskmaster",
+        "scryfallId": "6171c210-01b5-45a9-9dd3-dbf96a33a750",
+        "oracleId": "7a2b134d-9d7e-4d43-98fc-c776fc4bad45",
+        "firstSet": "sth",
+        "firstPrintId": "6171c210-01b5-45a9-9dd3-dbf96a33a750",
+        "firstPrintSet": "sth",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -86255,6 +86735,16 @@
         "firstSet": "apc",
         "firstPrintId": "642eefde-8727-44ff-9e04-373abfcd0679",
         "firstPrintSet": "apc"
+    },
+    {
+        "name": "Supreme Phantom",
+        "scryfallId": "5d65c22b-7640-4433-930b-4bc381ac7361",
+        "oracleId": "9c5f4d02-eedb-4c6c-9f13-1b7a45382483",
+        "firstSet": "m19",
+        "firstPrintId": "5d65c22b-7640-4433-930b-4bc381ac7361",
+        "firstPrintSet": "m19",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Supreme Verdict",
@@ -89585,6 +90075,16 @@
         "source": "compiled"
     },
     {
+        "name": "Thirsting Bloodlord",
+        "scryfallId": "599e8ed3-4341-4373-8871-2768a90d98c1",
+        "oracleId": "b04ba676-a1f5-4216-9d93-3c475b504bfa",
+        "firstSet": "m20",
+        "firstPrintId": "599e8ed3-4341-4373-8871-2768a90d98c1",
+        "firstPrintSet": "m20",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Thirsting Shade",
         "scryfallId": "a920c2e6-4a1f-487c-ad3f-b772443f0633",
         "oracleId": "cba60174-a4de-41e1-a4d9-8f7bb1387e0e",
@@ -89602,6 +90102,16 @@
         "firstPrintId": "d57ba0ce-0390-42fd-9473-2436fac53631",
         "firstPrintSet": "shm",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Thistledown Liege",
+        "scryfallId": "20e34233-0972-4aa7-a5ab-eabed2235148",
+        "oracleId": "7b07356f-9c3f-4875-939e-aa64eb6b5ce2",
+        "firstSet": "shm",
+        "firstPrintId": "20e34233-0972-4aa7-a5ab-eabed2235148",
+        "firstPrintSet": "shm",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -90387,6 +90897,16 @@
         "firstSet": "znr",
         "firstPrintId": "dc671707-4708-44d8-8ec8-d5332599adf9",
         "firstPrintSet": "znr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Thundering Spineback",
+        "scryfallId": "35711da6-aac4-4c2a-b324-aebeaa843adc",
+        "oracleId": "c9db31d7-00cf-4200-a11f-74cc2d9e843e",
+        "firstSet": "xln",
+        "firstPrintId": "35711da6-aac4-4c2a-b324-aebeaa843adc",
+        "firstPrintSet": "xln",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -95987,6 +96507,26 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Veteran Armorer",
+        "scryfallId": "151a455f-c364-4600-a5f8-98da86aabc48",
+        "oracleId": "1b1214e9-1581-4008-b3d4-8b7af6b092fd",
+        "firstSet": "rav",
+        "firstPrintId": "151a455f-c364-4600-a5f8-98da86aabc48",
+        "firstPrintSet": "rav",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Veteran Armorsmith",
+        "scryfallId": "42f506b5-2e24-47fd-a41e-1e834ce48cd1",
+        "oracleId": "fcb34e92-f991-401c-a494-c2919083bf9e",
+        "firstSet": "m10",
+        "firstPrintId": "42f506b5-2e24-47fd-a41e-1e834ce48cd1",
+        "firstPrintSet": "m10",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Veteran Beastrider",
         "scryfallId": "cab38f35-b60c-464c-a0b5-9d5f2dc6de7f",
         "oracleId": "29f1484c-91b6-436a-a6be-3ab8b58c0fc1",
@@ -96032,6 +96572,16 @@
         "firstPrintId": "c36fe821-e9b1-453d-8e44-f8dce111a6de",
         "firstPrintSet": "lrw",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Veteran Swordsmith",
+        "scryfallId": "c50e0950-e1ef-4c5c-b758-e707ef026d54",
+        "oracleId": "cc71b6c4-09d4-423b-a134-2f2f2fd7b533",
+        "firstSet": "m10",
+        "firstPrintId": "c50e0950-e1ef-4c5c-b758-e707ef026d54",
+        "firstPrintSet": "m10",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -97027,6 +97577,16 @@
         "firstSet": "s99",
         "firstPrintId": "25711022-7270-4335-a48b-9f2b8275ceeb",
         "firstPrintSet": "s99",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Vodalian Hexcatcher",
+        "scryfallId": "4ec464dc-b1dd-4e45-b093-c3ad65a74050",
+        "oracleId": "4246b503-0da8-4de7-9343-9dfb3c3672df",
+        "firstSet": "dmu",
+        "firstPrintId": "4ec464dc-b1dd-4e45-b093-c3ad65a74050",
+        "firstPrintSet": "dmu",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -101285,6 +101845,16 @@
         "source": "compiled"
     },
     {
+        "name": "Wizened Cenn",
+        "scryfallId": "585f1c8e-6898-4def-8e3f-d45cd263f776",
+        "oracleId": "b5905ef3-6565-462f-a015-2bb5b5b09eff",
+        "firstSet": "lrw",
+        "firstPrintId": "585f1c8e-6898-4def-8e3f-d45cd263f776",
+        "firstPrintSet": "lrw",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Woebearer",
         "scryfallId": "c5a6e960-169d-431a-9ebd-c4413aa67377",
         "oracleId": "5ed93d71-3f62-49d4-a9ca-5728c44b0633",
@@ -102427,6 +102997,16 @@
         "source": "compiled"
     },
     {
+        "name": "Yotian Tactician",
+        "scryfallId": "760c0369-c2e4-4bd7-a301-9f707f5f48a8",
+        "oracleId": "0d9d7f04-6319-4596-8b74-de5a794936e5",
+        "firstSet": "bro",
+        "firstPrintId": "760c0369-c2e4-4bd7-a301-9f707f5f48a8",
+        "firstPrintSet": "bro",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Young Blue Dragon // Sand Augury",
         "scryfallId": "56b0f66b-dca9-4a01-9394-20a513c2b225",
         "oracleId": "fff28b30-9903-4a0a-a723-31216abd457d",
@@ -103026,6 +103606,16 @@
         "firstPrintId": "8d5cd0be-4337-4aba-a4f6-5adab7735a73",
         "firstPrintSet": "eoe",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Zuberi, Golden Feather",
+        "scryfallId": "c1b24a80-b5e1-484f-9e21-886cb6b5db48",
+        "oracleId": "5a43b164-61a4-4dcb-9397-45356ad4260e",
+        "firstSet": "mir",
+        "firstPrintId": "c1b24a80-b5e1-484f-9e21-886cb6b5db48",
+        "firstPrintSet": "mir",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
