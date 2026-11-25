@@ -1,7 +1,8 @@
 ---
 title: The rollout's random draw aims harmful targeted moves at the mover's own permanents
 discoveredBy: 9977
-status: draft
+status: triaged
+issue: 10376
 confidence: medium
 ---
 
