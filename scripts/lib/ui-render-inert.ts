@@ -55,7 +55,7 @@
  * region (`ui-boot-config-regions.ts`: the `Sentry.init` options, the
  * dev-server proxy table) and an import only those regions read. No handler
  * rule applies there. `bootConfigImports` names the modules such an import
- * reaches (issue #10474), so the scoper's shell closure can stop at them
+ * reaches, so the scoper's shell closure can stop at them
  * (`ui-scope.ts`, `bootConfigOnlyModules`).
  */
 import { execFileSync } from "node:child_process";
