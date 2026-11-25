@@ -19,7 +19,7 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildBladeState } from "@convex/gre/ai/blade/runner";
 import { getCardByName } from "@convex/cards";
 import { setRootDecisionSink } from "@convex/gre/ai/decisionTelemetry";
@@ -519,6 +519,35 @@ describe("issue #3984 — quotas per Decision Class, from config", () => {
         const list = await proposeVerdicts(landDrops(6), CONFIG, judge);
         expect(list.proposals).toHaveLength(CONFIG.perClassQuota);
         expect(list.proposals.some((p) => p.agrees)).toBe(false);
+    });
+
+    it("asks about every sampled decision at once, and lists the answers in game order whichever ends first", async () => {
+        const answer: ((move: Move | null) => void)[] = [];
+        const progress: [number, number][] = [];
+        const listed = proposeVerdicts(
+            landDrops(6),
+            { ...CONFIG, perClassQuota: 3 },
+            () => new Promise((resolve) => answer.push(resolve)),
+            (done, total) => progress.push([done, total])
+        );
+        await vi.waitFor(() => expect(answer).toHaveLength(3));
+        expect(progress).toEqual([[0, 3]]);
+        answer[2]({ kind: "pass" });
+        answer[0]({ kind: "pass" });
+        await vi.waitFor(() =>
+            expect(progress).toEqual([
+                [0, 3],
+                [1, 3],
+                [2, 3],
+            ])
+        );
+        answer[1](null);
+        const list = await listed;
+        expect(progress[progress.length - 1]).toEqual([3, 3]);
+        expect(list.unjudged).toBe(1);
+        const order = list.proposals.map((p) => p.source.state.seq);
+        expect(order).toHaveLength(2);
+        expect(order).toEqual([...order].sort((a, b) => a - b));
     });
 
     it("puts disagreements first, then the agreeing share", () => {
