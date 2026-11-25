@@ -30294,7 +30294,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             moves: [{ kind: "resolution-choice", option: "3" }],
         },
-        note: "Issue #10290. Every creature the opponent will draw is a target for the copies kept in hand. With a held copy priced at the no-script floor, one seed in three pays 1 here and spends a second card on the same 1/3.",
+        note: "Issue #10290. Every creature the opponent will draw is a target for the copies kept in hand. With a held copy priced at the no-script floor the Bot pays 1 or 2 on 5 of 20 wide seeds at 400 iterations (WRONG in the robustness audit); priced by its damage, 20 of 20 pay 3 (ROBUST).",
     },
     {
         label: "energy: Guide of Souls grows the attacker that stays",
