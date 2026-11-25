@@ -20,9 +20,10 @@
 // removes moves dominated by doing NOTHING. This one removes moves dominated
 // by EACH OTHER. Same seam, same shape, different relation — and, like
 // dominance, it is a BOT-path filter and never a legality one: `legalActions`
-// (the human affordance surface) and scripted setup realisation keep seeing
-// the complete legal set, because a collapsed-away copy is still perfectly
-// legal to play, just never worth searching twice.
+// (the human affordance surface) keeps seeing the complete legal set, because a
+// collapsed-away copy is still perfectly legal to play, just never worth
+// searching twice. A scripted blade `cast` step enumerates that set too, and
+// collapses it only to ask whether the cast it names is ambiguous.
 //
 // WHY THE DESCRIPTOR IS TOTAL. Interchangeability is a claim about what NO
 // rule can read, so the descriptor is the WHOLE `CardInstanceState` — every
