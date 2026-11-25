@@ -21,7 +21,6 @@
         "convex/__tests__/permanentAlternativeCostBotCastPath.bot.test.ts": 58,
         "convex/__tests__/singleGraveyardTargets.bot.test.ts": 18,
         "convex/__tests__/verdictForward.bot.test.ts": 157,
-        "convex/__tests__/verdictJudge.bot.test.ts": 1651,
         "convex/__tests__/verdictPackStore.bot.test.ts": 24,
         "convex/__tests__/verdictPairReview.bot.test.ts": 225,
         "convex/__tests__/verdictResolutionStore.bot.test.ts": 20,

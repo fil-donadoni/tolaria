@@ -1,8 +1,7 @@
 // The two seats of a vs-AI game, and the proof the caller is its human player.
 //
 // Shared by every server path a vs-AI game's HUMAN calls about the Bot — the
-// liveness hand-off and consult-failure record (`botLiveness.ts`) and the
-// game-end Verdict Proposal judge's guard (`verdictJudgeGuard.ts`) — so the
+// liveness hand-off and consult-failure record (`botLiveness.ts`) — so the
 // seat derivation and the ownership check are one function, never copies.
 //
 // A plain module (no Convex functions).
