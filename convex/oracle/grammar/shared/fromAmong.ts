@@ -95,7 +95,7 @@ export const amongPickRule: Rule<AmongPickIR> = subGrammar(
             return ok({ filter: { type: [...PERMANENT_TYPES] }, card });
         const descriptor = descriptorRule.run(card.replace(/^an? /, ""), ctx);
         if (!descriptor.ok) return descriptor;
-        const filter = pickFilter(descriptor.value);
+        const filter = pickFilter(descriptor.value, / or /.test(card));
         if (typeof filter === "string") return fail(filter, card);
         return ok({ filter, card });
     })
@@ -139,7 +139,11 @@ export function readAmongPickSentence(
     return ok({ pick: pick.value, reveal: revealed !== null });
 }
 
-function pickFilter(descriptor: DescriptorIR): EffectCardFilter | string {
+function pickFilter(
+    descriptor: DescriptorIR,
+    /** The phrase prints an or-list, so several subtypes are a union. */
+    list: boolean
+): EffectCardFilter | string {
     for (const [field, value] of Object.entries(descriptor))
         if (value !== undefined && !PICK_FIELDS.has(field))
             return `"${field}" is not a clause a pick from among them reads`;
@@ -156,9 +160,13 @@ function pickFilter(descriptor: DescriptorIR): EffectCardFilter | string {
             excluded.length === 1 ? excluded[0]! : [...excluded];
     const subtypes = descriptor.subtypes;
     if (subtypes !== undefined) {
-        if (subtypes.length !== 1)
-            return "a pick from among them names one subtype";
-        filter.subtype = subtypes[0]!;
+        // CR 205.3 — "a Bat, Bird, Mouse, or Rabbit card": an or-list is a
+        // union, which is what `EffectCardFilter.subtype` reads an array as.
+        // Stacked subtypes ("Elf Warrior card") are an intersection it cannot
+        // say, and neither is a list beside a card type.
+        if (subtypes.length > 1 && (!list || types !== undefined))
+            return "a pick from among them names one subtype or an or-list";
+        filter.subtype = subtypes.length === 1 ? subtypes[0]! : [...subtypes];
     }
     // CR 105.2 — one colour word. Several would need the printed "or" the
     // descriptor does not record, so they are refused rather than guessed.

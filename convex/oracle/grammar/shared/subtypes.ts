@@ -123,3 +123,17 @@ export const ENCHANTMENT_SUBTYPES: ReadonlySet<string> = set(
 export const SPELL_SUBTYPES: ReadonlySet<string> = set(
     "Adventure,Arcane,Lesson,Omen,Trap"
 );
+
+/**
+ * True for a subtype a PERMANENT noun can be built on: creature, land or
+ * artifact (CR 205.3m / 205.3i / 205.3g). An enchantment or spell subtype is
+ * deliberately outside — it implies no card type these readers have a fixture
+ * for.
+ */
+export function isPermanentSubtype(token: string): boolean {
+    return (
+        CREATURE_SUBTYPES.has(token) ||
+        LAND_SUBTYPES.has(token) ||
+        ARTIFACT_SUBTYPES.has(token)
+    );
+}

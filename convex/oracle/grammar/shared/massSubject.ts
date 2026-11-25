@@ -110,6 +110,15 @@ const MANA_VALUE_EQUALS_SOURCE_COUNTERS =
     / with mana value equal to the number of (\S+) counters on (this \S+)$/;
 
 /**
+ * CR 400.7 — "… that entered [the battlefield] this turn": the permanents whose
+ * entry happened during the current turn, `EffectCardFilter.enteredThisTurn`.
+ * Printed after the controller clause, so it is peeled off the tail before the
+ * descriptor reads the rest. "under your control" is a different history
+ * (whose control it entered under) and stays unread.
+ */
+const ENTERED_THIS_TURN = / that entered (?:the battlefield )?this turn$/;
+
+/**
  * "artifact, creature, and enchantment" / "artifacts and enchantments" → the
  * or-list the descriptor reader knows. In a SWEEP the two are one set: "each
  * artifact, creature, and enchantment" is every permanent that is any of them
@@ -147,7 +156,8 @@ function sweepSelector(
     descriptor: DescriptorIR,
     other: boolean,
     list: boolean,
-    allowKeywordExclusion: boolean
+    allowKeywordExclusion: boolean,
+    enteredThisTurn = false
 ):
     | { readonly ok: true; readonly value: PermanentSweepSelector }
     | {
@@ -266,6 +276,7 @@ function sweepSelector(
     // instance's own token-ness, read 1:1 on the battlefield.
     if (descriptor.token === true) filter.isToken = true;
     if (descriptor.nontoken === true) filter.isToken = false;
+    if (enteredThisTurn) filter.enteredThisTurn = true;
     // CR 702.9a — "without flying": the exclusion the sweep filter names 1:1.
     if (descriptor.excludeAbility !== undefined)
         filter.excludeAbility = descriptor.excludeAbility;
@@ -324,6 +335,8 @@ function readMassSubject(
                 );
             rest = rest.replace(MANA_VALUE_EQUALS_SOURCE_COUNTERS, "");
         }
+        const entered = ENTERED_THIS_TURN.test(rest);
+        if (entered) rest = rest.replace(ENTERED_THIS_TURN, "");
         const descriptor = descriptorRule.run(
             conjunctionToDisjunction(rest),
             ctx
@@ -339,7 +352,8 @@ function readMassSubject(
             descriptor.value,
             other,
             /, | and | or /.test(rest),
-            allowKeywordExclusion
+            allowKeywordExclusion,
+            entered
         );
         if (!selector.ok) return fail(selector.reason, selector.fragment);
         return ok({
