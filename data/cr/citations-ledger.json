@@ -55887,7 +55887,6 @@
         {"id":"302.6","line":"describe(\"summoning sickness on the animated land (CR 302.6)\", () => {","sites":1,"status":"baseline"},
         {"id":"601.2c","line":"// CR 601.2c: \"If any effects say that an object or player must be chosen as a","sites":2,"status":"confirmed","ruleHash":"6209ab42af526807"},
         {"id":"401.4","line":"* CR 401.4 — look at (CR 701.20a: or reveal) the top of your library and route","sites":1,"status":"confirmed","ruleHash":"a09bccfa909a2d48"},
-        {"id":"113.3a","line":"it(\"refuses a non-permanent card (CR 113.3a)\", () => {","sites":1,"status":"confirmed","ruleHash":"54384e84aea9c23e"},
         {"id":"702.26j","line":"* zone change (CR 702.26d) and no attach/unattach event (CR 702.26j) — so no","sites":1,"status":"confirmed","ruleHash":"46df4ce1a30aba3a"},
         {"id":"701.19c","line":"describe(\"Do or Die (CR 701.8 destroy / 701.19c regeneration, ADR 0053 pile division, issue #1067)\", () => {","sites":1,"status":"baseline"},
         {"id":"613.1a","line":"| 0123 | A PERMANENT split card (all 30 Rooms, CR 709.5) is ONE permanent whose name/cost/text are DERIVED from its unlocked-door set, and that set rides the PRESENTED DEFINITION ID (`#room:left`, the parent id when both) — the faceDown/transform swap idiom, so copy and the ~3,200 getDefinition readers need nothing; suppression is LAYER 1 (613.1a), layers untouched (amends 0041, extends 0121) | proposed | [0123](0123-room-is-one-permanent-derived-from-its-unlocked-halves.md) |","sites":1,"status":"confirmed","ruleHash":"b49f010358f10394"},

@@ -212,7 +212,7 @@ describe("Discard this card: … (CR 113.6m)", () => {
         expect(outcome.state).toBe("unparsed");
     });
 
-    it("refuses a non-permanent card (CR 113.3a)", () => {
+    it("refuses the cost on an instant or sorcery", () => {
         const outcome = compileCard(
             oracleCard({
                 name: "Elemental Masterpiece",
