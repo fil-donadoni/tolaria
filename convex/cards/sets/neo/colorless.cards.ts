@@ -55,7 +55,7 @@ const LEGENDARY_CREATURE_COUNT = {
 // OR-matched (`EffectCardFilter.subtype`'s array semantics, issue #677) —
 // never `supertype: "Basic"`, which would wrongly exclude a dual.
 //
-// compiler-gap: Channel — {1}{G}, Discard this card: Destroy target artifact, enchantment, or nonbasic land an opponent controls. That player may search their library for a land card with a basic land type, put it onto the battlefield, then shuffle. This ability costs {1} less to activate for each legendary creature you control. (#8499)
+// hand-tail: Channel — {1}{G}, Discard this card: Destroy target artifact, enchantment, or nonbasic land an opponent controls. That player may search their library for a land card with a basic land type, put it onto the battlefield, then shuffle. This ability costs {1} less to activate for each legendary creature you control. (#2290)
 export const boseijuWhoEndures = defineCard(() => ({
     id: "2135ac5a-187b-4dc9-8f82-34e8d1603416",
     name: "Boseiju, Who Endures",
