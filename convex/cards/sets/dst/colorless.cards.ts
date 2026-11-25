@@ -9,6 +9,7 @@ import {
     wasAttachedToLeaver,
 } from "../../abilities/triggers/leftTrigger";
 import { equipAbility } from "../../abilities/equipment";
+import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Skullclamp — "Equipped creature gets +1/-1.\nWhenever equipped creature
 // dies, draw two cards.\nEquip {1}." (issue #1306, parent PRD #620; the
@@ -98,6 +99,95 @@ export const trinisphere = defineCard(() => ({
             appliesToSpell: (_card, _ctx, effectSource) =>
                 effectSource?.isTapped !== true,
             raiseTotalCostTo: 3,
+        },
+    ],
+}));
+
+// Aether Vial — {1} Artifact. "At the beginning of your upkeep, you may put a
+// charge counter on this artifact.\n{T}: You may put a creature card with mana
+// value equal to the number of charge counters on this artifact from your hand
+// onto the battlefield."
+//
+//  - The upkeep line is a cost-free `mayPay` gating one `counters` add — the
+//    Powder Keg shape.
+//  - The {T} line is the hand-source `choice` + `moveZone` shape (Elvish
+//    Piper); the "mana value equal to" half is `manaValueEquals` over the
+//    source's charge-counter tally, read as the ability RESOLVES (CR 608.2h),
+//    so a counter added in response counts and a Vial destroyed in response
+//    answers with its last known counters.
+// hand-tail: {T}: You may put a creature card with mana value equal to the number of charge counters on this artifact from your hand onto the battlefield. (#10505)
+export const aetherVial = defineCard(() => ({
+    id: "741c479b-5e92-4837-9673-9bc72aa11d26",
+    name: "Aether Vial",
+    rarity: "uncommon",
+    oracleText:
+        "At the beginning of your upkeep, you may put a charge counter on this artifact.\n{T}: You may put a creature card with mana value equal to the number of charge counters on this artifact from your hand onto the battlefield.",
+    manaCost: { generic: 1 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "aether-vial-charge",
+            oracleText:
+                "At the beginning of your upkeep, you may put a charge counter on this artifact.",
+            phase: "UPKEEP",
+            scope: "your",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    prompt: "Put a charge counter on Aether Vial?",
+                    bind: "$charge",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$charge" },
+                    then: [
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "charge",
+                            target: { ref: "$source" },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "aether-vial-put",
+            oracleText:
+                "{T}: You may put a creature card with mana value equal to the number of charge counters on this artifact from your hand onto the battlefield.",
+            cost: { tap: true },
+            useStack: true,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    filter: {
+                        type: "Creature",
+                        manaValueEquals: {
+                            counters: {
+                                of: { ref: "$source" },
+                                type: "charge",
+                            },
+                        },
+                    },
+                    count: { min: 0, max: 1 },
+                    prompt: "Put a creature card with mana value equal to Aether Vial's charge counters onto the battlefield (or none).",
+                    bind: "$picked",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked" },
+                    player: "controller",
+                    from: "hand",
+                    to: "battlefield",
+                },
+            ],
         },
     ],
 }));
