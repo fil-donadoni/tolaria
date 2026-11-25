@@ -181,12 +181,6 @@
     },
     {
         "class": "card",
-        "cardId": "32aa6e33-221f-414c-9b51-850d97a7e051",
-        "name": "Galvanic Discharge",
-        "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
-    },
-    {
-        "class": "card",
         "cardId": "08265332-2c0e-4c42-8c51-83ac20462eed",
         "name": "Game of Chaos",
         "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
