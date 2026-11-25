@@ -214,4 +214,11 @@ export interface ParseContext {
      * them keeps refusing the phrase under the gap key it already sits in.
      */
     readonly exactPairTargets?: true;
+    /**
+     * CR 102.2 — set by the triggered slot, and ONLY behind a head that names
+     * one opponent (`headNamesOpponent`): "that player controls" in its body
+     * narrows to that opponent's permanents. Absent at every other site, so
+     * each of them keeps refusing the phrase.
+     */
+    readonly headNamesOpponent?: true;
 }

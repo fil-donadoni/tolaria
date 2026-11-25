@@ -51,6 +51,7 @@ import { countDomain } from "./types";
 import { getEventFieldRow } from "./eventFields";
 import type { Phase } from "../gre/types";
 import { hasMaxSpeed } from "../gre/speed";
+import { attackerBlockedTrigger } from "./abilities/triggers/attackerBlockedTrigger";
 import { attackerUnblockedTrigger } from "./abilities/triggers/attackerUnblockedTrigger";
 import { becameTargetTrigger } from "./abilities/triggers/becameTargetTrigger";
 import { transformsTrigger } from "./abilities/triggers/transformsTrigger";
@@ -398,6 +399,9 @@ export type CompiledTriggerHead =
           /** CR 702.171b — "attacks while saddled": fires only while the
            *  source is saddled as it is declared an attacker. Self only. */
           readonly whileSaddled?: true;
+          /** CR 506.5 — "attacks alone": fires only when the source is the
+           *  one creature declared as an attacker. Self only. */
+          readonly alone?: true;
       }
     /**
      * CR 508.3a / 509.3a — "whenever a creature attacks or blocks": ONE Oracle
@@ -424,11 +428,15 @@ export type CompiledTriggerHead =
           readonly kind: "damage-dealt";
           readonly source: "self" | "host";
           readonly recipient: "any" | "opponent" | "creature" | "player";
+          /** CR 510.2 — only combat damage fires it; absent = any damage. */
+          readonly combat?: true;
       }
     /** CR 120.3 / 303.4b — "whenever [enchanted / this] creature is dealt damage". */
     | { readonly kind: "damage-taken"; readonly scope: "host" | "self" }
     /** CR 509.1h — "whenever this creature attacks and isn't blocked". */
     | { readonly kind: "attacks-unblocked" }
+    /** CR 509.3c — "whenever this creature becomes blocked". Self only. */
+    | { readonly kind: "becomes-blocked" }
     /** CR 708.8 — "when this creature is turned face up". Self only. */
     | { readonly kind: "turned-face-up" }
     | { readonly kind: "transforms" }
@@ -877,16 +885,10 @@ function resolveCompiledTriggerHead(
                 ...(head.scope !== undefined && head.scope !== "self"
                     ? { perAttacker: true as const }
                     : {}),
-                // CR 702.171b — a trigger condition on the source's saddled
-                // designation, checked as the attack is declared.
-                ...(head.whileSaddled === true
-                    ? {
-                          condition: (
-                              _event: AttackersDeclaredEvent,
-                              self: PermanentView
-                          ) => self.saddled === true,
-                      }
-                    : {}),
+                ...attackHeadGate(
+                    head,
+                    (gating as { condition?: AttackCondition }).condition
+                ),
             });
         case "attacks-or-blocks":
             return attacksOrBlocksTrigger({ ...common, scope: head.scope });
@@ -910,6 +912,7 @@ function resolveCompiledTriggerHead(
             return damageDealtTrigger({
                 ...common,
                 source: head.source,
+                ...(head.combat === true ? { isCombat: true } : {}),
                 ...(head.recipient === "opponent"
                     ? {
                           target: {
@@ -947,6 +950,8 @@ function resolveCompiledTriggerHead(
             });
         case "attacks-unblocked":
             return attackerUnblockedTrigger(common);
+        case "becomes-blocked":
+            return attackerBlockedTrigger(common);
         case "turned-face-up":
             return turnedFaceUpTrigger(common);
         case "transforms":
@@ -1053,6 +1058,28 @@ function resolveCompiledTriggerHead(
             );
         }
     }
+}
+
+type AttackCondition = (
+    event: AttackersDeclaredEvent,
+    self: PermanentView,
+    state?: TriggerStateView
+) => boolean;
+
+/** The narrowing an attack head prints on the declaration itself — CR 702.171b
+ *  "while saddled", CR 506.5 "alone" — on top of any printed condition: it
+ *  decides whether the ability triggers and is never re-checked. */
+function attackHeadGate(
+    head: Extract<CompiledTriggerHead, { kind: "attacks" }>,
+    printed: AttackCondition | undefined
+): { condition?: AttackCondition } {
+    if (head.whileSaddled !== true && head.alone !== true) return {};
+    return {
+        condition: (event, self, state) =>
+            (head.whileSaddled !== true || self.saddled === true) &&
+            (head.alone !== true || event.attackerIds.length === 1) &&
+            (printed === undefined || printed(event, self, state)),
+    };
 }
 
 type SpellCastCondition = NonNullable<SpellCastTriggerArgs["condition"]>;

@@ -18281,4 +18281,103 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             entersTapped: true,
         },
     },
+    // CR 510.2 + CR 608.2h — "deals combat damage to a creature, destroy that
+    // creature": the destroyed creature is `DAMAGE_DEALT.damagedPermanent`, a
+    // subject the canned smoke scenario does not seed for `destroy`.
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "5b2e1105-5af0-4f34-bfe9-15a2f6881edd",
+            name: "Voracious Cobra",
+            manaCost: "{2}{R}{G}",
+            typeLine: "Creature — Snake",
+            oracleText:
+                "First strike\nWhenever this creature deals combat damage to a creature, destroy that creature.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Voracious Cobra",
+            types: ["Creature"],
+            subtypes: ["Snake"],
+            manaCost: { X: 2, R: 1, G: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "First strike\nWhenever this creature deals combat damage to a creature, destroy that creature.",
+            staticAbilities: ["first strike"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "voracious-cobra-trigger",
+                    oracleText:
+                        "Whenever this creature deals combat damage to a creature, destroy that creature.",
+                    head: {
+                        kind: "damage-dealt",
+                        source: "self",
+                        recipient: "creature",
+                        combat: true,
+                    },
+                    effects: [
+                        {
+                            op: "destroy",
+                            target: { ref: "$event.damagedPermanent" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.19c — the same destroy with its "It can't be regenerated" rider.
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "bf0c85d7-16a0-46a5-a3a6-5591849bef60",
+            name: "Dripping Dead",
+            manaCost: "{4}{B}{B}",
+            typeLine: "Creature — Zombie",
+            oracleText:
+                "This creature can't block.\nWhenever this creature deals combat damage to a creature, destroy that creature. It can't be regenerated.",
+            power: "4",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Dripping Dead",
+            types: ["Creature"],
+            subtypes: ["Zombie"],
+            manaCost: { X: 4, B: 2 },
+            power: 4,
+            toughness: 1,
+            oracleText:
+                "This creature can't block.\nWhenever this creature deals combat damage to a creature, destroy that creature. It can't be regenerated.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "dripping-dead-trigger",
+                    oracleText:
+                        "Whenever this creature deals combat damage to a creature, destroy that creature. It can't be regenerated.",
+                    head: {
+                        kind: "damage-dealt",
+                        source: "self",
+                        recipient: "creature",
+                        combat: true,
+                    },
+                    effects: [
+                        {
+                            op: "destroy",
+                            target: { ref: "$event.damagedPermanent" },
+                            cantBeRegenerated: true,
+                        },
+                    ],
+                },
+            ],
+            compiledStaticEffects: [
+                {
+                    kind: "block-restriction",
+                    id: "dripping-dead-cant-block",
+                    oracleText: "This creature can't block.",
+                },
+            ],
+        },
+    },
 ]);

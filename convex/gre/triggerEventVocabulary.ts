@@ -294,6 +294,13 @@ export const EVENT_FIELD_KINDS: {
         attackerTypes: "scalar",
         attackerSubtypes: "scalar",
     },
+    // CR 509.3c — one attacker that became blocked.
+    ATTACKER_BLOCKED: {
+        attackerId: "object",
+        attackerControllerId: "player",
+        attackerTypes: "scalar",
+        attackerSubtypes: "scalar",
+    },
     // CR 509.3a — one creature declared as a blocker.
     BLOCKER_DECLARED: {
         blockerId: "object",
