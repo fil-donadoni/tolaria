@@ -154,10 +154,12 @@ other, that is about two minutes after the last move; with the tab suspended
 one round trip took 28.5 minutes. No tester waits for that, so the review was
 unreachable.
 
-**What the move may not bring back.** The judge left the client because it
-shared the Bot's Worker: a Worker serves one request at a time and never
-cancels one, so a slow device's judge searches stood in front of the next
-game's Bot. So:
+**What the move may not bring back.** Two faults of the judge's earlier life
+on the client. First it shared the Bot's Worker, which serves one request at a
+time and never cancels one, so a slow device's judge searches stood in front of
+the next game's Bot (issue #9514). Then, on a Worker of its own, it went on
+grinding on that device after the game was left, beside the next game's Bot,
+which is why issue #9528 moved it to the server. So:
 
 - **Its own Workers** (`src/lib/ai/judge-brain.ts`): never the Bot's queue,
   its respawn budget, its decision ring or its in-thread fallback. Primed with
@@ -171,7 +173,10 @@ game's Bot. So:
   timeout (2 s per iteration, above Gecko's p90 field reading, 1,658 ms) only
   gives up a Worker that is wedged; a suspended tab re-arms it.
 - **A failure costs the review only**, counted per outcome in the proposal
-  counts; leaving the game stops the Workers at once.
+  counts. A list whose every decision went unanswered is not kept, so a
+  reload asks again.
+- **Leaving the game stops the Workers at once**: the next game's Bot has the
+  device to itself.
 
 **The Bot's busy signal.** The Bot's Brain channel says when a consult is in
 flight (`isBrainBusy`, `onBrainBusyChange`), for a judge that works during the

@@ -97,8 +97,8 @@ type JudgeHost = {
     judge: { gameId: string; open: VerdictJudge } | null;
 };
 
-/** Stop the judge `host` holds for `gameId`, once the game is really left: a
- *  StrictMode re-mount resumes the same capture within the task. */
+/** Stop the judge `host` holds for `gameId`, once the game is really left: an
+ *  effect that only re-runs resumes the same capture within the task. */
 function closeJudgeIfLeft(host: JudgeHost, gameId: string): void {
     queueMicrotask(() => {
         if (capturingGame() !== gameId && host.judge?.gameId === gameId) {

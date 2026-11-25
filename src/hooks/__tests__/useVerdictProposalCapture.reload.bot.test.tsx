@@ -32,8 +32,8 @@ const h = vi.hoisted(() => ({
     action: vi.fn(() => Promise.reject(new Error("no server judge"))),
     /** Every export of the client Brain: the judge must reach none. */
     brain: {} as Record<string, ReturnType<typeof vi.fn>>,
-    /** The seat's Definition Manifest row. */
-    manifest: null as Record<string, unknown> | null,
+    /** Each seat's Definition Manifest row. */
+    manifests: {} as Record<string, unknown>,
     /** When set, what identifying a decision's move waits for. */
     identifying: null as Promise<void> | null,
     /** The signed-in account — a tester unless a test says otherwise. */
@@ -63,14 +63,14 @@ vi.mock("@convex/_generated/api", () => ({
     },
 }));
 vi.mock("~/hooks/useResilientQuery", () => ({
-    useResilientQuery: (ref: string, args: unknown) => ({
+    useResilientQuery: (ref: string, args: { playerId?: string } | "skip") => ({
         data:
             args === "skip"
                 ? undefined
                 : ref === "gameReads:getGameTick"
                   ? h.tick
                   : ref === "gameReads:getDefinitionManifest"
-                    ? (h.manifest ?? undefined)
+                    ? h.manifests[args.playerId!]
                     : undefined,
     }),
 }));
@@ -215,7 +215,9 @@ const HUMAN_MAIN_PHASE: ScenarioSpec = {
 
 /** A real land drop captured through the store, the way play records it:
  *  the seat's own view, then the mutation playing the land. */
-async function captureLandDrop(): Promise<{ human: string; bot: string }> {
+async function captureLandDrop(
+    solo = false
+): Promise<{ human: string; bot: string }> {
     const state = buildBladeState({
         label: "verdict proposal reload fixture",
         spec: HUMAN_MAIN_PHASE,
@@ -228,7 +230,8 @@ async function captureLandDrop(): Promise<{ human: string; bot: string }> {
     const land = state.players[0].hand.find(
         (c) => c.card.id === getCardByName("Mountain").id
     )!;
-    startHumanCapture(GAME, human, {
+    const seats = solo ? [human, state.players[1].id] : human;
+    startHumanCapture(GAME, seats, {
         limit: VERDICT_PROPOSAL_CONFIG.captureLimit,
         seed: VERDICT_PROPOSAL_CONFIG.seed,
     });
@@ -244,18 +247,22 @@ async function captureLandDrop(): Promise<{ human: string; bot: string }> {
     return { human, bot: state.players[1].id };
 }
 
-function renderGameOver(human: string, bot: string) {
-    return render(
+function gameOver(gameId: string, seatIds: readonly string[]) {
+    return (
         <>
             <VerdictProposalCapture
-                gameId={GAME as Id<"games">}
-                seatIds={human === bot ? [] : [human]}
-                viewerId={human}
+                gameId={gameId as Id<"games">}
+                seatIds={seatIds}
+                viewerId={seatIds[0]}
                 seq={undefined}
             />
-            <VerdictProposalOffer gameId={GAME} onOpen={() => {}} />
+            <VerdictProposalOffer gameId={gameId} onOpen={() => {}} />
         </>
     );
+}
+
+function renderGameOver(human: string, bot: string) {
+    return render(gameOver(GAME, human === bot ? [] : [human]));
 }
 
 let storage: ReturnType<typeof memoryStorage>;
@@ -309,7 +316,7 @@ beforeEach(() => {
     setProposalStorageForTest(storage);
     h.tick = { gameOver: true };
     h.user = { nickname: "Tessa", isTester: true };
-    h.manifest = null;
+    h.manifests = {};
     h.identifying = null;
     h.action.mockClear();
     for (const fn of Object.values(h.brain)) fn.mockClear();
@@ -532,8 +539,10 @@ describe("issue #8889 — the game-over review survives a reload", () => {
     });
 
     it("judges on a Worker of its own, primed with the seat's Manifest — never the server, never the Bot's Brain (issue #10241)", async () => {
-        h.manifest = { entries: [{ definitionId: "mountain", set: "lea" }] };
         const { human, bot } = await captureLandDrop();
+        h.manifests[human] = {
+            entries: [{ definitionId: "mountain", set: "lea" }],
+        };
         renderGameOver(human, bot);
         await screen.findByRole("button", {
             name: "Review your decisions (1)",
@@ -558,15 +567,66 @@ describe("issue #8889 — the game-over review survives a reload", () => {
         await waitFor(() => expect(JudgeWorker.all[0].terminated).toBe(true));
     });
 
+    it("every captured seat's Manifest primes the judge, one that arrives later too", async () => {
+        holdConsults();
+        const { human, bot } = await captureLandDrop(true);
+        const row = (definitionId: string) => ({
+            entries: [{ definitionId, set: "lea" }],
+        });
+        h.manifests[human] = row("mountain");
+        const seats = [human, bot];
+        const view = render(gameOver(GAME, seats));
+        await waitFor(() => expect(consults()).toHaveLength(1));
+        h.manifests[bot] = row("forest");
+        view.rerender(gameOver(GAME, [...seats]));
+        const primes = JudgeWorker.all[0].posted.filter(
+            (p) => p.kind === "prime"
+        );
+        expect(primes.map((p) => p.entries)).toEqual([
+            row("mountain").entries,
+            row("forest").entries,
+        ]);
+    });
+
+    it("a rematch on the same board stops the judge: the next game's Bot has the device to itself", async () => {
+        holdConsults();
+        const { human } = await captureLandDrop();
+        const view = render(gameOver(GAME, [human]));
+        await waitFor(() => expect(consults()).toHaveLength(1));
+        h.tick = { gameOver: false, owedPlayerIds: [] };
+        view.rerender(gameOver(OTHER, [human]));
+        await waitFor(() =>
+            expect(JudgeWorker.all.map((w) => w.terminated)).toEqual([true])
+        );
+        expect(getVerdictProposals(OTHER)).toBeNull();
+    });
+
+    it("a review whose every consult failed is asked again after a reload", async () => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        JudgeWorker.serve = (w) => w.onerror!({});
+        const { human, bot } = await captureLandDrop();
+        renderGameOver(human, bot);
+        await waitFor(() => expect(getVerdictProposals(GAME)).not.toBeNull());
+        reload();
+        JudgeWorker.serve = (w, id) => w.reply(id);
+        renderGameOver(human, bot);
+        await screen.findByRole("button", {
+            name: "Review your decisions (1)",
+        });
+    });
+
     it("a game re-opened while its judge was still at work builds its own list, unspoilt by the one it left", async () => {
         const held = holdConsults();
         const { human, bot } = await captureLandDrop();
         const left = renderGameOver(human, bot);
         await waitFor(() => expect(consults()).toHaveLength(1));
         left.unmount();
+        await new Promise((resolve) => setTimeout(resolve, 5));
         renderGameOver(human, bot);
         await waitFor(() => expect(consults()).toHaveLength(2));
+        // The one left behind ended with no answer, and landed nothing.
         expect(getVerdictProposals(GAME)).toBeNull();
+        expect(JudgeWorker.all.map((w) => w.terminated)).toEqual([true, false]);
         held.answer();
         held.answer();
         await screen.findByRole("button", {

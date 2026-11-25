@@ -46,6 +46,9 @@ export function setVerdictProposals(
 ): void {
     entry = { gameId, list };
     emit();
+    // Nothing judged although something was asked — Workers that died, shards
+    // that would not install — is no list to keep: a reload asks again.
+    if (list.proposals.length === 0 && list.unjudged > 0) return;
     void writeProposalStore("proposals", { latest: { gameId, list } }, true);
 }
 
