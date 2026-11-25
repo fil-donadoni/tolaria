@@ -160,6 +160,17 @@ export type PreviewOtherFaceHalf = {
     printedImageId: { id: string; face: CardImageFace } | null;
 };
 
+/** CR 601.2b — "the player announces the value of that variable"; CR 602.2b
+ *  extends it to an activated ability. The live-text line for a stack item
+ *  carrying `chosenX` (the value is public), or null for anything else. */
+export function chosenXLine(
+    cardInstance: CardInstance | undefined
+): string | null {
+    if (cardInstance?.zone !== "stack") return null;
+    const x = (cardInstance as { chosenX?: number }).chosenX;
+    return x === undefined ? null : `X = ${x}`;
+}
+
 /** CR 508.1c / 509.1b (issue #5661) — one live-text line per turn-scoped
  *  combat restriction the projected instance carries, in a fixed order. */
 export function combatRestrictionLines(
@@ -324,6 +335,10 @@ export type PreviewBodyContent = {
     /** CR 615.1 — live "prevent the next N damage" shield lines on this
      *  permanent, from {@link preventionShieldLines}. Empty when none. */
     preventionShields?: string[];
+    /** CR 601.2b / 602.2b — "X = n" for a stack item whose controller announced
+     *  a value for X, from {@link chosenXLine}. Null off the stack or with no
+     *  announced X; `X = 0` is a real choice and is shown. */
+    chosenX?: string | null;
     /** CR 111.1 / 111.7 — true iff this face is a live TOKEN permanent (a
      *  marker for a permanent not represented by a card, which ceases to exist
      *  as an SBA the moment it leaves the battlefield). Read off the projected
@@ -805,6 +820,7 @@ export function buildPreviewBody(
             cardInstance?.id,
             gameCtx?.targetPreventionShields
         ),
+        chosenX: chosenXLine(cardInstance),
         isToken: cardInstance?.isToken === true,
         abilityWordCounters,
         isManualGame: !!gameCtx?.isManualGame,

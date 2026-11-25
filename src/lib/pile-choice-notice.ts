@@ -62,7 +62,8 @@ function nameSuffix(names: string[] | undefined): string {
     return names && names.length > 0 ? ` (${names.join(", ")})` : "";
 }
 
-/** Issue #8956 — "Alice named Island" / "Alice scried 2: 1 on top, 1 on the
+/** Issue #8956 — "Alice named Island" / "Alice cast Fireball with X = 5" /
+ *  "Alice scried 2: 1 on top, 1 on the
  *  bottom" / "Alice surveilled 3: 2 into the graveyard (A, B), 1 on top". The
  *  opponent's copy carries counts only (the projection strips the library
  *  names); the chooser's own copy adds them. */
@@ -74,6 +75,13 @@ export function formatChoiceAnnouncement(
         players.find((p) => p.id === notice.chooserId)?.name ?? "A player";
     if (notice.kind === "named-card") {
         return `${chooser} named ${notice.cardName ?? "a card"}`;
+    }
+    if (notice.kind === "chosen-x") {
+        // CR 601.2b / 602.2b — the announced value of X, public to every seat.
+        const verb = notice.isAbility ? "activated" : "cast";
+        const object =
+            notice.cardName ?? (notice.isAbility ? "an ability" : "a spell");
+        return `${chooser} ${verb} ${object} with X = ${notice.xValue ?? 0}`;
     }
     const looked = notice.looked ?? 0;
     const onTop = notice.onTop ?? 0;

@@ -4874,9 +4874,14 @@ export type ChoiceAnnouncement = {
      *  same spell resolves again. */
     seq: number;
     chooserId: string;
-    kind: "named-card" | "top-split";
-    /** `named-card` — the canonical name chosen. */
+    kind: "named-card" | "top-split" | "chosen-x";
+    /** `named-card` — the canonical name chosen. `chosen-x` — the public name
+     *  of the spell or ability source put on the stack. */
     cardName?: string;
+    /** `chosen-x` — CR 601.2b / 602.2b: the value announced for X. */
+    xValue?: number;
+    /** `chosen-x` — true for an activated ability, false/absent for a spell. */
+    isAbility?: boolean;
     /** `top-split` — cards looked at, kept on top, and sent to the second zone. */
     looked?: number;
     onTop?: number;
@@ -5483,7 +5488,8 @@ export type GameState = {
      *  {@link PileChoiceNotice}. Written by `submitPilePick` only. */
     lastPileChoice?: PileChoiceNotice;
     /** Issue #8956 — see {@link ChoiceAnnouncement}. Written by the `name-card`
-     *  and `order-top` submit handlers only. */
+     *  and `order-top` submit handlers, and by every commit that puts a stack
+     *  item carrying `chosenX` onto the stack (`announceChosenX`). */
     lastChoiceAnnouncement?: ChoiceAnnouncement;
     /** CR 608.2h / 111.12 (ADR 0086) — last known COPIABLE values of every
      *  permanent that has left the battlefield recently, keyed by the instance

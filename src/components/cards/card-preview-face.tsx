@@ -73,6 +73,7 @@ export default function CardPreviewFace({
     exertPending,
     combatRestrictions,
     preventionShields,
+    chosenX,
     abilityWordCounters,
     engineView,
     engineTree,
@@ -310,6 +311,13 @@ export default function CardPreviewFace({
                         {line}
                     </div>
                 ))}
+                {chosenX && (
+                    <div
+                        className={`border-t border-border-subtle pt-2 ${sectionSize} font-semibold text-accent-strong`}
+                    >
+                        {chosenX}
+                    </div>
+                )}
                 {preventionShields?.map((line, index) => (
                     <div
                         key={`${index}-${line}`}
