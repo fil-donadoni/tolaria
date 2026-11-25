@@ -12,7 +12,12 @@
 // what the client receives, not a hand-built view.
 
 import { describe, it, expect } from "vitest";
-import { cancelAutoPass, passPriority, passUntilAction } from "../game";
+import {
+    cancelAutoPass,
+    endTurn,
+    passPriority,
+    passUntilAction,
+} from "../game";
 import type { GameState } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
 import { makeState, pushSpell } from "../cards/__tests__/setup.helper";
@@ -98,5 +103,76 @@ describe("Pass Until Action full path (CR 113.8, issue #5782)", () => {
         ]);
         await expect(run(passUntilAction, stub.ctx, "p1")).rejects.toThrow();
         expect(stub.state().passUntilAction).toBeUndefined();
+    });
+});
+
+// Issue #10457 — arming one standing pass intent while the other is active
+// REPLACES it inside the same mutation: the saved state never holds both
+// (the drain would keep honouring the Pass Turn) nor neither.
+describe("Pass Turn <-> Pass Until Action switch (issue #10457)", () => {
+    const withoutPriority = (): GameState => {
+        const seed = makeState({ phase: "PRECOMBAT_MAIN" });
+        seed.priorityPlayerId = "p2";
+        seed.passCount = 1;
+        return seed;
+    };
+
+    it("Pass Until Action over an armed Pass Turn leaves only Pass Until Action", async () => {
+        const seed = withoutPriority();
+        seed.autoPassPlayers = ["p1"];
+        const stub = makeMutationCtx("p1", [gameStateSeed(seed)]);
+
+        await run(passUntilAction, stub.ctx, "p1");
+        const after = stub.state();
+        expect(after.autoPassPlayers).toBeUndefined();
+        expect(after.queuedEndTurn).toBeUndefined();
+        expect(
+            projectPublicState(after, 1, "p1").queuedPassUntilAction
+        ).toEqual([{ playerId: "p1", ignoredStackIds: [] }]);
+    });
+
+    it("Pass Turn over an armed Pass Until Action leaves only Pass Turn", async () => {
+        const seed = withoutPriority();
+        seed.passUntilAction = [{ playerId: "p1", ignoredStackIds: [] }];
+        const stub = makeMutationCtx("p1", [gameStateSeed(seed)]);
+
+        await run(endTurn, stub.ctx, "p1");
+        const after = stub.state();
+        expect(after.passUntilAction).toBeUndefined();
+        expect(after.queuedPassUntilAction).toBeUndefined();
+        expect(projectPublicState(after, 1, "p1").queuedEndTurn).toEqual([
+            "p1",
+        ]);
+    });
+
+    it("queued variants: Pass Turn over a queued Pass Until Action and back", async () => {
+        const seed = withoutPriority();
+        seed.queuedPassUntilAction = [{ playerId: "p1", ignoredStackIds: [] }];
+        const stub = makeMutationCtx("p1", [gameStateSeed(seed)]);
+
+        await run(endTurn, stub.ctx, "p1");
+        const turn = stub.state();
+        expect(turn.queuedPassUntilAction).toBeUndefined();
+        expect(turn.queuedEndTurn).toEqual(["p1"]);
+
+        await run(passUntilAction, stub.ctx, "p1");
+        const until = stub.state();
+        expect(until.queuedEndTurn).toBeUndefined();
+        expect(until.queuedPassUntilAction).toEqual([
+            { playerId: "p1", ignoredStackIds: [] },
+        ]);
+        expect(until.priorityPlayerId).toBe("p2");
+    });
+
+    it("leaves the opponent's intent of the other kind alone", async () => {
+        const seed = withoutPriority();
+        seed.autoPassPlayers = ["p2"];
+        seed.queuedEndTurn = ["p1"];
+        const stub = makeMutationCtx("p1", [gameStateSeed(seed)]);
+
+        await run(passUntilAction, stub.ctx, "p1");
+        const after = stub.state();
+        expect(after.queuedEndTurn).toBeUndefined();
+        expect(after.autoPassPlayers).toEqual(["p2"]);
     });
 });

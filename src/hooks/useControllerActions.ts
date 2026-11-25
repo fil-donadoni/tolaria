@@ -209,11 +209,12 @@ export function useControllerActions(): ControllerState {
         passUntilAction?.some((i) => i.playerId === playerId) ?? false;
     const isQueuedPassUntilAction =
         queuedPassUntilAction?.some((i) => i.playerId === playerId) ?? false;
-    const hasPassIntent =
-        isAutoPass ||
-        isQueuedEndTurn ||
-        isPassUntilAction ||
-        isQueuedPassUntilAction;
+    // The two kinds apart (issue #10457): P cancels only a Pass Turn and
+    // switches a Pass Until Action to it; Enter the reverse.
+    const hasPassTurnIntent = isAutoPass || isQueuedEndTurn;
+    const hasPassUntilActionIntent =
+        isPassUntilAction || isQueuedPassUntilAction;
+    const hasPassIntent = hasPassTurnIntent || hasPassUntilActionIntent;
 
     const [isBusy, setIsBusy] = useState(false);
 
@@ -368,8 +369,9 @@ export function useControllerActions(): ControllerState {
         // auto-passes the rest of the turn; without it (issue #157) the server
         // records a queued intent that fires the moment priority next lands on
         // this player. Pass Turn is also valid while declaring attackers, where
-        // `drainAutoPasses` auto-confirms the current selection first.
-        if (isBusy || hasPassIntent) return;
+        // `drainAutoPasses` auto-confirms the current selection first. Over a
+        // Pass Until Action the server replaces it in the same mutation.
+        if (isBusy || hasPassTurnIntent) return;
         setIsBusy(true);
         try {
             await endTurn({ gameId, playerId });
@@ -379,11 +381,12 @@ export function useControllerActions(): ControllerState {
         } finally {
             setIsBusy(false);
         }
-    }, [isBusy, hasPassIntent, endTurn, gameId, playerId]);
+    }, [isBusy, hasPassTurnIntent, endTurn, gameId, playerId]);
 
     const handlePassUntilAction = useCallback(async () => {
-        // Like `endTurn`, accepted with or without priority (queued without).
-        if (isBusy || hasPassIntent) return;
+        // Like `endTurn`, accepted with or without priority (queued without),
+        // and replacing a standing Pass Turn in the same mutation.
+        if (isBusy || hasPassUntilActionIntent) return;
         setIsBusy(true);
         try {
             await passUntilActionMutation({ gameId, playerId });
@@ -393,7 +396,13 @@ export function useControllerActions(): ControllerState {
         } finally {
             setIsBusy(false);
         }
-    }, [isBusy, hasPassIntent, passUntilActionMutation, gameId, playerId]);
+    }, [
+        isBusy,
+        hasPassUntilActionIntent,
+        passUntilActionMutation,
+        gameId,
+        playerId,
+    ]);
 
     const handleCancelAutoPass = useCallback(async () => {
         // Cancels any standing pass intent — active auto-pass, a not-yet-fired
@@ -407,6 +416,21 @@ export function useControllerActions(): ControllerState {
             setIsBusy(false);
         }
     }, [isBusy, hasPassIntent, cancelAutoPass, gameId, playerId]);
+
+    // What P and the Pass Turn buttons do: cancel a standing Pass Turn, else
+    // arm it — over a Pass Until Action too, which the server swaps out.
+    const togglePassTurn = useCallback(
+        () => (hasPassTurnIntent ? handleCancelAutoPass() : handleEndTurn()),
+        [hasPassTurnIntent, handleCancelAutoPass, handleEndTurn]
+    );
+    // What Enter and the Pass Until Action buttons do, the mirror image.
+    const togglePassUntilAction = useCallback(
+        () =>
+            hasPassUntilActionIntent
+                ? handleCancelAutoPass()
+                : handlePassUntilAction(),
+        [hasPassUntilActionIntent, handleCancelAutoPass, handlePassUntilAction]
+    );
 
     useEffect(() => {
         function onKeyDown(e: KeyboardEvent) {
@@ -446,13 +470,14 @@ export function useControllerActions(): ControllerState {
                 if (isPayingCast || isPayingActivation || isPayingAttackTax)
                     return;
                 e.preventDefault();
-                if (hasPassIntent) {
+                if (hasPassTurnIntent) {
                     handleCancelAutoPass();
                 } else if (!hasPendingIntent && !pendingChoiceAction) {
                     // Same window as Space's fall-through below: a P pressed
                     // before the payment banner renders must not end the turn.
                     // Nor while a mandatory choice awaits this viewer: the
-                    // server rejects every pass then (ADR 0047).
+                    // server rejects every pass then (ADR 0047). Over a Pass
+                    // Until Action this switches it to Pass Turn.
                     handleEndTurn();
                 }
                 return;
@@ -584,16 +609,16 @@ export function useControllerActions(): ControllerState {
                     // attack is parked on its tax is illegal (not priority), so
                     // Enter cancels the tax and drops the declaration cleanly.
                     cancelAttackTax({ gameId, playerId }).catch(reportError);
-                } else if (hasPassIntent) {
+                } else if (hasPassUntilActionIntent) {
                     // Pass Until Action (issue #5782, on Enter since issue
-                    // #7423): Enter again cancels it — or any other standing
-                    // pass intent.
+                    // #7423): Enter again cancels it.
                     handleCancelAutoPass();
                 } else if (!hasPendingIntent && !pendingChoiceAction) {
                     // Same window as Space's fall-through above: Enter meant as
                     // "cancel the payment I just started" must not arm a pass
                     // because the banner hasn't rendered yet. Same for a
                     // pending choice (ADR 0047): the pass would be rejected.
+                    // Over a Pass Turn this switches it to Pass Until Action.
                     handlePassUntilAction();
                 }
             }
@@ -607,7 +632,8 @@ export function useControllerActions(): ControllerState {
         handleEndTurn,
         handlePassUntilAction,
         handleCancelAutoPass,
-        hasPassIntent,
+        hasPassTurnIntent,
+        hasPassUntilActionIntent,
         isPayingCast,
         isPayingActivation,
         isPayingAttackTax,
@@ -697,11 +723,11 @@ export function useControllerActions(): ControllerState {
         description: "Keep passing until something needs you",
         label: "Pass Until Action",
         tone: "destructive",
-        // A standing intent already owns the passing (e.g. armed and halted
-        // at declare-blockers): a second press would be a silent no-op.
-        disabled: isBusy || hasPassIntent || pendingChoiceAction !== null,
+        // Same as Enter: cancels a standing Pass Until Action, switches a
+        // standing Pass Turn to it, arms it otherwise.
+        disabled: isBusy || pendingChoiceAction !== null,
         shortcut: HOTKEYS.passUntilAction,
-        onClick: handlePassUntilAction,
+        onClick: togglePassUntilAction,
     };
 
     if (isPayingCast) {
@@ -769,7 +795,7 @@ export function useControllerActions(): ControllerState {
             tone: "destructive",
             disabled: isBusy || pendingChoiceAction !== null,
             shortcut: HOTKEYS.passTurn,
-            onClick: handleEndTurn,
+            onClick: togglePassTurn,
         });
         actions.push(passUntilActionDescriptor);
     } else if (isSelectingAttackers) {
@@ -817,7 +843,7 @@ export function useControllerActions(): ControllerState {
             tone: "destructive",
             disabled: isBusy || pendingChoiceAction !== null,
             shortcut: HOTKEYS.passTurn,
-            onClick: handleEndTurn,
+            onClick: togglePassTurn,
         });
         actions.push(passUntilActionDescriptor);
     } else if (isSelectingBlockers) {
@@ -843,7 +869,7 @@ export function useControllerActions(): ControllerState {
             tone: "destructive",
             disabled: isBusy || pendingChoiceAction !== null,
             shortcut: HOTKEYS.passTurn,
-            onClick: handleEndTurn,
+            onClick: togglePassTurn,
         });
         actions.push(passUntilActionDescriptor);
     } else if (isAssigningDamage) {
@@ -878,7 +904,7 @@ export function useControllerActions(): ControllerState {
             tone: "destructive",
             disabled: isBusy || pendingChoiceAction !== null,
             shortcut: HOTKEYS.passTurn,
-            onClick: handleEndTurn,
+            onClick: togglePassTurn,
         });
         actions.push(passUntilActionDescriptor);
     } else if (waitingOnOpponent) {
@@ -976,7 +1002,8 @@ export function useControllerActions(): ControllerState {
     // `actions` offers neither Pass Turn nor Pass Until Action, yet the server
     // takes both as an intent that fires when priority returns — the P and
     // Enter hotkeys already reach it. The pod's icon buttons dispatch the same
-    // handlers; one running intent disables both, as their keys would cancel.
+    // toggles as the keys: a button cancels its own running intent and
+    // switches the other kind's to its own (issue #10457).
     const queuedPasses: ControllerState["queuedPasses"] =
         cue === "mine"
             ? undefined
@@ -984,20 +1011,24 @@ export function useControllerActions(): ControllerState {
                   passTurn: {
                       key: "queue-pass-turn",
                       label: "Pass Turn",
-                      description: "Queued — fires when priority returns",
+                      description: hasPassTurnIntent
+                          ? "Stop passing the turn"
+                          : "Queued — fires when priority returns",
                       tone: "destructive",
-                      disabled: isBusy || hasPassIntent,
+                      disabled: isBusy,
                       shortcut: HOTKEYS.passTurn,
-                      onClick: handleEndTurn,
+                      onClick: togglePassTurn,
                   },
                   passUntilAction: {
                       key: "queue-pass-until-action",
                       label: "Pass Until Action",
-                      description: "Queued — fires when priority returns",
+                      description: hasPassUntilActionIntent
+                          ? "Stop passing until action"
+                          : "Queued — fires when priority returns",
                       tone: "destructive",
-                      disabled: isBusy || hasPassIntent,
+                      disabled: isBusy,
                       shortcut: HOTKEYS.passUntilAction,
-                      onClick: handlePassUntilAction,
+                      onClick: togglePassUntilAction,
                   },
               };
 
