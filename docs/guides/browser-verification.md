@@ -64,7 +64,11 @@ stylesheet, a design token, the shell, the router, the catalogue gate,
 `index.html`, `public/**`, the build config, the lane itself, or any path the
 scoper cannot place forces the full run. A shared UI primitive
 (`src/components/ui/**`) is scoped by the surfaces that import it, like any
-module; one the shell renders is FULL through the shell (issue #10230). Tests, scripts and markdown reach
+module; one the shell renders is FULL through the shell (issue #10230). A
+module `src/main.tsx` imports only for its `Sentry.init` options (a trace
+sampler, a send filter, the DSN; never one a feedback or report-dialog option
+reads) is no shell module: placed by the surfaces that import it, else
+nothing (issue #10474). Tests, scripts and markdown reach
 nothing, so a diff made only of them walks zero surfaces and says so. A
 **specimen row** of `/admin/design-system` (`dlg-*`, `pick-*`) is scoped by the
 closure of the module it mounts plus its section's, never by the page's whole

@@ -46,7 +46,9 @@
  *   - in the app SHELL's closure (`src/main.tsx`, not descending into route
  *     modules, the catalogue gate nor a closed-by-default shell overlay,
  *     `SHELL_DEFERRED_OVERLAYS`) → `full`: the shell renders around every
- *     surface;
+ *     surface — EXCEPT a module the shell reaches only through an import
+ *     the `Sentry.init` options alone read (`bootConfigOnlyModules`, issue
+ *     #10474): placed by the surface closures that hold it, else nothing;
  *   - reached from the shell only through the CATALOGUE GATE (the lazy chunk
  *     that loads the catalogue into the card registry) → selects
  *     every surface that reads that registry, or `full` if none does;
@@ -101,9 +103,19 @@
  * surface's own components is in its closure and keeps the rule alive, so the
  * hole is limited to runtime-built class strings; it is recorded, not closed.
  */
-import type { ImportGraph } from "./import-graph";
+import * as fs from "node:fs";
+import * as nodePath from "node:path";
+import {
+    APP_ALIASES,
+    resolveSpecifier,
+    type ImportGraph,
+} from "./import-graph";
 import { additiveRegistrationsSinceBase } from "./ui-route-registration-edits";
-import { renderInertSinceBase, type RenderInert } from "./ui-render-inert";
+import {
+    bootConfigImports,
+    renderInertSinceBase,
+    type RenderInert,
+} from "./ui-render-inert";
 import { stylesheetOwnersSinceBase } from "./ui-stylesheet-scope";
 import type { SurfaceEdits } from "./ui-surface-edits";
 
@@ -274,11 +286,78 @@ export const SHELL_DEFERRED_OVERLAYS: readonly string[] = [
  *  `computeUiScope` places on its own) nor a closed-by-default shell overlay
  *  (`SHELL_DEFERRED_OVERLAYS`, placed by its specimen row). */
 export function shellClosure(graph: ImportGraph): Set<string> {
-    const deferred = new Set(SHELL_DEFERRED_OVERLAYS);
-    return graph.closureOf(SHELL_ENTRY, {
-        prune: (p) =>
-            isRouteModulePath(p) || p === CATALOGUE_GATE || deferred.has(p),
-    });
+    return graph.closureOf(SHELL_ENTRY, { prune: prunedFromShell });
+}
+
+/** Where the shell closure stops: a route module, the catalogue gate, a
+ *  closed-by-default shell overlay. */
+function prunedFromShell(path: string): boolean {
+    return (
+        isRouteModulePath(path) ||
+        path === CATALOGUE_GATE ||
+        SHELL_DEFERRED_OVERLAYS.includes(path)
+    );
+}
+
+/** What a module the shell reaches only through boot configuration may not
+ *  be: a component file (`.tsx`) or a non-module (a stylesheet, an asset). */
+const BOOT_ONLY_MODULE = /\.(?:[cm]?[jt]s)$/;
+
+/**
+ * The modules the app shell reaches ONLY through a boot-configuration import
+ * of `SHELL_ENTRY` (issue #10474): an import whose every binding is read only
+ * inside the `Sentry.init` options (`bootConfigImports`,
+ * `ui-boot-config-regions.ts`) — the sampler and the send filter PR #10452
+ * moved into `~/lib/diagnostics/tracing`. The SDK calls them on its own
+ * events; render never reads what they return, so such a module renders
+ * around no surface and must not force FULL through the shell rule.
+ *
+ * Fail-closed — the set is EMPTY (every shell module stays FULL) when the
+ * entry cannot be read or parsed, names a module through a template
+ * `import()`, or when any module in the set is a component file (`.tsx`), a
+ * stylesheet or an asset. A target the entry ALSO names any other way (a
+ * second import, an `export … from`, a dynamic import) is no target, and a
+ * module reached through some other shell path stays in the shell.
+ *
+ * ACCEPTED RESIDUAL: such a module's top level runs once at boot; a plain
+ * `.ts` module with a DOM side effect at load is not recognised.
+ */
+export function bootConfigOnlyModules(graph: ImportGraph): Set<string> {
+    let source: string;
+    try {
+        source = fs.readFileSync(
+            nodePath.join(graph.root, SHELL_ENTRY),
+            "utf8"
+        );
+    } catch {
+        return new Set();
+    }
+    const read = bootConfigImports(SHELL_ENTRY, source);
+    if (read === null || read.admitted.length === 0) return new Set();
+    const resolve = (spec: string) =>
+        resolveSpecifier(SHELL_ENTRY, spec, APP_ALIASES, graph.isFile);
+    const elsewhere = new Set(read.others.map(resolve));
+    const targets = new Set<string>();
+    for (const spec of read.admitted) {
+        const target = resolve(spec);
+        if (target !== null && !elsewhere.has(target)) targets.add(target);
+    }
+    if (targets.size === 0) return new Set();
+    // The shell without the entry's EDGES to the targets (never the target
+    // files themselves: one another shell module imports stays in).
+    const full = shellClosure(graph);
+    const narrowed = new Set([SHELL_ENTRY]);
+    for (const dep of graph.importsOf(SHELL_ENTRY)) {
+        if (targets.has(dep) || prunedFromShell(dep)) continue;
+        for (const p of graph.closureOf(dep, { prune: prunedFromShell })) {
+            narrowed.add(p);
+        }
+    }
+    const only = new Set([...full].filter((p) => !narrowed.has(p)));
+    for (const p of only) {
+        if (!BOOT_ONLY_MODULE.test(p) || p.endsWith(".d.ts")) return new Set();
+    }
+    return only;
 }
 
 export interface ComputeUiScopeInput {
@@ -299,6 +378,10 @@ export interface ComputeUiScopeInput {
      *  #10393, `ui-render-inert.ts`): they select no surface. Absent:
      *  derived from git at the graph's root. */
     renderInert?: ReadonlySet<string>;
+    /** Modules the shell reaches only through a boot-configuration import
+     *  (issue #10474, `bootConfigOnlyModules`): outside the shell. Absent:
+     *  derived from `SHELL_ENTRY` at the graph's root. */
+    bootConfigOnly?: ReadonlySet<string>;
 }
 
 /** A JS/TS module: what an `import` names, so what `tsc` resolves. */
@@ -358,8 +441,12 @@ export function computeUiScope({
     additiveRegistrations = additiveRegistrationsSinceBase(changed, graph.root),
     stylesheetOwners = stylesheetOwnersSinceBase(changed, graph.root),
     renderInert = inertPaths(renderInertSinceBase(changed, graph.root)),
+    bootConfigOnly = bootConfigOnlyModules(graph),
 }: ComputeUiScopeInput): UiScope {
     const shell = shellClosure(graph);
+    // Reached only through the Sentry.init options (issue #10474): not the
+    // shell. Placed below by surface closures, else nothing.
+    for (const file of bootConfigOnly) shell.delete(file);
     const build = graph.closureOf(BUILD_CONFIG);
     const specimens = specimenIndex(surfaces);
     const closures = surfaces.map((surface) => ({
@@ -515,6 +602,7 @@ export function computeUiScope({
         }
         if (hits.length === 0) {
             if (gateOnly.has(path)) continue;
+            if (bootConfigOnly.has(path)) continue;
             if (typeOnlyReachable(path)) continue;
             if (staffOnlyReachable(path)) continue;
             if (isServerOnlyPath(path)) continue;
