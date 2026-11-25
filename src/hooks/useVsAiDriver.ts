@@ -529,6 +529,7 @@ export function useVsAiDriver(
         plotCard: useMutation(api.game.plotCard),
         // CR 116.2h / 702.143a — the foretell special action.
         foretellCard: useMutation(api.game.foretellCard),
+        suspendCard: useMutation(api.game.suspendCard),
         announceCast: useMutation(api.game.announceCast),
         selectTarget: useMutation(api.game.selectTarget),
         // issue #1779 / PRD #1776 T4 — batched target selection: the bot

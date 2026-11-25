@@ -925,6 +925,12 @@ function layer7ExpiryLive(
         }
         case "while-source-tapped":
             return isSourceTappedLive(state, expiry.sourceId);
+        case "while-controlled-by":
+            // CR 611.2b — "until you lose control of the permanent".
+            return (
+                findLayerPermanent(state, expiry.permanentId)?.controllerId ===
+                expiry.controllerId
+            );
         case "duration":
         case "indefinite":
             return true;

@@ -274,6 +274,7 @@ import { offersPrintedCast } from "./splitCast";
 import { morphCastAlternativeCost, turnableFaceUpPermanents } from "./morph";
 import { plottableHandCards } from "./plot";
 import { foretellableHandCards } from "./foretell";
+import { suspendableHandCards } from "./suspend";
 import { hasRetrace } from "./retrace";
 import { flashbackExileEligibleCount } from "./flashback";
 import { hasEscape } from "./escape";
@@ -562,6 +563,17 @@ export type Move =
           cardInstanceId: string;
       }
     | {
+          /** CR 116.2f / 702.62a — the `suspend` special action: pay a card's
+           *  suspend cost and exile it from your hand with N time counters,
+           *  any time you could begin to cast it from hand (its own timing,
+           *  CR 702.62c, the suspend check). Per-CARD, repeatable, no plan
+           *  carried on the Move: the cost is solved and paid server-side in
+           *  one shot (`canSuspend`,
+           *  gre/suspend.ts, and the `suspendCard` mutation in game.ts). */
+          kind: "suspend";
+          cardInstanceId: string;
+      }
+    | {
           kind: "cast-spell";
           cardInstanceId: string;
           /** CR 601.3 (issue #2971) — the zone this cast comes FROM. Absent
@@ -842,6 +854,8 @@ export const SPECIAL_ACTION_MOVE_KINDS: ReadonlySet<Move["kind"]> = new Set([
     "plot",
     // CR 116.2h / 702.143a — exiling a card with foretell from hand.
     "foretell",
+    // CR 116.2f / 702.62a — exiling a card with suspend from hand.
+    "suspend",
 ]);
 
 /** CR 712.12 — one `play-land` Move per FACE of `card` that is a land, in
@@ -6791,6 +6805,14 @@ export function enumerateMoves(
         const card = cardList2[i];
         moves.push({ kind: "foretell", cardInstanceId: card.id });
     }
+    // CR 116.2f / 702.62a — the suspend special action, one Move per card in
+    // hand that could begin to be cast with its suspend cost affordable, gated
+    // by the same `canSuspend` the `suspendCard` mutation and the wire
+    // affordance read.
+    const suspendList = suspendableHandCards(state, player);
+    for (let i = 0; i < suspendList.length; i++) {
+        moves.push({ kind: "suspend", cardInstanceId: suspendList[i].id });
+    }
     const cardList3 = player.hand;
     for (let i = 0; i < cardList3.length; i++) {
         const card = cardList3[i];
@@ -7318,6 +7340,8 @@ export function onlyPassIsLegal(state: GameState, playerId: string): boolean {
     if (plottableHandCards(state, player).length > 0) return false;
     // CR 702.143a — and foretelling a hand card.
     if (foretellableHandCards(state, player).length > 0) return false;
+    // CR 702.62a — and suspending a hand card.
+    if (suspendableHandCards(state, player).length > 0) return false;
     // Hand: a land play, a cast, or a hand-source ability (Cycling).
     const cardList = player.hand;
     for (let i = 0; i < cardList.length; i++) {

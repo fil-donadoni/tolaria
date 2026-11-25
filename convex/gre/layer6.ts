@@ -644,6 +644,12 @@ function layer6ExpiryLive(
             const source = findPermanent(state, expiry.sourceId);
             return Boolean(source?.isTapped);
         }
+        case "while-controlled-by":
+            // CR 611.2b / 702.62a — "until you lose control of the permanent".
+            return (
+                findPermanent(state, expiry.permanentId)?.controllerId ===
+                expiry.controllerId
+            );
         case "duration":
             // Not checked HERE because it is checked at the boundary instead:
             // `tickContinuousEffectDurations` (`gre/phases.ts`) splices an

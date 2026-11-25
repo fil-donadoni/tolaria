@@ -59,6 +59,8 @@ export type CardActionSources = {
     canPlot?: boolean;
     /** Foretell special action on a hand card (`canForetell`, CR 702.143a). */
     canForetell?: boolean;
+    /** Suspend special action on a hand card (`canSuspend`, CR 702.62a). */
+    canSuspend?: boolean;
     /** Activated abilities offered on the card by the zone's `canActivate`
      *  checks (hand / graveyard / battlefield menus). */
     activatableAbilityCount?: number;
@@ -81,6 +83,7 @@ export function cardHasLegalAction(
         sources.canTurnFaceUp === true ||
         sources.canPlot === true ||
         sources.canForetell === true ||
+        sources.canSuspend === true ||
         (sources.activatableAbilityCount ?? 0) > 0 ||
         sources.manaSourceActivatable === true
     );

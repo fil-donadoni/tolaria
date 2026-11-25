@@ -146,6 +146,7 @@ import {
 import { applyManaFloatInSearch } from "./ai/doomedManaFloat";
 import { plotInSearch } from "./plot";
 import { foretellInSearch } from "./foretell";
+import { suspendInSearch } from "./suspend";
 import { castNeedsSorceryWindow } from "./rules";
 // CR 602.2a / 602.5 (issue #1920) — the shared shape of an activated ability's
 // stack item and the shared activation tally, so the search's push is the same
@@ -1130,6 +1131,13 @@ export function applyMoveInSearch(
         case "foretell":
             // CR 116.2h / 702.143b — no stack item, like plot.
             foretellInSearch(state, player, move.cardInstanceId);
+            checkStateBasedActionsAfterSpecialAction(state, playerId);
+            SBA_SETTLED.add(state);
+            return;
+
+        case "suspend":
+            // CR 116.2f / 702.62a — "this action doesn't use the stack".
+            suspendInSearch(state, player, move.cardInstanceId);
             checkStateBasedActionsAfterSpecialAction(state, playerId);
             SBA_SETTLED.add(state);
             return;

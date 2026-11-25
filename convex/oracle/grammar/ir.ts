@@ -408,6 +408,17 @@ export type SlotIR =
           readonly description: string;
       }
     /**
+     * CR 702.62a — a "Suspend N—[cost]" line: the cost of the suspend special
+     * action, lowered onto `CardDefinition.suspend`, and the `"suspend N"`
+     * keyword string the `getDefinition` seam expands into the keyword's two
+     * exile-zone triggered abilities.
+     */
+    | {
+          readonly kind: "suspend";
+          readonly count: number;
+          readonly cost: ManaCost;
+      }
+    /**
      * CR 702.185a — a "Warp [cost]" line: the alternative cost, lowered onto
      * `CardDefinition.warp`, and the `"warp"` keyword `gre/warp.ts` reads.
      * `description` is the printed line.

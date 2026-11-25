@@ -256,7 +256,7 @@ ONE **Permanent** represented by TWO cards — the two cards of a meld pair put 
 _Avoid_: Combined permanent, meld result, "the big Urza", two permanents
 
 **Special Action**:
-Something a **Player** may do without using the **Stack** and without passing **Priority** (CR 116.2) — it cannot be responded to. Taken while they have priority. Playing a **Land** is one; so are summoning a companion, turning a **Manifested** permanent face up, and **Foretell**. Each carries its own timing window, and they differ: companion needs a main phase with an empty stack, foretell only needs priority during its player's own turn.
+Something a **Player** may do without using the **Stack** and without passing **Priority** (CR 116.2) — it cannot be responded to. Taken while they have priority. Playing a **Land** is one; so are summoning a companion, turning a **Manifested** permanent face up, **Foretell** and **Suspend**. Each carries its own timing window, and they differ: companion needs a main phase with an empty stack, foretell only needs priority during its player's own turn.
 _Avoid_: Activated Ability (uses the Stack), free action
 
 **Granted Special Action**:
@@ -409,6 +409,14 @@ _Avoid_: Impulse-exiled card (face **up** in exile — CR 406.3's default, since
 **Foretell Cost**:
 The alternative cost (CR 601.2b) a **Foretold Card** may be cast for instead of its **Mana Cost**. Distinct from the {2} paid to foretell, which is a cost of the **Special Action**, not of the spell. A foretold card may also be cast for its normal cost by any other means — it stays "foretold" either way (CR 702.143c).
 _Avoid_: Foretell tax, alternate cost (the CR term is _alternative_)
+
+**Suspend**:
+A **Keyword** ability (CR 702.62) that is three abilities. From the hand: if its owner could begin to **Cast** the card from their hand right now (its own timing, every cast prohibition — CR 702.62c — but nothing about paying, so a card with no **Mana Cost** qualifies), they may pay its suspend cost and exile it face up with N time counters, as a **Special Action** (CR 116.2f). From exile: at the beginning of its owner's upkeep, if it is a **Suspended Card**, a time counter is removed; when the last one is removed — by that upkeep or by any other effect — its owner may play it without paying its mana cost, during that trigger's resolution, or it stays exiled. A creature spell cast this way gains haste until its caster loses control of the spell or the permanent it becomes.
+_Avoid_: Foretell (face down, cast for a cost on a later turn), plot, vanishing (time counters on a permanent)
+
+**Suspended Card**:
+A card in **Exile** that has **Suspend** and at least one time counter (CR 702.62b). Derived, never stored: the same card with no time counter left is just an exiled card. Public — exiled face up by a special action both players saw.
+_Avoid_: Foretold card, plotted card
 
 **Miracle**:
 A **Keyword** ability (CR 702.94) functioning while the card is in its owner's hand: as its owner draws it, if it is the first card they have drawn that **Turn**, they may reveal it — a **Private Choice** raised at the draw itself, never a later trigger, so the decision is made without seeing any card drawn after it. Revealing it fires a linked (CR 603.11) **Triggered Ability** whose resolution offers a **Cast** for the **Miracle Cost**, from the hand, ignoring the card's own timing restrictions (CR 608.2g) — which is what lets a revealed sorcery be cast on an opponent's turn. Not a **Draw Replacement**: the draw happens normally and the card reaches the hand.

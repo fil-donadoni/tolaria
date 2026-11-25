@@ -10066,11 +10066,7 @@ function runCastDuringResolution(
 
     // Issue #2608 — "you may cast any number of spells from among <set>": a
     // loop of next-card picks over the bound set instead of one offer.
-    if (
-        op.anyNumber === true &&
-        op.card !== undefined &&
-        !("exiledWithSource" in op.card)
-    ) {
+    if (op.anyNumber === true && op.card !== undefined && "ref" in op.card) {
         const outcome = runCastAnyNumber(ctx, {
             playerId,
             card: op.card,
@@ -10124,6 +10120,13 @@ function runCastDuringResolution(
     } else if (op.card !== undefined && "exiledWithSource" in op.card) {
         sourceZone = "exile";
         cardInstanceId = ctx.getCardsExiledWith(ctx.sourceInstanceId)[0]?.id;
+    } else if (op.card !== undefined && "thisCard" in op.card) {
+        //  - `{ thisCard: true }` (CR 702.62a — Suspend's "you may play IT"):
+        //    the ability's own source card, in the zone the ability functions
+        //    from. A card that has left that zone is a new object (CR 400.7)
+        //    the zone-scoped cast below no longer finds — a silent pass.
+        sourceZone = op.source ?? "exile";
+        cardInstanceId = ctx.sourceInstanceId;
     } else if (op.card !== undefined) {
         sourceZone = op.source ?? "exile";
         const ids = resolvePicks(ctx, op.card);
@@ -10394,7 +10397,8 @@ function runCastDuringResolution(
             "",
             op.alternativeCost,
             faceId,
-            exilesOnResolve
+            exilesOnResolve,
+            op.hasteUntilControlLost === true
         )
     ) {
         case "suspend":
@@ -10534,7 +10538,9 @@ function castPickedCard(
      *  is asked of that subject alone. Omitted = the printed cast. */
     faceId?: string,
     /** CR 614.1a — the Op's "exile it instead" rider. */
-    exilesOnResolve?: boolean
+    exilesOnResolve?: boolean,
+    /** CR 702.62a — the Op's Suspend haste rider. */
+    hasteUntilControlLost?: boolean
 ): PickedCastOutcome {
     // MODE (CR 700.2c) — a modal card's chosen mode drives its targeting
     // (CR 700.2d). Non-modal cards skip this.
@@ -10660,6 +10666,7 @@ function castPickedCard(
         ...(alternativeCost !== undefined ? { alternativeCost } : {}),
         ...(faceId !== undefined ? { alternativeCostId: faceId } : {}),
         ...(exilesOnResolve ? { exilesOnResolve: true } : {}),
+        ...(hasteUntilControlLost ? { hasteUntilControlLost: true } : {}),
     });
     return cast ? "cast" : "pass";
 }

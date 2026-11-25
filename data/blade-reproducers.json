@@ -6198,6 +6198,23 @@
     },
     "surveil: bins a dead land off the same board": null,
     "surveil: keeps a castable planeswalker on top": null,
+    "suspend: banks a suspend card with mana that would otherwise empty": {
+        "cards": [
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Rift Bolt",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "phase": "POSTCOMBAT_MAIN",
+        "turn": 3,
+        "libraryCount": 20
+    },
     "sweep: Engineered Explosives clears three blockers before the Craw Wurm attacks": {
         "phase": "PRECOMBAT_MAIN",
         "turn": 5,

@@ -498,6 +498,7 @@ import {
 } from "./fullText";
 import type { ContinuousEffect } from "./continuousEffects";
 import {
+    pruneLostControlEffects,
     purgeContinuousEffectsForInstance,
     removeContinuousEffect,
 } from "./continuousEffects";
@@ -4084,6 +4085,7 @@ export function resetStackTransientState(item: StackItem): void {
     delete item.restrictedXManaOwed;
     delete item.dynamicCantBeCountered;
     delete item.dynamicHasteFromMana;
+    delete item.hasteWhileControlledBy;
     // The `CardInstanceState` half (issue #4453): every field the Card Field
     // Lifecycle table declares `reset: stack` — the kicker / offspring
     // payment snapshot (ADR 0085: a record cleared on one side and left on
@@ -4688,6 +4690,29 @@ function finalizeSpellResolution(
             syncLayer6(state);
         }
         delete item.dynamicHasteFromMana;
+        // CR 702.62a (issue #10495) — Suspend's haste rider, handed off the
+        // same way: "it gains haste until you lose control of the spell or the
+        // permanent it becomes". A spell whose control changed hands on the
+        // stack already ended the effect, so nothing is granted; otherwise the
+        // grant's lifetime is the permanent staying under that player's
+        // control (`while-controlled-by`, `gre/continuousEffects.ts`).
+        const hasteHolder = item.hasteWhileControlledBy;
+        if (hasteHolder !== undefined && item.controllerId === hasteHolder) {
+            ensureLayer6Base(item);
+            pushContinuousEffect(state, {
+                layer: 6,
+                affected: { kind: "instances", instanceIds: [item.id] },
+                expiry: {
+                    kind: "while-controlled-by",
+                    permanentId: item.id,
+                    controllerId: hasteHolder,
+                },
+                payload: { kind: "keyword-grant", keyword: "haste" },
+                characteristicDefining: false,
+            });
+            syncLayer6(state);
+        }
+        delete item.hasteWhileControlledBy;
         // CR 702.131b / 604.1 — Ascend's permanent form is a static ability
         // ("ANY TIME you control ten or more permanents…"), not an SBA, so the
         // designation is granted the instant the count rises — not at the next
@@ -5939,6 +5964,9 @@ export function recomputeContinuousEffects(state: GameState): void {
     stampGraveyardStaticSources(state);
     syncFullText(state);
     syncLayers2to5(state);
+    // CR 611.2b / 702.62a — layer 2 has just settled control; an effect lasting
+    // "until you lose control" that lost it ends here, for good.
+    pruneLostControlEffects(state);
     syncLayer6(state);
 }
 
@@ -13970,6 +13998,9 @@ function cloneSpellOntoStack(
     // haste its mana bought (Arena of Glory) and the rider of the graveyard
     // permission it was cast with (Serra Paragon).
     delete copy.dynamicHasteFromMana;
+    // CR 707.10 / 702.62a — and the haste a suspend cast earned: a copy was
+    // not cast "this way".
+    delete copy.hasteWhileControlledBy;
     delete copy.entryGrantRiders;
     // CR 707.10 (issue #7211) — a copy copies the DECISIONS made for the
     // original, never the mana that paid for it: "Because mana isn't an object,
@@ -15737,9 +15768,13 @@ export function buildSpellContext(
         ): number {
             if (count <= 0) return 0;
             // CR 609.3 — the exile-zone twin, clamped the same way. No
-            // keyword grant or counter-gated static reads an exiled card, and
-            // no shipped trigger watches a counter leaving one, so it is a
-            // plain removal with no recompute and no COUNTER_REMOVED event.
+            // keyword grant or counter-gated static reads an exiled card, so
+            // there is no recompute. The COUNTER_REMOVED event IS emitted:
+            // Suspend's third ability (CR 702.62a, issue #10495)
+            // functions in exile and triggers "when the last time counter is
+            // removed from this card" — the exile-zone trigger scan
+            // (`collectZoneTriggers`) sees it. An exiled card has no
+            // controller, so the event names its owner (CR 108.4a).
             const exiled = exiledCounterHolder(state, target);
             if (exiled) {
                 const have = exiled.counters?.[type] ?? 0;
@@ -15750,6 +15785,16 @@ export function buildSpellContext(
                 else rest[type] = have - taken;
                 exiled.counters =
                     Object.keys(rest).length > 0 ? rest : undefined;
+                state.pendingEvents = (state.pendingEvents ?? []).concat([
+                    {
+                        type: "COUNTER_REMOVED",
+                        instanceId: exiled.id,
+                        controllerId: exiled.ownerId,
+                        counterType: type,
+                        removed: taken,
+                        remaining: have - taken,
+                    },
+                ]);
                 return taken;
             }
             if (target.type !== "permanent") return 0;
@@ -23171,6 +23216,9 @@ export function buildSpellContext(
                     kind: "during-resolution",
                     resolvingItemId: item.id,
                     ...(opts?.exilesOnResolve ? { exilesOnResolve: true } : {}),
+                    ...(opts?.hasteUntilControlLost
+                        ? { hasteUntilControlLost: true }
+                        : {}),
                 },
             });
             return committed !== null;

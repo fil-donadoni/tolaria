@@ -2208,7 +2208,10 @@ export function permanentRealisedValue(
  *    - a foretold card (Foretell, CR 702.143a: "after the current turn has
  *      ended");
  *    - a plotted card (Plot, CR 702.170d);
- *    - a warped card (Warp, CR 702.185a).
+ *    - a warped card (Warp, CR 702.185a);
+ *    - a suspended card, played free when its last time counter is removed
+ *      (Suspend, CR 702.62a — no permission is stamped, `exileCastOpensLater`
+ *      reads the counters).
  *  Such a card is latent material from the moment it is
  *  exiled, exactly like the hand card it was; priced at zero until its window
  *  opened, the special action that exiles it read as throwing the card away

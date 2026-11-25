@@ -1205,6 +1205,13 @@
             "needsSetup": false
         }
     ],
+    "Rift Bolt": [
+        {
+            "label": "suspend: banks a suspend card with mana that would otherwise empty",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Robber of the Rich": [
         {
             "label": "known top: plays the creature instead when the known top is a blank",

@@ -18,6 +18,7 @@ function fakeMutations() {
         turnPermanentFaceUp: vi.fn().mockResolvedValue(null),
         plotCard: vi.fn().mockResolvedValue(null),
         foretellCard: vi.fn().mockResolvedValue(null),
+        suspendCard: vi.fn().mockResolvedValue(null),
         announceCast: vi.fn().mockResolvedValue(null),
         selectTarget: vi.fn().mockResolvedValue(null),
         selectTargets: vi.fn().mockResolvedValue(null),

@@ -2637,6 +2637,14 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  haste grant on the permanent the spell becomes, then drops it. Per-CAST
      *  — the same creature cast off ordinary mana enters summoning-sick. */
     dynamicHasteFromMana?: boolean;
+    /** CR 702.62a (issue #10495) — Suspend's rider: the player who cast this
+     *  CREATURE spell "this way" (the `castDuringResolution` Op's
+     *  `hasteUntilControlLost`). "It gains haste until you lose control of the
+     *  spell or the permanent it becomes": `finalizeSpellResolution` hands it
+     *  to the permanent as a layer-6 haste grant with `while-controlled-by`
+     *  expiry — only while this player still controls the spell — then drops
+     *  it, like `dynamicHasteFromMana`. */
+    hasteWhileControlledBy?: string;
     /** If set, this stack item is an activated ability (not a spell). Source permanent stays on battlefield. */
     abilityId?: string;
     /** When the activated ability was GRANTED to the source by another card

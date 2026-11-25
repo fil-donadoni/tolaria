@@ -34,6 +34,7 @@ import { outsideGamePlaysRemaining, outsideGamePool } from "./gre/outsideGame";
 import { canTurnFaceUp } from "./gre/morph";
 import { canPlot } from "./gre/plot";
 import { canForetell } from "./gre/foretell";
+import { canSuspend, isSuspendedCard } from "./gre/suspend";
 import { isRequiredAttacker } from "./gre/combat";
 import {
     activationManaProbe,
@@ -129,6 +130,11 @@ export type SlimHandCard = SlimCardInstance & {
      *  mutation and the Bot's enumerator read). Absent (never `false`)
      *  otherwise. */
     canForetell?: true;
+    /** CR 116.2f / 702.62a (issue #10495) — true when the viewer may take the
+     *  SUSPEND special action on this own-hand card right now (`canSuspend`,
+     *  `gre/suspend.ts` — the predicate the `suspendCard` mutation and the
+     *  Bot's enumerator read). Absent (never `false`) otherwise. */
+    canSuspend?: true;
 };
 
 /** Exile card in projected state: slim, plus `legalActions` when the viewer may
@@ -151,6 +157,12 @@ export type SlimExileCard = SlimCardInstance & {
      *  for all viewers; present only when the host permanent is on a
      *  battlefield. See {@link buildExileAssociation}. */
     exiledByPermanentId?: string;
+    /** CR 702.62b (issue #10495) — true when this exiled card is SUSPENDED:
+     *  it has suspend and a time counter on it (`isSuspendedCard`,
+     *  `gre/suspend.ts`). Public to every viewer — the card was exiled face up
+     *  by a special action both players saw; its `counters.time` is the clock.
+     *  Absent (never `false`) otherwise. */
+    suspended?: true;
     /** CR 709.3 (issue #3344) — true when this card has NO printed cast, so
      *  the cast-option picker must not offer a "Pay mana cost" row: a SPLIT
      *  card, whose two halves are the whole menu ("a player chooses which half
@@ -935,7 +947,10 @@ function projectExileCard(
     // and the disclosure gate (`getPublicCardIdentity`) — three sites asking
     // the same question, and drifting apart is the one way the face-down leak
     // reopens (issue #3413).
-    if (!isFaceDownExile(card)) return decorate(slimCard(card));
+    if (!isFaceDownExile(card)) {
+        const slim = decorate(slimCard(card));
+        return isSuspendedCard(card) ? { ...slim, suspended: true } : slim;
+    }
     // A viewer allowed to look sees the real card, and since issue #2904 is
     // also TOLD it is face down: every card reaching this branch is one whose
     // ORACLE TEXT says "face down" (Memory Jar, Necropotence, Headliner
@@ -2007,6 +2022,9 @@ export function projectPublicState(
                             : {}),
                         ...(canForetell(state, player, card)
                             ? { canForetell: true as const }
+                            : {}),
+                        ...(canSuspend(state, player, card)
+                            ? { canSuspend: true as const }
                             : {}),
                     };
                 }),

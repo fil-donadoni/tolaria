@@ -168,6 +168,10 @@ export function describeMove(move: Move, state: GameState): string {
         // hand card, so the trace may name it.
         case "foretell":
             return `foretell ${instanceName(state, move.cardInstanceId)}`;
+        // CR 116.2f / 702.62a — the suspend special action; the actor's own
+        // hand card, exiled face up.
+        case "suspend":
+            return `suspend ${instanceName(state, move.cardInstanceId)}`;
         case "cast-spell": {
             const name = instanceName(state, move.cardInstanceId);
             const x = move.chosenX !== undefined ? ` (X=${move.chosenX})` : "";

@@ -113,6 +113,9 @@ const NOT_A_BODY_KEYWORD = new Set([
     "impending",
     "plot",
     "foretell",
+    // CR 702.62a — suspend functions in the hand and in exile: its worth is
+    // the banked card (`exileCastOpensLater`), never a quality of the body.
+    "suspend",
     // CR 702.94a — a reveal-as-drawn cast for the miracle cost, a hand-zone
     // route the Bot prices at the reveal (`miracleRevealCandidates`).
     "miracle",
