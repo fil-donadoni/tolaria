@@ -24,6 +24,7 @@
  * function mutates the `GameState` it is handed, in place.
  */
 
+import { announceChosenX } from "./chosenXAnnouncement";
 import { activationEvidenceUnpayable } from "./collectEvidence";
 import { getDefinition, tryGetDefinition } from "../cards";
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
@@ -1453,6 +1454,7 @@ export function tryAutoCommitPendingActivation(
         ...(notedManaSpent ? { notedManaSpent } : {}),
     });
     state.stack.push(stackItem);
+    announceChosenX(state, stackItem);
     recordActivation(state, card, pa.abilityId, !!pa.tapSource);
 
     const keepPriority = pa.keepPriority;
@@ -3177,6 +3179,7 @@ export function activateAbilityOnState(
         ...(notedManaSpent ? { notedManaSpent } : {}),
     });
     state.stack.push(stackItem);
+    announceChosenX(state, stackItem);
     recordActivation(state, card, args.abilityId, !!ability.cost.tap);
     state.passCount = 0;
     state.priorityPlayerId = getOpponentId(state, args.playerId);

@@ -1330,3 +1330,87 @@ describe("buildPreviewBody — prevention shield lines (CR 615.1)", () => {
         ]);
     });
 });
+
+// CR 601.2b / 602.2b — the value announced for X is public: a stack item that
+// carries `chosenX` shows an `X = n` Live text line, read off the real wire.
+describe("buildPreviewBody — announced X on the stack (CR 601.2b)", () => {
+    const FIREBALL = getCardByName("Fireball");
+
+    function wireStackItem(chosenX: number | undefined): CardInstance {
+        const state = {
+            players: [
+                {
+                    id: "p1",
+                    name: "p1",
+                    bgColor: "#000",
+                    life: 20,
+                    hand: [],
+                    library: [],
+                    graveyard: [],
+                    exile: [],
+                    battlefield: [],
+                    manaPool: {},
+                },
+                {
+                    id: "p2",
+                    name: "p2",
+                    bgColor: "#000",
+                    life: 20,
+                    hand: [],
+                    library: [],
+                    graveyard: [],
+                    exile: [],
+                    battlefield: [],
+                    manaPool: {},
+                },
+            ],
+            stack: [
+                {
+                    id: "fireball-1",
+                    card: { id: FIREBALL.id, name: "Fireball" },
+                    zone: "stack",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    castById: "p1",
+                    types: ["Sorcery"],
+                    subtypes: [],
+                    staticAbilities: [],
+                    isTapped: false,
+                    counters: {},
+                    ...(chosenX !== undefined ? { chosenX } : {}),
+                },
+            ],
+            turn: 1,
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+            phase: "PRECOMBAT_MAIN",
+            rngSeed: 0,
+            rngCounter: 0,
+        } as unknown as GameState;
+        // The opponent's view: the value is public, not caster-only.
+        return projectPublicState(state, 1, "p2")
+            .stack[0] as unknown as CardInstance;
+    }
+
+    const ctx = { allPlayers: [], playerId: "p2" };
+
+    it("shows X = 5 for a Fireball cast with X = 5", () => {
+        const body = buildPreviewBody(FIREBALL.id, wireStackItem(5), ctx);
+        expect(body.chosenX).toBe("X = 5");
+    });
+
+    it("shows X = 0 (a real choice)", () => {
+        const body = buildPreviewBody(FIREBALL.id, wireStackItem(0), ctx);
+        expect(body.chosenX).toBe("X = 0");
+    });
+
+    it("shows no line for a stack item without X", () => {
+        const body = buildPreviewBody(
+            FIREBALL.id,
+            wireStackItem(undefined),
+            ctx
+        );
+        expect(body.chosenX).toBeNull();
+    });
+});

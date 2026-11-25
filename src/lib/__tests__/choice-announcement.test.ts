@@ -69,6 +69,59 @@ describe("formatChoiceAnnouncement", () => {
     });
 });
 
+// CR 601.2b / 602.2b — the announced value of X, written at cast commit.
+describe("formatChoiceAnnouncement — chosen X", () => {
+    it("reads a spell cast with X", () => {
+        const n: ChoiceAnnouncement = {
+            ...base,
+            chooserId: "p2",
+            kind: "chosen-x",
+            cardName: "Fireball",
+            xValue: 4,
+        };
+        expect(formatChoiceAnnouncement(n, players)).toBe(
+            "Bob cast Fireball with X = 4"
+        );
+    });
+
+    it("reads an ability activated with X = 0", () => {
+        const n: ChoiceAnnouncement = {
+            ...base,
+            kind: "chosen-x",
+            cardName: "Aladdin's Lamp",
+            xValue: 0,
+            isAbility: true,
+        };
+        expect(formatChoiceAnnouncement(n, players)).toBe(
+            "Alice activated Aladdin's Lamp with X = 0"
+        );
+    });
+
+    it("announces one cast once: a re-render or reconnect never replays it", () => {
+        const cast: ChoiceAnnouncement = {
+            key: "3:fireball-1:x:chosen-x",
+            seq: 3,
+            chooserId: "p2",
+            kind: "chosen-x",
+            cardName: "Fireball",
+            xValue: 4,
+        };
+        const baseline = trackPileNotice(
+            INITIAL_PILE_NOTICE_TRACKER,
+            true,
+            undefined
+        );
+        const shown = trackPileNotice(baseline.tracker, true, cast);
+        expect(shown.confirm).toBe(cast);
+        // Re-render on the same snapshot.
+        expect(trackPileNotice(shown.tracker, true, cast).confirm).toBeNull();
+        // Reconnect: a fresh tracker treats the standing cast as baseline.
+        expect(
+            trackPileNotice(INITIAL_PILE_NOTICE_TRACKER, true, cast).confirm
+        ).toBeNull();
+    });
+});
+
 describe("announcement baseline (reload never replays)", () => {
     const note: ChoiceAnnouncement = { ...base, kind: "named-card" };
     it("treats the first loaded snapshot as a baseline, then announces a new key once", () => {
