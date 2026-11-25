@@ -9,6 +9,8 @@ import {
     agedRepairNotice,
     budgetReading,
     failureStreak,
+    idleDispatchLine,
+    idleDispatchNotice,
     HOST_STREAK_MAX_READS,
     hostStreaks,
     quarantineLine,
@@ -1613,5 +1615,133 @@ describe("holdFor under a Contained RED (ADR 0163, issue #8074)", () => {
         expect(holdFor(holdInput({ red: redHoldOf(lineage) }))?.kind).toBe(
             "red"
         );
+    });
+});
+
+describe("afk-dispatch silent stall (issue #10716)", () => {
+    const CONFIG = parseAfkDispatchConfig({});
+    const FACTS = {
+        freeSlots: 3,
+        admissionOpen: true,
+        explained: true,
+        dispatched: 0,
+        deferred: 320,
+    };
+    const hours = (h: number) => h * 60;
+    const failedDispatch = (id: number, minutesAgo: number) =>
+        run(id, "afk-dispatch", {
+            conclusion: "failure",
+            createdAt: iso(minutesAgo + 1),
+            updatedAt: iso(minutesAgo),
+        });
+    const lastPass = (minutesAgo: number) => [
+        passRun(5, 7, { createdAt: iso(minutesAgo) }),
+    ];
+
+    it("reads afkDispatch.idleHours, default 4", () => {
+        expect(CONFIG.idleHours).toBe(4);
+        expect(
+            parseAfkDispatchConfig({ afkDispatch: { idleHours: 9 } }).idleHours
+        ).toBe(9);
+        expect(
+            parseAfkDispatchConfig({ afkDispatch: { idleHours: -1 } }).idleHours
+        ).toBe(4);
+    });
+
+    it("free slots, nothing dispatched, candidates deferred, no pass for 16 h → fails the run once", () => {
+        const first = idleDispatchNotice(
+            FACTS,
+            lastPass(hours(16)),
+            [],
+            CONFIG,
+            NOW
+        );
+        expect(first).toMatchObject({ idle: true, notify: true });
+        // The next runs of the same episode: the failure already emailed.
+        const next = idleDispatchNotice(
+            FACTS,
+            lastPass(hours(16)),
+            [failedDispatch(70, hours(10))],
+            CONFIG,
+            NOW
+        );
+        expect(next).toMatchObject({ idle: true, notify: false });
+    });
+
+    it("a new episode (a pass ran after the last failure) mails again", () => {
+        const n = idleDispatchNotice(
+            FACTS,
+            lastPass(hours(5)),
+            [failedDispatch(70, hours(10))],
+            CONFIG,
+            NOW
+        );
+        expect(n).toMatchObject({ idle: true, notify: true });
+    });
+
+    it("a genuinely empty queue (nothing deferred) never fails", () => {
+        expect(
+            idleDispatchNotice(
+                { ...FACTS, deferred: 0 },
+                lastPass(hours(40)),
+                [],
+                CONFIG,
+                NOW
+            )
+        ).toMatchObject({ idle: false, notify: false });
+    });
+
+    it.each([
+        ["no free slot", { freeSlots: 0 }],
+        ["queue admission closed", { admissionOpen: false }],
+        ["a P0 hold explains it", { explained: false }],
+        ["a pass is dispatched", { dispatched: 1 }],
+    ])("%s → quiet", (_why, over) => {
+        expect(
+            idleDispatchNotice(
+                { ...FACTS, ...over },
+                lastPass(hours(16)),
+                [],
+                CONFIG,
+                NOW
+            ).notify
+        ).toBe(false);
+    });
+
+    it("a pass started inside the window, or one still running, is quiet", () => {
+        expect(
+            idleDispatchNotice(FACTS, lastPass(hours(2)), [], CONFIG, NOW).idle
+        ).toBe(false);
+        expect(
+            idleDispatchNotice(
+                FACTS,
+                [
+                    passRun(5, 7, {
+                        createdAt: iso(hours(30)),
+                        status: "in_progress",
+                        conclusion: null,
+                    }),
+                ],
+                [],
+                CONFIG,
+                NOW
+            ).idle
+        ).toBe(false);
+    });
+
+    it("the line names the PRs deferring the most candidates and the merge:manual wait", () => {
+        const deferred = [
+            ...Array.from({ length: 5 }, () => ({ conflictsWith: 10347 })),
+            ...Array.from({ length: 2 }, () => ({ conflictsWith: 10495 })),
+            { conflictsWith: null },
+        ];
+        const line = idleDispatchLine(
+            deferred,
+            { 10347: 10701, 10495: 10700 },
+            new Set([10708])
+        );
+        expect(line).toContain("PR #10701 (5), PR #10700 (2)");
+        expect(line).toContain("waiting on owner merge: #10708");
+        expect(line).toContain("8 candidate(s) deferred");
     });
 });
