@@ -30015,6 +30015,7 @@
         {"id":"109.5","line":"* — CR 109.5: \"you\" on an object is its controller). */","sites":1,"status":"confirmed","ruleHash":"d6974824bdd2da4f"},
         {"id":"118.1","line":"/** CR 602.1a / 118.1 — \"Return an Elf you control to its owner's hand\" as","sites":1,"status":"confirmed","ruleHash":"35ee7c531519b8b9"},
         {"id":"208.2","line":"// 208.2/611.1, issue #1317) is a thin declarative skin over the","sites":1,"status":"baseline"},
+        {"id":"510.1c","line":"// CR 510.1c: a1 is double-blocked, its damage goes to b1 and b2.","sites":1,"status":"confirmed","ruleHash":"6d40f25b6a27aa5a"},
         {"id":"105.2","line":"// filter, destroy each (CR 701.8 / 105.2).","sites":1,"status":"baseline"},
         {"id":"702.37c","line":"// COLOUR, and CR 702.37c strips it: a face-down spell is a colourless","sites":1,"status":"baseline"},
         {"id":"514.1","line":"// 2. \"no maximum hand size\" is the CR 402.2 / 514.1 `hand-size-override`","sites":1,"status":"baseline"},
