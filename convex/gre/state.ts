@@ -16470,6 +16470,7 @@ export function buildSpellContext(
             opts?: {
                 faceDown?: FaceDownProducer;
                 authoredEntry?: AuthoredEntryState;
+                controllerId?: string;
             }
         ): boolean {
             const player = getPlayer(state, playerId);
@@ -16484,10 +16485,12 @@ export function buildSpellContext(
             // never apply, and an entry replacement that bites a creature
             // (Containment Priest) bites the face-down one.
             if (opts?.faceDown) turnFaceDown(state, card, opts.faceDown);
+            // CR 110.2a — "under your control" names the controller; the
+            // card keeps its owner (`playerId`, the library it left).
             const entered = putReanimatedOnBattlefield(
                 state,
                 card,
-                playerId,
+                opts?.controllerId ?? playerId,
                 undefined,
                 undefined,
                 opts?.authoredEntry

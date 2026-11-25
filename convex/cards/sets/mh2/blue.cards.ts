@@ -175,4 +175,49 @@ export const murktideRegent = defineCard(() => ({
     ],
 }));
 
+// Inevitable Betrayal — Sorcery, no mana cost (MH2). Suspend 3—{1}{U}{U}
+// (CR 702.62a, the `suspend` cost plus the "suspend 3" keyword string). No
+// `manaCost`: CR 118.6's unpayable cost, so it is cast only for free. Effect: CR 701.23b —
+// a stated quality never compels the find, so the pick is "up to one"; CR
+// 110.2a — the found card enters under the caster's control, the `moveZone`
+// `controller` field, while the opponent stays its owner and shuffles.
+// hand-tail: Search target opponent's library for a creature card and put that card onto the battlefield under your control (#10497)
+export const inevitableBetrayal = defineCard(() => ({
+    id: "71725895-38cd-4017-bbf0-0b7dc9b5db60", // MH2 47
+    name: "Inevitable Betrayal",
+    rarity: "rare",
+    oracleText:
+        "Suspend 3—{1}{U}{U} (Rather than cast this card from your hand, pay {1}{U}{U} and exile it with three time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)\nSearch target opponent's library for a creature card and put that card onto the battlefield under your control. Then that player shuffles.",
+    types: ["Sorcery"],
+    staticAbilities: ["suspend 3"],
+    suspend: { X: 1, U: 2 },
+    targetRequirement: {
+        type: "player",
+        count: 1,
+        controller: "opponent",
+    },
+    effects: [
+        {
+            op: "choice",
+            kind: "search-library",
+            player: "controller",
+            zone: "library",
+            zoneOwnerId: { target: 0 },
+            filter: { type: "Creature" },
+            count: { min: 0, max: 1 },
+            prompt: "Search that player's library for a creature card.",
+            bind: "$picked",
+        },
+        {
+            op: "moveZone",
+            cards: { ref: "$picked" },
+            player: { target: 0 },
+            from: "library",
+            to: "battlefield",
+            controller: "controller",
+        },
+        { op: "libraryLook", action: "shuffle", player: { target: 0 } },
+    ],
+}));
+
 export {};
