@@ -195,13 +195,13 @@ export function findBasicLandRemovalIndex(
 //
 // Every basic's fifteen printings differ ONLY by art (`lea×2, leb×3, ice,
 // 2ed×3, 3ed×3, 4ed×3`), so the per-card edition dropdown of the time
-// (`src/lib/editions.ts`, since replaced by the visual `PrintingPicker`,
-// issue #4122) was unusable here — a bare `LEB
+// (`src/lib/editions.ts`, since replaced by the visual `PrintingPicker`)
+// was unusable here — a bare `LEB
 // #3` tells the player nothing about what they're picking. The functions
 // below are the pure half of the picker; the tile UI lives in
 // `basic-land-tile.tsx`, and both builders read and write the preference
-// through `useBasicLandArtPreference` — the per-user `userCardPrints` table
-// (issue #10462), with the old per-device `localStorage` keys read only once,
+// through `useBasicLandArtPreference` — the per-user `userCardPrints` table,
+// with the old per-device `localStorage` keys read only once,
 // to migrate them (`legacyBasicLandArt` / `planBasicLandArtMigration`).
 
 /** The `cardPrints` row fields the art picker keys on — `getByPrintIds` /

@@ -14,7 +14,7 @@ import { usePreferredPrints } from "./usePreferredPrints";
  * The user's basic-land art preference (issue #1629, ADR 0075 § "Basic-land
  * art"), read from and written to the per-user `userCardPrints` table through
  * `usePreferredPrints` (issue #10462) — so it follows the user across devices.
- * A basic land's name IS its subtype (CR 305.6), so the subtype is the card
+ * A basic land's name IS its subtype, so the subtype is the card
  * name the table keys on.
  *
  * The old per-device `localStorage` keys are read once on mount and migrated:
