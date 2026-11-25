@@ -5,6 +5,7 @@
 // `git diff -U0` reports.
 import { describe, expect, it } from "vitest";
 import {
+    bootConfigImports,
     classifyRenderInert,
     isRenderInertCandidate,
     type ModuleHunks,
@@ -447,6 +448,69 @@ window.addEventListener`
     it("a build option edit in vite.config.ts reaches rendering", () => {
         const head = VITE_BASE.replace("sourcemap: true", "sourcemap: false");
         expect(judgeVite(head)).toMatchObject({ inert: false });
+    });
+});
+
+// PR #10452 (issue #10321): the sampling options moved into a new module the
+// Sentry.init options alone call (issue #10474).
+const MAIN_TRACING = MAIN_BASE.replace(
+    `import { AppRouter } from "./app-router";`,
+    `import { AppRouter } from "./app-router";
+import {
+    sendableTransaction,
+    tracesSamplerFor,
+} from "~/lib/diagnostics/tracing";`
+).replace(
+    `    enableLogs: true,`,
+    `    enableLogs: true,
+    tracesSampler: tracesSamplerFor(import.meta.env.PROD),
+    beforeSendTransaction: (event) => sendableTransaction(event),`
+);
+
+describe("bootConfigImports — imports only the Sentry.init options read (issue #10474)", () => {
+    it("PR #10452's main.tsx hunk is inert, and its tracing import is admitted", () => {
+        expect(judgeMain(MAIN_TRACING).inert).toBe(true);
+        expect(bootConfigImports(MAIN, MAIN_TRACING)).toEqual({
+            admitted: ["~/lib/diagnostics/tracing"],
+            others: ["react-dom/client", "@sentry/react", "./app-router"],
+        });
+    });
+
+    it("an import also read at module top level is not admitted", () => {
+        const head = MAIN_TRACING.replace(
+            `window.addEventListener`,
+            `tracesSamplerFor(true);
+window.addEventListener`
+        );
+        expect(bootConfigImports(MAIN, head)?.admitted).toEqual([]);
+    });
+
+    it("an import read inside a feedbackIntegration(...) call is not admitted: it mounts UI", () => {
+        const head = MAIN_TRACING.replace(
+            `    tracesSampler: tracesSamplerFor(import.meta.env.PROD),`,
+            `    integrations: [
+        Sentry.feedbackIntegration({
+            sampler: tracesSamplerFor(true),
+        }),
+    ],`
+        );
+        expect(bootConfigImports(MAIN, head)?.admitted).toEqual([]);
+    });
+
+    it("a module also named by a dynamic import counts among the others", () => {
+        const head = `${MAIN_TRACING}void import("~/lib/diagnostics/tracing");\n`;
+        expect(bootConfigImports(MAIN, head)?.others).toContain(
+            "~/lib/diagnostics/tracing"
+        );
+    });
+
+    it("a template import() is unreadable: nothing admitted", () => {
+        const head = `${MAIN_TRACING}void import(\`./x/\${location.hash}\`);\n`;
+        expect(bootConfigImports(MAIN, head)).toBeNull();
+    });
+
+    it("no boot file, no boot imports", () => {
+        expect(bootConfigImports("src/lib/x.ts", MAIN_TRACING)).toBeNull();
     });
 });
 

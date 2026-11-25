@@ -54,7 +54,9 @@
  * RESTRICTED rule set instead: trivia, a token inside a boot-configuration
  * region (`ui-boot-config-regions.ts`: the `Sentry.init` options, the
  * dev-server proxy table) and an import only those regions read. No handler
- * rule applies there.
+ * rule applies there. `bootConfigImports` names the modules such an import
+ * reaches, so the scoper's shell closure can stop at them
+ * (`ui-scope.ts`, `bootConfigOnlyModules`).
  */
 import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
@@ -596,6 +598,101 @@ function importIdentities(sf: ts.SourceFile | null): Set<string> {
         for (const b of valueBindings(st)) ids.add(b.identity);
     }
     return ids;
+}
+
+/** The module specifiers a boot file names, split by whether the import
+ *  only feeds its boot-configuration regions (issue #10474). */
+export interface BootConfigImports {
+    /** Value imports of a JS module whose every binding is read at least
+     *  once and ONLY inside a boot-configuration region, on no line (and
+     *  under no call) the region refuses or `RENDER_REACHING` matches. */
+    admitted: string[];
+    /** Every other specifier the file names: any other import (type-only
+     *  and side-effect ones included), `export … from`, `import("x")`,
+     *  `new URL("x", import.meta.url)`. A module named here is not reached
+     *  through boot configuration alone. */
+    others: string[];
+}
+
+/** `path`'s boot-configuration imports, read on its current `source`, or
+ *  `null` when `path` is no boot file, does not parse, or names a module
+ *  through a template `import()` the AST cannot read (fail closed: the
+ *  caller then admits nothing). */
+export function bootConfigImports(
+    path: string,
+    source: string
+): BootConfigImports | null {
+    if (!isBootConfigFile(path)) return null;
+    const sf = parseModule(path, source);
+    if (sf === null) return null;
+    const boot = bootConfigScan(path, sf);
+    if (boot === null) return null;
+    const identifiers: ts.Identifier[] = [];
+    const others: string[] = [];
+    let unreadable = false;
+    const visit = (n: ts.Node): void => {
+        if (ts.isIdentifier(n)) identifiers.push(n);
+        if (
+            ts.isExportDeclaration(n) &&
+            n.moduleSpecifier &&
+            ts.isStringLiteral(n.moduleSpecifier)
+        ) {
+            others.push(n.moduleSpecifier.text);
+        }
+        if (
+            (ts.isCallExpression(n) &&
+                n.expression.kind === ts.SyntaxKind.ImportKeyword) ||
+            (ts.isNewExpression(n) &&
+                ts.isIdentifier(n.expression) &&
+                n.expression.text === "URL")
+        ) {
+            const arg = n.arguments?.[0];
+            if (arg && ts.isStringLiteralLike(arg)) others.push(arg.text);
+            else if (ts.isCallExpression(n)) unreadable = true;
+        }
+        ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    if (unreadable) return null;
+    const lineText = (node: ts.Node): string => {
+        const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
+        const starts = sf.getLineStarts();
+        return sf.text.slice(starts[line], starts[line + 1] ?? sf.text.length);
+    };
+    const admittedRef = (ref: ts.Identifier): boolean => {
+        const region = boot.regions.find(
+            (r) => ref.getStart(sf) >= r.start && ref.getEnd() <= r.end
+        );
+        if (!region) return false;
+        const text = lineText(ref);
+        return (
+            !boot.refuse.test.test(text) &&
+            !RENDER_REACHING.test(text) &&
+            !enclosingCallees(ref, region.start, sf).some((c) =>
+                boot.refuse.test.test(c)
+            )
+        );
+    };
+    const admitted: string[] = [];
+    for (const st of sf.statements) {
+        if (!ts.isImportDeclaration(st)) continue;
+        const spec = (st.moduleSpecifier as ts.StringLiteral).text;
+        const bindings = valueBindings(st);
+        const ok =
+            !NON_MODULE_SPECIFIER.test(spec) &&
+            bindings.length > 0 &&
+            bindings.every((b) => {
+                const refs = identifiers.filter(
+                    (id) =>
+                        id !== b.local &&
+                        id.text === b.local.text &&
+                        isReference(id)
+                );
+                return refs.length > 0 && refs.every(admittedRef);
+            });
+        (ok ? admitted : others).push(spec);
+    }
+    return { admitted, others };
 }
 
 /** The verdict for one changed module: render-inert only when every changed
