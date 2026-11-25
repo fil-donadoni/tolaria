@@ -1430,17 +1430,43 @@ next enabled run resumes or releases it.
 A dry run prints the plan without claiming, releasing or dispatching, on a
 machine with the owner's `gh` login: `bun run afk:dispatch --dry-run`.
 
-**A stalled PR warns instead of occupying files** (issue #8258). The in-flight
-set counts every open PR's changed files as occupied, except a _stalled_ PR:
-open, not in the queue (no `ready-to-land`, not `land-failed`), head commit
-unmoved for `queuePlan.stalledPrHours` in `tolaria.config.json` (default 6),
-and no live pass on its issue — all three. It occupies nothing, so overlapping
-candidates are admitted and a candidate that lands first is the stalled PR's
-rebase to pay. `queue:plan` (the `stalledPrs` list in its JSON, plus a stderr
-line) and this job's summary name each: PR, issue, hours stalled, overlapping
-candidates. A warning only — the PR is never closed, relabelled or edited. An
-unreadable head date reads as not stalled. Every other open PR keeps
-occupying its files.
+**A stalled PR warns instead of occupying files** (issue #8258, issue #10716).
+The in-flight set counts every open PR's changed files as occupied, except a
+_stalled_ PR: open, head commit unmoved for `queuePlan.stalledPrHours` in
+`tolaria.config.json` (default 6), and no live pass on its issue — all three.
+It occupies nothing, so overlapping candidates are admitted and a candidate
+that lands first is the stalled PR's rebase to pay. `queue:plan` (the
+`stalledPrs` list in its JSON, plus a stderr line) and this job's summary name
+each: PR, issue, hours stalled, overlapping candidates. A warning only — the
+PR is never closed, relabelled or edited. An unreadable head date reads as not
+stalled. Three rules decide who is out of reach of it:
+
+- **`ready-to-land` never stalls** — the merge queue owns it.
+- **`land-failed` stalls only once no repair is owed it**: `repairDispatchables`
+  (`scripts/lib/repair-dispatchables.ts`, the dispatcher's own list, never
+  restated) no longer offers it — a pass already ran since the label
+  (`repairAttempted`), or the repair cap (issue #6649) took it. A PR with a
+  repair still owed keeps occupying. The list unreadable → every `land-failed`
+  PR keeps occupying. Before issue #10716 every `land-failed` PR occupied
+  forever: on 2026-11-24 → 11-25 two of them, waiting on a `merge:manual` PR,
+  deferred all 320 candidates for ~16 h.
+- **A claim label is not a live pass.** The liveness evidence is an `afk-pass`
+  run that is queued or running for the issue (`livePassIssues`). The claim
+  verdict reads `live` for any claim beside an open PR with no run of its own
+  (an attended session's, or one whose pass ended), and counting that kept
+  `ui-owed` PR #10476 — head unmoved since 2026-11-22, held by the UI batch —
+  occupying files with nothing working on it. Runs unreadable → the old rule
+  (a live claim is a live pass).
+
+**A silent `dispatch: none` fails one run** (issue #10716). A run that
+dispatches nothing, with a free `pass` slot, no hold (`planHoldLines`, queue
+admission open) and `ready-for-agent` candidates deferred by files, exits 1
+once `afkDispatch.idleHours` (default 4) have passed since the newest
+`afk-pass` run started — and no pass is running — so GitHub emails the owner.
+Once per episode, the aged-repair rule: a failed dispatcher run since the
+threshold counts as the email. The line `idle: …` names the PRs whose files
+defer the most candidates and every `merge:manual` PR waiting. A genuinely
+empty queue defers nothing and never trips it.
 
 ### afk-pass
 

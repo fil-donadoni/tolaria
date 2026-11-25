@@ -158,6 +158,90 @@ describe("stalled PR — occupies nothing (issue #8258)", () => {
     });
 });
 
+describe("stalled PR — land-failed past its repair, claim ≠ pass (issue #10716)", () => {
+    const failed = (over: Partial<OpenPrFact> = {}) =>
+        fact({ labels: ["land-failed"], ...over });
+
+    it("land-failed, repair no longer owed, head old, no live pass → stalled, occupies nothing", () => {
+        const got = run({
+            prFacts: [failed()],
+            repairOwed: new Set(),
+            livePasses: new Set(),
+        });
+        expect(got.plan.batch.map((b) => b.number)).toEqual([2]);
+        expect(got.plan.stalledPrs).toEqual([
+            { pr: 90, issue: 1, hoursStalled: 10, overlapping: [2] },
+        ]);
+    });
+
+    it("the same PR with a repair still owed keeps occupying", () => {
+        const got = run({
+            prFacts: [failed()],
+            repairOwed: new Set([90]),
+            livePasses: new Set(),
+        });
+        expect(got.plan.batch).toEqual([]);
+        expect(got.plan.stalledPrs).toBeUndefined();
+    });
+
+    it("repair list unknown → every land-failed PR keeps occupying (fail closed)", () => {
+        const got = run({ prFacts: [failed()], livePasses: new Set() });
+        expect(got.plan.batch).toEqual([]);
+        expect(stalledPrsOf([failed()], new Set(), NOW, 6, undefined)).toEqual(
+            []
+        );
+    });
+
+    it("a live pass on the issue never stalls it, even with no repair owed", () => {
+        const got = run({
+            prFacts: [failed()],
+            repairOwed: new Set(),
+            livePasses: new Set([1]),
+        });
+        expect(got.plan.batch).toEqual([]);
+        expect(got.plan.stalledPrs).toBeUndefined();
+    });
+
+    it("ready-to-land stays out of reach whatever the repair set says", () => {
+        expect(
+            stalledPrsOf(
+                [fact({ labels: ["ready-to-land"] })],
+                new Set(),
+                NOW,
+                6,
+                new Set()
+            )
+        ).toEqual([]);
+    });
+
+    // Why PR #10476 (`ui-owed`, head unmoved) was never stalled: its issue's
+    // claim beside an open PR with no run reads `live` / `pr-open`, and the
+    // picker counted that claim as a live pass.
+    it("a ui-owed PR whose claim reads live but has no run IS stalled once runs are the evidence", () => {
+        const input: Partial<PickerInput> = {
+            issues: [issue(1, ["ready-for-agent", "in-progress"]), issue(2)],
+            claims: [{ issue: 1, state: "live", pr: 90 }],
+            prFacts: [fact({ labels: ["ui-owed"] })],
+        };
+        const before = run(input);
+        expect(before.plan.batch).toEqual([]);
+        expect(before.plan.stalledPrs).toBeUndefined();
+        const after = run({ ...input, livePasses: new Set() });
+        expect(after.plan.stalledPrs?.map((p) => p.pr)).toEqual([90]);
+        expect(after.plan.batch.map((b) => b.number)).toEqual([2]);
+    });
+
+    it("an active run on the issue still holds a ui-owed PR", () => {
+        const got = run({
+            issues: [issue(1, ["ready-for-agent", "in-progress"]), issue(2)],
+            claims: [{ issue: 1, state: "live", pr: 90 }],
+            prFacts: [fact({ labels: ["ui-owed"] })],
+            livePasses: new Set([1]),
+        });
+        expect(got.plan.stalledPrs).toBeUndefined();
+    });
+});
+
 describe("stalled PR — threshold and text (issue #8258)", () => {
     it("reads queuePlan.stalledPrHours, else 6", () => {
         expect(parseStalledPrHours({ queuePlan: { stalledPrHours: 3 } })).toBe(
