@@ -137,6 +137,7 @@ export const EVENT_FIELD_KINDS: {
         controllerId: "player",
         cardId: "scalar",
         types: "scalar",
+        subtypes: "scalar",
         wasCast: "scalar",
         wasPlayed: "scalar",
         enteredFromGraveyard: "scalar",

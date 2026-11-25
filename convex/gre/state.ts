@@ -5163,6 +5163,11 @@ export function emitPermanentEntered(
             controllerId: card.controllerId,
             cardId,
             types: card.types.slice(),
+            // CR 205.3 — the subtypes the entering permanent has on the
+            // battlefield, read off the same instance as the snapshots above.
+            ...(entered !== undefined && entered.subtypes.length > 0
+                ? { subtypes: entered.subtypes.slice() }
+                : {}),
             ...(opts?.wasCast ? { wasCast: true } : {}),
             ...(opts?.wasPlayed ? { wasPlayed: true } : {}),
             ...(opts?.enteredFromGraveyard
