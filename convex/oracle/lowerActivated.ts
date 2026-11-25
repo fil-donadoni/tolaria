@@ -216,6 +216,8 @@ export function lowerActivatedAbility(input: {
     readonly restrictions: readonly RestrictionIR[];
     /** CR 702.178a — the ability was printed behind "Max speed —". */
     readonly maxSpeed?: true;
+    /** CR 702.177a — printed behind "Exhaust —". */
+    readonly exhaust?: true;
     /** CR 113.1a — see `SiteOptions.grantQuotedAbility`. */
     readonly grantQuotedAbility?: SiteOptions["grantQuotedAbility"];
 }): LowerAbilityResult {
@@ -309,6 +311,8 @@ export function lowerActivatedAbility(input: {
     // CR 702.178a / 702.178b — behind "Max speed —" the ability exists only
     // while the activator (CR 109.5) has max speed.
     if (input.maxSpeed === true) ability.requiresMaxSpeed = true;
+    // CR 702.177a — behind "Exhaust —" the ability is activated only once.
+    if (input.exhaust === true) ability.exhaust = true;
     // An ability whose only effect animates its own source is marked so the
     // Bot never pays for it twice (`ActivatedAbility.animatesSelf`).
     // The animation may carry its own granted ability (`grantAbility` on the
@@ -537,16 +541,24 @@ export function lowerManaAbility(input: {
     readonly ownLine?: true;
     /** CR 702.178a — printed behind "Max speed —". */
     readonly maxSpeed?: true;
+    /** CR 702.177a — printed behind "Exhaust —". */
+    readonly exhaust?: true;
 }): LowerAbilityResult {
     const lowered = lowerUngatedManaAbility(input);
-    // CR 702.178a — the gate rides whichever ability the line lowered to: a
-    // stackless mana ability, or the stack ability a draw rider makes of it.
-    if (lowered.ok && input.maxSpeed === true)
-        return {
-            ...lowered,
-            ability: { ...lowered.ability, requiresMaxSpeed: true },
-        };
-    return lowered;
+    if (!lowered.ok) return lowered;
+    // CR 702.178a / 702.177a — the gates ride whichever ability the line
+    // lowered to: a stackless mana ability, or the stack ability a draw rider
+    // makes of it.
+    return {
+        ...lowered,
+        ability: {
+            ...lowered.ability,
+            ...(input.maxSpeed === true
+                ? { requiresMaxSpeed: true as const }
+                : {}),
+            ...(input.exhaust === true ? { exhaust: true as const } : {}),
+        },
+    };
 }
 
 function lowerUngatedManaAbility(input: {

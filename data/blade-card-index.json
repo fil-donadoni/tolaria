@@ -850,6 +850,13 @@
             "needsSetup": false
         }
     ],
+    "Loot, the Pathfinder": [
+        {
+            "label": "Exhaust: Loot, the Pathfinder activates its damage ability for lethal (CR 702.177a)",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Man-o'-War": [
         {
             "label": "ETB bounce: casts Man-o'-War on an opposing Craw Wurm",

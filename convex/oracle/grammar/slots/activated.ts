@@ -187,6 +187,24 @@ const maxSpeedActivated: Rule<SlotIR> = rule(
 );
 
 /**
+ * CR 702.177a — "Exhaust — [Cost]: [Effect]" is the activated ability with
+ * "Activate only once": a keyword, not an ability word, so the head survives
+ * as the ability's gate rather than being dropped.
+ */
+export const EXHAUST_HEAD = /^Exhaust \u2014 (.+)$/;
+
+const exhaustActivated: Rule<SlotIR> = rule(
+    "exhaust activated",
+    (span, ctx) => {
+        const body = terminated(".", activatedBody).run(span, ctx);
+        if (!body.ok) return body;
+        if (body.value.kind !== "activated")
+            return fail("exhaust heads a non-activated body", span);
+        return ok({ ...body.value, exhaust: true as const });
+    }
+);
+
+/**
  * CR 113.3b — the sentence ends in a full stop, which belongs to the ability.
  *
  * Restricted to permanents for the same reason the mana slot is: a cost that
@@ -211,6 +229,12 @@ export const activatedSlot: Rule<SlotIR> = rule(ACTIVATED_SLOT, (span, ctx) => {
     if (maxSpeed !== null)
         return maxSpeedActivated.run(
             maxSpeed[1]!,
+            auraHost ? { ...context, auraHost: true as const } : ctx
+        );
+    const exhaust = span.match(EXHAUST_HEAD);
+    if (exhaust !== null)
+        return exhaustActivated.run(
+            exhaust[1]!,
             auraHost ? { ...context, auraHost: true as const } : ctx
         );
     // CR 207.2c (issue #3685) — an ability word heading the ability

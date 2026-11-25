@@ -2677,6 +2677,32 @@
         "turn": 6,
         "libraryCount": 20
     },
+    "Exhaust: Loot, the Pathfinder activates its damage ability for lethal (CR 702.177a)": {
+        "cards": [
+            {
+                "name": "Loot, the Pathfinder",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Wall of Stone",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 5,
+        "landCount": 0,
+        "libraryCount": 20,
+        "life": {
+            "opp": 3
+        }
+    },
     "exile trigger: Leyline Binding takes the greater of two threats": null,
     "explore: bins the revealed blank instead of leaving it as the next draw": null,
     "extra turn: casts Time Walk with attackers on board": {

@@ -2575,7 +2575,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Exhaust",
         kind: "keyword-ability",
         cr: "702.177",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/gre/exhaust.ts",
+        note: 'CR 702.177a: "Exhaust — [Cost]: [Effect]" compiles to an activated or mana ability carrying `exhaust`, spent per ability and per object on `CardInstanceState.exhaustedAbilities` (cleared on re-entry, CR 400.7) by `recordActivation` and, for a for-mana tap, by `recordExhaustOnManaTap` (given back when the tap is reversed). One gate, `exhaustGateOpen`, read by `activationPreconditionViolation` (server, Bot enumerator, client hint) and by the mana-ability readers. CR 702.177b ("as long as you haven\'t activated an exhaust ability this turn") has no reader: an effect that says it stays unparsed, as does a trigger on activating an exhaust ability.',
     },
     // 702.178 Max Speed
     {

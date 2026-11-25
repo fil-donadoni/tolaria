@@ -40,6 +40,7 @@ import { tryGetDefinition } from "../cards";
 // `{T}: Add …` (Urza's Saga chapter I) is visible to the auto-tap solver and
 // the castability probe exactly like a printed one.
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
+import { exhaustGateOpen } from "./exhaust";
 import { maxSpeedGateOpen } from "./speed";
 import {
     activationRestrictionViolation,
@@ -2431,6 +2432,38 @@ export function manaTapExertsSource(
     );
 }
 
+/** CR 702.177a — the exhaust mana ability this tap plan entry activates, or
+ *  null: the exhaust twin of {@link manaTapExertsSource}, resolving the same
+ *  option list. Behind its own printed-definition prefilter, so an ordinary
+ *  board pays one cached lookup per tap. */
+export function manaTapExhaustAbility(
+    card: CardInstanceState,
+    controllerId: string | undefined,
+    battlefields:
+        | ReadonlyArray<{
+              playerId: string;
+              battlefield: readonly CardInstanceState[];
+          }>
+        | undefined,
+    manaChoiceIndex: number | undefined
+): ActivatedAbility | null {
+    const cardId = (card.card as { id?: string }).id;
+    const printed = cardId ? tryGetDefinition(cardId) : undefined;
+    const mayExhaust =
+        !!card.grantedActivatedAbilities?.length ||
+        !!printed?.activatedAbilities?.some((a) => !a.useStack && a.exhaust);
+    if (!mayExhaust) return null;
+    const opt = getManaTapOptionsDetailed(card, controllerId, battlefields, {
+        requireTap: true,
+    })[manaChoiceIndex ?? 0];
+    if (!opt || opt.source.kind !== "activated") return null;
+    const abilityId = opt.source.abilityId;
+    const ability = getEffectiveActivatedAbilities(card).find(
+        (entry) => entry.ability.id === abilityId
+    )?.ability;
+    return ability?.exhaust === true ? ability : null;
+}
+
 /** CR 605.1a / 118.3 / 122.1 (issue #3530) — the FIXED counter-removal leg that
  *  makes a mana ability FINITE: the ability pays by removing counters from its
  *  own source, so the counters on the source are the only fuel it has and every
@@ -2717,6 +2750,9 @@ export function getManaTapOptionsDetailed(
             ) {
                 continue;
             }
+            // CR 702.177a — an exhaust mana ability already activated is not a
+            // mana source, read off the instance like the counter leg below.
+            if (!exhaustGateOpen(ability, card)) continue;
             // CR 602.1 / 118.3 (issue #3455) — an unpayable FILTERED give-up
             // leg (sacrifice or return-to-hand, `permanentGiveUpCostLegs`) is
             // not a mana source: with no legal victim the activation is
@@ -3751,6 +3787,8 @@ export function getActivatedManaAbility(
             ({ ability: a }) =>
                 isManaAbilityDefinition(a) &&
                 functionsOnBattlefield(a) &&
+                // CR 702.177a — an exhausted ability is skipped the same way.
+                exhaustGateOpen(a, card) &&
                 (state === undefined ||
                     maxSpeedGateOpen(a, card, state.players))
         )?.ability ?? null;

@@ -670,6 +670,11 @@ export {
     tryAutoCommitPendingCast,
 } from "./gre/activation";
 import { activationPreconditionViolation } from "./gre/activationPrecondition";
+import {
+    exhaustGateOpen,
+    recordExhaustOnManaTap,
+    restoreExhaustOnUntap,
+} from "./gre/exhaust";
 import { maxSpeedGateOpen } from "./gre/speed";
 import { activationRestrictionViolation } from "./gre/activationRestrictions";
 import { commitCast } from "./gre/castCommit";
@@ -2116,6 +2121,8 @@ export function tapSourceIntoPayment(
         // from this land"). Paid here, in the same place the life / exert /
         // discard legs are, so every tap-for-mana path pays it identically.
         applyManaAbilityRemoveCounterCost(state, effAbility, card);
+        // CR 702.177a — an exhaust mana ability is spent by its activation.
+        recordExhaustOnManaTap(card, effAbility);
         // CR 605.1a / 701.21 — and the conditional self-sacrifice that reads
         // the counters it just spent ("If there are no depletion counters on
         // this land, sacrifice it."). A sacrificed source leaves
@@ -2150,7 +2157,12 @@ export function tapSourceIntoPayment(
     const producing =
         multiColorAbility ??
         (getBasicLandMana(card) ? null : fixedOutputManaAbility(card));
-    if (producing && !maxSpeedGateOpen(producing, card, state.players)) {
+    // CR 702.177a — nor an exhaust ability this source already activated.
+    if (
+        producing &&
+        (!maxSpeedGateOpen(producing, card, state.players) ||
+            !exhaustGateOpen(producing, card))
+    ) {
         throw new Error("Card does not produce mana");
     }
     // CR 605.1a — the ability this activation actually pays for and runs the
@@ -2285,6 +2297,8 @@ export function tapSourceIntoPayment(
     // from this land"). Paid here, in the same place the life / exert /
     // discard legs are, so every tap-for-mana path pays it identically.
     applyManaAbilityRemoveCounterCost(state, acting, card);
+    // CR 702.177a — an exhaust mana ability is spent by its activation.
+    recordExhaustOnManaTap(card, acting);
     // CR 605.1a / 701.21 — and the conditional self-sacrifice that reads
     // the counters it just spent ("If there are no depletion counters on
     // this land, sacrifice it."). A sacrificed source leaves
@@ -8764,6 +8778,8 @@ export const untapForPayment = mutation({
         // is what exerted it, the same reversal `untapSourceFromPayment` runs on
         // the activation side (Arena of Glory).
         restoreExertOnUntap(state, card);
+        // CR 702.177a — and the exhaust the reversed activation spent.
+        restoreExhaustOnUntap(card);
         reverseManaAbilityEffectsOnUntap(card);
         // CR 106.4 / 601.2f / 118.4 (issue #3354) — and the COST legs the
         // activation took: the ability's own mana (Arena of Glory's {R},
@@ -14451,6 +14467,8 @@ export const tapUntap = mutation({
             restoreManaCounterRemovalOnUntap(state, card);
             // CR 106.4 / 701.43b — and the exert its cost leg paid (Arena of Glory).
             restoreExertOnUntap(state, card);
+            // CR 702.177a — and the exhaust the reversed activation spent.
+            restoreExhaustOnUntap(card);
             reverseManaAbilityEffectsOnUntap(card);
             // CR 106.4 / 601.2f — the cost-side sibling: refund the mana the
             // activation's own mana cost took (Mana Cylix's {1}), or the untap
@@ -14525,6 +14543,8 @@ export const tapUntap = mutation({
         // `manaCounterRemoval` restore below.
         if (producedThisActivation) {
             applyManaAbilityRemoveCounterCost(state, tapAbility, card);
+            // CR 702.177a — an exhaust mana ability is spent by its activation.
+            recordExhaustOnManaTap(card, tapAbility);
         }
 
         // CR 605.1a / 701.21 — the conditional self-sacrifice that reads the

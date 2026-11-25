@@ -13,6 +13,7 @@ import type {
 } from "../cards/types";
 import { activationRestrictionViolation } from "./activationRestrictions";
 import { COLORED_MANA_COLORS, isManaAbilityForRules } from "./constants";
+import { exhaustGateOpen } from "./exhaust";
 import { maxSpeedGateOpen } from "./speed";
 
 /**
@@ -52,6 +53,8 @@ export function activationPreconditionViolation(
         | "activationCondition"
         | "activatableOnlyWhileAttached"
         | "requiresMaxSpeed"
+        | "id"
+        | "exhaust"
         | "activateFromGraveyard"
         | "useStack"
         | "manaProduced"
@@ -82,6 +85,10 @@ export function activationPreconditionViolation(
     // "your" speed is 4 (`maxSpeedGateOpen`).
     if (!maxSpeedGateOpen(ability, source, state.players)) {
         return "Ability cannot be activated right now";
+    }
+    // CR 702.177a — an exhaust ability is activated only once.
+    if (!exhaustGateOpen(ability, source)) {
+        return "Activate only once";
     }
     if (
         ability.activationCondition !== undefined &&

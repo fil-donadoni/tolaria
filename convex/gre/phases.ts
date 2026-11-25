@@ -440,6 +440,7 @@ function clearUntapStepFlags(card: CardInstanceState): void {
     card.tapBonusMana = undefined;
     card.lifePaidThisTap = undefined;
     card.exertedThisTap = undefined;
+    card.exhaustedThisTap = undefined;
     card.manaPaidThisTap = undefined;
     // CR 502/603.3 — a becomes-tapped trigger from a prior tap is water under
     // the bridge once the step has passed: next turn's fresh tap undoes
@@ -565,6 +566,7 @@ export function untapStep(state: GameState): void {
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
                 card.exertedThisTap = undefined;
+                card.exhaustedThisTap = undefined;
                 card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
@@ -586,6 +588,7 @@ export function untapStep(state: GameState): void {
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
                 card.exertedThisTap = undefined;
+                card.exhaustedThisTap = undefined;
                 card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
@@ -606,6 +609,7 @@ export function untapStep(state: GameState): void {
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
                 card.exertedThisTap = undefined;
+                card.exhaustedThisTap = undefined;
                 card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
@@ -633,6 +637,7 @@ export function untapStep(state: GameState): void {
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
                 card.exertedThisTap = undefined;
+                card.exhaustedThisTap = undefined;
                 card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
@@ -665,6 +670,7 @@ export function untapStep(state: GameState): void {
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
                 card.exertedThisTap = undefined;
+                card.exhaustedThisTap = undefined;
                 card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
@@ -687,6 +693,7 @@ export function untapStep(state: GameState): void {
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
                 card.exertedThisTap = undefined;
+                card.exhaustedThisTap = undefined;
                 card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
@@ -707,6 +714,7 @@ export function untapStep(state: GameState): void {
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
                 card.exertedThisTap = undefined;
+                card.exhaustedThisTap = undefined;
                 card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
@@ -730,6 +738,7 @@ export function untapStep(state: GameState): void {
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
                 card.exertedThisTap = undefined;
+                card.exhaustedThisTap = undefined;
                 card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
@@ -748,6 +757,7 @@ export function untapStep(state: GameState): void {
             card.tapBonusMana = undefined;
             card.lifePaidThisTap = undefined;
             card.exertedThisTap = undefined;
+            card.exhaustedThisTap = undefined;
             card.manaPaidThisTap = undefined;
             // CR 502/603.3 — the source untapped, so a becomes-tapped trigger
             // from a prior tap is water under the bridge: clear the
