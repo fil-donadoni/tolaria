@@ -31,6 +31,7 @@ import {
 import { PLACEHOLDER_CARD_ID, liveStaticDefinition } from "./gre/constants";
 import { canSummonCompanion } from "./gre/companion";
 import { outsideGamePlaysRemaining, outsideGamePool } from "./gre/outsideGame";
+import { mayPayManaAutoTappable } from "./gre/mayPayAutoTap";
 import { canTurnFaceUp } from "./gre/morph";
 import { canPlot } from "./gre/plot";
 import { canForetell } from "./gre/foretell";
@@ -485,11 +486,22 @@ export type SlimBattlefieldCard = SlimCardInstance & {
     removedKeywords?: { keyword: string; sourceId: string; seq?: number }[];
 };
 
+/** A **Pending Choice** as it crosses the wire. */
+export type PublicPendingChoice = PendingChoice & {
+    /** CR 608.2g / 118.3 — on the head `may-pay`, for its chooser: the pool is
+     *  short of the mana leg and an Auto-Tap plan over the untapped sources
+     *  makes up the difference, so `submitMayPay` can pay it
+     *  (`mayPayManaAutoTappable`, the planner that mutation taps by). Derived
+     *  per projection, never stored. */
+    manaAutoTappable?: true;
+};
+
 export type PublicGameState = Omit<
     GameState,
-    "players" | "stack" | "phasedOut" | "pendingTriggerBatch"
+    "players" | "stack" | "phasedOut" | "pendingTriggerBatch" | "pendingChoices"
 > & {
     seq: number;
+    pendingChoices?: PublicPendingChoice[];
     players: PublicPlayer[];
     stack: SlimStackItem[];
     phasedOut?: SlimPhasedOutBundle[];
@@ -499,9 +511,10 @@ export type PublicGameState = Omit<
 
 export type FullGameState = Omit<
     GameState,
-    "players" | "stack" | "phasedOut" | "pendingTriggerBatch"
+    "players" | "stack" | "phasedOut" | "pendingTriggerBatch" | "pendingChoices"
 > & {
     seq: number;
+    pendingChoices?: PublicPendingChoice[];
     players: FullPlayer[];
     stack: SlimStackItem[];
     phasedOut?: SlimPhasedOutBundle[];
@@ -1671,6 +1684,20 @@ function projectChoiceAnnouncement(
     return stripped;
 }
 
+/** Stamps `manaAutoTappable` on the head choice for its chooser. Only the head
+ *  can be answered, and only its chooser answers it. */
+function withMayPayAutoTap(
+    state: GameState,
+    choice: PendingChoice,
+    viewerId: string
+): PublicPendingChoice {
+    return choice === state.pendingChoices?.[0] &&
+        viewerMayActForChooser(choice, viewerId) &&
+        mayPayManaAutoTappable(state, choice)
+        ? { ...choice, manaAutoTappable: true }
+        : choice;
+}
+
 export function projectPublicState(
     state: GameState,
     seq: number,
@@ -2148,6 +2175,7 @@ export function projectPublicState(
         pendingChoices: nonEmpty(
             state.pendingChoices
                 ?.filter((c) => choiceVisibleTo(c, viewerId))
+                .map((c) => withMayPayAutoTap(state, c, viewerId))
                 .map((c) =>
                     c.kind === "choose-outside-game-card" &&
                     c.playerId !== viewerId
@@ -2331,6 +2359,14 @@ export function projectFullState(
         // the raw `...state` spread never leaks fat card defs (mirror of the
         // public projection).
         pendingTriggerBatch: state.pendingTriggerBatch?.map(slimCard),
+        // No single viewer here: the head choice is its own chooser's.
+        ...(state.pendingChoices
+            ? {
+                  pendingChoices: state.pendingChoices.map((c) =>
+                      withMayPayAutoTap(state, c, c.playerId)
+                  ),
+              }
+            : {}),
         ...(state.delayedTriggers
             ? {
                   delayedTriggers: state.delayedTriggers.map((t) =>

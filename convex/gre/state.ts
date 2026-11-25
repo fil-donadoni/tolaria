@@ -25943,12 +25943,16 @@ export function restrictionChosenCreatureType(
  *  planner that pays it can never disagree. A spell delegates to
  *  {@link restrictionAllowsSpell} (with the producer's chosen creature type,
  *  {@link restrictionChosenCreatureType}); an ability to
- *  {@link restrictionAllowsAbility}. */
+ *  {@link restrictionAllowsAbility}; a `may-pay` leg to
+ *  {@link restrictionAllowsMayPay}. */
 export function restrictedManaMayPay(
     restriction: ManaRestriction,
     producer: Pick<CardInstanceState, "chosenSubtypes">,
     payingFor: ManaPaymentSubject
 ): boolean {
+    if (payingFor.kind === "may-pay") {
+        return restrictionAllowsMayPay(restriction, payingFor.restriction);
+    }
     if (payingFor.kind === "ability") {
         return restrictionAllowsAbility(
             restriction,
@@ -28587,7 +28591,7 @@ export function mayPayGraveyardSelectionLegal(
  *  0042). Returns a plain `manaPool` copy when no restriction is given (the
  *  historical mana-only path). Used by the cumulative-upkeep `may-pay`, which
  *  passes `"cumulative-upkeep"` so Adarkar Unicorn / Snowfall mana counts. */
-function spendablePoolForRestriction(
+export function spendablePoolForRestriction(
     player: PlayerState,
     restriction?: ManaRestriction
 ): Record<string, number> {
@@ -28617,10 +28621,20 @@ export function mayPayUnitIsEligible(
 ): boolean {
     if (unit.castableCardId !== undefined) return false;
     if (unit.restriction === undefined) return true;
+    return restrictionAllowsMayPay(unit.restriction, restriction);
+}
+
+/** CR 106.6 — may mana under `unitRestriction` pay a `may-pay` leg that admits
+ *  `choiceRestriction`? Shared by a floating unit ({@link mayPayUnitIsEligible})
+ *  and an Auto-Tap option not yet tapped ({@link restrictedManaMayPay}). */
+function restrictionAllowsMayPay(
+    unitRestriction: ManaRestriction,
+    choiceRestriction: ManaRestriction | undefined
+): boolean {
     // CR 106.6 (issue #3341) — a prohibition names only nonartifact spells, and
     // a `may-pay` leg is no spell, so this mana pays any of them.
-    if (unit.restriction === "not-nonartifact-spell") return true;
-    return restriction !== undefined && unit.restriction === restriction;
+    if (unitRestriction === "not-nonartifact-spell") return true;
+    return unitRestriction === choiceRestriction;
 }
 
 /** Pays a `may-pay` mana leg drawing on eligible restricted mana first, then

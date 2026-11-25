@@ -83,7 +83,7 @@ import {
  */
 export function buildHandSpellDemands(
     hand: CardInstanceState[],
-    excludeInstanceId: string,
+    excludeInstanceId: string | undefined,
     isSorceryTiming: boolean
 ): Demand[] {
     const demands: Demand[] = [];
