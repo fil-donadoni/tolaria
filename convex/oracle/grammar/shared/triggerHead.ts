@@ -34,7 +34,7 @@ import type { Phase } from "../../../gre/types";
 import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
 import { isSelfPhrase } from "./cost";
 import { readSubtypeList } from "./subtypeList";
-import { CREATURE_SUBTYPES, isPermanentSubtype } from "./subtypes";
+import { ARTIFACT_SUBTYPES, CREATURE_SUBTYPES } from "./subtypes";
 import { COLOR_WORDS } from "./targetFilter";
 
 export const TRIGGER_HEAD = "trigger head";
@@ -1060,10 +1060,10 @@ const YOURS_ENTERS_POWER_FLOOR =
  * CR 603.6a + 205.3 — "whenever another [nontoken] <subtypes> you control
  * enters": the entering permanent of yours, other than the source, narrowed by
  * the subtype words between. Only the frame is a pattern; the middle must BE
- * one CR 205.3 permanent subtype or an "or" list of them (`readSubtypeList`),
- * so "another creature or artifact", "another Shrine" (an enchantment subtype,
- * outside `isPermanentSubtype`) and a plural "one or more other Elves … enter"
- * (CR 603.2c, one trigger per batch) stay refused.
+ * one creature or artifact type (CR 205.3m / 205.3g) or an "or" list of them
+ * (`readSubtypeList`), so "another creature or artifact", "another Shrine" (an
+ * enchantment type), "another Forest" (a land type, no fixture here) and a
+ * plural "one or more other Elves … enter" (CR 603.2c) stay refused.
  */
 const ANOTHER_SUBTYPE_YOURS_ENTERS =
     /^whenever another (nontoken )?(.+) you control enters$/i;
@@ -1092,13 +1092,19 @@ const YOU_CAST_NONCREATURE_OR_SUBTYPE_SPELL =
 const SUBTYPE_LEFT_TO_GRAVEYARD =
     /^whenever an? (\S+) is put into a graveyard from the battlefield$/i;
 
-/** One permanent subtype, or an "or" list of singular ones; else null. */
+/** CR 205.3m / 205.3g — a creature type or an artifact type. */
+function isCreatureOrArtifactType(word: string): boolean {
+    return CREATURE_SUBTYPES.has(word) || ARTIFACT_SUBTYPES.has(word);
+}
+
+/** One creature or artifact type, or an "or" list of singular ones; else null. */
 function readSubtypeOrList(phrase: string): readonly string[] | null {
-    if (isPermanentSubtype(phrase)) return [phrase];
+    if (isCreatureOrArtifactType(phrase)) return [phrase];
     const list = readSubtypeList(phrase);
     return list !== null &&
         list.conjunction === "or" &&
-        list.number === "singular"
+        list.number === "singular" &&
+        list.subtypes.every(isCreatureOrArtifactType)
         ? list.subtypes
         : null;
 }
@@ -1142,7 +1148,7 @@ function matchSubtypeHead(span: string): TriggerHeadIR | null {
             : null;
     const left = SUBTYPE_LEFT_TO_GRAVEYARD.exec(span);
     if (left !== null)
-        return isPermanentSubtype(left[1]!)
+        return isCreatureOrArtifactType(left[1]!)
             ? { kind: "left-to-graveyard", scope: "any", subtypes: [left[1]!] }
             : null;
     return null;
