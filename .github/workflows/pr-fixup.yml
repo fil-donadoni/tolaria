@@ -37,7 +37,8 @@ permissions:
 jobs:
     fixup:
         name: pr-fixup #${{ inputs.pr }}
-        runs-on: [self-hosted, maint]
+        # NOT `maint` (issue #10721, rule `derive-slot`): see pr-refresh.yml.
+        runs-on: [self-hosted, derive]
         timeout-minutes: 60
         steps:
             - name: Job worktree

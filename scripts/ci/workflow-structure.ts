@@ -88,7 +88,8 @@
  *     waits on, and a maintenance job there holds the queue (ADR 0160).
  *     Maintenance runs on `maint`.
  *   - `derive-slot` — a self-hosted job in `DERIVE_JOBS` (the derive commit
- *     that keeps the base's tip fresh, the stalled-repair alert) whose
+ *     that keeps the base's tip fresh, the stalled-repair alert, `pr-refresh`,
+ *     `pr-fixup`) whose
  *     `runs-on` is not the `derive` role alone, or a job in `LONG_JOBS`
  *     (Bot-play replay, `health:nightly`) that reaches the `derive` role: a
  *     runner takes one job at a time, so a duty sharing the slot with an
@@ -294,6 +295,14 @@ export const DERIVE_JOBS: ReadonlyMap<string, string> = new Map([
     [
         ".github/workflows/post-merge.yml#repair-watch",
         "the owner's notice of a stalled repair",
+    ],
+    [
+        ".github/workflows/pr-refresh.yml#refresh",
+        "a queued PR in conflict (out of the merge queue until rebased)",
+    ],
+    [
+        ".github/workflows/pr-fixup.yml#fixup",
+        "a queue PR red on a stale generated artefact",
     ],
 ]);
 

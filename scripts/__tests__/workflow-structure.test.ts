@@ -58,6 +58,35 @@ describe("the repository's workflows", () => {
     });
 });
 
+describe("the queue's repairs stay off the maint slot (issue #10721)", () => {
+    it.each([
+        ["pr-refresh", "refresh"],
+        ["pr-fixup", "fixup"],
+    ])("refuses %s on maint, where it waits behind the replay", (name, job) => {
+        const input = repoInput();
+        const path = `.github/workflows/${name}.yml`;
+        const moved = input.workflows.map((w) =>
+            w.path === path
+                ? {
+                      ...w,
+                      text: edit(
+                          w.text,
+                          "self-hosted, derive]",
+                          "self-hosted, maint]"
+                      ),
+                  }
+                : w
+        );
+        expect(
+            checkStructure({ ...input, workflows: moved }).map((v) => [
+                v.file,
+                v.job,
+                v.rule,
+            ])
+        ).toEqual([[path, job, "derive-slot"]]);
+    });
+});
+
 describe("pr-refresh's concurrency group (issue #6651)", () => {
     it("must keep one refresh run live at a time: dropping the job's group is refused", () => {
         const input = repoInput();
@@ -846,6 +875,8 @@ describe("workflow structure guard", () => {
         expect([...DERIVE_JOBS.keys()]).toEqual([
             ".github/workflows/post-merge.yml#housekeeping",
             ".github/workflows/post-merge.yml#repair-watch",
+            ".github/workflows/pr-refresh.yml#refresh",
+            ".github/workflows/pr-fixup.yml#fixup",
         ]);
         expect([...LONG_JOBS]).toEqual([
             ".github/workflows/post-merge.yml#bot-replay",
