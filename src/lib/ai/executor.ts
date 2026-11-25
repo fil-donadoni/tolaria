@@ -62,6 +62,7 @@ export type MoveMutations = {
     /** CR 116.2h / 702.143a — the foretell special action. Per hand card; the
      *  {2} is solved and paid server-side in this one call. */
     foretellCard: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
+    suspendCard: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
     announceCast: (
         a: GP & {
             cardInstanceId: string;
@@ -585,6 +586,14 @@ export async function executeMove(
         // CR 116.2h / 702.143a — the foretell special action, same shape.
         case "foretell":
             await mutations.foretellCard({
+                ...base,
+                cardInstanceId: move.cardInstanceId,
+            });
+            return;
+
+        // CR 116.2f / 702.62a — the suspend special action, same shape.
+        case "suspend":
+            await mutations.suspendCard({
                 ...base,
                 cardInstanceId: move.cardInstanceId,
             });

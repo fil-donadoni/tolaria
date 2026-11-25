@@ -1178,6 +1178,10 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     if (item.dynamicHasteFromMana) {
         base.dynamicHasteFromMana = item.dynamicHasteFromMana;
     }
+    // CR 702.62a (issue #10495) — Suspend's haste rider, for the same reason.
+    if (item.hasteWhileControlledBy !== undefined) {
+        base.hasteWhileControlledBy = item.hasteWhileControlledBy;
+    }
     return base;
 }
 
@@ -1442,6 +1446,10 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     // haste rider.
     if (compact.dynamicHasteFromMana) {
         item.dynamicHasteFromMana = compact.dynamicHasteFromMana as boolean;
+    }
+    // CR 702.62a (issue #10495) — rehydrate Suspend's haste rider.
+    if (compact.hasteWhileControlledBy !== undefined) {
+        item.hasteWhileControlledBy = compact.hasteWhileControlledBy as string;
     }
     // ADR 0094 — last, because the legacy shim reads `abilityId` /
     // `triggeredAbilityId` to find the mode list the item announced from.

@@ -8745,6 +8745,10 @@ export interface SpellContext {
             /** CR 614.1a — the `castDuringResolution` Op's rider: this spell
              *  is exiled if it would be put into its owner's graveyard. */
             exilesOnResolve?: boolean;
+            /** CR 702.62a — the `castDuringResolution` Op's Suspend rider: a
+             *  CREATURE spell cast this way gains haste until its caster loses
+             *  control of the spell or the permanent it becomes. */
+            hasteUntilControlLost?: boolean;
             /** CR 118.9 / 601.2f — pay THIS mana cost rather than the card's
              *  printed one (the miracle cost, CR 702.94a): the third payment
              *  mode beside `free` and the printed cost. Cost modifiers still
@@ -16098,6 +16102,16 @@ export type EffectRef = { ref: string };
  *  (Hideaway, CR 702.75 — "you may play the exiled card"). */
 export type EffectExiledWithSourceSelector = { exiledWithSource: true };
 
+/** CR 702.62a (issue #10495) — "this card": the card the resolving ability's
+ *  own source IS, read where the ability functions from rather than through a
+ *  binding. Suspend's third ability ("When the last time counter is removed
+ *  from this card, if it's exiled, you may play IT") functions in exile and
+ *  plays its own card — no earlier Op in the same script bound it, and the
+ *  card is the ability's source rather than a card the source exiled (CR 607,
+ *  `EffectExiledWithSourceSelector`). Accepted by `castDuringResolution` only,
+ *  with an explicit `source` zone (validator-enforced). */
+export type EffectThisCardSelector = { thisCard: true };
+
 /** CR 607.2a + CR 205.2 — the ability SOURCE of an `activated-grant`'s
  *  `abilitiesOf` arm: the linked exile pile, NARROWED to the card types whose
  *  abilities are copied. Agatha's Soul Cauldron copies "all activated abilities
@@ -18743,7 +18757,10 @@ export type EffectOp =
      *  `resultBind`. */
     | {
           op: "castDuringResolution";
-          card?: EffectRef | EffectExiledWithSourceSelector;
+          card?:
+              | EffectRef
+              | EffectExiledWithSourceSelector
+              | EffectThisCardSelector;
           player: EffectPlayerRef;
           /** The zone the bound `card` is cast from. `"hand"` is the Miracle
            *  source (CR 702.94a — the revealed card is cast from its owner's
@@ -18787,6 +18804,14 @@ export type EffectOp =
            *  spell cast this way would be put into your graveyard, exile it
            *  instead"). Requires `exilesOnResolve`. */
           exilesOnResolveForTypes?: CardType[];
+          /** CR 702.62a (issue #10495) — Suspend's rider: "If you cast a
+           *  creature spell this way, it gains haste until you lose control
+           *  of the spell or the permanent it becomes." Stamps the caster on
+           *  a CREATURE spell (`StackItem.hasteWhileControlledBy`); the
+           *  resolution hands it to the permanent as a layer-6 haste grant
+           *  with `while-controlled-by` expiry. A noncreature spell carries
+           *  nothing. Not valid with `anyNumber` (validator-enforced). */
+          hasteUntilControlLost?: true;
       }
     /** CR 702.85a (issue #3216) — the CASCADE keyword's entire triggered
      *  ability, in one Op: "exile cards from the top of your library until you
@@ -24722,6 +24747,12 @@ export interface CardDefinition {
      *  later free cast belongs to the PLOTTED designation (CR 702.170d), never
      *  to this field, so a plotted card that lost its plot ability still casts. */
     plot?: ManaCost;
+    /** CR 702.62a — Suspend N—[cost]: the cost of the suspend SPECIAL ACTION
+     *  (CR 116.2f). N rides on the `"suspend N"` keyword string, which the
+     *  `getDefinition` seam expands into the two exile-zone triggered abilities
+     *  (`convex/cards/abilities/suspend.ts`); the action itself is
+     *  `convex/gre/suspend.ts`. `{}` is "Suspend N—{0}", a real, free cost. */
+    suspend?: ManaCost;
     /** CR 702.143a — Foretell [cost]. The cost a FORETOLD card is cast for
      *  from exile, "rather than paying that spell's mana cost" (an alternative
      *  cost, CR 601.2b / 601.2f–h). The special action itself always costs

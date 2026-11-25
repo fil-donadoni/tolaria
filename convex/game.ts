@@ -576,6 +576,7 @@ import {
 } from "./gre/morph";
 import { applyPlot } from "./gre/plot";
 import { applyForetell } from "./gre/foretell";
+import { applySuspend } from "./gre/suspend";
 import { paySpecialActionManaCost } from "./gre/specialActionPayment";
 import { isOverloadAlternativeCost } from "./gre/overload";
 import { isEmergeAlternativeCost, settleEmergeReduction } from "./gre/emerge";
@@ -4561,6 +4562,39 @@ export const foretellCard = mutation({
         });
         assertNoPendingChoices(state);
         applyForetell(state, args.playerId, args.cardInstanceId);
+
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+    },
+});
+
+/** CR 116.2f / 702.62a (issue #10495) — the `suspend` special action: pay a
+ *  card's suspend cost and exile it from hand with N time counters, any time
+ *  the caller has priority and could begin to cast it from hand (CR 702.62c).
+ *  The whole transition is `applySuspend` (`gre/suspend.ts`); this adds auth,
+ *  the clone and the save. No stack item; priority stays with the caller (CR
+ *  116.3). */
+export const suspendCard = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerActsForSeat`.
+        await assertCallerActsForSeat(ctx, args.gameId, args.playerId);
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+        assertNoPendingChoices(state);
+        applySuspend(state, args.playerId, args.cardInstanceId);
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);

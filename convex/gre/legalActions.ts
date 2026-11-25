@@ -77,6 +77,9 @@ export type PriorityMove = Extract<
             // CR 116.2h / 702.143a — the foretell special action (any
             // priority of the actor's own turn).
             | "foretell"
+            // CR 116.2f / 702.62a — the suspend special action (any priority
+            // at which the card could begin to be cast from hand).
+            | "suspend"
             | "cast-spell"
             | "activate-ability"
             | "declare-attackers";

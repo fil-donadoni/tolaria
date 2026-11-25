@@ -22478,6 +22478,42 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #7587 — plot is a banking special action, `free-development`'s shape: banking and deferring reach the same rollout leaves and the {4} would otherwise empty. The held-option gate is shared with foretell and pinned by its pair half 2.",
     },
     {
+        // Issue #10495. Suspend (CR 702.62a / 116.2f): Rift Bolt ({2}{R},
+        // Suspend 1—{R}) in hand and ONE untapped Mountain in the last main
+        // phase of the turn — the suspend cost is payable, the cast is not,
+        // nothing else to spend the Mountain on. Suspending banks the Bolt for
+        // a FREE cast at the next upkeep; passing lets the {R} empty. A
+        // suspended card is banked material for its owner exactly like a
+        // plotted one (`exileCastOpensLater`), so the two lines tie on
+        // material and `free-development` takes the banking special action,
+        // the plot entry's shape.
+        label: "suspend: banks a suspend card with mana that would otherwise empty",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a castable instant held open on the same mana",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Rift Bolt", owner: "me", zone: "hand" },
+            ],
+            phase: "POSTCOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "suspend", card: "Rift Bolt" }],
+        },
+        note: "Issue #10495 — suspend is a banking special action like plot: a suspended card is latent material for its owner (`exileCastOpensLater`), so banking and deferring tie and `free-development` takes the suspend with mana that would otherwise empty.",
+    },
+    {
         // CR 601.2b / 715.3b (issue #7570) — an Adventure may ride a permission
         // that replaces the mana cost: "Casting a card as an Adventure isn't
         // casting it for an alternative cost." No land in play, so the Citadel's

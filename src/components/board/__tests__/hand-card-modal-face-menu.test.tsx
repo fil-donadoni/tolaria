@@ -61,6 +61,7 @@ vi.mock("@convex/_generated/api", () => ({
             activateManaAbility: { _name: "activateManaAbility" },
             plotCard: { _name: "plotCard" },
             foretellCard: { _name: "foretellCard" },
+            suspendCard: { _name: "suspendCard" },
         },
     },
 }));

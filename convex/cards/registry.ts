@@ -30,6 +30,7 @@ import {
 import "./emblems";
 import { expandAnnihilator } from "./abilities/annihilator";
 import { expandDemonstrate } from "./abilities/demonstrate";
+import { expandSuspend } from "./abilities/suspend";
 import { expandIngest } from "./abilities/ingest";
 import { expandUndaunted } from "./abilities/undaunted";
 import { expandCascade } from "./abilities/cascade";
@@ -744,11 +745,16 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // Ingest (CR 702.115) expands from its bare string into the combat-damage
     // trigger, reading only `staticAbilities`. Undaunted (CR 702.125) likewise,
     // into its self-host cost reduction. Demonstrate (CR 702.144) likewise, into
-    // its cast trigger.
-    const withKeywords = expandDemonstrate(
-        expandUndaunted(
-            expandIngest(
-                expandExtort(expandMentor(expandRiot(expandUnleash(expanded))))
+    // its cast trigger. Suspend (CR 702.62a) expands from its `"suspend N"`
+    // string into its two exile-zone triggers, reading only `staticAbilities`.
+    const withKeywords = expandSuspend(
+        expandDemonstrate(
+            expandUndaunted(
+                expandIngest(
+                    expandExtort(
+                        expandMentor(expandRiot(expandUnleash(expanded)))
+                    )
+                )
             )
         )
     );

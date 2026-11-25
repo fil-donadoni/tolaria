@@ -123,6 +123,7 @@ function serverMutations(ctx: Parameters<typeof runMutation>[1]): {
         turnPermanentFaceUp: reject,
         plotCard: reject,
         foretellCard: reject,
+        suspendCard: reject,
         announceCast: reject,
         selectTarget: reject,
         selectTargets: reject,

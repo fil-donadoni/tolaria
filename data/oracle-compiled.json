@@ -13123,57 +13123,15 @@
         {"key":"25c18df2c9b4","text":"Survival — At the beginning of your second main phase, if {self} is tapped, {self} and the top creature card in your library without flying perpetually gain flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"At the beginning of your second main phase"}},
         {"key":"636f21af3961","text":"Survivors your opponents control can't block, and they can't attack you or planeswalkers you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Survivors your opponents control can't block, and they can't attack you or planeswalkers you control"}},
         {"key":"87d7d0dc7d7a","text":"Suspect up to one target creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Suspect up to one target creature"}},
-        {"key":"026010efcfad","text":"Suspend 10—{R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 10—{R}"}},
-        {"key":"af831f0261e0","text":"Suspend 10—{W}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 10—{W}"}},
         {"key":"5abf28632efb","text":"Suspend 17 — {0}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 17 — {0}"}},
-        {"key":"0ba51db12565","text":"Suspend 1—{2}{G}{G}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 1—{2}{G}{G}"}},
-        {"key":"aa93acdaa894","text":"Suspend 1—{R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 1—{R}"}},
-        {"key":"ee9a61a051a5","text":"Suspend 2—{1}{B}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 2—{1}{B}"}},
-        {"key":"979c17436feb","text":"Suspend 2—{1}{R}{R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 2—{1}{R}{R}"}},
-        {"key":"10202e7523da","text":"Suspend 2—{1}{U}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 2—{1}{U}"}},
-        {"key":"2b9dbbf57e58","text":"Suspend 2—{1}{W}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 2—{1}{W}"}},
-        {"key":"adedcee568fa","text":"Suspend 2—{1}{W}{B}{G}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 2—{1}{W}{B}{G}"}},
-        {"key":"03a37c4e0475","text":"Suspend 2—{2}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 2—{2}"}},
-        {"key":"b1badfb149ed","text":"Suspend 2—{2}{B}{B}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 2—{2}{B}{B}"}},
-        {"key":"f21b8e8dceb3","text":"Suspend 2—{G}","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 2—{G}"}},
-        {"key":"b55dc7f27abd","text":"Suspend 2—{R}{R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 2—{R}{R}"}},
-        {"key":"bf89209dc258","text":"Suspend 3—{0}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{0}"}},
-        {"key":"b59128534e4b","text":"Suspend 3—{1}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{1}"}},
-        {"key":"7cc4178083ef","text":"Suspend 3—{1}{B}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{1}{B}"}},
-        {"key":"344f15d0c9aa","text":"Suspend 3—{1}{G}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{1}{G}"}},
-        {"key":"910015181491","text":"Suspend 3—{1}{G}{G}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{1}{G}{G}"}},
-        {"key":"91bacc74a9dc","text":"Suspend 3—{1}{R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{1}{R}"}},
-        {"key":"2f68b3452097","text":"Suspend 3—{1}{U}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{1}{U}"}},
-        {"key":"58288ef6027b","text":"Suspend 3—{1}{U}{U}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{1}{U}{U}"}},
-        {"key":"b1926a02e8a5","text":"Suspend 3—{1}{W}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{1}{W}"}},
-        {"key":"e0d1710c1df8","text":"Suspend 3—{1}{W}{W}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{1}{W}{W}"}},
-        {"key":"9e230733a40d","text":"Suspend 3—{2}{B}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{2}{B}"}},
-        {"key":"a022abe3c84f","text":"Suspend 3—{2}{B}{B}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{2}{B}{B}"}},
-        {"key":"efb828bd8c24","text":"Suspend 3—{2}{G}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{2}{G}"}},
-        {"key":"bd0e20f6ddf9","text":"Suspend 3—{2}{R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{2}{R}"}},
-        {"key":"904a0ff752bc","text":"Suspend 3—{2}{U}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{2}{U}"}},
-        {"key":"863ab49cc736","text":"Suspend 3—{2}{W}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{2}{W}"}},
-        {"key":"8bcf4048961a","text":"Suspend 3—{R}{R}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{R}{R}"}},
-        {"key":"5172fdbac983","text":"Suspend 3—{W}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 3—{W}"}},
-        {"key":"bb421fcedaf7","text":"Suspend 4—{1}{G}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 4—{1}{G}"}},
-        {"key":"3eb9b5b0dc93","text":"Suspend 4—{1}{R}","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 4—{1}{R}"}},
-        {"key":"6e429588e71f","text":"Suspend 4—{1}{U}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 4—{1}{U}"}},
-        {"key":"776e096bc020","text":"Suspend 4—{3}{R}{W}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 4—{3}{R}{W}"}},
-        {"key":"b289c5ccac1e","text":"Suspend 4—{B}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 4—{B}"}},
-        {"key":"e974a62964f9","text":"Suspend 4—{G}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 4—{G}"}},
-        {"key":"d38ca2ae810f","text":"Suspend 4—{R}","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 4—{R}"}},
-        {"key":"bfa1008c3502","text":"Suspend 4—{U}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 4—{U}"}},
-        {"key":"2cdef1093052","text":"Suspend 4—{W}{U}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 4—{W}{U}"}},
-        {"key":"8f6690223106","text":"Suspend 5—{1}{B}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 5—{1}{B}"}},
-        {"key":"5fe02181739e","text":"Suspend 5—{1}{W}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 5—{1}{W}"}},
-        {"key":"8a3e88efc08b","text":"Suspend 5—{B}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 5—{B}"}},
-        {"key":"6f183058345d","text":"Suspend 5—{G}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 5—{G}"}},
-        {"key":"ec163b0e1c30","text":"Suspend 5—{W}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 5—{W}"}},
-        {"key":"3b8f6193da5b","text":"Suspend 6—{1}{R}{W}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 6—{1}{R}{W}"}},
-        {"key":"b7df726dc311","text":"Suspend 6—{1}{U}","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 6—{1}{U}"}},
-        {"key":"206cd0ba5a3b","text":"Suspend 6—{W}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 6—{W}"}},
-        {"key":"062fb34e0e12","text":"Suspend 7—{1}{B}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 7—{1}{B}"}},
-        {"key":"607cc1dbcf11","text":"Suspend 9—{2}{U}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Suspend 9—{2}{U}"}},
+        {"key":"e46019018b91","text":"Suspend 2—{1}{B} (Rather than cast this card from your hand, pay {1}{B} and exile it with two time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)\nSearch your library for a card, put that card into your hand, then shuffle.","reason":"an instant or sorcery with no mana cost (CR 118.6): the engine casts an absent mana cost for {0}","cards":1},
+        {"key":"972d6663f37c","text":"Suspend 2—{1}{W} (Rather than cast this card from your hand, pay {1}{W} and exile it with two time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)\nReturn all enchantment cards from your graveyard to the battlefield. (Auras with nothing to enchant remain in your graveyard.)","reason":"an instant or sorcery with no mana cost (CR 118.6): the engine casts an absent mana cost for {0}","cards":1},
+        {"key":"61e9684c1fe6","text":"Suspend 3—{0} (Rather than cast this card from your hand, pay {0} and exile it with three time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)\n{T}, Sacrifice this artifact: Add three mana of any one color.","reason":"an instant or sorcery with no mana cost (CR 118.6): the engine casts an absent mana cost for {0}","cards":1},
+        {"key":"773a92e354b2","text":"Suspend 3—{0} (Rather than cast this card from your hand, pay {0} and exile it with three time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)\n{T}: Add one mana of any color.","reason":"an instant or sorcery with no mana cost (CR 118.6): the engine casts an absent mana cost for {0}","cards":1},
+        {"key":"23ece98cbdfa","text":"Suspend 3—{1} (Rather than cast this card from your hand, pay {1} and exile it with three time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)\n{T}: Add {C}{C}.","reason":"an instant or sorcery with no mana cost (CR 118.6): the engine casts an absent mana cost for {0}","cards":1},
+        {"key":"c22045cbf247","text":"Suspend 4—{G}\nUntil end of turn, you may play lands and cast spells from your graveyard.\nIf a card would be put into your graveyard from anywhere this turn, exile that card instead.","reason":"an instant or sorcery with no mana cost (CR 118.6): the engine casts an absent mana cost for {0}","cards":1},
+        {"key":"a300a2b8c9d6","text":"Suspend 4—{G} (Rather than cast this card from your hand, pay {G} and exile it with four time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)\nCreate two 4/4 green Rhino creature tokens with trample.","reason":"an instant or sorcery with no mana cost (CR 118.6): the engine casts an absent mana cost for {0}","cards":1},
+        {"key":"326ee72f1e3d","text":"Suspend 4—{U} (Rather than cast this card from your hand, pay {U} and exile it with four time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)\nTarget player draws three cards.","reason":"an instant or sorcery with no mana cost (CR 118.6): the engine casts an absent mana cost for {0}","cards":1},
         {"key":"3f3c0a494434","text":"Suspend X—{X}{3}{R}. X can't be 0.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Suspend X—{X}{3}{R}. X can't be 0"}},
         {"key":"880561f3ed82","text":"Suspend X—{X}{3}{U}. X can't be 0.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Suspend X—{X}{3}{U}. X can't be 0"}},
         {"key":"666b82cc4c91","text":"Suspend X—{X}{B}{B}{B}. X can't be 0.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Suspend X—{X}{B}{B}{B}. X can't be 0"}},
@@ -28161,7 +28119,7 @@
         {"key":"52329d58f555","text":"{T}: Untap target Griffin. If it's a creature, it gets +1/+1 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"If it's a creature, it"}},
         {"key":"ce313672626a","text":"{T}: Untap target attacking creature an opponent controls and remove it from combat.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","target filter","object descriptor"],"span":"attacking creature an opponent controls and remove it from combat"}},
         {"key":"0bff2f4dbf94","text":"{T}: Untap target attacking creature with shadow. Prevent all combat damage that would be dealt to and dealt by that creature this turn.","reason":"a two-way combat prevention shield is read for the ability's own source only (CR 615.1a)","cards":1},
-        {"key":"be8a2b1b468c","text":"{T}: Untap target attacking creature. Prevent all combat damage that would be dealt to and dealt by that creature this turn.","reason":"a two-way combat prevention shield is read for the ability's own source only (CR 615.1a)","cards":1},
+        {"key":"be8a2b1b468c","text":"{T}: Untap target attacking creature. Prevent all combat damage that would be dealt to and dealt by that creature this turn.","reason":"a two-way combat prevention shield is read for the ability's own source only (CR 615.1a)","cards":2},
         {"key":"fe3d11ed6fea","text":"{T}: Untap two other target legendary creatures.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"two other target legendary creatures"}},
         {"key":"28266f75d64f","text":"{T}: Untap two target lands.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"activated","path":["effect clause"],"span":"two target lands"}},
         {"key":"efb1e1554c92","text":"{T}: Until end of turn, each creature card in your graveyard gains \"Escape—{3}{B}, Exile four other cards from your graveyard.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"{T}: Until end of turn, each creature card in your graveyard gains \"Escape—{3}{B}, Exile four other cards from your graveyard.\""}},
@@ -30604,7 +30562,7 @@
 
         {"oracleId":"04cc9d99-69a9-499b-91bc-f2f30d217bdd","name":"Lay Waste","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["destroy","draw"],"definition":{"name":"Lay Waste","types":["Sorcery"],"manaCost":{"X":3,"R":1},"oracleText":"Destroy target land.\nCycling {2} ({2}, Discard this card: Draw a card.)","activatedAbilities":[{"id":"cycling","oracleText":"Cycling {2} ({2}, Discard this card: Draw a card.)","cost":{"mana":{"generic":2},"discardThis":true,"cyclingCost":true},"activateFromHand":true,"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}],"effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":"Land","count":1}},"botReach":"played"},
 
-        {"oracleId":"04cf02dc-f053-414e-87d8-1537f25bcbf4","name":"Lotus Bloom","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["bf89209dc258"]},
+        {"oracleId":"04cf02dc-f053-414e-87d8-1537f25bcbf4","name":"Lotus Bloom","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["61e9684c1fe6"]},
 
         {"oracleId":"04cffc41-05da-45fb-82da-2c4d4108c7e1","name":"Nightsquad Commando","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["2b10a4ecd916"]},
 
@@ -32368,7 +32326,7 @@
 
         {"oracleId":"0b683611-e46f-4105-b336-014d1556c8de","name":"Haunt of the Dead Marshes","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["22ca14813453"]},
 
-        {"oracleId":"0b68594c-0146-4f0d-b569-8bcf443514aa","name":"Deep Dish Pizza","state":"unparsed","gaps":["03a37c4e0475","6516e70daba8"]},
+        {"oracleId":"0b68594c-0146-4f0d-b569-8bcf443514aa","name":"Deep Dish Pizza","state":"unparsed","gaps":["6516e70daba8"]},
 
         {"oracleId":"0b685bf3-bf9e-42aa-acde-8dd90421aaaa","name":"Phyrexian Esthetician","state":"unparsed","gaps":["470cd2da52bf"]},
 
@@ -33560,7 +33518,7 @@
 
         {"oracleId":"0fcfc145-9371-40a8-9194-84e5fd700a8d","name":"Ragemonger","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7f30853e9341"]},
 
-        {"oracleId":"0fcfef04-a954-4423-82b0-c70dc64a8fbc","name":"Resurgent Belief","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2b9dbbf57e58"]},
+        {"oracleId":"0fcfef04-a954-4423-82b0-c70dc64a8fbc","name":"Resurgent Belief","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["972d6663f37c"]},
 
         {"oracleId":"0fd114c4-092b-4e28-b0dc-ef529f3bc73e","name":"Jeska's Will","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["93c9207e958f"]},
 
@@ -34350,7 +34308,7 @@
 
         {"oracleId":"1275653f-de4e-4fe9-aad8-88555fa11680","name":"Wirewood Lodge","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated","mana-ability"],"opsUsed":["tapUntap"],"definition":{"name":"Wirewood Lodge","types":["Land"],"oracleText":"{T}: Add {C}.\n{G}, {T}: Untap target Elf.","activatedAbilities":[{"id":"wirewood-lodge-mana","oracleText":"{T}: Add {C}.","cost":{"tap":true},"useStack":false,"manaProduced":{"C":1}},{"id":"wirewood-lodge-ability-2","oracleText":"{G}, {T}: Untap target Elf.","cost":{"mana":{"G":1},"tap":true},"useStack":true,"effects":[{"op":"tapUntap","action":"untap","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1,"subtypeFilter":["Elf"]}}]},"botReach":"played"},
 
-        {"oracleId":"12778951-7b11-400b-98ed-06434d7ecc11","name":"Glimpse of Tomorrow","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["39ab3fb40db5","8bcf4048961a"]},
+        {"oracleId":"12778951-7b11-400b-98ed-06434d7ecc11","name":"Glimpse of Tomorrow","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["39ab3fb40db5"]},
 
         {"oracleId":"127795e6-3f0e-4318-95ad-ccb1912580ac","name":"Ingot Chewer","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["6aad5169788f"]},
 
@@ -35300,7 +35258,7 @@
 
         {"oracleId":"15e3e226-0dd1-4c9b-a7ec-af67509cbfc5","name":"Nissa of Shadowed Boughs","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["10c204ccdab0","1f51330d2569","8ceab078247c"]},
 
-        {"oracleId":"15e4938d-1cd3-4670-9de5-2dc10abe4c19","name":"Wheel of Fate","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3eb9b5b0dc93","6c41c746f00f"]},
+        {"oracleId":"15e4938d-1cd3-4670-9de5-2dc10abe4c19","name":"Wheel of Fate","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6c41c746f00f"]},
 
         {"oracleId":"15e5136e-ed15-49a8-b027-e09436673fb4","name":"Culling Ritual","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1cc44f7cc718"]},
 
@@ -35672,7 +35630,7 @@
 
         {"oracleId":"17327d50-be12-423d-9d37-d6bae519f50c","name":"Taii Wakeen, Perfect Shot","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["055469b6d700","c83eefd32416"]},
 
-        {"oracleId":"1732cd31-1393-426f-a2fe-9b6b3f27136b","name":"Durkwood Baloth","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["6f183058345d"]},
+        {"oracleId":"1732cd31-1393-426f-a2fe-9b6b3f27136b","name":"Durkwood Baloth","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Durkwood Baloth","types":["Creature"],"subtypes":["Beast"],"manaCost":{"X":4,"G":2},"power":5,"toughness":5,"oracleText":"Suspend 5—{G} (Rather than cast this card from your hand, you may pay {G} and exile it with five time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)","staticAbilities":["suspend 5"],"suspend":{"G":1}},"botReach":"played"},
 
         {"oracleId":"1733777d-87fe-4975-b099-1ff803a721e8","name":"Unstoppable Ogre","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["restrictCombat"],"definition":{"name":"Unstoppable Ogre","types":["Artifact","Creature"],"subtypes":["Ogre","Warrior"],"manaCost":{"X":2,"R":1},"power":4,"toughness":1,"oracleText":"When this creature enters, target creature can't block this turn.","compiledTriggeredAbilities":[{"id":"unstoppable-ogre-trigger","oracleText":"When this creature enters, target creature can't block this turn.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":1},"effects":[{"op":"restrictCombat","restriction":"cant-block","target":{"target":0}}]}]},"botReach":"played"},
 
@@ -35752,7 +35710,7 @@
 
         {"oracleId":"17739f55-486b-46ea-8785-70cc2bd2d872","name":"Hoofprints of the Stag","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["54158386606a"]},
 
-        {"oracleId":"1773c4e8-dc08-482a-9f26-30ef96c5b200","name":"Inspiring Refrain","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["904a0ff752bc","d68bcd228395"]},
+        {"oracleId":"1773c4e8-dc08-482a-9f26-30ef96c5b200","name":"Inspiring Refrain","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["d68bcd228395"]},
 
         {"oracleId":"17770eeb-ecbf-4510-af2d-acececfbe146","name":"Multiversal Passage","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["37361ccd61e0","8910d797ca5d"]},
 
@@ -38218,7 +38176,7 @@
 
         {"oracleId":"20963cad-1c13-44a1-901a-bfc9930089e6","name":"Personal Sanctuary","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a00b847f8d52"]},
 
-        {"oracleId":"2097ac9e-0f9b-4cd0-8537-2518195e4549","name":"Reality Strobe","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["904a0ff752bc","d7e233e636cd"]},
+        {"oracleId":"2097ac9e-0f9b-4cd0-8537-2518195e4549","name":"Reality Strobe","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d7e233e636cd"]},
 
         {"oracleId":"209de43d-0cdd-4075-9f41-88e3d2ff90df","name":"Screeching Bat // Stalking Vampire","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["if","mayPay","transform"],"definition":{"name":"Screeching Bat","types":["Creature"],"subtypes":["Bat"],"manaCost":{"X":2,"B":1},"power":2,"toughness":2,"oracleText":"Flying\nAt the beginning of your upkeep, you may pay {2}{B}{B}. If you do, transform this creature.","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"screeching-bat-trigger","oracleText":"At the beginning of your upkeep, you may pay {2}{B}{B}. If you do, transform this creature.","head":{"kind":"phase","phase":"UPKEEP","scope":"your"},"effects":[{"op":"mayPay","player":"controller","cost":{"X":2,"B":2},"prompt":"You may pay {2}{B}{B}. If you do, transform this creature","bind":"$paid1"},{"op":"if","predicate":{"binding":"$paid1"},"then":[{"op":"transform","target":{"ref":"$source"}}]}]}],"backFace":{"name":"Stalking Vampire","types":["Creature"],"subtypes":["Vampire"],"power":5,"toughness":5,"colors":["B"],"compiledTriggeredAbilities":[{"id":"stalking-vampire-trigger","oracleText":"At the beginning of your upkeep, you may pay {2}{B}{B}. If you do, transform this creature.","head":{"kind":"phase","phase":"UPKEEP","scope":"your"},"effects":[{"op":"mayPay","player":"controller","cost":{"X":2,"B":2},"prompt":"You may pay {2}{B}{B}. If you do, transform this creature","bind":"$paid1"},{"op":"if","predicate":{"binding":"$paid1"},"then":[{"op":"transform","target":{"ref":"$source"}}]}]}],"oracleText":"At the beginning of your upkeep, you may pay {2}{B}{B}. If you do, transform this creature."}},"botReach":"played"},
 
@@ -39676,7 +39634,7 @@
 
         {"oracleId":"2619692a-07a0-4f50-88b0-4cec6dbc8600","name":"Just Fate","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"gaps":["c970c537fa86"]},
 
-        {"oracleId":"261f371f-bcda-4761-810f-3216608b31d8","name":"Venture Forth","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["344f15d0c9aa","d6257826d9c2"]},
+        {"oracleId":"261f371f-bcda-4761-810f-3216608b31d8","name":"Venture Forth","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["d6257826d9c2"]},
 
         {"oracleId":"2620dcfe-8738-4f81-b23d-0c1c60cf9047","name":"Splatter Technique","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0b6d724221c4"]},
 
@@ -40052,7 +40010,7 @@
 
         {"oracleId":"279f3aa5-5807-4797-8cd1-e009984a3691","name":"Take the Fall","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["cc0bc4a1eeea"]},
 
-        {"oracleId":"27a1f42c-0b86-4609-9609-1fa9cab7e7c9","name":"Profane Tutor","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ee9a61a051a5"]},
+        {"oracleId":"27a1f42c-0b86-4609-9609-1fa9cab7e7c9","name":"Profane Tutor","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e46019018b91"]},
 
         {"oracleId":"27a3aa64-1de7-4b0c-af23-52886e7d258a","name":"Prismatic Undercurrents","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["dbd58f8ae747"]},
 
@@ -40946,7 +40904,7 @@
 
         {"oracleId":"2b15d571-2f90-44f7-9153-20ed51253045","name":"Debris Beetle","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["91acf7541223"]},
 
-        {"oracleId":"2b166d97-c2c1-4642-b151-9bb1ad32e362","name":"Crashing Footfalls","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e974a62964f9"]},
+        {"oracleId":"2b166d97-c2c1-4642-b151-9bb1ad32e362","name":"Crashing Footfalls","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a300a2b8c9d6"]},
 
         {"oracleId":"2b1bec38-5aaf-4ca0-9a04-fb4367c59c1e","name":"Run Over","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["70caf229176c","979f99829c18"]},
 
@@ -41066,7 +41024,7 @@
 
         {"oracleId":"2b8abae2-dd15-41ee-81ae-6a463723b43e","name":"Nausea","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["forEach","pump"],"definition":{"name":"Nausea","types":["Sorcery"],"manaCost":{"X":1,"B":1},"oracleText":"All creatures get -1/-1 until end of turn.","effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"type":"Creature"}},"effects":[{"op":"pump","target":{"ref":"$each"},"power":-1,"toughness":-1,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
-        {"oracleId":"2b8afa9f-4236-4c02-a8d5-3c145caecfd6","name":"Rift Bolt","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["aa93acdaa894"]},
+        {"oracleId":"2b8afa9f-4236-4c02-a8d5-3c145caecfd6","name":"Rift Bolt","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["dealDamage"],"definition":{"name":"Rift Bolt","types":["Sorcery"],"manaCost":{"X":2,"R":1},"oracleText":"Rift Bolt deals 3 damage to any target.\nSuspend 1—{R} (Rather than cast this card from your hand, you may pay {R} and exile it with a time counter on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)","staticAbilities":["suspend 1"],"effects":[{"op":"dealDamage","amount":3,"to":{"target":0}}],"targetRequirement":{"type":"any","count":1},"suspend":{"R":1}},"botReach":"played"},
 
         {"oracleId":"2b8c2882-dbca-466a-a0af-dd1d65edfe7c","name":"Mimeoplasm, Revered One","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8ac9ebf5599c","e963e5303e9f"]},
 
@@ -41324,7 +41282,7 @@
 
         {"oracleId":"2c7b0034-7eb5-4950-b6dc-8e1d07d26899","name":"Retribution","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["ecc3c5963d22"]},
 
-        {"oracleId":"2c7c42e1-b097-4443-aa02-1f1dfcbb9732","name":"Arc Blade","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["80b240b6060d","bd0e20f6ddf9"]},
+        {"oracleId":"2c7c42e1-b097-4443-aa02-1f1dfcbb9732","name":"Arc Blade","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["80b240b6060d"]},
 
         {"oracleId":"2c80fc55-86a0-403e-82ce-09ee03095d8a","name":"Hithlain Knots","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["draw","scryReorder","tapUntap"],"definition":{"name":"Hithlain Knots","types":["Instant"],"manaCost":{"X":1,"U":1},"oracleText":"Tap target creature. Scry 1.\nDraw a card.","effects":[{"op":"tapUntap","action":"tap","target":{"target":0}},{"op":"scryReorder","player":"controller","count":1,"destination":"library-bottom"},{"op":"draw","player":"controller","count":1}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
@@ -42004,7 +41962,7 @@
 
         {"oracleId":"2f301cc3-31f7-4728-94c4-4ae1bd0c439c","name":"My First Tome","state":"unparsed","gaps":["6aa172fdabc4"]},
 
-        {"oracleId":"2f30ffd2-9910-4fbd-96f9-d66f1da506e9","name":"Heroes Remembered","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["af831f0261e0"]},
+        {"oracleId":"2f30ffd2-9910-4fbd-96f9-d66f1da506e9","name":"Heroes Remembered","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["gainLife"],"definition":{"name":"Heroes Remembered","types":["Sorcery"],"manaCost":{"X":6,"W":3},"oracleText":"You gain 20 life.\nSuspend 10—{W} (Rather than cast this card from your hand, you may pay {W} and exile it with ten time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)","staticAbilities":["suspend 10"],"effects":[{"op":"gainLife","player":"controller","amount":20}],"suspend":{"W":1}},"botReach":"played"},
 
         {"oracleId":"2f3237fe-9e07-4aad-8bc8-7ef4b510dd36","name":"Ebony Charm","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["gainLife","grantAbility","loseLife","moveZone"],"definition":{"name":"Ebony Charm","types":["Instant"],"manaCost":{"B":1},"oracleText":"Choose one —\n• Target opponent loses 1 life and you gain 1 life.\n• Exile up to three target cards from a single graveyard.\n• Target creature gains fear until end of turn. (It can't be blocked except by artifact creatures and/or black creatures.)","modes":[{"id":"ebony-charm-mode-1","label":"Target opponent loses 1 life and you gain 1 life","oracleText":"Target opponent loses 1 life and you gain 1 life.","effects":[{"op":"loseLife","player":{"target":0},"amount":1},{"op":"gainLife","player":"controller","amount":1}],"targetRequirement":{"type":"player","count":1,"controller":"opponent"}},{"id":"ebony-charm-mode-2","label":"Exile up to three target cards from a single graveyard","oracleText":"Exile up to three target cards from a single graveyard.","effects":[{"op":"moveZone","target":{"target":0},"to":"exile"},{"op":"moveZone","target":{"target":1},"to":"exile"},{"op":"moveZone","target":{"target":2},"to":"exile"}],"targetRequirement":{"type":"card","count":{"min":0,"max":3},"zone":"graveyard","controller":"any","sameController":true}},{"id":"ebony-charm-mode-3","label":"Target creature gains fear until end of turn","oracleText":"Target creature gains fear until end of turn.","effects":[{"op":"grantAbility","target":{"target":0},"ability":"fear","duration":{"phase":"end-of-turn"}}],"targetRequirement":{"type":"Creature","count":1}}]},"botReach":"played"},
 
@@ -42258,7 +42216,7 @@
 
         {"oracleId":"2fdc484e-b3c3-4f4e-99a1-26a1134aa1cd","name":"Noxious Toad","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["c8d3387e43dd"]},
 
-        {"oracleId":"2fdde5f7-a235-43a4-88a5-2faaf5900bd6","name":"Duskrider Peregrine","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b1926a02e8a5"]},
+        {"oracleId":"2fdde5f7-a235-43a4-88a5-2faaf5900bd6","name":"Duskrider Peregrine","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Duskrider Peregrine","types":["Creature"],"subtypes":["Bird"],"manaCost":{"X":5,"W":1},"power":3,"toughness":3,"oracleText":"Flying, protection from black\nSuspend 3—{1}{W} (Rather than cast this card from your hand, you may pay {1}{W} and exile it with three time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)","staticAbilities":["flying","protection from black","suspend 3"],"suspend":{"X":1,"W":1}},"botReach":"played"},
 
         {"oracleId":"2fdeb920-2e48-4308-9517-743eec219c04","name":"Necrotic Ooze","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["29de13c9ced8"]},
 
@@ -43242,7 +43200,7 @@
 
         {"oracleId":"338ad8c4-c89f-4e78-be28-7224fac0fd0f","name":"Kemba's Legion","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ae8bdb17e3d6"]},
 
-        {"oracleId":"338c06ec-47b5-47e7-9fe1-39ff381b36a5","name":"Mindstab","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["b289c5ccac1e"]},
+        {"oracleId":"338c06ec-47b5-47e7-9fe1-39ff381b36a5","name":"Mindstab","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["choice","discard"],"definition":{"name":"Mindstab","types":["Sorcery"],"manaCost":{"X":5,"B":1},"oracleText":"Target player discards three cards.\nSuspend 4—{B} (Rather than cast this card from your hand, you may pay {B} and exile it with four time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)","staticAbilities":["suspend 4"],"effects":[{"op":"choice","kind":"discard-hand","player":{"target":0},"zone":"hand","count":3,"prompt":"Discard three cards.","bind":"$discard1"},{"op":"discard","player":{"target":0},"cards":{"ref":"$discard1"}}],"targetRequirement":{"type":"player","count":1},"suspend":{"B":1}},"botReach":"played"},
 
         {"oracleId":"338f0ab6-f744-4e5a-a358-05e71b93758d","name":"Woodland Changeling","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Woodland Changeling","types":["Creature"],"subtypes":["Shapeshifter"],"manaCost":{"X":1,"G":1},"power":2,"toughness":2,"oracleText":"Changeling (This card is every creature type.)","staticAbilities":["changeling"]},"botReach":"played"},
 
@@ -44514,7 +44472,7 @@
 
         {"oracleId":"380ea3b6-8eb4-466a-8680-ce5cfed9b8c4","name":"Ancestral Tribute","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["gainLife"],"definition":{"name":"Ancestral Tribute","types":["Sorcery"],"manaCost":{"X":5,"W":2},"oracleText":"You gain 2 life for each card in your graveyard.\nFlashback {9}{W}{W}{W} (You may cast this card from your graveyard for its flashback cost. Then exile it.)","effects":[{"op":"gainLife","player":"controller","amount":{"count":{"zone":"graveyard","controller":"controller","filter":{},"times":2}}}],"flashback":{"X":9,"W":3}},"botReach":"ignored","botGap":"never-chosen › Sorcery › gainLife"},
 
-        {"oracleId":"38132f50-9e2d-433b-9f2f-9bd0a7925b68","name":"Ivory Giant","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["293e54b2a350","ec163b0e1c30"]},
+        {"oracleId":"38132f50-9e2d-433b-9f2f-9bd0a7925b68","name":"Ivory Giant","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["293e54b2a350"]},
 
         {"oracleId":"381539ce-fc05-4855-80da-b0807a7c07c2","name":"Grim Physician","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["pump"],"definition":{"name":"Grim Physician","types":["Creature"],"subtypes":["Zombie"],"manaCost":{"B":1},"power":1,"toughness":1,"oracleText":"When this creature dies, target creature an opponent controls gets -1/-1 until end of turn.","compiledTriggeredAbilities":[{"id":"grim-physician-trigger","oracleText":"When this creature dies, target creature an opponent controls gets -1/-1 until end of turn.","head":{"kind":"died","scope":"self"},"targetRequirement":{"type":"Creature","count":1,"controller":"opponent"},"effects":[{"op":"pump","target":{"target":0},"power":-1,"toughness":-1,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
@@ -44626,7 +44584,7 @@
 
         {"oracleId":"386faeef-f5cc-4ef9-b8cb-6ef06b33cbd0","name":"Righteous Authority","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["97160acea4d4","c84b3d650720"]},
 
-        {"oracleId":"3871cad2-e793-4c41-ac79-f84cbc2634a5","name":"Nantuko Shaman","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["0ba51db12565"]},
+        {"oracleId":"3871cad2-e793-4c41-ac79-f84cbc2634a5","name":"Nantuko Shaman","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["draw"],"definition":{"name":"Nantuko Shaman","types":["Creature"],"subtypes":["Insect","Shaman"],"manaCost":{"X":2,"G":1},"power":3,"toughness":2,"oracleText":"When this creature enters, if you control no tapped lands, draw a card.\nSuspend 1—{2}{G}{G} (Rather than cast this card from your hand, you may pay {2}{G}{G} and exile it with a time counter on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)","staticAbilities":["suspend 1"],"compiledTriggeredAbilities":[{"id":"nantuko-shaman-trigger","oracleText":"When this creature enters, if you control no tapped lands, draw a card.","head":{"kind":"entered","scope":"self"},"condition":{"kind":"controls","player":"you","filter":{"types":["Land"],"tapped":true},"atMost":0},"effects":[{"op":"draw","player":"controller","count":1}]}],"suspend":{"X":2,"G":2}},"botReach":"played"},
 
         {"oracleId":"3875aef0-3102-4fbf-be90-e4139f7a2348","name":"Wayward Swordtooth","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b1a5668aed49"]},
 
@@ -44836,7 +44794,7 @@
 
         {"oracleId":"3937a96c-3be1-465d-98b6-1db67d2215e6","name":"Return from Extinction","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["551fe65f988d"]},
 
-        {"oracleId":"3939fbe0-3be4-41ef-828d-c93f2cb33b4f","name":"Living End","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["074341b69468","a022abe3c84f"]},
+        {"oracleId":"3939fbe0-3be4-41ef-828d-c93f2cb33b4f","name":"Living End","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["074341b69468"]},
 
         {"oracleId":"393a254f-be31-431a-9341-a51286f8cbce","name":"Blast Zone","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","mana-ability","static"],"opsUsed":["counters","destroy","forEach","if"],"definition":{"name":"Blast Zone","types":["Land"],"oracleText":"This land enters with a charge counter on it.\n{T}: Add {C}.\n{X}{X}, {T}: Put X charge counters on this land.\n{3}, {T}, Sacrifice this land: Destroy each nonland permanent with mana value equal to the number of charge counters on this land.","activatedAbilities":[{"id":"blast-zone-mana","oracleText":"{T}: Add {C}.","cost":{"tap":true},"useStack":false,"manaProduced":{"C":1}},{"id":"blast-zone-ability-2","oracleText":"{X}{X}, {T}: Put X charge counters on this land.","cost":{"mana":{"X":"X","xFactor":2},"tap":true},"useStack":true,"effects":[{"op":"counters","action":"add","counter":"charge","target":{"ref":"$source"},"count":{"X":true}}]},{"id":"blast-zone-ability-3","oracleText":"{3}, {T}, Sacrifice this land: Destroy each nonland permanent with mana value equal to the number of charge counters on this land.","cost":{"mana":{"X":3},"tap":true,"sacrifice":true},"useStack":true,"effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"excludeType":"Land"}},"effects":[{"op":"if","predicate":{"left":{"manaValue":{"of":{"ref":"$each"}}},"op":"eq","right":{"counters":{"of":{"ref":"$source"},"type":"charge"}}},"then":[{"op":"destroy","target":{"ref":"$each"}}]}]}]}],"entersWith":{"counters":[{"type":"charge","count":1}]}},"botReach":"played"},
 
@@ -45342,7 +45300,7 @@
 
         {"oracleId":"3afe4852-d506-45d7-8a19-ddcbc3dd90d4","name":"Oakhame Adversary","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["70388887b281"]},
 
-        {"oracleId":"3afe854a-7daa-4745-a5d9-04879e5d940a","name":"Shivan Sand-Mage","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["022b9d399823","d38ca2ae810f"]},
+        {"oracleId":"3afe854a-7daa-4745-a5d9-04879e5d940a","name":"Shivan Sand-Mage","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["022b9d399823"]},
 
         {"oracleId":"3affd37a-d4f6-488a-b30f-8e824b640687","name":"Ral and the Implicit Maze","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["71454e4a9335","d2485ece8d3e","e28fe1e5531c"]},
 
@@ -46368,7 +46326,7 @@
 
         {"oracleId":"3e83dec6-e1a0-4137-aaab-308dfd3122e1","name":"Vivien, Arkbow Ranger","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0466f7af98aa","b96b418ad4c6","cc3693c01ef3"]},
 
-        {"oracleId":"3e84d719-bb76-43a4-b61a-fee30c3aac68","name":"Star Whale","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["a63cae0c898c","b7df726dc311"]},
+        {"oracleId":"3e84d719-bb76-43a4-b61a-fee30c3aac68","name":"Star Whale","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["a63cae0c898c"]},
 
         {"oracleId":"3e8abec7-1e18-460a-9d88-30969755ebd2","name":"Artisan of Forms","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ce993828a81c"]},
 
@@ -46860,7 +46818,7 @@
 
         {"oracleId":"4066d4df-d98f-44cd-bf25-ebb5e9d9ddeb","name":"Twisted Experiment","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Twisted Experiment","types":["Enchantment"],"subtypes":["Aura"],"manaCost":{"X":1,"B":1},"oracleText":"Enchant creature\nEnchanted creature gets +3/-1.","compiledStaticEffects":[{"kind":"pt-buff","appliesTo":"host","power":3,"toughness":-1}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
-        {"oracleId":"406b4b1d-756b-4062-897d-3693832086a0","name":"Greater Gargadon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["026010efcfad","f908c138eda5"]},
+        {"oracleId":"406b4b1d-756b-4062-897d-3693832086a0","name":"Greater Gargadon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f908c138eda5"]},
 
         {"oracleId":"406bccb6-6602-4486-a556-e0b550650253","name":"War Falcon","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["2d197e00f0aa"]},
 
@@ -51544,7 +51502,7 @@
 
         {"oracleId":"515c1604-59f0-45b4-91be-d2f20fdd3e1e","name":"Frostbridge Guard","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["tapUntap"],"definition":{"name":"Frostbridge Guard","types":["Creature"],"subtypes":["Elemental","Soldier"],"manaCost":{"X":1,"W":1},"power":2,"toughness":2,"oracleText":"{2}{W}, {T}: Tap target creature.","activatedAbilities":[{"id":"frostbridge-guard-ability","oracleText":"{2}{W}, {T}: Tap target creature.","cost":{"mana":{"X":2,"W":1},"tap":true},"useStack":true,"effects":[{"op":"tapUntap","action":"tap","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1}}]},"botReach":"played"},
 
-        {"oracleId":"515c522f-51d5-4f6d-b9b1-ea3c7f6a378e","name":"Rousing Refrain","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["9098cdf08ba1","91bacc74a9dc"]},
+        {"oracleId":"515c522f-51d5-4f6d-b9b1-ea3c7f6a378e","name":"Rousing Refrain","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["9098cdf08ba1"]},
 
         {"oracleId":"515cee6a-a2e1-4eeb-8e1d-293724313b14","name":"Chandra's Incinerator","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9b03adc9c987","e9e00414a1b8"]},
 
@@ -51886,7 +51844,7 @@
 
         {"oracleId":"52963d93-a90c-41a6-984d-fbc49ebfb20a","name":"Crude Abattoir // Unsavory Kitchen","state":"unparsed","gaps":["90059a0f059e"]},
 
-        {"oracleId":"5297c493-59ec-43e9-9980-8ae03e3264d8","name":"Veiling Oddity","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["1056fe60288f","6e429588e71f"]},
+        {"oracleId":"5297c493-59ec-43e9-9980-8ae03e3264d8","name":"Veiling Oddity","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["1056fe60288f"]},
 
         {"oracleId":"5297f646-8235-47da-a290-a6883b374977","name":"Warcry Phoenix","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ace1ff8c326a"]},
 
@@ -52036,7 +51994,7 @@
 
         {"oracleId":"530dc119-e266-4525-abe9-7fab599e9de2","name":"Invasion of New Capenna // Holy Frazzle-Cannon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4f19dfdea45d","a5e55fac47be"]},
 
-        {"oracleId":"530f088d-bfa1-4410-b1aa-ade8abdb2b7a","name":"Phthisis","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["758114244a88","8f6690223106"]},
+        {"oracleId":"530f088d-bfa1-4410-b1aa-ade8abdb2b7a","name":"Phthisis","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["758114244a88"]},
 
         {"oracleId":"53129de9-4809-4c8c-9d11-37369899e70a","name":"Fight for the Throne","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["e1f332569277"]},
 
@@ -52500,7 +52458,7 @@
 
         {"oracleId":"54c2b3b3-e247-4146-8045-d49480b795f2","name":"Racers' Scoreboard","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","static","triggered"],"opsUsed":["choice","discard","draw"],"definition":{"name":"Racers' Scoreboard","types":["Artifact"],"manaCost":{"X":4},"oracleText":"Start your engines! (If you have no speed, it starts at 1. It increases once on each of your turns when an opponent loses life. Max speed is 4.)\nWhen this artifact enters, draw two cards, then discard a card.\nMax speed — Spells you cast cost {1} less to cast.","staticAbilities":["start your engines!"],"compiledTriggeredAbilities":[{"id":"racers-scoreboard-trigger","oracleText":"When this artifact enters, draw two cards, then discard a card.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"draw","player":"controller","count":2},{"op":"choice","kind":"choose-hand-card","player":"controller","zone":"hand","count":1,"prompt":"Discard a card.","bind":"$discard1"},{"op":"discard","player":"controller","cards":{"ref":"$discard1"}}]}],"compiledStaticEffects":[{"kind":"cost-modifier","spells":{"controller":"you"},"reduction":1,"condition":{"kind":"you-have-max-speed"}}]},"botReach":"played"},
 
-        {"oracleId":"54c3d8ba-ee7c-4f15-8ee3-e5daf860b428","name":"Charnel Serenade","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["9e230733a40d","d21ae5cf5dea"]},
+        {"oracleId":"54c3d8ba-ee7c-4f15-8ee3-e5daf860b428","name":"Charnel Serenade","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["d21ae5cf5dea"]},
 
         {"oracleId":"54c4fd18-adf5-408b-a529-019ebc24ca8d","name":"Drop Tower","state":"unparsed","poolIn":["commander"],"gaps":["dca9d8b77147"]},
 
@@ -52524,7 +52482,7 @@
 
         {"oracleId":"54ddf766-b528-488d-9b98-8a101bdb5de9","name":"Last Voyage of the _____","state":"unparsed","poolIn":["legacy","vintage","commander"],"bannedIn":["legacy","vintage"],"gaps":["79958710324a","f77d50c2152f","f96c5b8019f7"]},
 
-        {"oracleId":"54de4a7f-86f4-4029-80f7-bc25d6509cc8","name":"Deep-Sea Kraken","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["32198667ec6d","607cc1dbcf11","8138921e417b"]},
+        {"oracleId":"54de4a7f-86f4-4029-80f7-bc25d6509cc8","name":"Deep-Sea Kraken","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["32198667ec6d","8138921e417b"]},
 
         {"oracleId":"54deeeef-be90-4975-9213-8355ddf3ce0c","name":"Fall of the Impostor","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["909ee660fd74"]},
 
@@ -53924,7 +53882,7 @@
 
         {"oracleId":"5a1bebe9-c940-4fac-8572-0833808eaa55","name":"Conclave Phalanx","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["gainLife"],"definition":{"name":"Conclave Phalanx","types":["Creature"],"subtypes":["Human","Soldier"],"manaCost":{"X":4,"W":1},"power":2,"toughness":4,"oracleText":"Convoke (Your creatures can help cast this spell. Each creature you tap while casting this spell pays for {1} or one mana of that creature's color.)\nWhen this creature enters, you gain 1 life for each creature you control.","staticAbilities":["convoke"],"compiledTriggeredAbilities":[{"id":"conclave-phalanx-trigger","oracleText":"When this creature enters, you gain 1 life for each creature you control.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"gainLife","player":"controller","amount":{"count":{"zone":"battlefield","controller":"controller","filter":{"type":["Creature"]}}}}]}]},"botReach":"played"},
 
-        {"oracleId":"5a1d5b0d-335f-4ae4-94d8-60494fedb570","name":"Festering March","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9e230733a40d","bd3055ad2346"]},
+        {"oracleId":"5a1d5b0d-335f-4ae4-94d8-60494fedb570","name":"Festering March","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["bd3055ad2346"]},
 
         {"oracleId":"5a1dfc60-645d-4bc0-8883-e06ed9c80706","name":"Umbral Expanse","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":["draw"],"definition":{"name":"Umbral Expanse","types":["Land"],"subtypes":["Plains","Swamp"],"oracleText":"({T}: Add {W} or {B}.)\nThis land enters tapped.\nCycling {2} ({2}, Discard this card: Draw a card.)","activatedAbilities":[{"id":"cycling","oracleText":"Cycling {2} ({2}, Discard this card: Draw a card.)","cost":{"mana":{"generic":2},"discardThis":true,"cyclingCost":true},"activateFromHand":true,"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}],"entersTapped":true},"botReach":"played"},
 
@@ -55292,7 +55250,7 @@
 
         {"oracleId":"5f2be3c2-060a-43e1-b63b-9cd3c78ffcb0","name":"Ilysian Caryatid","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["c3b52f162832"]},
 
-        {"oracleId":"5f31a2d6-649a-40f4-89ce-95c635340e9e","name":"Atraxi Warden","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["5fe02181739e"]},
+        {"oracleId":"5f31a2d6-649a-40f4-89ce-95c635340e9e","name":"Atraxi Warden","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["exile"],"definition":{"name":"Atraxi Warden","types":["Creature"],"subtypes":["Alien","Eye"],"manaCost":{"X":4,"W":2},"power":6,"toughness":6,"oracleText":"Flying\nWhen this creature enters, exile up to one target tapped creature.\nSuspend 5—{1}{W} (Rather than cast this card from your hand, you may pay {1}{W} and exile it with five time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)","staticAbilities":["flying","suspend 5"],"compiledTriggeredAbilities":[{"id":"atraxi-warden-trigger","oracleText":"When this creature enters, exile up to one target tapped creature.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":{"min":0,"max":1},"tappedFilter":"tapped"},"effects":[{"op":"exile","target":{"target":0}}]}],"suspend":{"X":1,"W":1}},"botReach":"played"},
 
         {"oracleId":"5f358544-7319-4f8e-9d60-a410c4feb774","name":"Alluring Siren","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9f01fd16bbce"]},
 
@@ -55326,7 +55284,7 @@
 
         {"oracleId":"5f4ddd52-4940-4557-8531-40c66857d4cd","name":"Woodlurker Mimic","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["546e5777ebe5"]},
 
-        {"oracleId":"5f4e45c1-2bd2-4741-bb97-b6a324c574ba","name":"Giant Dustwasp","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["bb421fcedaf7"]},
+        {"oracleId":"5f4e45c1-2bd2-4741-bb97-b6a324c574ba","name":"Giant Dustwasp","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Giant Dustwasp","types":["Creature"],"subtypes":["Insect"],"manaCost":{"X":3,"G":2},"power":3,"toughness":3,"oracleText":"Flying\nSuspend 4—{1}{G} (Rather than cast this card from your hand, you may pay {1}{G} and exile it with four time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)","staticAbilities":["flying","suspend 4"],"suspend":{"X":1,"G":1}},"botReach":"played"},
 
         {"oracleId":"5f4ff27f-ebc1-4a86-8b0b-eeea470a25fb","name":"Stalking Vengeance","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ead7ac6489a1"]},
 
@@ -55960,7 +55918,7 @@
 
         {"oracleId":"61822bbe-0407-4425-b8d7-0263a8c521ec","name":"Dragonbroods' Relic","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["297164457d89"]},
 
-        {"oracleId":"61834b70-1b3e-49e6-aaf4-ee7d72155e51","name":"Shade of Trokair","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["5172fdbac983"]},
+        {"oracleId":"61834b70-1b3e-49e6-aaf4-ee7d72155e51","name":"Shade of Trokair","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["pump"],"definition":{"name":"Shade of Trokair","types":["Creature"],"subtypes":["Shade"],"manaCost":{"X":3,"W":1},"power":1,"toughness":2,"oracleText":"{W}: This creature gets +1/+1 until end of turn.\nSuspend 3—{W} (Rather than cast this card from your hand, you may pay {W} and exile it with three time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)","staticAbilities":["suspend 3"],"activatedAbilities":[{"id":"shade-of-trokair-ability","oracleText":"{W}: This creature gets +1/+1 until end of turn.","cost":{"mana":{"W":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}]}],"suspend":{"W":1}},"botReach":"played"},
 
         {"oracleId":"61849685-b407-4ed0-aafc-ec3a003200b9","name":"Canoptek Wraith","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["1bb447ec8105","502126c5109c"]},
 
@@ -56262,7 +56220,7 @@
 
         {"oracleId":"6290233b-b015-4909-8aba-bf8d65cc37b5","name":"Blue Mage's Cane","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["cccad8a7176e","ef7e6f95013a"]},
 
-        {"oracleId":"629133e2-af20-4107-bc82-11ba32d5e2a6","name":"Chronomantic Escape","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3c77d0334d92","863ab49cc736"]},
+        {"oracleId":"629133e2-af20-4107-bc82-11ba32d5e2a6","name":"Chronomantic Escape","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3c77d0334d92"]},
 
         {"oracleId":"62916107-14c0-4516-9fed-a032b1a80e5d","name":"Nick Fury, Agent of S.H.I.E.L.D.","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f08f6ce57a42"]},
 
@@ -57522,7 +57480,7 @@
 
         {"oracleId":"673b732e-eddd-4086-b851-bca0a4e16eb3","name":"Skullpiercer Gnat","state":"unparsed","gaps":["8464bd777c24","ee297ae44101"]},
 
-        {"oracleId":"673ddb72-d800-49c3-9ea9-ff74a0e20a97","name":"Knight of Old Benalia","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["ec163b0e1c30"]},
+        {"oracleId":"673ddb72-d800-49c3-9ea9-ff74a0e20a97","name":"Knight of Old Benalia","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["forEach","pump"],"definition":{"name":"Knight of Old Benalia","types":["Creature"],"subtypes":["Human","Knight"],"manaCost":{"X":3,"W":2},"power":3,"toughness":3,"oracleText":"Suspend 5—{W} (Rather than cast this card from your hand, you may pay {W} and exile it with five time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)\nWhen this creature enters, other creatures you control get +1/+1 until end of turn.","staticAbilities":["suspend 5"],"compiledTriggeredAbilities":[{"id":"knight-of-old-benalia-trigger","oracleText":"When this creature enters, other creatures you control get +1/+1 until end of turn.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","controller":"controller","filter":{"type":"Creature"},"excludeSource":true},"effects":[{"op":"pump","target":{"ref":"$each"},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}]}]}],"suspend":{"W":1}},"botReach":"played"},
 
         {"oracleId":"67419470-3418-466f-b3c1-4ded1d0ee34b","name":"Cowl Prowler","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Cowl Prowler","types":["Creature"],"subtypes":["Wurm"],"manaCost":{"X":4,"G":2},"power":6,"toughness":6},"botReach":"played"},
 
@@ -59154,7 +59112,7 @@
 
         {"oracleId":"6cf50e21-0f60-4e9a-b910-ebe1bad2a29e","name":"Blasphemous Edict","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3aebac8b83ea"]},
 
-        {"oracleId":"6cf5edd6-1ca2-46a5-83b4-7ddff590ef96","name":"Shivan Meteor","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["979c17436feb"]},
+        {"oracleId":"6cf5edd6-1ca2-46a5-83b4-7ddff590ef96","name":"Shivan Meteor","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["dealDamage"],"definition":{"name":"Shivan Meteor","types":["Sorcery"],"manaCost":{"X":3,"R":2},"oracleText":"Shivan Meteor deals 13 damage to target creature.\nSuspend 2—{1}{R}{R} (Rather than cast this card from your hand, you may pay {1}{R}{R} and exile it with two time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)","staticAbilities":["suspend 2"],"effects":[{"op":"dealDamage","amount":13,"to":{"target":0}}],"targetRequirement":{"type":"Creature","count":1},"suspend":{"X":1,"R":2}},"botReach":"played"},
 
         {"oracleId":"6cf8191c-acca-4145-86c2-53a138b3fe4a","name":"Loyal Unicorn","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["007b7d2bfb5e"]},
 
@@ -59198,7 +59156,7 @@
 
         {"oracleId":"6d1f8073-4da2-4abc-abb4-2053c4a40bbf","name":"Fyndhorn Brownie","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["tapUntap"],"definition":{"name":"Fyndhorn Brownie","types":["Creature"],"subtypes":["Ouphe"],"manaCost":{"X":2,"G":1},"power":1,"toughness":1,"oracleText":"{2}{G}, {T}: Untap target creature.","activatedAbilities":[{"id":"fyndhorn-brownie-ability","oracleText":"{2}{G}, {T}: Untap target creature.","cost":{"mana":{"X":2,"G":1},"tap":true},"useStack":true,"effects":[{"op":"tapUntap","action":"untap","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1}}]},"botReach":"played","retired":{"at":"2026-09-18","issue":4027}},
 
-        {"oracleId":"6d23f074-d84c-429b-9322-adc731f54a5b","name":"Dichotomancy","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["58288ef6027b","c340adf310e6"]},
+        {"oracleId":"6d23f074-d84c-429b-9322-adc731f54a5b","name":"Dichotomancy","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c340adf310e6"]},
 
         {"oracleId":"6d243164-e21d-46c5-943e-9a2eb759c742","name":"Tomebound Lich","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["da51ba2843d0"]},
 
@@ -60674,7 +60632,7 @@
 
         {"oracleId":"724d8247-33b1-42bf-a827-7b66e45504c1","name":"Dakmor Bat","state":"ready","poolIn":["pauper","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Dakmor Bat","types":["Creature"],"subtypes":["Bat"],"manaCost":{"X":1,"B":1},"power":1,"toughness":1,"oracleText":"Flying","staticAbilities":["flying"]},"botReach":"played"},
 
-        {"oracleId":"724d933c-6e5f-458c-9b39-83b4662693ea","name":"Ecstatic Beauty","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["32b56df88fad","d38ca2ae810f"]},
+        {"oracleId":"724d933c-6e5f-458c-9b39-83b4662693ea","name":"Ecstatic Beauty","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["32b56df88fad"]},
 
         {"oracleId":"724f3d2f-0513-4efd-961f-56a7ea7b5731","name":"Signal Pest","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2195f7299af0"]},
 
@@ -61130,7 +61088,7 @@
 
         {"oracleId":"73f6da1e-b8ce-4b5a-9da0-84ca67adaf1c","name":"Sygg, River Guide","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["grantAbility","optionChoice"],"definition":{"name":"Sygg, River Guide","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Merfolk","Wizard"],"manaCost":{"W":1,"U":1},"power":2,"toughness":2,"oracleText":"Islandwalk (This creature can't be blocked as long as defending player controls an Island.)\n{1}{W}: Target Merfolk you control gains protection from the color of your choice until end of turn.","staticAbilities":["islandwalk"],"activatedAbilities":[{"id":"sygg-river-guide-ability","oracleText":"{1}{W}: Target Merfolk you control gains protection from the color of your choice until end of turn.","cost":{"mana":{"X":1,"W":1}},"useStack":true,"effects":[{"op":"optionChoice","prompt":"Choose a color (Sygg, River Guide).","modes":[{"id":"protection-white","label":"Protection from white","color":"W","effects":[{"op":"grantAbility","ability":"protection from white","target":{"target":0},"duration":{"phase":"end-of-turn"}}]},{"id":"protection-blue","label":"Protection from blue","color":"U","effects":[{"op":"grantAbility","ability":"protection from blue","target":{"target":0},"duration":{"phase":"end-of-turn"}}]},{"id":"protection-black","label":"Protection from black","color":"B","effects":[{"op":"grantAbility","ability":"protection from black","target":{"target":0},"duration":{"phase":"end-of-turn"}}]},{"id":"protection-red","label":"Protection from red","color":"R","effects":[{"op":"grantAbility","ability":"protection from red","target":{"target":0},"duration":{"phase":"end-of-turn"}}]},{"id":"protection-green","label":"Protection from green","color":"G","effects":[{"op":"grantAbility","ability":"protection from green","target":{"target":0},"duration":{"phase":"end-of-turn"}}]}]}],"targetRequirement":{"type":"Creature","count":1,"subtypeFilter":["Merfolk"],"controller":"you"}}]},"botReach":"played"},
 
-        {"oracleId":"73f808f0-3d56-46c9-967b-d452bb3611af","name":"Gargadon","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["3eb9b5b0dc93"]},
+        {"oracleId":"73f808f0-3d56-46c9-967b-d452bb3611af","name":"Gargadon","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Gargadon","types":["Creature"],"subtypes":["Beast"],"manaCost":{"X":5,"R":2},"power":7,"toughness":5,"oracleText":"Trample\nSuspend 4—{1}{R} (Rather than cast this card from your hand, you may pay {1}{R} and exile it with four time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)","staticAbilities":["trample","suspend 4"],"suspend":{"X":1,"R":1}},"botReach":"played"},
 
         {"oracleId":"73f84440-425f-4cf5-b01a-3ae89f1f6e37","name":"Red Ward","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Red Ward","types":["Enchantment"],"subtypes":["Aura"],"manaCost":{"W":1},"oracleText":"Enchant creature\nEnchanted creature has protection from red. This effect doesn't remove this Aura.","compiledStaticEffects":[{"kind":"keyword-grant","appliesTo":"host","keyword":"protection from red"}],"exemptFromProtectionDetach":true,"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
@@ -66260,7 +66218,7 @@
 
         {"oracleId":"867ee3e7-88df-4e4b-b199-f441a8460573","name":"Labyrinth Guardian","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4aee40c5da91","7ede315e75e3"]},
 
-        {"oracleId":"867f0cdf-cf75-40f0-bf1e-ccb92e55e9a3","name":"Sol Talisman","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b59128534e4b"]},
+        {"oracleId":"867f0cdf-cf75-40f0-bf1e-ccb92e55e9a3","name":"Sol Talisman","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["23ece98cbdfa"]},
 
         {"oracleId":"8682266c-2b0f-496e-b1c6-1fb338feac24","name":"Perplexing Test","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["spell"],"opsUsed":["forEach","moveZone"],"definition":{"name":"Perplexing Test","types":["Instant"],"manaCost":{"X":3,"U":2},"oracleText":"Choose one —\n• Return all creature tokens to their owners' hands.\n• Return all nontoken creatures to their owners' hands.","modes":[{"id":"perplexing-test-mode-1","label":"Return all creature tokens to their owners' hands","oracleText":"Return all creature tokens to their owners' hands.","effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"type":"Creature","isToken":true}},"effects":[{"op":"moveZone","target":{"ref":"$each"},"to":"hand"}]}]},{"id":"perplexing-test-mode-2","label":"Return all nontoken creatures to their owners' hands","oracleText":"Return all nontoken creatures to their owners' hands.","effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"type":"Creature","isToken":false}},"effects":[{"op":"moveZone","target":{"ref":"$each"},"to":"hand"}]}]}]},"botReach":"played"},
 
@@ -66698,7 +66656,7 @@
 
         {"oracleId":"87edb566-8929-4961-9c03-d3657a8c6feb","name":"Zagoth Crystal","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","mana-ability"],"opsUsed":["draw"],"definition":{"name":"Zagoth Crystal","types":["Artifact"],"manaCost":{"X":3},"oracleText":"{T}: Add {B}, {G}, or {U}.\nCycling {2} ({2}, Discard this card: Draw a card.)","activatedAbilities":[{"id":"zagoth-crystal-mana","oracleText":"{T}: Add {B}, {G}, or {U}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"B":1},{"G":1},{"U":1}]},{"id":"cycling","oracleText":"Cycling {2} ({2}, Discard this card: Draw a card.)","cost":{"mana":{"generic":2},"discardThis":true,"cyclingCost":true},"activateFromHand":true,"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"botReach":"played"},
 
-        {"oracleId":"87efff06-b6cb-4a8f-937b-e50e367fd896","name":"Gaea's Will","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e974a62964f9"]},
+        {"oracleId":"87efff06-b6cb-4a8f-937b-e50e367fd896","name":"Gaea's Will","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c22045cbf247"]},
 
         {"oracleId":"87f1a840-021c-4699-a2c4-f2926daf98eb","name":"Hero in Training","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["0432489377b2"]},
 
@@ -67346,7 +67304,7 @@
 
         {"oracleId":"8a50b8f7-1af8-4e00-9734-66a87e05cc6f","name":"Wetland Sambar","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Wetland Sambar","types":["Creature"],"subtypes":["Elk"],"manaCost":{"X":1,"U":1},"power":2,"toughness":1},"botReach":"played"},
 
-        {"oracleId":"8a515f67-f868-494b-8bd7-de63fe14477b","name":"Plunder","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["3eb9b5b0dc93"]},
+        {"oracleId":"8a515f67-f868-494b-8bd7-de63fe14477b","name":"Plunder","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["destroy"],"definition":{"name":"Plunder","types":["Sorcery"],"manaCost":{"X":4,"R":1},"oracleText":"Destroy target artifact or land.\nSuspend 4—{1}{R} (Rather than cast this card from your hand, you may pay {1}{R} and exile it with four time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)","staticAbilities":["suspend 4"],"effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":["Artifact","Land"],"count":1},"suspend":{"X":1,"R":1}},"botReach":"played"},
 
         {"oracleId":"8a5259cc-224d-4748-b764-63ad0e4e02f1","name":"The Moment","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["1baadaf31e14","d1b35f3c12f9"]},
 
@@ -67490,7 +67448,7 @@
 
         {"oracleId":"8ac493f2-9519-44d7-b6ac-8c020ad2cede","name":"Consign to Dust","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["155b9b04d258","7bf79b796e22"]},
 
-        {"oracleId":"8ace3c6b-b2b3-4cd1-9828-dcb9ba5b71ae","name":"Petrified Plating","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["f21b8e8dceb3"]},
+        {"oracleId":"8ace3c6b-b2b3-4cd1-9828-dcb9ba5b71ae","name":"Petrified Plating","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Petrified Plating","types":["Enchantment"],"subtypes":["Aura"],"manaCost":{"X":2,"G":1},"oracleText":"Enchant creature\nEnchanted creature gets +2/+2.\nSuspend 2—{G} (Rather than cast this card from your hand, you may pay {G} and exile it with two time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)","staticAbilities":["suspend 2"],"compiledStaticEffects":[{"kind":"pt-buff","appliesTo":"host","power":2,"toughness":2}],"targetRequirement":{"type":"Creature","count":1},"suspend":{"G":1}},"botReach":"played"},
 
         {"oracleId":"8ace9425-fcdd-45b0-abf0-1a7d601de25e","name":"Slimefoot's Survey","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2b4f277b27aa"]},
 
@@ -68388,7 +68346,7 @@
 
         {"oracleId":"8dfd9baf-c3cc-4d2f-a0b0-b323b6480562","name":"Prowl, Stoic Strategist // Prowl, Pursuit Vehicle","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["00739ef483fd","264fef74ffae","53e43c85e322","a2002e710d10"]},
 
-        {"oracleId":"8dfe5fb5-89f1-42be-9038-40d3c71ce59a","name":"Knight of Sursi","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["5172fdbac983"]},
+        {"oracleId":"8dfe5fb5-89f1-42be-9038-40d3c71ce59a","name":"Knight of Sursi","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Knight of Sursi","types":["Creature"],"subtypes":["Human","Knight"],"manaCost":{"X":3,"W":1},"power":2,"toughness":2,"oracleText":"Flying; flanking (Whenever a creature without flanking blocks this creature, the blocking creature gets -1/-1 until end of turn.)\nSuspend 3—{W} (Rather than cast this card from your hand, you may pay {W} and exile it with three time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)","staticAbilities":["flying","flanking","suspend 3"],"suspend":{"W":1}},"botReach":"played"},
 
         {"oracleId":"8e013e51-1684-4f58-8fe1-3588b6fbb5b5","name":"Season of the Burrow","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["234df98654f8","62c6104583aa","761a6c13a8bf","822b38a34d80"]},
 
@@ -70904,7 +70862,7 @@
 
         {"oracleId":"9726cf0e-5fd2-4699-8192-2fafa2b36963","name":"Padishah Emperor Shaddam IV","state":"unparsed","gaps":["233d5d79b88e","61cee3719021"]},
 
-        {"oracleId":"9728dec9-d482-4c7a-8cdc-44d010dc878d","name":"Ancestral Vision","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["bfa1008c3502"]},
+        {"oracleId":"9728dec9-d482-4c7a-8cdc-44d010dc878d","name":"Ancestral Vision","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["326ee72f1e3d"]},
 
         {"oracleId":"97326cad-b13c-4e52-82ce-850a39e5ff08","name":"Torpor Orb","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8f982f45a9dd"]},
 
@@ -71262,7 +71220,7 @@
 
         {"oracleId":"9863a7da-6f51-4d3e-9ace-e8ff201faf13","name":"Echoes of the Kin Tree","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c7ba3fba219f"]},
 
-        {"oracleId":"98641070-93bd-4088-90cb-956c2b21979e","name":"Suspended Sentence","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["7cc4178083ef","8fee74c33754"]},
+        {"oracleId":"98641070-93bd-4088-90cb-956c2b21979e","name":"Suspended Sentence","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["8fee74c33754"]},
 
         {"oracleId":"986a7ad0-527a-4079-aa1b-c8acdf087020","name":"Ghostfire Slice","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["29dd0b5e38ca"]},
 
@@ -72506,7 +72464,7 @@
 
         {"oracleId":"9cdbe247-9dd3-4894-8e65-43d879c19321","name":"Herald of the Dreadhorde","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["c3542dc5ef3a"]},
 
-        {"oracleId":"9cdc9f99-c6fa-40cd-90b0-e47d43a8cc3c","name":"Search for Tomorrow","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["f21b8e8dceb3"]},
+        {"oracleId":"9cdc9f99-c6fa-40cd-90b0-e47d43a8cc3c","name":"Search for Tomorrow","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["choice","libraryLook","moveZone"],"definition":{"name":"Search for Tomorrow","types":["Sorcery"],"manaCost":{"X":2,"G":1},"oracleText":"Search your library for a basic land card, put it onto the battlefield, then shuffle.\nSuspend 2—{G} (Rather than cast this card from your hand, you may pay {G} and exile it with two time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)","staticAbilities":["suspend 2"],"effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"type":"Land","supertype":"Basic"},"count":{"min":0,"max":1},"prompt":"Search your library for a basic land card.","bind":"$found1"},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"battlefield"},{"op":"libraryLook","action":"shuffle","player":"controller"}],"suspend":{"G":1}},"botReach":"played"},
 
         {"oracleId":"9cdf840d-314e-46ef-9c04-74f145d9e65b","name":"Thorn Elemental","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["d2daff64d440"]},
 
@@ -72778,7 +72736,7 @@
 
         {"oracleId":"9dddb69a-00a3-448b-8f8b-8e50cdd70d57","name":"Roar of the Kha","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["21f088e55b1a"]},
 
-        {"oracleId":"9dea848b-d758-46d0-829d-b096061fd460","name":"Viscerid Deepwalker","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["bfa1008c3502"]},
+        {"oracleId":"9dea848b-d758-46d0-829d-b096061fd460","name":"Viscerid Deepwalker","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["pump"],"definition":{"name":"Viscerid Deepwalker","types":["Creature"],"subtypes":["Homarid","Warrior"],"manaCost":{"X":4,"U":1},"power":2,"toughness":3,"oracleText":"{U}: This creature gets +1/+0 until end of turn.\nSuspend 4—{U} (Rather than cast this card from your hand, you may pay {U} and exile it with four time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)","staticAbilities":["suspend 4"],"activatedAbilities":[{"id":"viscerid-deepwalker-ability","oracleText":"{U}: This creature gets +1/+0 until end of turn.","cost":{"mana":{"U":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":0,"duration":{"phase":"end-of-turn"}}]}],"suspend":{"U":1}},"botReach":"played"},
 
         {"oracleId":"9deb2a0b-f40c-4d13-8321-41dc41448d24","name":"Anvil of Bogardan","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["4a3ec8339a6f","7a33e885ea3e"]},
 
@@ -73688,7 +73646,7 @@
 
         {"oracleId":"a1464164-fbda-43b5-988e-6e1da9bd9eef","name":"Armix, Filigree Thrasher","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["cf2637f25043"]},
 
-        {"oracleId":"a1472a2d-e6f7-4d65-8bb2-4ecfae2d2764","name":"Keldon Halberdier","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["d38ca2ae810f"]},
+        {"oracleId":"a1472a2d-e6f7-4d65-8bb2-4ecfae2d2764","name":"Keldon Halberdier","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Keldon Halberdier","types":["Creature"],"subtypes":["Human","Warrior"],"manaCost":{"X":4,"R":1},"power":4,"toughness":1,"oracleText":"First strike\nSuspend 4—{R} (Rather than cast this card from your hand, you may pay {R} and exile it with four time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)","staticAbilities":["first strike","suspend 4"],"suspend":{"R":1}},"botReach":"played"},
 
         {"oracleId":"a149ac31-b792-4fbe-903a-788bbdfd5e97","name":"Reliquary Monk","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["destroy"],"definition":{"name":"Reliquary Monk","types":["Creature"],"subtypes":["Human","Monk","Cleric"],"manaCost":{"X":2,"W":1},"power":2,"toughness":2,"oracleText":"When this creature dies, destroy target artifact or enchantment.","compiledTriggeredAbilities":[{"id":"reliquary-monk-trigger","oracleText":"When this creature dies, destroy target artifact or enchantment.","head":{"kind":"died","scope":"self"},"targetRequirement":{"type":["Artifact","Enchantment"],"count":1},"effects":[{"op":"destroy","target":{"target":0}}]}]},"botReach":"played"},
 
@@ -73882,7 +73840,7 @@
 
         {"oracleId":"a2006755-8812-4aad-8567-e8df6e8923da","name":"Heavy Fog","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"gaps":["8a4ad4424b2f","c970c537fa86"]},
 
-        {"oracleId":"a20093c6-b8b4-4051-808f-febd030f7fe4","name":"Riftmarked Knight","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["aa48710ca533","e0d1710c1df8"]},
+        {"oracleId":"a20093c6-b8b4-4051-808f-febd030f7fe4","name":"Riftmarked Knight","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["aa48710ca533"]},
 
         {"oracleId":"a200daec-983c-4ea6-ae98-1c963b50fbb1","name":"Identity Thief","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4c4ae2c54e66"]},
 
@@ -73898,7 +73856,7 @@
 
         {"oracleId":"a20a7cf8-2075-47ad-9229-36264b112e61","name":"Vexing Shusher","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["316a4cfa52c9"]},
 
-        {"oracleId":"a20b7e63-4699-49d4-9589-777c28b94e67","name":"Call the Crash","state":"unparsed","gaps":["adedcee568fa","bbd270c2ce41"]},
+        {"oracleId":"a20b7e63-4699-49d4-9589-777c28b94e67","name":"Call the Crash","state":"unparsed","gaps":["bbd270c2ce41"]},
 
         {"oracleId":"a20bb8b3-b724-4fec-b179-ca9e6adc4718","name":"Baton of Courage","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["pump"],"definition":{"name":"Baton of Courage","types":["Artifact"],"manaCost":{"X":3},"oracleText":"Flash\nSunburst (This artifact enters with a charge counter on it for each color of mana spent to cast it.)\nRemove a charge counter from this artifact: Target creature gets +1/+1 until end of turn.","staticAbilities":["flash","sunburst"],"activatedAbilities":[{"id":"baton-of-courage-ability","oracleText":"Remove a charge counter from this artifact: Target creature gets +1/+1 until end of turn.","cost":{"removeCounter":{"type":"charge","count":1}},"useStack":true,"effects":[{"op":"pump","target":{"target":0},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}],"targetRequirement":{"type":"Creature","count":1}}]},"botReach":"played"},
 
@@ -74102,7 +74060,7 @@
 
         {"oracleId":"a2fb7d03-d6bf-4716-9ca4-bd7dbcf9ae66","name":"Howlpack Wolf","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["79fbcdbe1c8b"]},
 
-        {"oracleId":"a2fc892b-3840-45a0-bb1c-0d2cf7d14f2f","name":"Divine Congregation","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["5fe02181739e","b5e382a4864a"]},
+        {"oracleId":"a2fc892b-3840-45a0-bb1c-0d2cf7d14f2f","name":"Divine Congregation","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["b5e382a4864a"]},
 
         {"oracleId":"a2fe10b8-857e-4881-85ef-24a0f96a3d79","name":"Hoodwink","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["moveZone"],"definition":{"name":"Hoodwink","types":["Instant"],"manaCost":{"X":1,"U":1},"oracleText":"Return target artifact, enchantment, or land to its owner's hand.","effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}],"targetRequirement":{"type":["Artifact","Enchantment","Land"],"count":1}},"botReach":"played"},
 
@@ -74664,7 +74622,7 @@
 
         {"oracleId":"a4f99939-4b70-41ee-ad38-2dda56dbc9ce","name":"Narnam Renegade","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["97804c158961"]},
 
-        {"oracleId":"a4fa2afe-52fc-4ad0-a694-693cb9c88096","name":"Pardic Dragon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["60832753d57a","b55dc7f27abd"]},
+        {"oracleId":"a4fa2afe-52fc-4ad0-a694-693cb9c88096","name":"Pardic Dragon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["60832753d57a"]},
 
         {"oracleId":"a4fa3052-d1ec-4442-a832-15ba36c500ee","name":"Two-Headed Dragon","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["837f0be122a4"]},
 
@@ -76102,7 +76060,7 @@
 
         {"oracleId":"aa5e6894-8c97-46f8-a0fd-07c6db51e9a7","name":"Wall of Wood","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Wall of Wood","types":["Creature"],"subtypes":["Wall"],"manaCost":{"G":1},"power":0,"toughness":3,"oracleText":"Defender (This creature can't attack.)","staticAbilities":["defender"]},"botReach":"played","retired":{"at":"2026-11-20","issue":4037}},
 
-        {"oracleId":"aa5e9269-b1db-4bf0-a548-24f999f60e44","name":"Inevitable Betrayal","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["58288ef6027b","f97f9274f552"]},
+        {"oracleId":"aa5e9269-b1db-4bf0-a548-24f999f60e44","name":"Inevitable Betrayal","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f97f9274f552"]},
 
         {"oracleId":"aa607439-d257-4873-a61c-92a2adc1c3f0","name":"Unclaimed Battle Axe","state":"unparsed","gaps":["6922c298b3a1","6d0fe0000074"]},
 
@@ -77162,7 +77120,7 @@
 
         {"oracleId":"ae2db472-c699-4c39-aa35-c359ac42df4e","name":"Rishadan Brigand","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["37a6880107af"]},
 
-        {"oracleId":"ae2e6ffd-fb93-4c47-88e7-e84460eefbe5","name":"Riftwing Cloudskate","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2f68b3452097"]},
+        {"oracleId":"ae2e6ffd-fb93-4c47-88e7-e84460eefbe5","name":"Riftwing Cloudskate","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["moveZone"],"definition":{"name":"Riftwing Cloudskate","types":["Creature"],"subtypes":["Illusion"],"manaCost":{"X":3,"U":2},"power":2,"toughness":2,"oracleText":"Flying\nWhen this creature enters, return target permanent to its owner's hand.\nSuspend 3—{1}{U} (Rather than cast this card from your hand, you may pay {1}{U} and exile it with three time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)","staticAbilities":["flying","suspend 3"],"compiledTriggeredAbilities":[{"id":"riftwing-cloudskate-trigger","oracleText":"When this creature enters, return target permanent to its owner's hand.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1},"effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}]}],"suspend":{"X":1,"U":1}},"botReach":"played"},
 
         {"oracleId":"ae327976-1026-4318-8846-f6b0cac373a7","name":"Death Rattle","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["destroy"],"definition":{"name":"Death Rattle","types":["Instant"],"manaCost":{"X":5,"B":1},"oracleText":"Delve (Each card you exile from your graveyard while casting this spell pays for {1}.)\nDestroy target nongreen creature. It can't be regenerated.","staticAbilities":["delve"],"effects":[{"op":"destroy","target":{"target":0},"cantBeRegenerated":true}],"targetRequirement":{"type":"Creature","count":1,"excludeColors":["G"]}},"botReach":"played"},
 
@@ -78306,7 +78264,7 @@
 
         {"oracleId":"b2347910-d6c6-4681-8316-7ef27056485c","name":"Secure the Wastes","state":"quarantine","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken"],"quarantineReasons":[{"kind":"smoke-scenario","detail":"Op \"createToken\" uses a ref/count token count the canned generator does not model — covered by the card's own per-card test"}],"definition":{"name":"Secure the Wastes","types":["Instant"],"manaCost":{"X":"X","W":1},"oracleText":"Create X 1/1 white Warrior creature tokens.","effects":[{"op":"createToken","token":{"name":"Warrior","types":["Creature"],"subtypes":["Warrior"],"power":1,"toughness":1,"colors":["W"]},"controller":"controller","count":{"X":true}}]}},
 
-        {"oracleId":"b2354092-7a4c-4e69-9c0a-0a2e146dc00c","name":"Watcher of Hours","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["b7df726dc311","e87d5e1a30fb"]},
+        {"oracleId":"b2354092-7a4c-4e69-9c0a-0a2e146dc00c","name":"Watcher of Hours","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["e87d5e1a30fb"]},
 
         {"oracleId":"b23587e0-9fb7-492e-8bb4-f218e8e4ce6c","name":"Brisela, Voice of Nightmares","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6318656007f1"]},
 
@@ -78706,7 +78664,7 @@
 
         {"oracleId":"b3a81bb1-cbd5-41a0-8dd4-faea06593f84","name":"Relic of Sauron","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["53e132016cb4"]},
 
-        {"oracleId":"b3a84b75-a6a2-4521-a9f1-92596796c703","name":"Corpulent Corpse","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["8a3e88efc08b"]},
+        {"oracleId":"b3a84b75-a6a2-4521-a9f1-92596796c703","name":"Corpulent Corpse","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Corpulent Corpse","types":["Creature"],"subtypes":["Zombie"],"manaCost":{"X":5,"B":1},"power":3,"toughness":3,"oracleText":"Fear (This creature can't be blocked except by artifact creatures and/or black creatures.)\nSuspend 5—{B} (Rather than cast this card from your hand, you may pay {B} and exile it with five time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)","staticAbilities":["fear","suspend 5"],"suspend":{"B":1}},"botReach":"played"},
 
         {"oracleId":"b3aa5889-0d98-4a8c-a8b1-ada1e9b169e1","name":"Silverclad Ferocidons","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["choice","sacrifice"],"definition":{"name":"Silverclad Ferocidons","types":["Creature"],"subtypes":["Dinosaur"],"manaCost":{"X":5,"R":2},"power":8,"toughness":5,"oracleText":"Enrage — Whenever this creature is dealt damage, each opponent sacrifices a permanent of their choice.","compiledTriggeredAbilities":[{"id":"silverclad-ferocidons-trigger","oracleText":"Enrage — Whenever this creature is dealt damage, each opponent sacrifices a permanent of their choice.","head":{"kind":"damage-taken","scope":"self"},"effects":[{"op":"choice","kind":"sacrifice-permanents","player":"opponent","zone":"battlefield","filter":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"]},"count":1,"prompt":"Sacrifice a permanent.","bind":"$sacrifice1"},{"op":"sacrifice","permanents":{"ref":"$sacrifice1"}}]}]},"botReach":"played"},
 
@@ -81048,7 +81006,7 @@
 
         {"oracleId":"bc7f39e1-97bf-4725-a84a-2a04121530c6","name":"Jailbreak Scheme","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["19fa593c1160","773946c26ae6"]},
 
-        {"oracleId":"bc8213f9-bef7-4077-a919-4347ec373de7","name":"Cyclical Evolution","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3d960bcc3cb1","efb828bd8c24"]},
+        {"oracleId":"bc8213f9-bef7-4077-a919-4347ec373de7","name":"Cyclical Evolution","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3d960bcc3cb1"]},
 
         {"oracleId":"bc822c9a-633f-4830-9cb3-9af6a80622e4","name":"Consulate Dreadnought","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":["animate"],"definition":{"name":"Consulate Dreadnought","types":["Artifact"],"subtypes":["Vehicle"],"manaCost":{"X":1},"oracleText":"Crew 6 (Tap any number of creatures you control with total power 6 or more: This Vehicle becomes an artifact creature until end of turn.)","staticAbilities":["crew 6"],"activatedAbilities":[{"id":"consulate-dreadnought-crew","oracleText":"Crew 6 (Tap any number of creatures you control with total power 6 or more: This Vehicle becomes an artifact creature until end of turn.)","cost":{"tapOtherFilter":{"filter":{"types":"Creature","controllerRelation":"you"},"totalPower":6}},"useStack":true,"animatesSelf":true,"effects":[{"op":"animate","target":{"ref":"$source"},"power":7,"toughness":11,"duration":{"phase":"end-of-turn"}}]}],"power":7,"toughness":11},"botReach":"played"},
 
@@ -82674,7 +82632,7 @@
 
         {"oracleId":"c235c226-815d-491b-8cfb-d2053349a5cb","name":"Charged Conjuration","state":"unparsed","gaps":["107509a06f6a","285053f54c85"]},
 
-        {"oracleId":"c235fda2-1a8d-4ac7-9a23-784529a520f0","name":"Nihilith","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["062fb34e0e12","b843ca28215a"]},
+        {"oracleId":"c235fda2-1a8d-4ac7-9a23-784529a520f0","name":"Nihilith","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b843ca28215a"]},
 
         {"oracleId":"c23617c9-53f9-4063-8241-b504e9b80cbe","name":"Bolrac-Clan Basher","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7332ca490cdf"]},
 
@@ -84088,7 +84046,7 @@
 
         {"oracleId":"c77afbeb-cc9b-4770-9a48-e7460562895f","name":"Insight","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["ede2c47915a6"]},
 
-        {"oracleId":"c77b89ec-4514-4e62-a508-2012f38a3e15","name":"Errant Ephemeron","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["6e429588e71f"]},
+        {"oracleId":"c77b89ec-4514-4e62-a508-2012f38a3e15","name":"Errant Ephemeron","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Errant Ephemeron","types":["Creature"],"subtypes":["Illusion"],"manaCost":{"X":6,"U":1},"power":4,"toughness":4,"oracleText":"Flying\nSuspend 4—{1}{U} (Rather than cast this card from your hand, you may pay {1}{U} and exile it with four time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)","staticAbilities":["flying","suspend 4"],"suspend":{"X":1,"U":1}},"botReach":"played"},
 
         {"oracleId":"c77c23bc-efde-43ce-bf6f-7a8531d81d89","name":"Stave Off","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["grantAbility","optionChoice"],"definition":{"name":"Stave Off","types":["Instant"],"manaCost":{"W":1},"oracleText":"Target creature gains protection from the color of your choice until end of turn.","effects":[{"op":"optionChoice","prompt":"Choose a color (Stave Off).","modes":[{"id":"protection-white","label":"Protection from white","color":"W","effects":[{"op":"grantAbility","ability":"protection from white","target":{"target":0},"duration":{"phase":"end-of-turn"}}]},{"id":"protection-blue","label":"Protection from blue","color":"U","effects":[{"op":"grantAbility","ability":"protection from blue","target":{"target":0},"duration":{"phase":"end-of-turn"}}]},{"id":"protection-black","label":"Protection from black","color":"B","effects":[{"op":"grantAbility","ability":"protection from black","target":{"target":0},"duration":{"phase":"end-of-turn"}}]},{"id":"protection-red","label":"Protection from red","color":"R","effects":[{"op":"grantAbility","ability":"protection from red","target":{"target":0},"duration":{"phase":"end-of-turn"}}]},{"id":"protection-green","label":"Protection from green","color":"G","effects":[{"op":"grantAbility","ability":"protection from green","target":{"target":0},"duration":{"phase":"end-of-turn"}}]}]}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
@@ -84832,7 +84790,7 @@
 
         {"oracleId":"ca02cb31-9850-48bf-bc8d-ed86a4d4d4f7","name":"Giggling Skitterspike","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["a1427ac514f4"]},
 
-        {"oracleId":"ca04089c-24b6-465e-9303-ea28c0d6f3c7","name":"Judoon Enforcers","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["19aaf9cfe876","3b8f6193da5b"]},
+        {"oracleId":"ca04089c-24b6-465e-9303-ea28c0d6f3c7","name":"Judoon Enforcers","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["19aaf9cfe876"]},
 
         {"oracleId":"ca0cc02b-b106-4eca-9388-d4b48dd3be49","name":"Corpsejack Menace","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["69a039974fc6"]},
 
@@ -84946,7 +84904,7 @@
 
         {"oracleId":"ca79cd3f-13ba-4d11-b885-48a504ae69aa","name":"Jadzi, Oracle of Arcavios // Journey to the Oracle","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["22051e0c0ce5","998be23e58fc"]},
 
-        {"oracleId":"ca79d130-6387-47b0-bde8-f45dd93f9221","name":"Restore Balance","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0628328375a3","206cd0ba5a3b"]},
+        {"oracleId":"ca79d130-6387-47b0-bde8-f45dd93f9221","name":"Restore Balance","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0628328375a3"]},
 
         {"oracleId":"ca7a25f4-c280-48b8-9e04-b15f4c13e569","name":"Survivor of Korlis","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["scryReorder"],"definition":{"name":"Survivor of Korlis","types":["Creature"],"subtypes":["Human","Soldier"],"manaCost":{"W":1},"power":1,"toughness":1,"oracleText":"First strike\n{1}{W}, Exile this card from your graveyard: Scry 2.","staticAbilities":["first strike"],"activatedAbilities":[{"id":"survivor-of-korlis-ability","oracleText":"{1}{W}, Exile this card from your graveyard: Scry 2.","cost":{"mana":{"X":1,"W":1},"exileThis":true},"useStack":true,"effects":[{"op":"scryReorder","player":"controller","count":2,"destination":"library-bottom"}],"activateFromGraveyard":true}]},"botReach":"played"},
 
@@ -85096,7 +85054,7 @@
 
         {"oracleId":"cafad9c8-9974-4596-92d4-b7fb615a0353","name":"Pensive Minotaur","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Pensive Minotaur","types":["Creature"],"subtypes":["Minotaur","Warrior"],"manaCost":{"X":2,"R":1},"power":2,"toughness":3},"botReach":"played"},
 
-        {"oracleId":"cafede0d-aa14-4266-b619-321ac756262d","name":"Curse of the Cabal","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["37480fec2fc7","a321f7a03cd1","b1badfb149ed"]},
+        {"oracleId":"cafede0d-aa14-4266-b619-321ac756262d","name":"Curse of the Cabal","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["37480fec2fc7","a321f7a03cd1"]},
 
         {"oracleId":"caff40b1-28d1-4ef6-90d1-51a1dc06cbcd","name":"Specter of Mortality","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e67ba36d4cf3"]},
 
@@ -85436,7 +85394,7 @@
 
         {"oracleId":"cc300649-ae50-47e7-ad0f-ffbdffddb989","name":"Runewing","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["draw"],"definition":{"name":"Runewing","types":["Creature"],"subtypes":["Bird"],"manaCost":{"X":3,"U":1},"power":2,"toughness":2,"oracleText":"Flying\nWhen this creature dies, draw a card.","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"runewing-trigger","oracleText":"When this creature dies, draw a card.","head":{"kind":"died","scope":"self"},"effects":[{"op":"draw","player":"controller","count":1}]}]},"botReach":"played"},
 
-        {"oracleId":"cc319819-68f9-4c1e-8d60-25a5e3e50669","name":"Mox Tantalite","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["bf89209dc258"]},
+        {"oracleId":"cc319819-68f9-4c1e-8d60-25a5e3e50669","name":"Mox Tantalite","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["773a92e354b2"]},
 
         {"oracleId":"cc33444e-da8c-4af5-b3ed-552e91b0e656","name":"Sword of the Paruns","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4ab2018f553d","61622ffb7a8a","ffaf0c2c01e0"]},
 
@@ -86238,7 +86196,7 @@
 
         {"oracleId":"cf27f1f8-2d95-4a00-97f8-72a244837f08","name":"Hot Dog Cart","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["mana-ability","triggered"],"opsUsed":["createToken","gainLife"],"definition":{"name":"Hot Dog Cart","types":["Artifact"],"manaCost":{"X":3},"oracleText":"When this artifact enters, create a Food token. (It's an artifact with \"{2}, {T}, Sacrifice this token: You gain 3 life.\")\n{T}: Add one mana of any color.","activatedAbilities":[{"id":"hot-dog-cart-mana","oracleText":"{T}: Add one mana of any color.","cost":{"tap":true},"useStack":false,"manaChoices":[{"W":1},{"U":1},{"B":1},{"R":1},{"G":1}]}],"compiledTriggeredAbilities":[{"id":"hot-dog-cart-trigger","oracleText":"When this artifact enters, create a Food token.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"createToken","token":{"name":"Food","types":["Artifact"],"subtypes":["Food"],"activatedAbilities":[{"id":"food-token-sacrifice-gain-life","oracleText":"{2}, {T}, Sacrifice this token: You gain 3 life.","cost":{"mana":{"generic":2},"tap":true,"sacrifice":true},"useStack":true,"effects":[{"op":"gainLife","player":"controller","amount":3}]}]},"controller":"controller"}]}]},"botReach":"played"},
 
-        {"oracleId":"cf288b0a-a343-4ef7-ba02-4f83a6dabeaf","name":"Hypergenesis","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"bannedIn":["modern"],"gaps":["910015181491","c8f4efa58788"]},
+        {"oracleId":"cf288b0a-a343-4ef7-ba02-4f83a6dabeaf","name":"Hypergenesis","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"bannedIn":["modern"],"gaps":["c8f4efa58788"]},
 
         {"oracleId":"cf2b584a-68ed-4a07-b907-9ec4b9f5a27b","name":"Clocknapper","state":"unparsed","gaps":["9ab3c1cd3f2f"]},
 
@@ -90312,7 +90270,7 @@
 
         {"oracleId":"dd489f30-d1cf-4236-8390-9c21cd8659e0","name":"Blizzard Elemental","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["tapUntap"],"definition":{"name":"Blizzard Elemental","types":["Creature"],"subtypes":["Elemental"],"manaCost":{"X":5,"U":2},"power":5,"toughness":5,"oracleText":"Flying\n{3}{U}: Untap this creature.","staticAbilities":["flying"],"activatedAbilities":[{"id":"blizzard-elemental-ability","oracleText":"{3}{U}: Untap this creature.","cost":{"mana":{"X":3,"U":1}},"useStack":true,"effects":[{"op":"tapUntap","action":"untap","target":{"ref":"$source"}}]}]},"botReach":"played"},
 
-        {"oracleId":"dd491ac7-3c6c-4a47-94af-071d1edc5eb2","name":"Infiltrator il-Kor","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["10202e7523da"]},
+        {"oracleId":"dd491ac7-3c6c-4a47-94af-071d1edc5eb2","name":"Infiltrator il-Kor","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Infiltrator il-Kor","types":["Creature"],"subtypes":["Kor","Rogue"],"manaCost":{"X":4,"U":1},"power":3,"toughness":1,"oracleText":"Shadow (This creature can block or be blocked by only creatures with shadow.)\nSuspend 2—{1}{U} (Rather than cast this card from your hand, you may pay {1}{U} and exile it with two time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)","staticAbilities":["shadow","suspend 2"],"suspend":{"X":1,"U":1}},"botReach":"played"},
 
         {"oracleId":"dd4b9e5a-b3ab-4b70-b200-228c8add9f52","name":"Retaliator Griffin","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["dbc53989e360"]},
 
@@ -92022,7 +91980,7 @@
 
         {"oracleId":"e3b40e34-edad-4838-a4d5-c167037d9ff7","name":"Liberating Combustion","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ade193d8a9a3"]},
 
-        {"oracleId":"e3b4314b-e7a2-449a-af5a-817c8260adf1","name":"Dinosaurs on a Spaceship","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["2602b422b8c3","6cc4ded37270","776e096bc020"]},
+        {"oracleId":"e3b4314b-e7a2-449a-af5a-817c8260adf1","name":"Dinosaurs on a Spaceship","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["2602b422b8c3","6cc4ded37270"]},
 
         {"oracleId":"e3b67368-1dd6-419b-a95d-7131b1dba23f","name":"Geothermal Bog","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Geothermal Bog","types":["Land"],"subtypes":["Swamp","Mountain"],"oracleText":"({T}: Add {B} or {R}.)\nThis land enters tapped.","entersTapped":true},"botReach":"played"},
 
@@ -94284,7 +94242,7 @@
 
         {"oracleId":"eb8ff6c1-f9b4-4dae-8f46-0f1ad4c05355","name":"Fog Patch","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["7972a62ec29b","ef9a4fb9fca7"]},
 
-        {"oracleId":"eb933723-b879-44c8-bbc8-d8c84ce5ab12","name":"Ith, High Arcanist","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2cdef1093052"]},
+        {"oracleId":"eb933723-b879-44c8-bbc8-d8c84ce5ab12","name":"Ith, High Arcanist","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["be8a2b1b468c"]},
 
         {"oracleId":"eb947d87-fa06-438c-93d2-7d681468b2f1","name":"Reverend Mother Jessica","state":"unparsed","gaps":["21d4cc8545a4","b3c610b7cf0b"]},
 
@@ -98262,7 +98220,7 @@
 
         {"oracleId":"f9de4cea-27c4-4343-8a7a-09b8f346c3b5","name":"Djinn of Infinite Deceits","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["8f096a23e3d2"]},
 
-        {"oracleId":"f9deeea1-bf80-4832-aac3-373fc1f4b41d","name":"Rift Sower","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["f21b8e8dceb3"]},
+        {"oracleId":"f9deeea1-bf80-4832-aac3-373fc1f4b41d","name":"Rift Sower","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","mana-ability"],"opsUsed":[],"definition":{"name":"Rift Sower","types":["Creature"],"subtypes":["Elf","Druid"],"manaCost":{"X":2,"G":1},"power":1,"toughness":3,"oracleText":"{T}: Add one mana of any color.\nSuspend 2—{G} (Rather than cast this card from your hand, you may pay {G} and exile it with two time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)","staticAbilities":["suspend 2"],"activatedAbilities":[{"id":"rift-sower-mana","oracleText":"{T}: Add one mana of any color.","cost":{"tap":true},"useStack":false,"manaChoices":[{"W":1},{"U":1},{"B":1},{"R":1},{"G":1}]}],"suspend":{"G":1}},"botReach":"played"},
 
         {"oracleId":"f9e1346a-af72-4644-b384-8f7b0a35ec31","name":"Greener Pastures","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["9e6c3d4e5da1"]},
 

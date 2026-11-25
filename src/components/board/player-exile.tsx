@@ -19,6 +19,7 @@ import CardsPile from "./cards-pile";
 import { useZoneTargetCaption } from "~/hooks/useZoneTargetCaption";
 import ExileIcon from "../icons/exile-icon";
 import ExileCastButton from "./exile-cast-button";
+import SuspendedBadge from "./suspended-badge";
 import LibrarySearchConfirm from "./library-search-confirm";
 
 export default function PlayerExile({
@@ -159,7 +160,11 @@ export default function PlayerExile({
                                   card={card}
                                   onCommitted={onClose}
                               />
-                          ) : null
+                          ) : (
+                              // CR 702.62b — a suspended card's clock, for
+                              // both players.
+                              <SuspendedBadge card={card} />
+                          )
             }
             // Portrait chip control only drives the normal browse —
             // never while a blocking exile pick owns the modal. Issue #2345

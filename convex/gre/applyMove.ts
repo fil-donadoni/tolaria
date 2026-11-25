@@ -197,6 +197,7 @@ import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
 import { turnFaceUpPayment } from "./morph";
 import { plotInSearch } from "./plot";
 import { foretellInSearch, foretoldCastStackFlags } from "./foretell";
+import { suspendInSearch } from "./suspend";
 import { applyCastModeCharacteristics } from "./castMode";
 import { turnFaceUpOnBattlefield } from "./faceDown";
 import { COMPANION_SUMMON_COST, moveCompanionToHand } from "./companion";
@@ -2229,6 +2230,12 @@ export function applyMoveForSearch(
         case "foretell":
             // CR 116.2h / 702.143b — no stack item, like plot.
             foretellInSearch(next, player, move.cardInstanceId);
+            checkStateBasedActions(next);
+            return next;
+
+        case "suspend":
+            // CR 116.2f / 702.62a — no stack item, like plot.
+            suspendInSearch(next, player, move.cardInstanceId);
             checkStateBasedActions(next);
             return next;
 

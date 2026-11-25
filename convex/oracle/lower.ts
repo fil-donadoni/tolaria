@@ -239,6 +239,8 @@ interface Accumulator {
     madness?: ManaCost;
     /** CR 702.170a — the cost of the plot special action. */
     plot?: ManaCost;
+    /** CR 702.62a — the card's suspend cost (N rides on the keyword string). */
+    suspend?: ManaCost;
     /** CR 702.143a — the cost a foretold card is cast for from exile. */
     foretell?: ManaCost;
     /** CR 702.94a — the cost a card revealed for miracle is cast for. */
@@ -1064,6 +1066,13 @@ function lowerLine(
             if (acc.madness !== undefined)
                 return "a card declares madness twice (CR 702.35a)";
             acc.madness = ir.cost;
+            return null;
+        }
+        case "suspend": {
+            if (acc.suspend !== undefined)
+                return "a card declares suspend twice (CR 702.62a)";
+            acc.suspend = ir.cost;
+            acc.staticAbilities.push(`suspend ${ir.count}`);
             return null;
         }
         case "plot": {
@@ -2066,6 +2075,7 @@ export function lowerCard(
         definition.alternativeCosts = acc.alternativeCosts;
     if (acc.madness !== undefined) definition.madness = acc.madness;
     if (acc.plot !== undefined) definition.plot = acc.plot;
+    if (acc.suspend !== undefined) definition.suspend = acc.suspend;
     if (acc.foretell !== undefined) definition.foretell = acc.foretell;
     if (acc.miracle !== undefined) definition.miracle = acc.miracle;
     if (acc.harmonize !== undefined) definition.harmonize = acc.harmonize;
@@ -2095,10 +2105,16 @@ export function lowerCard(
     // transform back face, a meld result) has no mana cost and is never cast
     // from hand, and every such face is a permanent. Checked last, after
     // every other refusal, so it names only cards that would otherwise compile.
+    // A SUSPEND card with no mana cost (Lotus Bloom, an artifact) is the one
+    // permanent front face this reaches: suspend is the keyword printed on
+    // cards meant to have no hand cast, so it is refused on the same ground
+    // whatever its type (the reason string keeps its instant/sorcery wording,
+    // the gap key the lockfile already files).
     if (
         definition.manaCost === undefined &&
         (typeLine.types.includes("Instant") ||
-            typeLine.types.includes("Sorcery"))
+            typeLine.types.includes("Sorcery") ||
+            acc.suspend !== undefined)
     )
         return {
             ok: false,

@@ -127,6 +127,7 @@ export default function GreHandCard({
     const activateManaAbility = useMutation(api.game.activateManaAbility);
     const plotCard = useMutation(api.game.plotCard);
     const foretellCard = useMutation(api.game.foretellCard);
+    const suspendCard = useMutation(api.game.suspendCard);
     const bufferCtx = usePendingChoiceBuffer();
 
     // Mid-resolution hand pick (CR 608.2, ADR 0007). When the active choice
@@ -256,11 +257,16 @@ export default function GreHandCard({
     // server's `canForetell` answer exactly like the plot.
     const foretellOffered =
         card.canForetell === true && actionWindowOpen && !isHandChoice;
+    // CR 116.2f / 702.62a — the suspend special action, offered from the
+    // server's `canSuspend` answer exactly like the plot.
+    const suspendOffered =
+        card.canSuspend === true && actionWindowOpen && !isHandChoice;
     const actionable = cardHasLegalAction(actionWindowOpen && !isHandChoice, {
         legalActions: legal,
         activatableAbilityCount: handAbilities.length,
         canPlot: plotOffered,
         canForetell: foretellOffered,
+        canSuspend: suspendOffered,
     });
 
     const {
@@ -331,6 +337,12 @@ export default function GreHandCard({
             foretellCard({ gameId, playerId, cardInstanceId: card.id })
         ).catch((err) => console.error(extractMutationErrorMessage(err)));
     };
+    const suspendThisCard = () => {
+        if (hasPendingGameIntent()) return;
+        void trackGameIntent(
+            suspendCard({ gameId, playerId, cardInstanceId: card.id })
+        ).catch((err) => console.error(extractMutationErrorMessage(err)));
+    };
     // CR 116.2 — the hand card's SPECIAL ACTIONS (plot, foretell): not casts,
     // so never what a gesture commits, but options the menu names beside the
     // cast.
@@ -338,6 +350,9 @@ export default function GreHandCard({
         ...(plotOffered ? [{ label: "Plot", onSelect: plotThisCard }] : []),
         ...(foretellOffered
             ? [{ label: "Foretell", onSelect: foretellThisCard }]
+            : []),
+        ...(suspendOffered
+            ? [{ label: "Suspend", onSelect: suspendThisCard }]
             : []),
     ];
     // CR 712.12 / 712.11c (ADR 0122 §2) — a card in hand can offer MORE THAN
