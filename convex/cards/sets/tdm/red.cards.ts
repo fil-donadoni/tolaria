@@ -255,7 +255,6 @@ export const tersaLightshatter = defineCard(() => ({
 // control" restricts to the source's controller, and the Dragon subtype is
 // matched on the target. A storm copy is a token Dragon that gets the buff from
 // the original and, as a lord itself, buffs the other copies.
-// hand-tail: Other Dragons you control get +1/+1. (#8633)
 export const stormscaleScion = defineCard(() => ({
     id: "0ac43386-bd32-425c-8776-cec00b064cbc",
     name: "Stormscale Scion",
