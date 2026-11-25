@@ -19883,7 +19883,7 @@
         {"id":"702.40a","line":"/** Storm (CR 702.40a, ADR 0052) — tally of spells cast by any player","sites":1,"status":"baseline"},
         {"id":"702.34a","line":"// CR 601.2f / 702.34a — an additional cost and a flashback cost are RIDERS","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// Filtered give-up costs on the NON-STACK (mana) path — CR 605.1a / 605.3a /","sites":1,"status":"baseline"},
-        {"id":"702.142a","line":"// CR 702.142a (Boast, issue #2375) — \"Activate only if this creature","sites":3,"status":"baseline"},
+        {"id":"702.142a","line":"// CR 702.142a (Boast, issue #2375) — \"Activate only if this creature","sites":4,"status":"confirmed","ruleHash":"6d103a3a4982c894"},
         {"id":"701.12","line":"// CR 701.12 — an enters-trigger that exchanges control of the card itself for","sites":1,"status":"confirmed","ruleHash":"b18fa287812990d9"},
         {"id":"701.23","line":"// less, reveal them, put them into your hand, then shuffle.\" (CR 701.23 search /","sites":1,"status":"baseline"},
         {"id":"603.3b","line":"// stack the exile trigger over the sacrifice (CR 603.3b), aim it at the","sites":1,"status":"confirmed","ruleHash":"81584e76d6cb11e4"},
