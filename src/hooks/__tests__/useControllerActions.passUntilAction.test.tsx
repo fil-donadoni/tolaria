@@ -296,19 +296,19 @@ describe("useControllerActions — P / Enter switch Pass Turn <-> Pass Until Act
     };
 
     const cases = [
-        ["armed Pass Turn", ARMED_TURN, "P", "cancelAutoPass"],
-        ["armed Pass Until Action", ARMED_UNTIL, "Enter", "cancelAutoPass"],
-        ["armed Pass Turn", ARMED_TURN, "Enter", "passUntilAction"],
-        ["armed Pass Until Action", ARMED_UNTIL, "P", "endTurn"],
-        ["queued Pass Turn", QUEUED_TURN, "P", "cancelAutoPass"],
-        ["queued Pass Until Action", QUEUED_UNTIL, "Enter", "cancelAutoPass"],
-        ["queued Pass Turn", QUEUED_TURN, "Enter", "passUntilAction"],
-        ["queued Pass Until Action", QUEUED_UNTIL, "P", "endTurn"],
+        ["armed Pass Turn", "P", "cancelAutoPass", ARMED_TURN],
+        ["armed Pass Until Action", "Enter", "cancelAutoPass", ARMED_UNTIL],
+        ["armed Pass Turn", "Enter", "passUntilAction", ARMED_TURN],
+        ["armed Pass Until Action", "P", "endTurn", ARMED_UNTIL],
+        ["queued Pass Turn", "P", "cancelAutoPass", QUEUED_TURN],
+        ["queued Pass Until Action", "Enter", "cancelAutoPass", QUEUED_UNTIL],
+        ["queued Pass Turn", "Enter", "passUntilAction", QUEUED_TURN],
+        ["queued Pass Until Action", "P", "endTurn", QUEUED_UNTIL],
     ] as const;
 
     it.each(cases)(
         "%s + %s sends exactly %s",
-        async (_name, state, key, expected) => {
+        async (_name, key, expected, state) => {
             renderCtrl(state);
             await act(async () => (key === "P" ? press("p") : pressEnter()));
             expect(calls).toEqual([
@@ -319,7 +319,7 @@ describe("useControllerActions — P / Enter switch Pass Turn <-> Pass Until Act
 
     it.each(cases)(
         "%s: the pod's %s button sends exactly %s",
-        async (_name, state, key, expected) => {
+        async (_name, key, expected, state) => {
             const { result } = renderCtrl(state);
             const button =
                 key === "P"
