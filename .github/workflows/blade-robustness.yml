@@ -86,6 +86,19 @@ jobs:
               with:
                   persist-credentials: false
             - uses: ./.github/actions/job-setup
+            # A PR carries no derived state (ADR 0157): `land:ready` restores
+            # data/catalogue/* to the merge-base, so the audited merge ref holds
+            # the BASE's catalogue — a card the PR graduates is in its lockfile
+            # rows but not in the packed corpus,
+            # and a `must` entry naming it throws "Card not found by name"
+            # (PR #10701). Re-pack from the tree's own rows, as the queue's
+            # draft does (`derive:regenerate`); ~7 s, no corpus key needed.
+            # Not rebuilt here: the lockfile header hashes (the audit never
+            # reads them) and the Bot refit artefacts (~4 min a part; they
+            # stay the base's, as before this step).
+            - name: catalogue:pack (derived state of the tree)
+              shell: bash
+              run: bun run catalogue:pack
             - name: blade:robustness part
               env:
                   PART: ${{ matrix.part }}
