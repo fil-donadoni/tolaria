@@ -121,8 +121,7 @@ export interface AbilityDemandTiming {
 }
 
 /**
- * Build the **on-board-ability Demands** for smart auto-tap (PRD #472, ADR
- * 0034, issue #476).
+ * Build the **on-board-ability Demands** for smart auto-tap (ADR 0034).
  *
  * In addition to hand spells (`buildHandSpellDemands`), the active player's
  * already-resolved permanents may carry activated abilities that cost mana —
@@ -147,7 +146,7 @@ export interface AbilityDemandTiming {
  * Suppressed permanents (CR 613.1f — Humility / Blood Moon) expose none of
  * their printed activated abilities and are skipped.
  *
- * **Timing filter (issue #475, CR 602.5b).** An activated ability is a
+ * **Timing filter (CR 602.5).** An activated ability is a
  * preservable Demand only when it is legal to activate at the current timing,
  * checked per ability against the live timing facts:
  *  - By default activated abilities are instant-speed (CR 602.5b — any time you
@@ -167,11 +166,10 @@ export interface AbilityDemandTiming {
  * mirrors the hand-spell timing filter so auto-tap never hoards mana for a
  * play the player cannot legally make right now (PRD user stories 5 & 17).
  *
- * X in a cost is treated as 0 here (`normalizeManaCost` default), matching the
- * hand-spell helper; X-cost ability inflation is out of scope for this slice
- * (issue #477 handles X-spells).
+ * X in a cost is treated as 0 here (`normalizeManaCost` default); an X-cost
+ * ability is not inflated the way an X-spell is.
  *
- * **Reserved at the MODIFIED cost (CR 601.2f, ADR 0096, issue #2288).** The
+ * **Reserved at the MODIFIED cost (CR 601.2f, ADR 0096).** The
  * amount reserved is what the server would actually charge — the battlefield
  * `cost-modifier` scan plus the ability's own `cost.selfReduction` — not the
  * printed `cost.mana`. That is why this helper needs the whole `state`: the
