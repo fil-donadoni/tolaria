@@ -1,13 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
-
-const ghMock = vi.hoisted(() => vi.fn());
-vi.mock("../lib/gh", () => ({ gh: ghMock }));
-vi.mock("../lib/repair-cap", () => ({
-    cappedRepairPrs: () => new Map(),
-    cappedUiReceiptPrs: () => new Map(),
-    escalateCappedRepairs: () => {},
-}));
-
+import { afterEach, describe, it, expect, vi } from "vitest";
+import * as ghLib from "../lib/gh";
+import * as repairCap from "../lib/repair-cap";
 import { repairDispatchables } from "../lib/repair-dispatchables";
 import type { PlanConfig } from "../lib/queue-plan";
 
@@ -20,9 +13,13 @@ const CONFIG: PlanConfig = {
 
 /** Issue #10716: a `gh issue view` that FAILS (not a closed issue) must be
  *  reported as unreadable, so the stalled-PR rule keeps the PR occupying. */
+afterEach(() => vi.restoreAllMocks());
+
 describe("repairDispatchables unreadable issues (issue #10716)", () => {
     it("reports the PR of an issue whose read failed; a closed issue is not unreadable", () => {
-        ghMock.mockImplementation((args: string[]) => {
+        vi.spyOn(repairCap, "cappedRepairPrs").mockReturnValue(new Map());
+        vi.spyOn(repairCap, "cappedUiReceiptPrs").mockReturnValue(new Map());
+        vi.spyOn(ghLib, "gh").mockImplementation((args: string[]) => {
             if (args[0] === "pr")
                 return JSON.stringify([
                     {
