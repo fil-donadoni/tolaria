@@ -327,6 +327,11 @@ function censusGrantedKeywords(
             sentence.kind === "controls-more"
         )
             sentence = sentence.effect;
+        // Either half of a replaced effect may be the one that grants.
+        if (sentence.kind === "replace-if-kicked") {
+            censusGrantedKeywords([sentence.base, sentence.replacement], acc);
+            continue;
+        }
         // A frame chain grants through two frames: the trailing gate wraps a
         // sentence of its own (CR 608.2c), and the permanents half of "You and
         // permanents you control gain …" (CR 611.2c) grants every keyword.
@@ -967,7 +972,7 @@ function lowerLine(
                 allowX: announcesX(card.manaCost, acc),
                 selfName: card.name,
                 resolvingSpell: true,
-                ...(acc.kickers !== undefined ? { kickers: acc.kickers } : {}),
+                ...linkedCostKickers(acc),
             });
             if (!body.ok) return body.reason;
             acc.spellSentences = sentences;
@@ -1333,8 +1338,8 @@ function lowerLine(
 }
 
 /**
- * The cost entries a triggered ability's intervening-if may read: the card's
- * kickers plus its gift entry — "if the gift was promised" (CR 702.174k) is
+ * The cost entries a triggered ability's intervening-if, or a spell's own
+ * clause, may read: the card's kickers plus its gift entry — "if the gift was promised" (CR 702.174k) is
  * read off the gift entry's payment record, as "if it was kicked" is off a
  * kicker's.
  */

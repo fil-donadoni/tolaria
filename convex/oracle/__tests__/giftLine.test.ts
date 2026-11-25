@@ -9,8 +9,8 @@
 //  3. LOWERING — where the second ability goes (CR 702.174b): a twin trigger
 //     on a permanent, the first Op of the Effect Script on an instant or
 //     sorcery (CR 702.174j).
-//  4. REFUSALS — gifts no fixture reads, the promise read behind a cast head,
-//     and a spell clause that reads the promise.
+//  4. REFUSALS — gifts no fixture reads, and the promise read behind a cast
+//     head. A spell's own clauses: `giftClause.test.ts`.
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
@@ -101,12 +101,12 @@ describe("Gift — accepted forms (CR 702.174d/e/f/h)", () => {
     });
 
     it.each([
-        // CR 702.174e on a sorcery: the gift line is read, the body is not.
+        // CR 702.174d on an instant: the gift line is read, the body is not.
         [
-            "Wear Down",
-            "{1}{G}",
-            "Sorcery",
-            "Gift a card (You may promise an opponent a gift as you cast this spell. If you do, they draw a card before its other effects.)\nDestroy target artifact or enchantment. If the gift was promised, instead destroy two target artifacts and/or enchantments.",
+            "Valley Rally",
+            "{2}{R}",
+            "Instant",
+            'Gift a Food (You may promise an opponent a gift as you cast this spell. If you do, they create a Food token before its other effects. It\'s an artifact with "{2}, {T}, Sacrifice this token: You gain 3 life.")\nCreatures you control get +2/+0 until end of turn. If the gift was promised, target creature you control gains first strike until end of turn.',
         ],
         // CR 702.174f on an Equipment.
         [
@@ -249,22 +249,5 @@ describe("Gift — refusals (fail-closed, ADR 0105 § 2)", () => {
             })
         );
         expect(lines.length).toBe(1);
-    });
-
-    it("a spell clause reading the promise stays refused (Wear Down's body)", () => {
-        const lines = unparsedLines(
-            oracleCard({
-                name: "Wear Down",
-                manaCost: "{1}{G}",
-                typeLine: "Sorcery",
-                oracleText:
-                    "Gift a card\nDestroy target artifact or enchantment. If the gift was promised, instead destroy two target artifacts and/or enchantments.",
-                power: undefined,
-                toughness: undefined,
-            })
-        );
-        expect(lines).toEqual([
-            "Destroy target artifact or enchantment. If the gift was promised, instead destroy two target artifacts and/or enchantments.",
-        ]);
     });
 });

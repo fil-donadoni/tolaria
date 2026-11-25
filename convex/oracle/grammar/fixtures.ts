@@ -588,6 +588,661 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 702.174k/m — "instead <effect on a wider target>": the same move under a
+    // swapped announcement, so the script is the base's own and the swap is
+    // `kickedTargetRequirement`.
+    {
+        rule: "gift sentence",
+        card: {
+            oracleId: "8cb36a67-9206-4665-a03f-64f52ba559c4",
+            name: "Into the Flood Maw",
+            manaCost: "{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Gift a tapped Fish (You may promise an opponent a gift as you cast this spell. If you do, they create a tapped 1/1 blue Fish creature token before its other effects.)\nReturn target creature an opponent controls to its owner's hand. If the gift was promised, instead return target nonland permanent an opponent controls to its owner's hand.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Into the Flood Maw",
+            types: ["Instant"],
+            manaCost: {
+                U: 1,
+            },
+            oracleText:
+                "Gift a tapped Fish (You may promise an opponent a gift as you cast this spell. If you do, they create a tapped 1/1 blue Fish creature token before its other effects.)\nReturn target creature an opponent controls to its owner's hand. If the gift was promised, instead return target nonland permanent an opponent controls to its owner's hand.",
+            kickers: [
+                {
+                    id: "gift",
+                    keyword: "gift",
+                    description: "Gift a tapped Fish",
+                },
+            ],
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            additionalCostPaid: "gift",
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "createToken",
+                            token: {
+                                name: "Fish",
+                                types: ["Creature"],
+                                subtypes: ["Fish"],
+                                power: 1,
+                                toughness: 1,
+                                colors: ["U"],
+                                entersTapped: true,
+                            },
+                            controller: "opponent",
+                        },
+                    ],
+                },
+                {
+                    op: "moveZone",
+                    target: {
+                        target: 0,
+                    },
+                    to: "hand",
+                },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "opponent",
+            },
+            kickedTargetRequirement: {
+                type: [
+                    "Artifact",
+                    "Battle",
+                    "Creature",
+                    "Enchantment",
+                    "Land",
+                    "Planeswalker",
+                ],
+                count: 1,
+                excludeTypes: ["Land"],
+                controller: "opponent",
+            },
+        },
+    },
+    // CR 702.174m — the swapped announcement on the stack: the promised counter
+    // names any spell where the base names a creature spell.
+    {
+        rule: "gift sentence",
+        card: {
+            oracleId: "f1993767-1d07-49c8-b8dc-04ec9840a999",
+            name: "Long River's Pull",
+            manaCost: "{U}{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Gift a card (You may promise an opponent a gift as you cast this spell. If you do, they draw a card before its other effects.)\nCounter target creature spell. If the gift was promised, instead counter target spell.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Long River's Pull",
+            types: ["Instant"],
+            manaCost: {
+                U: 2,
+            },
+            oracleText:
+                "Gift a card (You may promise an opponent a gift as you cast this spell. If you do, they draw a card before its other effects.)\nCounter target creature spell. If the gift was promised, instead counter target spell.",
+            kickers: [
+                {
+                    id: "gift",
+                    keyword: "gift",
+                    description: "Gift a card",
+                },
+            ],
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            additionalCostPaid: "gift",
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "draw",
+                            player: "opponent",
+                            count: 1,
+                        },
+                    ],
+                },
+                {
+                    op: "counter",
+                    target: {
+                        target: 0,
+                    },
+                },
+            ],
+            targetRequirement: {
+                type: "spell",
+                count: 1,
+                spellTypeFilter: "Creature",
+            },
+            kickedTargetRequirement: {
+                type: "spell",
+                count: 1,
+            },
+        },
+    },
+    // CR 702.174m + CR 601.2c — the swap to an exact pair, "two target artifacts
+    // and/or enchantments", one destroy per announced slot.
+    {
+        rule: "gift sentence",
+        card: {
+            oracleId: "27905301-333e-4cdd-90cf-188159fcf8e9",
+            name: "Wear Down",
+            manaCost: "{1}{G}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Gift a card (You may promise an opponent a gift as you cast this spell. If you do, they draw a card before its other effects.)\nDestroy target artifact or enchantment. If the gift was promised, instead destroy two target artifacts and/or enchantments.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Wear Down",
+            types: ["Sorcery"],
+            manaCost: {
+                X: 1,
+                G: 1,
+            },
+            oracleText:
+                "Gift a card (You may promise an opponent a gift as you cast this spell. If you do, they draw a card before its other effects.)\nDestroy target artifact or enchantment. If the gift was promised, instead destroy two target artifacts and/or enchantments.",
+            kickers: [
+                {
+                    id: "gift",
+                    keyword: "gift",
+                    description: "Gift a card",
+                },
+            ],
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            additionalCostPaid: "gift",
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "draw",
+                            player: "opponent",
+                            count: 1,
+                        },
+                    ],
+                },
+                {
+                    op: "destroy",
+                    target: {
+                        target: 0,
+                    },
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            additionalCostPaid: "gift",
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "destroy",
+                            target: {
+                                target: 1,
+                            },
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: {
+                type: ["Artifact", "Enchantment"],
+                count: 1,
+            },
+            kickedTargetRequirement: {
+                type: ["Artifact", "Enchantment"],
+                count: 2,
+            },
+        },
+    },
+    // CR 702.174m + CR 601.2c — the exact pair in the graveyard, one move per
+    // announced slot.
+    {
+        rule: "gift sentence",
+        card: {
+            oracleId: "938c03fc-8adf-4c7a-8ae1-eca8401f7a83",
+            name: "Peerless Recycling",
+            manaCost: "{1}{G}",
+            typeLine: "Instant",
+            oracleText:
+                "Gift a card (You may promise an opponent a gift as you cast this spell. If you do, they draw a card before its other effects.)\nReturn target permanent card from your graveyard to your hand. If the gift was promised, instead return two target permanent cards from your graveyard to your hand.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Peerless Recycling",
+            types: ["Instant"],
+            manaCost: {
+                X: 1,
+                G: 1,
+            },
+            oracleText:
+                "Gift a card (You may promise an opponent a gift as you cast this spell. If you do, they draw a card before its other effects.)\nReturn target permanent card from your graveyard to your hand. If the gift was promised, instead return two target permanent cards from your graveyard to your hand.",
+            kickers: [
+                {
+                    id: "gift",
+                    keyword: "gift",
+                    description: "Gift a card",
+                },
+            ],
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            additionalCostPaid: "gift",
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "draw",
+                            player: "opponent",
+                            count: 1,
+                        },
+                    ],
+                },
+                {
+                    op: "moveZone",
+                    target: {
+                        target: 0,
+                    },
+                    to: "hand",
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            additionalCostPaid: "gift",
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "moveZone",
+                            target: {
+                                target: 1,
+                            },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: {
+                type: [
+                    "Artifact",
+                    "Battle",
+                    "Creature",
+                    "Enchantment",
+                    "Land",
+                    "Planeswalker",
+                ],
+                count: 1,
+                zone: "graveyard",
+                controller: "you",
+            },
+            kickedTargetRequirement: {
+                type: [
+                    "Artifact",
+                    "Battle",
+                    "Creature",
+                    "Enchantment",
+                    "Land",
+                    "Planeswalker",
+                ],
+                count: 2,
+                zone: "graveyard",
+                controller: "you",
+            },
+        },
+    },
+    // CR 702.174m — only the promised clause announces a target, so the group is
+    // gated; one dealer, two amounts (CR 120.3).
+    {
+        rule: "gift sentence",
+        card: {
+            oracleId: "04fd8c1f-80e5-4b3d-b63e-7af6ccafbbaa",
+            name: "Wildfire Howl",
+            manaCost: "{1}{R}{R}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Gift a card (You may promise an opponent a gift as you cast this spell. If you do, they draw a card before its other effects.)\nWildfire Howl deals 2 damage to each creature. If the gift was promised, instead Wildfire Howl deals 1 damage to any target and 2 damage to each creature.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Wildfire Howl",
+            types: ["Sorcery"],
+            manaCost: {
+                X: 1,
+                R: 2,
+            },
+            oracleText:
+                "Gift a card (You may promise an opponent a gift as you cast this spell. If you do, they draw a card before its other effects.)\nWildfire Howl deals 2 damage to each creature. If the gift was promised, instead Wildfire Howl deals 1 damage to any target and 2 damage to each creature.",
+            kickers: [
+                {
+                    id: "gift",
+                    keyword: "gift",
+                    description: "Gift a card",
+                },
+            ],
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            additionalCostPaid: "gift",
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "draw",
+                            player: "opponent",
+                            count: 1,
+                        },
+                    ],
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            additionalCostPaid: "gift",
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "dealDamage",
+                            amount: 1,
+                            to: {
+                                target: 0,
+                            },
+                        },
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: {
+                                    type: "Creature",
+                                },
+                            },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 2,
+                                    to: {
+                                        ref: "$each",
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                    else: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: {
+                                    type: "Creature",
+                                },
+                            },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 2,
+                                    to: {
+                                        ref: "$each",
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            additionalTargetRequirements: [
+                {
+                    type: "any",
+                    count: 1,
+                    announcedOnlyIfKicked: true,
+                },
+            ],
+        },
+    },
+    // CR 702.174k — "If the gift wasn't promised": the gate opens on the unpaid
+    // cost.
+    {
+        rule: "gift sentence",
+        card: {
+            oracleId: "ed7f64d1-69ba-40f5-9863-3edba10e23c7",
+            name: "Nocturnal Hunger",
+            manaCost: "{2}{B}",
+            typeLine: "Instant",
+            oracleText:
+                "Gift a Food (You may promise an opponent a gift as you cast this spell. If you do, they create a Food token before its other effects. It's an artifact with \"{2}, {T}, Sacrifice this token: You gain 3 life.\")\nDestroy target creature. If the gift wasn't promised, you lose 2 life.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Nocturnal Hunger",
+            types: ["Instant"],
+            manaCost: {
+                X: 2,
+                B: 1,
+            },
+            oracleText:
+                "Gift a Food (You may promise an opponent a gift as you cast this spell. If you do, they create a Food token before its other effects. It's an artifact with \"{2}, {T}, Sacrifice this token: You gain 3 life.\")\nDestroy target creature. If the gift wasn't promised, you lose 2 life.",
+            kickers: [
+                {
+                    id: "gift",
+                    keyword: "gift",
+                    description: "Gift a Food",
+                },
+            ],
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            additionalCostPaid: "gift",
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "createToken",
+                            token: {
+                                name: "Food",
+                                types: ["Artifact"],
+                                subtypes: ["Food"],
+                                activatedAbilities: [
+                                    {
+                                        id: "food-token-sacrifice-gain-life",
+                                        oracleText:
+                                            "{2}, {T}, Sacrifice this token: You gain 3 life.",
+                                        cost: {
+                                            mana: {
+                                                generic: 2,
+                                            },
+                                            tap: true,
+                                            sacrifice: true,
+                                        },
+                                        useStack: true,
+                                        effects: [
+                                            {
+                                                op: "gainLife",
+                                                player: "controller",
+                                                amount: 3,
+                                            },
+                                        ],
+                                    },
+                                ],
+                            },
+                            controller: "opponent",
+                        },
+                    ],
+                },
+                {
+                    op: "destroy",
+                    target: {
+                        target: 0,
+                    },
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            additionalCostPaid: "gift",
+                        },
+                        op: "lt",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "loseLife",
+                            player: "controller",
+                            amount: 2,
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+            },
+        },
+    },
+    // CR 702.174k + CR 603.7a + CR 122.6 — the unpromised return at the next end
+    // step, the card entering with a +1/+1 counter.
+    {
+        rule: "gift sentence",
+        card: {
+            oracleId: "367bb252-41e1-4f98-9d22-442dd332cccf",
+            name: "Parting Gust",
+            manaCost: "{W}{W}",
+            typeLine: "Instant",
+            oracleText:
+                "Gift a tapped Fish (You may promise an opponent a gift as you cast this spell. If you do, they create a tapped 1/1 blue Fish creature token before its other effects.)\nExile target nontoken creature. If the gift wasn't promised, return that card to the battlefield under its owner's control with a +1/+1 counter on it at the beginning of the next end step.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Parting Gust",
+            types: ["Instant"],
+            manaCost: {
+                W: 2,
+            },
+            oracleText:
+                "Gift a tapped Fish (You may promise an opponent a gift as you cast this spell. If you do, they create a tapped 1/1 blue Fish creature token before its other effects.)\nExile target nontoken creature. If the gift wasn't promised, return that card to the battlefield under its owner's control with a +1/+1 counter on it at the beginning of the next end step.",
+            kickers: [
+                {
+                    id: "gift",
+                    keyword: "gift",
+                    description: "Gift a tapped Fish",
+                },
+            ],
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            additionalCostPaid: "gift",
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "createToken",
+                            token: {
+                                name: "Fish",
+                                types: ["Creature"],
+                                subtypes: ["Fish"],
+                                power: 1,
+                                toughness: 1,
+                                colors: ["U"],
+                                entersTapped: true,
+                            },
+                            controller: "opponent",
+                        },
+                    ],
+                },
+                {
+                    op: "exile",
+                    target: {
+                        target: 0,
+                    },
+                    bind: "$that1",
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            additionalCostPaid: "gift",
+                        },
+                        op: "lt",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "delayedTrigger",
+                            timing: "next-end-step",
+                            oracleText:
+                                "Return that card to the battlefield under its owner's control with a +1/+1 counter on it at the beginning of the next end step.",
+                            capture: {
+                                $c: {
+                                    ref: "$that1",
+                                },
+                            },
+                            effects: [
+                                {
+                                    op: "moveZone",
+                                    target: {
+                                        ref: "$c",
+                                    },
+                                    from: "exile",
+                                    to: "battlefield",
+                                    entersWithCounters: {
+                                        "+1/+1": 1,
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                isToken: false,
+            },
+        },
+    },
     // CR 701.71a (issue #7198) — "Empower Jace N": the keyword action's whole
     // composition (`empowerJaceOps`, cards/abilities/empowerJace.ts). Exhibits
     // an `if` over a runtime count of Jace planeswalker tokens, a `forEach`

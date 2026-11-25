@@ -402,6 +402,7 @@ import {
     firstUnfillableCastGroup,
     foldKickerCosts,
     kickedCountOfPayments,
+    targetGatePaid,
     kickerLifeCost,
     paidKickersAnnounceX,
     assertKickerMinX,
@@ -4746,8 +4747,9 @@ export function assertFlashSurchargeDeclaration(
  *     and a Kicker is an additional one, and CR 601.2b forbids neither
  *     combination outright, but no printed card combines them and the
  *     characteristic change is the stronger claim on the target set.
- *   - CR 702.33 — a KICKED cast with a declared `kickedTargetRequirement`
- *     (Bloodchief's Thirst, Tear Asunder), else the base `targetRequirement`.
+ *   - CR 702.33g / 702.174m — a KICKED cast, or one whose gift was promised,
+ *     with a declared `kickedTargetRequirement` (Bloodchief's Thirst, Into the
+ *     Flood Maw), else the base `targetRequirement`.
  *
  *  A chosen modal mode's requirement still wins over both (modal never
  *  co-occurs with kicker or bestow on a shipped card, but the precedence is
@@ -4785,15 +4787,12 @@ export function castAdjustedTargetRequirement(
     // still holds when the catalogue changes.
     if (isMorphCost) return undefined;
     if (isBestowCost) return BESTOW_TARGET_REQUIREMENT;
-    // ADR 0085 — CR 702.33d defines "kicked" over KICKER costs alone, so an
-    // additional cost paid under another keyword (CR 702.175a Offspring) must
-    // leave the base requirement in place. This is one of the two consumers
-    // that run BEFORE the payment record is partitioned onto the stack item
-    // (CR 601.2b — the kick decision precedes target selection), so it asks the
-    // split function itself; every post-write consumer reads the snapshot.
+    // CR 702.33g / 702.174m — a paid kicker or a promised gift swaps the
+    // announcement; an additional cost paid under another keyword (CR 702.175a
+    // Offspring) leaves the base requirement in place (ADR 0085).
     if (
-        kickedCountOfPayments(cardDef, kickerPayments) > 0 &&
-        cardDef.kickedTargetRequirement
+        cardDef.kickedTargetRequirement &&
+        targetGatePaid(cardDef, kickerPayments)
     ) {
         return cardDef.kickedTargetRequirement;
     }
@@ -7416,13 +7415,10 @@ export const announceCast = mutation({
                                 castSubjectDef.additionalTargetRequirements ??
                                 []),
                         ],
-                        // ADR 0085 — "kicked" is CR 702.33d, over KICKER costs
-                        // alone: an Offspring payment leaves the announcement
-                        // alone. Same split function `castAdjustedTargetRequirement`
-                        // asks, for the same reason — this runs BEFORE the payment
-                        // record is partitioned onto the stack item.
-                        kickedCountOfPayments(castSubjectDef, kickerPayments) >
-                            0
+                        // CR 702.33g / 702.174m — a kicker or gift payment
+                        // opens the gated group; an Offspring payment leaves
+                        // the announcement alone (ADR 0085).
+                        targetGatePaid(castSubjectDef, kickerPayments)
                     ).concat(
                         // CR 702.47d — "Choose targets for the added text
                         // normally (see rule 601.2c)": each targeting card

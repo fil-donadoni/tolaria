@@ -275,6 +275,91 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "CR 702.174 Gift — paying the gift valuates as a cost (the opponent draws). Pair with the entry above.",
     },
     {
+        // GIFT as a TARGET GATE (CR 702.174m). Wear Down announces one
+        // artifact or enchantment, or exactly two once its gift is promised.
+        // Two Juggernauts across the table: the second one is worth far more
+        // than the card the opponent draws, so the bot promises and names
+        // both. Half 1 of a discriminating pair with the entry below.
+        label: "Gift: Wear Down promises the gift to destroy two Juggernauts",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a second artifact or enchantment the opponent controls",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Wear Down", owner: "me", zone: "hand" },
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Forest",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                })),
+                { name: "Juggernaut", owner: "opp", zone: "battlefield" },
+                { name: "Juggernaut", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                (move.kickerPayments?.gift ?? 0) > 0 &&
+                move.targets.length === 2,
+            describe: "casts Wear Down promising the gift, at both Juggernauts",
+        },
+        note: "CR 702.174m Gift — the promise swaps the target announcement, so the variant that pays it names two targets. Pair with the entry below.",
+    },
+    {
+        // GIFT as a TARGET GATE (CR 702.174m), half 2. The second Juggernaut
+        // is the bot's OWN, so the pair a promised Wear Down needs is there to
+        // be announced and still wrong: it would destroy the bot's 5/3 and
+        // hand over a card. The bot destroys the one across the table.
+        label: "Gift: Wear Down keeps the gift when the second artifact is its own",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "no second artifact or enchantment the opponent controls",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Wear Down", owner: "me", zone: "hand" },
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Forest",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                })),
+                { name: "Juggernaut", owner: "me", zone: "battlefield" },
+                { name: "Juggernaut", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                (move.kickerPayments?.gift ?? 0) === 0 &&
+                move.targets.length === 1,
+            describe: "casts Wear Down unpromised, at the opposing Juggernaut",
+        },
+        note: "CR 702.174m Gift — an announceable promised pair is not worth destroying your own permanent and gifting a card. Pair with the entry above.",
+    },
+    {
         // ORDERED TARGET GROUP reachability (CR 601.2c / 702.33g, issue
         // #4193). Kicked Jilt announces TWO targets through one widened
         // requirement and reads them positionally: slot 0 is returned to its

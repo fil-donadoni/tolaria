@@ -212,7 +212,18 @@ function lowerBody(
 ): LowerSpellResult<LoweredSpellBody> {
     const walk = new SentenceWalk();
     const ops: EffectOp[] = [];
-    for (const sentence of effects) {
+    for (const [index, sentence] of effects.entries()) {
+        // CR 702.174m — which object was announced depends on the promise, so
+        // a later sentence's "it" or "that creature" would name two things.
+        if (
+            index < effects.length - 1 &&
+            sentence.kind === "replace-if-kicked" &&
+            sentence.kicked.kind === "gift"
+        )
+            return {
+                ok: false,
+                reason: "an effect a promised gift replaces is the spell's last (CR 702.174m)",
+            };
         const lowered = lowerSentence(sentence, walk, site);
         if (!lowered.ok) return { ok: false, reason: lowered.reason };
         ops.push(...lowered.value);

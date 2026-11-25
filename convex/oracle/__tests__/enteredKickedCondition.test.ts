@@ -141,7 +141,7 @@ describe('"enters, if it was kicked" — refusals (fail-closed)', () => {
             refusal(
                 "As an additional cost to cast this spell, you may collect evidence 6."
             )
-        ).toContain(LONE_KICKER_ONLY);
+        ).toContain("prints no kicker");
     });
 });
 

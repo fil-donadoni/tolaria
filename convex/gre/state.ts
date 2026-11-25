@@ -312,7 +312,8 @@ import {
     additionalCostPaidCount,
     buildSpellKickedEvents,
     castAnnouncedTargetGroups,
-    kickedCountOfPayments,
+    announcedCardRequirement,
+    stackItemTargetGatePaid,
     totalKickerCount,
 } from "./kicker";
 import {
@@ -2185,7 +2186,8 @@ function spellTargetStillMeetsRestrictions(
     const req =
         (soleModeId
             ? def?.modes?.find((m) => m.id === soleModeId)?.targetRequirement
-            : undefined) ?? def?.targetRequirement;
+            : undefined) ??
+        (def && announcedCardRequirement(def, item));
     if (!req || !requirementAdmitsSpellTarget(req)) return true;
     const values = lowerSpellOnlyFilters(req, item.chosenX);
     const ctx: TargetFilterCtx = {
@@ -2370,9 +2372,12 @@ function resolvingTargetRequirement(
               }
             : undefined;
     }
-    return cardDef?.targetRequirement
+    // CR 702.33g / 702.174m — the announcement this cast made: the swapped-in
+    // requirement when its gating cost was paid.
+    const req = cardDef && announcedCardRequirement(cardDef, item);
+    return req
         ? {
-              req: cardDef.targetRequirement,
+              req,
               hasAdditionalGroups:
                   (cardDef.additionalTargetRequirements?.length ?? 0) > 0,
           }
@@ -14255,8 +14260,9 @@ function requestCastCopyRetarget(state: GameState, copy: StackItem): void {
 }
 
 /** The spell's OWN announced target groups (CR 601.2c), in announced order: the
- *  chosen mode's, else the card's, minus a kicker-gated group the spell was not
- *  kicked for (CR 702.33g). With several chosen mode instances, every instance's
+ *  chosen mode's, else the card's as this cast announced it: the swapped-in
+ *  requirement and the gated groups only when their cost was paid (CR 702.33g,
+ *  CR 702.174m). With several chosen mode instances, every instance's
  *  groups in turn, each tagged with its instance (ADR 0094, CR 700.2c). Empty =
  *  it targets nothing. */
 function ownTargetGroups(spell: StackItem): {
@@ -14266,7 +14272,7 @@ function ownTargetGroups(spell: StackItem): {
     const cardId = (spell.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     if (!def) return { requirements: [] };
-    const kicked = kickedCountOfPayments(def, spell.kickerPayments) > 0;
+    const kicked = stackItemTargetGatePaid(def, spell);
     const chosen = spell.chosenModeIds ?? [];
     if (chosen.length > 1 && def.modes) {
         const groups = modeInstanceTargetGroups(def.modes, chosen).filter(
@@ -14284,7 +14290,9 @@ function ownTargetGroups(spell: StackItem): {
             : undefined;
     return {
         requirements: castAnnouncedTargetGroups(
-            [mode?.targetRequirement ?? def.targetRequirement].concat(
+            [
+                mode?.targetRequirement ?? announcedCardRequirement(def, spell),
+            ].concat(
                 chosen.length > 1
                     ? []
                     : (mode?.additionalTargetRequirements ??

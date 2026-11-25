@@ -1197,6 +1197,58 @@ export class TargetSlots {
         return lowered(true);
     }
 
+    /**
+     * CR 702.174m — settle the announcement of a clause a promised gift puts IN
+     * PLACE of the base effect. "The spell's controller chooses those targets
+     * only if the gift was promised", and the base's only if it was not, so
+     * exactly one of the two announcements is made and both index from slot 0
+     * (`replacement` is the replacement's own allocator). Encoded as:
+     *
+     *  - the same requirement on both sides, or none on either: nothing to
+     *    gate, the one announcement serves both branches;
+     *  - both announce, differently: the swap (`kickedTargetRequirement`);
+     *  - only the replacement announces: a gated group
+     *    (`announcedOnlyIfKicked`), the whole announcement of a promised cast.
+     *
+     * Refused: an announcement before the replaced effect, more than one group
+     * on a side, and a target only the base names (no encoding drops a group
+     * because a cost WAS paid).
+     */
+    swapPromisedTargets(
+        before: number,
+        replacement: TargetSlots
+    ): Lowered<true> {
+        const swapped = replacement.requirements();
+        const base = this.groups[0];
+        if (
+            before !== 0 ||
+            this.groups.length > 1 ||
+            swapped.length > 1 ||
+            this.kicked !== undefined ||
+            replacement.kicked !== undefined ||
+            this.kickerGatedGroups + replacement.kickerGatedGroups > 0
+        )
+            return unlowerable(
+                "a promised gift swaps one whole target announcement (CR 702.174m)"
+            );
+        const own = swapped[0];
+        if (own === undefined)
+            return base === undefined
+                ? lowered(true)
+                : unlowerable(
+                      "a target only the unpromised effect names has no encoding (CR 702.174m)"
+                  );
+        if (base === undefined) {
+            this.groups.push({ ...own, announcedOnlyIfKicked: true });
+            this.firsts.push(0);
+            this.kickerGatedGroups += 1;
+        } else if (JSON.stringify(base) !== JSON.stringify(own)) {
+            this.kicked = own;
+        } else return lowered(true);
+        this.openEnded = true;
+        return lowered(true);
+    }
+
     /** CR 702.33g — the swapped-in announcement, if a gate folded one. */
     kickedRequirement(): TargetRequirement | undefined {
         return this.kicked;
@@ -1305,6 +1357,15 @@ export class SentenceWalk {
      * target); binding names stay script-wide unique.
      */
     reflexive(): SentenceWalk {
+        return new SentenceWalk(new TargetSlots(), this.binds);
+    }
+
+    /**
+     * CR 702.174m — a walk for a clause that stands IN PLACE of the one just
+     * lowered: its announcement replaces that one's, so it allocates from its
+     * own slot 0; binding names stay script-wide unique.
+     */
+    replacing(): SentenceWalk {
         return new SentenceWalk(new TargetSlots(), this.binds);
     }
 
@@ -1652,6 +1713,15 @@ function objectSelector(
 ): Lowered<EffectObjectSelector> {
     const one = selectorsFor(subject, slots, true, reach, site);
     return one.ok ? lowered(one.value[0]!) : one;
+}
+
+/** CR 601.2c — an announced group of exactly N > 1 targets, N printed. */
+function isExactGroup(subject: SubjectIR): boolean {
+    return (
+        subject.kind === "target" &&
+        typeof subject.requirement.count === "number" &&
+        subject.requirement.count > 1
+    );
 }
 
 /**
@@ -2982,6 +3052,30 @@ function lowerSentenceBody(
                         ? { cantBeRegenerated: true as const }
                         : {}),
                 }));
+            // CR 601.2c — an exact group ("two target artifacts and/or
+            // enchantments"): one destroy per announced slot. A bound or a
+            // regeneration clause over the group is a form nothing prints.
+            if (
+                isExactGroup(sentence.subject) &&
+                !sentence.cantBeRegenerated &&
+                sentence.manaValueAtMost === undefined
+            ) {
+                const each = selectorsFor(
+                    sentence.subject,
+                    slots,
+                    false,
+                    "battlefield",
+                    site
+                );
+                return each.ok
+                    ? lowered(
+                          each.value.map((target) => ({
+                              op: "destroy" as const,
+                              target,
+                          }))
+                      )
+                    : each;
+            }
             const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
             // CR 701.19c — a "can't be regenerated" clause is a property of
@@ -4468,6 +4562,10 @@ function lowerSentenceBody(
                     : sentence.destination === "battlefield"
                       ? "that card"
                       : "it";
+            const rider =
+                sentence.withPlusOneCounter === true
+                    ? " with a +1/+1 counter on it"
+                    : "";
             // The capture name follows the hand-written delayed-return
             // convention: `$self` for the source, `$c` for a bound object.
             const name =
@@ -4476,7 +4574,7 @@ function lowerSentenceBody(
                 {
                     op: "delayedTrigger",
                     timing: sentence.timing,
-                    oracleText: `Return ${what} to ${where} at the beginning of the next ${when} step.`,
+                    oracleText: `Return ${what} to ${where}${rider} at the beginning of the next ${when} step.`,
                     capture: { [name]: capture },
                     effects: [
                         {
@@ -4486,6 +4584,10 @@ function lowerSentenceBody(
                                 ? { from: "exile" as const }
                                 : {}),
                             to: sentence.destination,
+                            // CR 122.6 — entered with, not put on afterwards.
+                            ...(sentence.withPlusOneCounter === true
+                                ? { entersWithCounters: { "+1/+1": 1 } }
+                                : {}),
                         },
                     ],
                 },
@@ -4962,6 +5064,12 @@ function lowerSentenceBody(
             );
             if (!inner.ok) return inner;
             if (walk.targets.requirements().length !== before) {
+                // CR 702.174m covers a promised part only; a target chosen
+                // because the cost went UNPAID has no encoding.
+                if (sentence.unpaid === true)
+                    return unlowerable(
+                        "a target announced only if the gift wasn't promised has no encoding (CR 702.174m)"
+                    );
                 const folded = walk.targets.foldKickerGatedTargets(before);
                 if (!folded.ok) return folded;
             }
@@ -4970,7 +5078,11 @@ function lowerSentenceBody(
             return lowered([
                 {
                     op: "if",
-                    predicate: { left: left.value, op: "ge", right: 1 },
+                    predicate: {
+                        left: left.value,
+                        op: sentence.unpaid === true ? "lt" : "ge",
+                        right: 1,
+                    },
                     then: inner.value,
                 },
             ]);
@@ -5013,33 +5125,71 @@ function lowerSentenceBody(
         }
         case "replace-if-kicked": {
             // CR 702.33e + CR 608.2c — kicked: the replacement happens; else the
-            // base does. Both halves are sweeps (`foldKickedInstead`), so no
-            // target may be announced on either side: a slot allocated in one
-            // branch only has no encoding (CR 702.33g).
+            // base does. Both halves of a KICKED pair are sweeps
+            // (`foldKickedInstead`), so no target may be announced on either
+            // side: a slot allocated in one branch only has no encoding there
+            // (CR 702.33g).
             const before = walk.targets.requirements().length;
             const base = gatedSentence(sentence.base, walk, site);
             if (!base.ok) return base;
-            // The replacement may re-name the base's own announced targets
-            // (CR 601.2c — chosen once), never announce one of its own.
-            const replay = walk.replaying(before);
-            const replacement = gatedSentence(
-                sentence.replacement,
-                replay,
-                site
-            );
-            if (!replacement.ok) return replacement;
-            if (
-                replay.targets.consumed() !== walk.targets.requirements().length
-            )
-                return unlowerable(
-                    "a target announced in only one branch of a kicked replacement has no encoding (CR 702.33g)"
+            let replacement: Lowered<EffectOp[]>;
+            if (sentence.kicked.kind === "gift") {
+                // CR 702.174m — the replacement announces targets of its own,
+                // and only when the gift was promised.
+                const own = walk.replacing();
+                replacement = gatedSentence(sentence.replacement, own, site);
+                if (!replacement.ok) return replacement;
+                const swapped = walk.targets.swapPromisedTargets(
+                    before,
+                    own.targets
                 );
+                if (!swapped.ok) return swapped;
+                // A removal in either branch leaves the object's fate open.
+                if (own.gatedRemoval) walk.gatedRemoval = true;
+            } else {
+                // The replacement may re-name the base's own announced targets
+                // (CR 601.2c — chosen once), never announce one of its own.
+                const replay = walk.replaying(before);
+                replacement = gatedSentence(sentence.replacement, replay, site);
+                if (!replacement.ok) return replacement;
+                if (
+                    replay.targets.consumed() !==
+                    walk.targets.requirements().length
+                )
+                    return unlowerable(
+                        "a target announced in only one branch of a kicked replacement has no encoding (CR 702.33g)"
+                    );
+            }
             const left = kickedValue(sentence.kicked, site.kickers ?? []);
             if (!left.ok) return left;
+            const predicate: EffectPredicate = {
+                left: left.value,
+                op: "ge",
+                right: 1,
+            };
+            // A replacement that does the base's own work and more ("destroy
+            // two target …" for "destroy target …") gates only what it adds;
+            // one that adds nothing changed the announcement alone, and the
+            // swap above is the whole difference. One read per slot, so the
+            // group's slots compare as the one half they both receive
+            // (`gre/targetRoles.ts`).
+            const extendsBase = base.value.every(
+                (op, index) =>
+                    JSON.stringify(op) ===
+                    JSON.stringify(replacement.value[index])
+            );
+            if (sentence.kicked.kind === "gift" && extendsBase) {
+                const added = replacement.value.slice(base.value.length);
+                return lowered(
+                    added.length === 0
+                        ? base.value
+                        : [...base.value, { op: "if", predicate, then: added }]
+                );
+            }
             return lowered([
                 {
                     op: "if",
-                    predicate: { left: left.value, op: "ge", right: 1 },
+                    predicate,
                     then: replacement.value,
                     else: base.value,
                 },
@@ -7697,13 +7847,22 @@ export function kickedValue(
               )
             : lowered({ additionalCostPaid: entry.id });
     }
-    if (kicked.kind === "any") return lowered({ kickerCount: true });
-    if (kickers.length < 2)
+    // CR 702.33d — "kicked" is about kicker costs alone.
+    const kickerCosts = kickers.filter(
+        (k) => k.keyword === undefined || k.keyword === "kicker"
+    );
+    if (kicked.kind === "any")
+        return kickerCosts.length === 0
+            ? unlowerable(
+                  "a kicked condition on a card that prints no kicker (CR 702.33e)"
+              )
+            : lowered({ kickerCount: true });
+    if (kickerCosts.length < 2)
         return unlowerable(
             'only a card with two or more kicker costs names "its [A] kicker" (CR 702.33f)'
         );
     const printed = manaKey(kicked.mana);
-    const named = kickers.filter(
+    const named = kickerCosts.filter(
         (k) => k.mana !== undefined && manaKey(k.mana) === printed
     );
     if (named.length !== 1)
