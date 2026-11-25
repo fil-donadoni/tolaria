@@ -63,9 +63,11 @@ import {
     ok,
     rule,
     type Rule,
+    type RuleContext,
     type RuleResult,
     subGrammar,
 } from "../../rule";
+import type { ParseContext } from "../../types";
 import { SELF_MARKER } from "../../normalize";
 import { keywordVocabulary } from "./keywordVocabulary";
 import {
@@ -1984,11 +1986,11 @@ const OPTIONAL_COUNT_HEADS: ReadonlyMap<string, TargetRequirement["count"]> =
  * graveyard"` — a descriptor introduced by the word "target" (CR 115.1),
  * optionally under a CR 601.2c "up to N" head.
  *
- * A BARE plural ("two target creatures", "each target creature") is still
- * refused: the optional heads above announce a RANGE from zero, whereas a
- * fixed plural count demands an appropriate object for EACH target the spell
- * requires (CR 601.2c) — a different announcement, not a wider spelling of
- * this one.
+ * A BARE plural ("two target creatures", "each target creature") is refused:
+ * the optional heads above announce a RANGE from zero, whereas a fixed plural
+ * count demands an appropriate object for EACH target the spell requires
+ * (CR 601.2c) — a different announcement, not a wider spelling of this one.
+ * The one site that reads it says so (`ParseContext.exactPairTargets`).
  */
 /**
  * Does this span OPEN a target phrase (CR 115.1)?
@@ -1999,12 +2001,26 @@ const OPTIONAL_COUNT_HEADS: ReadonlyMap<string, TargetRequirement["count"]> =
  * cascade hands to the player-reference rule instead, which is a refusal
  * attributed to the wrong span.
  */
-export function opensTargetPhrase(span: string): boolean {
+export function opensTargetPhrase(span: string, ctx: RuleContext): boolean {
     if (span === "any target" || span.startsWith("target ")) return true;
+    if (readsExactPair(span, ctx)) return true;
     for (const head of OPTIONAL_COUNT_HEADS.keys())
         if (span.startsWith(head) || span.startsWith(otherHead(head)))
             return true;
     return false;
+}
+
+/** CR 601.2c — exactly two targets, "two target artifacts and/or enchantments". */
+const EXACT_PAIR_HEAD = "two target ";
+/** CR 601.2c — each of the two may be of either type. */
+const EITHER_TYPE_NOUN = /^(\w+s) and\/or (\w+s)$/;
+
+/** Is this the exact-pair head, at the one site that reads it? */
+function readsExactPair(span: string, ctx: RuleContext): boolean {
+    return (
+        (ctx as ParseContext).exactPairTargets === true &&
+        span.startsWith(EXACT_PAIR_HEAD)
+    );
 }
 
 /**
@@ -2190,6 +2206,21 @@ export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
                 { ...descriptor.value, excludeSource: true },
                 count
             );
+        }
+        if (readsExactPair(span, ctx)) {
+            const noun = span.slice(EXACT_PAIR_HEAD.length);
+            // "A or B" under a plural count is a spelling no card prints.
+            if (noun.includes(" or "))
+                return fail(
+                    'an exact pair joins two types with "and/or"',
+                    span
+                );
+            const descriptor = targetDescriptorRule.run(
+                noun.replace(EITHER_TYPE_NOUN, "$1 or $2"),
+                ctx
+            );
+            if (!descriptor.ok) return descriptor;
+            return targetRequirementFromDescriptor(descriptor.value, 2);
         }
         if (!span.startsWith("target "))
             return fail('a target filter starts with "target "', span);

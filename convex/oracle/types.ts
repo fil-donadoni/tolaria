@@ -207,4 +207,11 @@ export interface ParseContext {
      * by the counters verb only — the form a golden fixture pins.
      */
     readonly equipmentHost?: true;
+    /**
+     * CR 601.2c — set by the spell slot, and ONLY inside the clause a promised
+     * gift puts in place of the base effect: "two target <plural>" there
+     * announces exactly two objects. Absent at every other site, so each of
+     * them keeps refusing the phrase under the gap key it already sits in.
+     */
+    readonly exactPairTargets?: true;
 }

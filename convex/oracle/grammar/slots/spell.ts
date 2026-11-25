@@ -80,6 +80,7 @@ import {
     assembleSentences,
     assemblyTrace,
     comparativeSentenceRule,
+    giftSentenceRule,
     kickedSentenceRule,
     sentenceRule,
     type SentenceIR,
@@ -117,10 +118,13 @@ function readSentences(
  * has, and the kicker a gate reads is lowered from the card's own kicker line
  * (`lower.ts`), which no ability site sees. The trailing cast gate ("Draw a
  * card if an opponent has cast a blue spell this turn.") sits inside it: the
- * corpus prints it on spells alone.
+ * corpus prints it on spells alone. The gift clauses (CR 702.174k) are the
+ * spell's own promise, read off its gift line in the same way.
  */
-const spellSentence: Rule<SentenceIR> = kickedSentenceRule(
-    comparativeSentenceRule(trailingGateSentenceRule(sentenceRule))
+const spellSentence: Rule<SentenceIR> = giftSentenceRule(
+    kickedSentenceRule(
+        comparativeSentenceRule(trailingGateSentenceRule(sentenceRule))
+    )
 );
 
 const plainSpell: Rule<SlotIR> = terminated(
