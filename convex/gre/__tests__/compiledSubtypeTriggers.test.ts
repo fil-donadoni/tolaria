@@ -6,7 +6,9 @@
 // `oracle/__tests__/subtypeTriggerHeads.test.ts` proves the Oracle text lowers
 // to the right descriptor. It cannot prove the rebuilt ability fires on the
 // right permanent or spell, so each test compiles a real Oracle row, registers
-// it, and drives the real emitter into the real trigger scan.
+// it, and drives the real emitter into the real trigger scan. The enters half
+// reads the subtypes `emitPermanentEntered` snapshots onto the event; before
+// it did, no subtype-filtered enters head could fire at all.
 
 import { describe, expect, it } from "vitest";
 import { registerTokenDefinition } from "../../cards";
