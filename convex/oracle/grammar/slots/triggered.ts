@@ -73,6 +73,7 @@ import {
     type SentenceIR,
 } from "../shared/effectClause";
 import {
+    headNamesOpponent,
     headPronounReferent,
     triggerHeadRule,
     type TriggerHeadIR,
@@ -213,6 +214,15 @@ const triggerTail: Rule<TailIR> = oneOf("trigger tail", [
     plainTail,
 ]);
 
+/** The body's context: the head decides what "that player controls" may read
+ *  ({@link headNamesOpponent}). No head of that kind prints a comma. */
+function bodyContext(span: string, ctx: ParseContext): ParseContext {
+    const head = triggerHeadRule.run(span.split(", ", 1)[0]!, ctx);
+    return head.ok && headNamesOpponent(head.value)
+        ? { ...ctx, headNamesOpponent: true as const }
+        : ctx;
+}
+
 const triggeredBody: Rule<SlotIR> = rule("triggered body", (span, ctx) => {
     const parsed = pair(
         TRIGGERED_SLOT,
@@ -220,7 +230,7 @@ const triggeredBody: Rule<SlotIR> = rule("triggered body", (span, ctx) => {
         triggerHeadRule,
         triggerTail,
         (head, tail): { head: TriggerHeadIR; tail: TailIR } => ({ head, tail })
-    ).run(span, ctx);
+    ).run(span, bodyContext(span, ctx as ParseContext));
     if (!parsed.ok) return parsed;
     // CR 608.2h — "Whenever this creature attacks, it gets +1/+1 …". The
     // pronoun names the head's subject, and only some heads name an object at

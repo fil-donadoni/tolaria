@@ -12799,6 +12799,7 @@ export type GameEventType =
     | "ATTACKERS_DECLARED"
     | "BLOCKERS_CONFIRMED"
     | "ATTACKER_UNBLOCKED"
+    | "ATTACKER_BLOCKED"
     | "BLOCKER_DECLARED"
     | "CARD_DRAWN"
     | "CARD_DISCARDED"
@@ -13546,6 +13547,20 @@ export interface AttackerUnblockedEvent {
     attackerSubtypes: ReadonlyArray<string>;
 }
 
+/** CR 509.3c — an attacker that BECAME BLOCKED, emitted once per blocked
+ *  attacker however many creatures block it: "Whenever [a creature] becomes
+ *  blocked" triggers "only once each combat for that creature". The complement
+ *  of `ATTACKER_UNBLOCKED`: the two partition the declared attackers. The
+ *  per-pair `BLOCKERS_CONFIRMED` is CR 509.3d's "becomes blocked BY a
+ *  creature", which counts per blocker. */
+export interface AttackerBlockedEvent {
+    type: "ATTACKER_BLOCKED";
+    attackerId: string;
+    attackerControllerId: string;
+    attackerTypes: ReadonlyArray<CardType>;
+    attackerSubtypes: ReadonlyArray<string>;
+}
+
 /** CR 509.3a — a creature DECLARED AS A BLOCKER, emitted once per blocking
  *  creature alongside the per-pair `BLOCKERS_CONFIRMED` events (phases.ts).
  *
@@ -14209,6 +14224,7 @@ export type GameEvent =
     | AttackersDeclaredEvent
     | BlockersConfirmedEvent
     | AttackerUnblockedEvent
+    | AttackerBlockedEvent
     | BlockerDeclaredEvent
     | CardDrawnEvent
     | CardDiscardedEvent

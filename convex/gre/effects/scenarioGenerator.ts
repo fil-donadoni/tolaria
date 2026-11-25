@@ -266,6 +266,8 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     "damage-taken": () => true,
     // CR 509.1h — the attacker is still attacking when the block graph is final.
     "attacks-unblocked": () => true,
+    // CR 509.3c — and a blocked one stays an attacking creature.
+    "becomes-blocked": () => true,
     // CR 708.8 — the source was turned face up where it stands.
     "turned-face-up": () => true,
     // CR 701.27a — the source turned over where it stands, no zone change.

@@ -175,6 +175,10 @@ export type TriggerHeadIR =
            *  as it is declared an attacker (a trigger condition, read when the
            *  event fires — not an intervening-if). Self only. */
           readonly whileSaddled?: true;
+          /** CR 506.5 — "attacks alone": the source is the only creature
+           *  declared as an attacker. A trigger condition on the declaration,
+           *  not an intervening-if. Self only. */
+          readonly alone?: true;
       }
     /**
      * CR 603.2 + CR 603.6a + CR 508.3a — "whenever this permanent enters or
@@ -198,6 +202,13 @@ export type TriggerHeadIR =
      * the one subject the corpus prints with this head.
      */
     | { readonly kind: "blocks" }
+    /**
+     * CR 509.3c — "whenever this creature becomes blocked": once each combat
+     * for that creature, however many creatures block it. Self only. "becomes
+     * blocked BY a creature" counts per blocker (CR 509.3d) and is another
+     * head.
+     */
+    | { readonly kind: "becomes-blocked" }
     /** CR 510.1 — "whenever this creature deals combat damage to a player". */
     | { readonly kind: "combat-damage-to-player" }
     /**
@@ -210,6 +221,8 @@ export type TriggerHeadIR =
           readonly kind: "damage-dealt";
           readonly source: "self" | "host";
           readonly recipient: "any" | "opponent" | "creature" | "player";
+          /** CR 510.2 — "deals COMBAT damage": the narrowing the words add. */
+          readonly combat?: true;
       }
     /**
      * CR 120.3 / 303.4b — "whenever [enchanted / this] creature is dealt
@@ -269,7 +282,12 @@ export type TriggerHeadIR =
     | {
           readonly kind: "phase";
           readonly phase: Phase;
-          readonly scope: "your" | "each" | "host-controller" | "chosen-player";
+          readonly scope:
+              | "your"
+              | "each"
+              | "opponents"
+              | "host-controller"
+              | "chosen-player";
           /**
            * CR 603.2b — the head NAMES the player whose step it is ("each
            * PLAYER'S upkeep"), which is what gives a later "that player" its
@@ -429,8 +447,7 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     // CR 508.3a — an attack declaration, read per attacking creature. Only the
     // two scopes the corpus prints: "a creature you control attacks" and the
     // symmetric "a creature attacks or blocks". Every neighbouring phrase
-    // ("attacks a player", "attacks alone", "attacks or enters attacking",
-    // "attacks this turn") narrows the condition further and stays refused
+    // ("attacks a player", "attacks or enters attacking", "attacks this turn") narrows the condition further and stays refused
     // under its own gap key — a head that swallowed the narrowing would fire
     // on attacks the card does not mean.
     [
@@ -580,6 +597,17 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
         "at the beginning of combat on your turn",
         { kind: "phase", phase: "BEGINNING_OF_COMBAT", scope: "your" },
     ],
+    // CR 603.2b — the combat of a player other than the
+    // controller; the head names that player ("that player", "that opponent").
+    [
+        "at the beginning of combat on each opponent's turn",
+        {
+            kind: "phase",
+            phase: "BEGINNING_OF_COMBAT",
+            scope: "opponents",
+            namesPlayer: true,
+        },
+    ],
     // CR 603.2 — casting.
     ["whenever you cast a spell", { kind: "spell-cast", scope: "you" }],
     // CR 601.2i — the caster's own tally of spells this turn.
@@ -718,6 +746,26 @@ export const SELF_HEADS: readonly {
         tail: " attacks while saddled",
         ir: { kind: "attacks", scope: "self", whileSaddled: true },
     },
+    // CR 506.5 — the source is the only creature declared as an attacker.
+    {
+        opener: "whenever ",
+        tail: " attacks alone",
+        ir: { kind: "attacks", scope: "self", alone: true },
+    },
+    // CR 508.3a + CR 509.3a — the source's own attack OR its own block, one
+    // line.
+    {
+        opener: "whenever ",
+        tail: " attacks or blocks",
+        ir: { kind: "attacks-or-blocks", scope: "self" },
+    },
+    // CR 509.3c — the source becoming a blocked creature, by any number of
+    // blockers.
+    {
+        opener: "whenever ",
+        tail: " becomes blocked",
+        ir: { kind: "becomes-blocked" },
+    },
     // CR 603.2 — the source's own entry OR its own attack, one line.
     {
         opener: "whenever ",
@@ -752,6 +800,17 @@ export const SELF_HEADS: readonly {
         opener: "whenever ",
         tail: " deals damage to a creature",
         ir: { kind: "damage-dealt", source: "self", recipient: "creature" },
+    },
+    // CR 510.2 + CR 120.3 — the combat damage alone, to a creature.
+    {
+        opener: "whenever ",
+        tail: " deals combat damage to a creature",
+        ir: {
+            kind: "damage-dealt",
+            source: "self",
+            recipient: "creature",
+            combat: true,
+        },
     },
     // CR 120.3 + CR 102.1 — damage of any kind to a PLAYER (either one: "a
     // player" is symmetric, unlike "an opponent").
@@ -895,14 +954,16 @@ export function headPronounReferent(
         case "enters":
         case "dies":
             return head.scope === "self" ? "source" : null;
+        // CR 508.3a / 509.3a — under `self` the creature the firing names is
+        // the source.
         case "attacks":
-            return head.scope === "self" ? "source" : "combatant";
         case "attacks-or-blocks":
-            return "combatant";
+            return head.scope === "self" ? "source" : "combatant";
         // CR 201.5 — both halves name the source itself.
         case "enters-or-attacks":
         case "combat-damage-to-player":
         case "attacks-unblocked":
+        case "becomes-blocked":
             return "source";
         // CR 509.3a — the blocker the head names is the source itself.
         case "blocks":
@@ -914,8 +975,12 @@ export function headPronounReferent(
         case "transforms":
             return "source";
         // CR 303.4b — "enchanted creature" names the Aura's host, not the Aura.
+        // CR 608.2h — "deals damage to a creature" names a second creature,
+        // nearer than the source, so "it" is a guess between the two.
         case "damage-dealt":
-            return head.source === "self" ? "source" : null;
+            return head.source === "self" && head.recipient !== "creature"
+                ? "source"
+                : null;
         // CR 603.6c — the source has LEFT; "it" would name a new object in
         // whatever zone it went to (CR 400.7), which no selector here reads.
         // An enters-or-leaves firing may be either, so "it" stays unread too.
@@ -962,6 +1027,15 @@ export function headPronounReferent(
         case "gift-given":
             return null;
     }
+}
+
+/**
+ * CR 102.2 — true when the head's own words name ONE player who is an opponent
+ * of the ability's controller, so "that player controls" in the body is that
+ * opponent's side of the battlefield.
+ */
+export function headNamesOpponent(head: TriggerHeadIR): boolean {
+    return head.kind === "phase" && head.scope === "opponents";
 }
 
 /** CR 603.6a + 202.3 — an entering creature gated on a mana-value floor. */

@@ -303,6 +303,8 @@ export interface DescriptorState {
     excludeSource?: true;
     /** CR 508.5 — `controller` came from "defending player controls". */
     defendingPlayer?: true;
+    /** CR 102.2 — `controller` came from "that player controls". */
+    headOpponent?: true;
     tapped?: "tapped" | "untapped";
     combatRole?: ("attacking" | "blocking")[];
     requireAbility?: string;
@@ -555,6 +557,17 @@ const QUALIFIERS: readonly (readonly [string, Qualifier])[] = [
             if (into.controller !== undefined) return "two controller clauses";
             into.controller = "opponent";
             into.defendingPlayer = true;
+            return null;
+        },
+    ],
+    // CR 102.2 — "that player controls" behind a head naming an opponent: in a
+    // two-player game (ADR 0010) that player is the controller's one opponent.
+    [
+        " that player controls",
+        (into) => {
+            if (into.controller !== undefined) return "two controller clauses";
+            into.controller = "opponent";
+            into.headOpponent = true;
             return null;
         },
     ],
@@ -980,8 +993,12 @@ export const DESCRIPTOR_READERS: DescriptorReaders = {
 const LEGACY_ANY_TARGET = "creature, planeswalker, or player";
 
 /** True when the card prints a head "<this permanent / its own name> attacks"
- *  (CR 508.1) — a legendary's short name ("The Wasp") included. */
-const SELF_ATTACK_HEAD = /\b(?:Whenever|When) this \w+ attacks\b/;
+ *  (CR 508.1) — a legendary's short name ("The Wasp") included — or "this
+ *  permanent becomes blocked" (CR 509.3c), whose source is the attacker too.
+ *  "attacks or blocks" is neither: a blocking source's controller IS the
+ *  defending player. */
+const SELF_ATTACK_HEAD =
+    /\b(?:Whenever|When) this \w+ (?:attacks\b(?! or blocks)|becomes blocked\b)/;
 function selfAttackHead(ctx: unknown): boolean {
     const card = (
         ctx as { card?: { oracleText?: string; name?: string } } | null
@@ -992,7 +1009,11 @@ function selfAttackHead(ctx: unknown): boolean {
     const name = card?.name;
     if (name === undefined) return false;
     const names = new Set([name, name.split(",")[0]!]);
-    return [...names].some((n) => text.includes(`Whenever ${n} attacks`));
+    return [...names].some((n) =>
+        text
+            .replaceAll(`Whenever ${n} attacks or blocks`, "")
+            .includes(`Whenever ${n} attacks`)
+    );
 }
 
 export function descriptorRuleWith(
@@ -1013,6 +1034,17 @@ export function descriptorRuleWith(
         if (withQualifiers.defendingPlayer === true && !selfAttackHead(ctx))
             return fail(
                 '"defending player" is read only behind the source\'s own attack',
+                span
+            );
+        // CR 608.2h — "that player" needs a head that named one, and the
+        // opponent collapse needs that player to be an opponent by its words.
+        if (
+            withQualifiers.headOpponent === true &&
+            (ctx as { headNamesOpponent?: true } | null)?.headNamesOpponent !==
+                true
+        )
+            return fail(
+                '"that player controls" is read only behind a head naming an opponent',
                 span
             );
         const tokens = joinTypeDisjunctions(
