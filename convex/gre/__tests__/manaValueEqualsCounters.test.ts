@@ -208,6 +208,79 @@ describe("the source left before the ability resolved (CR 608.2h)", () => {
     });
 });
 
+describe("a last-known tally never revives a departed permanent's upkeep choice", () => {
+    /** `name`'s upkeep trigger resolving after the permanent left — and, with
+     *  `reenter`, after a same-id new object took its place. */
+    function upkeepAfterDeparture(
+        name: string,
+        triggeredAbilityId: string,
+        counters: Record<string, number>,
+        reenter: boolean
+    ): GameState {
+        const source = makeInstance(getCardByName(name).id, {
+            id: "source",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [source] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...source,
+            id: "source-trigger",
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId,
+            triggerSourceId: "source",
+            triggerEvent: {
+                type: "PHASE_BEGIN",
+                phase: "UPKEEP",
+                activePlayerId: "p1",
+            },
+            targets: [],
+        });
+        removePermanentTo(state, "source", "exile");
+        if (reenter) {
+            const [card] = state.players[0].exile.splice(0, 1);
+            state.players[0].battlefield.push({ ...card, zone: "battlefield" });
+        }
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    for (const reenter of [false, true]) {
+        const how = reenter ? "re-entered" : "left";
+        it(`cumulative upkeep asks for nothing: the permanent ${how} (CR 702.24a)`, () => {
+            const state = upkeepAfterDeparture(
+                "Mystic Remora",
+                "cumulative-upkeep",
+                { age: 2 },
+                reenter
+            );
+            expect(state.pendingChoices ?? []).toEqual([]);
+            expect(state.stack).toHaveLength(0);
+            const board = state.players[0].battlefield;
+            expect(board).toHaveLength(reenter ? 1 : 0);
+            expect(board[0]?.counters).toBeUndefined();
+        });
+
+        it(`Tetravus offers no counter removal: it ${how}`, () => {
+            const state = upkeepAfterDeparture(
+                "Tetravus",
+                "tetravus-counters-to-tokens",
+                { "+1/+1": 3 },
+                reenter
+            );
+            expect(state.pendingChoices ?? []).toEqual([]);
+            expect(state.stack).toHaveLength(0);
+        });
+    }
+});
+
 describe("validator: the counter form of manaValueEquals", () => {
     const script = (manaValueEquals: unknown) => ({
         id: "mv-equals-counters-host",
