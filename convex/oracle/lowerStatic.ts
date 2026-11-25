@@ -949,6 +949,37 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        // CR 509.1b — the same collection, from the attacker's side: the
+        // restriction names who may NOT block the source.
+        case "self-evasion-restriction":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "block-restriction",
+                            id: nextId("cant-be-blocked-by"),
+                            oracleText: clause.sentence,
+                            neverAgainst: clause.neverAgainst,
+                        },
+                    ],
+                },
+            };
+        // CR 508.1d — the engine reads an attack requirement off the
+        // creature's own definition (`hasAttackRequirement`).
+        case "self-attack-requirement":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "attack-requirement",
+                            id: nextId("attacks-if-able"),
+                            oracleText: clause.sentence,
+                        },
+                    ],
+                },
+            };
         case "does-not-untap":
             return {
                 ok: true,
