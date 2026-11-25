@@ -222,8 +222,8 @@ export function lowerActivatedAbility(input: {
     const cost = lowerActivationCost(input.cost);
     if (!cost.ok) return { ok: false, reason: cost.reason };
     // CR 113.6m — a hand-exile cost makes the ability a HAND ability. Only the
-    // mana slot reads that cost (`lowerManaAbility`); no stack ability in the
-    // corpus prints it, so the form stays refused here.
+    // mana slot reads that cost (`lowerManaAbility`); on this slot the form has
+    // no fixture and stays refused.
     if (input.cost.atoms.some(isHandExile))
         return {
             ok: false,
