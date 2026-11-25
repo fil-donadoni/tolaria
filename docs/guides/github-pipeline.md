@@ -37,14 +37,14 @@ paragraph (issue #5942).
 A machine declares how many [runners](#g-runner) of each
 [role label](#g-label) it offers. Defaults:
 
-| [Label](#g-label)   | MacBook | Huawei | What it runs                                                                                   |
-| ------------------- | ------- | ------ | ---------------------------------------------------------------------------------------------- |
-| [`pass`](#g-pass)   | 2       | 2      | one Claude Code session (`/next-ticket`) per job                                               |
-| [`lane`](#g-lane)   | 1       | 0      | the gates a merge or a verdict waits on: queue checks, health, release                         |
-| [`maint`](#g-maint) | 1       | 1      | every other duty: post-merge sync, the Bot-play replay, nightly, `pr-refresh`, fixups, reports |
-| [`seed`](#g-seed)   | 1       | 0      | jobs that need the owner's Convex deployment (scenario seeds) — the MacBook's                  |
-| `derive`            | 1       | 1      | the short post-merge duties something waits on: `housekeeping`, `repair-watch`                 |
-| `host:<name>`       | all     | all    | pins a job to one machine when it must                                                         |
+| [Label](#g-label)   | MacBook | Huawei | What it runs                                                                                  |
+| ------------------- | ------- | ------ | --------------------------------------------------------------------------------------------- |
+| [`pass`](#g-pass)   | 2       | 2      | one Claude Code session (`/next-ticket`) per job                                              |
+| [`lane`](#g-lane)   | 1       | 0      | the gates a merge or a verdict waits on: queue checks, health, release                        |
+| [`maint`](#g-maint) | 1       | 1      | every other duty: post-merge sync, the Bot-play replay, nightly, reports                      |
+| [`seed`](#g-seed)   | 1       | 0      | jobs that need the owner's Convex deployment (scenario seeds) — the MacBook's                 |
+| `derive`            | 1       | 1      | the short duties something waits on: `housekeeping`, `repair-watch`, `pr-refresh`, `pr-fixup` |
+| `host:<name>`       | all     | all    | pins a job to one machine when it must                                                        |
 
 GitHub adds `self-hosted`, the OS and the architecture to every runner by
 itself. Each [runner](#g-runner) is named `<host>-<role>-<n>` (e.g.
@@ -342,14 +342,14 @@ newer draft (`SUPERSEDED_JOBS`, issue #6020).
 | [`pr-check`](#required-checks) `refusals` | same                                                                                   | same                                            | one job per `land` refusal (five), `scripts/pr-checks.ts`                                                |
 | [`release`](#release)                     | dispatch (`dry_run`)                                                                   | `[self-hosted, lane]`                           | the full gate + walk on the base tip, then the release fast-forward, under an Environment                |
 | [`lane-timing`](#lane-timing)             | dispatch (`host`), push of a `lane-timing/**` branch                                   | `[self-hosted, maint, host:<machine>]`          | the same lane on an owner's machine, to compare timings (phase 0)                                        |
-| [`pr-refresh`](#pr-refresh)               | push to the base branch                                                                | `[self-hosted, maint]`                          | rebases the queued PRs the push conflicts with or touches                                                |
+| [`pr-refresh`](#pr-refresh)               | push to the base branch; every 30 min                                                  | `[self-hosted, derive]`                         | rebases the queued PRs the push conflicts with or touches                                                |
 | [`post-merge`](#post-merge)               | push to the base branch, two schedules, dispatch                                       | `maint` per machine, `seed`                     | fast-forward, worktree cleanup, seed, housekeeping, nightly                                              |
 | [`afk-dispatch`](#afk-dispatch)           | `ready-for-agent` label, every 30 min, dispatch                                        | `[self-hosted, pass]`, one at a time            | picks, claims and dispatches AFK passes, or holds                                                        |
 | [`afk-pass`](#afk-pass)                   | dispatch (`issue`, `model`, `resume`, `host`) — from the dispatcher                    | `[self-hosted, pass]` (+ `host:` for a resume)  | one `/next-ticket` pass, its WIP push and its record                                                     |
 | [`pr-gate`](#pr-gate)                     | `pull_request_target`, a `health` status, every 15 min, dispatch                       | GitHub-hosted `ubuntu-24.04`                    | the [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) statuses                   |
 | [`owner-merge`](#owner-merge)             | `pull_request_target`, `labeled` (`ready-to-land` only)                                | GitHub-hosted `ubuntu-24.04`                    | fails on purpose for a PR the queue refuses: the failed-run email is the owner's cue                     |
 | [`queue-lane`](#queue-lane)               | push of a `mergify/merge-queue/**` branch                                              | `[self-hosted, lane]`                           | the lane on the queue's rebased draft, one flaky re-run                                                  |
-| [`pr-fixup`](#pr-fixup)                   | dispatch (`pr`, `fixes`) — from `pr-check` or by hand                                  | `[self-hosted, maint]`                          | regenerates a stale generated artefact and pushes it                                                     |
+| [`pr-fixup`](#pr-fixup)                   | dispatch (`pr`, `fixes`) — from `pr-check` or by hand                                  | `[self-hosted, derive]`                         | regenerates a stale generated artefact and pushes it                                                     |
 | [`health`](#health)                       | every 2 h, dispatch (`gate`, or `ladder` with a `sha`)                                 | `[self-hosted, lane]`                           | the base tip's `health` verdict; a RED's flake check and bisect                                          |
 | [`health-early`](#health)                 | push to the base branch, one run at a time (a declared repair's tip has its own group) | GitHub-hosted `ubuntu-24.04`                    | the offline gate after a merge batch — its RED only                                                      |
 | [`health-fix`](#health-fix)               | dispatch (`sha`, `host`) — from `health` or itself                                     | `[self-hosted, pass, host:<machine>]`           | one rung of the RED ladder: a fixer attempt, the revert of the culprit, or the stop                      |
@@ -463,8 +463,9 @@ migration accepts.
 
 `.github/workflows/pr-refresh.yml`: GitHub and Mergify do not run our merge
 drivers, and 37 % of PRs touch a driven file, so a queued PR conflicts on a
-generated artefact the moment the base moves. On every push to the base, a
-[`maint`](#g-maint) runner runs `bun run pr-refresh -- --before <old tip> --after <new tip>`
+generated artefact the moment the base moves. On every push to the base, and every 30 minutes as a
+backstop (no range there: by conflict alone), a `derive` runner (never `maint`,
+issue #10721) runs `bun run pr-refresh -- --before <old tip> --after <new tip>`
 (`scripts/pr-refresh.ts`). It lists the open `ready-to-land` PRs of this
 repository (never a fork) and refreshes each one that GitHub reports
 `CONFLICTING`, or whose files the push touched (`git diff --name-only
@@ -716,6 +717,11 @@ it. Declare the runner on each machine with `bun run runner install` (a
 When a stale tip is past the grace and a `housekeeping` job is still `queued`,
 health's RED at `derive:sync` says `housekeeping queued N min, no runner`
 instead of only naming the step.
+
+`pr-refresh` and `pr-fixup` joined the role with issue #10721: on 2026-11-25 the
+replay held the only online `maint` runner for hours, and PR #10700, dequeued on
+a CR ledger conflict, kept `ready-to-land` with its refresh still queued.
+`derive-slot` guards them too.
 
 **The base writes its own derived state (ADR 0157 § Option 1b, issue
 #6247).** The Oracle lockfile's header hashes and the four `data/catalogue/*`
@@ -2162,7 +2168,7 @@ lane, issue #4963). Each line it prints names a rule:
 | `queue-superseded`             | `queue-lane.yml`'s `queue-lane` (`SUPERSEDED_JOBS`) lacks exactly the job-level `concurrency: { group: SUPERSEDED_GROUP, cancel-in-progress: true }` — a superseded draft's run holds a `lane` runner the live draft waits for (issue #6020)                                                                                                                                                                      |
 | `dispatcher-serialised`        | a job of `afk-dispatch.yml` or `health-fix.yml`, or `post-merge.yml`'s `housekeeping` / `nightly` / `bot-replay` or `health.yml`'s `gate` (`SERIALISED_JOBS`), lacks a job-level `concurrency: { group, cancel-in-progress: false }` — two runs at once could claim one issue twice, spawn two fixers, move one watermark twice, or gate one tip twice                                                            |
 | `host-pinned`                  | a self-hosted job's `runs-on` names one machine by a literal `host:<name>` (issue #5873) — that machine offline holds the job for 24 h; a per-machine duty is a matrix (`host:${{ matrix.host }}`) or an input, a shared duty names no host; `HOST_PINNED_JOBS` waives it for a job nothing waits on (`bot-replay`, ADR 0159)                                                                                     |
-| `derive-slot`                  | `housekeeping` or `repair-watch` (`DERIVE_JOBS`) whose `runs-on` is not the `derive` role alone, or `bot-replay` / `nightly` (`LONG_JOBS`) reaching it — a duty sharing a runner with an hour-long job queues behind it until the tip is derived-stale and health reds the base (issue #7855)                                                                                                                     |
+| `derive-slot`                  | `housekeeping`, `repair-watch`, `pr-refresh` or `pr-fixup` (`DERIVE_JOBS`) whose `runs-on` is not the `derive` role alone, or `bot-replay` / `nightly` (`LONG_JOBS`) reaching it — a duty sharing a runner with an hour-long job queues behind it until the tip is derived-stale and health reds the base (issue #7855)                                                                                           |
 | `lane-role`                    | a self-hosted job outside `LANE_JOBS` (`queue-lane`, `health`'s `gate`, `release`) whose `runs-on` may reach a [`lane`](#g-lane) runner: names the role, a runner group or a whole-label expression, and no literal other role (ADR 0160, issue #6653) — maintenance runs on [`maint`](#g-maint)                                                                                                                  |
 | `self-hosted-clone`            | a self-hosted job uses `actions/checkout`                                                                                                                                                                                                                                                                                                                                                                         |
 | `job-worktree`                 | a self-hosted job does not create the [job worktree](#g-job-worktree) first and remove it last `if: always()`, both under `shell: bash`                                                                                                                                                                                                                                                                           |
@@ -2365,8 +2371,8 @@ walk — `LANE_JOBS` of the
 ### <a id="g-maint"></a>`maint`
 
 The [label](#g-label) of a [runner](#g-runner) for every other self-hosted
-duty — post-merge's `sync`, `sweep`, `housekeeping`, `nightly` and the
-Bot-play replay, `pr-refresh`, `pr-fixup`, the weekly report, the corpus
+duty — post-merge's `sync`, `sweep`, `nightly` and the
+Bot-play replay, the weekly report, the corpus
 re-pin, `lane-timing` — so maintenance never holds the runner the queue needs
 (ADR 0160, issue #6653). One per machine.
 

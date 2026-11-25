@@ -51,7 +51,8 @@ MacBook at ~8 min per merge is ~7.5 merges/h, against the 2.9/h observed.
    draft at a time; a second speculative draft would only wait.
 4. **`maint`, one runner per machine**, for every other duty: post-merge's
    `sync`, `sweep`, `housekeeping`, `nightly` and `bot-replay`,
-   `pr-refresh`, `pr-fixup`, `weekly-report`, `corpus-repin`,
+   `pr-refresh`, `pr-fixup` (both on `derive` since issue #10721, as
+   `housekeeping` since issue #7855), `weekly-report`, `corpus-repin`,
    `lane-timing`. One per machine keeps post-merge's invariant (a
    machine's `sync` legs never race on its primary checkout).
    `bot-replay` keeps its `host:macbook` pin (ADR 0159 § 2), now on

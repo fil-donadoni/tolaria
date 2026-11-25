@@ -13,13 +13,18 @@
 #
 # `branches:` names the base by literal because a workflow cannot read
 # tolaria.config.json: renaming the base (ADR 0116) means editing this line
-# (docs/guides/github-pipeline.md § pr-refresh). Only a push to that branch
-# fires it — nothing an outsider can trigger.
+# (docs/guides/github-pipeline.md § pr-refresh). A push to that branch, the
+# clock or a dispatch fires it — nothing an outsider can trigger.
 name: pr-refresh
 
 on:
     push:
         branches: [staging]
+    # The backstop (issue #10721): a push run dropped or lost leaves a conflicting
+    # PR `ready-to-land` with nothing to rebase it until the next push.
+    schedule:
+        - cron: "25,55 * * * *"
+    workflow_dispatch:
 
 permissions:
     contents: read
@@ -27,7 +32,9 @@ permissions:
 jobs:
     refresh:
         name: refresh queued PRs
-        runs-on: [self-hosted, maint]
+        # NOT `maint` (issue #10721, rule `derive-slot`): the Bot-play replay held
+        # the one online `maint` runner for hours while a conflicting PR waited.
+        runs-on: [self-hosted, derive]
         timeout-minutes: 60
         concurrency:
             group: pr-refresh
@@ -43,7 +50,11 @@ jobs:
             - name: pr-refresh
               env:
                   BEFORE: ${{ github.event.before }}
-              run: bun run pr-refresh -- --before "$BEFORE" --after "$GITHUB_SHA"
+              # Off a push there is no range, and GITHUB_SHA is the default
+              # branch's: the run then refreshes by conflict alone.
+              run: |
+                  if [ "$GITHUB_EVENT_NAME" = "push" ]; then set -- --before "$BEFORE" --after "$GITHUB_SHA"; else set --; fi
+                  bun run pr-refresh -- "$@"
             - name: Remove the job worktree
               if: always()
               shell: bash
