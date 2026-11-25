@@ -17666,4 +17666,619 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 608.2d + CR 613.1f — "your choice of <keyword>, <keyword>, or
+    // <keyword>" granted to the SOURCE inside an `optionChoice`, which the
+    // canned scenario cannot stage (issue #10344).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "6cac6f76-f3c6-4b00-a468-166b07853401",
+            name: "Shifting Ceratops",
+            manaCost: "{2}{G}{G}",
+            typeLine: "Creature — Dinosaur",
+            oracleText:
+                "This spell can't be countered.\nProtection from blue (This creature can't be blocked, targeted, dealt damage, enchanted, or equipped by anything blue.)\n{G}: This creature gains your choice of reach, trample, or haste until end of turn.",
+            layout: "normal",
+            power: "5",
+            toughness: "4",
+        },
+        expected: {
+            name: "Shifting Ceratops",
+            types: ["Creature"],
+            subtypes: ["Dinosaur"],
+            manaCost: { X: 2, G: 2 },
+            power: 5,
+            toughness: 4,
+            oracleText:
+                "This spell can't be countered.\nProtection from blue (This creature can't be blocked, targeted, dealt damage, enchanted, or equipped by anything blue.)\n{G}: This creature gains your choice of reach, trample, or haste until end of turn.",
+            staticAbilities: ["protection from blue"],
+            activatedAbilities: [
+                {
+                    id: "shifting-ceratops-ability",
+                    oracleText:
+                        "{G}: This creature gains your choice of reach, trample, or haste until end of turn.",
+                    cost: { mana: { G: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "optionChoice",
+                            prompt: "Choose an ability (Shifting Ceratops).",
+                            modes: [
+                                {
+                                    id: "reach",
+                                    label: "Reach",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "reach",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                                {
+                                    id: "trample",
+                                    label: "Trample",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "trample",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                                {
+                                    id: "haste",
+                                    label: "Haste",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "haste",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            cantBeCountered: true,
+        },
+    },
+    // CR 400.7 — "each creature you control that entered this turn": a put on
+    // a sweep, runtime-selected and acting on `$each` (issue #10344).
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "534e74f6-52f4-4824-9178-cce5e4bcbcc2",
+            name: "Raucous Entertainer",
+            manaCost: "{1}{G}",
+            typeLine: "Creature — Plant Bard",
+            oracleText:
+                "{1}, {T}: Put a +1/+1 counter on each creature you control that entered this turn.",
+            layout: "normal",
+            power: "2",
+            toughness: "2",
+        },
+        expected: {
+            name: "Raucous Entertainer",
+            types: ["Creature"],
+            subtypes: ["Plant", "Bard"],
+            manaCost: { X: 1, G: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "{1}, {T}: Put a +1/+1 counter on each creature you control that entered this turn.",
+            activatedAbilities: [
+                {
+                    id: "raucous-entertainer-ability",
+                    oracleText:
+                        "{1}, {T}: Put a +1/+1 counter on each creature you control that entered this turn.",
+                    cost: { mana: { X: 1 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: {
+                                    type: "Creature",
+                                    enteredThisTurn: true,
+                                },
+                            },
+                            effects: [
+                                {
+                                    op: "counters",
+                                    action: "add",
+                                    counter: "+1/+1",
+                                    target: { ref: "$each" },
+                                    count: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 608.2d — the rest of the keywords a source's own "your choice of" list
+    // names, and the all-board and one-colour reads of the CR 400.7 sweep: the
+    // smoke form records the keyword and the selector (issue #10344).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "1ff93e62-6ae0-4438-a88e-ae6fd7d91e41",
+            name: "Butcher of the Horde",
+            manaCost: "{1}{R}{W}{B}",
+            typeLine: "Creature — Demon",
+            oracleText:
+                "Flying\nSacrifice another creature: This creature gains your choice of vigilance, lifelink, or haste until end of turn.",
+            layout: "normal",
+            power: "5",
+            toughness: "4",
+        },
+        expected: {
+            name: "Butcher of the Horde",
+            types: ["Creature"],
+            subtypes: ["Demon"],
+            manaCost: { X: 1, W: 1, B: 1, R: 1 },
+            power: 5,
+            toughness: 4,
+            oracleText:
+                "Flying\nSacrifice another creature: This creature gains your choice of vigilance, lifelink, or haste until end of turn.",
+            staticAbilities: ["flying"],
+            activatedAbilities: [
+                {
+                    id: "butcher-of-the-horde-ability",
+                    oracleText:
+                        "Sacrifice another creature: This creature gains your choice of vigilance, lifelink, or haste until end of turn.",
+                    cost: {
+                        sacrificeFilter: {
+                            types: ["Creature"],
+                            excludeSource: true,
+                        },
+                    },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "optionChoice",
+                            prompt: "Choose an ability (Butcher of the Horde).",
+                            modes: [
+                                {
+                                    id: "vigilance",
+                                    label: "Vigilance",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "vigilance",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                                {
+                                    id: "lifelink",
+                                    label: "Lifelink",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "lifelink",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                                {
+                                    id: "haste",
+                                    label: "Haste",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "haste",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "23be5c68-6530-474d-b677-551da4745b3c",
+            name: "Assassin Initiate",
+            manaCost: "{B}",
+            typeLine: "Creature — Human Assassin",
+            oracleText:
+                "{1}: This creature gains your choice of flying, deathtouch, or lifelink until end of turn.",
+            layout: "normal",
+            power: "1",
+            toughness: "1",
+        },
+        expected: {
+            name: "Assassin Initiate",
+            types: ["Creature"],
+            subtypes: ["Human", "Assassin"],
+            manaCost: { B: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "{1}: This creature gains your choice of flying, deathtouch, or lifelink until end of turn.",
+            activatedAbilities: [
+                {
+                    id: "assassin-initiate-ability",
+                    oracleText:
+                        "{1}: This creature gains your choice of flying, deathtouch, or lifelink until end of turn.",
+                    cost: { mana: { X: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "optionChoice",
+                            prompt: "Choose an ability (Assassin Initiate).",
+                            modes: [
+                                {
+                                    id: "flying",
+                                    label: "Flying",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "flying",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                                {
+                                    id: "deathtouch",
+                                    label: "Deathtouch",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "deathtouch",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                                {
+                                    id: "lifelink",
+                                    label: "Lifelink",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "lifelink",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "ab42fb8b-c463-45db-b71d-ed847c9abf1f",
+            name: "Lunar Avenger",
+            manaCost: "{7}",
+            typeLine: "Artifact Creature — Golem",
+            oracleText:
+                "Sunburst (This creature enters with a +1/+1 counter on it for each color of mana spent to cast it.)\nRemove a +1/+1 counter from this creature: This creature gains your choice of flying, first strike, or haste until end of turn.",
+            layout: "normal",
+            power: "2",
+            toughness: "2",
+        },
+        expected: {
+            name: "Lunar Avenger",
+            types: ["Artifact", "Creature"],
+            subtypes: ["Golem"],
+            manaCost: { X: 7 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "Sunburst (This creature enters with a +1/+1 counter on it for each color of mana spent to cast it.)\nRemove a +1/+1 counter from this creature: This creature gains your choice of flying, first strike, or haste until end of turn.",
+            staticAbilities: ["sunburst"],
+            activatedAbilities: [
+                {
+                    id: "lunar-avenger-ability",
+                    oracleText:
+                        "Remove a +1/+1 counter from this creature: This creature gains your choice of flying, first strike, or haste until end of turn.",
+                    cost: { removeCounter: { type: "+1/+1", count: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "optionChoice",
+                            prompt: "Choose an ability (Lunar Avenger).",
+                            modes: [
+                                {
+                                    id: "flying",
+                                    label: "Flying",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "flying",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                                {
+                                    id: "first-strike",
+                                    label: "First strike",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "first strike",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                                {
+                                    id: "haste",
+                                    label: "Haste",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "haste",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "ddcd8a0a-7ac3-4400-a16f-8bb5aa50994e",
+            name: "Ezrim, Agency Chief",
+            manaCost: "{1}{W}{W}{U}{U}",
+            typeLine: "Legendary Creature — Archon Detective",
+            oracleText:
+                'Flying\nWhen Ezrim enters, investigate twice. (To investigate, create a Clue token. It\'s an artifact with "{2}, Sacrifice this token: Draw a card.")\n{1}, Sacrifice an artifact: Ezrim gains your choice of vigilance, lifelink, or hexproof until end of turn.',
+            layout: "normal",
+            power: "5",
+            toughness: "5",
+        },
+        expected: {
+            name: "Ezrim, Agency Chief",
+            types: ["Creature"],
+            supertypes: ["Legendary"],
+            subtypes: ["Archon", "Detective"],
+            manaCost: { X: 1, W: 2, U: 2 },
+            power: 5,
+            toughness: 5,
+            oracleText:
+                'Flying\nWhen Ezrim enters, investigate twice. (To investigate, create a Clue token. It\'s an artifact with "{2}, Sacrifice this token: Draw a card.")\n{1}, Sacrifice an artifact: Ezrim gains your choice of vigilance, lifelink, or hexproof until end of turn.',
+            staticAbilities: ["flying"],
+            activatedAbilities: [
+                {
+                    id: "ezrim-agency-chief-ability",
+                    oracleText:
+                        "{1}, Sacrifice an artifact: Ezrim gains your choice of vigilance, lifelink, or hexproof until end of turn.",
+                    cost: {
+                        mana: { X: 1 },
+                        sacrificeFilter: { types: ["Artifact"] },
+                    },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "optionChoice",
+                            prompt: "Choose an ability (Ezrim, Agency Chief).",
+                            modes: [
+                                {
+                                    id: "vigilance",
+                                    label: "Vigilance",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "vigilance",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                                {
+                                    id: "lifelink",
+                                    label: "Lifelink",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "lifelink",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                                {
+                                    id: "hexproof",
+                                    label: "Hexproof",
+                                    effects: [
+                                        {
+                                            op: "grantAbility",
+                                            target: { ref: "$source" },
+                                            ability: "hexproof",
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "ezrim-agency-chief-trigger",
+                    oracleText: "When Ezrim enters, investigate twice.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "createToken",
+                            token: {
+                                name: "Clue",
+                                types: ["Artifact"],
+                                subtypes: ["Clue"],
+                                activatedAbilities: [
+                                    {
+                                        id: "sacrifice-draw",
+                                        oracleText:
+                                            "{2}, Sacrifice this token: Draw a card.",
+                                        cost: {
+                                            mana: { generic: 2 },
+                                            sacrifice: true,
+                                        },
+                                        useStack: true,
+                                        effects: [
+                                            {
+                                                op: "draw",
+                                                player: "controller",
+                                                count: 1,
+                                            },
+                                        ],
+                                    },
+                                ],
+                            },
+                            controller: "controller",
+                            count: 2,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "b3b5137d-0225-4dba-9231-d235ab0f137c",
+            name: "Novijen, Heart of Progress",
+            manaCost: "",
+            typeLine: "Land",
+            oracleText:
+                "{T}: Add {C}.\n{G}{U}, {T}: Put a +1/+1 counter on each creature that entered this turn.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Novijen, Heart of Progress",
+            types: ["Land"],
+            oracleText:
+                "{T}: Add {C}.\n{G}{U}, {T}: Put a +1/+1 counter on each creature that entered this turn.",
+            activatedAbilities: [
+                {
+                    id: "novijen-heart-of-progress-mana",
+                    oracleText: "{T}: Add {C}.",
+                    cost: { tap: true },
+                    useStack: false,
+                    manaProduced: { C: 1 },
+                },
+                {
+                    id: "novijen-heart-of-progress-ability-2",
+                    oracleText:
+                        "{G}{U}, {T}: Put a +1/+1 counter on each creature that entered this turn.",
+                    cost: { mana: { U: 1, G: 1 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: {
+                                    type: "Creature",
+                                    enteredThisTurn: true,
+                                },
+                            },
+                            effects: [
+                                {
+                                    op: "counters",
+                                    action: "add",
+                                    counter: "+1/+1",
+                                    target: { ref: "$each" },
+                                    count: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "e88027a6-24cc-4a8b-86db-734f26149ea8",
+            name: "Oran-Rief, the Vastwood",
+            manaCost: "",
+            typeLine: "Land",
+            oracleText:
+                "This land enters tapped.\n{T}: Add {G}.\n{T}: Put a +1/+1 counter on each green creature that entered this turn.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Oran-Rief, the Vastwood",
+            types: ["Land"],
+            oracleText:
+                "This land enters tapped.\n{T}: Add {G}.\n{T}: Put a +1/+1 counter on each green creature that entered this turn.",
+            activatedAbilities: [
+                {
+                    id: "oran-rief-the-vastwood-mana",
+                    oracleText: "{T}: Add {G}.",
+                    cost: { tap: true },
+                    useStack: false,
+                    manaProduced: { G: 1 },
+                },
+                {
+                    id: "oran-rief-the-vastwood-ability-2",
+                    oracleText:
+                        "{T}: Put a +1/+1 counter on each green creature that entered this turn.",
+                    cost: { tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: {
+                                    type: "Creature",
+                                    color: "G",
+                                    enteredThisTurn: true,
+                                },
+                            },
+                            effects: [
+                                {
+                                    op: "counters",
+                                    action: "add",
+                                    counter: "+1/+1",
+                                    target: { ref: "$each" },
+                                    count: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            entersTapped: true,
+        },
+    },
 ]);

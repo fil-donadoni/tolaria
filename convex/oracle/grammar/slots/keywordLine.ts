@@ -52,6 +52,7 @@ import {
 } from "../shared/protectionKeyword";
 import { hexproofFromKeywordsRule } from "../shared/hexproofFromKeyword";
 import {
+    descriptorRule,
     targetDescriptorRule,
     targetRequirementFromDescriptor,
 } from "../shared/targetFilter";
@@ -808,6 +809,38 @@ export const mobilizeRule: Rule<SlotIR> = rule("mobilize", (span) => {
     });
 });
 
+// ── Affinity for <subtype> (CR 702.41) ─────────────────────────────────────
+
+const AFFINITY = /^Affinity for (.+)$/;
+
+/**
+ * CR 702.41a — "Affinity for [text]" means "This spell costs {1} less to cast
+ * for each [text] you control." Read for ONE bare subtype noun ("Frogs",
+ * "Islands"), printed plural as the keyword always prints it: the phrase is the
+ * shared descriptor's, and any clause beyond the subtype is refused.
+ *
+ * Refused: a card type ("artifacts", "artifact creatures"), a supertype ("snow
+ * lands"), "outlaws" (CR 700.12), "tokens", and a subtype whose plural is not
+ * its regular `-s` ("Elves", "Equipment") — each is its own printed form with
+ * no fixture here.
+ */
+export const affinityRule: Rule<SlotIR> = rule("affinity", (span, ctx) => {
+    const match = AFFINITY.exec(span);
+    if (match === null)
+        return fail('an affinity line is "Affinity for <text>"', span);
+    const quality = match[1]!;
+    const descriptor = descriptorRule.run(quality, ctx);
+    if (!descriptor.ok) return descriptor;
+    const { subtypes, plural, ...rest } = descriptor.value;
+    if (
+        subtypes?.length !== 1 ||
+        plural !== true ||
+        Object.keys(rest).length > 0
+    )
+        return fail("affinity is read for one subtype noun", quality);
+    return ok({ kind: "affinity" as const, quality, subtype: subtypes[0]! });
+});
+
 // ── Firebending N (CR 702.189a) ────────────────────────────────────────────
 
 const FIREBENDING = /^Firebending (\d+)$/;
@@ -1137,7 +1170,7 @@ export const giftRule: Rule<SlotIR> = rule("gift", (span) => {
 /**
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
  * one kicker or replicate line, or one cost-parameter keyword (cycling, madness, plot,
- * foretell, miracle, harmonize, splice, overload, morph, fading, mobilize, firebending, hideaway, ward life, impending, suspend, warp, equip,
+ * foretell, miracle, harmonize, splice, overload, morph, fading, mobilize, affinity, firebending, hideaway, ward life, impending, suspend, warp, equip,
  * reconfigure, crew,
  * saddle, ninjutsu, transmute, offspring, gift). They are disjoint by construction — no registry keyword name
  * carries a trailing descriptor, cost or number, a bare "Enchant" names no
@@ -1164,6 +1197,7 @@ export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     cumulativeUpkeepRule,
     fadingRule,
     mobilizeRule,
+    affinityRule,
     firebendingRule,
     hideawayRule,
     wardLifeRule,
