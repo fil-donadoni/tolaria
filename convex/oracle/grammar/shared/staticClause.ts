@@ -703,6 +703,24 @@ export type HostEffectIR =
 // ── Shared pieces ──────────────────────────────────────────────────────────
 
 /**
+ * CR 205.3m — a creature type whose plural is its singular ("Merfolk"). The
+ * descriptor grammar marks a noun plural only by its trailing "s", so a bare
+ * "Merfolk you control" reads singular; the verb of the sentence ("get",
+ * "have") is what makes the subject a set, and the frames that call
+ * `readSubject` split on that plural verb already. Only a lone bare subtype
+ * qualifies — a card type or any adjective beside it keeps the "s" test.
+ */
+const INVARIANT_PLURAL_SUBTYPES: ReadonlySet<string> = new Set(["Merfolk"]);
+
+function isInvariantPluralSubject(value: DescriptorIR): boolean {
+    return (
+        (value.types ?? []).length === 0 &&
+        value.subtypes?.length === 1 &&
+        INVARIANT_PLURAL_SUBTYPES.has(value.subtypes[0]!)
+    );
+}
+
+/**
  * Read the subject of an anthem or a lord sentence.
  *
  * PLURAL is required, not incidental: "Creatures you control" describes a SET,
@@ -726,7 +744,7 @@ function readSubject(
     const descriptor = descriptorRule.run(head, undefined);
     if (!descriptor.ok) return descriptor;
     const value: DescriptorIR = descriptor.value;
-    if (value.plural !== true)
+    if (value.plural !== true && !isInvariantPluralSubject(value))
         return fail(
             "a continuous static effect over a set needs a plural subject",
             span
@@ -761,6 +779,26 @@ function readSubjectOfEitherSide(
     if (filter.value.controllerRelation !== undefined)
         return fail("two controller clauses", span);
     return ok({ ...filter.value, controllerRelation: "opponents" });
+}
+
+const OTHER_PREFIX = "Other ";
+
+/**
+ * CR 201.5 — "Other <plural descriptor> you control": the set without the
+ * source itself, which is `excludeSource`. The descriptor grammar has no
+ * "other" adjective, so the word is read here, at the frames that owe it.
+ */
+function readOtherSubject(
+    span: string,
+    evaluation: StaticFilterEvaluation
+): RuleResult<PermanentFilter> {
+    const other = span.startsWith(OTHER_PREFIX);
+    const filter = readSubject(
+        other ? span.slice(OTHER_PREFIX.length) : span,
+        evaluation
+    );
+    if (!filter.ok || !other) return filter;
+    return ok({ ...filter.value, excludeSource: true });
 }
 
 /** `pair`-style unique split, over a separator that may occur several times. */
@@ -825,7 +863,13 @@ export const anthemRule: Rule<StaticClauseIR> = rule(
         uniqueSplit("anthem", span, " get ", (subject, modifier) => {
             const pt = modifier.match(PT_MODIFIER);
             if (pt === null) return null;
-            const filter = readSubjectOfEitherSide(subject, "recomputed");
+            // CR 613.4c — "Other Merfolk you control get +1/+1": the set
+            // without the source itself (`excludeSource`), read by the helper
+            // the keyword-grant frame shares; every other subject may name
+            // either side's battlefield.
+            const filter = subject.startsWith(OTHER_PREFIX)
+                ? readOtherSubject(subject, "recomputed")
+                : readSubjectOfEitherSide(subject, "recomputed");
             if (!filter.ok) return filter;
             return ok({
                 kind: "pt-buff" as const,
@@ -912,8 +956,6 @@ export const selfPumpPerGraveyardCardRule: Rule<StaticClauseIR> = rule(
 
 // ── Frame: keyword grant (CR 613.1f) ───────────────────────────────────────
 
-const OTHER_PREFIX = "Other ";
-
 export const keywordGrantRule: Rule<StaticClauseIR> = rule(
     "keyword grant",
     (span): RuleResult<StaticClauseIR> =>
@@ -928,17 +970,11 @@ export const keywordGrantRule: Rule<StaticClauseIR> = rule(
             // set without the source itself, which is `excludeSource`. The
             // descriptor grammar has no "other" adjective, so the word is
             // read here, at the one frame that owes it.
-            const other = subject.startsWith(OTHER_PREFIX);
-            const filter = readSubject(
-                other ? subject.slice(OTHER_PREFIX.length) : subject,
-                "materialised"
-            );
+            const filter = readOtherSubject(subject, "materialised");
             if (!filter.ok) return filter;
             return ok({
                 kind: "keyword-grant" as const,
-                filter: other
-                    ? { ...filter.value, excludeSource: true }
-                    : filter.value,
+                filter: filter.value,
                 keyword,
             });
         })
