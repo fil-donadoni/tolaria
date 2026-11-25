@@ -122,6 +122,16 @@ so the cap counts distinct plans (at most C(n, k) land sets). Scoring has its ow
 bound, `AUTO_TAP_SCORED_PLAN_CAP` (64): past it, the plans leading on the
 scorer-free terms are the ones scored. The ranking order is unchanged.
 
+### Amendment (issue #10465): the permanent being cast
+
+A third Demand source: the mana-costed activated abilities the **permanent being
+cast** will have once it resolves. They pass the same legality gates as a board
+ability, read off a simulated arrival (its face, tapped or not, summoning sick,
+under the live continuous effects), so a {T} ability of a creature without haste
+is no Demand. Those gates also cover every ability the player cannot activate
+now: sorcery-speed outside the sorcery window, a spent once-per-turn ability, an
+unpayable {T}, Cycling on a battlefield permanent. Weights are unchanged.
+
 ### Scope
 
 Ships **unconditionally to all seats** — solo, vs-AI, 2-player, and the AI bot's

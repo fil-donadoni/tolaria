@@ -71,6 +71,7 @@ function runAutoTap(state: GameState, player: PlayerState): boolean {
         ...buildBoardAbilityDemands(state, player.battlefield, {
             phase: state.phase,
             isControllersTurn: state.activePlayerId === player.id,
+            isSorceryTiming: isSorceryTiming(state),
         }),
     ];
     // Drive the REAL production scorer (`scoreAutoTapPlanPosition`, exported from

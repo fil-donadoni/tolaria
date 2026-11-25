@@ -614,7 +614,7 @@ What untapping a mana source that does not untap by itself (CR 502.3, `does-not-
 _Avoid_: Untap cost, untap tax
 
 **Demand**:
-A thing the active **Player** might still want to pay mana for this turn — a **Spell** in **Hand** or an **Activated Ability** on the **Battlefield** — that smart **Auto-Tap** tries not to strand. Counted only when affordable before payment and legal at the current timing (sorcery-speed demands only at sorcery timing).
+A thing the active **Player** might still want to pay mana for this turn — a **Spell** in **Hand**, an **Activated Ability** on the **Battlefield**, or an **Activated Ability** the **Permanent** being cast will have once it resolves — that smart **Auto-Tap** tries not to strand. Counted only when affordable before payment and legal at the current timing (sorcery-speed demands only at sorcery timing).
 _Avoid_: Pending play, future cast
 
 **Mana Value (MV)**:

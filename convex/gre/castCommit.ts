@@ -83,6 +83,7 @@ import {
     payLifeCost,
 } from "./state";
 import type {
+    CardInstanceState,
     GameState,
     PendingCast,
     SpellManaRiders,
@@ -228,6 +229,40 @@ export type CastCommitPlan = {
     mode: CastModeMarkers;
     placement: CastCommitPlacement;
 };
+
+/** Rewrites `item` into the object its cast mode makes of it (CR 601.2b): the
+ *  characteristic-changing markers of {@link CastModeMarkers}, applied to the
+ *  spell about to reach the stack. Exported for the reader that asks what a cast
+ *  still being paid will become (`buildCastPermanentAbilityDemands`). */
+export function stampCastFace(
+    state: GameState,
+    item: CardInstanceState,
+    mode: CastModeMarkers
+): void {
+    // CR 702.103b (issue #2388) — "as a spell cast bestowed is put onto the
+    // stack, it becomes an Aura enchantment and gains enchant creature".
+    // Applied on the built item immediately before it reaches the stack, so
+    // everything downstream — the CR 608.2b re-check, the wire projection,
+    // cast triggers — sees the Aura and never the creature. The flag on the
+    // item is written by `applyBestowCharacteristics` itself, alongside the
+    // type line it rewrites, so the two can never be set apart.
+    if (mode.bestowed) applyBestowCharacteristics(item);
+    // CR 702.37c (issue #2705) — a MORPH cast puts a FACE-DOWN 2/2 on the
+    // stack, not the printed card. Turned down BEFORE the placement and before
+    // `emitSpellCastEvent`, so a "whenever a player casts a spell" trigger
+    // sees the face-down 2/2 with no name — which is what the spell IS at that
+    // moment — and the projection never observes a face-up morph spell.
+    if (mode.morphed) turnFaceDown(state, item, "morph");
+    // CR 715.3b (ADR 0120) — "while on the stack as an Adventure, the spell
+    // has only its alternative characteristics." Same seam, same reason.
+    if (mode.castAsAdventure) castAsAdventure(item);
+    // CR 709.3b (ADR 0121) — "while on the stack, only the characteristics of
+    // the half being cast exist." Same seam, same reason.
+    if (mode.castAsSplitHalf) castAsSplitHalf(item, mode.castAsSplitHalf);
+    // CR 712.8f (issue #7200) — "while a modal double-faced spell is on the
+    // stack … it has only the characteristics of the face that's up."
+    if (mode.castAsModalBack) castAsModalBack(state, item);
+}
 
 /** The **Cast Commit** kernel. Applies `plan` to `state` in place and returns
  *  the stack item it put on the stack, or `null` when a leg the plan carries
@@ -599,29 +634,7 @@ export function commitCast(
     // the grant itself, never a pointer back to a permission that ends when
     // its source leaves.
     stampGraveyardPermissionRider(stackItem, plan.source.graveyardPermission);
-    // CR 702.103b (issue #2388) — "as a spell cast bestowed is put onto the
-    // stack, it becomes an Aura enchantment and gains enchant creature".
-    // Applied on the built item immediately before it reaches the stack, so
-    // everything downstream — the CR 608.2b re-check, the wire projection,
-    // cast triggers — sees the Aura and never the creature. The flag on the
-    // item is written by `applyBestowCharacteristics` itself, alongside the
-    // type line it rewrites, so the two can never be set apart.
-    if (mode.bestowed) applyBestowCharacteristics(stackItem);
-    // CR 702.37c (issue #2705) — a MORPH cast puts a FACE-DOWN 2/2 on the
-    // stack, not the printed card. Turned down BEFORE the placement and before
-    // `emitSpellCastEvent`, so a "whenever a player casts a spell" trigger
-    // sees the face-down 2/2 with no name — which is what the spell IS at that
-    // moment — and the projection never observes a face-up morph spell.
-    if (mode.morphed) turnFaceDown(state, stackItem, "morph");
-    // CR 715.3b (ADR 0120) — "while on the stack as an Adventure, the spell
-    // has only its alternative characteristics." Same seam, same reason.
-    if (mode.castAsAdventure) castAsAdventure(stackItem);
-    // CR 709.3b (ADR 0121) — "while on the stack, only the characteristics of
-    // the half being cast exist." Same seam, same reason.
-    if (mode.castAsSplitHalf) castAsSplitHalf(stackItem, mode.castAsSplitHalf);
-    // CR 712.8f (issue #7200) — "while a modal double-faced spell is on the
-    // stack … it has only the characteristics of the face that's up."
-    if (mode.castAsModalBack) castAsModalBack(state, stackItem);
+    stampCastFace(state, stackItem, mode);
     // CR 702.62a — "If you cast a creature spell this way, it gains haste
     // until you lose control of the spell or the permanent it becomes."
     // Read off the built item, so the spell's own stack characteristics (a
