@@ -26756,7 +26756,7 @@
         {"id":"121.1","line":"/** CR 121.1 / 603.2 (ADR 0078 §7) — queue the `COUNTER_ADDED` events for a set","sites":1,"status":"baseline"},
         {"id":"608.2h","line":"// test can show — CR 608.2h's \"the answer is determined only once, when the","sites":1,"status":"confirmed","ruleHash":"4020079ffa4c17c4"},
         {"id":"702.29b","line":"// CR 702.29b — instant speed: no phase gate, exactly like plain","sites":1,"status":"baseline"},
-        {"id":"102.2","line":"// CR 102.2 — in a two-player game \"each opponent\" is the one other","sites":2,"status":"confirmed","ruleHash":"852afec2046f9914"},
+        {"id":"102.2","line":"// CR 102.2 — in a two-player game \"each opponent\" is the one other","sites":3,"status":"confirmed","ruleHash":"852afec2046f9914"},
         {"id":"701.20a","line":"// CR 118.9 / 701.20a — a cost that reveals the hand (Land Grant): every","sites":1,"status":"confirmed","ruleHash":"54005920ff25d271"},
         {"id":"601.3","line":"/** CR 601.3 / 702.34 — the zone this cast originates from. On a `\"graveyard\"`","sites":1,"status":"baseline"},
         {"id":"610.3a","line":"* `exileWithAttachments` always applies CR 610.3a/b's guard (the interpreter","sites":1,"status":"confirmed","ruleHash":"c8e2eb69437ce3e9"},
