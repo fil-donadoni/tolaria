@@ -102,6 +102,8 @@ function renderCtrl(overrides: {
     priorityPlayerId?: string;
     passUntilAction?: PassUntilActionIntent[];
     queuedPassUntilAction?: PassUntilActionIntent[];
+    autoPassPlayers?: string[];
+    queuedEndTurn?: string[];
 }) {
     const ctx = {
         gameId: "game-id",
@@ -235,7 +237,7 @@ describe("useControllerActions — Pass Until Action (issue #5782)", () => {
         expect(calls.map((c) => c.ref)).toEqual(["endTurn"]);
     });
 
-    it("an armed intent shows a cancelling pill and Enter / P cancel it", async () => {
+    it("an armed intent shows a cancelling pill and Enter cancels it", async () => {
         const { result } = renderCtrl({
             priorityPlayerId: "opp",
             passUntilAction: [{ playerId: "me", ignoredStackIds: [] }],
@@ -247,10 +249,6 @@ describe("useControllerActions — Pass Until Action (issue #5782)", () => {
         );
         expect(pill?.pill).toBe(true);
 
-        await act(async () => press("p"));
-        expect(calls.map((c) => c.ref)).toEqual(["cancelAutoPass"]);
-
-        calls.length = 0;
         await act(async () => pressEnter());
         expect(calls.map((c) => c.ref)).toEqual(["cancelAutoPass"]);
     });
@@ -275,5 +273,84 @@ describe("useControllerActions — Pass Until Action (issue #5782)", () => {
             (a) => a.key === "queued-pass-until-action"
         );
         expect(pill?.label).toBe("Pass Until Action queued (cancel)");
+    });
+});
+
+// Issue #10457 — P and Enter each own one intent: a key cancels its own kind
+// and switches the other kind to its own in ONE mutation (the server replaces
+// the standing intent, `passUntilActionFullPath.test.ts`), never a cancel
+// followed by an arm. The pod buttons dispatch the same toggles.
+describe("useControllerActions — P / Enter switch Pass Turn <-> Pass Until Action (issue #10457)", () => {
+    beforeEach(() => {
+        calls.length = 0;
+        resetPendingGameIntents();
+    });
+
+    const ME_UNTIL = [{ playerId: "me", ignoredStackIds: [] }];
+    const ARMED_TURN = { priorityPlayerId: "opp", autoPassPlayers: ["me"] };
+    const ARMED_UNTIL = { priorityPlayerId: "opp", passUntilAction: ME_UNTIL };
+    const QUEUED_TURN = { priorityPlayerId: "opp", queuedEndTurn: ["me"] };
+    const QUEUED_UNTIL = {
+        priorityPlayerId: "opp",
+        queuedPassUntilAction: ME_UNTIL,
+    };
+
+    const cases = [
+        ["armed Pass Turn", "P", "cancelAutoPass", ARMED_TURN],
+        ["armed Pass Until Action", "Enter", "cancelAutoPass", ARMED_UNTIL],
+        ["armed Pass Turn", "Enter", "passUntilAction", ARMED_TURN],
+        ["armed Pass Until Action", "P", "endTurn", ARMED_UNTIL],
+        ["queued Pass Turn", "P", "cancelAutoPass", QUEUED_TURN],
+        ["queued Pass Until Action", "Enter", "cancelAutoPass", QUEUED_UNTIL],
+        ["queued Pass Turn", "Enter", "passUntilAction", QUEUED_TURN],
+        ["queued Pass Until Action", "P", "endTurn", QUEUED_UNTIL],
+    ] as const;
+
+    it.each(cases)(
+        "%s + %s sends exactly %s",
+        async (_name, key, expected, state) => {
+            renderCtrl(state);
+            await act(async () => (key === "P" ? press("p") : pressEnter()));
+            expect(calls).toEqual([
+                { ref: expected, args: { gameId: "game-id", playerId: "me" } },
+            ]);
+        }
+    );
+
+    it.each(cases)(
+        "%s: the pod's %s button sends exactly %s",
+        async (_name, key, expected, state) => {
+            const { result } = renderCtrl(state);
+            const button =
+                key === "P"
+                    ? result.current.queuedPasses?.passTurn
+                    : result.current.queuedPasses?.passUntilAction;
+            expect(button?.disabled).toBe(false);
+            await act(async () => {
+                await button!.onClick();
+            });
+            expect(calls.map((c) => c.ref)).toEqual([expected]);
+        }
+    );
+
+    it("with priority, the Pass Turn / Pass Until Action descriptors match the keys", async () => {
+        // The seat holds priority while a Pass Turn intent still stands: the
+        // descriptors toggle exactly as P and Enter do.
+        const { result } = renderCtrl({ queuedEndTurn: ["me"] });
+        const until = result.current.actions.find(
+            (a) => a.key === "pass-until-action"
+        );
+        const turn = result.current.actions.find((a) => a.key === "pass-turn");
+        expect(until?.disabled).toBe(false);
+        await act(async () => {
+            await until!.onClick();
+        });
+        await act(async () => {
+            await turn!.onClick();
+        });
+        expect(calls.map((c) => c.ref)).toEqual([
+            "passUntilAction",
+            "cancelAutoPass",
+        ]);
     });
 });

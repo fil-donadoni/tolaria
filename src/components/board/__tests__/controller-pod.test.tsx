@@ -272,13 +272,10 @@ describe("ControllerPod Enter / P / U hotkeys", () => {
         expect(calls.map((c) => c.ref)).not.toContain("endTurn");
     });
 
-    it("Enter cancels an active auto-pass instead of arming a new pass", () => {
+    it("Enter switches an active auto-pass to Pass Until Action in one call (issue #10457)", () => {
         renderPod({ autoPassPlayers: ["me"] });
         fireEvent.keyDown(window, { code: "Enter" });
-        const refs = calls.map((c) => c.ref);
-        expect(refs).toContain("cancelAutoPass");
-        expect(refs).not.toContain("passUntilAction");
-        expect(refs).not.toContain("endTurn");
+        expect(calls.map((c) => c.ref)).toEqual(["passUntilAction"]);
     });
 
     it("P cancels an active auto-pass instead of ending the turn", () => {
@@ -496,13 +493,25 @@ describe("ControllerPod queued passes (issue #9835)", () => {
     it.each<[string, Partial<GameContextValue>]>([
         ["auto-passing", { autoPassPlayers: ["me"] }],
         ["a queued Pass Turn", { queuedEndTurn: ["me"] }],
-    ])("both are disabled while %s runs", (_, intent) => {
+    ])("while %s runs, Pass Turn cancels it (issue #10457)", (_, intent) => {
         renderPod({ ...NO_PRIORITY, ...intent });
-        for (const name of ["Pass Turn", "Pass Until Action"]) {
-            const button = screen.getByRole("button", { name });
-            expect((button as HTMLButtonElement).disabled).toBe(true);
-        }
+        fireEvent.click(screen.getByRole("button", { name: "Pass Turn" }));
+        expect(calls.map((c) => c.ref)).toEqual(["cancelAutoPass"]);
     });
+
+    it.each<[string, Partial<GameContextValue>]>([
+        ["auto-passing", { autoPassPlayers: ["me"] }],
+        ["a queued Pass Turn", { queuedEndTurn: ["me"] }],
+    ])(
+        "while %s runs, Pass Until Action replaces it in one call (issue #10457)",
+        (_, intent) => {
+            renderPod({ ...NO_PRIORITY, ...intent });
+            fireEvent.click(
+                screen.getByRole("button", { name: "Pass Until Action" })
+            );
+            expect(calls.map((c) => c.ref)).toEqual(["passUntilAction"]);
+        }
+    );
 
     it("without priority the pill is the bare cue, never a call to action", () => {
         const { container } = renderPod(NO_PRIORITY);

@@ -13359,6 +13359,25 @@ export const declareMulligan = mutation({
     },
 });
 
+/** Drop the seat's Pass Turn intent, armed (`autoPassPlayers`) or queued
+ *  (`queuedEndTurn`). Returns whether either existed. Arming Pass Until Action
+ *  calls it so the switch replaces the intent in one mutation (issue #10457). */
+function clearPassTurnIntent(state: GameState, playerId: string): boolean {
+    const autoPassPlayers = state.autoPassPlayers ?? [];
+    const queuedEndTurn = state.queuedEndTurn ?? [];
+    const wasAutoPass = autoPassPlayers.includes(playerId);
+    const wasQueued = queuedEndTurn.includes(playerId);
+    if (wasAutoPass) {
+        const remaining = autoPassPlayers.filter((id) => id !== playerId);
+        state.autoPassPlayers = remaining.length > 0 ? remaining : undefined;
+    }
+    if (wasQueued) {
+        const remaining = queuedEndTurn.filter((id) => id !== playerId);
+        state.queuedEndTurn = remaining.length > 0 ? remaining : undefined;
+    }
+    return wasAutoPass || wasQueued;
+}
+
 /** The has-priority guards a standing pass intent (Pass Turn, Pass Until
  *  Action) clears before the drain starts passing for the seat. */
 function prepareStandingPass(state: GameState, playerId: string): void {
@@ -13410,6 +13429,10 @@ export const endTurn = mutation({
 
         // Validate identity even on the queue path so a bad playerId is rejected.
         getPlayer(state, args.playerId);
+
+        // Switching from Pass Until Action: the new intent replaces it in this
+        // same mutation, so no save ever holds neither (or both).
+        clearPassUntilAction(state, args.playerId);
 
         if (state.priorityPlayerId !== args.playerId) {
             // No priority: register a standing intent instead of acting now.
@@ -13475,6 +13498,11 @@ export const passUntilAction = mutation({
         // Validate identity even on the queue path so a bad playerId is rejected.
         getPlayer(state, args.playerId);
 
+        // Switching from Pass Turn: replaced in this same mutation, as
+        // `endTurn` does the other way round — an armed Pass Turn would
+        // otherwise keep passing through the stop this intent waits for.
+        clearPassTurnIntent(state, args.playerId);
+
         if (state.priorityPlayerId !== args.playerId) {
             queuePassUntilAction(state, args.playerId);
             const nextSeq = gameState.seq + 1;
@@ -13518,31 +13546,14 @@ export const cancelAutoPass = mutation({
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
 
-        const autoPassPlayers = state.autoPassPlayers ?? [];
-        const queuedEndTurn = state.queuedEndTurn ?? [];
-        const wasAutoPass = autoPassPlayers.includes(args.playerId);
         const wasSingleShot = state.singleShotAutoPass === args.playerId;
-        const wasQueued = queuedEndTurn.includes(args.playerId);
+        const wasPassTurn = clearPassTurnIntent(state, args.playerId);
         // Pass Until Action (issue #5782), armed or queued — same cancel path.
         const wasPassUntilAction = clearPassUntilAction(state, args.playerId);
-        if (!wasAutoPass && !wasSingleShot && !wasQueued && !wasPassUntilAction)
-            return;
+        if (!wasPassTurn && !wasSingleShot && !wasPassUntilAction) return;
 
-        if (wasAutoPass) {
-            const remaining = autoPassPlayers.filter(
-                (id) => id !== args.playerId
-            );
-            state.autoPassPlayers =
-                remaining.length > 0 ? remaining : undefined;
-        }
         if (wasSingleShot) {
             state.singleShotAutoPass = undefined;
-        }
-        if (wasQueued) {
-            const remaining = queuedEndTurn.filter(
-                (id) => id !== args.playerId
-            );
-            state.queuedEndTurn = remaining.length > 0 ? remaining : undefined;
         }
 
         const nextSeq = gameState.seq + 1;
