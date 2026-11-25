@@ -2934,6 +2934,16 @@
         "source": "compiled"
     },
     {
+        "name": "Angelic Observer",
+        "scryfallId": "e6cce4d3-e6d8-4c6f-9d9c-c0a8a607a42f",
+        "oracleId": "17df0fda-d726-4c9d-bf44-6f2e3a347117",
+        "firstSet": "snc",
+        "firstPrintId": "e6cce4d3-e6d8-4c6f-9d9c-c0a8a607a42f",
+        "firstPrintSet": "snc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Angelic Protector",
         "scryfallId": "44faefbe-d5e7-48f3-ba88-833da0b19707",
         "oracleId": "cff434e1-e567-4a80-8dc5-593d70b0f348",
@@ -4734,6 +4744,16 @@
         "source": "compiled"
     },
     {
+        "name": "Assassin Initiate",
+        "scryfallId": "653745b0-4e3b-4147-8b48-16560e706055",
+        "oracleId": "23be5c68-6530-474d-b677-551da4745b3c",
+        "firstSet": "acr",
+        "firstPrintId": "653745b0-4e3b-4147-8b48-16560e706055",
+        "firstPrintSet": "acr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Assassinate",
         "scryfallId": "ac0a1dc6-215f-4738-8ae4-7b6aa1c7d80b",
         "oracleId": "ce979f36-84f2-4419-b400-971263494cc6",
@@ -6259,6 +6279,16 @@
         "firstPrintId": "2c597b1d-d8b5-4922-a3f2-1f173a73ea2a",
         "firstPrintSet": "ala",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Bant Panorama",
+        "scryfallId": "b22c6b34-0066-47f8-8062-9363c024fa56",
+        "oracleId": "0a1d817d-dce8-4e83-a380-909f7c9eee46",
+        "firstSet": "ala",
+        "firstPrintId": "b22c6b34-0066-47f8-8062-9363c024fa56",
+        "firstPrintSet": "ala",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -8194,6 +8224,16 @@
         "firstSet": "lea",
         "firstPrintId": "15967a39-303f-457d-bcde-51837c8d63e1",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Black Widow, Daring Operative",
+        "scryfallId": "b1dc3b66-51a2-4ed5-ac79-5dcc39fd8ca4",
+        "oracleId": "e8815686-8c47-4067-9dfa-744b2f5c1ba2",
+        "firstSet": "msc",
+        "firstPrintId": "b1dc3b66-51a2-4ed5-ac79-5dcc39fd8ca4",
+        "firstPrintSet": "msc",
+        "rarity": "mythic",
+        "source": "compiled"
     },
     {
         "name": "Black Widow, Natasha Romanoff",
@@ -10720,6 +10760,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bountiful Landscape",
+        "scryfallId": "b277752b-430a-4f09-8a98-b72f813dd52e",
+        "oracleId": "2eb69a8f-9456-4852-b868-85ae609d3441",
+        "firstSet": "mh3",
+        "firstPrintId": "b277752b-430a-4f09-8a98-b72f813dd52e",
+        "firstPrintSet": "mh3",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Bounty of Might",
         "scryfallId": "e9a950d8-e6e2-42d6-83d7-a60c15d2035d",
         "oracleId": "6f067bfd-1c59-463f-99e1-61161b43b405",
@@ -11702,6 +11752,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bucky Barnes, Eager Ally",
+        "scryfallId": "58a6ca84-64b8-4137-b3ce-9540b6dfa162",
+        "oracleId": "55bc5d06-7dd1-4403-af32-0e10d8bbe327",
+        "firstSet": "msc",
+        "firstPrintId": "58a6ca84-64b8-4137-b3ce-9540b6dfa162",
+        "firstPrintSet": "msc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Builder's Blessing",
         "scryfallId": "2ad27af1-b482-40d5-9dbb-11201ffa0410",
         "oracleId": "33a64de1-dc78-43d3-b89e-b4b13049e174",
@@ -12033,6 +12093,16 @@
         "firstPrintId": "44a91e62-e946-4101-8cef-d1c147caebf2",
         "firstPrintSet": "avr",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Butcher of the Horde",
+        "scryfallId": "4c76027b-9c8d-4181-9311-270fed0212e3",
+        "oracleId": "1ff93e62-6ae0-4438-a88e-ae6fd7d91e41",
+        "firstSet": "ktk",
+        "firstPrintId": "4c76027b-9c8d-4181-9311-270fed0212e3",
+        "firstPrintSet": "ktk",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -15306,6 +15376,16 @@
         "source": "compiled"
     },
     {
+        "name": "Claws Out",
+        "scryfallId": "4396049c-b976-4b7f-8ecd-564e24ebd631",
+        "oracleId": "499d76c1-97ff-4006-922c-be1684a7754c",
+        "firstSet": "fdn",
+        "firstPrintId": "4396049c-b976-4b7f-8ecd-564e24ebd631",
+        "firstPrintSet": "fdn",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Clay Revenant",
         "scryfallId": "fc295bac-5031-46c8-8d9a-368656bcf6d3",
         "oracleId": "c183186b-d92c-45a2-92d1-42e0df2b441f",
@@ -17062,6 +17142,16 @@
         "firstSet": "dmu",
         "firstPrintId": "6bb570f4-de68-4d8c-a9f3-8a3294163aa8",
         "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Contaminated Landscape",
+        "scryfallId": "e2312c49-1627-47ad-8113-78a999a97d8d",
+        "oracleId": "28196fd9-00c9-4cd0-b603-0eec8511ec79",
+        "firstSet": "mh3",
+        "firstPrintId": "e2312c49-1627-47ad-8113-78a999a97d8d",
+        "firstPrintSet": "mh3",
         "rarity": "common",
         "source": "compiled"
     },
@@ -20862,6 +20952,16 @@
         "source": "compiled"
     },
     {
+        "name": "Deceptive Landscape",
+        "scryfallId": "2ae6828e-ff19-45db-8b59-61616353491f",
+        "oracleId": "1831fe12-dbe0-437f-8fc8-f01bbb701fe1",
+        "firstSet": "mh3",
+        "firstPrintId": "2ae6828e-ff19-45db-8b59-61616353491f",
+        "firstPrintSet": "mh3",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Decisive Denial",
         "scryfallId": "b2e9d132-95f7-4ee7-9c91-be19e4ad7a5d",
         "oracleId": "2d0bd780-b754-44a3-894c-a9c8aa711f05",
@@ -22587,6 +22687,16 @@
         "firstPrintId": "88273b1e-b33b-44d3-8777-4e78a04eed65",
         "firstPrintSet": "rix",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Dire Fleet Warmonger",
+        "scryfallId": "1fa781df-859f-4346-9424-b3713b17e1f6",
+        "oracleId": "ee08435b-a2c1-491a-87cb-e60789b09c25",
+        "firstSet": "m21",
+        "firstPrintId": "1fa781df-859f-4346-9424-b3713b17e1f6",
+        "firstPrintSet": "m21",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -24468,6 +24578,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dross Golem",
+        "scryfallId": "1df2f4fd-b96a-4537-93a4-38141b0fa577",
+        "oracleId": "336d51cf-dcb3-4257-bd6c-926820a2f9de",
+        "firstSet": "dst",
+        "firstPrintId": "1df2f4fd-b96a-4537-93a4-38141b0fa577",
+        "firstPrintSet": "dst",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Dross Harvester",
         "scryfallId": "b088832c-6119-4460-98b7-ae25cf70b2c5",
         "oracleId": "5520ada0-f173-4b5e-a0b8-a5938a1c0a4b",
@@ -25664,6 +25784,56 @@
         "firstSet": "lci",
         "firstPrintId": "244c06b3-532d-426e-8bee-ee9461d092a6",
         "firstPrintSet": "lci"
+    },
+    {
+        "name": "Eclipsed Boggart",
+        "scryfallId": "0ac1d0b2-92a4-4a10-b2d1-e9bb90265cc3",
+        "oracleId": "9cc3b91b-ad70-4b01-b718-fda3819f84d0",
+        "firstSet": "ecl",
+        "firstPrintId": "0ac1d0b2-92a4-4a10-b2d1-e9bb90265cc3",
+        "firstPrintSet": "ecl",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Eclipsed Elf",
+        "scryfallId": "9c8579f3-6125-4f22-b1c2-b7a0cfc50eed",
+        "oracleId": "7c89ef4d-b375-4644-ac8b-034effdbe98c",
+        "firstSet": "ecl",
+        "firstPrintId": "9c8579f3-6125-4f22-b1c2-b7a0cfc50eed",
+        "firstPrintSet": "ecl",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Eclipsed Flamekin",
+        "scryfallId": "d907ae44-cd07-4409-946c-e97f584d9a81",
+        "oracleId": "48c641df-d511-4e35-b623-9d1fdb5240da",
+        "firstSet": "ecl",
+        "firstPrintId": "d907ae44-cd07-4409-946c-e97f584d9a81",
+        "firstPrintSet": "ecl",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Eclipsed Kithkin",
+        "scryfallId": "29e1cfa4-0ad8-4228-9f7e-cbab114d1d5f",
+        "oracleId": "e6227840-6e3e-48c7-b4a4-42cfd8f14b68",
+        "firstSet": "ecl",
+        "firstPrintId": "29e1cfa4-0ad8-4228-9f7e-cbab114d1d5f",
+        "firstPrintSet": "ecl",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Eclipsed Merrow",
+        "scryfallId": "2352750d-404d-4928-9bdb-1b0db599b70f",
+        "oracleId": "a3a00b62-f07e-44ef-8d97-22a3e7a06f72",
+        "firstSet": "ecl",
+        "firstPrintId": "2352750d-404d-4928-9bdb-1b0db599b70f",
+        "firstPrintSet": "ecl",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Ecologist's Terrarium",
@@ -27812,6 +27982,16 @@
         "source": "compiled"
     },
     {
+        "name": "Esper Panorama",
+        "scryfallId": "03324b45-dd69-45d2-a1c0-e3cc4cf1eaf5",
+        "oracleId": "6b9cd3d0-4316-4945-b960-12f51052d260",
+        "firstSet": "ala",
+        "firstPrintId": "03324b45-dd69-45d2-a1c0-e3cc4cf1eaf5",
+        "firstPrintSet": "ala",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Esperzoa",
         "scryfallId": "def637cb-40b2-4715-9b43-872c8f9aaabe",
         "oracleId": "c9a188f9-2e65-4a66-826f-0150f25730af",
@@ -28786,6 +28966,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ezrim, Agency Chief",
+        "scryfallId": "9554d5f2-7a33-4734-8cf3-dfae2ccc3596",
+        "oracleId": "ddcd8a0a-7ac3-4400-a16f-8bb5aa50994e",
+        "firstSet": "mkm",
+        "firstPrintId": "9554d5f2-7a33-4734-8cf3-dfae2ccc3596",
+        "firstPrintSet": "mkm",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Fable of the Mirror-Breaker",
         "scryfallId": "24c0d87b-0049-4beb-b9cb-6f813b7aa7dc",
         "oracleId": "c0957e5e-c71b-439c-931c-9f55d2f76ace",
@@ -29510,6 +29700,16 @@
         "firstSet": "fem",
         "firstPrintId": "e11bf79b-a951-4d0c-acdf-d8ba5290a648",
         "firstPrintSet": "fem"
+    },
+    {
+        "name": "Farseek",
+        "scryfallId": "8180abec-9459-4b81-987e-b1794e45d543",
+        "oracleId": "495e52e6-4c2b-4574-9474-eadbdcc8b4ac",
+        "firstSet": "rav",
+        "firstPrintId": "8180abec-9459-4b81-987e-b1794e45d543",
+        "firstPrintSet": "rav",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Fast // Furious",
@@ -32556,6 +32756,16 @@
         "firstSet": "cmr",
         "firstPrintId": "27c75157-2670-4804-8853-a6867c83c40a",
         "firstPrintSet": "cmr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Foreboding Landscape",
+        "scryfallId": "57fb0fa7-0c5c-4a75-9461-c51403c30282",
+        "oracleId": "bcfe1653-e602-4d38-abe7-bfcc7f203f9d",
+        "firstSet": "mh3",
+        "firstPrintId": "57fb0fa7-0c5c-4a75-9461-c51403c30282",
+        "firstPrintSet": "mh3",
         "rarity": "common",
         "source": "compiled"
     },
@@ -37622,6 +37832,16 @@
         "source": "compiled"
     },
     {
+        "name": "Goldnight Redeemer",
+        "scryfallId": "df5656e3-5f53-41f8-9f24-04caad5e4ca3",
+        "oracleId": "6fe35d1f-20b6-4fa8-a318-79e2d415701a",
+        "firstSet": "avr",
+        "firstPrintId": "df5656e3-5f53-41f8-9f24-04caad5e4ca3",
+        "firstPrintSet": "avr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Goldwarden's Helm",
         "scryfallId": "f4057210-ef07-4496-94c8-95c3b807c23c",
         "oracleId": "4c35f41a-55e4-49ca-b211-f57d7b1b90f6",
@@ -38936,6 +39156,16 @@
         "source": "compiled"
     },
     {
+        "name": "Grixis Panorama",
+        "scryfallId": "ca30ea9e-9302-4dd0-a572-b5c6e6894851",
+        "oracleId": "743f4488-fef1-4f4d-b745-d2de92423e00",
+        "firstSet": "ala",
+        "firstPrintId": "ca30ea9e-9302-4dd0-a572-b5c6e6894851",
+        "firstPrintSet": "ala",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Grixis Slavedriver",
         "scryfallId": "85e4851f-35aa-47c3-94b2-cdc166f9036f",
         "oracleId": "9087928a-4732-4661-b3ed-d0b1ea06edf6",
@@ -39098,6 +39328,16 @@
         "firstSet": "isd",
         "firstPrintId": "5696db03-206f-4e7e-9b65-ccef31bfd7d2",
         "firstPrintSet": "isd",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Gruesome Fate",
+        "scryfallId": "3ea07116-afe7-4d88-a530-54424e791b74",
+        "oracleId": "cf874feb-00fe-4e48-b57a-cf8b9855c057",
+        "firstSet": "rix",
+        "firstPrintId": "3ea07116-afe7-4d88-a530-54424e791b74",
+        "firstPrintSet": "rix",
         "rarity": "common",
         "source": "compiled"
     },
@@ -43542,6 +43782,16 @@
         "source": "compiled"
     },
     {
+        "name": "Immaculate Magistrate",
+        "scryfallId": "3bbf6137-4f50-4915-b608-7a03512476a2",
+        "oracleId": "e6e38bd4-e6dc-400b-8e08-956726842dc4",
+        "firstSet": "lrw",
+        "firstPrintId": "3bbf6137-4f50-4915-b608-7a03512476a2",
+        "firstPrintSet": "lrw",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Immersturm Raider",
         "scryfallId": "77da4de2-4d34-40e5-8fc0-850aef05356b",
         "oracleId": "e3179dd6-5558-4385-8883-f78f9d1b1c4f",
@@ -45904,6 +46154,16 @@
         "source": "compiled"
     },
     {
+        "name": "Jeskai Monument",
+        "scryfallId": "d0193ad6-39b7-4558-bd3e-36f809332ea2",
+        "oracleId": "0b2b7d04-73f3-43f6-86e0-fa00cbbc6469",
+        "firstSet": "tdm",
+        "firstPrintId": "d0193ad6-39b7-4558-bd3e-36f809332ea2",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Jeskai Sage",
         "scryfallId": "6dff4734-7b2a-4089-a78a-46199818f39d",
         "oracleId": "b79d4b17-482e-415b-a63b-1f97a55e7583",
@@ -46321,6 +46581,16 @@
         "firstPrintId": "7a0ddf00-926c-4283-a8b2-daa02fa99b8b",
         "firstPrintSet": "ala",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Jund Panorama",
+        "scryfallId": "a2b31fcd-43eb-44ad-b63e-4f2e6984963c",
+        "oracleId": "f39f33ac-074d-442d-ae4c-1d694ee315f3",
+        "firstSet": "ala",
+        "firstPrintId": "a2b31fcd-43eb-44ad-b63e-4f2e6984963c",
+        "firstPrintSet": "ala",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -47414,6 +47684,16 @@
         "firstSet": "ktk",
         "firstPrintId": "f30d4136-78a3-4760-83af-d365cc97d118",
         "firstPrintSet": "ktk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Kill-Zone Acrobat",
+        "scryfallId": "48f97974-bb65-46b0-a710-12fa4b9343ac",
+        "oracleId": "7c3982c5-6af3-4937-8d1f-e006f4e89342",
+        "firstSet": "bro",
+        "firstPrintId": "48f97974-bb65-46b0-a710-12fa4b9343ac",
+        "firstPrintSet": "bro",
         "rarity": "common",
         "source": "compiled"
     },
@@ -51983,6 +52263,16 @@
         "source": "compiled"
     },
     {
+        "name": "Lunar Avenger",
+        "scryfallId": "3f2348e5-6bf9-4a7e-91a4-ba93bb108897",
+        "oracleId": "ab42fb8b-c463-45db-b71d-ed847c9abf1f",
+        "firstSet": "5dn",
+        "firstPrintId": "3f2348e5-6bf9-4a7e-91a4-ba93bb108897",
+        "firstPrintSet": "5dn",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Lunar Mystic",
         "scryfallId": "f346d236-528c-4164-9995-74cdc56597a9",
         "oracleId": "9652f79c-3060-4e9c-9623-0ebe4ab4094c",
@@ -53181,6 +53471,16 @@
         "firstSet": "m20",
         "firstPrintId": "715e637a-dfd8-45a0-b1ea-53e4abd29307",
         "firstPrintSet": "m20"
+    },
+    {
+        "name": "Manifold Mouse",
+        "scryfallId": "db3832b5-e83f-4569-bd49-fb7b86fa2d47",
+        "oracleId": "b254ca74-2a96-4590-91bc-650f407daf5d",
+        "firstSet": "blb",
+        "firstPrintId": "db3832b5-e83f-4569-bd49-fb7b86fa2d47",
+        "firstPrintSet": "blb",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Manipulate Fate",
@@ -56573,6 +56873,16 @@
         "source": "compiled"
     },
     {
+        "name": "Moldgraf Millipede",
+        "scryfallId": "5252ea27-63d1-4b80-beae-8e016373d004",
+        "oracleId": "48edac92-0dd8-4274-bf1b-122243770540",
+        "firstSet": "vow",
+        "firstPrintId": "5252ea27-63d1-4b80-beae-8e016373d004",
+        "firstPrintSet": "vow",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Moldgraf Monstrosity",
         "scryfallId": "f387c86a-702f-4f86-bcb9-d2bfa46fd211",
         "oracleId": "3c4d5392-27cf-492e-9ae1-dee330b82223",
@@ -58693,6 +59003,16 @@
         "source": "compiled"
     },
     {
+        "name": "Naya Panorama",
+        "scryfallId": "fba31e86-0924-424d-b4e3-41a878e3e0e1",
+        "oracleId": "71e28800-c42c-48c0-95e5-0296be54a4e8",
+        "firstSet": "ala",
+        "firstPrintId": "fba31e86-0924-424d-b4e3-41a878e3e0e1",
+        "firstPrintSet": "ala",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Nearheath Chaplain",
         "scryfallId": "362ec364-39c1-4a4b-8dfa-268fad2effdd",
         "oracleId": "16c587db-d07b-47ab-8b03-c3b2cc7144f5",
@@ -60139,6 +60459,16 @@
         "source": "compiled"
     },
     {
+        "name": "Novijen, Heart of Progress",
+        "scryfallId": "ed595b59-b5c7-4335-a3c4-1c24c5a9cba2",
+        "oracleId": "b3b5137d-0225-4dba-9231-d235ab0f137c",
+        "firstSet": "dis",
+        "firstPrintId": "ed595b59-b5c7-4335-a3c4-1c24c5a9cba2",
+        "firstPrintSet": "dis",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Noxious Dragon",
         "scryfallId": "cece7235-604c-49b6-b80f-3229a20b154f",
         "oracleId": "fe75b364-9e65-499d-9763-76844cf88cf7",
@@ -61401,6 +61731,16 @@
         "source": "compiled"
     },
     {
+        "name": "Oran-Rief, the Vastwood",
+        "scryfallId": "9bcc3bab-46f8-4ed2-abdb-7a117ad07d03",
+        "oracleId": "e88027a6-24cc-4a8b-86db-734f26149ea8",
+        "firstSet": "zen",
+        "firstPrintId": "9bcc3bab-46f8-4ed2-abdb-7a117ad07d03",
+        "firstPrintSet": "zen",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Oraxid",
         "scryfallId": "6c05609a-f32d-4454-af24-a24452997dcb",
         "oracleId": "7d086ae5-738c-4685-80ae-66bd9379d8f7",
@@ -62287,6 +62627,16 @@
         "firstSet": "som",
         "firstPrintId": "4b0bde7b-dc2d-45d2-b124-69b4b51ef3d9",
         "firstPrintSet": "som",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Oxidda Golem",
+        "scryfallId": "4624fff2-e78f-4c13-a444-7e50586cb0b3",
+        "oracleId": "9c51d843-d155-44ed-ab1f-dfa2ff848f53",
+        "firstSet": "dst",
+        "firstPrintId": "4624fff2-e78f-4c13-a444-7e50586cb0b3",
+        "firstPrintSet": "dst",
         "rarity": "common",
         "source": "compiled"
     },
@@ -63290,6 +63640,16 @@
         "firstPrintId": "6cb74e91-f7e5-49dd-8aa8-83a679f88a21",
         "firstPrintSet": "bro",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Perilous Landscape",
+        "scryfallId": "4b0bd07e-cf80-4d64-af29-f4cec6632b3e",
+        "oracleId": "e2b472dd-047d-47eb-9ebb-df6aa4b52dd4",
+        "firstSet": "mh3",
+        "firstPrintId": "4b0bd07e-cf80-4d64-af29-f4cec6632b3e",
+        "firstPrintSet": "mh3",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -68631,6 +68991,16 @@
         "source": "compiled"
     },
     {
+        "name": "Raucous Entertainer",
+        "scryfallId": "8dc3cbfe-410f-40e3-8021-647a2efb50bf",
+        "oracleId": "534e74f6-52f4-4824-9178-cce5e4bcbcc2",
+        "firstSet": "otj",
+        "firstPrintId": "8dc3cbfe-410f-40e3-8021-647a2efb50bf",
+        "firstPrintSet": "otj",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Raucous Theater",
         "scryfallId": "b598c93e-dae1-4d71-a9e4-917abf76d2d0",
         "oracleId": "04e5e84f-8fd4-43ab-8f9d-5b24646f7ae5",
@@ -72344,6 +72714,16 @@
         "firstPrintId": "d88c61cb-dbf9-46c3-8795-8896ba1208d5",
         "firstPrintSet": "m20",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Rotwidow Pack",
+        "scryfallId": "2cda35eb-ae42-43be-9015-3c468c7ebede",
+        "oracleId": "27b5d9d8-cc19-46be-9862-405cf7ef5408",
+        "firstSet": "mh1",
+        "firstPrintId": "2cda35eb-ae42-43be-9015-3c468c7ebede",
+        "firstPrintSet": "mh1",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -76171,6 +76551,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Seething Landscape",
+        "scryfallId": "661fc907-7003-45c6-820c-9616e9a71c30",
+        "oracleId": "2d8635bd-ed96-4bb1-8718-6962a0eee3d5",
+        "firstSet": "mh3",
+        "firstPrintId": "661fc907-7003-45c6-820c-9616e9a71c30",
+        "firstPrintSet": "mh3",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Seething Pathblazer",
         "scryfallId": "4971a447-29c8-47b6-863c-f13a69b4148b",
         "oracleId": "574abab1-a722-45f5-a210-c1d4442a278a",
@@ -77505,6 +77895,16 @@
         "source": "compiled"
     },
     {
+        "name": "Shattered Landscape",
+        "scryfallId": "b3da28c7-6e92-439d-a163-91682d4f11dc",
+        "oracleId": "7fbad3f2-66f6-4e3a-b9e0-1ddbcd94d42a",
+        "firstSet": "mh3",
+        "firstPrintId": "b3da28c7-6e92-439d-a163-91682d4f11dc",
+        "firstPrintSet": "mh3",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Shattergang Brothers",
         "scryfallId": "a1b922ce-c398-43d4-9f79-2d15f28eae2f",
         "oracleId": "7fb63d9a-8d90-4b43-8390-924de2d7e32c",
@@ -77669,6 +78069,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sheltering Landscape",
+        "scryfallId": "0fe070f4-8877-4280-b8fd-869f3ac34ab6",
+        "oracleId": "5b932be0-4dac-41b9-9c59-f79e4cecc31a",
+        "firstSet": "mh3",
+        "firstPrintId": "0fe070f4-8877-4280-b8fd-869f3ac34ab6",
+        "firstPrintSet": "mh3",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Sheltering Light",
         "scryfallId": "b0c945c7-6c31-4c4f-9203-3dc2aef50820",
         "oracleId": "551ac58e-3a27-4ee3-ac91-16873562c0bc",
@@ -77780,6 +78190,16 @@
         "firstPrintId": "f58a26f8-a2c9-48e5-8662-7cbd43c00411",
         "firstPrintSet": "zen",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Shifting Ceratops",
+        "scryfallId": "8e318600-21af-4003-bcfa-be926cd24c5c",
+        "oracleId": "6cac6f76-f3c6-4b00-a468-166b07853401",
+        "firstSet": "m20",
+        "firstPrintId": "8e318600-21af-4003-bcfa-be926cd24c5c",
+        "firstPrintSet": "m20",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -80169,6 +80589,16 @@
         "firstSet": "znr",
         "firstPrintId": "014027c4-7f9d-4096-b308-ea4be574c0d4",
         "firstPrintSet": "znr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Skyclaw Thrash",
+        "scryfallId": "fafde9c4-57c0-4ae5-a4db-38aae434ddcd",
+        "oracleId": "5d11cdb2-5a44-4e0e-b357-bb1be59f68fb",
+        "firstSet": "arb",
+        "firstPrintId": "fafde9c4-57c0-4ae5-a4db-38aae434ddcd",
+        "firstPrintSet": "arb",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -82699,6 +83129,16 @@
         "source": "compiled"
     },
     {
+        "name": "Speakeasy Server",
+        "scryfallId": "e014d9d0-e6e1-4afb-b94f-b927a09b76c1",
+        "oracleId": "4e08e07f-ca30-4e34-b207-d8fe62c03777",
+        "firstSet": "snc",
+        "firstPrintId": "e014d9d0-e6e1-4afb-b94f-b927a09b76c1",
+        "firstPrintSet": "snc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Spearbreaker Behemoth",
         "scryfallId": "132367ee-22e9-48e2-82e0-62ad9aaa62f3",
         "oracleId": "025f8db8-11d1-4c59-8e1f-004c9c843fd8",
@@ -83427,6 +83867,16 @@
         "firstSet": "zen",
         "firstPrintId": "f8c8fe2a-3203-4545-bb25-b1f107b13cca",
         "firstPrintSet": "zen",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Spire Golem",
+        "scryfallId": "19239c7b-add3-4537-bdfd-a0f7d38d4d8e",
+        "oracleId": "bfdc6bbc-7402-40ae-91be-658afca2f145",
+        "firstSet": "dst",
+        "firstPrintId": "19239c7b-add3-4537-bdfd-a0f7d38d4d8e",
+        "firstPrintSet": "dst",
         "rarity": "common",
         "source": "compiled"
     },
@@ -86019,6 +86469,16 @@
         "source": "compiled"
     },
     {
+        "name": "Strength Bobblehead",
+        "scryfallId": "271424ac-1f2b-4419-baca-bc9f0a862221",
+        "oracleId": "bd0e22d1-4789-406d-9293-3ade30365b32",
+        "firstSet": "pip",
+        "firstPrintId": "271424ac-1f2b-4419-baca-bc9f0a862221",
+        "firstPrintSet": "pip",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Strength of Isolation",
         "scryfallId": "7676e6fb-030d-40aa-a914-27ab6d7d5fc5",
         "oracleId": "87aad9fb-e234-4171-a4ae-c686f613d37e",
@@ -86624,6 +87084,16 @@
         "firstPrintId": "c32487e9-f3ac-472e-b6ea-81bd9254770c",
         "firstPrintSet": "tdm",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Sultai Monument",
+        "scryfallId": "45308e0e-b515-49ac-9960-a24e898dd321",
+        "oracleId": "9db71b76-eda7-49dd-af5a-3de18acb8ccb",
+        "firstSet": "tdm",
+        "firstPrintId": "45308e0e-b515-49ac-9960-a24e898dd321",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -88567,6 +89037,16 @@
         "source": "compiled"
     },
     {
+        "name": "Tangle Golem",
+        "scryfallId": "e9915977-bd6b-477a-a495-f7ddbbeb82eb",
+        "oracleId": "733c6e30-3c0c-41f0-b1e9-4c2eb76f7b82",
+        "firstSet": "dst",
+        "firstPrintId": "e9915977-bd6b-477a-a495-f7ddbbeb82eb",
+        "firstPrintSet": "dst",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Tangle Hulk",
         "scryfallId": "8ed3c301-8d8e-45fe-902a-af03a79525be",
         "oracleId": "f6d0360c-ebc6-48b5-80ad-d52dadcdd5f5",
@@ -89448,6 +89928,16 @@
         "firstPrintId": "a2ef698e-5466-43bd-985d-020f2e5d8205",
         "firstPrintSet": "tdm",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Temur Monument",
+        "scryfallId": "55e97b40-d898-4da5-8159-cca48eb298eb",
+        "oracleId": "5464d5ae-5be5-4e52-b9d0-ddce48fd93b3",
+        "firstSet": "tdm",
+        "firstPrintId": "55e97b40-d898-4da5-8159-cca48eb298eb",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -93159,6 +93649,16 @@
         "source": "compiled"
     },
     {
+        "name": "Tranquil Landscape",
+        "scryfallId": "113f48b9-a972-4e2c-af95-05ab078e01f2",
+        "oracleId": "d4eb65d5-99fd-4daf-b7d3-8ebf99ee9c61",
+        "firstSet": "mh3",
+        "firstPrintId": "113f48b9-a972-4e2c-af95-05ab078e01f2",
+        "firstPrintSet": "mh3",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Tranquil Path",
         "scryfallId": "2da8c059-3309-49a5-ae97-c048aefc922f",
         "oracleId": "a9595011-8ddb-403a-ba35-5a79d346557e",
@@ -93281,6 +93781,16 @@
         "firstSet": "sos",
         "firstPrintId": "2a812fa7-4599-4e25-97db-20ffc6bc0b26",
         "firstPrintSet": "sos"
+    },
+    {
+        "name": "Travel the Overworld",
+        "scryfallId": "aa5086e0-e2f2-498f-9035-1b31e1d21e0a",
+        "oracleId": "61e3709e-7ecd-4a59-bca1-019d16795740",
+        "firstSet": "fin",
+        "firstPrintId": "aa5086e0-e2f2-498f-9035-1b31e1d21e0a",
+        "firstPrintSet": "fin",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Traveler's Amulet",
@@ -94467,6 +94977,16 @@
         "firstSet": "uds",
         "firstPrintId": "64e37889-7dc0-476b-8b99-8f06881d352c",
         "firstPrintSet": "uds",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Twisted Landscape",
+        "scryfallId": "d0e3e7b3-7ba9-47a2-b46c-a40bffb445e2",
+        "oracleId": "db659cae-2078-423e-a6ed-63898dbab87f",
+        "firstSet": "mh3",
+        "firstPrintId": "d0e3e7b3-7ba9-47a2-b46c-a40bffb445e2",
+        "firstPrintSet": "mh3",
         "rarity": "common",
         "source": "compiled"
     },
@@ -96148,6 +96668,16 @@
         "firstPrintId": "8543adbd-0dd1-47d3-ac41-2ec72d6a5d35",
         "firstPrintSet": "ktk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Valley Rotcaller",
+        "scryfallId": "4da80a9a-b1d5-4fc5-92f7-36946195d0c7",
+        "oracleId": "8da0599a-8f63-4dba-857f-b4e10b7191b6",
+        "firstSet": "blb",
+        "firstPrintId": "4da80a9a-b1d5-4fc5-92f7-36946195d0c7",
+        "firstPrintSet": "blb",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

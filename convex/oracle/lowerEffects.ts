@@ -548,7 +548,7 @@ function lowerCountedSet(
         else if (key === "subtypes" && descriptor.subtypeUnion === true)
             filter.subtype = [...(value as string[])];
         else if (key === "subtypeUnion") continue;
-        // CR 201.5 — "other": every member but the source itself. A source
+        // "other": every member but the source itself. A source
         // stands on the battlefield its controller's permanents do; a
         // graveyard or whole-board count has no fixture for the word.
         else if (key === "excludeSource" && !inGraveyard && !wholeBoard)

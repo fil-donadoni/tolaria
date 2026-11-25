@@ -144,7 +144,7 @@ const GOLDENS: readonly [form: string, card: OracleCard, expected: object][] = [
         },
     ],
     [
-        'an "and" list of other subtypes, counted (CR 205.3, CR 201.5)',
+        'an "and" list of other subtypes, counted (CR 205.3)',
         {
             oracleId: "8da0599a-8f63-4dba-857f-b4e10b7191b6",
             name: "Valley Rotcaller",
@@ -217,7 +217,7 @@ const GOLDENS: readonly [form: string, card: OracleCard, expected: object][] = [
         },
     ],
     [
-        '"other" in a counted set, scaled (CR 201.5)',
+        '"other" in a counted set, scaled',
         {
             oracleId: "6fe35d1f-20b6-4fa8-a318-79e2d415701a",
             name: "Goldnight Redeemer",
