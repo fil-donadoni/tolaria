@@ -1893,7 +1893,18 @@ export function rollout(
                         flipsStepTargetGate(state, pid, m, gates, weights)
                     )
             );
-            const pool = drawn.length > 0 ? drawn : moves;
+            // Nor a targeted announcement aimed wholly at the wrong side while
+            // a variant of it aimed otherwise is in the pool: drawn, it costs
+            // the mover only in the lines that still HOLD the card, so the line
+            // that already spent it reads better for a blunder it can no longer
+            // make. Read last, so a sibling one of the rules above dropped does
+            // not count as the aimed one.
+            const pool = withoutMisdirectedVariants(
+                state,
+                pid,
+                drawn.length > 0 ? drawn : moves,
+                moveItself
+            );
             chosen = pool[Math.floor(rng() * pool.length)];
         } else {
             // The greedy 1-ply reading takes a lasting self-growing sacrifice
@@ -4306,11 +4317,12 @@ function iterate(
             );
             if (kept.length > 0) keyed = kept;
             keyed = unlockingRootKeys?.has(path[0]?.key ?? "")
-                ? withoutMisdirectedVariants(world, pid, keyed)
+                ? withoutMisdirectedVariants(world, pid, keyed, moveOfKeyed)
                 : withoutMisdirectedVariants(
                       world,
                       pid,
                       keyed,
+                      moveOfKeyed,
                       isCounterPacedActivation
                   );
         }
@@ -4493,10 +4505,17 @@ function isCounterPacedActivation(state: GameState, move: Move): boolean {
     );
 }
 
-/** `keyed` less every wholly misdirected variant (`isWhollyMisdirectedMove`)
+const moveItself = (move: Move): Move => move;
+const moveOfKeyed = (keyed: KeyedMove): Move => keyed.move;
+
+/** `entries` less every wholly misdirected variant (`isWhollyMisdirectedMove`)
  *  of an announcement that keeps a sibling variant (`isCastVariantOf`) aimed
  *  otherwise; a misdirected variant with no such sibling is the
- *  announcement's only form and stays. Applied below a root move whose payoff
+ *  announcement's only form and stays, so the result is never empty when
+ *  `entries` is not. `moveOf` reads an entry's move.
+ *
+ *  The rollout's random draw reads it at every ply (`rollout`). In the tree it
+ *  is narrower: applied below a root move whose payoff
  *  is a cast it unlocks (`isCostUnlockingLandTypeChange`, CR 305.7): the tree
  *  backs up MEAN rewards, and a burn spell's own-side targets are as many
  *  edges as its real ones, so their visits dragged the activation's mean
@@ -4508,23 +4527,24 @@ function isCounterPacedActivation(state: GameState, move: Move): boolean {
  *  `droppable`, when given, narrows the prune to the misdirected variants it
  *  admits — every other node below the root prunes only a counter-paced
  *  activation's (`isCounterPacedActivation`). */
-function withoutMisdirectedVariants(
+function withoutMisdirectedVariants<T>(
     state: GameState,
     pid: string,
-    keyed: KeyedMove[],
+    entries: T[],
+    moveOf: (entry: T) => Move,
     droppable?: (state: GameState, move: Move) => boolean
-): KeyedMove[] {
-    const misdirected = keyed.filter(
-        (k) =>
-            (!droppable || droppable(state, k.move)) &&
-            isWhollyMisdirectedMove(state, pid, k.move)
+): T[] {
+    const misdirected = entries.filter(
+        (e) =>
+            (!droppable || droppable(state, moveOf(e))) &&
+            isWhollyMisdirectedMove(state, pid, moveOf(e))
     );
-    if (misdirected.length === 0) return keyed;
-    const aimed = keyed.filter((k) => !misdirected.includes(k));
-    return keyed.filter(
-        (k) =>
-            !misdirected.includes(k) ||
-            !aimed.some((a) => isCastVariantOf(a.move, k.move))
+    if (misdirected.length === 0) return entries;
+    const aimed = entries.filter((e) => !misdirected.includes(e));
+    return entries.filter(
+        (e) =>
+            !misdirected.includes(e) ||
+            !aimed.some((a) => isCastVariantOf(moveOf(a), moveOf(e)))
     );
 }
 
