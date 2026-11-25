@@ -19,21 +19,16 @@ import * as Sentry from "@sentry/react";
 import type { BrainOutcome } from "./brain-request";
 import type { VerdictProposalList } from "./verdict-proposals";
 
-/** How one game-end consult ended: the server search's own outcome, or the
- *  call failing — `server-rejected` when the server's guard refused it
- *  (`ConvexError`), `server-error` for any other failure of the call. */
-export type JudgeOutcome = BrainOutcome | "server-rejected" | "server-error";
-
 /** How each game-end consult ended, by outcome — what tells `unjudged` apart:
- *  a call the server refused reads differently from a search that threw. */
-export type JudgeOutcomeTally = Partial<Record<JudgeOutcome, number>>;
+ *  a Worker that died reads differently from a search that threw. */
+export type JudgeOutcomeTally = Partial<Record<BrainOutcome, number>>;
 
-/** The server judge's measurements, one entry per ANSWERED consult: the
- *  server's own search time and the client's round trip of the same call
- *  (their difference is cold start + module load + network). */
+/** The judge's measurements, over its ANSWERED consults: the search's own
+ *  time in the Worker, and how long its answer was waited for (their
+ *  difference is Worker start, card install and the queue for a Worker). */
 export type JudgeTimings = {
-    serverMs: number[];
-    roundTripMs: number[];
+    searchMs: number[];
+    waitMs: number[];
 };
 
 /** The structured attributes of one report — flat primitives, the shape
@@ -92,7 +87,7 @@ function summarise(
 }
 
 /** The attributes of a finished sample: its counts, the consult outcomes
- *  (`judge.<outcome>` per outcome seen) and the server judge's measurements
+ *  (`judge.<outcome>` per outcome seen) and the judge's measurements
  *  (p50 / max over the game's answered consults). */
 export function proposalCountsReport(
     gameId: string,
@@ -114,8 +109,8 @@ export function proposalCountsReport(
         if (count) report[`judge.${outcome}`] = count;
     }
     if (timings) {
-        summarise(report, "judge.serverMs", timings.serverMs, 0);
-        summarise(report, "judge.roundTripMs", timings.roundTripMs, 0);
+        summarise(report, "judge.searchMs", timings.searchMs, 0);
+        summarise(report, "judge.waitMs", timings.waitMs, 0);
     }
     return report;
 }

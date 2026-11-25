@@ -5,7 +5,9 @@
 accepted (2026-11-16, owner ruling on issue #9529, PRD issue #9525). Amends
 ADR 0000: the decision it took (the Brain runs on the player's
 device) stands; the reason it gave for rejecting a server Brain (cost, never
-measured) is replaced by a measured one (speed).
+measured) is replaced by a measured one (speed). Amended 2026-11-25
+(Amendment I, PRD issue #10240): the game-end Verdict judge moves back to the
+client.
 
 ## Context
 
@@ -112,7 +114,7 @@ and the Node variant removed (`docs/research/judge-runtime-verdict.md`).
 
 ## Consequences
 
-- **The judge stays on the server.** Issue #9528's move stands on its own
+- **The judge stays on the server** (superseded by Amendment I). Issue #9528's move stands on its own
   ground — it took the second Worker off the player's device — but its 40%
   backstop rate means a review loses two decisions in five. That is the
   judge's problem, and the follow-up owns it.
@@ -136,3 +138,51 @@ and the Node variant removed (`docs/research/judge-runtime-verdict.md`).
        reopening test above), or a judge budget the default runtime finishes.
 - **ADR 0000's cost argument is retired.** Its "zero extra cost" consequence
   still describes the Bot; it no longer decides where the Bot runs.
+
+## Amendment I — the Verdict judge moves back to the client (2026-11-25, PRD issue #10240, issue #10241)
+
+Decision: the game-end Verdict judge searches on the tester's own device, on
+Workers of its own. The decisions above on the Bot's search stand unchanged.
+
+**Why.** The server kept losing on the number this record is about. In a
+production game (`jh74hw4er2535xmcx564v0scr18jg423`, Node runtime) it searched
+at about 62 ms per iteration — 24,966 ms per consult at p50 — and the field
+note measured 15–78 ms in the default runtime, against 1.4–13.6 ms for the
+same engine in desktop Chromium
+(`docs/research/brain-search-in-the-field.md` § 2). One consult after the
+other, that is about two minutes after the last move; with the tab suspended
+one round trip took 28.5 minutes. No tester waits for that, so the review was
+unreachable.
+
+**What the move may not bring back.** Two faults of the judge's earlier life
+on the client. First it shared the Bot's Worker, which serves one request at a
+time and never cancels one, so a slow device's judge searches stood in front of
+the next game's Bot (issue #9514). Then, on a Worker of its own, it went on
+grinding on that device after the game was left, beside the next game's Bot,
+which is why issue #9528 moved it to the server. So:
+
+- **Its own Workers** (`src/lib/ai/judge-brain.ts`): never the Bot's queue,
+  its respawn budget, its decision ring or its in-thread fallback. Primed with
+  the judged seats' Definition Manifests, as the Bot's Worker is with its own.
+- **Concurrent, one search per Worker**: all sampled decisions are asked at
+  once and run on the device's cores but one, four at most, two on a phone or
+  tablet. What does not fit waits on the page, not in a Worker.
+- **Reproducible**: the fixed iteration budget and seed, no clock in the
+  search, and no smaller-budget fallback, so the same position has the same
+  answer on every device and the answer the server gave. The per-consult
+  timeout (2 s per iteration, above Gecko's p90 field reading, 1,658 ms) only
+  gives up a Worker that is wedged; a suspended tab re-arms it.
+- **A failure costs the review only**, counted per outcome in the proposal
+  counts. A list whose every decision went unanswered is not kept, so a
+  reload asks again.
+- **Leaving the game stops the Workers at once**: the next game's Bot has the
+  device to itself.
+
+**The Bot's busy signal.** The Bot's Brain channel says when a consult is in
+flight (`isBrainBusy`, `onBrainBusyChange`), for a judge that works during the
+game (issue #10242). The server judge has no caller left; its removal is
+issue #10243.
+
+**Accepted.** A slow device's review is slow: at Gecko's field rates a search
+takes a minute or more. Judging during play is the answer to that (issue
+#10242), not a smaller budget.

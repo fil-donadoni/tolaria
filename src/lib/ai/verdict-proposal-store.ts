@@ -23,7 +23,7 @@ import {
 type Entry = { gameId: string; list: VerdictProposalList };
 
 /** The game-end judge at work (issue #10229): `total` is the number of
- *  sampled decisions the server judge is asked about, `null` while they are
+ *  sampled decisions the judge is asked about, `null` while they are
  *  still being identified; `done` counts the consults that came back. Memory
  *  only — a reload rebuilds it. */
 export type VerdictJudging = {
@@ -46,6 +46,9 @@ export function setVerdictProposals(
 ): void {
     entry = { gameId, list };
     emit();
+    // Nothing judged although something was asked — Workers that died, shards
+    // that would not install — is no list to keep: a reload asks again.
+    if (list.proposals.length === 0 && list.unjudged > 0) return;
     void writeProposalStore("proposals", { latest: { gameId, list } }, true);
 }
 

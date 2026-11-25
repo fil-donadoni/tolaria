@@ -11,8 +11,8 @@
 //   2. SAMPLE — group by Decision Class (`decisionClassOfMove`, the class
 //      table the coverage census uses) and keep up to `perClassQuota` per
 //      class, chosen by a seeded shuffle so the sample is reproducible.
-//   3. JUDGE — one Brain consult per sampled decision, on the seat's own view,
-//      at a FIXED iteration budget and seed (the blade's discipline: same
+//   3. JUDGE — one Brain consult per sampled decision, all asked at once, on
+//      the seat's own view, at a FIXED iteration budget and seed (the blade's discipline: same
 //      position, same answer). The pick either agrees with the player's move —
 //      same structural key, or an interchangeable copy — or it does not.
 //   4. SELECT — per class, every disagreement first, then agreements up to
@@ -93,7 +93,9 @@ export type VerdictProposalList = {
 };
 
 /** The game-end Brain consult: the move picked on `source` at `iterations`
- *  with `seed`, or `null` when there is no answer to compare against. */
+ *  with `seed`, or `null` when there is no answer to compare against. Called
+ *  for every sampled decision at once: how many searches run in parallel is
+ *  the judge's own business. */
 export type BrainJudge = (
     source: AiTraceSource,
     budget: { iterations: number },
@@ -253,21 +255,30 @@ export async function proposeVerdicts(
         });
     }
 
-    const judged: VerdictProposal[] = [];
-    let unjudged = 0;
     const sampled = sampleAroundCommented(
         identified,
         config.perClassQuota,
         config.seed
     );
     onProgress?.(0, sampled.length);
+    // Every consult is asked at once; the answers are read back in SAMPLE order,
+    // so the list does not depend on which search ended first.
+    let done = 0;
+    const answers = await Promise.all(
+        sampled.map(async (decision) => {
+            const brainMove = await judge(
+                decision.source,
+                { iterations: config.iterations },
+                config.seed
+            );
+            onProgress?.(++done, sampled.length);
+            return brainMove;
+        })
+    );
+    const judged: VerdictProposal[] = [];
+    let unjudged = 0;
     for (const [index, decision] of sampled.entries()) {
-        const brainMove = await judge(
-            decision.source,
-            { iterations: config.iterations },
-            config.seed
-        );
-        onProgress?.(index + 1, sampled.length);
+        const brainMove = answers[index];
         if (!brainMove) {
             unjudged++;
             continue;
