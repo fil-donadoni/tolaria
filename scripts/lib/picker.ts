@@ -73,6 +73,15 @@ export interface PickerInput {
     /** Open issue PRs with labels and head date (issue #8258): with
      *  `config.stalledPrHours`, tells a stalled PR apart. Absent = none. */
     prFacts?: OpenPrFact[];
+    /** Issues an `afk-pass` run is working right now (`livePassIssues`, issue
+     *  #10716). Given, it is the whole liveness evidence for the stalled-PR
+     *  rule: a claim label with an open PR and no run is NOT a live pass (the
+     *  claim verdict reads `live` for it, issue #10476's PR). Absent = the
+     *  claims' own `live` fate stands in. */
+    livePasses?: ReadonlySet<number>;
+    /** PR numbers a repair pass can still be dispatched to (`repairDispatchables`,
+     *  issue #10716). Absent = unknown: every `land-failed` PR keeps occupying. */
+    repairOwed?: ReadonlySet<number>;
 }
 
 export interface PickResult {
@@ -175,14 +184,16 @@ export function pick(input: PickerInput): PickResult {
         if (claimFate(c) === "live") occupying.add(c.issue);
     // Stalled PRs (issue #8258): the same rule as `queue:plan`'s, one
     // authority. A live pass on the PR's issue keeps it occupying.
-    const liveIssues = new Set<number>(live);
-    for (const c of facts.values())
-        if (claimFate(c) === "live") liveIssues.add(c.issue);
+    const liveIssues = new Set<number>(input.livePasses ?? live);
+    if (input.livePasses === undefined)
+        for (const c of facts.values())
+            if (claimFate(c) === "live") liveIssues.add(c.issue);
     const stalled = stalledPrsOf(
         input.prFacts ?? [],
         liveIssues,
         config.now,
-        config.stalledPrHours
+        config.stalledPrHours,
+        input.repairOwed
     );
     const inFlight = inFlightSet(
         [...occupying].map((n) => ({

@@ -528,28 +528,40 @@ export interface StalledPr {
     overlapping?: number[];
 }
 
-const QUEUE_LABELS = ["ready-to-land", "land-failed"];
+const LAND_QUEUE_LABEL = "ready-to-land";
+const LAND_FAILED_LABEL = "land-failed";
 
 /**
- * Stalled PRs (issue #8258): an open issue PR that is not in the queue
- * (`ready-to-land`, `land-failed`), whose head has not moved for `hours`, and
- * whose issue has no live pass. All three hold, so a PR a pass or the queue is
- * working on is never stalled. An unreadable head date is not stalled (fail
- * closed: the PR keeps occupying). ONE authority for `queue:plan` and the
- * dispatcher's `pick`.
+ * Stalled PRs (issue #8258): an open issue PR whose head has not moved for
+ * `hours` and whose issue has no live pass. A `ready-to-land` PR is the merge
+ * queue's and never stalls. A `land-failed` one stalls only once NO repair is
+ * owed it (issue #10716): `repairOwed` is the set of PR numbers a pass can
+ * still be dispatched to repair (`repairDispatchables`); a PR outside it was
+ * already tried since its label or is past the repair cap, so nothing works on
+ * it and it would occupy its files forever. `repairOwed` absent = unknown, and
+ * every `land-failed` PR keeps occupying (fail closed). An unreadable head date
+ * is not stalled either. `liveIssues` is the issues a RUN is working
+ * (`livePassIssues`) — a claim label alone is not a live pass. ONE authority
+ * for `queue:plan` and the dispatcher's `pick`.
  */
 export function stalledPrsOf(
     prs: readonly OpenPrFact[],
     liveIssues: ReadonlySet<number>,
     nowIso: string,
-    hours: number | undefined
+    hours: number | undefined,
+    repairOwed?: ReadonlySet<number>
 ): StalledPr[] {
     if (hours === undefined) return [];
     const now = Date.parse(nowIso);
     const out: StalledPr[] = [];
     for (const p of prs) {
         if (p.issue === null || liveIssues.has(p.issue)) continue;
-        if (p.labels.some((l) => QUEUE_LABELS.includes(l))) continue;
+        if (p.labels.includes(LAND_QUEUE_LABEL)) continue;
+        if (
+            p.labels.includes(LAND_FAILED_LABEL) &&
+            (repairOwed === undefined || repairOwed.has(p.number))
+        )
+            continue;
         const head =
             p.headCommittedAt === null ? NaN : Date.parse(p.headCommittedAt);
         if (!Number.isFinite(head) || !Number.isFinite(now)) continue;

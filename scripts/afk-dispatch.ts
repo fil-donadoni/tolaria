@@ -30,11 +30,7 @@ import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { gh } from "./lib/gh";
-import {
-    cappedRepairPrs,
-    cappedUiReceiptPrs,
-    escalateCappedRepairs,
-} from "./lib/repair-cap";
+import { repairDispatchables, repairPicks } from "./lib/repair-dispatchables";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { sanitizeHost } from "./lib/github-runner";
 import { releaseEditArgs, CLAIM_LABEL } from "./lib/claim-labels";
@@ -54,7 +50,7 @@ import {
     DEFAULT_STALLED_PR_HOURS,
     parseAreaModels,
     parseStalledPrHours,
-    repairItems,
+    ownerWaitPrsOf,
     planHoldLines,
     stalledPrLine,
     type PlanConfig,
@@ -69,7 +65,6 @@ import {
 import { readVerdictLineage, verdictStore } from "./lib/health-verdict-store";
 import { readUsageWindow, DEFAULT_PROJECTS_DIR } from "./usage-window";
 import { CONFIG_PATH, ORIGIN_BASE } from "./lib/branches";
-import { FAILED_LABEL } from "./lib/land-labels";
 import {
     ACK_MARKER,
     PASS_RECORD_ARTIFACT,
@@ -88,12 +83,13 @@ import {
     redHoldOf,
     type HoldInput,
     holdReleases,
+    idleDispatchLine,
+    idleDispatchNotice,
     hostOfRunnerName,
     PASS_LABEL,
     runnerHost,
     lastPassRun,
     livePassIssues,
-    repairAttempted,
     mayClaim,
     parseAfkDispatchConfig,
     parsePassRecord,
@@ -315,107 +311,6 @@ function judgeClaims(
     }));
 }
 
-/** The repair picks: open PRs labelled `land-failed`, each with the time of
- *  its newest `land-failed` label event (`null` when unreadable — the age
- *  then counts from the PR's creation). */
-function repairPicks(slug: string): RepairPick[] {
-    const rows = JSON.parse(
-        gh([
-            "pr",
-            "list",
-            "--state",
-            "open",
-            "--label",
-            FAILED_LABEL,
-            "--limit",
-            "100",
-            "--json",
-            "number,createdAt",
-        ])
-    ) as { number: number; createdAt: string }[];
-    return rows.map((r) => {
-        let failedAt: string | null = null;
-        try {
-            const times = gh([
-                "api",
-                "--paginate",
-                `repos/${slug}/issues/${r.number}/events`,
-                "--jq",
-                `.[] | select(.event == "labeled" and .label.name == "${FAILED_LABEL}") | .created_at`,
-            ])
-                .split("\n")
-                .filter((l) => l.trim() !== "");
-            failedAt = times.length ? times[times.length - 1] : null;
-        } catch {
-            failedAt = null;
-        }
-        return { pr: r.number, failedAt, createdAt: r.createdAt };
-    });
-}
-
-/** The `land-failed` PRs a pass can repair (issue #6795): `repairItems` over
- *  the open ones, minus an issue a live pass holds or a pass already tried
- *  since the label (`repairAttempted`); a closed issue (its PR outlived it)
- *  or an unreadable one is left to its human. */
-function repairDispatchables(
-    slug: string,
-    passRuns: readonly WorkflowRun[],
-    config: PlanConfig
-): RepairItem[] {
-    const prs = JSON.parse(
-        gh([
-            "pr",
-            "list",
-            "--state",
-            "open",
-            "--label",
-            FAILED_LABEL,
-            "--limit",
-            "100",
-            "--json",
-            "number,headRefName",
-        ])
-    ) as { number: number; headRefName: string }[];
-    const failedAt = new Map(repairPicks(slug).map((p) => [p.pr, p.failedAt]));
-    // Repair cap (issue #6649): a PR whose repairs keep failing leaves the
-    // loop for its human, once.
-    // `ui-receipt` is its own class (issue #7649): counted from the check:ui
-    // failure comments, so a PR never labelled `land-failed` is capped too.
-    const failedCapped = cappedRepairPrs(slug, prs);
-    const uiCapped = cappedUiReceiptPrs();
-    escalateCappedRepairs(failedCapped, uiCapped);
-    const capped = new Set([...failedCapped.keys(), ...uiCapped.keys()]);
-    return repairItems(
-        prs,
-        (issue) => {
-            try {
-                const d = JSON.parse(
-                    gh([
-                        "issue",
-                        "view",
-                        String(issue),
-                        "--json",
-                        "state,labels,body",
-                    ])
-                ) as {
-                    state: string;
-                    labels: { name: string }[];
-                    body: string;
-                };
-                if (d.state !== "OPEN") return null;
-                return { labels: d.labels.map((l) => l.name), body: d.body };
-            } catch {
-                return null;
-            }
-        },
-        config,
-        livePassIssues(passRuns),
-        capped
-    ).filter(
-        (r) => !repairAttempted(passRuns, r.number, failedAt.get(r.pr) ?? null)
-    );
-}
-
 /** Who opened each queued issue; who applied `ready-for-agent` is read only
  *  for an issue whose author the policy does not already trust. */
 function provenance(
@@ -584,7 +479,7 @@ function repairsUnderHold(
         };
         plan = planRepairsUnderHold(
             slots,
-            repairDispatchables(slug, passRuns, config)
+            repairDispatchables(slug, passRuns, config, true)
         );
     } catch (err) {
         say(
@@ -887,10 +782,26 @@ async function main(): Promise<void> {
         excludeHitl: true,
     };
     const prs = openPrFiles();
+    // An unreadable repair list costs the repairs this run, never the batch —
+    // and leaves `repairOwed` unknown, so no `land-failed` PR reads stalled.
+    let repairs: RepairItem[] = [];
+    let repairOwed: Set<number> | undefined;
+    try {
+        repairs = repairDispatchables(slug, passRuns, config, true);
+        repairOwed = new Set(repairs.map((r) => r.pr));
+    } catch (err) {
+        say(
+            `repair picks unreadable (${(err as Error).message.split("\n")[0]}) — no repair this run`
+        );
+    }
     const picked = pick({
         prFiles: prs.files,
         prByIssue: prs.byIssue,
         prFacts: prs.facts,
+        // The runs are the liveness evidence (issue #10716): a claim label
+        // beside an open PR is not a pass.
+        livePasses: livePassIssues(passRuns),
+        repairOwed,
         issues,
         config,
         port: liveQueuePort(),
@@ -902,15 +813,6 @@ async function main(): Promise<void> {
         ),
         claims: judgeClaims(slug, claimed, passRuns, prRows),
     });
-    // An unreadable repair list costs the repairs this run, never the batch.
-    let repairs: RepairItem[] = [];
-    try {
-        repairs = repairDispatchables(slug, passRuns, config);
-    } catch (err) {
-        say(
-            `repair picks unreadable (${(err as Error).message.split("\n")[0]}) — no repair this run`
-        );
-    }
     const plan = planDispatch(
         picked,
         slots,
@@ -947,6 +849,34 @@ async function main(): Promise<void> {
         ...(picked.plan.stalledPrs ?? []).map(stalledPrLine),
     ];
     for (const l of lines) say(l);
+    // The silent stall (issue #10716): free slots, nothing dispatched, files
+    // held by PRs nobody works on. Fails ONE run per episode, for the email.
+    const byFiles = picked.plan.deferred.filter((d) =>
+        /^(target files|every slot reserved|no declared target files)/.test(
+            d.reason
+        )
+    );
+    const idle = idleDispatchNotice(
+        {
+            freeSlots: slots.free.length,
+            admissionOpen: admission.kind === "open",
+            explained: planHoldLines(picked.plan).length === 0,
+            dispatched: plan.dispatch.length,
+            deferred: byFiles.length,
+        },
+        passRuns,
+        dispatchRuns,
+        dispatchConfig,
+        now
+    );
+    const idleLines = idle.idle
+        ? [idleDispatchLine(byFiles, prs.byIssue, ownerWaitPrsOf(prs.facts))]
+        : [];
+    for (const l of idleLines) say(l);
+    if (idle.notify && !DRY_RUN)
+        say(
+            `failing this run once so GitHub emails the owner: no pass started for ${idle.idleHours?.toFixed(1) ?? `> ${dispatchConfig.idleHours}`} h with a free slot`
+        );
     if (DRY_RUN) {
         say("dry run — nothing claimed, released or dispatched");
         return;
@@ -1008,7 +938,7 @@ async function main(): Promise<void> {
     }
     for (const l of done) say(l);
     summary([
-        ...lines.map((l) => `- ${l}`),
+        ...[...lines, ...idleLines].map((l) => `- ${l}`),
         "",
         ...done.map((l) => `- ${l}`),
         ...(lostLine ? ["", lostLine] : []),
@@ -1017,7 +947,7 @@ async function main(): Promise<void> {
         say(
             `failing this run once so GitHub emails the owner about the quarantined host(s); acknowledge with "${ACK_MARKER}" (ack_failures=true)`
         );
-    if (failures > 0 || notifyQuarantine) process.exit(1);
+    if (failures > 0 || notifyQuarantine || idle.notify) process.exit(1);
 }
 
 if (import.meta.main) {

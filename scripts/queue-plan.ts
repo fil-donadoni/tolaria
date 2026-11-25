@@ -42,6 +42,13 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { gh, ghTokenScopes, issueBlockedBy } from "./lib/gh";
 import {
+    PASS_WORKFLOW,
+    WORKFLOW_RUN_FIELDS,
+    livePassIssues,
+    parseWorkflowRuns,
+} from "./lib/afk-dispatch";
+import { repairDispatchables } from "./lib/repair-dispatchables";
+import {
     fetchBoardPriority as fetchBoardPriorityShared,
     NO_PRIORITY_WARNING,
     VALID_PRIORITIES,
@@ -240,6 +247,37 @@ function openPrHeadDates(): Map<number, string> {
  *  blast radius of an in-flight issue. Total: unreadable = nothing known, and
  *  the in-flight set then falls back to the declared `Target files`. Shared
  *  with the AFK dispatcher, so both pick through one rule. */
+/**
+ * The runs-based evidence the stalled-PR rule reads (issue #10716), the SAME
+ * the dispatcher hands `pick`: issues an `afk-pass` run is working, and the
+ * `land-failed` PRs a repair is still owed. `null` when a read fails.
+ */
+function readStallEvidence(
+    config: PlanConfig
+): { livePasses: Set<number>; repairOwed: Set<number> } | null {
+    try {
+        const passRuns = parseWorkflowRuns(
+            gh([
+                "run",
+                "list",
+                "--workflow",
+                PASS_WORKFLOW,
+                "--limit",
+                "200",
+                "--json",
+                WORKFLOW_RUN_FIELDS,
+            ])
+        );
+        const owed = repairDispatchables("{owner}/{repo}", passRuns, config);
+        return {
+            livePasses: livePassIssues(passRuns),
+            repairOwed: new Set(owed.map((r) => r.pr)),
+        };
+    } catch {
+        return null;
+    }
+}
+
 export function openPrFiles(): {
     byIssue: Record<number, number>;
     files: Record<number, string[]>;
@@ -986,7 +1024,7 @@ function main(): void {
             occupying.add(i.number);
     // Stalled PRs (issue #8258): occupy nothing, reported in the plan. The
     // live passes are the claims counted above (claimed and not stale).
-    const liveIssues = new Set(
+    const claimedLive = new Set(
         issues
             .filter(
                 (i) =>
@@ -1000,11 +1038,18 @@ function main(): void {
             )
             .map((i) => i.number)
     );
+    // The dispatcher's own evidence (issue #10716): the `afk-pass` runs are
+    // the liveness authority and `repairDispatchables` the "repair still
+    // owed" one. Unreadable → the old rule (a live claim is a live pass, every
+    // `land-failed` PR keeps occupying): fail closed, never a stall.
+    const stallEvidence = readStallEvidence(config);
+    const liveIssues = stallEvidence?.livePasses ?? claimedLive;
     config.stalledPrs = stalledPrsOf(
         prs.facts,
         liveIssues,
         config.now,
-        config.stalledPrHours
+        config.stalledPrHours,
+        stallEvidence?.repairOwed
     );
     config.inFlight = inFlightSet(
         [...occupying].map((n) => ({ issue: n, pr: prs.byIssue[n] ?? null })),

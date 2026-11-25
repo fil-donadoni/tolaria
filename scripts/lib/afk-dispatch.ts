@@ -624,9 +624,16 @@ export interface AfkDispatchConfig {
     /** Open `land-failed` PRs at or past which only repairs are dispatched
      *  (issue #6988, `queueAdmission`). */
     failedMax: number;
+    /** Hours with no pass started, while a slot is free, nothing holds and
+     *  candidates are deferred, before the run fails once for the email
+     *  (issue #10716, `idleDispatchNotice`). */
+    idleHours: number;
 }
 
 export const DEFAULT_REPAIR_AGE_HOURS = 4;
+/** The 2026-11-24 → 11-25 stall lasted ~16 h with 3 free slots; 4 h is a
+ *  fraction of it and above a queue retry's minutes. */
+export const DEFAULT_IDLE_HOURS = 4;
 /** Two hours of merges at the measured 2.9/h (2026-10-24 → 10-25, issue
  *  #6988). */
 export const DEFAULT_QUEUE_MAX = 6;
@@ -645,6 +652,7 @@ export function parseAfkDispatchConfig(raw: unknown): AfkDispatchConfig {
         ),
         queueMax: positive(block?.queueMax, DEFAULT_QUEUE_MAX),
         failedMax: positive(block?.failedMax, DEFAULT_FAILED_MAX),
+        idleHours: positive(block?.idleHours, DEFAULT_IDLE_HOURS),
     };
 }
 
@@ -792,6 +800,110 @@ export function agedRepairLines(
         (a) =>
             `PR #${a.pr} \`${FAILED_LABEL}\` for ${a.ageHours.toFixed(1)} h, unrepaired under hold \`${hold.kind}\``
     );
+}
+
+/** What a dispatcher run saw when it dispatched nothing (issue #10716). */
+export interface IdleDispatchFacts {
+    freeSlots: number;
+    /** `queueAdmission` is open: a queue-depth hold is on purpose, not a stall. */
+    admissionOpen: boolean;
+    /** `planHoldLines` is empty: a P0 hold or owner wait explains itself. */
+    explained: boolean;
+    /** Passes this run dispatches (fresh, resume, repair). */
+    dispatched: number;
+    /** `ready-for-agent` candidates the plan deferred. */
+    deferred: number;
+}
+
+export interface IdleDispatchNotice {
+    /** This run dispatches nothing, with a free slot, no hold and candidates
+     *  deferred, and no pass has started for `idleHours`. */
+    idle: boolean;
+    /** THIS run fails, so GitHub sends the one email for the episode. */
+    notify: boolean;
+    /** Hours since the newest pass run was created (null = none listed). */
+    idleHours: number | null;
+}
+
+/**
+ * The silent stall (issue #10716): 2026-11-24 ~17:00 → 11-25 ~09:30 every run
+ * printed `free pass slots: 3` and `dispatch: none`, exit 0, with 320
+ * candidates deferred behind PRs nothing worked on. A genuinely empty queue
+ * defers nothing and never trips this.
+ *
+ * The episode starts when the newest `afk-pass` run is `idleHours` old — a
+ * pass in flight, or one started inside the window, means the pipeline moves.
+ * Once per episode, the aged-repair rule: a dispatcher run that FAILED since
+ * then is the email; the next episode starts at the next pass.
+ */
+export function idleDispatchNotice(
+    facts: IdleDispatchFacts,
+    passRuns: readonly WorkflowRun[],
+    dispatchRuns: readonly WorkflowRun[],
+    config: Pick<AfkDispatchConfig, "idleHours">,
+    nowMs: number
+): IdleDispatchNotice {
+    const quiet: IdleDispatchNotice = {
+        idle: false,
+        notify: false,
+        idleHours: null,
+    };
+    if (
+        facts.freeSlots <= 0 ||
+        !facts.admissionOpen ||
+        !facts.explained ||
+        facts.dispatched > 0 ||
+        facts.deferred <= 0 ||
+        passRuns.some(isActive)
+    )
+        return quiet;
+    const thresholdMs = config.idleHours * 3_600_000;
+    const newest = Math.max(
+        ...passRuns.map((r) => ms(r.createdAt)).filter(Number.isFinite),
+        Number.NEGATIVE_INFINITY
+    );
+    // No pass listed at all: the episode is taken to start at the threshold.
+    const lastMs = Number.isFinite(newest) ? newest : nowMs - thresholdMs;
+    if (nowMs - lastMs < thresholdMs) return quiet;
+    const reachedMs = lastMs + thresholdMs;
+    const notified = dispatchRuns.some(
+        (r) => r.conclusion === "failure" && ms(r.updatedAt) >= reachedMs
+    );
+    return {
+        idle: true,
+        notify: !notified,
+        idleHours: Number.isFinite(newest)
+            ? (nowMs - lastMs) / 3_600_000
+            : null,
+    };
+}
+
+/**
+ * The line naming what holds the queue (issue #10716): the in-flight PRs
+ * whose files defer the most candidates (top three), and every `merge:manual`
+ * PR waiting on the owner. Numbers only — the job log is public.
+ */
+export function idleDispatchLine(
+    deferred: readonly { conflictsWith: number | null }[],
+    prByIssue: Readonly<Record<number, number>>,
+    ownerWaitPrs: ReadonlySet<number>
+): string {
+    const count = new Map<number, number>();
+    for (const d of deferred)
+        if (
+            d.conflictsWith !== null &&
+            prByIssue[d.conflictsWith] !== undefined
+        )
+            count.set(
+                prByIssue[d.conflictsWith],
+                (count.get(prByIssue[d.conflictsWith]) ?? 0) + 1
+            );
+    const top = [...count.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+        .slice(0, 3)
+        .map(([pr, n]) => `PR #${pr} (${n})`);
+    const manual = [...ownerWaitPrs].sort((a, b) => a - b).map((n) => `#${n}`);
+    return `idle: ${deferred.length} candidate(s) deferred, no pass dispatched — files held by ${top.join(", ") || "no open PR"}${manual.length ? `; waiting on owner merge: ${manual.join(", ")}` : ""}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
