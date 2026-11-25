@@ -12,11 +12,11 @@
 //     is right, and there is no right one;
 //  3. the Verdict corpus then stores a judgement naming ONE copy, and
 //     `evalPairsOf` emits "this copy beats that copy" — a constraint no
-//     evaluation could or should satisfy. Measured in issue #3588: 12 of the
-//     47 blind pairs were exactly this shape
+//     evaluation could or should satisfy. Measured: 12 of the 47 blind pairs
+//     were exactly this shape
 //     (`docs/research/verdict-corpus-coverage.md`, finding 4).
 //
-// This sits beside the dominance prune (`ai/dominance.ts`, issue #1887), which
+// This sits beside the dominance prune (`ai/dominance.ts`), which
 // removes moves dominated by doing NOTHING. This one removes moves dominated
 // by EACH OTHER. Same seam, same shape, different relation — and, like
 // dominance, it is a BOT-path filter and never a legality one: `legalActions`
