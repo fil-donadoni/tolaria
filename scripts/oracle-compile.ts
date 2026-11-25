@@ -84,6 +84,7 @@ import {
     type Lockfile,
 } from "./lib/oracle-lockfile";
 import { deriveCounts } from "./lib/oracle-tally";
+import { openReplayJournal } from "./lib/bot-replay-journal";
 import {
     botGapKey,
     botHash,
@@ -444,25 +445,58 @@ export function readCommittedLockfile(): Lockfile | null {
 async function sweepingBotReach(
     previous: Lockfile | null,
     replay: boolean,
-    build: (source: BotReachSource) => unknown
+    build: (source: BotReachSource) => unknown,
+    journalPath: string | null = null
 ): Promise<ReturnType<typeof playingBotReach>> {
     const currentBotHash = botHash(ROOT);
     const probe = probingBotReach(previous, currentBotHash, replay);
     build(probe);
-    const verdicts = await playSharded(probe.missDefinitions());
+    const misses = probe.missDefinitions();
+    const verdicts =
+        journalPath === null
+            ? await playSharded(misses)
+            : await playJournaled(
+                  journalPath,
+                  currentBotHash,
+                  misses,
+                  playSharded
+              );
     return playingBotReach(previous, currentBotHash, verdictOf(verdicts), {
         replay,
     });
 }
 
+/**
+ * Plays what the journal of an earlier, unlanded sweep of this Bot does not
+ * hold, journaling each verdict as it arrives (issue #10737).
+ */
+export async function playJournaled(
+    journalPath: string,
+    currentBotHash: string,
+    definitions: ReadonlyMap<string, CompiledDefinition>,
+    play: (
+        missing: ReadonlyMap<string, CompiledDefinition>,
+        onVerdict: (oracleId: string, verdict: BotReachVerdict) => void
+    ) => Promise<ReadonlyMap<string, BotReachVerdict>>
+): Promise<ReadonlyMap<string, BotReachVerdict>> {
+    const journal = openReplayJournal(journalPath, currentBotHash, definitions);
+    process.stderr.write(
+        `oracle:compile — replay journal: ${journal.known.size} verdict(s) resumed, ${journal.missing.size} to play\n`
+    );
+    const played = await play(journal.missing, journal.record);
+    return new Map([...journal.known, ...played]);
+}
+
 /** The shard pool over `definitions`, with a progress line on stderr. */
 function playSharded(
-    definitions: ReadonlyMap<string, CompiledDefinition>
+    definitions: ReadonlyMap<string, CompiledDefinition>,
+    onVerdict?: (oracleId: string, verdict: BotReachVerdict) => void
 ): Promise<ReadonlyMap<string, BotReachVerdict>> {
     const started = Date.now();
     return playMisses(definitions, {
         workers: sweepWorkerCount(process.env),
-        onPlay: () => {
+        onPlay: (oracleId, verdict) => {
+            onVerdict?.(oracleId, verdict);
             const s = Math.round((Date.now() - started) / 1000);
             process.stderr.write(`\roracle:compile — bot-play sweep ${s}s`);
         },
@@ -667,6 +701,14 @@ async function replayingNamedCards(
     };
 }
 
+/** `--replay-journal=<path>` (issue #10737), `derive:sync`'s: without it a
+ *  by-hand `--replay-bot` plays every card, reusing nothing. */
+function replayJournalPath(argv: readonly string[]): string | null {
+    const flag = "--replay-journal=";
+    const arg = argv.find((a) => a.startsWith(flag));
+    return arg === undefined ? null : arg.slice(flag.length);
+}
+
 /** Every `--replay-card <name>` / `--replay-card=<name>` value, in argv
  *  order (issue #4957). A spelling it cannot read is refused, never dropped:
  *  a dropped name would carry everything and exit 0 having played nothing. */
@@ -746,7 +788,8 @@ async function main(): Promise<void> {
                             previous,
                             mode === "replay",
                             (source) =>
-                                buildLockfile(corpus(), { botReach: source })
+                                buildLockfile(corpus(), { botReach: source }),
+                            mode === "replay" ? replayJournalPath(argv) : null
                         ),
                 })
               : await sessionSweep({
@@ -754,7 +797,7 @@ async function main(): Promise<void> {
                     baseline: sessionBaseline(previous),
                     currentBotHash: botHash(ROOT),
                     build,
-                    play: playSharded,
+                    play: (graduations) => playSharded(graduations),
                 });
     if (swept !== null && "exit" in swept) process.exit(swept.exit);
     const narrowed =

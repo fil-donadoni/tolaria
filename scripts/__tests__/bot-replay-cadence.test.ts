@@ -25,10 +25,12 @@ describe("botReplayCadence — a push sweeps at most once per interval (issue #7
                 lastSweepAtMs: NOW - 90 * MIN,
                 nowMs: NOW,
                 minIntervalMinutes: 240,
+                attempt: null,
             })
         ).toEqual({
             kind: "throttled",
-            lastSweepAtMs: NOW - 90 * MIN,
+            lastAtMs: NOW - 90 * MIN,
+            landed: true,
             nextDueAtMs: NOW + 150 * MIN,
         });
     });
@@ -41,6 +43,7 @@ describe("botReplayCadence — a push sweeps at most once per interval (issue #7
                     lastSweepAtMs: NOW - age * MIN,
                     nowMs: NOW,
                     minIntervalMinutes: 240,
+                    attempt: null,
                 }).kind
             ).toBe("due");
         }
@@ -54,6 +57,7 @@ describe("botReplayCadence — a push sweeps at most once per interval (issue #7
                     lastSweepAtMs: NOW - MIN,
                     nowMs: NOW,
                     minIntervalMinutes: 240,
+                    attempt: null,
                 }).kind
             ).toBe("due");
         }
@@ -66,6 +70,7 @@ describe("botReplayCadence — a push sweeps at most once per interval (issue #7
                 lastSweepAtMs: null,
                 nowMs: NOW,
                 minIntervalMinutes: 240,
+                attempt: null,
             }).kind
         ).toBe("due");
     });
@@ -77,8 +82,65 @@ describe("botReplayCadence — a push sweeps at most once per interval (issue #7
                 lastSweepAtMs: NOW,
                 nowMs: NOW,
                 minIntervalMinutes: 0,
+                attempt: null,
             }).kind
         ).toBe("due");
+    });
+});
+
+describe("botReplayCadence — an unlanded attempt (issue #10737)", () => {
+    const cadence = (
+        startedMinAgo: number,
+        resumable: boolean,
+        event = "push"
+    ) =>
+        botReplayCadence({
+            event,
+            lastSweepAtMs: NOW - 1000 * MIN,
+            nowMs: NOW,
+            minIntervalMinutes: 240,
+            attempt: { startedAtMs: NOW - startedMinAgo * MIN, resumable },
+        });
+
+    it("of another Bot throttles a push like a landed sweep, until the interval", () => {
+        expect(cadence(121, false)).toEqual({
+            kind: "throttled",
+            lastAtMs: NOW - 121 * MIN,
+            landed: false,
+            nextDueAtMs: NOW + 119 * MIN,
+        });
+        expect(cadence(240, false).kind).toBe("due");
+    });
+
+    it("left resumable is due at once; the nightly and a dispatch always are", () => {
+        expect(cadence(121, true).kind).toBe("due");
+        expect(cadence(121, false, "schedule").kind).toBe("due");
+        expect(cadence(121, false, "workflow_dispatch").kind).toBe("due");
+    });
+
+    it("older than the last landed sweep counts for nothing, resumable or not", () => {
+        const landed = (minAgo: number, resumable: boolean) =>
+            botReplayCadence({
+                event: "push",
+                lastSweepAtMs: NOW - minAgo * MIN,
+                nowMs: NOW,
+                minIntervalMinutes: 240,
+                attempt: { startedAtMs: NOW - 300 * MIN, resumable },
+            });
+        expect(landed(60, true).kind).toBe("throttled");
+        expect(landed(250, false).kind).toBe("due");
+    });
+
+    it("holds with no landed sweep on the history", () => {
+        expect(
+            botReplayCadence({
+                event: "push",
+                lastSweepAtMs: null,
+                nowMs: NOW,
+                minIntervalMinutes: 240,
+                attempt: { startedAtMs: NOW - 10 * MIN, resumable: false },
+            }).kind
+        ).toBe("throttled");
     });
 });
 
