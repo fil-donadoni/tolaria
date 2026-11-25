@@ -52,11 +52,22 @@ export function parseBotReplayConfig(raw: unknown): BotReplayConfig {
     };
 }
 
+/** The last replay started, landed or not (`bot-replay-journal.ts`). */
+export interface BotReplayAttempt {
+    readonly startedAtMs: number;
+    /** It swept the tree's Bot and journaled verdicts of its own: one that
+     *  added none (a starved machine, a card that always kills its worker)
+     *  would be due at once forever. */
+    readonly resumable: boolean;
+}
+
 export type CadenceDecision =
     | { readonly kind: "due"; readonly why: string }
     | {
           readonly kind: "throttled";
-          readonly lastSweepAtMs: number;
+          readonly lastAtMs: number;
+          /** False: the sweep held against is one that never landed. */
+          readonly landed: boolean;
           readonly nextDueAtMs: number;
       };
 
@@ -65,29 +76,45 @@ export type CadenceDecision =
  * throttled: the nightly (`schedule`), a dispatch and a by-hand run (no
  * `GITHUB_EVENT_NAME`) always sweep. With no whole sweep on the base's
  * history (`lastSweepAtMs` null) it is due.
+ *
+ * A replay that started after the last landed sweep and did not land counts
+ * like a landed one (issue #10737): before, a sweep its wall cut was due again
+ * at the next push, and two-hour runs followed each other from zero. One left
+ * RESUMABLE is due at once instead — it plays only what is missing, so every
+ * run brings the same Bot's sweep closer to its end.
  */
 export function botReplayCadence(input: {
     readonly event: string | undefined;
     readonly lastSweepAtMs: number | null;
     readonly nowMs: number;
     readonly minIntervalMinutes: number;
+    readonly attempt: BotReplayAttempt | null;
 }): CadenceDecision {
     if (input.event !== "push")
         return {
             kind: "due",
             why: `${input.event ?? "a by-hand run"} always sweeps`,
         };
-    if (input.lastSweepAtMs === null)
+    const unlanded =
+        input.attempt !== null &&
+        input.attempt.startedAtMs > (input.lastSweepAtMs ?? 0)
+            ? input.attempt
+            : null;
+    if (unlanded?.resumable === true)
+        return { kind: "due", why: "an unlanded sweep of this Bot resumes" };
+    const lastAtMs = unlanded?.startedAtMs ?? input.lastSweepAtMs;
+    if (lastAtMs === null)
         return { kind: "due", why: "no whole sweep on the base's history" };
-    const nextDueAtMs = input.lastSweepAtMs + input.minIntervalMinutes * 60_000;
+    const nextDueAtMs = lastAtMs + input.minIntervalMinutes * 60_000;
     if (input.nowMs >= nextDueAtMs)
         return {
             kind: "due",
-            why: `the last whole sweep is ${Math.round((input.nowMs - input.lastSweepAtMs) / 60_000)} min old (interval ${input.minIntervalMinutes} min)`,
+            why: `the last ${unlanded === null ? "whole sweep" : "attempt"} is ${Math.round((input.nowMs - lastAtMs) / 60_000)} min old (interval ${input.minIntervalMinutes} min)`,
         };
     return {
         kind: "throttled",
-        lastSweepAtMs: input.lastSweepAtMs,
+        lastAtMs,
+        landed: unlanded === null,
         nextDueAtMs,
     };
 }

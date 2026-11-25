@@ -130,6 +130,11 @@ import {
     type BotReplayConfig,
 } from "./lib/bot-replay-cadence";
 import {
+    botReplayJournalPath,
+    readReplayAttempt,
+    writeReplayAttempt,
+} from "./lib/bot-replay-journal";
+import {
     BOT_REGRESSION_LABELS,
     BOT_REPLAY_COMMIT_SUBJECT,
     BOT_REPLAY_PATHS,
@@ -1285,10 +1290,11 @@ function replayBot(dryRun: boolean): number {
         lastSweepAtMs: lastWholeSweepAtMs(),
         nowMs: Date.now(),
         minIntervalMinutes: botReplayConfig().minIntervalMinutes,
+        attempt: readReplayAttempt(treeBotHash),
     });
     if (cadence.kind === "throttled") {
         say(
-            `${head.slice(0, 10)}: header Bot hash ${headerBotHash.slice(0, 19)} ≠ tree ${treeBotHash.slice(0, 19)}, but the last whole sweep landed ${new Date(cadence.lastSweepAtMs).toISOString()} — next due ${new Date(cadence.nextDueAtMs).toISOString()} (\`botReplay.minIntervalMinutes\`, issue #7925); a later push, the nightly or a dispatch sweeps`
+            `${head.slice(0, 10)}: header Bot hash ${headerBotHash.slice(0, 19)} ≠ tree ${treeBotHash.slice(0, 19)}, but the last ${cadence.landed ? "whole sweep landed" : "attempt, not landed, started"} ${new Date(cadence.lastAtMs).toISOString()} — next due ${new Date(cadence.nextDueAtMs).toISOString()} (\`botReplay.minIntervalMinutes\`, issue #7925); a later push, the nightly or a dispatch sweeps`
         );
         return 0;
     }
@@ -1308,10 +1314,19 @@ function replayBot(dryRun: boolean): number {
     )
         return 1;
     const before = readLockfile();
+    if (!dryRun)
+        writeReplayAttempt({ botHash: treeBotHash, startedAtMs: Date.now() });
     if (
         !generate(
             "oracle:compile --replay-bot",
-            ["scripts/oracle-compile.ts", "--replay-bot"],
+            [
+                "scripts/oracle-compile.ts",
+                "--replay-bot",
+                // A dry run leaves the machine's journal alone.
+                ...(dryRun
+                    ? []
+                    : [`--replay-journal=${botReplayJournalPath()}`]),
+            ],
             SWEEP_WALL_MS,
             "SIGTERM"
         )
