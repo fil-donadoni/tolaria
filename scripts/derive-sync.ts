@@ -1322,7 +1322,10 @@ function replayBot(dryRun: boolean): number {
             [
                 "scripts/oracle-compile.ts",
                 "--replay-bot",
-                `--replay-journal=${botReplayJournalPath()}`,
+                // A dry run leaves the machine's journal alone.
+                ...(dryRun
+                    ? []
+                    : [`--replay-journal=${botReplayJournalPath()}`]),
             ],
             SWEEP_WALL_MS,
             "SIGTERM"

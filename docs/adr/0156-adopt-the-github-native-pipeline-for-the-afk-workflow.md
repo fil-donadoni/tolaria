@@ -913,7 +913,9 @@ push (`botHashLateSinceMs`). A quiet base waits for the nightly unfiled.
 **Note (issue #10737, 2026-11-25).** A replay that started and did not land
 counts for the cadence too. Its verdicts are journaled on the machine, so a
 later replay of the same Bot hash is due at once and plays only what is
-missing (`scripts/lib/bot-replay-journal.ts`). Two sweeps in a row hit the
+missing (`scripts/lib/bot-replay-journal.ts`), as long as the last attempt
+added verdicts. The attempt is that machine's file, so `--settled` still
+counts lateness from the last landed sweep. Two sweeps in a row hit the
 wall that day, at 3192 and 4880 of 9258 cards, and nothing was kept.
 
 **What would change the answer.** A health `test:app` beside live passes

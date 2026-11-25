@@ -55,7 +55,9 @@ export function parseBotReplayConfig(raw: unknown): BotReplayConfig {
 /** The last replay started, landed or not (`bot-replay-journal.ts`). */
 export interface BotReplayAttempt {
     readonly startedAtMs: number;
-    /** It swept the tree's Bot and left verdicts to resume from. */
+    /** It swept the tree's Bot and journaled verdicts of its own: one that
+     *  added none (a starved machine, a card that always kills its worker)
+     *  would be due at once forever. */
     readonly resumable: boolean;
 }
 

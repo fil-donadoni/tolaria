@@ -108,8 +108,11 @@ describe("the attempt", () => {
         });
         fill();
         expect(readReplayAttempt("bot1", dir)?.resumable).toBe(true);
+        // The next attempt adds nothing: not due at once again.
+        writeReplayAttempt({ botHash: "bot1", startedAtMs: 9 }, dir);
+        expect(readReplayAttempt("bot1", dir)?.resumable).toBe(false);
         expect(readReplayAttempt("bot2", dir)).toEqual({
-            startedAtMs: 5,
+            startedAtMs: 9,
             resumable: false,
         });
     });

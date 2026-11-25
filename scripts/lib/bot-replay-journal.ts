@@ -21,6 +21,7 @@ import {
     existsSync,
     mkdirSync,
     readFileSync,
+    renameSync,
     writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
@@ -85,7 +86,13 @@ export function openReplayJournal(
 ): ReplayJournal {
     const kept = journalLines(path, botHash);
     mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, kept.map((l) => `${JSON.stringify(l)}\n`).join(""));
+    // Renamed into place: a kill here must not lose the journal it compacts.
+    const compacted = `${path}.${process.pid}.tmp`;
+    writeFileSync(
+        compacted,
+        kept.map((l) => `${JSON.stringify(l)}\n`).join("")
+    );
+    renameSync(compacted, path);
     const known = new Map<string, BotReachVerdict>();
     for (const line of kept) {
         const definition = definitions.get(line.oracleId);
@@ -123,7 +130,16 @@ export function writeReplayAttempt(
     dir: string = botReplayDir()
 ): void {
     mkdirSync(dir, { recursive: true });
-    writeFileSync(attemptPath(dir), JSON.stringify(attempt));
+    writeFileSync(
+        attemptPath(dir),
+        JSON.stringify({
+            ...attempt,
+            journaledBefore: journaledCount(
+                botReplayJournalPath(dir),
+                attempt.botHash
+            ),
+        })
+    );
 }
 
 /** The last replay this machine started, with what its journal holds for
@@ -136,17 +152,20 @@ export function readReplayAttempt(
         const raw = JSON.parse(readFileSync(attemptPath(dir), "utf8")) as {
             botHash?: unknown;
             startedAtMs?: unknown;
+            journaledBefore?: unknown;
         };
         if (
             typeof raw.botHash !== "string" ||
-            typeof raw.startedAtMs !== "number"
+            typeof raw.startedAtMs !== "number" ||
+            typeof raw.journaledBefore !== "number"
         )
             return null;
         return {
             startedAtMs: raw.startedAtMs,
             resumable:
                 raw.botHash === treeBotHash &&
-                journaledCount(botReplayJournalPath(dir), treeBotHash) > 0,
+                journaledCount(botReplayJournalPath(dir), treeBotHash) >
+                    raw.journaledBefore,
         };
     } catch {
         return null;
