@@ -787,8 +787,9 @@ async function main(): Promise<void> {
     let repairs: RepairItem[] = [];
     let repairOwed: Set<number> | undefined;
     try {
-        repairs = repairDispatchables(slug, passRuns, config, true);
-        repairOwed = new Set(repairs.map((r) => r.pr));
+        const unreadable = new Set<number>();
+        repairs = repairDispatchables(slug, passRuns, config, true, unreadable);
+        repairOwed = new Set([...repairs.map((r) => r.pr), ...unreadable]);
     } catch (err) {
         say(
             `repair picks unreadable (${(err as Error).message.split("\n")[0]}) — no repair this run`

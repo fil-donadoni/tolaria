@@ -12,6 +12,7 @@ import {
 } from "./repair-cap";
 import { repairItems, type PlanConfig, type RepairItem } from "./queue-plan";
 import {
+    ISSUE_BRANCH,
     livePassIssues,
     repairAttempted,
     type RepairPick,
@@ -66,7 +67,11 @@ export function repairDispatchables(
     config: PlanConfig,
     /** The dispatcher escalates a capped PR to its human, once; `queue:plan`
      *  only reads the same set and must never send that email. */
-    escalate = false
+    escalate = false,
+    /** Receives the PRs whose issue could not be READ (a failed `gh`, not a
+     *  closed issue): their repair is unknown, so the stalled-PR rule must
+     *  treat them as owed (issue #10716, fail closed). */
+    unreadable: Set<number> = new Set()
 ): RepairItem[] {
     const prs = JSON.parse(
         gh([
@@ -82,6 +87,11 @@ export function repairDispatchables(
             "number,headRefName",
         ])
     ) as { number: number; headRefName: string }[];
+    const prOfIssue = new Map<number, number>();
+    for (const p of prs) {
+        const m = ISSUE_BRANCH.exec(p.headRefName);
+        if (m) prOfIssue.set(Number(m[1]), p.number);
+    }
     const failedAt = new Map(repairPicks(slug).map((p) => [p.pr, p.failedAt]));
     // Repair cap (issue #6649): a PR whose repairs keep failing leaves the
     // loop for its human, once.
@@ -111,6 +121,8 @@ export function repairDispatchables(
                 if (d.state !== "OPEN") return null;
                 return { labels: d.labels.map((l) => l.name), body: d.body };
             } catch {
+                const pr = prOfIssue.get(issue);
+                if (pr !== undefined) unreadable.add(pr);
                 return null;
             }
         },

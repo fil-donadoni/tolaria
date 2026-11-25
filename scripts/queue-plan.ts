@@ -243,10 +243,6 @@ function openPrHeadDates(): Map<number, string> {
     return out;
 }
 
-/** Each open issue PR's number and changed files (issue #6195) — the real
- *  blast radius of an in-flight issue. Total: unreadable = nothing known, and
- *  the in-flight set then falls back to the declared `Target files`. Shared
- *  with the AFK dispatcher, so both pick through one rule. */
 /**
  * The runs-based evidence the stalled-PR rule reads (issue #10716), the SAME
  * the dispatcher hands `pick`: issues an `afk-pass` run is working, and the
@@ -268,16 +264,27 @@ function readStallEvidence(
                 WORKFLOW_RUN_FIELDS,
             ])
         );
-        const owed = repairDispatchables("{owner}/{repo}", passRuns, config);
+        const unreadable = new Set<number>();
+        const owed = repairDispatchables(
+            "{owner}/{repo}",
+            passRuns,
+            config,
+            false,
+            unreadable
+        );
         return {
             livePasses: livePassIssues(passRuns),
-            repairOwed: new Set(owed.map((r) => r.pr)),
+            repairOwed: new Set([...owed.map((r) => r.pr), ...unreadable]),
         };
     } catch {
         return null;
     }
 }
 
+/** Each open issue PR's number and changed files (issue #6195) — the real
+ *  blast radius of an in-flight issue. Total: unreadable = nothing known, and
+ *  the in-flight set then falls back to the declared `Target files`. Shared
+ *  with the AFK dispatcher, so both pick through one rule. */
 export function openPrFiles(): {
     byIssue: Record<number, number>;
     files: Record<number, string[]>;
