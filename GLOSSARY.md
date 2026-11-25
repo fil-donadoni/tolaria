@@ -1728,7 +1728,7 @@ A **Player**'s standing intent to yield the rest of the current turn. Permissive
 _Avoid_: Auto-pass, fast-forward
 
 **Pass Until Action**:
-A **Player**'s standing intent to yield the rest of the current turn _until the opponent acts_. Permissive like **Pass Turn** while nothing new happens — **Drain Auto-Pass** passes through empty-**Stack** steps for that **Player** — but it stops the moment **Priority** reaches that **Player** with a new opponent-controlled spell or ability on the **Stack** (a trigger counts by its controller, not by who caused it), hands them a real response window and is consumed. Objects already on the **Stack** when it was armed never stop it. Queued when pressed without **Priority**, cleared at turn advance, cancellable through the same path as **Pass Turn**.
+A **Player**'s standing intent to yield the rest of the current turn _until the opponent acts_. Permissive like **Pass Turn** while nothing new happens — **Drain Auto-Pass** passes through empty-**Stack** steps for that **Player** — but it stops the moment **Priority** reaches that **Player** with a new opponent-controlled spell or ability on the **Stack** (a trigger counts by its controller, not by who caused it), hands them a real response window and is consumed. Objects already on the **Stack** when it was armed never stop it. Queued when pressed without **Priority**, cleared at turn advance, cancellable through the same path as **Pass Turn**. Arming it replaces that **Player**'s standing **Pass Turn** in the same move, and arming **Pass Turn** replaces it: the two never stand together.
 _Avoid_: Soft pass, F4, yield
 
 **Phase Stop**:
