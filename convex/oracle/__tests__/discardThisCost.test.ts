@@ -194,10 +194,6 @@ describe("Discard this card: … (CR 113.6m)", () => {
         ["a name in the card's place", "{2}, Discard Test Card: Draw a card."],
         ["a mana ability", "Discard this card: Add {G}."],
         ["a drawing mana line", "Discard this card: Add {G}. Draw a card."],
-        [
-            "an ability granted to a permanent",
-            'Creatures you control have "{2}, Discard this card: Draw a card."',
-        ],
     ])("refuses %s", (_label, oracleText) => {
         const outcome = compileCard(
             oracleCard({
@@ -210,6 +206,21 @@ describe("Discard this card: … (CR 113.6m)", () => {
             })
         );
         expect(outcome.state).toBe("unparsed");
+    });
+
+    it.each([
+        ["the grant itself compiles", "{2}, Sacrifice this creature", true],
+        ["its host cannot be discarded", "{2}, Discard this card", false],
+    ])("an ability granted to a permanent: %s", (_label, cost, reads) => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Test Aura",
+                manaCost: "{1}{G}",
+                typeLine: "Enchantment — Aura",
+                oracleText: `Enchant creature\nEnchanted creature has "${cost}: Draw a card."`,
+            })
+        );
+        expect(outcome.state !== "unparsed").toBe(reads);
     });
 
     it("refuses the cost on an instant or sorcery", () => {
