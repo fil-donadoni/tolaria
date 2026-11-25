@@ -465,7 +465,7 @@ describe("the drift sweep — derive:sync plays the tip's Bot-verdict misses (AD
             join(import.meta.dirname, "..", "derive-sync.ts"),
             "utf8"
         );
-        const sweep = script.slice(script.indexOf('"--replay-bot"]'));
+        const sweep = script.slice(script.indexOf("`--replay-journal="));
         const refusal = sweep.match(
             /sweepPoolLosses\(swept\.cards\);\s+if \(poolLosses > SWEEP_POOL_LOSS_TOLERANCE\) \{[\s\S]*?return 1;/
         );
@@ -492,7 +492,7 @@ describe("the drift sweep — derive:sync plays the tip's Bot-verdict misses (AD
         const firstPack = replay.indexOf("packCatalogue()");
         expect(firstPack).toBeGreaterThan(-1);
         expect(firstPack).toBeLessThan(replay.indexOf('"--carry-bot",'));
-        expect(firstPack).toBeLessThan(replay.indexOf('"--replay-bot"]'));
+        expect(firstPack).toBeLessThan(replay.indexOf("`--replay-journal="));
         const move = body("moveToTip");
         const movedPack = move.indexOf("packCatalogue()");
         expect(movedPack).toBeGreaterThan(move.indexOf("detachAt(newTip)"));

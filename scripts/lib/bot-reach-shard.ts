@@ -82,7 +82,7 @@ export interface ShardOptions {
     /** Requested worker count; fewer are spawned for a small miss set. */
     readonly workers: number;
     /** Told about every card as its verdict arrives, for progress output. */
-    readonly onPlay?: (oracleId: string) => void;
+    readonly onPlay?: (oracleId: string, verdict: BotReachVerdict) => void;
     /** Module exporting `createBotPlayer`; a test points it at a fake. */
     readonly playerModule?: string;
     /** Overrides `BATCH_TIMEOUT_MS`; a test cannot wait ten minutes. */
@@ -126,13 +126,15 @@ export async function playMisses(
             loadError = error;
         }
         for (const [id, definition] of queue) {
+            let verdict: BotReachVerdict;
             try {
                 if (play === null) throw loadError;
-                verdicts.set(id, play(id, definition));
+                verdict = play(id, definition);
             } catch (error) {
-                verdicts.set(id, harnessErrorVerdict(error));
+                verdict = harnessErrorVerdict(error);
             }
-            options.onPlay?.(id);
+            verdicts.set(id, verdict);
+            options.onPlay?.(id, verdict);
         }
         return verdicts;
     }
@@ -151,8 +153,9 @@ export async function playMisses(
     };
     const fail = (batch: Batch, why: string) => {
         for (const [id] of batch) {
-            verdicts.set(id, harnessErrorVerdict(`sweep worker: ${why}`));
-            options.onPlay?.(id);
+            const verdict = harnessErrorVerdict(`sweep worker: ${why}`);
+            verdicts.set(id, verdict);
+            options.onPlay?.(id, verdict);
         }
     };
     // A batch's death does not say which card (or whether any card) did it: a
@@ -209,7 +212,7 @@ export async function playMisses(
                 else if ("results" in response)
                     for (const [id, verdict] of response.results) {
                         verdicts.set(id, verdict);
-                        options.onPlay?.(id);
+                        options.onPlay?.(id, verdict);
                     }
                 inFlight = null;
                 dispatch();

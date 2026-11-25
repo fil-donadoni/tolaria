@@ -910,6 +910,12 @@ late Bot state is unchanged in kind. A held-back replay is owed only once a
 push lands past the interval, so a `bot-hash` lag counts as late from that
 push (`botHashLateSinceMs`). A quiet base waits for the nightly unfiled.
 
+**Note (issue #10737, 2026-11-25).** A replay that started and did not land
+counts for the cadence too. Its verdicts are journaled on the machine, so a
+later replay of the same Bot hash is due at once and plays only what is
+missing (`scripts/lib/bot-replay-journal.ts`). Two sweeps in a row hit the
+wall that day, at 3192 and 4880 of 9258 cards, and nothing was kept.
+
 **What would change the answer.** A health `test:app` beside live passes
 still past 1.5× the quiet median with the lane Interactive (then the
 `pass` runners' concurrency, or a lane wait, is next); the owner's
