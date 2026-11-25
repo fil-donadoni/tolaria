@@ -1,6 +1,7 @@
 // The Verdict Proposal judge on this device (`verdict-judge.ts`, ADR 0183
-// Amendment I): the answer is the server judge's for the same position, budget
-// and seed; the Bot's Brain is never in its way nor it in the Bot's.
+// Amendment I): the answer is the Brain request handler's own, called directly,
+// for the same position, budget and seed; the Bot's Brain is never in its way
+// nor it in the Bot's.
 //
 // The fake Worker runs the handler the real one runs (`brain.worker.ts` →
 // `handleBrainRequest`) on a structured clone, so what crosses the message
@@ -13,7 +14,6 @@ import { buildBladeState } from "@convex/gre/ai/blade/runner";
 import { getCardByName } from "@convex/cards";
 import { handleBrainRequest } from "@convex/gre/ai/brainRequest";
 import type { BrainRequest } from "@convex/gre/ai/brainRequest";
-import { runVerdictJudge } from "@convex/verdictJudge";
 import { consultBrain, disposeBrain } from "../brain-client";
 import type { AiTraceSource } from "../trace-store";
 import { VERDICT_PROPOSAL_CONFIG } from "../verdict-proposal-config";
@@ -88,6 +88,23 @@ function captured(): AiTraceSource {
     };
 }
 
+/** The reference answer: the shared handler, called in this thread, at the
+ *  judge's fixed budget and seed — no Worker, no clock. */
+function referenceMove(
+    source: AiTraceSource,
+    iterations: number,
+    seed: number
+) {
+    return handleBrainRequest({
+        id: 0,
+        state: source.state,
+        botId: source.botId,
+        budget: { iterations },
+        deckKnowledge: source.knowledge,
+        seed,
+    }).move;
+}
+
 let open: VerdictJudge;
 
 beforeEach(() => {
@@ -106,21 +123,12 @@ afterEach(() => {
 
 describe("the client judge — same position, budget and seed, same move", () => {
     // Budgets small enough that the seed decides: an answer that ignored it
-    // would not follow the server's across them.
+    // would not follow the reference's across them.
     const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
 
-    it("answers what the server judge answers, seed by seed", async () => {
+    it("answers what the handler answers in this thread, seed by seed", async () => {
         const source = captured();
-        const served = SEEDS.map(
-            (seed) =>
-                runVerdictJudge({
-                    state: source.state,
-                    botId: source.botId,
-                    knowledge: source.knowledge,
-                    iterations: 6,
-                    seed,
-                }).move
-        );
+        const served = SEEDS.map((seed) => referenceMove(source, 6, seed));
         // The fixture discriminates: not every seed answers alike.
         expect(
             new Set(served.map((m) => JSON.stringify(m))).size
@@ -134,19 +142,13 @@ describe("the client judge — same position, budget and seed, same move", () =>
     it("answers the same at the review's own budget and seed, asked twice", async () => {
         const source = captured();
         const { iterations, seed } = VERDICT_PROPOSAL_CONFIG;
-        const served = runVerdictJudge({
-            state: source.state,
-            botId: source.botId,
-            knowledge: source.knowledge,
-            iterations,
-            seed,
-        });
-        expect(served.outcome).toBe("move");
+        const served = referenceMove(source, iterations, seed);
+        expect(served).not.toBeNull();
         const twice = [
             await open.judge(source, { iterations }, seed),
             await open.judge(source, { iterations }, seed),
         ];
-        expect(twice).toEqual([served.move, served.move]);
+        expect(twice).toEqual([served, served]);
         // No clock in the budget: it would make the answer the device's.
         for (const r of workers.flatMap((w) => w.requests)) {
             expect(r).toMatchObject({ seed, deckKnowledge: source.knowledge });
