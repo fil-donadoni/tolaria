@@ -465,6 +465,7 @@ function lowerQuotedAbility(
             cost: ir.cost,
             produces: ir.produces,
             ...(ir.maxSpeed === true ? { maxSpeed: true as const } : {}),
+            ...(ir.exhaust === true ? { exhaust: true as const } : {}),
         });
         return lowered.ok
             ? { ok: true, kind: "activated", ability: lowered.ability }
@@ -496,6 +497,7 @@ function lowerQuotedAbility(
         effects: ir.effects,
         restrictions: ir.restrictions,
         ...(ir.maxSpeed === true ? { maxSpeed: true as const } : {}),
+        ...(ir.exhaust === true ? { exhaust: true as const } : {}),
     });
     return lowered.ok
         ? { ok: true, kind: "activated", ability: lowered.ability }
@@ -550,6 +552,7 @@ function lowerLine(
                 produces: ir.produces,
                 ownLine: true,
                 ...(ir.maxSpeed === true ? { maxSpeed: true as const } : {}),
+                ...(ir.exhaust === true ? { exhaust: true as const } : {}),
             });
             if (!lowered.ok) return lowered.reason;
             const ability = lowered.ability;
@@ -600,6 +603,7 @@ function lowerLine(
                 effects: ir.effects,
                 restrictions: ir.restrictions,
                 ...(ir.maxSpeed === true ? { maxSpeed: true as const } : {}),
+                ...(ir.exhaust === true ? { exhaust: true as const } : {}),
                 grantQuotedAbility: (quoted) => {
                     const template = lowerQuotedAbility(
                         {

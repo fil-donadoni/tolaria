@@ -228,6 +228,11 @@ export type CardInstanceState = {
      *  The exert-side sibling of `lifePaidThisTap` / `manaPaidThisTap`;
      *  cleared at untap step / on refund, like both. */
     exertedThisTap?: boolean;
+    /** CR 702.177a / 605.1a — the exhaust mana ability THIS for-mana tap
+     *  activated, so an untap that reverses the activation gives it back
+     *  (`restoreExhaustOnUntap`). Cleared at untap step / on refund, like
+     *  `exertedThisTap`. */
+    exhaustedThisTap?: string;
     /** CR 601.2h / 605.1a — mana the controller actually spent from their pool
      *  to pay this tap-for-mana's own MANA cost leg (a filter/upgrader rock:
      *  Chromatic Star / Barbed Sextant / Implements of
@@ -910,6 +915,11 @@ export type CardInstanceState = {
      *  reset at the active player's turn start. Read by the activation
      *  validator to enforce `ActivatedAbility.oncePerTurn`. */
     activationsThisTurn?: Record<string, number>;
+    /** CR 702.177a — ids of the exhaust abilities this object has activated
+     *  ("Activate only once"). Not a per-turn tally: it lasts as long as the
+     *  object does and is cleared on re-entry (CR 400.7). Written and read
+     *  through `gre/exhaust.ts`. */
+    exhaustedAbilities?: string[];
     /** Per-turn TRIGGER counter keyed by triggered-ability id (CR 603.2 —
      *  "this ability triggers only twice each turn", Nadu, Winged Wisdom). The
      *  trigger twin of `activationsThisTurn`: incremented by `collectTriggers`

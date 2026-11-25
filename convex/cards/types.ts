@@ -2696,6 +2696,10 @@ export interface ActivatedAbility {
      *  `CardInstanceState.activationsThisTurn[abilityId]` and resets at
      *  turn start. Used by Instill Energy. */
     oncePerTurn?: boolean;
+    /** CR 702.177a — this is an EXHAUST ability: "Activate only once", for as
+     *  long as its source is the same object (CR 400.7). Gated and spent
+     *  through `gre/exhaust.ts`. */
+    exhaust?: true;
     /** "Activate only if this creature attacked this turn" (CR 702.142a's
      *  first clause; the second clause is `oncePerTurn`). A DECLARATIVE,
      *  JSON-serialisable activation-timing precondition — deliberately NOT a
@@ -9527,6 +9531,9 @@ export interface PermanentView {
      *  enforce a hard per-turn cap (Soul Kiss — "activate no more than three
      *  times each turn"). Reset at turn start. */
     activationsThisTurn?: Readonly<Record<string, number>>;
+    /** CR 702.177a — the exhaust abilities already activated. Mirrors
+     *  `CardInstanceState.exhaustedAbilities`. */
+    exhaustedAbilities?: readonly string[];
     /** True for tokens (CR 111). Predicates that scope to "nontoken
      *  permanents" (Jihad's chosen-color clause) read this; populated from the
      *  raw `CardInstanceState` the engine passes through as the view. */

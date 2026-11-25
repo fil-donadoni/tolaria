@@ -34157,4 +34157,34 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         tier: "must",
         expect: { moves: [{ kind: "pass" }] },
     },
+    {
+        // Issue #3221 — an exhaust ability is a real root move: the opponent at
+        // 3 behind a wall, one Mountain, and the 3 damage behind "Exhaust — {R},
+        // {T}" is the only play that wins.
+        label: "Exhaust: Loot, the Pathfinder activates its damage ability for lethal (CR 702.177a)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Loot, the Pathfinder",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Wall of Stone", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            life: { opp: 3 },
+        },
+        bot: "me",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Loot, the Pathfinder" }],
+        },
+    },
 ];

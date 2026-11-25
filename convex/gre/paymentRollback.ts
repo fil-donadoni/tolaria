@@ -16,6 +16,7 @@ import {
     getFixedManaAmount,
 } from "./constants";
 import { restoreExertOnUntap } from "./exert";
+import { restoreExhaustOnUntap } from "./exhaust";
 import { recomposeLayer6ForInstance } from "./layer6";
 import { getPlayer } from "./lookup";
 import { reverseManaAbilityEffectsOnUntap } from "./manaAbilityEffects";
@@ -293,6 +294,8 @@ export function untapSourceFromPayment(
     restoreLifePaidOnUntap(player, card);
     // CR 106.4 / 701.43b — and the exert its cost leg paid (Arena of Glory).
     restoreExertOnUntap(state, card);
+    // CR 702.177a — and the exhaust the reversed activation spent.
+    restoreExhaustOnUntap(card);
     reverseManaAbilityEffectsOnUntap(card);
     // CR 106.4 / 601.2f — and the mana its own activation cost took (Chromatic
     // Star's {1}). Same reversal, cost side.
@@ -357,6 +360,8 @@ function reversePaymentTaps(
         // own inline copy of the untap and must restate it, or a cancelled cast
         // leaves the land not untapping for a spell that was never cast.
         restoreExertOnUntap(state, card);
+        // CR 702.177a — and the exhaust the reversed activation spent.
+        restoreExhaustOnUntap(card);
         reverseManaAbilityEffectsOnUntap(card);
         // CR 106.4 / 118.3 / 122.1 — and the counters the tap's own
         // `removeCounter` leg took (a depletion land, a Mana Battery's scaling

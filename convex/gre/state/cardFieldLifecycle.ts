@@ -192,6 +192,7 @@ export const CARD_FIELD_LIFECYCLE = {
     returnToHandAtUntapOf:      { codec: "scalar",  reset: ZONE },
     // Cleared when the permanent untaps (untap step or otherwise).
     exertedThisTap:             { codec: "flag",    reset: ["custom:turn", "zone-change"] },
+    exhaustedThisTap:           { codec: "scalar",  reset: ["custom:turn", "zone-change"] },
     canAttackDespiteDefenderThisTurn: { codec: "flag", reset: TURN_ZONE },
     counters:                   { codec: "record",  reset: ZONE },
     countersAtLeave:            { codec: "record",  reset: ZONE },
@@ -202,6 +203,7 @@ export const CARD_FIELD_LIFECYCLE = {
     staticSeq:                  { codec: "defined", reset: ZONE },
     // Also cleared by hand at every graveyard departure (`noteGraveyardDeparture`).
     zoneStaticSeq:              { codec: "defined", reset: ZONE },
+    exhaustedAbilities:         { codec: "list",    reset: ZONE },
     // Both tallies clear at turn START (`gre/phases.ts`), not at cleanup.
     activationsThisTurn:        { codec: "record",  reset: ["custom:turn", "zone-change"] },
     triggersThisTurn:           { codec: "record",  reset: ["custom:turn", "zone-change"] },

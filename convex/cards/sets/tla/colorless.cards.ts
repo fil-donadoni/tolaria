@@ -78,7 +78,7 @@ export const abandonedAirTemple = defineCard(() => ({
 // Earthbend 2 (CR 701.66a) is the three-Op body Badgermole Cub and Aang ship,
 // here on an activated ability with sorcery timing (CR 602.5d); no card in the
 // catalogue triggers off earthbending, so CR 701.66b has nothing to wire.
-// hand-tail: {2}{G}, {T}: Earthbend 2. Activate only as a sorcery. (#8655)
+// compiler-gap: {2}{G}, {T}: Earthbend 2. Activate only as a sorcery. (#8496)
 export const baSingSe = defineCard(() => ({
     id: "bdf3b2be-d0cd-4a3c-a10e-82d32c12d3bd",
     name: "Ba Sing Se",

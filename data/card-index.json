@@ -12418,6 +12418,16 @@
         "firstPrintSet": "arn"
     },
     {
+        "name": "Camera Launcher",
+        "scryfallId": "968651db-92fb-46cd-acda-9e097668b7c9",
+        "oracleId": "b46bac37-5b45-4be5-93d0-76e48dbd9f74",
+        "firstSet": "dft",
+        "firstPrintId": "968651db-92fb-46cd-acda-9e097668b7c9",
+        "firstPrintSet": "dft",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Camouflage",
         "scryfallId": "3838c2a3-7fab-4976-9c1b-2891aee24e52",
         "oracleId": "9cf44db4-627a-4197-9588-6da72e41f03d",
@@ -23425,6 +23435,16 @@
         "firstPrintId": "0d5674f9-22b2-45f9-902d-4fd245485c60",
         "firstPrintSet": "tdm",
         "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
+        "name": "Draconautics Engineer",
+        "scryfallId": "c44440be-e611-4e70-9919-b08e2354b7ad",
+        "oracleId": "380d8d64-9aec-4656-b5b8-d336ebf803c8",
+        "firstSet": "dft",
+        "firstPrintId": "c44440be-e611-4e70-9919-b08e2354b7ad",
+        "firstPrintSet": "dft",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -38332,6 +38352,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Greenbelt Guardian",
+        "scryfallId": "2f6b0000-5fd3-483b-bac5-f9b888d8755b",
+        "oracleId": "2d8aa053-289d-40d9-baa7-9bd1c5b8e957",
+        "firstSet": "dft",
+        "firstPrintId": "2f6b0000-5fd3-483b-bac5-f9b888d8755b",
+        "firstPrintSet": "dft",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Greenhouse Propagator",
         "scryfallId": "a56e0f91-b128-4693-a949-53cb403f4fbf",
         "oracleId": "b6b77cb9-49a5-4d1a-ae2d-02ae176dc1fa",
@@ -40204,6 +40234,16 @@
         "firstSet": "bro",
         "firstPrintId": "847a175e-ead1-4596-baf3-5f7f57859e0b",
         "firstPrintSet": "bro"
+    },
+    {
+        "name": "Hazard of the Dunes",
+        "scryfallId": "c3fbee7a-7e73-43cf-bc39-ccb1c63bf837",
+        "oracleId": "799664fc-279c-40c1-8e40-44a68c38801b",
+        "firstSet": "dft",
+        "firstPrintId": "c3fbee7a-7e73-43cf-bc39-ccb1c63bf837",
+        "firstPrintSet": "dft",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Hazerider Drake",
@@ -46716,6 +46756,16 @@
         "source": "compiled"
     },
     {
+        "name": "Keen Buccaneer",
+        "scryfallId": "0ed90a63-5aca-470a-8e1e-518d8aeb6d91",
+        "oracleId": "8cadf9c0-9a63-4cde-a6be-0ae86890c831",
+        "firstSet": "dft",
+        "firstPrintId": "0ed90a63-5aca-470a-8e1e-518d8aeb6d91",
+        "firstPrintSet": "dft",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Keen Glidemaster",
         "scryfallId": "cce6289e-f665-4faa-8285-c843447f3e52",
         "oracleId": "98deac9e-28ea-4d11-8d75-833bf6d66e6e",
@@ -51004,6 +51054,16 @@
         "firstPrintId": "b88177a2-de41-417d-a8f1-07edf005b453",
         "firstPrintSet": "bfz",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Loot, the Pathfinder",
+        "scryfallId": "33c59c04-4c0b-4a60-826e-3a7757d0b2a2",
+        "oracleId": "68c7e459-0932-4644-a3c0-9a1eae1db7a3",
+        "firstSet": "dft",
+        "firstPrintId": "33c59c04-4c0b-4a60-826e-3a7757d0b2a2",
+        "firstPrintSet": "dft",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {
@@ -65979,6 +66039,16 @@
         "source": "compiled"
     },
     {
+        "name": "Prowcatcher Specialist",
+        "scryfallId": "affbc8db-4ff7-4a86-954a-910493e5a2ef",
+        "oracleId": "594132ac-32a7-41d5-b7f0-3692bbed7f6f",
+        "firstSet": "dft",
+        "firstPrintId": "affbc8db-4ff7-4a86-954a-910493e5a2ef",
+        "firstPrintSet": "dft",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Prowling Caracal",
         "scryfallId": "c5382fc4-3384-449e-a83f-43a59158d55b",
         "oracleId": "0eabe5e9-cb03-4481-9360-5e79eccd0631",
@@ -80061,6 +80131,16 @@
         "source": "compiled"
     },
     {
+        "name": "Skystreak Engineer",
+        "scryfallId": "5bc9c501-098d-4560-9826-329b05689e0f",
+        "oracleId": "2f920bf2-6a49-47c2-be3c-9787c377673b",
+        "firstSet": "dft",
+        "firstPrintId": "5bc9c501-098d-4560-9826-329b05689e0f",
+        "firstPrintSet": "dft",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Skystreamer",
         "scryfallId": "89d87407-7f92-47d6-bd89-69f39e0e0820",
         "oracleId": "aaf6d66b-67b1-43f1-a8bf-db83644f7d04",
@@ -83825,6 +83905,16 @@
         "firstSet": "m10",
         "firstPrintId": "f5a33394-d26c-4dcd-948c-e7d370059b11",
         "firstPrintSet": "m10",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Stampeding Scurryfoot",
+        "scryfallId": "7fc713d7-4a7e-4f1f-b461-e89bb1457d7d",
+        "oracleId": "7b860806-0118-40f8-861b-225a7c1cf151",
+        "firstSet": "dft",
+        "firstPrintId": "7fc713d7-4a7e-4f1f-b461-e89bb1457d7d",
+        "firstPrintSet": "dft",
         "rarity": "common",
         "source": "compiled"
     },
