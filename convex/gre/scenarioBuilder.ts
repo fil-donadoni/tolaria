@@ -3276,6 +3276,8 @@ export const CARD_STATE_ALLOWLIST = new Set<string>([
     "manaPaidThisTap",
     "lifePaidThisTap",
     "exertedThisTap",
+    // Exhaust (CR 702.177a) — same class: undo bookkeeping only.
+    "exhaustedThisTap",
     "manaCounterRemoval",
     // CR 508.1k / 509.1g / 506.4 (issue #3458) — the four combat flags.
     // `isAttacking` / `isBlocking` are rebuild BEHAVIOUR: the builder seeds

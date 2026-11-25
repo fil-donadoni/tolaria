@@ -34,12 +34,14 @@ import {
     manaTapExertsSource,
     manaTapSacrificesSource,
     mayBeSacrificedForMana,
+    manaTapExhaustAbility,
     mayExertForMana,
     mayRemoveCountersForMana,
     stackManaValue,
 } from "./constants";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { payExertActivationCost } from "./exert";
+import { recordExhaust } from "./exhaust";
 import { MANA_COLORS, normalizedHybridPips } from "./manaColors";
 
 /** One entry of a Move's `tapPlan` (`gre/moves.ts`). */
@@ -175,6 +177,17 @@ export function applyTapPlanInSearch(
         ) {
             payExertActivationCost(state, src);
         }
+        // CR 702.177a — and the exhaust the activation spends, or the source
+        // makes its once-only mana again every simulated turn.
+        recordExhaust(
+            src,
+            manaTapExhaustAbility(
+                src,
+                player.id,
+                manaGateBattlefields(state),
+                tap.manaChoiceIndex
+            )
+        );
         src.isTapped = true;
     }
     // Moved after the loop so a plan naming the same source twice cannot make

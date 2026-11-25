@@ -41,6 +41,7 @@
 import type { ManaCost } from "../../cards/types";
 import { isTapLockedBySummoningSickness } from "../constants";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
+import { exhaustGateOpen } from "../exhaust";
 import { canPayCost } from "../manaAvailability";
 import { censusOf, type ManaCensusMemo } from "../manaCensusMemo";
 import { getLegalTargets, targetingSourceFromCard } from "../rules";
@@ -131,6 +132,8 @@ function bestReachAbilityOf(
         if (!effects || !ability.useStack) continue;
         const record = ability as unknown as Record<string, unknown>;
         if (DISQUALIFYING_ABILITY_KEYS.some((k) => record[k])) continue;
+        // CR 702.177a — an exhausted ability deals no more damage.
+        if (!exhaustGateOpen(ability, source)) continue;
         const cost = ability.cost as Record<string, unknown>;
         if (Object.keys(cost).some((k) => cost[k] && !ALLOWED_COST_KEYS.has(k)))
             continue;

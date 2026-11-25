@@ -80,7 +80,7 @@ import {
 import type { ParseContext } from "../../types";
 import { COLORED_MANA_COLORS, MANA_COLORS } from "../../../gre/manaColors";
 import { activationCostRule } from "../shared/cost";
-import { MAX_SPEED_HEAD } from "./activated";
+import { EXHAUST_HEAD, MAX_SPEED_HEAD } from "./activated";
 import { forEachRule, readNumberWord } from "../shared/quantity";
 import {
     boardManaFilterFromDescriptor,
@@ -503,6 +503,25 @@ const maxSpeedManaAbility: Rule<SlotIR> = rule(
 );
 
 /**
+ * CR 702.177a — "Exhaust — {G}, {T}: Add three mana of any one color.": the
+ * mana ability (CR 605.1a), activated only once. A CHOICE production only; no
+ * printed exhaust mana ability has a fixed one.
+ */
+const exhaustManaAbility: Rule<SlotIR> = rule(
+    "exhaust mana ability",
+    (span, ctx) => {
+        const body = terminated(".", manaAbilityBody).run(span, ctx);
+        if (!body.ok) return body;
+        if (
+            body.value.kind !== "mana-ability" ||
+            body.value.produces.kind !== "choice"
+        )
+            return fail("exhaust heads a production that is no choice", span);
+        return ok({ ...body.value, exhaust: true as const });
+    }
+);
+
+/**
  * CR 113.3b — the sentence ends in a full stop, which belongs to the ability.
  *
  * The slot additionally refuses any card that is not a permanent: an activated
@@ -522,6 +541,8 @@ export const manaAbilitySlot: Rule<SlotIR> = rule(
         const maxSpeed = span.match(MAX_SPEED_HEAD);
         if (maxSpeed !== null)
             return maxSpeedManaAbility.run(maxSpeed[1]!, ctx);
+        const exhaust = span.match(EXHAUST_HEAD);
+        if (exhaust !== null) return exhaustManaAbility.run(exhaust[1]!, ctx);
         return terminated(".", manaAbilityBody).run(span, ctx);
     }
 );

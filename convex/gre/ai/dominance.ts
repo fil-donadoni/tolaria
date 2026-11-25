@@ -1686,6 +1686,8 @@ export const IGNORED_INSTANCE_KEYS = [
     "baseTypes",
     "baseSubtypes",
     "activationsThisTurn",
+    // CR 702.177a — spending an exhaust is only ever a price to its controller.
+    "exhaustedAbilities",
     "triggersThisTurn",
     // CR 702.40a — the cast-time copy of `GameState.spellsCastThisTurn` a spell
     // on the stack carries for the card preview. Display only: nothing in the

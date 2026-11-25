@@ -231,6 +231,7 @@
           "skipNextUntap": true,
           "returnToHandAtUntapOf": "p1",
           "exertedThisTap": true,
+          "exhaustedThisTap": "ab-1",
           "canAttackDespiteDefenderThisTurn": true,
           "counters": {
             "+1/+1": 2
@@ -257,6 +258,9 @@
           "worldSeq": 12,
           "staticSeq": 13,
           "zoneStaticSeq": 14,
+          "exhaustedAbilities": [
+            "ab-1"
+          ],
           "activationsThisTurn": {
             "ab-1": 1
           },
@@ -723,6 +727,7 @@
       "skipNextUntap": true,
       "returnToHandAtUntapOf": "p1",
       "exertedThisTap": true,
+      "exhaustedThisTap": "ab-1",
       "canAttackDespiteDefenderThisTurn": true,
       "counters": {
         "+1/+1": 2
@@ -749,6 +754,9 @@
       "worldSeq": 12,
       "staticSeq": 13,
       "zoneStaticSeq": 14,
+      "exhaustedAbilities": [
+        "ab-1"
+      ],
       "activationsThisTurn": {
         "ab-1": 1
       },

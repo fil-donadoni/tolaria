@@ -3436,6 +3436,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › Earthbend N",
+            "issue": 8496
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Earthbend N",
             "issue": 8496
         },
@@ -7489,6 +7494,7 @@
             "issue": 8496,
             "kind": "grammar",
             "match": [
+                "activated › effect clause › Earthbend N",
                 "triggered › effect clause › Earthbend N",
                 "triggered › effect clause › it",
                 "triggered › condition › it was a creature",

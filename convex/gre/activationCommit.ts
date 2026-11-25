@@ -22,7 +22,11 @@
 import { announcedModeFields } from "./modeSelection";
 import type { CardInstanceState, GameState, StackItem } from "./state";
 import type { TargetSelection } from "../cards/types";
-import type { GrantedAbilityOrigin } from "./activatedAbilities";
+import {
+    getEffectiveActivatedAbilities,
+    type GrantedAbilityOrigin,
+} from "./activatedAbilities";
+import { recordExhaust } from "./exhaust";
 import { emitAbilityActivated } from "./state";
 import { stackTransformStamp } from "./transform";
 
@@ -135,6 +139,13 @@ export function recordActivation(
     const map: Record<string, number> = card.activationsThisTurn ?? {};
     map[abilityId] = (map[abilityId] ?? 0) + 1;
     card.activationsThisTurn = map;
+    // CR 702.177a — an exhaust ability is spent for good by its activation.
+    recordExhaust(
+        card,
+        getEffectiveActivatedAbilities(card).find(
+            (entry) => entry.ability.id === abilityId
+        )?.ability
+    );
     // CR 602.1 — non-{T} activated abilities emit ABILITY_ACTIVATED so
     // "tapped or non-tap ability activated" punishers (Haunting Wind,
     // Powerleech, Artifact Possession) can react. {T} abilities are covered by
