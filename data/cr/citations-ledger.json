@@ -50378,6 +50378,7 @@
         {"id":"608.2b","line":"* filter that matches nothing is a clean no-op (CR 608.2b). `position`","sites":1,"status":"baseline"},
         {"id":"701.9c","line":"it(\"an OPPONENT's spell makes you discard it → onto the battlefield with two +1/+1 counters, and it was still discarded (CR 701.9c)\", () => {","sites":1,"status":"confirmed","ruleHash":"63f99ebd352c06b5"},
         {"id":"608.2b","line":"// the replayed step. Empty hand → nothing revealed (CR 608.2b).","sites":1,"status":"baseline"},
+        {"id":"702.177a","line":"// CR 702.177a — exhaust, a gate on activating it again.","sites":1,"status":"confirmed","ruleHash":"cbffb9ebb761c8e6"},
         {"id":"603.4","line":"* CR 109.5 + CR 603.4 — \"if an opponent controls more lands than you\" /","sites":1,"status":"confirmed","ruleHash":"1cf8dd0b467f3ede"},
         {"id":"110.4a","line":"// - the target is a permanent card (CR 110.4a) in that same graveyard;","sites":1,"status":"confirmed","ruleHash":"a78666924b06ef97"},
         {"id":"702.139a","line":"// CR 116.2 / 702.139a (ADR 0064) — the companion summon special action.","sites":1,"status":"baseline"},

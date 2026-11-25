@@ -42,6 +42,8 @@ const LIBRARY_FREE_FIELDS: ReadonlySet<string> = new Set([
     "oncePerTurn",
     // CR 702.178a — a gate on whether the ability exists ("Max speed —").
     "requiresMaxSpeed",
+    // CR 702.177a — exhaust, a gate on activating it again.
+    "exhaust",
     // What is produced.
     "effect",
     "effects",
