@@ -38,9 +38,12 @@ describe("Bot-play sweep (ADR 0105 § 7.2) — untap spells and land destroyers"
         for (const { verdict } of playBotReachSeats(
             getCardByName("Dwarven Landslide")
         )) {
-            if (verdict.outcome !== "played") {
-                expect(verdict.trace?.cardMove).toBe("weighed");
-            }
+            // A cast the search played is one it weighed.
+            expect(
+                verdict.outcome === "played"
+                    ? "weighed"
+                    : verdict.trace?.cardMove
+            ).toBe("weighed");
         }
     }, 600_000);
 
