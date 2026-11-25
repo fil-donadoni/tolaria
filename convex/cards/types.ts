@@ -1405,7 +1405,10 @@ export interface TargetRequirement {
      *  kicked. Otherwise, the spell is cast as if it did not have those
      *  targets" (CR 702.33g), which CR 601.2c states generally: "A spell may
      *  require some targets only if an alternative or additional cost (such
-     *  as a kicker cost) ... was chosen for it".
+     *  as a kicker cost) ... was chosen for it". A promised gift opens it on
+     *  the same terms (CR 702.174m): the cost keyword's `gatesTargets` row
+     *  decides (`targetGatePaid`, `gre/kicker.ts`), and the name keeps the
+     *  first keyword that opened it.
      *
      *  The OTHER encoding of that rule is `kickedTargetRequirement` — the
      *  base requirement with a WIDER count swapped in at announcement — and
@@ -24928,8 +24931,9 @@ export interface CardDefinition {
      *  than letting it ship as a keyword that does nothing (the reasons are in
      *  `gre/splice.ts`'s header). */
     splice?: SpliceAbility;
-    /** CR 702.33 — the target requirement that REPLACES `targetRequirement` when
-     *  this spell was kicked ("If this spell was kicked, [do something to] target
+    /** CR 702.33 / 702.174m — the target requirement that REPLACES
+     *  `targetRequirement` when this spell was kicked, or its gift promised
+     *  (`targetGatePaid`, `gre/kicker.ts`) ("If this spell was kicked, [do something to] target
      *  <different thing> instead"). Chosen at announcement (the kick decision
      *  precedes target selection, CR 601.2b/601.2c). Used by Bloodchief's Thirst
      *  ("target creature or planeswalker with mana value 2 or less" →

@@ -44494,6 +44494,16 @@
         "source": "compiled"
     },
     {
+        "name": "Into the Flood Maw",
+        "scryfallId": "50b9575a-53d9-4df7-b86c-cda021107d3f",
+        "oracleId": "8cb36a67-9206-4665-a03f-64f52ba559c4",
+        "firstSet": "blb",
+        "firstPrintId": "50b9575a-53d9-4df7-b86c-cda021107d3f",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Into the Maw of Hell",
         "scryfallId": "5d188d9b-7a12-4eaf-855b-af4f0204dc5a",
         "oracleId": "5f0e8fd5-9db9-4507-a42f-cb99080b89e2",
@@ -50973,6 +50983,16 @@
         "firstSet": "mkm",
         "firstPrintId": "c3896705-bbd2-4ffb-a590-ee78e0eabdc5",
         "firstPrintSet": "mkm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Long River's Pull",
+        "scryfallId": "1c81d0fa-81a1-4f9b-a5fd-5a648fd01dea",
+        "oracleId": "f1993767-1d07-49c8-b8dc-04ec9840a999",
+        "firstSet": "blb",
+        "firstPrintId": "1c81d0fa-81a1-4f9b-a5fd-5a648fd01dea",
+        "firstPrintSet": "blb",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -59583,6 +59603,16 @@
         "source": "compiled"
     },
     {
+        "name": "Nocturnal Hunger",
+        "scryfallId": "742c0409-9abd-4559-b52e-932cc90c531a",
+        "oracleId": "ed7f64d1-69ba-40f5-9863-3edba10e23c7",
+        "firstSet": "blb",
+        "firstPrintId": "742c0409-9abd-4559-b52e-932cc90c531a",
+        "firstPrintSet": "blb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Noggle Bridgebreaker",
         "scryfallId": "545a52ed-b4d4-4972-940d-9daf07a488b1",
         "oracleId": "d7e127e4-56fd-4116-9c1a-421beab58e5c",
@@ -62477,6 +62507,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Parting Gust",
+        "scryfallId": "1086e826-94b8-4398-8a38-d8eacca56a43",
+        "oracleId": "367bb252-41e1-4f98-9d22-442dd332cccf",
+        "firstSet": "blb",
+        "firstPrintId": "1086e826-94b8-4398-8a38-d8eacca56a43",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Passwall Adept",
         "scryfallId": "a8ed28c3-8c66-4883-8774-67ac5ab9e81c",
         "oracleId": "9a2bc266-4076-4923-b201-5898b18cbad9",
@@ -62708,6 +62748,16 @@
         "firstPrintId": "9be02570-b840-46cc-af54-5279463fdcab",
         "firstPrintSet": "chk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Peerless Recycling",
+        "scryfallId": "5f72466c-505b-4371-9366-0fde525a37e6",
+        "oracleId": "938c03fc-8adf-4c7a-8ae1-eca8401f7a83",
+        "firstSet": "blb",
+        "firstPrintId": "5f72466c-505b-4371-9366-0fde525a37e6",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -100071,6 +100121,16 @@
         "source": "compiled"
     },
     {
+        "name": "Wear Down",
+        "scryfallId": "fded2b83-3b7d-4c8c-83c4-0624a1069628",
+        "oracleId": "27905301-333e-4cdd-90cf-188159fcf8e9",
+        "firstSet": "blb",
+        "firstPrintId": "fded2b83-3b7d-4c8c-83c4-0624a1069628",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Weaselback Redcap",
         "scryfallId": "33a78207-fd76-4112-a257-54a25da6f818",
         "oracleId": "b14bd895-1d4e-4bd5-9ac1-fed56afb6c90",
@@ -101089,6 +101149,16 @@
         "firstSet": "mir",
         "firstPrintId": "6d99204c-b42d-48bc-9a93-fae5660665c7",
         "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Wildfire Howl",
+        "scryfallId": "7392d397-9836-4df2-944d-c930c9566811",
+        "oracleId": "04fd8c1f-80e5-4b3d-b63e-7af6ccafbbaa",
+        "firstSet": "blb",
+        "firstPrintId": "7392d397-9836-4df2-944d-c930c9566811",
+        "firstPrintSet": "blb",
         "rarity": "uncommon",
         "source": "compiled"
     },

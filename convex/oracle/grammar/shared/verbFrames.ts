@@ -1436,7 +1436,7 @@ function readMoveObject(
             return ok({ kind: "subject", subject: { kind: "that-card" } });
         return fail(`"${word}" names a card no frame before it found`, span);
     }
-    if (opensTargetPhrase(span) || span.startsWith("another target ")) {
+    if (opensTargetPhrase(span, ctx) || span.startsWith("another target ")) {
         const subject = subjectRule.run(span, ctx);
         return subject.ok
             ? ok({ kind: "subject", subject: subject.value })

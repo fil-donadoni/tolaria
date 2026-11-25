@@ -108,6 +108,7 @@ import {
     foldKickerCosts,
     kickedTargetRequirement,
     kickedCountOfPayments,
+    targetGatePaid,
     kickerLifeCost,
     paidKickersAnnounceX,
     paidKickersMinX,
@@ -3971,8 +3972,8 @@ function enumerateCastMovesFromZone(
             def?.additionalTargetRequirements ??
             [];
         // CR 702.33g / 601.2c (issue #4220) — a group announced only if the
-        // spell was kicked belongs to exactly the variants that PAY the
-        // kicker. Same authority `announceCast` filters with, passed THIS
+        // spell was kicked (or its gift promised, CR 702.174m) belongs to
+        // exactly the variants that PAY that cost. Same authority `announceCast` filters with, passed THIS
         // variant's payments: enumerating a gated group on an unkicked
         // variant hands the executor a `selectTargets` the mutation rejects
         // (it never opened that group), and omitting it on a kicked one
@@ -3983,7 +3984,7 @@ function enumerateCastMovesFromZone(
         // own, from the SAME list `announceCast` appends (`splicedTargetGroups`).
         return castAnnouncedTargetGroups(
             [primary].concat(extra),
-            def ? kickedCountOfPayments(def, kickerPayments) > 0 : false
+            targetGatePaid(def, kickerPayments)
         ).concat(splicedTargetGroups(def ?? undefined, kickerPayments));
     };
     // CR 614.12a (issue #2019) — a card whose modal pick is an AS-ENTERS choice

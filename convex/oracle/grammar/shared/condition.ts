@@ -744,8 +744,9 @@ export type KickedRefIR =
      *  below is moot. */
     | { readonly kind: "evidence" }
     /** CR 702.174k — "if the gift was promised": the card's gift cost entry,
-     *  whose payment IS the promise. Read only on the permanent form (the gift
-     *  trigger's sibling ETB); a spell's promised clause is not this rule's. */
+     *  whose payment IS the promise. This rule reads it only on the permanent
+     *  form (the gift trigger's sibling ETB); a spell's own clauses are
+     *  `giftSentenceRule`'s (`effectClause.ts`). */
     | { readonly kind: "gift" };
 
 /** Nouns naming the kicked object — the spell itself (CR 702.33e). */

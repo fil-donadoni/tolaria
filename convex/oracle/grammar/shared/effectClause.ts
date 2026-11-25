@@ -1853,8 +1853,9 @@ export type EffectSentenceIR =
            * whose body is one zone move of the object an earlier sentence (or
            * the source itself) names. The referent is anaphora (CR 608.2h), so
            * the sentence carries no subject: the lowering binds it or refuses.
-           * Riders ("with a +1/+1 counter on it", "and you skip your next draw
-           * step") are neighbours, refused here.
+           * One rider is read: "that card … with a +1/+1 counter on it" on the
+           * battlefield form, a counter the card enters with (CR 122.6). Every
+           * other ("and you skip your next draw step") is a neighbour, refused.
            */
           readonly kind: "delayed-return";
           readonly referent: "it" | `this ${string}`;
@@ -1865,6 +1866,7 @@ export type EffectSentenceIR =
            */
           readonly printedThatCard?: true;
           readonly destination: "hand" | "battlefield";
+          readonly withPlusOneCounter?: true;
           readonly timing: "next-end-step" | "next-cleanup-step";
       }
     | {
@@ -2068,6 +2070,11 @@ export type EffectSentenceIR =
           readonly kind: "kicked";
           readonly kicked: KickedRefIR;
           readonly effect: EffectSentenceIR;
+          /**
+           * CR 702.174k — "If the gift wasn't promised, <effect>": the gate
+           * opens when the cost went UNPAID.
+           */
+          readonly unpaid?: true;
       }
     | {
           /**
@@ -2089,6 +2096,11 @@ export type EffectSentenceIR =
            * otherwise. Both halves are sweeps of the same verb (the only form
            * the corpus prints), so neither announces a target and there is no
            * shared object to keep identical.
+           *
+           * CR 702.174k + CR 702.174m — "<base>. If the gift was promised,
+           * instead <replacement>." is the same pair under the gift reference,
+           * with its own announcement: the replacement's targets are chosen
+           * only if the gift was promised, and then in place of the base's.
            */
           readonly kind: "replace-if-kicked";
           readonly kicked: KickedRefIR;
@@ -2813,6 +2825,15 @@ export type SentenceIR =
     | {
           readonly role: "kicked-instead";
           readonly kicked: KickedRefIR;
+          readonly replacement: EffectSentenceIR;
+      }
+    /**
+     * CR 702.174k — "If the gift was promised, instead <effect>": the
+     * replacement half of a `replace-if-kicked` under the gift reference,
+     * folded onto the one effect in front of it.
+     */
+    | {
+          readonly role: "promised-instead";
           readonly replacement: EffectSentenceIR;
       }
     /**
@@ -4316,6 +4337,23 @@ export function assembleSentences(
             effects[effects.length - 1] = replaced;
             continue;
         }
+        if (sentence.role === "promised-instead") {
+            const previous = effects[effects.length - 1];
+            // "Instead" replaces the instruction before it; with two in front
+            // the clause does not say how many of them it stands in for.
+            if (previous === undefined || effects.length !== 1)
+                return {
+                    ok: false,
+                    reason: '"If the gift was promised, instead …" replaces the one effect before it',
+                };
+            effects[0] = {
+                kind: "replace-if-kicked",
+                kicked: { kind: "gift" },
+                base: previous,
+                replacement: sentence.replacement,
+            };
+            continue;
+        }
         if (sentence.role === "kicked-instead") {
             const previous = effects[effects.length - 1];
             if (previous === undefined)
@@ -4910,7 +4948,7 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
         const phrase = another ? probe.slice("another ".length) : probe;
         // CR 601.2c — the "up to N target …" heads are `targetFilterRule`'s
         // own; `opensTargetPhrase` is the single list both dispatch on.
-        if (opensTargetPhrase(phrase)) {
+        if (opensTargetPhrase(phrase, ctx)) {
             const requirement = targetFilterRule.run(phrase, ctx);
             if (!requirement.ok) return requirement;
             return ok({
@@ -5419,6 +5457,60 @@ export function kickedSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
                 effect: parsed.value.effect,
             },
         });
+    });
+}
+
+const GIFT_PROMISED_INSTEAD = "If the gift was promised, instead ";
+/** CR 601.2c — the two clauses the corpus prints an exact pair of targets in. */
+const EXACT_PAIR_CLAUSE =
+    /^(?:destroy two target .+|return two target .+ to your hand)$/;
+const GIFT_NOT_PROMISED = /^If the gift wasn(?:'|’)t promised, (.+)$/;
+
+/**
+ * CR 702.174k — a spell sentence that reads its gift's promise: "If the gift
+ * was promised, instead <effect>" replaces the effect before it, "If the gift
+ * wasn't promised, <effect>" does its work only when the promise was not made.
+ *
+ * A combinator like `kickedSentenceRule`, and as fail-closed. The ADDITIVE
+ * clause ("If the gift was promised, <effect>") is not read here: it stays
+ * refused under its own gap key.
+ */
+export function giftSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
+    return rule(`gift ${inner.label}`, (span, ctx) => {
+        const replaces = span.startsWith(GIFT_PROMISED_INSTEAD);
+        const unpromised = span.match(GIFT_NOT_PROMISED);
+        if (!replaces && unpromised === null) return inner.run(span, ctx);
+        const clause = replaces
+            ? span.slice(GIFT_PROMISED_INSTEAD.length)
+            : unpromised![1]!;
+        const parsed = inner.run(
+            capitalise(clause),
+            replaces && EXACT_PAIR_CLAUSE.test(clause)
+                ? { ...(ctx as ParseContext), exactPairTargets: true as const }
+                : ctx
+        );
+        if (!parsed.ok) return parsed;
+        if (parsed.value.role !== "effect")
+            return fail(
+                `a gift condition gates an effect, not a ${parsed.value.role}`,
+                span
+            );
+        return ok(
+            replaces
+                ? {
+                      role: "promised-instead" as const,
+                      replacement: parsed.value.effect,
+                  }
+                : {
+                      role: "effect" as const,
+                      effect: {
+                          kind: "kicked" as const,
+                          kicked: { kind: "gift" as const },
+                          effect: parsed.value.effect,
+                          unpaid: true as const,
+                      },
+                  }
+        );
     });
 }
 
@@ -5954,6 +6046,13 @@ const DESTROY_TWO_TARGETS = /^Destroy (target .+?) and (target .+)$/;
  */
 const DAMAGE_THEN_GAIN =
     /^(.+ deals \S+ damage to .+) and (you gain \S+ life)$/;
+/**
+ * CR 120.3 — one dealer, two amounts: "{self} deals 1 damage to any target and
+ * 2 damage to each creature". Each half reads through `DAMAGE` like any other;
+ * the recipients are pinned to the one printed pair (anti-leniency, as `DRAIN`).
+ */
+const DAMAGE_TARGET_AND_EACH =
+    /^(.+ deals )(\d+ damage to any target) and (\d+ damage to each creature)$/;
 const COUNTERS = /^Put (\S+) (\S+) counters? on (.+)$/;
 const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
 /** CR 603.7a — "You draw a card at the beginning of the next turn's upkeep". */
@@ -5965,7 +6064,7 @@ const DELAYED_DRAW_NEXT_UPKEEP =
  * owner's control at the beginning of the next end step".
  */
 const DELAYED_RETURN =
-    /^Return (it|that card|this (?:land|artifact|creature|permanent|enchantment)) to (?:its owner(?:'|’)s hand at the beginning of the next (end|cleanup) step|the battlefield under its owner(?:'|’)s control at the beginning of the next (end) step)$/;
+    /^Return (it|that card|this (?:land|artifact|creature|permanent|enchantment)) to (?:its owner(?:'|’)s hand at the beginning of the next (end|cleanup) step|the battlefield under its owner(?:'|’)s control( with a \+1\/\+1 counter on it)? at the beginning of the next (end) step)$/;
 /**
  * CR 400.7 + CR 608.2h — the flicker, whole: "Exile <target>, then return it /
  * that card to the battlefield under its owner's control".
@@ -8363,6 +8462,12 @@ function effectSentence(
     const delayedReturn = span.match(DELAYED_RETURN);
     if (delayedReturn !== null) {
         const toHand = delayedReturn[2] !== undefined;
+        // CR 122.6 — the one printed counter rider names an exiled card.
+        if (delayedReturn[3] !== undefined && delayedReturn[1] !== "that card")
+            return fail(
+                'a delayed return with a counter names "that card"',
+                span
+            );
         return ok({
             kind: "delayed-return" as const,
             referent: delayedReturn[1]!.startsWith("this ")
@@ -8372,8 +8477,11 @@ function effectSentence(
                 ? { printedThatCard: true as const }
                 : {}),
             destination: toHand ? ("hand" as const) : ("battlefield" as const),
+            ...(delayedReturn[3] !== undefined
+                ? { withPlusOneCounter: true as const }
+                : {}),
             timing:
-                (delayedReturn[2] ?? delayedReturn[3]) === "cleanup"
+                (delayedReturn[2] ?? delayedReturn[4]) === "cleanup"
                     ? ("next-cleanup-step" as const)
                     : ("next-end-step" as const),
         } satisfies EffectSentenceIR);
@@ -9081,6 +9189,21 @@ function effectSentence(
         return ok({
             kind: "conjunction" as const,
             effects: [dealt.value, gain.value],
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── damage to any target and to each creature (CR 120.3) ───────────────
+    // Sequential Ops, as the "each creature and each player" fan-out is: no
+    // state-based action is checked between them (CR 704.3).
+    const damageTwice = span.match(DAMAGE_TARGET_AND_EACH);
+    if (damageTwice !== null) {
+        const aimed = effectSentence(damageTwice[1]! + damageTwice[2]!, ctx);
+        if (!aimed.ok) return aimed;
+        const swept = effectSentence(damageTwice[1]! + damageTwice[3]!, ctx);
+        if (!swept.ok) return swept;
+        return ok({
+            kind: "conjunction" as const,
+            effects: [aimed.value, swept.value],
         } satisfies EffectSentenceIR);
     }
 

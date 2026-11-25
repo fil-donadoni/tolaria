@@ -75,6 +75,12 @@ export type KickerPayments = Record<string, number>;
  *    cost make the spell "kicked"? The ONE axis every kicked-ness reader
  *    depends on, applied at the WRITE (see
  *    {@link additionalCostPaymentSnapshot}) so no reader has to.
+ *  - `gatesTargets` — does paying an entry with this keyword change which
+ *    targets the cast announces? CR 702.33g says so for a kicked spell and CR
+ *    702.174m for a spell whose gift was promised ("the spell's controller
+ *    chooses those targets only if the gift was promised"). Wider than
+ *    `countsAsKicked`: a promised gift is not a kick (CR 702.33d), yet it opens
+ *    the same two announcement encodings. Read by {@link targetGatePaid}.
  *  - `requiresTrigger` — does the keyword's own CR text pair the cost half with
  *    a twin TRIGGER that must ship with it? CR 702.175a gives offspring one
  *    ("When this permanent enters, if its offspring cost was paid, create a
@@ -118,6 +124,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     AdditionalCostKeyword,
     {
         countsAsKicked: boolean;
+        gatesTargets: boolean;
         requiresTrigger: boolean | "on-permanent";
         castCopyTrigger: boolean;
         allowsMulti: boolean;
@@ -131,6 +138,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     // words.
     kicker: {
         countsAsKicked: true,
+        gatesTargets: true,
         requiresTrigger: false,
         castCopyTrigger: false,
         allowsMulti: true,
@@ -142,6 +150,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     // no shipped card may declare it (`additionalCostKeywords.test.ts`).
     offspring: {
         countsAsKicked: false,
+        gatesTargets: false,
         requiresTrigger: true,
         castCopyTrigger: false,
         allowsMulti: false,
@@ -163,6 +172,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     // shape — the count is keyed by `KickerCost.id`, never by keyword.
     squad: {
         countsAsKicked: false,
+        gatesTargets: false,
         requiresTrigger: true,
         castCopyTrigger: false,
         allowsMulti: true,
@@ -183,6 +193,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     // paid and triggered separately) is again the per-id record's own shape.
     replicate: {
         countsAsKicked: false,
+        gatesTargets: false,
         requiresTrigger: true,
         castCopyTrigger: true,
         allowsMulti: true,
@@ -203,6 +214,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     // makes `resolveKickerPayments` reject at announcement.
     splice: {
         countsAsKicked: false,
+        gatesTargets: false,
         requiresTrigger: false,
         castCopyTrigger: false,
         allowsMulti: false,
@@ -221,6 +233,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     // `resolveKickerPayments` on the row flag instead.
     escalate: {
         countsAsKicked: false,
+        gatesTargets: false,
         requiresTrigger: false,
         castCopyTrigger: false,
         allowsMulti: false,
@@ -233,6 +246,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     // defines that over kicker costs alone.
     conspire: {
         countsAsKicked: false,
+        gatesTargets: false,
         requiresTrigger: true,
         castCopyTrigger: true,
         allowsMulti: false,
@@ -246,6 +260,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     // trigger of the keyword's own, and paid at most once.
     "collect-evidence": {
         countsAsKicked: false,
+        gatesTargets: false,
         requiresTrigger: false,
         castCopyTrigger: false,
         allowsMulti: false,
@@ -261,6 +276,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     // ability (`giftSpellOps`, `cards/abilities/gift.ts`).
     gift: {
         countsAsKicked: false,
+        gatesTargets: true,
         requiresTrigger: "on-permanent",
         castCopyTrigger: false,
         allowsMulti: false,
@@ -626,16 +642,16 @@ export function additionalCostPaymentSnapshot(
 }
 
 /** CR 702.33d (ADR 0085) — how many KICKS a not-yet-partitioned payment record
- *  represents, for the two consumers that run BEFORE the snapshot exists: the
- *  `kickedTargetRequirement` swap at announcement (CR 601.2b — the kick
- *  decision precedes target selection, so this question is asked while the
- *  record is still the single one `resolveKickerPayments` returned), in
- *  `game.ts`'s `castAdjustedTargetRequirement` and in its `moves.ts` twin
- *  {@link kickedTargetRequirement}.
+ *  represents, for the consumers that run BEFORE the snapshot exists: the mode
+ *  count a kicked cast may announce (CR 601.2b / 601.4 — the kick decision
+ *  precedes mode selection, so this question is asked while the record is still
+ *  the single one `resolveKickerPayments` returned), in `game.ts`'s
+ *  `announceCast`, its `moves.ts` twin and the client's mode picker. Which
+ *  TARGETS the cast announces is {@link targetGatePaid}'s question, not this
+ *  one: a promised gift changes them without being a kick.
  *
- *  Both of those already hold the `CardDefinition` — they are choosing between
- *  two of its fields — so asking the keyword question costs them nothing. What
- *  matters is that the ANSWER still comes from
+ *  Those consumers already hold the `CardDefinition`, so asking the keyword
+ *  question costs them nothing. What matters is that the ANSWER still comes from
  *  {@link additionalCostPaymentSnapshot}: kicked-ness is decided in exactly one
  *  function whether it is asked before the write or after it, so the two can
  *  never disagree about the same cast. Every consumer that runs after the
@@ -1213,12 +1229,65 @@ export function foldBuybackCost(
     }
 }
 
+/** CR 601.2c — did this cast pay an additional cost that decides which targets
+ *  it announces: a kicker cost (CR 702.33g), or a gift cost, i.e. the gift was
+ *  promised (CR 702.174k, CR 702.174m)? The keyword's `gatesTargets` row
+ *  answers; any other additional cost (CR 702.175a Offspring) leaves the
+ *  announcement alone. The single authority for both encodings,
+ *  `kickedTargetRequirement` and `announcedOnlyIfKicked`, whose names keep the
+ *  first keyword that opened them. `payments` is a not-yet-partitioned record;
+ *  {@link stackItemTargetGatePaid} asks the same of a stack item. Declaration
+ *  gated, so an id the card does not declare opens nothing. */
+export function targetGatePaid(
+    cardDef: Pick<CardDefinition, "kickers"> | undefined | null,
+    payments: KickerPayments | undefined
+): boolean {
+    // Asked per (leg × kicker variant × mode) combination on every ISMCTS node
+    // and mostly of casts that pay nothing: answer those without allocating.
+    if (!payments || !cardDef) return false;
+    return paidKickers(cardDef, payments).some(
+        ({ kicker }) =>
+            ADDITIONAL_COST_KEYWORDS[additionalCostKeywordOf(kicker)]
+                .gatesTargets
+    );
+}
+
+/** {@link targetGatePaid} read off a spell on the stack, whose payments
+ *  {@link additionalCostPaymentSnapshot} split in two: a gift's record is the
+ *  unkicked one. */
+export function stackItemTargetGatePaid(
+    cardDef: Pick<CardDefinition, "kickers"> | undefined | null,
+    records: AdditionalCostPaymentRecords
+): boolean {
+    return (
+        targetGatePaid(cardDef, records.kickerPayments) ||
+        targetGatePaid(cardDef, records.unkickedCostPayments)
+    );
+}
+
+/** CR 608.2b / 707.10 — the card-level requirement a spell on the stack was
+ *  announced under: the swapped-in one when its gate was paid, else the printed
+ *  one. Read by the resolution-time legality re-check and the retarget offers,
+ *  which must judge the targets by the announcement that chose them. */
+export function announcedCardRequirement(
+    cardDef: Pick<
+        CardDefinition,
+        "targetRequirement" | "kickedTargetRequirement" | "kickers"
+    >,
+    records: AdditionalCostPaymentRecords
+): TargetRequirement | undefined {
+    return cardDef.kickedTargetRequirement !== undefined &&
+        stackItemTargetGatePaid(cardDef, records)
+        ? cardDef.kickedTargetRequirement
+        : cardDef.targetRequirement;
+}
+
 /** CR 601.2b (issue #2081, mirroring `game.ts`'s private
  *  `castAdjustedTargetRequirement`, KICKER branch only) — the target
  *  requirement a cast actually uses once its Kicker payment is known: the
- *  card's declared `kickedTargetRequirement` when at least one Kicker was
- *  paid AND the card declares one (Bloodchief's Thirst, Tear Asunder), else
- *  the ordinary `targetRequirement`. Bestow/Morph's own target substitutions
+ *  card's declared `kickedTargetRequirement` when a target-gating cost was
+ *  paid ({@link targetGatePaid}) AND the card declares one (Bloodchief's
+ *  Thirst, Tear Asunder), else the ordinary `targetRequirement`. Bestow/Morph's own target substitutions
  *  are NOT mirrored here — `moves.ts` enumerates those as separate variant
  *  branches that never combine with a Kicker on any shipped card (the same
  *  fact the `game.ts` twin's doc records), so this function only ever needs
@@ -1230,15 +1299,9 @@ export function kickedTargetRequirement(
     >,
     payments: KickerPayments | undefined
 ): TargetRequirement | undefined {
-    // ADR 0085 — "kicked" is CR 702.33d, not "paid any additional cost": an
-    // offspring payment must leave the base requirement in place. This runs
-    // BEFORE the payment record is partitioned onto a stack item, so it asks
-    // the split function directly rather than reading a snapshot that does not
-    // exist yet.
-    if (
-        kickedCountOfPayments(cardDef, payments) > 0 &&
-        cardDef.kickedTargetRequirement
-    ) {
+    // An offspring payment must leave the base requirement in place: only a
+    // `gatesTargets` keyword swaps it.
+    if (cardDef.kickedTargetRequirement && targetGatePaid(cardDef, payments)) {
         return cardDef.kickedTargetRequirement;
     }
     return cardDef.targetRequirement;
@@ -1270,13 +1333,13 @@ export function kickedTargetRequirement(
  *  group's index would shift with the kicker decision. */
 export function castAnnouncedTargetGroups(
     groups: readonly (TargetRequirement | undefined)[],
-    wasKicked: boolean
+    gatePaid: boolean
 ): TargetRequirement[] {
     const announced: TargetRequirement[] = [];
     for (let i = 0; i < groups.length; i++) {
         const group = groups[i];
         if (!group) continue;
-        if (group.announcedOnlyIfKicked && !wasKicked) continue;
+        if (group.announcedOnlyIfKicked && !gatePaid) continue;
         announced.push(group);
     }
     return announced;
