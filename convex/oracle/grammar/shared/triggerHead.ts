@@ -447,9 +447,10 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     // CR 508.3a — an attack declaration, read per attacking creature. Only the
     // two scopes the corpus prints: "a creature you control attacks" and the
     // symmetric "a creature attacks or blocks". Every neighbouring phrase
-    // ("attacks a player", "attacks or enters attacking", "attacks this turn") narrows the condition further and stays refused
-    // under its own gap key — a head that swallowed the narrowing would fire
-    // on attacks the card does not mean.
+    // ("attacks a player", "attacks or enters attacking", "attacks this turn")
+    // narrows the condition further and stays refused under its own gap key —
+    // a head that swallowed the narrowing would fire on attacks the card does
+    // not mean.
     [
         "whenever a creature you control attacks",
         { kind: "attacks", scope: "yours" },
