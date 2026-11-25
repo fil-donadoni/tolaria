@@ -4,7 +4,7 @@
         "grammarVersion": "v0",
         "compilerHash": "sha256:81c52b5274a117b57326480898f529a553e8149b60762c1e668800d8e5d7f329",
         "registryHash": "sha256:e9db9cfe2fb22c0701672fa5e58420039f12083be6fead3c368684e264f28298",
-        "botHash": "sha256:79a8b6fa05223e8e12f3580851edad3d78e3865e9ac2044df719191410315ba5",
+        "botHash": "sha256:ae14f741ce2f28c4f84f134d3894df0216ac0a350c09d7e3258a5e0f407036c8",
         "poolHash": "sha256:eb86e5cebb4546bbc8908ccfcdf86d31f19ebed14fc8bfba4ae394799594bbbf",
         "corpus": {
             "source": "https://api.scryfall.com/bulk-data/oracle-cards",
@@ -29057,7 +29057,6 @@
         {"key":"never-chosen › Sorcery target:Creature [jump-start] › grantAbility+pump","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Creature › addMana+destroy","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Land › addMana+destroy","outcome":"ignored","cards":1},
-        {"key":"never-chosen › Sorcery target:Land › destroy+if","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:card › moveZone","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:player [conspire] › mill","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:player › choice+moveZone+reveal","outcome":"ignored","cards":1},
@@ -29074,6 +29073,7 @@
         {"key":"position-unmodelled › Creature [deathtouch,flash]","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Creature [defender,flash]","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Creature [flash]","outcome":"ignored","cards":1},
+        {"key":"position-unmodelled › Creature [intimidate]","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Kindred target:Creature","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Kindred target:card","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Sorcery target:any","outcome":"ignored","cards":1}
@@ -40339,7 +40339,7 @@
 
         {"oracleId":"2934233a-b90c-45df-b604-ce462480bbb7","name":"Goldenhide Ox","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5978739c9933"]},
 
-        {"oracleId":"293560ec-accf-49c6-9bf4-6d37f56a4eb7","name":"Halo Hunter","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["destroy"],"definition":{"name":"Halo Hunter","types":["Creature"],"subtypes":["Demon"],"manaCost":{"X":2,"B":3},"power":6,"toughness":3,"oracleText":"Intimidate (This creature can't be blocked except by artifact creatures and/or creatures that share a color with it.)\nWhen this creature enters, destroy target Angel.","staticAbilities":["intimidate"],"compiledTriggeredAbilities":[{"id":"halo-hunter-trigger","oracleText":"When this creature enters, destroy target Angel.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":1,"subtypeFilter":["Angel"]},"effects":[{"op":"destroy","target":{"target":0}}]}]},"botReach":"played"},
+        {"oracleId":"293560ec-accf-49c6-9bf4-6d37f56a4eb7","name":"Halo Hunter","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["destroy"],"definition":{"name":"Halo Hunter","types":["Creature"],"subtypes":["Demon"],"manaCost":{"X":2,"B":3},"power":6,"toughness":3,"oracleText":"Intimidate (This creature can't be blocked except by artifact creatures and/or creatures that share a color with it.)\nWhen this creature enters, destroy target Angel.","staticAbilities":["intimidate"],"compiledTriggeredAbilities":[{"id":"halo-hunter-trigger","oracleText":"When this creature enters, destroy target Angel.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":1,"subtypeFilter":["Angel"]},"effects":[{"op":"destroy","target":{"target":0}}]}]},"botReach":"ignored","botGap":"position-unmodelled › Creature [intimidate]"},
 
         {"oracleId":"29356966-652d-4456-84c8-7aeab5fc8d05","name":"Flubs, the Fool","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["ddfe9cb0d75e"]},
 
@@ -51645,7 +51645,7 @@
 
         {"oracleId":"5230d0fc-2688-495d-9fd0-0d71ac27c811","name":"Lumbering Lightshield","state":"unparsed","gaps":["3dc57e971375"]},
 
-        {"oracleId":"5231a7d6-b6cf-4fa8-8da8-f0ecf023e054","name":"Dwarven Landslide","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["destroy","if"],"definition":{"name":"Dwarven Landslide","types":["Sorcery"],"manaCost":{"X":3,"R":1},"oracleText":"Kicker—{2}{R}, Sacrifice a land. (You may pay {2}{R} and sacrifice a land in addition to any other costs as you cast this spell.)\nDestroy target land. If this spell was kicked, destroy another target land.","kickers":[{"id":"kicker","description":"Kicker—{2}{R}, Sacrifice a land","mana":{"X":2,"R":1},"permanent":{"action":"sacrifice","filter":{"types":["Land"]},"count":1}}],"effects":[{"op":"destroy","target":{"target":0}},{"op":"if","predicate":{"left":{"kickerCount":true},"op":"ge","right":1},"then":[{"op":"destroy","target":{"target":1}}]}],"targetRequirement":{"type":"Land","count":1},"kickedTargetRequirement":{"type":"Land","count":2}},"botReach":"ignored","botGap":"never-chosen › Sorcery target:Land › destroy+if"},
+        {"oracleId":"5231a7d6-b6cf-4fa8-8da8-f0ecf023e054","name":"Dwarven Landslide","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["destroy","if"],"definition":{"name":"Dwarven Landslide","types":["Sorcery"],"manaCost":{"X":3,"R":1},"oracleText":"Kicker—{2}{R}, Sacrifice a land. (You may pay {2}{R} and sacrifice a land in addition to any other costs as you cast this spell.)\nDestroy target land. If this spell was kicked, destroy another target land.","kickers":[{"id":"kicker","description":"Kicker—{2}{R}, Sacrifice a land","mana":{"X":2,"R":1},"permanent":{"action":"sacrifice","filter":{"types":["Land"]},"count":1}}],"effects":[{"op":"destroy","target":{"target":0}},{"op":"if","predicate":{"left":{"kickerCount":true},"op":"ge","right":1},"then":[{"op":"destroy","target":{"target":1}}]}],"targetRequirement":{"type":"Land","count":1},"kickedTargetRequirement":{"type":"Land","count":2}},"botReach":"played"},
 
         {"oracleId":"5232fcc0-5dba-4569-8e99-c0b2c230e9f0","name":"Dogmeat, Ever Loyal","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0a607c3718b6","a2066f21a979"]},
 
