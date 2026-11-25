@@ -139,6 +139,12 @@ export type CostAtomIR =
      *  there. Lowers to `cost.exileThis` + `activateFromHand`, which only the
      *  slot can set — `lowerActivationCost` emits the leg, the slot the zone. */
     | { readonly kind: "exile-self-from-hand" }
+    /** CR 113.6m / 701.9a — "Discard this card" (Colossal Skyturtle's two
+     *  channel abilities): a card is discarded from the HAND, so the ability
+     *  functions only there. Lowers to `cost.discardThis` + `activateFromHand`;
+     *  the leg is `lowerActivationCost`'s, the zone the activated slot's
+     *  (`lowerActivatedAbility`). */
+    | { readonly kind: "discard-self" }
     /** CR 113.6m — "Exile this card from your graveyard" (Seasoned
      *  Pyromancer): the cost moves the card out of the GRAVEYARD, so the
      *  ability functions only there. Lowers to `cost.exileThis` +
@@ -188,6 +194,7 @@ const PAY_LIFE = /^Pay (\d+) life$/;
 const LOYALTY_SYMBOL = /^(?:([+-])(\d+)|0)$/;
 const DISCARD_X = /^Discard X cards$/;
 const DISCARD_HAND = /^Discard your hand$/;
+const DISCARD_SELF = "Discard this card";
 const DISCARD_RANDOM = /^Discard (\S+) cards? at random$/;
 const REMOVE_COUNTER = /^Remove (\S+) (\S+) counters? from (.+)$/;
 const ADD_COUNTER = /^Put (\S+) (\S+) counters? on (.+)$/;
@@ -513,6 +520,14 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
                     : ok({ kind: "discard-at-random" as const, count });
             }
             if (DISCARD_X.test(span)) return ok({ kind: "discard-x" as const });
+            if (span === DISCARD_SELF) {
+                // A quoted ability (`hostTypeOnly`) is granted to a permanent,
+                // which is no card in a hand to discard.
+                const { typeLine } = ctx as Partial<ParseContext>;
+                return typeLine?.hostTypeOnly === true
+                    ? fail("a granted ability cannot discard its host", span)
+                    : ok({ kind: "discard-self" as const });
+            }
             if (DISCARD_HAND.test(span))
                 return ok({
                     kind: "discard-at-random" as const,
@@ -633,6 +648,14 @@ function splitCount(span: string): { count: number; rest: string } | null {
 }
 
 /**
+ * CR 113.6m — a cost atom that moves the source card out of the HAND, so the
+ * ability it belongs to functions only there.
+ */
+export function isHandSelfMove(atom: CostAtomIR): boolean {
+    return atom.kind === "exile-self-from-hand" || atom.kind === "discard-self";
+}
+
+/**
  * CR 602.1a — the activation cost is everything before the colon; atoms are
  * comma-separated. Each KIND may appear at most once: two tap symbols or two
  * mana runs in one cost is a line we have misread, not a cost we should merge.
@@ -655,15 +678,15 @@ export const activationCostRule: Rule<ActivationCostIR> = subGrammar(
         // CR 113.6m — with the card in hand, the rest of the cost is paid
         // without it: mana is the one companion leg this grammar reads (a tap,
         // a counter or another self-move names a permanent the card is not).
+        const handMove = atoms.value.find(isHandSelfMove);
         if (
-            seen.has("exile-self-from-hand") &&
+            handMove !== undefined &&
             atoms.value.some(
-                (atom) =>
-                    atom.kind !== "exile-self-from-hand" && atom.kind !== "mana"
+                (atom) => atom !== handMove && atom.kind !== "mana"
             )
         )
             return fail(
-                "a cost paid from the hand reads only mana beside exiling the card (CR 113.6m)",
+                "a cost paid from the hand reads only mana beside moving the card (CR 113.6m)",
                 span
             );
         // CR 113.6m — with the card in the graveyard, mana is the one
@@ -822,6 +845,9 @@ export function lowerActivationCost(
             case "exile-self-from-hand":
             case "exile-self-from-graveyard":
                 cost.exileThis = true;
+                break;
+            case "discard-self":
+                cost.discardThis = true;
                 break;
             case "exile-top-of-library":
                 cost.exileTopOfLibrary = true;

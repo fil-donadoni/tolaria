@@ -462,7 +462,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Halls of Mist",
     "Hand of Justice",
     "Harsh Judgment",
-    "Harvester of Misery",
     "Hasran Ogress",
     "Hate Weaver",
     "Haunting Wind",
