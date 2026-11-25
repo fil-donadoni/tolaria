@@ -3629,6 +3629,18 @@ function lowerSentenceBody(
             if (!target.ok) return target;
             const count = lowerCounterAmount(sentence.count, slots, site);
             if (!count.ok) return count;
+            // "for each OTHER …" excludes the object the counters go on, and
+            // the count can exclude the source alone: read only when that
+            // object IS the source.
+            if (
+                sentence.count.kind === "counted" &&
+                sentence.count.set.kind === "permanents" &&
+                sentence.count.set.descriptor.excludeSource === true &&
+                !("ref" in target.value && target.value.ref === "$source")
+            )
+                return unlowerable(
+                    '"other" beside counters on an object that is not the source'
+                );
             return lowered([
                 {
                     op: "counters",

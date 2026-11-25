@@ -798,6 +798,9 @@ function readNoun(
         // all-subtype list is read here.
         if (!elements.every((w) => isPermanentSubtype(w)))
             return `"${sharedCard[1]}" mixes card types and subtypes in one or-list`;
+        // "Elf Warrior or Bird card" — the adjective's reach is not guessed.
+        if (into.subtypes.length > 0)
+            return "a subtype adjective before a subtype list";
         phrase = sharedCard[1]!;
         into.card = true;
         if (sharedCard[2] === "cards") into.plural = true;

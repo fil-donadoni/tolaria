@@ -858,6 +858,9 @@ describe("subtype lists — refused neighbours", () => {
         "an Elf, Warrior, or Tyvar card from among them",
         // Stacked subtypes are an intersection.
         "an Elf Warrior card from among them",
+        // A subtype adjective before the list: its reach is not guessed.
+        "an Elf Warrior or Bird card from among them",
+        "an Elf Warrior, Bird, or Cat card from among them",
         // A card type beside a subtype is a union of two dimensions.
         "an Elf, Warrior, or land card from among them",
         // A plural list is another pick count.
@@ -906,6 +909,8 @@ describe("subtype lists — refused neighbours", () => {
     });
 
     it.each([
+        // "other" than the target is not "other" than the source.
+        "Put a +1/+1 counter on target creature for each other creature you control.",
         // A put on an unqualified sweep is another cluster's form.
         "Put a +1/+1 counter on each creature you control.",
         // A different history: whose control it entered under.
