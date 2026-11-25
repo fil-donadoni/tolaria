@@ -100,7 +100,11 @@ import {
     type Layer7Pass,
 } from "./layers";
 import { rematerialiseTimedCopies } from "./copy";
-import { attackTargetExcessSink, lethalForBlocker } from "./damageAssignment";
+import {
+    assignableDamageTargetsForSource,
+    attackTargetExcessSink,
+    lethalForBlocker,
+} from "./damageAssignment";
 import { isProtectedFromSource } from "./protection";
 import {
     anyCombatDamageUnpreventableStatic,
@@ -1186,7 +1190,6 @@ export function buildAutoDamageAssignments(
     const blockersPerAttacker = getBlockersPerAttacker(state);
     const activePlayer = getPlayer(state, state.activePlayerId);
     const defenderId = getOpponentId(state, state.activePlayerId);
-    const defender = getPlayer(state, defenderId);
     const result: Record<string, Record<string, number>> = {};
     const pass = beginLayer7Pass(state);
 
@@ -1211,10 +1214,11 @@ export function buildAutoDamageAssignments(
         );
 
         if (blockers.length === 1) {
-            const blocker = defender.battlefield.find(
-                (c) => c.id === blockers[0]
-            );
-            if (hasTrample && blocker) {
+            const blocker = findPermanent(state, blockers[0]);
+            // CR 510.1c — a blocker gone from the battlefield is assigned
+            // nothing.
+            if (!blocker) continue;
+            if (hasTrample) {
                 // Trample: assign lethal damage to blocker, excess to defender.
                 // Lethal is the CR 702.19b budget (marked damage and same-step
                 // damage from other creatures subtracted), not raw toughness.
@@ -1257,10 +1261,8 @@ export function buildDefaultDamageAssignments(
     state: GameState,
     kind: DamageKind
 ): Record<string, Record<string, number>> {
-    const blockersPerAttacker = getBlockersPerAttacker(state);
+    const graph = getEffectiveBlockGraph(state);
     const activePlayer = getPlayer(state, state.activePlayerId);
-    const defenderId = getOpponentId(state, state.activePlayerId);
-    const defender = getPlayer(state, defenderId);
     const result: Record<string, Record<string, number>> = {};
     const pass = beginLayer7Pass(state);
 
@@ -1272,130 +1274,60 @@ export function buildDefaultDamageAssignments(
         );
         if (!attacker) continue;
         if (!dealsDamageIn(attacker, kind)) continue;
-        const blockers = blockersPerAttacker[attackerId] ?? [];
-        const hasTrample = attacker.staticAbilities.includes("trample");
-        // CR 508.1a / 702.19e (issue #1220) — trample excess sink: the attacked
-        // planeswalker (if alive) else the defending player.
-        const excessSink = attackTargetExcessSink(
+        if ((graph.blockersByAttacker[attackerId] ?? []).length === 0) continue;
+        // Only the targets the confirm will count (CR 510.1c): a departed
+        // blocker keeps its block-graph slot but is never seeded.
+        const { targetIds, excessSinkId } = assignableDamageTargetsForSource(
             state,
             attackerId,
-            defenderId
+            graph
         );
-
-        if (blockers.length === 1) {
-            if (hasTrample) {
-                const blocker = defender.battlefield.find(
-                    (c) => c.id === blockers[0]
-                );
-                // CR 702.19b budget, not raw toughness (see lethalForBlocker).
-                const lethal = blocker
-                    ? lethalForBlocker(state, attacker, blocker, result, pass)
-                    : 0;
-                const toBlocker = Math.min(
-                    getCardPower(state, attacker, pass),
-                    lethal
-                );
-                const toDefender =
-                    getCardPower(state, attacker, pass) - toBlocker;
-                const assignment: Record<string, number> = {
-                    [blockers[0]]: toBlocker,
-                };
-                if (toDefender > 0) assignment[excessSink] = toDefender;
-                result[attackerId] = assignment;
-            } else {
-                result[attackerId] = {
-                    [blockers[0]]: getCardPower(state, attacker, pass),
-                };
-            }
-        } else if (blockers.length >= 2) {
-            const assignment: Record<string, number> = {};
-            if (hasTrample) {
-                // Default with trample: lethal to each in order, excess to defender
-                let remaining = getCardPower(state, attacker, pass);
-                for (let m = 0; m < blockers.length; m++) {
-                    const blockerId = blockers[m];
-                    const blocker = defender.battlefield.find(
-                        (c) => c.id === blockerId
-                    );
-                    // CR 702.19b budget, not raw toughness (see
-                    // lethalForBlocker).
-                    const lethal = blocker
-                        ? lethalForBlocker(
-                              state,
-                              attacker,
-                              blocker,
-                              result,
-                              pass
-                          )
-                        : 0;
-                    const toThis = Math.min(remaining, lethal);
-                    assignment[blockerId] = toThis;
-                    remaining -= toThis;
-                }
-                if (remaining > 0) assignment[excessSink] = remaining;
-            } else {
-                // Default without trample: lethal damage to each LIVE
-                // blocker in damage assignment order while power lasts, the
-                // remainder on the last one assigned (issue #9987). CR 510.1c
-                // lets the attacker divide its damage among its blockers any
-                // way it likes, so this is only the modal's pre-fill; lethal
-                // is the CR 702.19b budget (see lethalForBlocker), the same
-                // figure the trample branch uses. A dead blocker lingers in
-                // `blockerAssignments` (removal doesn't prune it) but can no
-                // longer receive combat damage (CR 510.1c) — seeding onto it
-                // would leave a live blocker short and make this very default
-                // un-confirmable against `combatDamageAssignmentCompleteness`,
-                // which counts only live targets (issue #2906).
-                const liveBlockers = blockers.flatMap((id) => {
-                    const blocker = findPermanent(state, id);
-                    return blocker ? [blocker] : [];
-                });
-                let remaining = getCardPower(state, attacker, pass);
-                let lastAssigned: string | undefined;
-                for (let i2 = 0; i2 < liveBlockers.length; i2++) {
-                    const blocker = liveBlockers[i2];
-                    const lethal = lethalForBlocker(
-                        state,
-                        attacker,
-                        blocker,
-                        result,
-                        pass
-                    );
-                    const toThis = Math.min(remaining, lethal);
-                    assignment[blocker.id] = toThis;
-                    remaining -= toThis;
-                    if (toThis > 0) lastAssigned = blocker.id;
-                }
-                const sink = lastAssigned ?? liveBlockers[0]?.id;
-                if (remaining > 0 && sink !== undefined) {
-                    assignment[sink] += remaining;
-                }
-            }
-            result[attackerId] = assignment;
+        // Lethal damage to each blocker in order while power lasts — the
+        // CR 702.19b budget (see `lethalForBlocker`), not raw toughness. The
+        // rest goes to the trample excess sink, or without trample to the last
+        // blocker assigned: CR 510.1c lets the attacker divide its damage any
+        // way it likes, so this is only the modal's pre-fill.
+        const assignment: Record<string, number> = {};
+        let remaining = getCardPower(state, attacker, pass);
+        let lastAssigned: string | undefined = targetIds[0];
+        for (let m = 0; m < targetIds.length; m++) {
+            const blocker = findPermanent(state, targetIds[m]);
+            if (!blocker) continue;
+            const toThis = Math.min(
+                remaining,
+                lethalForBlocker(state, attacker, blocker, result, pass)
+            );
+            assignment[blocker.id] = toThis;
+            remaining -= toThis;
+            if (toThis > 0) lastAssigned = blocker.id;
         }
+        const restTo = excessSinkId ?? lastAssigned;
+        if (remaining > 0 && restTo !== undefined) {
+            assignment[restTo] = (assignment[restTo] ?? 0) + remaining;
+        }
+        result[attackerId] = assignment;
     }
 
     // Blocker sources with 2+ targets exist only under banding (CR 702.22h): a
     // blocker blocking a band. Seed all of its power onto the first LIVE band
     // member — the assigning player (the attacker, CR 702.22k) redivides in
-    // the modal. Live-filtered for the same reason as the no-trample attacker
-    // branch above: a dead band member can't receive the seeded power
-    // (issue #2906).
-    const { attackersByBlocker } = getEffectiveBlockGraph(state);
-    const entries2 = Object.entries(attackersByBlocker);
+    // the modal.
+    const entries2 = Object.entries(graph.attackersByBlocker);
     for (let j = 0; j < entries2.length; j++) {
         const [blockerId, attackerIds] = entries2[j];
         if (attackerIds.length < 2) continue;
         const blocker = findPermanent(state, blockerId);
         if (!blocker || !dealsDamageIn(blocker, kind)) continue;
         const power = getCardPower(state, blocker, pass);
-        const liveAttackerIds = attackerIds.filter(
-            (id) => findPermanent(state, id) !== undefined
+        const { targetIds } = assignableDamageTargetsForSource(
+            state,
+            blockerId,
+            graph
         );
         const assignment: Record<string, number> = {};
-        liveAttackerIds.forEach((id, i) => {
-            assignment[id] = i === 0 ? power : 0;
-        });
+        for (let m = 0; m < targetIds.length; m++) {
+            assignment[targetIds[m]] = m === 0 ? power : 0;
+        }
         result[blockerId] = assignment;
     }
     return result;
