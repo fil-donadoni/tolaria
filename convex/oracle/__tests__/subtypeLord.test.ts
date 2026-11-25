@@ -7,7 +7,11 @@ import {
     resolveCompiledStatic,
     type CompiledStaticEffect,
 } from "../../cards/compiledStatics";
-import type { PermanentView, StaticEffectContext } from "../../cards/types";
+import type {
+    PermanentFilter,
+    PermanentView,
+    StaticEffectContext,
+} from "../../cards/types";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { staticSlot } from "../grammar/slots/staticSlot";
@@ -24,7 +28,7 @@ const HEXCATCHER = oracleCard({
     toughness: "1",
 });
 
-const LORD_FILTER = {
+const LORD_FILTER: PermanentFilter = {
     types: ["Creature"],
     subtypes: ["Merfolk"],
     controllerRelation: "you",
