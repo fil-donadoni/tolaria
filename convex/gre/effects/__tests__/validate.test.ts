@@ -3197,6 +3197,41 @@ describe("validateEffectScript — moveZone untilSourceLeaves (CR 610.3b)", () =
     });
 });
 
+describe("validateEffectScript — moveZone cards controller (CR 110.2a)", () => {
+    const search: EffectOp = {
+        op: "choice",
+        kind: "search-library",
+        player: "controller",
+        zone: "library",
+        zoneOwnerId: { target: 0 },
+        count: { min: 0, max: 1 },
+        prompt: "Search that player's library for a creature card.",
+        bind: "$picked",
+    };
+    const steal = {
+        op: "moveZone",
+        cards: { ref: "$picked" },
+        player: { target: 0 },
+        from: "library",
+        to: "battlefield",
+        controller: "controller",
+    };
+    const errorsFor = (op: unknown) =>
+        validateEffectScript(host({ effects: [search, op as EffectOp] }));
+
+    it("accepts the controller on a pick put onto the battlefield", () => {
+        expect(errorsFor(steal)).toEqual([]);
+    });
+
+    it.each([
+        ["with a destination other than the battlefield", { to: "hand" }],
+        ["on a hand pick", { from: "hand" }],
+    ])("rejects it %s", (_label, change) => {
+        const errors = errorsFor({ ...steal, ...change });
+        expect(errors.join("\n")).toContain('field "controller"');
+    });
+});
+
 describe("validateEffectScript — forEach simultaneous players choices-then-actions (CR 101.4, issue #1872)", () => {
     const innocentBloodShape: EffectOp = {
         op: "forEach",

@@ -4679,6 +4679,12 @@ export const OP_EXECUTORS: {
                 ctx.putLibraryCardsOnTop(playerId, ids);
                 return;
             }
+            // CR 110.2a — "under your control": the effect names the
+            // controller; omitted, the card enters under `player`'s.
+            const controllerId = op.controller
+                ? resolvePlayerRef(ctx, op.controller)
+                : undefined;
+            if (op.controller && controllerId === undefined) return;
             for (let j = 0; j < ids.length; j++) {
                 const id = ids[j];
                 if (op.to === "battlefield") {
@@ -4707,7 +4713,7 @@ export const OP_EXECUTORS: {
                                     playerId,
                                     id,
                                     "graveyard",
-                                    undefined,
+                                    controllerId,
                                     authoredEntry
                                         ? { authoredEntry }
                                         : undefined
@@ -4717,7 +4723,7 @@ export const OP_EXECUTORS: {
                                       playerId,
                                       id,
                                       "exile",
-                                      undefined,
+                                      controllerId,
                                       authoredEntry
                                           ? { authoredEntry }
                                           : undefined
@@ -4725,8 +4731,15 @@ export const OP_EXECUTORS: {
                                 : ctx.putFromLibraryOntoBattlefield(
                                       playerId,
                                       id,
-                                      authoredEntry
-                                          ? { authoredEntry }
+                                      authoredEntry || controllerId
+                                          ? {
+                                                ...(authoredEntry
+                                                    ? { authoredEntry }
+                                                    : {}),
+                                                ...(controllerId
+                                                    ? { controllerId }
+                                                    : {}),
+                                            }
                                           : undefined
                                   );
                     // issue #1151 (closing #1120 gap 3) — snapshot the
