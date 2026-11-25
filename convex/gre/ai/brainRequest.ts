@@ -12,12 +12,12 @@
 // clone): no functions, no class instances, no `Error` objects — an `Error` is
 // lowered to `{ name, message }` before it travels.
 
-// Shared by both sides of the client/server line: the client's Brain Worker
-// (`src/lib/ai/brain.worker.ts`, through the `src/lib/ai/brain-request.ts`
-// re-export) and the server's game-end Verdict Proposal judge
-// (`convex/verdictJudge.ts`) run this ONE handler, so a position searched at
-// the same iteration budget and seed gets the same answer on either side.
-// It therefore imports only engine modules, never anything under `src/`.
+// The client's Brain Worker script (`src/lib/ai/brain.worker.ts`, through the
+// `src/lib/ai/brain-request.ts` re-export) runs this ONE handler, for the
+// Bot's Workers and for the game-end Verdict Proposal judge's
+// (`src/lib/ai/judge-brain.ts`) alike, so a position searched at the same
+// iteration budget and seed gets the same answer on every device. It imports
+// only engine modules, never anything under `src/`.
 
 import type { PublicGameState } from "../../gameProjections";
 import type { Move } from "../moves";
@@ -64,7 +64,7 @@ export type BrainRequest = {
     repetition?: RepetitionHistory;
     /** Tree reuse (issue #10470, ADR 0185): the game this consult belongs to
      *  and the decisions played since the last one, as tree keys. Omitted —
-     *  the server judge, every test, a caller that cannot say — and the
+     *  the Verdict judge, every test, a caller that cannot say — and the
      *  search grows a fresh tree and keeps nothing, exactly as before. */
     reuse?: ConsultReuse;
 };

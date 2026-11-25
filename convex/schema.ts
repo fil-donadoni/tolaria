@@ -241,13 +241,10 @@ export default defineSchema({
     botDriverExits: defineTable(driverExitFields).index("by_gameId", [
         "gameId",
     ]),
-    // The game-end Verdict Proposal judge's per-game position counter
-    // (`convex/verdictJudgeGuard.ts`): ONE row per game, written by the first
-    // accepted judge call with the caller and the game's two seats (so later
-    // calls read this row, never the fat `games` row), incremented by every
-    // accepted call and refusing past a fixed bound. It records nothing else —
-    // the proposals stay client state. Deleted with its game by
-    // `deleteGameCascade` (`matches.ts`).
+    // RETIRED with the server Verdict judge (issue #10243): nothing reads or
+    // writes either counter table below. They stay defined only until every
+    // deployment has been emptied of their rows, then leave the schema
+    // (issue #10771). The per-game position counter, ONE row per game:
     verdictJudgeBudgets: defineTable({
         gameId: v.id("games"),
         userId: v.id("users"),
@@ -259,10 +256,7 @@ export default defineSchema({
         positions: v.number(),
         updatedAt: v.number(),
     }).index("by_gameId", ["gameId"]),
-    // The same judge's per-USER counter: ONE row per user, a fixed 24 h window
-    // that restarts once it has elapsed, so creating and conceding games
-    // cannot buy unlimited server searches. Not deleted with a game — it
-    // outlives every game it counted.
+    // The retired judge's per-USER counter, ONE row per user.
     verdictJudgeUserBudgets: defineTable({
         userId: v.id("users"),
         windowStart: v.number(),

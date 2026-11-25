@@ -180,8 +180,9 @@ which is why issue #9528 moved it to the server. So:
 
 **The Bot's busy signal.** The Bot's Brain channel says when a consult is in
 flight (`isBrainBusy`, `onBrainBusyChange`), for a judge that works during the
-game (issue #10242). The server judge has no caller left; its removal is
-issue #10243.
+game (issue #10242). The server judge, left with no caller, is removed
+(issue #10243): its action and guard are gone, and its two counter tables are
+emptied in every deployment before the schema drops them.
 
 **Accepted.** A slow device's review is slow: at Gecko's field rates a search
 takes a minute or more. Judging during play is the answer to that (issue
