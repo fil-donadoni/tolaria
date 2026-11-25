@@ -319,7 +319,8 @@ function isActivatableNow(
  *
  * Not modelled: what a player chooses as the permanent enters (CR 614.12a — a
  * copy, a named type), what the mana still being paid would give it (a Sunburst
- * count, a haste rider) and what its enters triggers would do (CR 603.6a).
+ * count, a haste rider) and what its enters triggers would do (CR 603.6a —
+ * Dash's haste among them).
  */
 export function buildCastPermanentAbilityDemands(
     state: GameState,

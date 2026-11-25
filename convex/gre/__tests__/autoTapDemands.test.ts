@@ -273,6 +273,35 @@ describe("buildBoardAbilityDemands — an unactivatable ability reserves nothing
         ).toEqual([]);
     });
 
+    it("a spent once-each-turn ability does not count (CR 602.5b)", () => {
+        const activatable = { activationsThisTurn: {} };
+        const spent = { activationsThisTurn: { "walking-wall-mobilize": 1 } };
+        expect(
+            demandIds(named("Walking Wall", activatable), myTurn)
+        ).toHaveLength(1);
+        expect(demandIds(named("Walking Wall", spent), myTurn)).toEqual([]);
+    });
+
+    it("an ability only the opponents may activate does not count (CR 602.1b)", () => {
+        expect(demandIds(named("Clergy of the Holy Nimbus"), myTurn)).toEqual(
+            []
+        );
+    });
+
+    it("a printed restriction that fails right now does not count (CR 602.1b)", () => {
+        // Threshold: "Activate only if there are seven or more cards in your
+        // graveyard."
+        const ring = named("Barbarian Ring");
+        const state = stateWith([ring]);
+        const demands = () =>
+            ids(buildBoardAbilityDemands(state, [ring], myTurn));
+        expect(demands()).toEqual([]);
+        state.players[0].graveyard = Array.from({ length: 7 }, (_, i) =>
+            inHand(FOREST, `gy${i}`)
+        );
+        expect(demands()).toEqual(["perm#barbarian-ring-ability-2"]);
+    });
+
     it("Cycling on a battlefield permanent does not count (CR 113.6)", () => {
         expect(demandIds(named("Barkhide Mauler"), myTurn)).toEqual([]);
     });
