@@ -1319,9 +1319,9 @@ export const pyreZombie = defineCard(() => ({
 // (issue #2713), which funnels through `discardToGraveyard` and so fires CR
 // 614 replacements, `CARD_DISCARDED` and madness (the reason a `moveZone`
 // hand→graveyard sweep was never a workaround). What is still missing is the
-// bridge between them: `manaValueEquals` accepts `number | EffectXValue`, so
-// neither the battlefield sweep nor the hand sweep can read the number
-// `chooseNumber` bound. One field widening, no new Op.
+// bridge between them: `manaValueEquals` accepts a literal, `X` or a counter
+// tally but no ref, so neither the battlefield sweep nor the hand sweep can
+// read the number `chooseNumber` bound. One field widening, no new Op.
 
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche — RG (issue #1078, parent PRD #1063)

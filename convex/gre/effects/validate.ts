@@ -608,7 +608,10 @@ function isCardFilter(
         if (k === "manaValueEquals") {
             return (
                 (typeof v === "number" && Number.isInteger(v) && v >= 0) ||
-                isXValue(v)
+                isXValue(v) ||
+                // CR 122.1 (issue #10505) — "equal to the number of <kind>
+                // counters on this artifact".
+                isCountersValue(v)
             );
         }
         // issue #1881 (ADR 0078 decision 8) — exact structural MANA-COST

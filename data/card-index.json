@@ -1072,6 +1072,14 @@
         "firstPrintSet": "mrd"
     },
     {
+        "name": "Aether Vial",
+        "scryfallId": "741c479b-5e92-4837-9673-9bc72aa11d26",
+        "oracleId": "fc148e1e-dff0-448e-9f16-625341754356",
+        "firstSet": "dst",
+        "firstPrintId": "741c479b-5e92-4837-9673-9bc72aa11d26",
+        "firstPrintSet": "dst"
+    },
+    {
         "name": "Aetherjacket",
         "scryfallId": "0a29c8a5-fd98-422c-9518-2db0993495e5",
         "oracleId": "062c8e40-dea7-4df7-bcaa-f1d696fe61c3",
