@@ -137,6 +137,7 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             // such card churns in the lockfile for no behaviour change.
             if (head.whileSaddled === true)
                 return { kind: "attacks", whileSaddled: true };
+            if (head.alone === true) return { kind: "attacks", alone: true };
             return head.scope === "self"
                 ? { kind: "attacks" }
                 : { kind: "attacks", scope: head.scope };
@@ -153,11 +154,14 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
                 kind: "damage-dealt",
                 source: head.source,
                 recipient: head.recipient,
+                ...(head.combat === true ? { combat: true as const } : {}),
             };
         case "damage-taken":
             return { kind: "damage-taken", scope: head.scope };
         case "attacks-unblocked":
             return { kind: "attacks-unblocked" };
+        case "becomes-blocked":
+            return { kind: "becomes-blocked" };
         case "turned-face-up":
             return { kind: "turned-face-up" };
         case "transforms":
@@ -271,12 +275,20 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
         // source's controller's one opponent.
         // CR 508.1 + CR 509.1h — "attacks and isn't blocked" is the source's
         // own attack too: the defending player is still its opponent.
+        // CR 509.3c — so is "becomes blocked": the source is the attacker.
         ...((head.kind === "attacks" && head.scope === "self") ||
-        head.kind === "attacks-unblocked"
+        head.kind === "attacks-unblocked" ||
+        head.kind === "becomes-blocked"
             ? { defendingPlayer: "opponent" as const }
             : {}),
         ...(playerField !== null
             ? { player: { ref: `$event.${playerField}` } }
+            : {}),
+        // CR 102.2 — "each opponent's turn" names the player as an opponent.
+        ...(playerField !== null &&
+        head.kind === "phase" &&
+        head.scope === "opponents"
+            ? { opponent: { ref: `$event.${playerField}` } }
             : {}),
         // CR 303.4b — "its controller" behind a host-tapped head is
         // the tapped land's controller, not the Aura's.
@@ -314,6 +326,11 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
         // enchanted creature, whose controller's step the head names.
         ...(head.kind === "phase" && head.scope === "host-controller"
             ? { creature: { ref: "$host" } }
+            : {}),
+        // CR 120.3 + CR 608.2h — "that creature" behind "deals damage to a
+        // creature" is the creature the event dealt damage to.
+        ...(head.kind === "damage-dealt" && head.recipient === "creature"
+            ? { creature: { ref: "$event.damagedPermanent" } }
             : {}),
         // CR 303.4f — an "enters" head on another creature names the creature
         // an Aura returned by the effect attaches to.

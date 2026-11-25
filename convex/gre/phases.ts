@@ -2229,9 +2229,6 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
     const defender = getPlayer(state, defenderId);
     const pass = beginLayer7Pass(state);
 
-    // Track which attackers got at least one blocker so we can emit a
-    // CR 509.1h "attacker remained unblocked" event for the rest.
-    const blockedAttackerIds = new Set<string>();
     const entries2 = Object.entries(state.combat.blockerAssignments);
     for (let i = 0; i < entries2.length; i++) {
         const [blockerId, attackerIds] = entries2[i];
@@ -2246,7 +2243,6 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
                 activePlayer.battlefield.find((c) => c.id === attackerId) ??
                 defender.battlefield.find((c) => c.id === attackerId);
             if (!attacker) continue;
-            blockedAttackerIds.add(attacker.id);
             events.push({
                 type: "BLOCKERS_CONFIRMED",
                 attackerId: attacker.id,
@@ -2299,18 +2295,24 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
             blockerSubtypes: blocker.subtypes,
         });
     }
-    // CR 509.1h — one ATTACKER_UNBLOCKED event per attacker with no assigned
-    // blocker (Murk Dwellers' "attacks and isn't blocked" pump).
+    // CR 509.1h — every attacker is now blocked or unblocked, and the two
+    // events partition them: ATTACKER_BLOCKED once per blocked attacker, however
+    // many creatures block it (CR 509.3c), ATTACKER_UNBLOCKED for the rest. The
+    // graph is band-expanded: blocking one member blocks the others (CR 702.22h).
+    const blockedAttackerIds = new Set(
+        Object.keys(getEffectiveBlockGraph(state).blockersByAttacker)
+    );
     const attackerIdList2 = state.combat.attackerIds;
     for (let i = 0; i < attackerIdList2.length; i++) {
         const attackerId = attackerIdList2[i];
-        if (blockedAttackerIds.has(attackerId)) continue;
         const attacker =
             activePlayer.battlefield.find((c) => c.id === attackerId) ??
             defender.battlefield.find((c) => c.id === attackerId);
         if (!attacker) continue;
         events.push({
-            type: "ATTACKER_UNBLOCKED",
+            type: blockedAttackerIds.has(attackerId)
+                ? "ATTACKER_BLOCKED"
+                : "ATTACKER_UNBLOCKED",
             attackerId: attacker.id,
             attackerControllerId: attacker.controllerId,
             attackerTypes: attacker.types,
