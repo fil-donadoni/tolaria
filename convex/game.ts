@@ -128,7 +128,9 @@ import {
 import { evaluateAutoTapPosition } from "./gre/evaluate";
 import {
     buildBoardAbilityDemands,
+    buildCastPermanentAbilityDemands,
     buildHandSpellDemands,
+    type AbilityDemandTiming,
 } from "./gre/autoTapDemands";
 import {
     isGuardedAgainst,
@@ -9577,16 +9579,32 @@ export const autoTapForPayment = mutation({
         // user story 12) — and is timing-filtered the same way (sorcery-speed
         // abilities count only at sorcery timing).
         const sorceryTiming = isSorceryTimingFor(state, player.id);
+        const abilityTiming: AbilityDemandTiming = {
+            phase: state.phase,
+            isControllersTurn: state.activePlayerId === player.id,
+            isSorceryTiming: sorceryTiming,
+        };
         const demands: Demand[] = [
             ...buildHandSpellDemands(
                 player.hand,
                 pending.cardInstanceId,
                 sorceryTiming
             ),
-            ...buildBoardAbilityDemands(state, player.battlefield, {
-                phase: state.phase,
-                isControllersTurn: state.activePlayerId === player.id,
-            }),
+            ...buildBoardAbilityDemands(
+                state,
+                player.battlefield,
+                abilityTiming
+            ),
+            // The permanent being cast is neither in hand nor on the
+            // battlefield: its own abilities, once it resolves, are Demands too.
+            ...(state.pendingCast?.playerId === player.id && castCard
+                ? buildCastPermanentAbilityDemands(
+                      state,
+                      state.pendingCast,
+                      castCard,
+                      abilityTiming
+                  )
+                : []),
         ];
         // Prefer a minimal full plan. When the pure-mana sources can't cover
         // the whole cost (the rest must come from an excluded manual source,

@@ -7,6 +7,7 @@
 import { describe, it, expect } from "vitest";
 import {
     buildBoardAbilityDemands,
+    buildCastPermanentAbilityDemands,
     buildHandSpellDemands,
 } from "../autoTapDemands";
 import {
@@ -14,6 +15,9 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup.helper";
+import { getCardByName } from "../../cards";
+import type { CardType } from "../../cards/types";
+import { beginApplyingStaticEffects, type PendingCast } from "../state";
 import type { Phase } from "../types";
 
 // Card instance ids → definitions (verified in the set files).
@@ -134,7 +138,11 @@ function onBoard(cardId: string, id: string) {
 
 const MAIN: Phase = "PRECOMBAT_MAIN";
 const COMBAT: Phase = "DECLARE_ATTACKERS";
-const myTurn = { phase: MAIN, isControllersTurn: true };
+const myTurn = {
+    phase: MAIN,
+    isControllersTurn: true,
+    isSorceryTiming: true,
+};
 
 /** The board the Demands are built against. `buildBoardAbilityDemands` folds
  *  the CR 601.2f cost modifiers (ADR 0096), which are board-wide, so it needs
@@ -179,7 +187,11 @@ describe("buildBoardAbilityDemands — on-board activated abilities (issue #476,
 
     it("instant-speed abilities count in any window (off-turn included)", () => {
         // Shivan's pump has no timing restriction → instant-speed (CR 602.5b).
-        const offTurn = { phase: MAIN, isControllersTurn: false };
+        const offTurn = {
+            phase: MAIN,
+            isControllersTurn: false,
+            isSorceryTiming: false,
+        };
         const shiv = [onBoard(SHIVAN_DRAGON, "shiv")];
         const demands = buildBoardAbilityDemands(
             stateWith(shiv),
@@ -199,6 +211,7 @@ describe("buildBoardAbilityDemands — on-board activated abilities (issue #476,
         const inCombat = buildBoardAbilityDemands(stateWith(statue), statue, {
             phase: COMBAT,
             isControllersTurn: true,
+            isSorceryTiming: false,
         });
         expect(ids(inCombat)).toEqual(["jade#jade-statue-animate"]);
         expect(inCombat[0].cost).toEqual({ X: 2 }); // generic {2}
@@ -226,5 +239,183 @@ describe("buildBoardAbilityDemands — on-board activated abilities (issue #476,
         expect(
             buildBoardAbilityDemands(stateWith(lions), lions, myTurn)
         ).toHaveLength(0);
+    });
+});
+
+const notSorcery = { ...myTurn, isSorceryTiming: false };
+
+describe("buildBoardAbilityDemands — an unactivatable ability reserves nothing (CR 602.5)", () => {
+    const demandIds = (
+        perm: ReturnType<typeof makeInstance>,
+        timing: typeof myTurn
+    ) => ids(buildBoardAbilityDemands(stateWith([perm]), [perm], timing));
+    const named = (name: string, over: Record<string, unknown> = {}) =>
+        makeInstance(getCardByName(name).id, {
+            id: "perm",
+            controllerId: "p1",
+            zone: "battlefield",
+            ...over,
+        });
+
+    it("Equip counts only at sorcery timing (CR 602.5d)", () => {
+        const clamp = named("Skullclamp");
+        expect(demandIds(clamp, myTurn)).toEqual(["perm#skullclamp-equip"]);
+        expect(demandIds(clamp, notSorcery)).toEqual([]);
+    });
+
+    it("a {T} cost counts only for an untapped creature that is not summoning sick (CR 302.6)", () => {
+        expect(demandIds(named("Savaen Elves"), myTurn)).toHaveLength(1);
+        expect(
+            demandIds(named("Savaen Elves", { isTapped: true }), myTurn)
+        ).toEqual([]);
+        expect(
+            demandIds(named("Savaen Elves", { isSummoningSick: true }), myTurn)
+        ).toEqual([]);
+    });
+
+    it("a spent once-each-turn ability does not count (CR 602.5b)", () => {
+        const activatable = { activationsThisTurn: {} };
+        const spent = { activationsThisTurn: { "walking-wall-mobilize": 1 } };
+        expect(
+            demandIds(named("Walking Wall", activatable), myTurn)
+        ).toHaveLength(1);
+        expect(demandIds(named("Walking Wall", spent), myTurn)).toEqual([]);
+    });
+
+    it("an ability only the opponents may activate does not count (CR 602.1b)", () => {
+        expect(demandIds(named("Clergy of the Holy Nimbus"), myTurn)).toEqual(
+            []
+        );
+    });
+
+    it("a printed restriction that fails right now does not count (CR 602.1b)", () => {
+        // Threshold: "Activate only if there are seven or more cards in your
+        // graveyard."
+        const ring = named("Barbarian Ring");
+        const state = stateWith([ring]);
+        const demands = () =>
+            ids(buildBoardAbilityDemands(state, [ring], myTurn));
+        expect(demands()).toEqual([]);
+        state.players[0].graveyard = Array.from({ length: 7 }, (_, i) =>
+            inHand(FOREST, `gy${i}`)
+        );
+        expect(demands()).toEqual(["perm#barbarian-ring-ability-2"]);
+    });
+
+    it("Cycling on a battlefield permanent does not count (CR 113.6)", () => {
+        expect(demandIds(named("Barkhide Mauler"), myTurn)).toEqual([]);
+    });
+});
+
+describe("buildCastPermanentAbilityDemands — the permanent being cast (issue #10465, CR 117.3b)", () => {
+    /** Demands of casting `name` with `board` on p1's side (`oppBoard` on p2's). */
+    function castDemands(
+        name: string,
+        opts: {
+            timing?: typeof myTurn;
+            board?: string[];
+            oppBoard?: string[];
+            pending?: Partial<PendingCast>;
+            types?: CardType[];
+        } = {}
+    ) {
+        const card = inHand(getCardByName(name).id, "cast");
+        if (opts.types) card.types = opts.types;
+        const state = makeState({
+            phase: MAIN,
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [card],
+                    battlefield: (opts.board ?? []).map((n, i) =>
+                        onBoard(getCardByName(n).id, `b${i}`)
+                    ),
+                }),
+                makePlayer("p2", {
+                    battlefield: (opts.oppBoard ?? []).map((n, i) =>
+                        makeInstance(getCardByName(n).id, {
+                            id: `o${i}`,
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        })
+                    ),
+                }),
+            ],
+        });
+        for (const player of state.players) {
+            for (const perm of player.battlefield) {
+                beginApplyingStaticEffects(state, perm);
+            }
+        }
+        const before = structuredClone(state);
+        const demands = buildCastPermanentAbilityDemands(
+            state,
+            {
+                playerId: "p1",
+                cardInstanceId: "cast",
+                manaCost: {},
+                tappedLandIds: [],
+                ...opts.pending,
+            },
+            card,
+            opts.timing ?? myTurn
+        );
+        // The arrival is simulated: the live state is untouched.
+        expect(state).toEqual(before);
+        return demands;
+    }
+
+    it("each mana-costed ability of a cast artifact is a Demand", () => {
+        expect(
+            castDemands("Pyrite Spellbomb", { timing: notSorcery }).map(
+                (d) => d.cost
+            )
+        ).toEqual([{ R: 1 }, { X: 1 }]);
+    });
+
+    it("a {T} ability of a creature it enters summoning sick with is none (CR 302.6)", () => {
+        expect(castDemands("Savaen Elves")).toEqual([]);
+    });
+
+    it("the same {T} ability counts when a static gives the creature haste (CR 702.10b)", () => {
+        expect(ids(castDemands("Savaen Elves", { board: ["Fervor"] }))).toEqual(
+            ["cast#savaen-elves-destroy-aura"]
+        );
+    });
+
+    it("a non-{T} ability of a creature counts despite summoning sickness", () => {
+        expect(ids(castDemands("Shivan Dragon"))).toEqual([
+            "cast#shivan-dragon-ability",
+        ]);
+    });
+
+    it("a {T} ability of a permanent entering tapped is none (CR 614.1d)", () => {
+        expect(castDemands("Nevinyrral's Disk")).toEqual([]);
+        expect(castDemands("Jayemdae Tome")).toHaveLength(1);
+        expect(castDemands("Jayemdae Tome", { oppBoard: ["Kismet"] })).toEqual(
+            []
+        );
+    });
+
+    it("a sorcery-speed own ability counts only at sorcery timing (CR 602.5d)", () => {
+        expect(ids(castDemands("Skullclamp"))).toEqual([
+            "cast#skullclamp-equip",
+        ]);
+        expect(castDemands("Skullclamp", { timing: notSorcery })).toEqual([]);
+    });
+
+    it("an ability of the CARD in hand (Cycling) is none (CR 113.6)", () => {
+        expect(castDemands("Barkhide Mauler")).toEqual([]);
+    });
+
+    it("a spell that is no permanent, and a face-down cast, yield nothing", () => {
+        expect(castDemands("Shivan Dragon", { types: ["Instant"] })).toEqual(
+            []
+        );
+        // CR 708.2a — a face-down permanent has no abilities.
+        expect(
+            castDemands("Shivan Dragon", { pending: { morphed: true } })
+        ).toEqual([]);
     });
 });
