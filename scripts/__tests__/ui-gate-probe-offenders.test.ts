@@ -9,6 +9,7 @@ import {
     type AxeCount,
     type ProbeResult,
 } from "../ui-gate/floors";
+import { SYMBOL_NAMES } from "../../src/lib/symbol-names";
 
 /**
  * The probe's offender boxes (issue #6145): every Floor bucket that reads
@@ -66,6 +67,8 @@ function probeWith(opts: {
     for (const [id, r] of Object.entries(opts.rects)) {
         const el = doc.getElementById(id)!;
         el.getBoundingClientRect = () => fullRect(r) as never;
+        el.getClientRects = () =>
+            (r.width > 0 || r.height > 0 ? [fullRect(r)] : []) as never;
         Object.defineProperty(el, "offsetWidth", { value: r.width });
     }
     for (const [id, url] of Object.entries(opts.current ?? {})) {
@@ -106,6 +109,8 @@ describe("check:ui probe — every Floor bucket names its offenders (issue #6145
                 <button id="bz">Zero</button>
                 <button id="bs">Stranded</button>
                 <div id="wide">banner</div>
+                <p id="sym">Pay {2}</p>
+                <span id="symattr" title="Tap {T}">x</span>
             `,
             rects: {
                 cz: { left: 10, top: 10, width: 0, height: 0 },
@@ -115,6 +120,8 @@ describe("check:ui probe — every Floor bucket names its offenders (issue #6145
                 bz: { left: 5, top: 5, width: 2, height: 2 },
                 bs: { left: 5, top: 3000, width: 80, height: 44 },
                 wide: { left: 0, top: 700, width: 640, height: 40 },
+                sym: { left: 0, top: 750, width: 60, height: 20 },
+                symattr: { left: 70, top: 750, width: 10, height: 20 },
             },
             current: { soft: cdn("small"), unk: cdn("mystery") },
             scrollWidth: 640,
@@ -168,6 +175,10 @@ describe("check:ui probe — every Floor bucket names its offenders (issue #6145
         expect(at("hOverflow")).toEqual([
             expect.objectContaining({ sel: "div#wide", w: 640 }),
         ]);
+        expect(at("rawSymbolTokens").map((o) => o.sel)).toEqual([
+            "p#sym",
+            "span#symattr",
+        ]);
     });
 
     it("stands the document in for a sideways scroll no box explains", () => {
@@ -192,5 +203,37 @@ describe("check:ui probe — every Floor bucket names its offenders (issue #6145
             rects: { ok: { left: 10, top: 10, width: 80, height: 44 } },
         });
         expect(probe.offenders).toEqual([]);
+    });
+});
+
+describe("check:ui probe — rawSymbolTokens (issue #9834)", () => {
+    it("knows exactly the tokens SYMBOL_NAMES maps (probe.js takes no imports)", () => {
+        const literal = /const SYMBOL_TOKENS = new Set\(\[([^\]]*)\]\)/.exec(
+            PROBE_SOURCE
+        );
+        expect(
+            literal,
+            "probe.js lost its SYMBOL_TOKENS literal"
+        ).not.toBeNull();
+        const tokens = [...literal![1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+        expect(tokens.sort()).toEqual(Object.keys(SYMBOL_NAMES).sort());
+    });
+
+    it("counts rendered braces only: never an unmappable token, a drawn symbol or a box-less subtree", () => {
+        const probe = probeWith({
+            html: `
+                <p id="code">set {foo} here</p>
+                <p id="drawn">Pay <img alt="red mana" data-symbol="{R}" /></p>
+                <p id="gone">Pay {R}</p>
+                <span id="spoken" aria-label="Tap: add red mana">x</span>
+            `,
+            rects: {
+                code: { left: 0, top: 0, width: 80, height: 20 },
+                drawn: { left: 0, top: 30, width: 80, height: 20 },
+                gone: { left: 0, top: 60, width: 0, height: 0 },
+                spoken: { left: 0, top: 90, width: 10, height: 20 },
+            },
+        });
+        expect(probe.rawSymbolTokens).toBe(0);
     });
 });

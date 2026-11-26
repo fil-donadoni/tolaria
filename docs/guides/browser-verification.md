@@ -329,7 +329,7 @@ its own Chromium against fixture pages (`settle-selfcheck.ts`); a predicate that
 returns early is a fatal error. The diagnostic block prints the machine load at
 the start and end of the run.
 
-**Floors, not ceilings** (ADR 0132, issue #3648). The lane gates nine counts,
+**Floors, not ceilings** (ADR 0132, issue #3648). The lane gates ten counts,
 all at zero, on every walked surface and viewport, with no per-surface
 exception — constants in `scripts/ui-gate/floors.ts`, so there is nothing to
 record and no budget file:
@@ -345,7 +345,13 @@ record and no budget file:
   face whose rendition the probe does not know (`cardsSoftUnknown`) counts too,
   because a face it cannot measure is one it cannot prove sharp;
 - `axeSerious`, `axeCritical` — axe-core violations at those impacts;
-- `hOverflow` — the page scrolls sideways.
+- `hOverflow` — the page scrolls sideways;
+- `rawSymbolTokens` — a rendered text node, or a `title` / `aria-label` /
+  `aria-description` / `placeholder` / `alt`, still spelling a mappable `{…}`
+  token (`{T}`, `{2}`, `{E}`: a row in `src/lib/symbol-names.ts`) instead of
+  drawing the symbol or saying its name (issue #9834). Fix it by rendering the
+  string through a ui primitive or `withSymbols` (`src/lib/oracle-text.tsx`),
+  or, for an attribute, `symbolsToSpokenText`.
 
 Four **Shape Readings** — `cardsOcc`, `ctrlsOcc`, `small`, `starved` —
 describe the screen as designed (a fanned hand overlaps, a sheet covers the

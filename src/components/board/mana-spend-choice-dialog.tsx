@@ -4,6 +4,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { GenericSpendAmbiguity } from "~/types/game";
 import GameDialog from "~/components/ui/game-dialog";
+import { symbolsToSpokenText } from "~/lib/symbol-names";
 
 /** CR 601.2g — generic-mana spend picker. Active while this viewer's
  *  `pendingCast`/`pendingActivation` has parked a meaningful choice of which
@@ -94,7 +95,7 @@ export default function ManaSpendChoiceDialog({
                         type="button"
                         disabled={isPending}
                         onClick={() => void handlePick(color)}
-                        title={`Spend {${color}}`}
+                        title={symbolsToSpokenText(`Spend {${color}}`)}
                         className="flex items-center justify-center gap-0.5 rounded-full bg-white/5 p-2 cursor-pointer ring-1 ring-white/15 transition-colors hover:bg-white/15 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                         <img

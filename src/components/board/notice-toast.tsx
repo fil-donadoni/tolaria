@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Banner } from "~/components/ui/banner";
 import { Button } from "~/components/ui/button";
 import { ABOVE_CONTROLLER_BAR } from "~/lib/controller-bar-metrics";
+import { withSymbols } from "~/lib/oracle-text";
 
 /** How long a confirmation stays up before it hides itself. */
 export const NOTICE_TOAST_MS = 5000;
@@ -76,7 +77,7 @@ export default function NoticeToast({
             >
                 <span className="flex min-w-0 items-center gap-2 sm:gap-3">
                     <p className="min-w-0 flex-1 line-clamp-2 px-1 text-xs sm:px-2 sm:text-sm">
-                        {message}
+                        {withSymbols(message)}
                     </p>
                     <Button
                         type="button"

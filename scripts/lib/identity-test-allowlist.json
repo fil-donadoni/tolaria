@@ -971,7 +971,7 @@
     },
     {
         "file": "scripts/__tests__/ui-gate-floors.test.ts",
-        "test": "Floors and Shape Readings > are the nine Floors and four Shape Readings ADR 0132 names, disjoint",
+        "test": "Floors and Shape Readings > are the ten Floors and four Shape Readings ADR 0132 names, disjoint",
         "reason": "Domain pin: brokenFloors iterates FLOORS, so a Floor dropped from the list weakens check:ui silently; disjointness of two independent lists."
     },
     {

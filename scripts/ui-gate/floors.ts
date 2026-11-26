@@ -2,9 +2,10 @@
  * The Floors `bun run check:ui` gates, the Shape Readings it only prints, and
  * the surfaces it declares unwalked (ADR 0132 §1, §2; issue #3648).
  *
- * FLOORS, NOT CEILINGS. Nine counts describe a DEFECT — a zero-size card, a
+ * FLOORS, NOT CEILINGS. Ten counts describe a DEFECT — a zero-size card, a
  * control clipped where no gesture reaches it, a square or soft card face, a
- * serious axe violation, a page that scrolls sideways. They are held at zero on
+ * serious axe violation, a page that scrolls sideways, a `{T}` shown as braces
+ * instead of its symbol (issue #9834). They are held at zero on
  * every walked surface and viewport, with no per-surface exception, and they
  * are constants here: there is no number to record, so there is no budget file,
  * no `--record` and no `--accept=`. A nonzero reading is `FAIL`, with the
@@ -34,6 +35,7 @@ export const FLOORS = [
     "axeSerious",
     "axeCritical",
     "hOverflow",
+    "rawSymbolTokens",
 ] as const;
 
 export type Floor = (typeof FLOORS)[number];
@@ -135,6 +137,11 @@ export interface ProbeResult {
     /** `documentElement.scrollWidth` minus the viewport width: a page that
      *  scrolls sideways. A Floor on anything above zero. */
     hOverflow: number;
+    /** Rendered text nodes and plain-text attributes (`title`, `aria-label`,
+     *  `aria-description`, `placeholder`, `alt`) still spelling a MAPPABLE
+     *  `{…}` token — a symbol shown, or read aloud, as braces (issue #9834).
+     *  A Floor. */
+    rawSymbolTokens: number;
     cardW: { min: number; max: number } | null;
     /** WHERE each Floor broke (issue #6145): up to six boxes per Floor bucket,
      *  every bucket that reads nonzero naming at least one. What a failing
@@ -225,6 +232,7 @@ export function readingsOf(probe: ProbeResult, axe: AxeCount): Readings {
         axeSerious: axe.serious,
         axeCritical: axe.critical,
         hOverflow: probe.hOverflow,
+        rawSymbolTokens: probe.rawSymbolTokens,
         cardsOcc: probe.cards.occ,
         ctrlsOcc: probe.ctrls.occ,
         small: probe.smallN,

@@ -201,10 +201,10 @@ describe("CardPreviewBody renders the inset half of a two-part frame (CR 715.2)"
         // Mana costs render as symbol images (`formatOracleText`), so the cost
         // is asserted through their alts rather than through text content.
         const symbolAlts = Array.from(container.querySelectorAll("img")).map(
-            (img) => img.getAttribute("alt")
+            (img) => img.getAttribute("alt")?.trim()
         );
-        expect(symbolAlts).toContain("{1}");
-        expect(symbolAlts).toContain("{U}");
+        expect(symbolAlts).toContain("1 generic mana");
+        expect(symbolAlts).toContain("blue mana");
         expect(text).toContain("Return target nonland permanent");
         // The card's own half is still the primary block, not replaced.
         expect(text).toContain("Brazen Borrower");
@@ -319,10 +319,10 @@ describe("CardPreviewBody renders a split card's halves as separate sections (CR
         // through its own section's alts.
         const alts = (el: Element) =>
             Array.from(el.querySelectorAll("img")).map((img) =>
-                img.getAttribute("alt")
+                img.getAttribute("alt")?.trim()
             );
-        expect(alts(left!)).toEqual(["{W}"]);
-        expect(alts(right!)).toEqual(["{2}", "{U}"]);
+        expect(alts(left!)).toEqual(["white mana"]);
+        expect(alts(right!)).toEqual(["2 generic mana", "blue mana"]);
         // Each half's text is printed once — never also as a merged list.
         const all = container.textContent ?? "";
         expect(all.split("Return target permanent").length - 1).toBe(1);

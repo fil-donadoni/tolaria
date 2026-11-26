@@ -7,6 +7,7 @@ import { copyMinified } from "~/lib/clipboard";
 import { Banner } from "~/components/ui/banner";
 import { Button } from "~/components/ui/button";
 import { ABOVE_CONTROLLER_BAR } from "~/lib/controller-bar-metrics";
+import { withSymbols } from "~/lib/oracle-text";
 
 type ErrorToastProps = {
     /** The Convex error to surface, or `null` to hide the toast. */
@@ -80,7 +81,7 @@ export default function ErrorToast({
                         own compact `xs` rung: 24px on fine, 44px on coarse
                         (issue #2792). */}
                     <p className="text-display min-w-0 flex-1 line-clamp-2 px-1 text-xs sm:px-2 sm:text-sm">
-                        {error.title}
+                        {withSymbols(error.title)}
                     </p>
                     <Button
                         type="button"

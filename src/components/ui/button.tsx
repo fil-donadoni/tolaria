@@ -2,6 +2,7 @@ import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
+import { withSymbols } from "~/lib/oracle-text";
 
 /**
  * THE button (phase-3 unification): one component, forged-plate tones.
@@ -75,14 +76,19 @@ function Button({
     className,
     variant = "primary",
     size = "default",
+    children,
     ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+    // String labels render through the symbol parser (issue #9834): a
+    // "Pay {2}{R}" button draws the mana symbols, never the braces.
     return (
         <ButtonPrimitive
             data-slot="button"
             className={cn(buttonVariants({ variant, size, className }))}
             {...props}
-        />
+        >
+            {withSymbols(children)}
+        </ButtonPrimitive>
     );
 }
 

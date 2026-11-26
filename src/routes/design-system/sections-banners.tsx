@@ -2,6 +2,7 @@
 // family, then the proposed single Banner component.
 import { Section, Specimen, Sub, Where } from "./lib";
 import { TriangleAlert, Info, Swords } from "lucide-react";
+import { withSymbols } from "~/lib/oracle-text";
 
 /** Replica of the 4 inline corner L-brackets (60 copies in 15 files). */
 function InlineBrackets({ danger = false }: { danger?: boolean }) {
@@ -141,7 +142,7 @@ export function BannersSection() {
                         <div className="relative rounded-sm border border-border-subtle bg-surface px-4 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)]">
                             <InlineBrackets />
                             <p className="text-display text-center text-sm text-parchment">
-                                Pay {`{2}{R}`}?
+                                {withSymbols("Pay {2}{R}?")}
                             </p>
                             <div className="mt-2 flex justify-center gap-2">
                                 <button className="rounded-sm border border-success bg-success-soft px-3 py-1 text-xs text-success-strong">
@@ -221,7 +222,9 @@ export function BannersSection() {
                                 <span className="absolute right-1 bottom-1 h-3 w-3 rounded-br-sm border-b-2 border-r-2 border-accent/70" />
                             </span>
                             <p className="text-display text-center text-sm text-parchment">
-                                Pay {`{2}{R}`}? — via the Panel frame
+                                {withSymbols(
+                                    "Pay {2}{R}? — via the Panel frame"
+                                )}
                             </p>
                             <div className="mt-2 flex justify-center gap-2">
                                 <button className="btn-base btn-tone-primary px-3 py-1 text-xs">

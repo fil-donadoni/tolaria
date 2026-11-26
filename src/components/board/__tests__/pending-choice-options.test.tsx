@@ -161,9 +161,9 @@ describe("PendingChoiceOptions (option-pick UI, #289)", () => {
                 onPick={() => {}}
             />
         );
-        expect(getByAltText("{W}")).toBeTruthy();
-        expect(getByAltText("{U}")).toBeTruthy();
-        expect(queryByAltText("{B}")).toBeNull();
+        expect(getByAltText("white mana")).toBeTruthy();
+        expect(getByAltText("blue mana")).toBeTruthy();
+        expect(queryByAltText("black mana")).toBeNull();
     });
 
     it("draws no mana symbol for a non-color option", () => {

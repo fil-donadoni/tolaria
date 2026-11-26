@@ -18,7 +18,7 @@ import {
     mayPayRequiredGraveyardReturns,
 } from "~/lib/card-utils";
 import { numberChoiceRange } from "@convex/gre/state";
-import { formatOracleText } from "~/lib/oracle-text";
+import { formatOracleText, withSymbols } from "~/lib/oracle-text";
 import {
     mayPayPermanentPickHint,
     pendingChoiceHeader,
@@ -746,7 +746,7 @@ export default function PendingChoicePrompt({
                             <span className="text-display text-text">
                                 {chooserName}
                             </span>{" "}
-                            — {choice.prompt}
+                            — {withSymbols(choice.prompt)}
                         </p>
                     )}
                 </Panel>

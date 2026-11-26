@@ -5,6 +5,7 @@ import ActionButton from "~/components/board/action-button";
 import { HOTKEYS } from "~/lib/hotkeys";
 import { Section, Specimen, Sub, Where } from "./lib";
 import { V4_ZONE_CTA_PLATE } from "~/lib/board-chrome-v4";
+import { withSymbols } from "~/lib/oracle-text";
 
 function Row({ children }: { children: React.ReactNode }) {
     return <div className="flex flex-wrap items-center gap-2">{children}</div>;
@@ -110,7 +111,7 @@ export function ButtonsSection() {
                     >
                         <Row>
                             <button className="rounded-sm border border-success bg-success-soft px-3 py-1.5 text-xs text-success-strong">
-                                Pay {"{G}"}
+                                {withSymbols("Pay {G}")}
                             </button>
                             <button className="flex h-8 w-8 items-center justify-center rounded-full border border-accent bg-accent/10 text-accent">
                                 1
