@@ -311,6 +311,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Enchantment target:Creature › regenerate",
+            "issue": 10879
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Enchantment › dealDamage",
             "issue": 4071
         },
