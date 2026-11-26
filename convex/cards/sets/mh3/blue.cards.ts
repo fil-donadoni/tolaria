@@ -373,3 +373,41 @@ export const harbingerOfTheSeas = defineCard(() => ({
         },
     ],
 }));
+
+// ─────────────────────────────────────────────────────────────────────────
+// Flare of Denial (issue #10506)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// {1}{U}{U} Instant (MH3). "You may sacrifice a nontoken blue creature rather
+// than pay this spell's mana cost. Counter target spell."
+//
+// The alternative cost (CR 118.9, announced at CR 601.2b) is the existing
+// PERMANENT leg Fireblast / Mine Collapse pay with, `action: "sacrifice"`
+// (CR 701.21a), narrowed by a filter `matchesPermanentFilter` reads in full:
+// a creature, blue read LIVE through `STATIC_EFFECT_CTX.getColors` on both the
+// affordability and the pick path (CR 105.2), and not a token (CR 111.1, the
+// instance's own `isToken`). The effect is Force of Will's single `counter`
+// Op (CR 701.6a) on a spell target.
+// hand-tail: You may sacrifice a nontoken blue creature rather than pay this spell's mana cost. (#10506)
+export const flareOfDenial = defineCard(() => ({
+    id: "71a98efb-9b0a-496b-ac21-8d70527ea544", // MH3 62
+    rarity: "rare",
+    name: "Flare of Denial",
+    oracleText:
+        "You may sacrifice a nontoken blue creature rather than pay this spell's mana cost.\nCounter target spell.",
+    manaCost: { X: 1, U: 2 },
+    types: ["Instant"],
+    targetRequirement: { type: "spell", count: 1 },
+    alternativeCosts: [
+        {
+            id: "pitch-sacrifice-nontoken-blue-creature",
+            description: "Sacrifice a nontoken blue creature",
+            permanent: {
+                action: "sacrifice",
+                count: 1,
+                filter: { types: ["Creature"], colors: ["U"], isToken: false },
+            },
+        },
+    ],
+    effects: [{ op: "counter", target: { target: 0 } }],
+}));

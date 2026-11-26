@@ -31958,6 +31958,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Flare of Denial",
+        "scryfallId": "71a98efb-9b0a-496b-ac21-8d70527ea544",
+        "oracleId": "437cfd16-94bc-43ba-afd8-e9e9d028a4ca",
+        "firstSet": "mh3",
+        "firstPrintId": "71a98efb-9b0a-496b-ac21-8d70527ea544",
+        "firstPrintSet": "mh3"
+    },
+    {
         "name": "Flaring Pain",
         "scryfallId": "eeb5c96a-1d16-459d-9968-ced9a8f1c520",
         "oracleId": "cad19ad2-3ea9-43f5-bb5a-b0793402fab0",
