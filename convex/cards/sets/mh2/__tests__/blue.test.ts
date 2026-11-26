@@ -343,8 +343,8 @@ describe("Inevitable Betrayal (CR 701.23b, CR 110.2a)", () => {
 // +1/+1 as long as an opponent controls an Island."
 describe("Tide Shaper — kicked land becomes an Island while it remains (CR 305.7, CR 611.2b, issue #10503)", () => {
     const TIDE_SHAPER = resolveCardExport(tideShaperModuleExport)!.id;
-    const FACTORY = getCardByName("Mishra's Factory")!.id; // nonbasic, {T}: Add {C}
-    const PLAINS = getCardByName("Plains")!.id;
+    const FACTORY = getDefinition("a696c5b6-f216-454d-8029-74e84bbd1428").id; // Mishra's Factory: nonbasic, {T}: Add {C}
+    const PLAINS = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed").id; // Plains
 
     /** p2 controls a Mishra's Factory and a Plains; p1 casts Tide Shaper
      *  (kicked or not) through `game.ts`'s announcement, the spell resolves,
