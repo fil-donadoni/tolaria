@@ -101,12 +101,12 @@ describe("Gift — accepted forms (CR 702.174d/e/f/h)", () => {
     });
 
     it.each([
-        // CR 702.174d on an instant: the gift line is read, the body is not.
+        // CR 702.174f on a sorcery: the gift line is read, the body is not.
         [
-            "Valley Rally",
-            "{2}{R}",
-            "Instant",
-            'Gift a Food (You may promise an opponent a gift as you cast this spell. If you do, they create a Food token before its other effects. It\'s an artifact with "{2}, {T}, Sacrifice this token: You gain 3 life.")\nCreatures you control get +2/+0 until end of turn. If the gift was promised, target creature you control gains first strike until end of turn.',
+            "Mind Spiral",
+            "{4}{U}",
+            "Sorcery",
+            "Gift a tapped Fish (You may promise an opponent a gift as you cast this spell. If you do, they create a tapped 1/1 blue Fish creature token before its other effects.)\nTarget player draws three cards. If the gift was promised, tap target creature an opponent controls and put a stun counter on it. (If a permanent with a stun counter would become untapped, remove one from it instead.)",
         ],
         // CR 702.174f on an Equipment.
         [
