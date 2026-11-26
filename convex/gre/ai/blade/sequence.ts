@@ -94,14 +94,18 @@ const MAX_STEPS_BETWEEN = 12;
 
 const GAME = "blade-sequence";
 
-function consult(
+/** One Brain request, as the Worker receives it: the Bot's own projection,
+ *  the entry's iterations and deck knowledge, and the consult path since the
+ *  tree `keeper` holds. Shared with the Line runner (`line.ts`). */
+export function consultBrain(
     state: GameState,
     seq: number,
-    entry: BladeSequence,
+    entry: Pick<BladeSequence, "budget" | "deckKnowledge">,
     botId: string,
     seed: number,
     keeper: TreeKeeper,
-    steps: ConsultPathStep[] | null
+    steps: ConsultPathStep[] | null,
+    gameId = GAME
 ): BrainResponse {
     return handleBrainRequest(
         {
@@ -111,16 +115,18 @@ function consult(
             budget: { iterations: entry.budget.iterations },
             deckKnowledge: bladeDeckKnowledge(state, entry),
             seed,
-            reuse: { gameId: GAME, steps },
+            reuse: { gameId, steps },
         },
         undefined,
         keeper
     );
 }
 
+const consult = consultBrain;
+
 /** The step `move` is, keyed on `pid`'s own view as the live client keys it
  *  — with the hand card an opponent's move shows (`consult-path.ts`). */
-function stepFor(
+export function stepFor(
     state: GameState,
     seq: number,
     pid: string,

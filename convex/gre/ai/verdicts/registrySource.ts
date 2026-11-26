@@ -32,10 +32,12 @@ import { describeMove } from "../../describeMove";
 import type { GameState } from "../../state";
 import { decidingPlayer, moveKey } from "../../search";
 import { BLADE_SCENARIOS } from "../blade/registry";
+import { BLADE_LINES } from "../blade/lines";
+import { buildLineState, firstMatchingMove, walkLine } from "../blade/line";
 import { buildBladeState, forcedSeatAnswer } from "../blade/runner";
 import { matchesMove, seatPlayerId } from "../blade/matcher";
 import type { Move } from "../../moves";
-import type { BladeScenario, MoveMatcher } from "../blade/types";
+import type { BladeLine, BladeScenario, MoveMatcher } from "../blade/types";
 import { verdictIdOf } from "./identity";
 import { pairPositionDefect } from "./pairDiff";
 import { positionOf } from "./pairDerivation";
@@ -310,4 +312,94 @@ export function verdictsFromRegistry(
     // Registry order, whatever the refusals removed.
     const verdicts = scenarios.flatMap((s) => verdictOf.get(s.label) ?? []);
     return { verdicts, gaps };
+}
+
+/** The label of a Line's decision `index` (0-based), as its Verdict or gap
+ *  names it. */
+export function lineDecisionLabel(line: BladeLine, index: number): string {
+    return `${line.label} — decision ${index + 1}`;
+}
+
+/** Lower ONE Line (ADR 0186 Decision 9) to one Verdict per Bot decision.
+ *
+ *  Separate from the gate (`runBladeLine`): the walk plays the Line's own
+ *  expected moves — at each decision the first enumerated move one of its
+ *  matchers accepts — never the Bot's. Each decision is lowered exactly as a
+ *  blade entry is (`verdictFromScenario`), its position the Line's `spec`
+ *  with a `setup` that replays the walk to it, so every check a registry
+ *  entry meets (forced, unconstraining, no-match) is met here too. A decision
+ *  that yields no Verdict, and every decision after a walk that cannot go on,
+ *  is a gap: never dropped. */
+export function verdictsFromLine(line: BladeLine): RegistryVerdicts {
+    const verdicts: Verdict[] = [];
+    const gaps: VerdictGap[] = [];
+    let reported = 0;
+    let stop: { index: number; reason: string } | null = null;
+    try {
+        const state = buildLineState(line);
+        const botId = seatPlayerId(state, line.bot);
+        stop = walkLine(line, state, {
+            decide: (s, index, trail) => {
+                const out = verdictFromScenario({
+                    label: lineDecisionLabel(line, index),
+                    spec: line.spec,
+                    setup: [...(line.setup ?? []), ...trail],
+                    bot: line.bot,
+                    ...(line.deckKnowledge
+                        ? { deckKnowledge: line.deckKnowledge }
+                        : {}),
+                    budget: line.budget,
+                    tier: line.tier,
+                    expect: { moves: line.steps[index].expect },
+                    note: line.note,
+                });
+                reported++;
+                if ("verdict" in out) {
+                    verdicts.push({
+                        ...out.verdict,
+                        id: `line:${line.label}#${index + 1}`,
+                    });
+                } else {
+                    gaps.push(out.gap);
+                }
+                return (
+                    firstMatchingMove(s, botId, line.steps[index].expect) ?? {
+                        stop: "no enumerated move matches its expected moves",
+                    }
+                );
+            },
+        });
+    } catch (error) {
+        stop = {
+            index: reported,
+            reason: error instanceof Error ? error.message : `${error}`,
+        };
+    }
+    if (stop !== null) {
+        for (let i = reported; i < line.steps.length; i++) {
+            gaps.push({
+                label: lineDecisionLabel(line, i),
+                tier: line.tier,
+                reason: "build",
+                detail: `the Line's walk stopped at decision ${stop.index + 1}: ${stop.reason}`,
+            });
+        }
+    }
+    return { verdicts, gaps };
+}
+
+/** Every Verdict the blade Lines yield, plus every decision that yielded
+ *  none and why. Not part of `verdictsFromRegistry`: the fit reads it only
+ *  when a caller adds it (ADR 0186 — nothing in its PRD changes the Bot
+ *  players face). */
+export function verdictsFromLines(
+    lines: readonly BladeLine[] = BLADE_LINES
+): RegistryVerdicts {
+    const out: RegistryVerdicts = { verdicts: [], gaps: [] };
+    for (let i = 0; i < lines.length; i++) {
+        const one = verdictsFromLine(lines[i]);
+        out.verdicts.push(...one.verdicts);
+        out.gaps.push(...one.gaps);
+    }
+    return out;
 }
