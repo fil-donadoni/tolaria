@@ -113,6 +113,14 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             return { kind: "library-searched", scope: head.scope };
         case "gift-given":
             return { kind: "gift-given", scope: head.scope };
+        case "life-gained":
+            return { kind: "life-gained", scope: head.scope };
+        case "life-gained-or-lost":
+            return {
+                kind: "life-gained-or-lost",
+                scope: head.scope,
+                duringYourTurn: head.duringYourTurn,
+            };
         case "left-to-graveyard":
             return {
                 kind: "left-to-graveyard",
@@ -334,8 +342,12 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
         ...(head.kind === "spell-cast"
             ? { spell: { ref: "$event.spell" } }
             : {}),
-        // CR 120.3 — "that much" after a damage head is the damage dealt.
-        ...(head.kind === "damage-dealt" || head.kind === "damage-taken"
+        // CR 120.3 — "that much" after a damage head is the damage dealt;
+        // CR 119.9 — after a life-gain head, the life gained. The two-event
+        // "gain or lose" head names no one amount, so it gives none.
+        ...(head.kind === "damage-dealt" ||
+        head.kind === "damage-taken" ||
+        head.kind === "life-gained"
             ? { amount: { ref: "$event.amount" } }
             : {}),
         ...(head.kind === "dies" ||
@@ -547,6 +559,15 @@ function lowerCondition(
             // The ability's once-per-turn quota, lifted into
             // `maxTriggersPerTurn` by `lowerTriggeredAbility`, never a gate.
             return "a per-turn quota is not a board predicate";
+        case "life-changed-this-turn":
+            // CR 119.3 + CR 603.4 — the per-turn tallies, the same shape on
+            // both sides.
+            return {
+                kind: "life-changed-this-turn",
+                player: condition.player,
+                directions: [...condition.directions],
+                combine: condition.combine,
+            };
     }
 }
 
@@ -638,7 +659,9 @@ export function lowerTriggeredAbility(input: {
         (onceEachTurn ||
             fromGraveyard ||
             (input.head.kind !== "phase" &&
-                input.head.kind !== "becomes-target"))
+                input.head.kind !== "becomes-target" &&
+                input.head.kind !== "life-gained" &&
+                input.head.kind !== "life-gained-or-lost"))
     )
         return {
             ok: false,

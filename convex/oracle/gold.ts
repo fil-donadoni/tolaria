@@ -859,6 +859,9 @@ const TRIGGER_HEAD_EVENT: Record<CompiledTriggerHead["kind"], GameEventType> = {
     sacrificed: "PERMANENT_LEFT",
     "library-searched": "LIBRARY_SEARCHED",
     "gift-given": "GIFT_GIVEN",
+    "life-gained": "LIFE_GAINED",
+    // CR 603.2 — two events; the pairing key names the first member.
+    "life-gained-or-lost": "LIFE_GAINED",
     "left-to-graveyard": "PERMANENT_LEFT",
     // CR 603.2 — spans the four graveyard-arrival events; pairing names the
     // first, as `attacks-or-blocks` does (a hand-written twin declares the same

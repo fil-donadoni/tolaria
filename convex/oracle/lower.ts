@@ -187,7 +187,12 @@ interface Accumulator {
     definesPowerToughnessLines: string[];
     entersWithCounters: {
         type: string;
-        count: number | "X" | "kicker" | { additionalCostPaid: string };
+        count:
+            | number
+            | "X"
+            | "kicker"
+            | { additionalCostPaid: string }
+            | { ifOpponentLostLifeThisTurn: number };
     }[];
     /** CR 702.33e — how each kicker-counted entry rider reads the tally, and
      *  (CR 702.33f) which one kicker a "with its {A} kicker" rider names. */

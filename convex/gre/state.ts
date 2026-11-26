@@ -3735,6 +3735,21 @@ function controllerSpellTally(
     };
 }
 
+/** CR 119.3 — whether any opponent of the entering permanent's controller has
+ *  lost life this turn, off the per-turn tally `recordLifeLost` keeps. False
+ *  with no board (a pure-fixture call). */
+function opponentLostLifeThisTurn(
+    state: GameState | undefined,
+    card: CardInstanceState
+): boolean {
+    if (!state) return false;
+    return state.players.some(
+        (p) =>
+            p.id !== card.controllerId &&
+            (state.lifeLostThisTurn?.[p.id] ?? 0) > 0
+    );
+}
+
 /** CR 121.6 + 614.1c (issue #1693) — applies a permanent's declared
  *  "enters with N counters on it" REPLACEMENT to `card`, AS it enters.
  *
@@ -3807,6 +3822,11 @@ export function applyEntersWithCounters(
         // controller, already set on `card` at every site.
         spellsCastThisTurn:
             cast.spellsCastThisTurn ?? controllerSpellTally(state, card),
+        // CR 119.3 — "if an opponent lost life this turn", the same board
+        // read at the same one applier.
+        opponentLostLifeThisTurn:
+            cast.opponentLostLifeThisTurn ??
+            opponentLostLifeThisTurn(state, card),
     });
     // CR 614.1c — an accepted "you may have this enter with N counters" answer
     // (`mayEnterWithCounters`) adds to whatever the definition declares, and

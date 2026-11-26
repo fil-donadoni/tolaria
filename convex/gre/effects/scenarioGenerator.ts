@@ -240,6 +240,9 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     "library-searched": () => true,
     // CR 702.174c — the source watches its controller give a gift.
     "gift-given": () => true,
+    // CR 119.3 — the source watches its controller's life total change.
+    "life-gained": () => true,
+    "life-gained-or-lost": () => true,
     // CR 603.6c — a SELF graveyard exit is the source's own departure; the
     // non-self form (Sacred Ground's land) watches ANOTHER permanent leave
     // while the source stays.

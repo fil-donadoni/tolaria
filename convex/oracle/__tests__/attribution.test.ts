@@ -165,21 +165,21 @@ describe("attribution — one real card per slot names the sub-grammar that fail
         });
     });
 
-    it("triggered: a trigger head the grammar does not know (Drogskol Reaver)", () => {
+    it("triggered: a trigger head the grammar does not know (Kavu Predator)", () => {
         expect(
             attributionOf({
-                name: "Drogskol Reaver",
-                manaCost: "{5}{W}{U}",
-                typeLine: "Creature — Spirit",
+                name: "Kavu Predator",
+                manaCost: "{1}{G}",
+                typeLine: "Creature — Kavu",
                 oracleText:
-                    "Flying\nDouble strike (This creature deals both first-strike and regular combat damage.)\nLifelink (Damage dealt by this creature also causes you to gain that much life.)\nWhenever you gain life, draw a card.",
-                power: "3",
-                toughness: "5",
+                    "Trample\nWhenever an opponent gains life, put that many +1/+1 counters on this creature.",
+                power: "2",
+                toughness: "2",
             })
         ).toEqual({
             slot: "triggered",
             path: [TRIGGER_HEAD],
-            span: "Whenever you gain life",
+            span: "Whenever an opponent gains life",
         });
     });
 
