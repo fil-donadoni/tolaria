@@ -36462,6 +36462,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Glasspool Mimic",
+        "scryfallId": "5adcb500-8c77-4925-8e2c-1243502827d1",
+        "oracleId": "c178953c-3888-4edd-9d0c-265bd82b1d24",
+        "firstSet": "znr",
+        "firstPrintId": "5adcb500-8c77-4925-8e2c-1243502827d1",
+        "firstPrintSet": "znr"
+    },
+    {
         "name": "Glasswing Grace // Age-Graced Chapel",
         "scryfallId": "90630b20-fc83-475f-bcd5-8bcfee0cf241",
         "oracleId": "3a3e8c9b-e458-4661-980d-0a84a4c2452b",

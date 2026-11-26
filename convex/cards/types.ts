@@ -4359,6 +4359,13 @@ export type AsEntersChoice =
     | {
           kind: "copy";
           filter?: PermanentFilter;
+          /** "enter as a copy of a creature YOU CONTROL" (Glasspool Mimic,
+           *  Visage Bandit): `"you"` keeps only battlefield permanents
+           *  controlled by the player the entering permanent enters under
+           *  (the staged entry's `controllerId`), where `filter` alone spans
+           *  every battlefield ("any creature on the battlefield", Clone).
+           *  Omitted = any controller. Ignored with `fromGraveyard`. */
+          controller?: "you";
           /** CR 707.2 / 614.12 — "enter as a copy of any <filter> card in a
            *  graveyard": the choice picks from EVERY player's graveyard rather
            *  than the battlefield, matched as graveyard cards (CR 113.6b). An
