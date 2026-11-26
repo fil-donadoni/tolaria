@@ -38,7 +38,10 @@ import {
     KEYWORD_TRIGGER_MARKER,
     keywordTriggerOf,
 } from "../../scenarioBuilder";
-import type { ScenarioKeywordTrigger } from "../../../debugScenarioSpec";
+import {
+    SCENARIO_CAST_MODE_FLAGS,
+    type ScenarioKeywordTrigger,
+} from "../../../debugScenarioSpec";
 import type { BladeSeat } from "../blade/types";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
 import type { TargetSelection } from "../../../cards/types";
@@ -134,9 +137,18 @@ export function stackFingerprint(state: GameState, seatOf: SeatOf): string[] {
             item.resolutionStep !== undefined
                 ? ` step=${item.resolutionStep}`
                 : "";
+        // CR 601.2b (issue #10405) — the flag-shaped cast mode a spell was
+        // cast with is read at resolution (CR 702.176a: an impended permanent
+        // enters with time counters, not as a creature): a rebuild that lost
+        // the flag names the same object and resolves a different one.
+        // Appended only when present, like `step`.
+        const modes = SCENARIO_CAST_MODE_FLAGS.filter(
+            (flag) => item[flag] === true
+        );
+        const mode = modes.length > 0 ? ` mode=${modes.join("+")}` : "";
         return `${seat} ${nameOf(item)} ${kind} targets[${targets}] x=${
             item.chosenX ?? "-"
-        }${step}`;
+        }${step}${mode}`;
     });
 }
 

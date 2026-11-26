@@ -240,6 +240,71 @@ describe("the stack fingerprint sees what the lowering did not write (issue #351
     });
 });
 
+describe("an impended spell on the stack is judgeable (CR 702.176a, issue #10405)", () => {
+    /** The reported position: the opponent casts Overlord of the Balemurk for
+     *  its impending cost ({1}{B}) through the production enumerator; the Bot,
+     *  holding a Bolt, decides whether to respond. */
+    function impendedOverlord(): { state: GameState; botId: string } {
+        const state = buildVerdictPosition({
+            cards: [
+                {
+                    name: "Overlord of the Balemurk",
+                    owner: "opp",
+                    zone: "hand",
+                },
+                { name: "Swamp", owner: "opp", count: 2 },
+                { name: "Mountain", owner: "me" },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            activePlayer: "opp",
+            landCount: 0,
+            libraryCount: 20,
+        });
+        const [bot, opp] = state.players;
+        const cast = candidateMoves(state, opp.id).find(
+            (move) =>
+                move.kind === "cast-spell" &&
+                move.alternativeCostId === "impending"
+        );
+        expect(cast).toBeDefined();
+        applyMoveInSearch(state, opp.id, cast!);
+        expect(state.stack.map((item) => item.impended)).toEqual([true]);
+        return { state, botId: bot.id };
+    }
+
+    it("lowers instead of refusing stack-not-lowerable, and fingerprints the mode", () => {
+        const { state, botId } = impendedOverlord();
+        expect(stackFingerprint(state, seatsOf(state, botId))).toEqual([
+            "opp Overlord of the Balemurk spell targets[] x=- mode=impended",
+        ]);
+        expectJudgeable(state, botId);
+    });
+
+    it("refuses a rebuild that LOST the cast-mode flag", () => {
+        const { state, botId } = impendedOverlord();
+        const outcome = lower(state, botId);
+        if (!outcome.ok) throw new Error(outcome.error);
+        const rebuilt = buildVerdictPosition(outcome.lowered.spec);
+        const liveSeats = seatsOf(state, botId);
+        const rebuiltSeats = seatsOf(rebuilt, rebuilt.players[0].id);
+        expect(
+            stackRebuildMismatch(state, liveSeats, rebuilt, rebuiltSeats)
+        ).toBe(null);
+
+        delete (rebuilt.stack[0] as StackItem).impended;
+        const mismatch = stackRebuildMismatch(
+            state,
+            liveSeats,
+            rebuilt,
+            rebuiltSeats
+        );
+        expect(mismatch).toContain("mode=impended");
+        expect(mismatch).toContain("stack index 0");
+    });
+});
+
 describe("a stack the spec cannot declare is refused by item and field (issue #3514)", () => {
     it("names a trigger's field — `opp Powder Keg spell: triggerEvent`", () => {
         const { state, botId } = powderKegPosition();
