@@ -15,6 +15,7 @@ import { useViewportWidth } from "~/hooks/useViewportWidth";
 import { fitTileWidth, modalChromePaddingX } from "~/lib/reorder-strip-width";
 import { SLOT_SPRING } from "~/lib/board-motion";
 import StackAbilityTile from "./stack-ability-tile";
+import { withSymbols } from "~/lib/oracle-text";
 
 /** CR 603.3b (ADR 0058) — the simultaneous-trigger ordering picker. The chooser
  *  controls two or more triggered abilities that triggered from the same event
@@ -417,7 +418,7 @@ export default function TriggerOrderPrompt({
                     </button>
                 </div>
                 <p className="text-center text-sm text-muted-foreground">
-                    {choice.prompt}
+                    {withSymbols(choice.prompt)}
                 </p>
 
                 {/* overflow-hidden (not auto): a lifted tile must never spawn a

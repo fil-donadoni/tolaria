@@ -2,6 +2,7 @@ import * as React from "react";
 import { ContextMenu as ContextMenuPrimitive } from "@base-ui/react/context-menu";
 
 import { cn } from "@/lib/utils";
+import { withSymbols } from "~/lib/oracle-text";
 import { ChevronRightIcon, CheckIcon } from "lucide-react";
 
 function ContextMenu({ ...props }: ContextMenuPrimitive.Root.Props) {
@@ -144,6 +145,7 @@ function ContextMenuItem({
     className,
     inset,
     variant = "default",
+    children,
     ...props
 }: ContextMenuPrimitive.Item.Props & {
     inset?: boolean;
@@ -162,7 +164,10 @@ function ContextMenuItem({
                 className
             )}
             {...props}
-        />
+        >
+            {/* String labels render through the symbol parser (issue #9834). */}
+            {withSymbols(children)}
+        </ContextMenuPrimitive.Item>
     );
 }
 
@@ -193,7 +198,7 @@ function ContextMenuSubTrigger({
             )}
             {...props}
         >
-            {children}
+            {withSymbols(children)}
             <ChevronRightIcon className="ml-auto" />
         </ContextMenuPrimitive.SubmenuTrigger>
     );
@@ -237,7 +242,7 @@ function ContextMenuCheckboxItem({
                     <CheckIcon />
                 </ContextMenuPrimitive.CheckboxItemIndicator>
             </span>
-            {children}
+            {withSymbols(children)}
         </ContextMenuPrimitive.CheckboxItem>
     );
 }
@@ -276,7 +281,7 @@ function ContextMenuRadioItem({
                     <CheckIcon />
                 </ContextMenuPrimitive.RadioItemIndicator>
             </span>
-            {children}
+            {withSymbols(children)}
         </ContextMenuPrimitive.RadioItem>
     );
 }

@@ -27,7 +27,7 @@ import {
 import { SURFACE_IDS } from "../ui-gate/surfaces.ts";
 
 /**
- * `check:ui` is an invariant gate (ADR 0132, issue #3648): nine Floors held at
+ * `check:ui` is an invariant gate (ADR 0132, issue #3648): ten Floors held at
  * zero, four Shape Readings printed and never compared, and a surface the lane
  * could not measure never reported as green. The evaluation is a pure function
  * of (scope, walks, viewport matrix, declared-unwalked list), which is what
@@ -73,7 +73,7 @@ function evaluate(
 }
 
 describe("Floors and Shape Readings", () => {
-    it("are the nine Floors and four Shape Readings ADR 0132 names, disjoint", () => {
+    it("are the ten Floors and four Shape Readings ADR 0132 names, disjoint", () => {
         expect([...FLOORS]).toEqual([
             "cardsZero",
             "cardsStranded",
@@ -84,6 +84,7 @@ describe("Floors and Shape Readings", () => {
             "axeSerious",
             "axeCritical",
             "hOverflow",
+            "rawSymbolTokens",
         ]);
         expect([...SHAPE_READINGS]).toEqual([
             "cardsOcc",
@@ -133,6 +134,7 @@ describe("readingsOf — probe/axe → Readings", () => {
         shellBand: { mounted: false, excluded: 0 },
         tinyText: 60,
         hOverflow: 14,
+        rawSymbolTokens: 17,
         cardW: null,
         offenders: [],
     };
@@ -155,6 +157,7 @@ describe("readingsOf — probe/axe → Readings", () => {
             axeSerious: 15,
             axeCritical: 16,
             hOverflow: 14,
+            rawSymbolTokens: 17,
             cardsOcc: 2,
             ctrlsOcc: 9,
             small: 13,

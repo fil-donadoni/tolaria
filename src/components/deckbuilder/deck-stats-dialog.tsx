@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import GameDialog from "~/components/ui/game-dialog";
 import { computeDeckStats } from "~/lib/deckStats";
+import { withSymbols } from "~/lib/oracle-text";
 import type { ZoneCard } from "~/types/game";
 import DeckStatsCurveChart from "./deck-stats-curve-chart";
 import DeckStatsManaSection from "./deck-stats-mana-section";
@@ -63,7 +64,9 @@ export default function DeckStatsDialog({
                         Mana Curve
                     </h3>
                     <p className="text-xs text-text-muted">
-                        Lands excluded; an unpaid {"{X}"} counts as 0.
+                        {withSymbols(
+                            "Lands excluded; an unpaid {X} counts as 0."
+                        )}
                     </p>
                     <DeckStatsCurveChart curve={stats.curve} />
                 </section>

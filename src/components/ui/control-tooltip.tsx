@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { ariaKeyShortcuts, type Hotkey } from "~/lib/hotkeys";
 import { Keycap } from "./keycap";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
+import { withSymbols } from "~/lib/oracle-text";
 
 /** A control's hover tooltip (issue #9835): its name, a 5–8 word description
  *  in small type under it, and — for an ICON-ONLY control — its hotkey's
@@ -45,13 +46,13 @@ export function ControlTooltip({
             />
             <TooltipContent side={side}>
                 <span className="flex flex-col gap-0.5">
-                    <span data-control-tooltip-label>{label}</span>
+                    <span data-control-tooltip-label>{withSymbols(label)}</span>
                     {description && (
                         <span
                             data-control-tooltip-description
                             className="text-[10px] leading-tight opacity-75"
                         >
-                            {description}
+                            {withSymbols(description)}
                         </span>
                     )}
                 </span>

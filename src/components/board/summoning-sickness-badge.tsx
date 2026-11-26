@@ -30,7 +30,7 @@ export default function SummoningSicknessBadge({
         <div
             data-summoning-sick="true"
             className="absolute top-1 left-1 z-20 pointer-events-none rounded-full bg-black/70 p-1 ring-1 ring-white/30 drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]"
-            title="Summoning sick — can't attack or pay {T} this turn"
+            title="Summoning sick — can't attack or use tap abilities this turn"
             aria-label="Summoning sick"
         >
             <Hourglass className="w-3 h-3 text-signal-pending" />

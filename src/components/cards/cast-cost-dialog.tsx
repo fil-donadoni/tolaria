@@ -5,6 +5,7 @@ import CastCostKickerField from "~/components/cards/cast-cost-kicker-field";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { formatOracleText } from "~/lib/oracle-text";
+import { symbolsToSpokenText } from "~/lib/symbol-names";
 
 type CastCostDialogProps = {
     open: boolean;
@@ -259,7 +260,7 @@ export default function CastCostDialog({
                             type="button"
                             aria-pressed={picked}
                             onClick={() => toggleXColor(color)}
-                            title={`Spend {${color}} on X`}
+                            title={symbolsToSpokenText(`Spend {${color}} on X`)}
                             className={`flex items-center justify-center gap-0.5 rounded-full p-2 cursor-pointer ring-1 transition-colors ${
                                 picked
                                     ? "bg-white/25 ring-white/60"

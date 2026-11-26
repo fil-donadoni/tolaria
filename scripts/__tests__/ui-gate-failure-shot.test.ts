@@ -41,6 +41,7 @@ function probeOf(
         shellBand: { mounted: false, excluded: 0 },
         tinyText: 0,
         hOverflow: 0,
+        rawSymbolTokens: 0,
         cardW: null,
         offenders,
         ...over,

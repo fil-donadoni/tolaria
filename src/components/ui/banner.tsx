@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { withSymbols } from "~/lib/oracle-text";
 
 export type BannerTone =
     | "danger"
@@ -98,11 +99,11 @@ function Banner({
                     // the primitive still spelling a chrome title in the
                     // small-caps convention rather than `.text-display`.
                     <span className="text-display mr-1 uppercase">
-                        {title}
+                        {withSymbols(title)}
                         {" — "}
                     </span>
                 )}
-                {children}
+                {withSymbols(children)}
             </div>
         </div>
     );

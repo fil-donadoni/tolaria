@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import useNestedBackdropDismiss from "@/hooks/useNestedBackdropDismiss";
 import { Panel, SunburstIcon, type PanelDensity } from "@/components/ui/panel";
+import { withSymbols } from "~/lib/oracle-text";
 
 /** `sheet` (issue #9820): the play area minus a margin, at a FIXED size — for
  *  a body that lays out its own scrolling regions and its own action dock
@@ -240,7 +241,7 @@ export default function GameDialog({
                                     (showCloseButton || onMinimize) && "pr-8"
                                 )}
                             >
-                                {title}
+                                {withSymbols(title)}
                             </DialogTitle>
                         </div>
 
@@ -256,7 +257,7 @@ export default function GameDialog({
                                         : "text-left"
                                 )}
                             >
-                                {subtitle}
+                                {withSymbols(subtitle)}
                             </p>
                         )}
 
@@ -272,7 +273,7 @@ export default function GameDialog({
                         )}
 
                         <DialogDescription className="sr-only">
-                            {subtitle ?? title}
+                            {withSymbols(subtitle ?? title)}
                         </DialogDescription>
 
                         {/* p-[0.2rem]: the buttons' focus outline draws

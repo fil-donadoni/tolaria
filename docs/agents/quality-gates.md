@@ -1402,7 +1402,7 @@ otherwise it is a report nobody blocks on.
 `bun run check:ui` (issue #2580, base slice #2512) is the only check in this
 repo that looks at pixels. It starts its own Vite on `127.0.0.1`, signs in
 as the run's own throwaway account, walks the runbook surfaces at the five ADR
-0101 viewports, runs the occlusion probe plus axe-core, and holds nine Floors
+0101 viewports, runs the occlusion probe plus axe-core, and holds ten Floors
 at zero (`scripts/ui-gate/floors.ts`, ADR 0132).
 
 **A PR owes a walk only when its diff can move a layout (ADR 0154 §7, issue

@@ -1,6 +1,8 @@
 import { Keycap } from "~/components/ui/keycap";
 import { HOTKEYS, ariaKeyShortcuts } from "~/lib/hotkeys";
 import { cn } from "~/lib/utils";
+import { withSymbols } from "~/lib/oracle-text";
+import { symbolsToSpokenText } from "~/lib/symbol-names";
 
 /** One-line stand-in for a collapsed prompt (issue #7425): the prompt's title
  *  and a "C to expand" hint. Clicking expands too. */
@@ -17,14 +19,14 @@ export default function CollapsedPromptPill({
         <button
             type="button"
             onClick={onExpand}
-            aria-label={`Expand: ${title}`}
+            aria-label={`Expand: ${symbolsToSpokenText(title)}`}
             aria-keyshortcuts={ariaKeyShortcuts(HOTKEYS.collapsePrompt)}
             className={cn(
                 "pointer-events-auto inline-flex cursor-pointer items-center gap-2 rounded-full border border-border-strong bg-surface/85 px-4 py-2 text-sm text-text backdrop-blur-md transition-colors hover:bg-surface-elevated",
                 className
             )}
         >
-            <span className="text-display">{title}</span>
+            <span className="text-display">{withSymbols(title)}</span>
             {/* The `C` hint (issue #9833): the shared keycap, from the
                 declaration `usePromptCollapseHotkey` matches; hidden with
                 its caption under a coarse pointer. */}

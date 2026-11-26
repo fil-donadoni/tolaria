@@ -12,6 +12,7 @@ that can reach the DOM, at five viewports, with a byte-exact receipt that
 `land` re-derives.
 
 Amended by ADR 0168 (index Status, issue #8699; see `docs/research/adr-audit-2026-11-07.md`).
+Amended by Amendment I below (a tenth Floor, issue #9834).
 
 ## Context
 
@@ -113,3 +114,17 @@ PASS|FAIL|INFRA|UNWALKED`, broken floors, assertions by label) is
 - Two surfaces currently hold a nonzero floor (`deck-builder` `ctrlsZero` 1,
   `deck-detail` 390 `axeSerious` 1). They are fixed before the floors are
   switched on, or listed unwalked with an issue — never carried.
+
+## Amendment I — a tenth Floor, `rawSymbolTokens` (2026-11-22, issue #9834)
+
+Decision 1's list grows by one count: `rawSymbolTokens`, the rendered text
+nodes and plain-text attributes (`title`, `aria-label`, `aria-description`,
+`placeholder`, `alt`) that still spell a mappable `{…}` token instead of the
+symbol or its spoken name. It is a Floor on the same terms as the other nine —
+a constant in `scripts/ui-gate/floors.ts`, zero on every walked surface and
+viewport, no per-surface exception. The mappable set is `SYMBOL_NAMES`
+(`src/lib/symbol-names.ts`); `probe.js` carries its key set as a literal,
+pinned equal by `ui-gate-probe-offenders.test.ts`. Cost: one text-node walk
+and one attribute query per probe, inside the probe call already paid (not
+timed separately). Its static half is `ui-symbol-literals.guard.test.ts`
+(lane, about 1 s).

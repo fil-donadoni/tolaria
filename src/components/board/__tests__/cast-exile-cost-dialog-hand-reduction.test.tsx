@@ -89,11 +89,11 @@ describe("CastExileCostDialog — hand cost-reduction mode (CR 601.2f)", () => {
             />
         );
         expect(screen.getByText("Exile cards to reduce the cost")).toBeTruthy();
-        expect(
-            screen.getAllByText(
-                /Exile up to 2 card\(s\) from your hand — each pays for \{2\}/
-            ).length
-        ).toBeGreaterThan(0);
+        // The subtitle's `{2}` is drawn as the generic-2 symbol (issue #9834).
+        const subtitle = screen.getAllByText(
+            /Exile up to 2 card\(s\) from your hand — each pays for/
+        )[0];
+        expect(subtitle.querySelector('img[data-symbol="{2}"]')).not.toBeNull();
         // w0, w1 are eligible; the blue card and the spell itself are not.
         expect(screen.getAllByTestId("card-image")).toHaveLength(2);
     });

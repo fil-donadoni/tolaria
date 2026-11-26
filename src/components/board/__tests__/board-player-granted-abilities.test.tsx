@@ -200,7 +200,7 @@ describe("player-level granted abilities on the board (issue #2691, CR 605.3a)",
         expect(button).not.toBeNull();
         // Labelled with the ability's oracle text, through the shared
         // formatter — "{C}" renders as a mana symbol image, not literal text.
-        expect(button!.title).toBe("Pay 1 life: Add {C}.");
+        expect(button!.title).toBe("Pay 1 life: Add colorless mana.");
         expect(button!.querySelector("img")).not.toBeNull();
     });
 

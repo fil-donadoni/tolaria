@@ -23,7 +23,9 @@ describe("ActionSheet", () => {
     it("renders one button per item when open", () => {
         render(<ActionSheet open onClose={vi.fn()} items={makeItems()} />);
         expect(screen.getByText("Cast")).toBeTruthy();
-        expect(screen.getByText("{T}: Deal 1 damage")).toBeTruthy();
+        // The label's `{T}` is drawn as the tap symbol (issue #9834).
+        const row = screen.getByText(": Deal 1 damage");
+        expect(row.querySelector('img[data-symbol="{T}"]')).not.toBeNull();
     });
 
     it("gives each item the 44px menu-row touch target (ADR 0103 §5)", () => {

@@ -728,6 +728,132 @@ window.__tolariaProbe = () => {
             bottomChrome = Math.max(bottomChrome, H - r.top);
     }
 
+    /*
+     * RAW SYMBOL TOKENS (issue #9834) — a Floor. A rendered text node, or a
+     * plain-text attribute (`title`, `aria-label`, `aria-description`,
+     * `placeholder`, `alt`) on a rendered element, that still spells a
+     * MAPPABLE `{…}` token: "{T}" reaching the screen (or a screen reader) as
+     * braces instead of the symbol or its spoken name. `SYMBOL_TOKENS` is the
+     * key set of `SYMBOL_NAMES` (`src/lib/symbol-names.ts`) — this file takes
+     * no imports, so `ui-gate-probe-offenders.test.ts` pins the two equal. An
+     * unmappable `{foo}` is not a symbol and is never counted. "Rendered" is
+     * "has a layout box": a `display: none` subtree has none, while
+     * screen-reader-only text keeps its 1px box and IS counted — a screen
+     * reader reads the braces aloud.
+     */
+    const SYMBOL_TOKENS = new Set([
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20",
+        "100",
+        "1000000",
+        "W",
+        "W/P",
+        "2/W",
+        "U",
+        "U/P",
+        "2/U",
+        "B",
+        "B/P",
+        "2/B",
+        "R",
+        "R/P",
+        "2/R",
+        "G",
+        "G/P",
+        "2/G",
+        "W/U",
+        "U/B",
+        "B/R",
+        "R/G",
+        "G/W",
+        "W/B",
+        "U/R",
+        "B/G",
+        "R/W",
+        "G/U",
+        "½",
+        "∞",
+        "C",
+        "X",
+        "Y",
+        "Z",
+        "P",
+        "S",
+        "HW",
+        "HR",
+        "T",
+        "Q",
+        "E",
+        "A",
+        "PW",
+        "CHAOS",
+    ]);
+    const TOKEN_RE = /\{([^}]+)\}/g;
+    const spellsSymbol = (text) => {
+        if (!text || text.indexOf("{") < 0) return false;
+        TOKEN_RE.lastIndex = 0;
+        let m;
+        while ((m = TOKEN_RE.exec(text)))
+            if (SYMBOL_TOKENS.has(m[1].toUpperCase())) return true;
+        return false;
+    };
+    const rendered = (e) => e.getClientRects().length > 0 && vis(e);
+    let rawSymbolTokens = 0;
+    const textWalker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT
+    );
+    for (let n = textWalker.nextNode(); n; n = textWalker.nextNode()) {
+        const p = n.parentElement;
+        if (!p || !spellsSymbol(n.nodeValue)) continue;
+        if (p.closest("script,style,noscript,template")) continue;
+        if (!rendered(p)) continue;
+        rawSymbolTokens++;
+        offend(
+            "rawSymbolTokens",
+            p,
+            null,
+            "text " + n.nodeValue.trim().slice(0, 40)
+        );
+    }
+    const SYMBOL_ATTRS = [
+        "title",
+        "aria-label",
+        "aria-description",
+        "placeholder",
+        "alt",
+    ];
+    for (const e of document.querySelectorAll(
+        SYMBOL_ATTRS.map((a) => "[" + a + "]").join(",")
+    )) {
+        if (!rendered(e)) continue;
+        for (const a of SYMBOL_ATTRS) {
+            const v = e.getAttribute(a);
+            if (!spellsSymbol(v)) continue;
+            rawSymbolTokens++;
+            offend("rawSymbolTokens", e, null, a + " " + v.slice(0, 40));
+        }
+    }
+
     const main = document.querySelector("main") || document.body;
     const mr = main.getBoundingClientRect();
 
@@ -736,6 +862,7 @@ window.__tolariaProbe = () => {
         dpr: devicePixelRatio,
         docH: document.documentElement.scrollHeight,
         hOverflow,
+        rawSymbolTokens,
         topChrome: Math.round(topChrome),
         bottomChrome: Math.round(bottomChrome),
         mainTop: Math.round(mr.top),

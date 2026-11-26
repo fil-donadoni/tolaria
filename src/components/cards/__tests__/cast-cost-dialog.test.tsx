@@ -6,6 +6,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import CastCostDialog from "../cast-cost-dialog";
+import { symbolsToSpokenText } from "~/lib/symbol-names";
 
 function renderDialog(
     props: Partial<React.ComponentProps<typeof CastCostDialog>> = {}
@@ -73,8 +74,8 @@ describe("CastCostDialog (CR 601.2b {X} + CR 702.33 Kicker)", () => {
                 { id: "kicker", description: "Kicker {2}{U}", multi: false },
             ],
         });
-        expect(screen.getByAltText("{2}")).toBeTruthy();
-        expect(screen.getByAltText("{U}")).toBeTruthy();
+        expect(screen.getByAltText("2 generic mana")).toBeTruthy();
+        expect(screen.getByAltText("blue mana")).toBeTruthy();
         expect(screen.queryByText(/\{2\}\{U\}/)).toBeNull();
     });
 
@@ -113,7 +114,9 @@ describe("CastCostDialog (CR 601.2b {X} + CR 702.33 Kicker)", () => {
             askX: false,
             kickers: [{ id: "kicker", description: "Kicker {2}", multi: true }],
         });
-        const field = screen.getByLabelText("Times to pay Kicker {2}");
+        const field = screen.getByLabelText(
+            "Times to pay Kicker 2 generic mana"
+        );
         fireEvent.change(field, { target: { value: "2" } });
         fireEvent.click(castButton());
         expect(onConfirm).toHaveBeenCalledWith({
@@ -130,9 +133,12 @@ describe("CastCostDialog (CR 601.2b {X} + CR 702.33 Kicker)", () => {
         fireEvent.change(screen.getByLabelText("Choose X"), {
             target: { value: "4" },
         });
-        fireEvent.change(screen.getByLabelText("Times to pay Kicker {2}"), {
-            target: { value: "1" },
-        });
+        fireEvent.change(
+            screen.getByLabelText("Times to pay Kicker 2 generic mana"),
+            {
+                target: { value: "1" },
+            }
+        );
         fireEvent.click(castButton());
         expect(onConfirm).toHaveBeenCalledWith({
             chosenX: 4,
@@ -243,7 +249,7 @@ describe("CastCostDialog (CR 702.27 Buyback)", () => {
             target: { value: "2" },
         });
         fireEvent.click(
-            screen.getByRole("checkbox", { name: "Pay Kicker {2}" })
+            screen.getByRole("checkbox", { name: "Pay Kicker 2 generic mana" })
         );
         fireEvent.click(
             screen.getByRole("checkbox", { name: "Pay buyback cost" })
@@ -273,10 +279,14 @@ describe("CastCostDialog — plural kickers (CR 702.33, ADR 0079)", () => {
     it("renders one control per kicker with its own cost text", () => {
         renderDialog({ askX: false, kickers: twoKickers });
         expect(
-            screen.getByRole("checkbox", { name: "Pay Kicker {2}{U}" })
+            screen.getByRole("checkbox", {
+                name: "Pay Kicker 2 generic mana blue mana",
+            })
         ).toBeTruthy();
         expect(
-            screen.getByRole("checkbox", { name: "Pay Kicker {2}{R}" })
+            screen.getByRole("checkbox", {
+                name: "Pay Kicker 2 generic mana red mana",
+            })
         ).toBeTruthy();
         expect(screen.getAllByRole("checkbox")).toHaveLength(2);
     });
@@ -287,7 +297,9 @@ describe("CastCostDialog — plural kickers (CR 702.33, ADR 0079)", () => {
             kickers: twoKickers,
         });
         fireEvent.click(
-            screen.getByRole("checkbox", { name: "Pay Kicker {2}{R}" })
+            screen.getByRole("checkbox", {
+                name: "Pay Kicker 2 generic mana red mana",
+            })
         );
         fireEvent.click(castButton());
         expect(onConfirm).toHaveBeenCalledWith({
@@ -302,10 +314,14 @@ describe("CastCostDialog — plural kickers (CR 702.33, ADR 0079)", () => {
             kickers: twoKickers,
         });
         fireEvent.click(
-            screen.getByRole("checkbox", { name: "Pay Kicker {2}{U}" })
+            screen.getByRole("checkbox", {
+                name: "Pay Kicker 2 generic mana blue mana",
+            })
         );
         fireEvent.click(
-            screen.getByRole("checkbox", { name: "Pay Kicker {2}{R}" })
+            screen.getByRole("checkbox", {
+                name: "Pay Kicker 2 generic mana red mana",
+            })
         );
         fireEvent.click(castButton());
         expect(onConfirm).toHaveBeenCalledWith({
@@ -352,11 +368,14 @@ describe("CastCostDialog — plural kickers (CR 702.33, ADR 0079)", () => {
                 { id: "kicker-one", description: "Kicker {B}", multi: false },
             ],
         });
-        fireEvent.change(screen.getByLabelText("Times to pay Kicker {2}"), {
-            target: { value: "3" },
-        });
+        fireEvent.change(
+            screen.getByLabelText("Times to pay Kicker 2 generic mana"),
+            {
+                target: { value: "3" },
+            }
+        );
         fireEvent.click(
-            screen.getByRole("checkbox", { name: "Pay Kicker {B}" })
+            screen.getByRole("checkbox", { name: "Pay Kicker black mana" })
         );
         fireEvent.click(castButton());
         expect(onConfirm).toHaveBeenCalledWith({
@@ -370,9 +389,12 @@ describe("CastCostDialog — plural kickers (CR 702.33, ADR 0079)", () => {
             askX: false,
             kickers: [{ id: "kicker", description: "Kicker {2}", multi: true }],
         });
-        fireEvent.change(screen.getByLabelText("Times to pay Kicker {2}"), {
-            target: { value: "" },
-        });
+        fireEvent.change(
+            screen.getByLabelText("Times to pay Kicker 2 generic mana"),
+            {
+                target: { value: "" },
+            }
+        );
         expect((castButton() as HTMLButtonElement).disabled).toBe(true);
         fireEvent.click(castButton());
         expect(onConfirm).not.toHaveBeenCalled();
@@ -479,13 +501,15 @@ describe("CastCostDialog — distinct-colour X (CR 107.3a / 601.2h, issue #4506)
     ];
 
     const pickColor = (color: string) =>
-        fireEvent.click(screen.getByTitle(`Spend {${color}} on X`));
+        fireEvent.click(
+            screen.getByTitle(symbolsToSpokenText(`Spend {${color}} on X`))
+        );
 
     it("hides the colour picker until the Kicker is toggled on", () => {
         renderDialog({ askX: false, kickers: distinctColorKicker });
-        expect(screen.queryByTitle("Spend {W} on X")).toBeNull();
+        expect(screen.queryByTitle("Spend white mana on X")).toBeNull();
         fireEvent.click(screen.getByRole("checkbox"));
-        expect(screen.getByTitle("Spend {W} on X")).toBeTruthy();
+        expect(screen.getByTitle("Spend white mana on X")).toBeTruthy();
     });
 
     it("disables Cast until exactly X distinct colours are picked", () => {
@@ -588,7 +612,7 @@ describe("CastCostDialog — flash surcharge symbols (#2934, CR 601.3c)", () => 
             screen
                 .getByTestId("cast-cost-flash-surcharge")
                 .querySelectorAll("img")
-        ).map((img) => img.getAttribute(attr));
+        ).map((img) => img.getAttribute(attr)?.trim());
 
     it("renders a generic {2} surcharge as the mana symbol, not literal text", () => {
         renderDialog({ flashSurcharge: "{2}" });
@@ -608,7 +632,7 @@ describe("CastCostDialog — flash surcharge symbols (#2934, CR 601.3c)", () => 
 
     it("gives every surcharge symbol accessible alt text carrying the cost", () => {
         renderDialog({ flashSurcharge: "{2}{R}" });
-        expect(surchargeSymbols("alt")).toEqual(["{2}", "{R}"]);
+        expect(surchargeSymbols("alt")).toEqual(["2 generic mana", "red mana"]);
     });
 
     it("renders no surcharge notice when the cast owes none", () => {
