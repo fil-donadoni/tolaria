@@ -516,6 +516,11 @@ export type Edge = {
     totalMargin: number;
     /** Times this move was AVAILABLE during selection (ISMCTS availability). */
     avail: number;
+    /** The turn this edge's `play-land` took its card out of EXILE, in the
+     *  world that opened it (`exileLandPlayTurn`) — what tells the deferred
+     *  land drop (`deferredDropPlaysExileLand`) a land the line UNLOCKED from
+     *  one it held. Absent on every other edge. */
+    exileLandTurn?: number;
 };
 
 export type Node = {
@@ -4096,6 +4101,9 @@ function puctDescend(
     // Apply THIS world's move for the selected key (see `iterate`'s note): an
     // edge is keyed by stable identity, so its stored move may name instances
     // from a different determinization.
+    const exileLandTurn = bestEdge
+        ? undefined
+        : exileLandPlayTurn(world, bestKeyed!.move);
     applyMoveInSearch(world, pid, bestKeyed!.move);
     if (bestEdge) {
         path.push(bestEdge);
@@ -4111,6 +4119,7 @@ function puctDescend(
         totalReward: 0,
         totalMargin: 0,
         avail: 1,
+        ...(exileLandTurn !== undefined ? { exileLandTurn } : {}),
     };
     node.children.set(opened.key, opened);
     path.push(opened);
@@ -4385,6 +4394,7 @@ function iterate(
                     : untried,
                 rng
             )!;
+            const exileLandTurn = exileLandPlayTurn(world, pick.move);
             applyMoveInSearch(world, pid, pick.move);
             const { child, existed } = sharedChild(shared, view, pick);
             const edge: Edge = {
@@ -4396,6 +4406,7 @@ function iterate(
                 totalReward: 0,
                 totalMargin: 0,
                 avail: 1,
+                ...(exileLandTurn !== undefined ? { exileLandTurn } : {}),
             };
             view.children.set(pick.key, edge);
             path.push(edge);
@@ -7089,6 +7100,42 @@ export function selectRootMove(
         if (first) return finish(first, "free-development", true);
     }
 
+    // The same rule, the other way round: the robust pick is a HAND land drop
+    // before the turn's last main phase, and `pass` is outcome-equal and plays
+    // a land out of EXILE later this same turn that the root cannot play now
+    // (an attack trigger's "you may play that card this turn", CR 305.9 /
+    // 514.2). Again two ORDERS of one land drop (CR 305.2): passing keeps the
+    // hand land playable in the later main phase, so every line through the
+    // drop now stays open behind it, and it opens the line where the turn's
+    // one drop goes to the card that lapses at cleanup while the hand card
+    // keeps. Its mean can still read lower for the reason above: the deferred
+    // node carries the extra land decision whose weak replies dilute it, and
+    // the material tie-break then ranks the diluted margin. The unlock is read
+    // off the tree (`Edge.exileLandTurn`), never off a card: whatever grants
+    // the play, the line that reached it is the evidence.
+    if (
+        rootState &&
+        botId &&
+        ruleOn("free-development") &&
+        best.move.kind === "play-land" &&
+        !isLastBankingWindow(rootState) &&
+        rootState.players
+            .find((p) => p.id === botId)
+            ?.hand.some(
+                (c) =>
+                    c.id ===
+                    (best.move as { cardInstanceId: string }).cardInstanceId
+            )
+    ) {
+        const hold = pool.find(
+            (e) =>
+                e.move.kind === "pass" &&
+                mean(e) >= bestMean - weights.outcomeEps &&
+                deferredDropPlaysExileLand(e.node, botId, rootState.turn, moves)
+        );
+        if (hold) return finish(hold, "free-development", true);
+    }
+
     // Hold-the-trick tie-break (ADR 0021, issue #229). The mirror image of the
     // land-drop rule. A combat trick / instant-speed answer held in hand DOES
     // carry option value — it can respond to what the opponent does — so spending
@@ -9180,6 +9227,49 @@ function banksCardKeepingHeldOptions(
  *  turn where a banking special action can no longer compete with a
  *  sorcery-speed play: the postcombat main phase and the ending phase.
  *  Earlier windows defer to this one. */
+/** The turn `move` plays a land out of an EXILE zone of `world`, or
+ *  `undefined` for any other move — stamped on the edge it opens
+ *  (`Edge.exileLandTurn`). */
+function exileLandPlayTurn(world: GameState, move: Move): number | undefined {
+    if (move.kind !== "play-land") return undefined;
+    const id = move.cardInstanceId;
+    return world.players.some((p) => p.exile.some((c) => c.id === id))
+        ? world.turn
+        : undefined;
+}
+
+/** True iff a visited edge of `botId`'s below `node` plays a land out of
+ *  exile on `turn` that `rootMoves` does not already offer — the land a
+ *  deferred drop unlocks (`selectRootMove`'s deferred land drop). */
+function deferredDropPlaysExileLand(
+    node: Node,
+    botId: string,
+    turn: number,
+    rootMoves: readonly Move[]
+): boolean {
+    const offered = new Set<string>();
+    for (let i = 0; i < rootMoves.length; i++) {
+        const m = rootMoves[i];
+        if (m.kind === "play-land") offered.add(m.cardInstanceId);
+    }
+    let found = false;
+    forEachTreeNode(node, (n) => {
+        if (found) return;
+        n.children.forEach((e) => {
+            if (
+                e.visits > 0 &&
+                e.mover === botId &&
+                e.exileLandTurn === turn &&
+                e.move.kind === "play-land" &&
+                !offered.has(e.move.cardInstanceId)
+            ) {
+                found = true;
+            }
+        });
+    });
+    return found;
+}
+
 function isLastBankingWindow(state: GameState): boolean {
     return (
         state.phase === "POSTCOMBAT_MAIN" ||

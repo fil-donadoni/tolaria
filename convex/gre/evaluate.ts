@@ -168,6 +168,8 @@ import {
     type LatentWeights,
 } from "./ai/evalWeights";
 import { libraryTerm } from "./ai/decking";
+import { isLandDropOpen } from "./ai/asEntersDiscard";
+import { exileGrantLapsesAtCleanup } from "./phases";
 import { activatedDamageReach } from "./ai/activatedDamageReach";
 import { retrievableLinkedExile } from "./ai/linkedExileReach";
 import { drawFromEmptyLibraryWins } from "./replacements";
@@ -2234,9 +2236,48 @@ function playableExileCards(
                     isEncodedForController(state, c, player.id)) &&
                 // A land is PLAYED, never cast (CR 305.9): a cast-only grant
                 // on one is unusable, so it counts only under a play grant —
-                // the same test `resolvePlayLandSourceZone` makes.
-                (!isLand(c) || c.castableFromExileIncludesLand === true)
+                // the same test `resolvePlayLandSourceZone` makes — and only
+                // while that play can still happen before the grant lapses.
+                (!isLand(c) ||
+                    (c.castableFromExileIncludesLand === true &&
+                        exileLandPlayableBeforeLapse(state, c, player)))
         )
+    );
+}
+
+/** The phases of a turn in which its active player still has a main phase
+ *  ahead or under way — where a land can yet be played (CR 305.1, 505.1). */
+const LAND_PLAY_PHASES_AHEAD: ReadonlySet<GameState["phase"]> = new Set([
+    "UNTAP",
+    "UPKEEP",
+    "DRAW",
+    "PRECOMBAT_MAIN",
+    "BEGINNING_OF_COMBAT",
+    "DECLARE_ATTACKERS",
+    "DECLARE_BLOCKERS",
+    "FIRST_STRIKE_DAMAGE",
+    "COMBAT_DAMAGE",
+    "END_OF_COMBAT",
+    "POSTCOMBAT_MAIN",
+]);
+
+/** Whether a land in exile under a land-inclusive play grant can still be
+ *  played before that grant lapses. A persistent grant always can (a later
+ *  turn's drop plays it). A grant THIS turn's cleanup revokes (CR 514.2,
+ *  "you may play that card this turn") can only while `player` is the active
+ *  player with a main phase still ahead and a land drop still open (CR 305.1,
+ *  305.2): once the drop is spent the card is dead material, and a land in
+ *  hand spent before it is the land the turn wasted. */
+function exileLandPlayableBeforeLapse(
+    state: GameState,
+    card: CardInstanceState,
+    player: PlayerState
+): boolean {
+    if (!exileGrantLapsesAtCleanup(state, card)) return true;
+    return (
+        state.activePlayerId === player.id &&
+        LAND_PLAY_PHASES_AHEAD.has(state.phase) &&
+        isLandDropOpen(state, player)
     );
 }
 

@@ -6954,16 +6954,28 @@ export function enumerateMoves(
     // That is exactly the split `getLegalActions`' `casterId` parameter exists
     // for, so it is passed here.
     //
-    // Lands are excluded: a land in exile under a play grant is PLAYED, never
-    // cast (CR 305.9), and has its own enumeration
-    // (`resolvePlayLandSourceZone`) — which is also what keeps a cast-only
-    // grant on a land from being offered as either.
+    // A land is PLAYED, never cast (CR 305.9): under a land-inclusive play
+    // grant (`castableFromExileIncludesLand`, "you may PLAY that card") a card
+    // with a land face is a `play-land` Move, one per land face as for hand
+    // and graveyard (CR 712.12); a cast-only grant offers no play, which
+    // `getLegalActions` decides. A land is never cast, so it stops there.
+    // The caster is `player` on both sides, the subject `assertLegalAction`
+    // asks about at the mutation, because the drop count and the sorcery
+    // window are the caster's (CR 305.2, 307.1).
     const zoneOwnerList = state.players;
     for (let i = 0; i < zoneOwnerList.length; i++) {
         const zoneOwner = zoneOwnerList[i];
         const cardList7 = zoneOwner.exile;
         for (let j = 0; j < cardList7.length; j++) {
             const card = cardList7[j];
+            if (
+                landPlayFaces(card).length > 0 &&
+                getLegalActions(state, player, card, false, player.id).includes(
+                    "play"
+                )
+            ) {
+                moves.push(...landPlayMoves(card));
+            }
             if (card.types.includes("Land")) continue;
             // CR 406.3 / 702.143a — a face-down card the viewer may not look
             // at (an opponent's foretold card, as the client Bot's wire view
@@ -7369,13 +7381,22 @@ export function onlyPassIsLegal(state: GameState, playerId: string): boolean {
         }
         if (hasStackAbility(card)) return false;
     }
-    // Exile, every player's: a cast under a permission this player holds.
+    // Exile, every player's: a land play or a cast under a permission this
+    // player holds.
     const zoneOwnerList = state.players;
     for (let i = 0; i < zoneOwnerList.length; i++) {
         const zoneOwner = zoneOwnerList[i];
         const cardList3 = zoneOwner.exile;
         for (let j = 0; j < cardList3.length; j++) {
             const card = cardList3[j];
+            if (
+                landPlayFaces(card).length > 0 &&
+                getLegalActions(state, player, card, false, player.id).includes(
+                    "play"
+                )
+            ) {
+                return false;
+            }
             if (card.types.includes("Land")) continue;
             if (exileCastPermitted(state, card, player.id)) return false;
         }
