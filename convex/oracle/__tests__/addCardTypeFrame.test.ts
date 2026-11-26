@@ -94,7 +94,8 @@ describe("add a card type (CR 205.1b / CR 613.1d, issue #3725)", () => {
         const outcome = compile(
             "{2}, {T}: Target creature becomes a Vampire in addition to its other types."
         );
-        expect(outcome.state).not.toBe("unparsed");
+        if (outcome.state === "unparsed")
+            throw new Error(JSON.stringify(outcome.gaps));
         expect(outcome.opsUsed).toContain("addSubtype");
         expect(outcome.opsUsed).not.toContain("addCardType");
     });
@@ -106,6 +107,7 @@ describe("add a card type (CR 205.1b / CR 613.1d, issue #3725)", () => {
         "{T}: Target permanent perpetually becomes an artifact in addition to its other types.",
     ])("refuses %s", (text) => {
         const outcome = compile(text);
-        expect(outcome.opsUsed ?? []).not.toContain("addCardType");
+        const ops = outcome.state === "unparsed" ? [] : outcome.opsUsed;
+        expect(ops).not.toContain("addCardType");
     });
 });
