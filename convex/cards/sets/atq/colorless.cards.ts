@@ -620,8 +620,8 @@ export const clockworkAvian = defineCard(() => ({
 // mana costs / type lines come from MTGJSON ATQ.json. Every effect reuses
 // existing staticEffects kinds, the COP factory, animateAsCreature, and
 // SpellContext prevention/keyword primitives — no new primitive, no engine
-// change. Divergences (animate can't add the Artifact type; Ashnod's "becomes an
-// artifact" omitted) (tracked-by: #3725) are flagged inline below. Urza's
+// change. Ashnod's Transmogrant's "becomes an artifact" is the `addCardType`
+// Op (issue #3725). Urza's
 // Avenger's keyword choice is deliberately authored as fixed per-keyword abilities.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -958,22 +958,10 @@ export const rakalite = defineCard(() => ({
 
 // Ashnod's Transmogrant — {1} Artifact. "{T}, Sacrifice this artifact: Put a
 // +1/+1 counter on target nonartifact creature. That creature becomes an
-// artifact in addition to its other types." (CR 122.1 +1/+1 counter; CR 205
-// type-add.)
-//
-// DIVERGENCE (tracked-by: #3725; supersedes the closed #277 and #2064): the "becomes an
-// artifact in addition to its other types" clause is not modelled. The only
-// type-add today is the source-bound continuous `StaticTypeAdd` (auras, which
-// reverts when the source leaves), and that is wrong here: this artifact
-// sacrifices ITSELF as a cost, so the layer-4 effect must OUTLIVE its own
-// source. That lifetime is the question the Continuous Effects Registry (ADR
-// 0082 / PRD #2064) decides — an imperative `ctx.addCardType` would be the
-// stored-characteristic mutation that ADR explicitly rejects for a
-// non-copiable value, so this is deliberately NOT a small local primitive.
-// `animate` is not a workaround either: it forces a base P/T set (layer 7a) and
-// this creature's P/T must not change. Cf. #2086 (a layer-4 type add surviving
-// the TARGET leaving the battlefield, CR 400.7) — same layer, adjacent bug.
-// The card ships the +1/+1 counter (the board-dominant, fully testable half).
+// artifact in addition to its other types." (CR 122.1 +1/+1 counter; CR 205.1b
+// type-add, issue #3725.) The type-add is a resolving ability's effect, so it
+// outlives the Transmogrant sacrificed as its cost (CR 611.2c) and lasts until
+// the creature leaves the battlefield (CR 611.2a).
 export const ashnodsTransmogrant = defineCard(() => ({
     id: "2aa5b289-36ba-49b1-a5ac-f23bf71f8241",
     rarity: "uncommon",
@@ -994,8 +982,8 @@ export const ashnodsTransmogrant = defineCard(() => ({
                 count: 1,
                 excludeTypes: "Artifact",
             },
-            // CR 122 (issue #841) — put one +1/+1 counter on the target.
-            // "becomes an artifact" omitted — see DIVERGENCE (tracked-by: #3725) note above.
+            // CR 122 (issue #841) — put one +1/+1 counter on the target, then
+            // CR 205.1b (issue #3725) — it becomes an artifact as well.
             effects: [
                 {
                     op: "counters",
@@ -1003,6 +991,11 @@ export const ashnodsTransmogrant = defineCard(() => ({
                     counter: "+1/+1",
                     target: { target: 0 },
                     count: 1,
+                },
+                {
+                    op: "addCardType",
+                    target: { target: 0 },
+                    cardType: "Artifact",
                 },
             ],
         },

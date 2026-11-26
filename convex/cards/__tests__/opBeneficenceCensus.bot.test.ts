@@ -247,6 +247,9 @@ describe("OP_BENEFICENCE census (issue #3006)", () => {
 // Census at the time of writing (issue #5161): 1838 complete definitions over
 // the catalogue, 31 `"neutral"` static rows, 6 binding-only Ops.
 const NEUTRAL_ROWS = [
+    // issue #3725 — a NEW Op, not a re-signed one: the scripts it completes
+    // (Ashnod's Transmogrant beside `counters`) were complete before it.
+    "addCardType",
     "addSubtype",
     "animate",
     "attach",

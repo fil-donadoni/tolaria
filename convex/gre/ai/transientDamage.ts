@@ -97,6 +97,7 @@ const DAMAGE_OR_SIZE_OPS: ReadonlySet<EffectOp["op"]> = new Set<EffectOp["op"]>(
         "loseAllAbilities",
         "loseAllAbilitiesWhileSourceRemains",
         "setCardTypes",
+        "addCardType",
         "setLevel",
         "monstrosity",
         "explore",

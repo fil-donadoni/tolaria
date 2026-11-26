@@ -2186,6 +2186,14 @@ const SCENARIO_SKIPS = {
         code: "op-own-tests",
         reason: `Op "setCardTypes" changes a permanent's card types (CR 205.1a) — covered by the Op's own interpreter + wire-format tests`,
     },
+    // `addCardType` (issue #3725) ADDS a card type (CR 205.1b layer 4). Same
+    // rationale as `setCardTypes` above: it changes the target's kind
+    // mid-scenario, which the canned generator's one-kind-per-slot seeding
+    // does not model. The Op earns its own interpreter + wire-format tests.
+    addCardType: {
+        code: "op-own-tests",
+        reason: `Op "addCardType" adds a card type to a permanent (CR 205.1b) — covered by the Op's own interpreter + wire-format tests`,
+    },
     // `loseAbility` (issue #2125) removes ONE keyword (CR 613.1f layer 6).
     // The canned generator seeds a VANILLA filler creature at a permanent
     // slot, so the only outcome it could assert is that a keyword the filler

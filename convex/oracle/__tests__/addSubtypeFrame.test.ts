@@ -101,10 +101,6 @@ describe("add a subtype indefinitely (CR 205.1b / CR 613.1d, issue #7369)", () =
 describe("add a subtype — the neighbours it refuses", () => {
     it.each([
         [
-            "a card type, not a subtype (Memnarch)",
-            "{1}{U}{U}: Target permanent becomes an artifact in addition to its other types.",
-        ],
-        [
             "a printed duration (Thran Forge)",
             "{2}: Until end of turn, target creature becomes a Vampire in addition to its other types.",
         ],

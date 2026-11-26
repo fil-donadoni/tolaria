@@ -84,7 +84,7 @@ import { SOURCE_BINDING } from "../effects/interpreter";
  *   - `grantAbility` (CR 613.1f, layer 6) — an ability it gains.
  *   - `addSubtype` / `setSubtype` (layer 4) — its subtypes.
  *   - `setColor` (layer 5) — its colors.
- *   - `setCardTypes` (layer 4) — its card types.
+ *   - `setCardTypes` / `addCardType` (layer 4) — its card types.
  *   - `animate` / `setBasePT` (layers 4 / 7b) — its type line and base P/T.
  *   - `regenerate` (CR 701.19 Regenerate) — a regeneration shield on it.
  *   - `preventDamage` (CR 615) — a prevention shield on it. Its
@@ -122,6 +122,7 @@ const SOURCE_CONFINED_OPS: ReadonlySet<string> = new Set([
     "setSubtype",
     "setColor",
     "setCardTypes",
+    "addCardType",
     "animate",
     "setBasePT",
     "regenerate",
