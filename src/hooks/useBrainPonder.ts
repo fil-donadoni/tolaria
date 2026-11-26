@@ -18,6 +18,7 @@
 import { useEffect } from "react";
 import { useConvex } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { publicStateArgs } from "~/lib/public-state-args";
 import type { Id } from "@convex/_generated/dataModel";
 import { onHumanWindow, peekConsultPath } from "~/lib/ai/consult-path";
 import { ponderBrain, stopPonderingBrain } from "~/lib/ai/brain-client";
@@ -47,10 +48,10 @@ export function useBrainPonder(
             if (game !== gameId || pageHidden()) return;
             void (async () => {
                 try {
-                    const state = await convex.query(api.game.getPublicState, {
-                        gameId,
-                        playerId: botId,
-                    });
+                    const state = await convex.query(
+                        api.game.getPublicState,
+                        publicStateArgs(gameId, botId)
+                    );
                     if (!state || state.seq !== seq || state.gameOver) return;
                     const steps = await peekConsultPath(gameId, seq);
                     if (!steps || pageHidden()) return;

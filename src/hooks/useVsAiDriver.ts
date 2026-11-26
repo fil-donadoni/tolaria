@@ -97,6 +97,7 @@ import { useMutation } from "convex/react";
 import { useResilientQuery } from "~/hooks/useResilientQuery";
 import { useEscalationRecovery } from "~/hooks/useEscalationRecovery";
 import { api } from "@convex/_generated/api";
+import { publicStateArgs } from "~/lib/public-state-args";
 import type { Id } from "@convex/_generated/dataModel";
 import {
     actedSeatFor,
@@ -367,7 +368,7 @@ export function useVsAiDriver(
     );
     const botStateQuery = useResilientQuery(
         api.game.getPublicState,
-        botId && botOwesInput ? { gameId, playerId: botId } : "skip"
+        botId && botOwesInput ? publicStateArgs(gameId, botId) : "skip"
     );
     const botState = botStateQuery.data;
     // ADR 0181 — the seat the Bot ANSWERS for in this window: its own, or a

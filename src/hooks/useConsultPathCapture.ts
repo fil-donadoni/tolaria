@@ -16,6 +16,7 @@ import { useConvex } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { useResilientQuery } from "./useResilientQuery";
+import { publicStateArgs } from "~/lib/public-state-args";
 import { tapClientMutations } from "~/lib/ai/mutation-tap";
 import { isSeatOwnView } from "~/lib/ai/human-decision-capture";
 import {
@@ -54,7 +55,7 @@ export function useConsultPathCapture(
         !!humanId && !!owedPlayerIds && owedPlayerIds.includes(humanId);
     const humanView = useResilientQuery(
         api.game.getPublicState,
-        humanOwes && humanId ? { gameId, playerId: humanId } : "skip"
+        humanOwes && humanId ? publicStateArgs(gameId, humanId) : "skip"
     ).data;
 
     useEffect(() => {
