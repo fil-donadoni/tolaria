@@ -236,8 +236,7 @@ pair becomes a Verdict written by the agent and **attested by the reviewer
 under their own account** — never by the agent, never by CLI as admin
 (Attestation is a person, ADR 0128; `verdicts.submit` is tester-gated).
 `doors.md` § Preference door says what to hand them. Then, in the same
-session: `bun run verdicts:promote` (refused until ADR 0186's Prototype gate
-is read; `bun run verdicts:exam` meanwhile, `doors.md`), `bun run fit:weights`, read the
+session: `bun run verdicts:promote`, `bun run fit:weights`, read the
 promotion's unsatisfied-pair report; commit the promotion's diff in the
 session's PR (`doors.md` § Preference door). **An issue for a preference
 exists only when that report names the pair's Discriminant as one no term
