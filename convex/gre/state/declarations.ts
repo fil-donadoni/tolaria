@@ -4528,6 +4528,9 @@ export type PendingTarget = {
      *  #1195). `true` keeps ONLY tokens; `false` keeps ONLY nontoken
      *  permanents. Propagated from TargetRequirement.isToken. */
     isToken?: boolean;
+    /** CR 122.1 — the permanent must have at least one counter of `type`
+     *  on it. Propagated from TargetRequirement.hasCounter. */
+    hasCounter?: { type: string };
     /** CR 302.6 / 400.7 (issue #1824) — restricts legal permanent targets to
      *  those their current controller has controlled continuously since the
      *  beginning of the turn (Norritt, Arcum's Whistle). Propagated from

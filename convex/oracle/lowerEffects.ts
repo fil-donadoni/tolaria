@@ -193,8 +193,10 @@ export interface SiteOptions {
     /**
      * CR 701.59c — "it" behind an evidence gate names the ONE target
      * the sentence before it announced ("Tap target creature. If evidence was
-     * collected, put a stun counter on it."). Set only by that gate, so every
-     * other pronoun after an announced target stays refused.
+     * collected, put a stun counter on it."), and behind a conjunction whose
+     * first half announced it ("Tap target creature and put a stun counter on
+     * it", CR 608.2c). Set only by those two, so every other pronoun after an
+     * announced target stays refused.
      */
     readonly pronounNamesAnnouncedTarget?: true;
     /**
@@ -1546,6 +1548,16 @@ function slotReachRefusal(
 }
 
 /**
+ * CR 608.2c — whether an announced group is ONE object a later "it" can name:
+ * exactly one target, or "up to one" (nothing chosen → "it" names nothing and
+ * the instruction does nothing, CR 101.3).
+ */
+function namesAtMostOneObject(count: TargetRequirement["count"]): boolean {
+    if (count === 1) return true;
+    return typeof count === "object" && count.min === 0 && count.max === 1;
+}
+
+/**
  * CR 115.1 — the object(s) a verb acts on, and the ONE place a target group is
  * announced.
  *
@@ -1586,7 +1598,7 @@ function selectorsFor(
         if (
             site.pronounNamesAnnouncedTarget === true &&
             announced.length === 1 &&
-            announced[0]!.count === 1
+            namesAtMostOneObject(announced[0]!.count)
         )
             return lowered([{ target: 0 }]);
         if (announced.length > 0)
@@ -4818,8 +4830,16 @@ function lowerSentenceBody(
             // CR 608.2c — the halves in the order printed, each through the
             // shared walk so a target announced in one is allocated once.
             const ops: EffectOp[] = [];
-            for (const effect of sentence.effects) {
-                const half = lowerSentence(effect, walk, site);
+            // A pair whose "it" names the first half's target reads the later
+            // halves through the same site fact the evidence gate sets.
+            for (const [index, effect] of sentence.effects.entries()) {
+                const half = lowerSentence(
+                    effect,
+                    walk,
+                    index > 0 && sentence.pronounNamesAnnouncedTarget === true
+                        ? { ...site, pronounNamesAnnouncedTarget: true }
+                        : site
+                );
                 if (!half.ok) return half;
                 ops.push(...half.value);
             }

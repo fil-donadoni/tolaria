@@ -3081,6 +3081,8 @@ describe("getLegalTargets: the OFFERED set honours EVERY PERMANENT_FILTER_KEYS e
             siblingControllerId: "p2",
         },
         isToken: { req: { isToken: true } },
+        // SUBJECT carries no counters at all.
+        hasCounter: { req: { hasCounter: { type: "stun" } } },
         typeOrSubtypeFilter: {
             req: {
                 typeOrSubtypeFilter: {

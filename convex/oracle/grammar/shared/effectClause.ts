@@ -2019,6 +2019,13 @@ export type EffectSentenceIR =
            */
           readonly kind: "conjunction";
           readonly effects: readonly EffectSentenceIR[];
+          /**
+           * CR 608.2c — the later halves' "it" names the ONE target the
+           * first half announced ("Tap target creature and put a stun
+           * counter on it"). Set only by the rule that read that pair, so
+           * every other pronoun after an announced target stays refused.
+           */
+          readonly pronounNamesAnnouncedTarget?: true;
       }
     | {
           /**
@@ -6243,6 +6250,15 @@ const YOU_DRAW_AND_LOSE_LIFE =
  */
 const YOU_DRAW_AND_THAT_OPPONENT_DISCARDS =
     /^You (draw \S+ cards?) and (that opponent discards \S+ cards?)$/;
+/**
+ * CR 701.26a + CR 122.1d — "Tap [up to one] target <permanent> and put <N>
+ * stun counter(s) on it": a tap, then stun counters on the SAME object, the
+ * "it" naming the one target the tap announced (CR 608.2c). Pinned to the
+ * stun counter and to one announced target: a different counter or a wider
+ * announcement stays refused until a corpus card prints it (ADR 0137).
+ */
+const TAP_AND_STUN_IT =
+    /^(Tap (?:up to one )?target .+?) and (put \S+ stun counters? on it)$/;
 /** CR 701.17a — "Mill three cards" (the controller's own library). */
 /** CR 400.7 — "Return all enchantment cards from your graveyard to the battlefield". */
 const RETURN_ALL_FROM_GRAVEYARD =
@@ -9835,6 +9851,22 @@ function effectSentence(
             kind: "counter" as const,
             subject: subject.value,
             unlessPays: { kind: "per-domain" },
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── tap, then stun the tapped object (CR 701.26a, CR 122.1d) ───────────
+    const tapAndStun = span.match(TAP_AND_STUN_IT);
+    if (tapAndStun !== null) {
+        const tapped = effectSentence(tapAndStun[1]!, ctx);
+        if (!tapped.ok) return tapped;
+        if (tapped.value.kind !== "tap-untap")
+            return fail(`"${tapAndStun[1]}" is not a tap`, span);
+        const stunned = effectSentence(capitalise(tapAndStun[2]!), ctx);
+        if (!stunned.ok) return stunned;
+        return ok({
+            kind: "conjunction" as const,
+            effects: [tapped.value, stunned.value],
+            pronounNamesAnnouncedTarget: true as const,
         } satisfies EffectSentenceIR);
     }
 
