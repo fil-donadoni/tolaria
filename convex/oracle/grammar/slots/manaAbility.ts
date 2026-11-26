@@ -477,8 +477,9 @@ const addEffect: Rule<ManaProductionIR> = rule("add effect", (span, ctx) => {
     const head = production.run(body.slice(0, stop), ctx);
     if (!head.ok) return r;
     const riderSpan = body.slice(stop + ". ".length);
+    const context = ctx as ParseContext;
     if (head.value.kind === "choice") {
-        const damage = readSelfDamageRider(riderSpan, ctx, [
+        const damage = readSelfDamageRider(riderSpan, context, [
             "land",
             "artifact",
         ]);
@@ -488,7 +489,7 @@ const addEffect: Rule<ManaProductionIR> = rule("add effect", (span, ctx) => {
                 dealsDamageToControllerOnColoredTap: damage,
             });
     }
-    const withRider = readManaRider(head.value, riderSpan, ctx);
+    const withRider = readManaRider(head.value, riderSpan, context);
     if (withRider !== null) return ok(withRider);
     return fail(r.reason, r.fragment, {
         path: [MANA_ABILITY_RIDER],
