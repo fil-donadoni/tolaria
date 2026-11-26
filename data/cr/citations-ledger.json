@@ -22322,6 +22322,7 @@
         {"id":"122","line":"// --- Wiitigo — enters with six +1/+1; upkeep growth/shrink (CR 122) ---------","sites":1,"status":"baseline"},
         {"id":"602.2b","line":"describe(\"activation mana affordability — battlefield (CR 602.2b)\", () => {","sites":1,"status":"confirmed","ruleHash":"d76ff3ff7e6bfa31"},
         {"id":"109.5","line":"describe(\"CR 109.5 — the source's SUBTYPES reach both sides (Aura-spell guard)\", () => {","sites":1,"status":"baseline"},
+        {"id":"702.184a","line":"// CR 702.184a — an activated ability expanded from `stationThresholds`","sites":1,"status":"confirmed","ruleHash":"2f6a952d82dc85d9"},
         {"id":"701.26a","line":"/** CR 110.5 / 701.26a (issue #3244) — the permanent's tapped STATUS:","sites":1,"status":"confirmed","ruleHash":"f36f67020a26e4b1"},
         {"id":"608.2d","line":"// (CR 305.7 / CR 613.1d layer 4, CR 305.6, CR 608.2d — issue #4138).","sites":1,"status":"confirmed","ruleHash":"2fd78ed58daafcc7"},
         {"id":"509.1","line":"// (CR 509.1 / 506.4 reassignment) + on-tap 2-damage-to-you drawback (CR 701.26a)","sites":1,"status":"baseline"},
