@@ -18,7 +18,7 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import type { GameState } from "../../../../gre/state";
+import { revertAnimation, type GameState } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { validateAbilityEffectScript } from "../../../../gre/effects/validate";
 import { getDefinition } from "../../../index";
@@ -102,6 +102,18 @@ describe("Mutavault — becomes a 2/2 creature with all creature types (CR 205.3
         expect(live.types).toEqual(["Land"]);
         expect(live.subtypes).toEqual([]);
         expect(live.animation).toBeUndefined();
+    });
+
+    it("a reverted copy with no re-derivation drops the creature types too", () => {
+        // The Bot values an expiring animated body through `revertAnimation`
+        // on a shallow copy (`revertedShape`, gre/evaluate.ts) — no layer
+        // sync follows there, so the revert itself must remove what the
+        // animation added.
+        const state = animatedBoard();
+        const shape = { ...vaultOf(state) };
+        revertAnimation(shape);
+        expect(shape.types).toEqual(["Land"]);
+        expect(shape.subtypes).toEqual([]);
     });
 
     it("the validator accepts `allCreatureTypes: true` and refuses any other value", () => {
