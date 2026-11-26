@@ -16161,6 +16161,10 @@ export function buildSpellContext(
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
             ensureLayers2to5Base(found.card);
+            // CR 611.2c — the effect's controller is the RESOLVING item's
+            // controller (deliberately not `castById`: they differ only when
+            // the stack item changed control, and then the controller is the
+            // one who generated the effect).
             const controllerId = item.controllerId;
             pushContinuousEffect(state, {
                 layer: 4,

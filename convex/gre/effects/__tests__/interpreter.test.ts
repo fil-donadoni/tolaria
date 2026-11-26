@@ -30157,6 +30157,31 @@ describe("Effect Script Op: addCardType (CR 205.1b / 613.1d layer 4)", () => {
         expect(bear(state).types).toEqual(["Creature"]);
     });
 
+    it("orders against a card-type SET by timestamp (CR 613.7): the later effect wins", () => {
+        const addThenSet = registerScript("test-op-addcardtype-then-set", [
+            { op: "addCardType", target: { target: 0 }, cardType: "Artifact" },
+            { op: "setCardTypes", target: { target: 0 }, types: ["Creature"] },
+        ]);
+        const first = oneBear();
+        pushSpell(first, addThenSet, "p1", [
+            { type: "permanent", id: "typedBear" },
+        ]);
+        resolveTopOfStack(first);
+        expect(bear(first).types).toEqual(["Creature"]);
+
+        const setThenAdd = registerScript("test-op-set-then-addcardtype", [
+            { op: "setCardTypes", target: { target: 0 }, types: ["Creature"] },
+            { op: "addCardType", target: { target: 0 }, cardType: "Artifact" },
+        ]);
+        const second = oneBear();
+        pushSpell(second, setThenAdd, "p1", [
+            { type: "permanent", id: "typedBear" },
+        ]);
+        resolveTopOfStack(second);
+        expect(bear(second).types).toContain("Artifact");
+        expect(bear(second).types).toContain("Creature");
+    });
+
     it("composes inside forEach over the announced targets", () => {
         const id = registerScript("test-op-addcardtype-foreach", [
             {
