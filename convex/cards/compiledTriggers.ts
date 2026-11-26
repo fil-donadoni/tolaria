@@ -978,12 +978,13 @@ function resolveCompiledTriggerHead(
                 ...(anyLand ? { filter: { types: "Land" as const } } : {}),
                 forMana: true,
                 ...(addsMana ? { manaAbility: true } : {}),
-                ...(bonus !== undefined
+                // CR 605.4 — only the host's bonus is declared: the
+                // predictive models are not told of an any-land one (the
+                // corpus prints none), so they under- rather than over-count.
+                ...(bonus !== undefined && !anyLand
                     ? {
                           manaBonusForPotential: {
-                              appliesTo: anyLand
-                                  ? { filter: { types: "Land" as const } }
-                                  : ("host" as const),
+                              appliesTo: "host" as const,
                               amount: { kind: "fixed" as const, mana: bonus },
                           },
                       }

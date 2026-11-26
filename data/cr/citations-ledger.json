@@ -54081,6 +54081,7 @@
         {"id":"611","line":"describe(\"Kobold Overlord (other Kobolds have first strike, CR 611/702.7)\", () => {","sites":1,"status":"baseline"},
         {"id":"601.2h","line":"it(\"sacrifices the Swamp when the spell is put on the stack (full commit path, CR 601.2h)\", () => {","sites":1,"status":"baseline"},
         {"id":"702.171b","line":"// CR 702.171b — the saddled designation crosses the wire verbatim.","sites":1,"status":"confirmed","ruleHash":"0c6a8f8a3cf437af"},
+        {"id":"605.4","line":"// CR 605.4 — only the host's bonus is declared: the","sites":1,"status":"confirmed","ruleHash":"c812efaac2777f2c"},
         {"id":"716.2a","line":"/** CR 716.2a — sets `target`'s LEVEL to `level` (\"this Class's level becomes","sites":1,"status":"baseline"},
         {"id":"305.9","line":"/** CR 305.9 (issue #1689) — rides alongside `castableFromExileBy`; true iff","sites":1,"status":"baseline"},
         {"id":"508.4","line":"/** CR 506.3c / 508.4 — a creature PUT onto the battlefield attacking joins the","sites":1,"status":"confirmed","ruleHash":"3d37f977e25ace52"},
