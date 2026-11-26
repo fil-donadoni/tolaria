@@ -48112,6 +48112,14 @@
         "firstPrintSet": "dom"
     },
     {
+        "name": "Karn, the Great Creator",
+        "scryfallId": "3ec0c0fb-1a4f-45f4-85b7-346a6d3ce2c5",
+        "oracleId": "a20dd48d-d344-4db1-b0e9-a2b71c3cc9d1",
+        "firstSet": "war",
+        "firstPrintId": "3ec0c0fb-1a4f-45f4-85b7-346a6d3ce2c5",
+        "firstPrintSet": "war"
+    },
+    {
         "name": "Karn's Temporal Sundering",
         "scryfallId": "7a64c1a4-02ce-49d2-97f2-970b8c33672d",
         "oracleId": "5afbd367-19c7-418f-994d-a7958fb1c4ae",
