@@ -1633,13 +1633,7 @@ export function boardManaFilterFromDescriptor(
     }
     // CR 205.3 — the AND/OR ambiguity `staticFilterFromDescriptor` refuses for
     // the same reason: `PermanentFilter.subtypes` is OR.
-    // A printed "and" list ("Rabbits, Bats, Birds, and Mice", CR 205.3) is
-    // marked `subtypeUnion` by the reader that admits it: genuinely OR, the
-    // `.some()` this filter already means.
-    if (
-        (descriptor.subtypes?.length ?? 0) > 1 &&
-        descriptor.subtypeUnion !== true
-    )
+    if ((descriptor.subtypes?.length ?? 0) > 1)
         return fail(
             "several subtypes at once: the filter cannot say whether they are AND or OR (CR 205.3)",
             (descriptor.subtypes ?? []).join(" ")

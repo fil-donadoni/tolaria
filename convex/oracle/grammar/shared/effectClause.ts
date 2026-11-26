@@ -7855,6 +7855,7 @@ function readUpgrade(
             if (m === null) return `"${body}" does not upgrade a counter tax`;
             if (
                 base.subject.kind !== "target" ||
+                base.subject.requirement.type !== "spell" ||
                 base.unlessPays?.kind !== "flat" ||
                 base.destroysCounteredSource === true ||
                 base.losesAbilitiesOfCounteredSource === true
