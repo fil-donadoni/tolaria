@@ -774,6 +774,17 @@ const MAX_FOLLOW_THROUGH_STEPS = 12;
 const EXTRA_LANDS = 2;
 
 /**
+ * The mana the generated position must fund for the card to be played from
+ * hand: its mana cost, or — for a card with NONE, whose cost CR 118.6 makes
+ * unpayable — its suspend cost (CR 702.62a), the one way such a card leaves
+ * the hand (Living End, Ancestral Vision). Lives HERE for the same reason as
+ * `kickerLands`: it decides what the position CONTAINS.
+ */
+function poseCost(def: CardDefinition): CardDefinition["manaCost"] {
+    return def.manaCost ?? def.suspend;
+}
+
+/**
  * CR 702.33a (Kicker) — the extra lands a kicker leg's coloured mana needs.
  * A kicker's mana is an additional cost the card's colour never counts
  * (`getCardColors` reads the printed cost only), so a mono-red card kicked
@@ -901,10 +912,11 @@ export function botReachSpec(
     window: PoseWindow = REACH_WINDOWS[0]
 ): ScenarioSpec {
     const isLand = def.types.includes("Land");
-    const landCount = isLand ? 1 : manaValue(def.manaCost) + EXTRA_LANDS;
+    const playCost = poseCost(def);
+    const landCount = isLand ? 1 : manaValue(playCost) + EXTRA_LANDS;
     // The lands that CAST it: its cost's colours, which CR 702.114a devoid leaves
     // standing even though the card itself is colourless.
-    const cycle = basicLandsForColors(getColorsFromCost(def.manaCost));
+    const cycle = basicLandsForColors(getColorsFromCost(playCost));
     const cards: ScenarioCard[] = [];
     for (let i = 0; i < landCount; i++) {
         cards.push({

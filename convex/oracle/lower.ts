@@ -2131,30 +2131,6 @@ export function lowerCard(
             };
         definition.splice = acc.splice;
     }
-    // CR 118.6 — "Some objects have no mana cost. This represents an
-    // unpayable cost." The engine reads an absent `manaCost` as {0} at cast
-    // time, so an instant or sorcery with none would compile into a FREE
-    // spell. Instants and sorceries only: a face lowered on its own (a
-    // transform back face, a meld result) has no mana cost and is never cast
-    // from hand, and every such face is a permanent. Checked last, after
-    // every other refusal, so it names only cards that would otherwise compile.
-    // A SUSPEND card with no mana cost (Lotus Bloom, an artifact) is the one
-    // permanent front face this reaches: suspend is the keyword printed on
-    // cards meant to have no hand cast, so it is refused on the same ground
-    // whatever its type (the reason string keeps its instant/sorcery wording,
-    // the gap key the lockfile already files).
-    if (
-        definition.manaCost === undefined &&
-        (typeLine.types.includes("Instant") ||
-            typeLine.types.includes("Sorcery") ||
-            acc.suspend !== undefined)
-    )
-        return {
-            ok: false,
-            reason: "an instant or sorcery with no mana cost (CR 118.6): the engine casts an absent mana cost for {0}",
-            fragment: card.oracleText,
-        };
-
     restorePrintedSelf(definition, printedSelfName(card));
     return {
         ok: true,
