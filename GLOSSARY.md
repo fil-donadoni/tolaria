@@ -777,6 +777,10 @@ _Avoid_: Eval test, weight test, position test
 The deterministic procedure that turns the accumulated **Verdicts** into the **Evaluation**'s weights: every **Eval Pair** is a constraint the weights should satisfy by a fixed margin, the fit moves the weights as little as possible from where they are to satisfy as many as it can, and reports the pairs it could not — those name a missing term, never a bad player. A **Minimal Pair** is reported as one unit: when the fit satisfies one half and not the other, it has settled on "always" or "never", and the report names the **Discriminant** no term of the **Evaluation** reads. Same verdicts, same weights, to the bit; no self-play, no **Ladder**.
 _Avoid_: Training, machine learning, tuning run, calibration
 
+**Generated Vector**:
+The second set of inputs the **Evaluation** is being given, counted from what cards and the board already declare instead of written by hand. Each entry is how many of one class of thing a seat sees in one zone on one side — an effect a card's text performs, a keyword, a card type, a cost, available mana, life, the step — and is named for that class, never for a card. The list of classes follows the **Mechanics Registry**, so a new kind of effect is counted the day the engine gains it. A seat's vector holds only what that seat can see: a hidden hand is a number of cards. It carries no opinion: what a count is worth is for the **Weight Fit** to say.
+_Avoid_: Feature set, embedding, board encoding, card vector
+
 **Card Residual**:
 A correction to what the **Evaluation** makes of one specific card, over and above what that card's mechanics are worth. The **Weight Fit** pulls it toward zero, so it stays at nothing until many judged decisions say the mechanics alone misprice the card. A large one is a finding before it is a fix: it names a mechanic the **Evaluation** does not read yet. The escape hatch, never the model — whatever a mechanic can express is priced by the mechanic.
 _Avoid_: Card weight, card rating (the draft's rating of a card is a different number), per-card boost

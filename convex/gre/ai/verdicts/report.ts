@@ -94,8 +94,10 @@ export type Contradiction = { a: EvalPair; b: EvalPair };
 
 /** Can the evaluation tell this pair's two candidates apart in ANY way it
  *  exposes? No fittable weight, no evaluation term, and not the decider's own
- *  number — see the header for why all three are needed. */
-function isBlind(pair: EvalPair): boolean {
+ *  number — see the header for why all three are needed. Exported for the
+ *  readers that ask the same question of a second vector (the generated one,
+ *  ADR 0186): "blind" must mean one thing. */
+export function isBlindPair(pair: EvalPair): boolean {
     return (
         FITTABLE_WEIGHT_KEYS.every(
             (k) => Math.abs(pair.basis[k]) < BASIS_EPS
@@ -201,7 +203,7 @@ export function contradictoryCouples(
     const out: Contradiction[] = [];
     for (let i = 0; i < pairs.length; i++) {
         const pair = pairs[i];
-        if (isBlind(pair)) continue;
+        if (isBlindPair(pair)) continue;
         const opposite = byKey.get(basisKey(pair, -1));
         if (opposite)
             for (let j = 0; j < opposite.length; j++) {
@@ -279,7 +281,7 @@ export function collectVerdictReport(
     const satisfied = pairs.filter((p) => p.delta > SATISFIED_EPS);
     const violated = pairs.filter((p) => p.delta <= SATISFIED_EPS);
 
-    const blind = pairs.filter(isBlind);
+    const blind = pairs.filter(isBlindPair);
     const contradictions = contradictoryCouples(pairs);
 
     return {
