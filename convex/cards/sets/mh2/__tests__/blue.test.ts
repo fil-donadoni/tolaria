@@ -29,6 +29,7 @@ import {
     getPlayer,
     phaseInBundle,
     phaseOutPermanent,
+    putHandCardOntoBattlefield,
     removePermanentTo,
     type PendingTarget,
 } from "../../../../gre/state";
@@ -493,6 +494,18 @@ describe("Tide Shaper — kicked land becomes an Island while it remains (CR 305
         removePermanentTo(state, "shaper", "graveyard");
         resolveTopOfStack(state);
 
+        expect(wireCard(state, "plains").subtypes).toEqual(["Plains"]);
+        expect(state.continuousEffects ?? []).toEqual([]);
+    });
+
+    it("does nothing when Tide Shaper left and came back before its trigger resolves — a new object (CR 611.2b, CR 400.7)", () => {
+        const state = castTideShaper({ kickerPayments: { kicker: 1 } });
+        targetLand(state, "plains");
+        removePermanentTo(state, "shaper", "hand");
+        expect(putHandCardOntoBattlefield(state, "p1", "shaper")).toBe(true);
+        resolveTopOfStack(state);
+
+        expect(onBattlefield(state, "shaper")).toBeDefined();
         expect(wireCard(state, "plains").subtypes).toEqual(["Plains"]);
         expect(state.continuousEffects ?? []).toEqual([]);
     });
