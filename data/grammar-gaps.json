@@ -1061,6 +1061,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › Earthbend N",
+            "issue": 8496
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › Enchanted creature",
             "issue": 4303
         },
@@ -3408,11 +3413,6 @@
             "kind": "grammar",
             "key": "triggered › effect clause › Each player returns to the battlefield all cards they own exiled with it",
             "issue": 5200
-        },
-        {
-            "kind": "grammar",
-            "key": "activated › effect clause › Earthbend N",
-            "issue": 8496
         },
         {
             "kind": "grammar",
@@ -7136,6 +7136,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › count set filters by color \"U\" — the filler doesn't model color",
+            "issue": 10785
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › count set spans all players' zones — not faithfully sizable in a canned scenario",
             "issue": 6586
         },
@@ -7213,6 +7218,11 @@
             "kind": "scenario",
             "key": "validate-effect-script › effects[0]: ref \"$source\" references undefined binding \"$source\" — no earlier Op binds it (bare object refs are the forEach \"$each\" of a permanents set)",
             "issue": 4025
+        },
+        {
+            "kind": "scenario",
+            "key": "validate-effect-script › effects[1]: then[0]: ref \"$source\" references undefined binding \"$source\" — no earlier Op binds it (bare object refs are the forEach \"$each\" of a permanents set)",
+            "issue": 10786
         }
     ],
     "clustersNote": "Cluster Signatures (ADR 0146, issue #4677): one row per Gap Cluster, `{ issue, kind, match, standalone?, reason? }`, authored by `/cluster-gaps`, never by `gaps:sync`. `match` lists segment globs over the ` › `-separated gap key (`*` within one segment) or, for `hand-tail`, `{ set, colour }` set files; `standalone: true` + `reason` marks a deliberate single (one exact key). A NEW gap matching an open cluster that is not `in-progress` and has no open PR is claimed by it (lowest issue wins) and listed in the cluster body's managed `## Adopted gaps` block. Parsed fail-closed by `parseClusterRows` (`scripts/lib/targets.ts`).",
