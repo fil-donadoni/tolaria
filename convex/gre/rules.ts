@@ -1329,6 +1329,120 @@ function anyCastAnnouncementLegal(
     });
 }
 
+/** CR 118.9 — whether some alternative cost `caster` may announce for `card`
+ *  out of `castFromZone` is payable, so the cast stands although the mana
+ *  cost is not: a pure non-mana give-up (Gush returns Islands, Fireblast
+ *  sacrifices Mountains — `alt.mana` absent, `?? {}` is always affordable)
+ *  or a different mana amount (CR 702.109 Dash), re-checked through the same
+ *  solver the printed cost uses. CR 118.9d / 601.2f — cost modifiers fold
+ *  onto the alternative cost inside `canPotentiallyPayCost`.
+ *
+ *  The one reading of that question for the hand and for a zone whose
+ *  licence leaves the cost alone (a graveyard play permission), from the
+ *  list `announceCast` resolves an announcement against
+ *  (`castOptionAlternativeCosts`). */
+function alternativeCostCoversCast(
+    state: GameState,
+    caster: PlayerState,
+    card: CardInstanceState,
+    castFromZone: CastFromZone
+): boolean {
+    const def =
+        tryGetDefinition((card.card as { id?: string }).id ?? "") ?? undefined;
+    return (
+        castOptionAlternativeCosts(state, caster, card, castFromZone)
+            // CR 715.3a (ADR 0120 §4) — an option whose SUBJECT is not this
+            // card is not an alternative price for THIS spell; it is a
+            // different spell, with its own timing and its own targets, and
+            // it gets its own conjunction at the call site. Without this
+            // filter an affordable Petty Theft made the 3/1 creature castable
+            // for a cost the caster cannot pay, on a board where the
+            // Adventure has no legal target.
+            //
+            // Derived from the census rather than named per mode: `subject`
+            // is the identity for every option that casts the printed card
+            // (morph included — its face-down view is a characteristics view,
+            // not a different definition), so this drops exactly the ones
+            // that do not.
+            .filter(
+                (alt) =>
+                    castSubjectDefinition(def, alt.id)?.id ===
+                    (card.card as { id?: string }).id
+            )
+            .some((alt) =>
+                canPotentiallyPayCost(
+                    caster,
+                    // CR 702.37c / 707.2 — a MORPH variant is cast as "a 2/2
+                    // creature with no text, no name, no subtypes, and no
+                    // mana cost", and CR 715.3a says the same of an
+                    // ADVENTURE, so the modifiers folded below (and any
+                    // characteristic-keyed mana restriction the solver reads)
+                    // must be judged against the ANNOUNCED subject's
+                    // characteristics. `castSubjectView` is the one seam that
+                    // answers that for every mode. Identity to the real card
+                    // is unchanged — the view is a spread, so the instance id
+                    // and any object-scoped exile tax ride along.
+                    castSubjectView(card, alt.id),
+                    alt.mana ?? {},
+                    state,
+                    {
+                        // CR 601.3c / 601.2f — the surcharge buys the TIMING,
+                        // not the spell, so it joins an alternative cost the
+                        // same way it joins a printed one; `announceCast`'s
+                        // alt branch folds it just above the modifiers. Inert
+                        // today (no shipped card carries both
+                        // `alternativeCosts` and `flashSurcharge`) — here so
+                        // the gate can never price a cast the commit path
+                        // prices differently.
+                        ...(flashSurchargeRequired(state, caster.id, card)
+                            ? { extraMana: flashSurchargeOf(card) }
+                            : {}),
+                        // CR 702.119a — an emerge cast is affordable when
+                        // SOME victim's reduction makes it so; the reduction
+                        // grows with the victim's mana value, so the largest
+                        // one decides.
+                        ...(isEmergeAlternativeCost(def, alt)
+                            ? {
+                                  extraReductionGeneric: largestEmergeReduction(
+                                      caster,
+                                      alt
+                                  ),
+                              }
+                            : {}),
+                    }
+                )
+            )
+    );
+}
+
+/** CR 601.2b / 118.9 — whether `card`, castable out of the graveyard under a
+ *  graveyard play permission, stands as a cast for one of its own
+ *  alternative costs although its mana cost is not payable (Fireblast under
+ *  Yawgmoth's Will, with two Mountains and no mana). The permission says
+ *  where the spell is cast from and states no cost, so nothing forbids the
+ *  alternative: "a player can't apply two alternative methods of casting or
+ *  two alternative costs to a single spell", and here there is one.
+ *
+ *  The printed card only — a split half or a back face is its own
+ *  announcement, judged by `anyCastAnnouncementLegal`. The timing, the cast
+ *  prohibition and the targets are the printed spell's, as on the mana leg. */
+function permissionCastByAlternativeCostLegal(
+    state: GameState,
+    caster: PlayerState,
+    card: CardInstanceState
+): boolean {
+    const def =
+        tryGetDefinition((card.card as { id?: string }).id ?? "") ?? undefined;
+    return (
+        offersPrintedCast(def) &&
+        castTimingBaseLegal(state, caster.id, card, "graveyard") &&
+        castProhibitionReason(caster.id, card, state) === undefined &&
+        hasEnoughLegalTargets(state, caster, card) &&
+        hasPayableAdditionalCost(caster, card) &&
+        alternativeCostCoversCast(state, caster, card, "graveyard")
+    );
+}
+
 export function getLegalActions(
     state: GameState,
     player: PlayerState,
@@ -1776,12 +1890,13 @@ export function getLegalActions(
     if (isPermissionCast) {
         if (
             passesCastPhaseRestriction(state, card) &&
-            anyCastAnnouncementLegal(state, caster, card, {
+            (anyCastAnnouncementLegal(state, caster, card, {
                 timingZone: "graveyard",
                 // CR 709.3a — the permission pays "its mana cost", and the
                 // spell it puts on the stack is the announced HALF.
                 cost: (subject) => getInstanceManaCost(subject),
-            })
+            }) ||
+                permissionCastByAlternativeCostLegal(state, caster, card))
         ) {
             actions.push("cast");
         }
@@ -2203,23 +2318,11 @@ export function getLegalActions(
             // "cast" is absent.
             castProhibitionReason(caster.id, card, state) === undefined &&
             // CR 118.9 — the mana cost is payable, OR the caster can afford an
-            // ALTERNATIVE cost that replaces the mana cost entirely: a pure
-            // non-mana give-up (Gush/Thwart return Islands, Fireblast
-            // sacrifices Mountains — `alt.mana` absent, `?? {}` is always
-            // affordable) OR a DIFFERENT mana amount (CR 702.109 Dash — `.some`
-            // re-checks each offered variant's `mana` leg through the SAME
-            // solver the printed cost uses, so a dash-cost creature is castable
-            // even when its printed cost is not). CR 118.9d / 601.2f
-            // (issue #2970) — BOTH branches fold cost modifiers: "any
-            // additional costs, cost increases, and cost reductions that affect
-            // that spell are applied to that alternative cost." The alt-cost
-            // branch used to pass `state` for the board view alone (issue #1695
-            // fourth-pass fix) and skip the then-opt-in fold, matching the
-            // equally modifier-blind no-target commit path in `announceCast` —
-            // gate and payment agreed on the same WRONG number, so nothing
-            // parked unpayable and the spell was merely undercharged. They move
-            // together or not at all. (Issue #2981 made the fold unconditional
-            // inside `canPotentiallyPayCost`, so no branch opts in any more.)
+            // ALTERNATIVE cost that replaces the mana cost entirely
+            // (`alternativeCostCoversCast`). CR 118.9d / 601.2f — both
+            // branches fold cost modifiers: "any additional costs, cost
+            // increases, and cost reductions that affect that spell are
+            // applied to that alternative cost."
             (canPotentiallyPayCost(caster, card, undefined, state, {
                 // CR 601.3c (issue #2146) — when this cast can only happen
                 // under the conditional-flash permission, its surcharge is
@@ -2230,87 +2333,7 @@ export function getLegalActions(
                     ? { extraMana: flashSurchargeOf(card) }
                     : {}),
             }) ||
-                castOptionAlternativeCosts(state, caster, card)
-                    // CR 715.3a (ADR 0120 §4) — an option whose SUBJECT is not
-                    // this card is not an alternative price for THIS spell; it
-                    // is a different spell, with its own timing and its own
-                    // targets, and it gets its own conjunction above. Without
-                    // this filter an affordable Petty Theft made the 3/1
-                    // creature castable for a cost the caster cannot pay, on a
-                    // board where the Adventure has no legal target.
-                    //
-                    // Derived from the census rather than named per mode:
-                    // `subject` is the identity for every option that casts the
-                    // printed card (morph included — its face-down view is a
-                    // characteristics view, not a different definition), so
-                    // this drops exactly the ones that do not.
-                    .filter(
-                        (alt) =>
-                            castSubjectDefinition(
-                                tryGetDefinition(
-                                    (card.card as { id?: string }).id ?? ""
-                                ) ?? undefined,
-                                alt.id
-                            )?.id === (card.card as { id?: string }).id
-                    )
-                    .some((alt) =>
-                        canPotentiallyPayCost(
-                            caster,
-                            // CR 702.37c / 707.2 (issue #2970 review) — a MORPH
-                            // variant is cast as "a 2/2 creature with no text, no
-                            // name, no subtypes, and no mana cost", and CR 715.3a
-                            // says the same of an ADVENTURE, so the modifiers
-                            // folded below (and any characteristic-keyed mana
-                            // restriction the solver reads) must be judged
-                            // against the ANNOUNCED subject's characteristics.
-                            // `castSubjectView` is the one seam that answers
-                            // that for every mode; while each site carried its
-                            // own morph-only ternary the three disagreed the
-                            // moment a second mode needed a view (PR #3302
-                            // review finding 1). Identity to the real card is
-                            // unchanged — the view is a spread, so the instance
-                            // id and any object-scoped exile tax ride along.
-                            castSubjectView(card, alt.id),
-                            alt.mana ?? {},
-                            state,
-                            {
-                                // CR 601.3c / 601.2f — the surcharge buys the
-                                // TIMING, not the spell, so it joins an
-                                // alternative cost the same way it joins a
-                                // printed one; `announceCast`'s alt branch folds
-                                // it just above the modifiers. Inert today (no
-                                // shipped card carries both `alternativeCosts`
-                                // and `flashSurcharge`) — here so
-                                // the gate can never price a cast the commit path
-                                // prices differently.
-                                ...(flashSurchargeRequired(
-                                    state,
-                                    caster.id,
-                                    card
-                                )
-                                    ? { extraMana: flashSurchargeOf(card) }
-                                    : {}),
-                                // CR 702.119a — an emerge cast is affordable
-                                // when SOME victim's reduction makes it so;
-                                // the reduction grows with the victim's mana
-                                // value, so the largest one decides.
-                                ...(isEmergeAlternativeCost(
-                                    tryGetDefinition(
-                                        (card.card as { id?: string }).id ?? ""
-                                    ) ?? undefined,
-                                    alt
-                                )
-                                    ? {
-                                          extraReductionGeneric:
-                                              largestEmergeReduction(
-                                                  caster,
-                                                  alt
-                                              ),
-                                      }
-                                    : {}),
-                            }
-                        )
-                    )) &&
+                alternativeCostCoversCast(state, caster, card, "hand")) &&
             hasEnoughLegalTargets(state, caster, card) &&
             hasPayableAdditionalCost(caster, card);
         if (
