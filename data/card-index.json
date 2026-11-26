@@ -28010,6 +28010,14 @@
         "source": "compiled"
     },
     {
+        "name": "Ensnaring Bridge",
+        "scryfallId": "27d838a1-2739-45f7-a856-6202334fa76a",
+        "oracleId": "dade5835-ccaf-45e3-b9a3-46017e0384b3",
+        "firstSet": "sth",
+        "firstPrintId": "27d838a1-2739-45f7-a856-6202334fa76a",
+        "firstPrintSet": "sth"
+    },
+    {
         "name": "Enter the Enigma",
         "scryfallId": "cf5479c7-9e46-4a57-abe7-8cc670de89e4",
         "oracleId": "67554654-e751-4679-9e92-f3588525ae4f",
