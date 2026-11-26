@@ -53,6 +53,21 @@ describe("blade Lines — one Verdict per Bot decision", () => {
         );
     });
 
+    it("every Line is executable: its expected moves, played in order, reach its last decision", () => {
+        // A `build` or `no-match` gap is a walk the engine refused part-way
+        // (an illegal move, a reply nothing matched, a pick the generator
+        // never offers): the Line would test a position nobody reaches.
+        for (const line of BLADE_LINES) {
+            const stopped = verdictsFromLine(line).gaps.filter(
+                (g) => g.reason === "build" || g.reason === "no-match"
+            );
+            expect(
+                stopped.map((g) => `${g.label}: ${g.detail ?? g.reason}`),
+                line.label
+            ).toEqual([]);
+        }
+    });
+
     it("lowers each decision at the position the Line reached, the expected move right", () => {
         const out = verdictsFromLine(LINE);
         expect(out.verdicts.map((v) => v.id)).toEqual([
