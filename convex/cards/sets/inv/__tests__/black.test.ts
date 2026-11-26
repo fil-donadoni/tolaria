@@ -904,8 +904,8 @@ describe("Scavenged Weaponry (Aura +1/+1 pt-buff; CR 613.4c)", () => {
     });
 });
 
-describe("Tainted Well (Aura — enchanted land is ALSO a Swamp, additively; CR 305.7 / 611 layer 4)", () => {
-    it("adds Swamp to the enchanted land's subtypes WITHOUT replacing the printed type", () => {
+describe("Tainted Well (Aura — enchanted land IS a Swamp, its land types replaced; CR 305.7 / 611 layer 4)", () => {
+    it("sets the enchanted land's land types to Swamp, replacing the printed type", () => {
         const land = makeInstance(plains.id, {
             id: "the-plains",
             controllerId: "p1",
@@ -926,11 +926,12 @@ describe("Tainted Well (Aura — enchanted land is ALSO a Swamp, additively; CR 
 
         beginApplyingStaticEffects(state, well);
 
-        expect(land.subtypes).toContain("Plains");
-        expect(land.subtypes).toContain("Swamp");
+        // CR 305.7 — "is a Swamp" SETS the subtype: the land no longer has
+        // its old land type (issue #10513; "in addition" would keep it).
+        expect(land.subtypes).toEqual(["Swamp"]);
     });
 
-    it("wire format: the additive Swamp subtype survives projectPublicState", () => {
+    it("wire format: the replaced Swamp subtype survives projectPublicState", () => {
         const land = makeInstance(plains.id, {
             id: "the-plains",
             controllerId: "p1",
@@ -954,11 +955,10 @@ describe("Tainted Well (Aura — enchanted land is ALSO a Swamp, additively; CR 
         const slimLand = projected.players[0].battlefield.find(
             (c) => c.id === "the-plains"
         )!;
-        expect(slimLand.subtypes).toContain("Plains");
-        expect(slimLand.subtypes).toContain("Swamp");
+        expect(slimLand.subtypes).toEqual(["Swamp"]);
     });
 
-    it("reverts the additive Swamp grant when the Aura leaves the battlefield", () => {
+    it("restores the printed land type when the Aura leaves the battlefield", () => {
         const land = makeInstance(plains.id, {
             id: "the-plains",
             controllerId: "p1",
