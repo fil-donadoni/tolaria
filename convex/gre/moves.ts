@@ -3622,7 +3622,7 @@ export function enumerateCastMoves(
  *  `enumerateCastMoves`.
  *
  *  A PERMANENT leg (Fireblast's "sacrifice two Mountains", Daze's "return an
- *  Island") rides on the Move as `castCostPicks.sacrificeIds`
+ *  Island", issue #4935) rides on the Move as `castCostPicks.sacrificeIds`
  *  (`planCastCostPicks`), the way the additional-cost parks do.
  *
  *  Fail CLOSED on the shapes the search cannot pay yet:
@@ -3632,10 +3632,11 @@ export function enumerateCastMoves(
  *   - an ENERGY leg — no shipped alternative cost carries one.
  *  Both are left unenumerated (dead for the Bot, never a freeze). A HYBRID pip
  *  in the MANA leg (the ECL evoke trio's `{G/U}{G/U}`) is enumerable: the
- *  tap plan prices it (`planManaPayment`).
+ *  tap plan prices it (`planManaPayment`, issue #4934).
  *
- *  Out of the hand, or out of a zone whose licence leaves the cost alone
- *  (`zoneAdmitsOwnAlternativeCost`). */
+ *  Hand casts only: a cast from any other zone is already priced by that
+ *  zone's own alternative (flashback, escape, a permission — `castRawManaCost`),
+ *  and CR 118.9a forbids stacking a second one on it. */
 function searchPayableOwnAlternativeCosts(
     state: GameState,
     player: PlayerState,
@@ -3643,10 +3644,7 @@ function searchPayableOwnAlternativeCosts(
     castFromZone: CastFromZone,
     lifeInsteadOfMana: number | undefined
 ): AlternativeCost[] {
-    if (lifeInsteadOfMana !== undefined) return [];
-    if (!zoneAdmitsOwnAlternativeCost(state, player, card, castFromZone)) {
-        return [];
-    }
+    if (castFromZone !== "hand" || lifeInsteadOfMana !== undefined) return [];
     const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
     if (!def || !offersPrintedCast(def)) return [];
     // The live cast merges every hand leg it owes — the alternative cost's
@@ -3678,32 +3676,6 @@ function searchPayableOwnAlternativeCosts(
                 a.id === def.evoke?.id &&
                 evokeCastIsWasteful(state, player, card, def)
             )
-    );
-}
-
-/** Whether a cast of `card` out of `castFromZone` may still pay one of the
- *  card's OWN alternative costs.
- *
- *  CR 601.2b: "A player can't apply two alternative methods of casting or
- *  two alternative costs to a single spell." From the hand nothing else is
- *  applied. From the graveyard under a graveyard play permission (Yawgmoth's
- *  Will: "you may play lands and cast spells from your graveyard") nothing is
- *  either: the permission says where the spell is cast from and states no
- *  cost, so the cast pays the printed mana cost (`castRawManaCost`) or any
- *  alternative the card itself offers. Every other route out of a non-hand
- *  zone is closed: flashback, escape, harmonize and a waived grant are the
- *  alternative cost already, and retrace and jump-start add a discard this
- *  pass does not charge beside an alternative one. */
-function zoneAdmitsOwnAlternativeCost(
-    state: GameState,
-    player: PlayerState,
-    card: CardInstanceState,
-    castFromZone: CastFromZone
-): boolean {
-    if (castFromZone === "hand") return true;
-    return (
-        castFromZone === "graveyard" &&
-        graveyardCastMechanism(state, player, card, player.id) === "permission"
     );
 }
 
