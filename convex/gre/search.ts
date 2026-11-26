@@ -259,6 +259,8 @@ import {
     resolveActionPriors,
     resolveDisabledRootRules,
     resolveEvalWeights,
+    resolveRolloutHorizon,
+    type RolloutHorizon,
     resolveOpponentModel,
     type ActionPriorConfig,
     type OpponentModel,
@@ -1793,6 +1795,53 @@ export type RolloutDeadline = {
     cut: boolean;
 };
 
+/** One iteration's view of the root-clock rollout horizon (ADR 0015, issue
+ *  #10816): the root's turn, and the first turn after it on which the Bot is
+ *  the active player, recorded the first time a state of that turn is
+ *  observed — in the tree or in the rollout, so every state must be shown in
+ *  play order. One per iteration, threaded from `iterate` into its rollout. */
+export type RootHorizonTracker = {
+    readonly horizon: RolloutHorizon;
+    readonly rootTurn: number;
+    firstBotTurn: number | null;
+};
+
+/** A fresh tracker for one iteration from the root at `rootTurn`, or
+ *  `undefined` under the production horizon (`horizon` null). */
+export function rootHorizonTracker(
+    horizon: RolloutHorizon | null,
+    rootTurn: number
+): RootHorizonTracker | undefined {
+    return horizon ? { horizon, rootTurn, firstBotTurn: null } : undefined;
+}
+
+const PRECOMBAT_MAIN_STEP = PHASE_ORDER.indexOf("PRECOMBAT_MAIN");
+
+/** Observe `state` and say whether it stands at or past the root-clock
+ *  boundary: the precombat main phase (CR 505.1) of the first turn after the
+ *  root's on which the Bot is the active player. Both players have had a
+ *  complete turn's chance to act, and the Bot's own untap, upkeep and draw
+ *  have happened, at the same game-clock point for every candidate. */
+export function pastRootHorizon(
+    tracker: RootHorizonTracker,
+    state: GameState,
+    botId: string
+): boolean {
+    if (
+        tracker.firstBotTurn === null &&
+        state.turn > tracker.rootTurn &&
+        state.activePlayerId === botId
+    ) {
+        tracker.firstBotTurn = state.turn;
+    }
+    const first = tracker.firstBotTurn;
+    if (first === null) return false;
+    return (
+        state.turn > first ||
+        PHASE_ORDER.indexOf(state.phase) >= PRECOMBAT_MAIN_STEP
+    );
+}
+
 export function rollout(
     state: GameState,
     botId: string,
@@ -1801,7 +1850,10 @@ export function rollout(
     /** The search root's clock, for `scoreLeaf`'s win timing. */
     since?: GameClock,
     /** The search's wall-clock cap, read once per ply (issue #10408). */
-    deadline?: RolloutDeadline
+    deadline?: RolloutDeadline,
+    /** The iteration's root-clock horizon (issue #10816). Absent = the
+     *  production horizon, read from this rollout's start. */
+    horizon?: RootHorizonTracker
 ): Leaf {
     const startTurn = state.turn;
     let lastTurn = state.turn;
@@ -1823,12 +1875,16 @@ export function rollout(
             break;
         }
 
-        // Turn-boundary horizon: a fresh bot-turn START is the active player
-        // being the bot right after a turn crossing (not the bot turn the
-        // rollout began in). Stop once we've reached enough of them.
+        // Turn-boundary horizon. Under a root-clock variant, the iteration's
+        // tracker decides (`pastRootHorizon`). In production, a fresh bot-turn
+        // START is the active player being the bot right after a turn
+        // crossing (not the bot turn the rollout began in): stop once we've
+        // reached enough of them.
         const turnChanged = state.turn !== lastTurn;
         lastTurn = state.turn;
-        if (turnChanged && state.activePlayerId === botId) {
+        if (horizon) {
+            if (pastRootHorizon(horizon, state, botId)) break;
+        } else if (turnChanged && state.activePlayerId === botId) {
             botTurnStarts += 1;
             if (botTurnStarts > ROLLOUT_EXTRA_BOT_TURNS) break;
         }
@@ -1838,6 +1894,8 @@ export function rollout(
 
         const pid = advanceToDecision(state);
         if (!pid) break;
+        // A forced answer can carry the state onto the root-clock boundary.
+        if (horizon && pastRootHorizon(horizon, state, botId)) break;
         // A forced answer can cross a turn boundary (the cleanup discard, CR
         // 514.1): run the horizon checks above on the new turn first.
         if (state.turn !== lastTurn) continue;
@@ -4008,7 +4066,8 @@ function puctDescend(
     config: ActionPriorConfig,
     since: GameClock,
     shared: Node = node,
-    deadline?: RolloutDeadline
+    deadline?: RolloutDeadline,
+    horizon?: RootHorizonTracker
 ): boolean {
     let cache = node.policyValues;
     if (!cache) {
@@ -4126,7 +4185,7 @@ function puctDescend(
     if (existed) return false;
     backpropagate(
         path,
-        rollout(world, botId, rng, weights, since, deadline),
+        rollout(world, botId, rng, weights, since, deadline, horizon),
         botId
     );
     return true;
@@ -4203,8 +4262,12 @@ function opponentOptionView(node: Node, keyed: KeyedMove[]): Node {
  *  opened as a child, still collect visits, and still be selectable. Filtering
  *  the depth-0 candidate set removes it from the tree instead — the same
  *  outcome the old per-node probing bought, at 1/1682 of the probe cost
- *  (issue #1905 review finding 3). */
-function iterate(
+ *  (issue #1905 review finding 3).
+ *
+ *  Exported as a test seam: where the tree stops descending under a
+ *  root-clock horizon is a property of the tree's shape, which a whole
+ *  search's trace does not expose. */
+export function iterate(
     root: Node,
     rootState: GameState,
     botId: string,
@@ -4216,7 +4279,8 @@ function iterate(
     opponentModel: OpponentModel | null = null,
     openRootByPolicy = false,
     unlockingRootKeys?: ReadonlySet<string>,
-    deadline?: RolloutDeadline
+    deadline?: RolloutDeadline,
+    rolloutHorizon: RolloutHorizon | null = null
 ): void {
     const world = determinize(
         rootState,
@@ -4228,10 +4292,17 @@ function iterate(
     const since = gameClockOf(rootState);
     const path: Edge[] = [];
     let node = root;
+    // The root-clock horizon (issue #10816): one tracker for the iteration,
+    // fed the tree's states in play order and then its rollout's. A line
+    // that reached the boundary is a leaf, scored where every other
+    // candidate's rollout stops, never expanded further.
+    const horizon = rootHorizonTracker(rolloutHorizon, rootState.turn);
 
     for (let depth = 0; depth < MAX_TREE_DEPTH; depth++) {
+        if (horizon && pastRootHorizon(horizon, world, botId)) break;
         const pid = advanceToDecision(world);
         if (!pid) break;
+        if (horizon && pastRootHorizon(horizon, world, botId)) break;
         let keyed = withoutDominatedTriggerTargets(
             node,
             world,
@@ -4349,7 +4420,8 @@ function iterate(
                     actionPriors,
                     since,
                     shared,
-                    deadline
+                    deadline,
+                    horizon
                 )
             ) {
                 return; // expanded + rolled out
@@ -4416,7 +4488,7 @@ function iterate(
             }
             backpropagate(
                 path,
-                rollout(world, botId, rng, weights, since, deadline),
+                rollout(world, botId, rng, weights, since, deadline, horizon),
                 botId
             );
             return;
@@ -8728,6 +8800,7 @@ export function createPonderSearch(
     const weights = resolveEvalWeights(getSearchVariant());
     const actionPriors = resolveActionPriors(getSearchVariant());
     const opponentModel = resolveOpponentModel(getSearchVariant());
+    const rolloutHorizon = resolveRolloutHorizon(getSearchVariant());
     const deckColors =
         opponentModel === "blind"
             ? undefined
@@ -8754,7 +8827,11 @@ export function createPonderSearch(
                         undefined,
                         actionPriors,
                         deckKnowledge,
-                        opponentModel
+                        opponentModel,
+                        false,
+                        undefined,
+                        undefined,
+                        rolloutHorizon
                     );
                     i++;
                     if (stop?.()) break;
@@ -8859,6 +8936,10 @@ function runSearchWithTrace(
     // reason: `selectRootMove` takes the set as an argument rather than
     // reading the module-global itself. Empty outside a run that asks.
     const disabledRootRules = resolveDisabledRootRules(getSearchVariant());
+    // Where a rollout stops (issue #10816). Same one place, same reason:
+    // `iterate` takes it as an argument and builds each iteration's tracker.
+    // `null` outside a variant run — the production horizon.
+    const rolloutHorizon = resolveRolloutHorizon(getSearchVariant());
 
     // Dominance pruning (issue #1887) runs EXACTLY ONCE per search, here, on
     // the real root state — not at every tree node (issue #1905 review finding
@@ -9014,7 +9095,8 @@ function runSearchWithTrace(
             opponentModel,
             openRootByPolicy,
             unlockingRootKeys,
-            deadline
+            deadline,
+            rolloutHorizon
         );
         i++;
         if (timeMs !== undefined && now() - start >= timeMs) {
