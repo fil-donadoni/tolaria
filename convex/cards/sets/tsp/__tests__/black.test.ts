@@ -10,11 +10,7 @@ import type { CardInstanceState, GameState } from "../../../../gre/state";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getLegalActions } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
-import {
-    getCardByName,
-    getDefinition,
-    withTemporaryDefinition,
-} from "../../../index";
+import { getDefinition, withTemporaryDefinition } from "../../../index";
 import type { CardDefinition } from "../../../types";
 import { preloadDefinitions } from "../../../registry";
 import { resolveCardExport } from "../../../defineCard";
@@ -26,9 +22,9 @@ import { livingEnd as livingEndModuleExport } from "../black.cards";
 preloadDefinitions([resolveCardExport(livingEndModuleExport)!]);
 const livingEnd = getDefinition("3be0ff69-d9f3-4b81-b02f-1360e4064aff");
 
-const BEARS = getCardByName("Grizzly Bears").id;
-const BOLT = getCardByName("Lightning Bolt").id;
-const SWAMP = getCardByName("Swamp").id;
+const BEARS = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id; // Grizzly Bears
+const BOLT = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a").id; // Lightning Bolt
+const SWAMP = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8").id; // Swamp
 
 function card(
     defId: string,
