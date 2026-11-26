@@ -2212,14 +2212,10 @@ export function getLegalActions(
             // even when its printed cost is not). CR 118.9d / 601.2f
             // (issue #2970) — BOTH branches fold cost modifiers: "any
             // additional costs, cost increases, and cost reductions that affect
-            // that spell are applied to that alternative cost." The alt-cost
-            // branch used to pass `state` for the board view alone (issue #1695
-            // fourth-pass fix) and skip the then-opt-in fold, matching the
-            // equally modifier-blind no-target commit path in `announceCast` —
-            // gate and payment agreed on the same WRONG number, so nothing
-            // parked unpayable and the spell was merely undercharged. They move
-            // together or not at all. (Issue #2981 made the fold unconditional
-            // inside `canPotentiallyPayCost`, so no branch opts in any more.)
+            // that spell are applied to that alternative cost." The fold is
+            // unconditional inside `canPotentiallyPayCost`, so this gate and
+            // the `announceCast` payment price the same modified number — they
+            // move together or not at all.
             (canPotentiallyPayCost(caster, card, undefined, state, {
                 // CR 601.3c (issue #2146) — when this cast can only happen
                 // under the conditional-flash permission, its surcharge is

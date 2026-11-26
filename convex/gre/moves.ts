@@ -3622,7 +3622,7 @@ export function enumerateCastMoves(
  *  `enumerateCastMoves`.
  *
  *  A PERMANENT leg (Fireblast's "sacrifice two Mountains", Daze's "return an
- *  Island", issue #4935) rides on the Move as `castCostPicks.sacrificeIds`
+ *  Island") rides on the Move as `castCostPicks.sacrificeIds`
  *  (`planCastCostPicks`), the way the additional-cost parks do.
  *
  *  Fail CLOSED on the shapes the search cannot pay yet:
@@ -3632,7 +3632,7 @@ export function enumerateCastMoves(
  *   - an ENERGY leg — no shipped alternative cost carries one.
  *  Both are left unenumerated (dead for the Bot, never a freeze). A HYBRID pip
  *  in the MANA leg (the ECL evoke trio's `{G/U}{G/U}`) is enumerable: the
- *  tap plan prices it (`planManaPayment`, issue #4934).
+ *  tap plan prices it (`planManaPayment`).
  *
  *  Hand casts only: a cast from any other zone is already priced by that
  *  zone's own alternative (flashback, escape, a permission — `castRawManaCost`),
