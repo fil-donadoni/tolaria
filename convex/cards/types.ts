@@ -60,12 +60,15 @@ export type RevealRouteDestination =
  *  any `RevealRouteDestination`, or `"shuffleIntoLibrary"` — the cards stay in
  *  the library and the Op shuffles it once after the match is routed
  *  (Thicket Elemental's "shuffle all other cards revealed this way into your
- *  library", CR 701.24a). Op-local on purpose: `revealTopAndRoute` leaves
+ *  library", CR 701.24a), or `"libraryBottomRandom"` — "the rest on the
+ *  bottom of your library in a random order" (U.S.S. Voyager, Lone
+ *  Wanderer, CR 401.4), through `putCardsOnBottomInRandomOrder`. Op-local on purpose: `revealTopAndRoute` leaves
  *  reordering to `scryReorder`, so `RevealRouteDestination` keeps omitting the
  *  library. */
 export type RevealUntilRestDestination =
     | RevealRouteDestination
-    | "shuffleIntoLibrary";
+    | "shuffleIntoLibrary"
+    | "libraryBottomRandom";
 
 /** CR 201.4a — how far a "choose a card name" choice narrows the legal name
  *  space. `"no-basic-land"` is Desperate Research's "other than a basic land
@@ -6109,8 +6112,11 @@ export interface SpellContext {
      *  `from` is deliberately NARROWER than `MovableZone`: a battlefield card
      *  must leave through `removePermanentTo` (leave-the-battlefield triggers,
      *  the CR 608.2h `sourceLki` stamp, counter memory), which this funnel
-     *  bypasses, and `"library"` would be a self-move with no bottom. Both are
-     *  unrepresentable rather than silently no-oped.
+     *  bypasses, so it is unrepresentable rather than silently no-oped.
+     *  `"library"` is the in-place shape (issue #10561, "reveal … put the rest
+     *  on the bottom of your library in a random order"): no zone change, the
+     *  named cards are lifted out of the library and re-appended below the
+     *  rest in a seeded random order, emitting no library-entry event.
      *
      *  The resulting bottom ordering is unwitnessed, so knowledge of every
      *  moved card is cleared (ADR 0026, exactly like a shuffle): both players
@@ -6121,7 +6127,7 @@ export interface SpellContext {
     putCardsOnBottomInRandomOrder: (
         playerId: string,
         cardInstanceIds: readonly string[],
-        from: "exile" | "graveyard" | "hand"
+        from: "exile" | "graveyard" | "hand" | "library"
     ) => void;
     /** Counters a spell or ability on the stack (CR 701.6a), and REPORTS what
      *  it did (issue #2708) — the primitive is the only place that knows
@@ -20723,14 +20729,23 @@ export type EffectOp =
           /** What ends the reveal — the FIRST card matching this is the
            *  "creature card" of the Oracle text. */
           filter: EffectCardFilter;
-          /** Where the first matching card goes ("puts that card onto the
+          /** How many matching cards end the reveal — "until you reveal TWO
+           *  land cards" (U.S.S. Voyager, Lone Wanderer). Absent = 1. Every
+           *  match goes to `match`; a library holding fewer is revealed whole
+           *  and the matches it held are still routed (CR 609.3). */
+          matchCount?: number;
+          /** Where the matching card(s) go ("puts that card onto the
            *  battlefield"). */
           match: RevealRouteDestination;
+          /** "Put those land cards onto the battlefield TAPPED" — the
+           *  matches enter tapped (CR 110.5b, an authored entry). Valid only
+           *  with `match: "battlefield"`. */
+          tapped?: boolean;
           /** Where every OTHER revealed card goes ("all other cards revealed
            *  this way into their graveyard"); `"shuffleIntoLibrary"` leaves
            *  them in the library and shuffles it once (CR 701.24a). */
           rest: RevealUntilRestDestination;
-          /** Picks binding of the matching card's id (issue #2608). */
+          /** Picks binding of the matching card ids (issue #2608). */
           bind?: string;
       }
     /** CR 701.44 (issue #2376) — the Explore keyword action: "Target creature

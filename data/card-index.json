@@ -97479,6 +97479,14 @@
         "source": "compiled"
     },
     {
+        "name": "U.S.S. Voyager, Lone Wanderer",
+        "scryfallId": "aaf8a0b2-c6cb-41cb-913d-7ae1d75e555d",
+        "oracleId": "33e8904a-9285-4031-900c-0a5c8f0bf6c0",
+        "firstSet": "trk",
+        "firstPrintId": "aaf8a0b2-c6cb-41cb-913d-7ae1d75e555d",
+        "firstPrintSet": "trk"
+    },
+    {
         "name": "Ubul Sar Gatekeepers",
         "scryfallId": "f5b2e327-adfd-459b-8d18-faa39d88b5de",
         "oracleId": "f4e15575-2277-4cb1-a343-e9407c050eb1",

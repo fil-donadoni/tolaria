@@ -68,6 +68,7 @@
 
 import { COLORED_MANA_COLORS, LAND_SUBTYPE_MANA } from "../manaColors";
 import type {
+    RevealRouteDestination,
     Color,
     ControlChangeCondition,
     DynamicMayPayManaCost,
@@ -3306,6 +3307,33 @@ function resolveDistinctKeys(
     return keys;
 }
 
+/** `revealUntilMatch`'s router (issue #10561): send revealed library cards
+ *  to one zone, a battlefield entry going through
+ *  `putFromLibraryOntoBattlefield` (CR 110.5b — `tapped` is the authored
+ *  "onto the battlefield tapped" entry) and every other zone through
+ *  `moveCardById`. A card no longer in the library is skipped by both
+ *  primitives (CR 101.3). */
+function routeRevealedFromLibrary(
+    ctx: SpellContext,
+    playerId: string,
+    ids: readonly string[],
+    destination: RevealRouteDestination,
+    tapped: boolean
+): void {
+    for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
+        if (destination === "battlefield") {
+            ctx.putFromLibraryOntoBattlefield(
+                playerId,
+                id,
+                tapped ? { authoredEntry: { entersTapped: true } } : undefined
+            );
+        } else {
+            ctx.moveCardById(playerId, id, "library", destination);
+        }
+    }
+}
+
 /** Shared tail of `lookDistribute` (issue #984, extended #1266 / #1101): send the
  *  un-kept looked-at cards to `destination`. `pickSet` is the ids that went to
  *  hand; the un-kept set is every looked-at id not in it (incl. filter-
@@ -5828,18 +5856,20 @@ export const OP_EXECUTORS: {
         // the size and the characteristics.
         const ordered = ctx.peekLibraryTop(playerId, byId.size);
         if (ordered.length === 0) return; // CR 101.3 — empty library, no-op
-        // Walk top-down and stop AT the first match (inclusive — the matching
-        // card is itself revealed, CR 701.20a).
+        // Walk top-down and stop AT the `matchCount`-th match (inclusive —
+        // the matching card is itself revealed, CR 701.20a). "Until you
+        // reveal two land cards" (issue #10561) is `matchCount: 2`.
+        const wanted = op.matchCount ?? 1;
         const revealed: string[] = [];
-        let matchId: string | undefined;
+        const matchIds: string[] = [];
         for (let i = 0; i < ordered.length; i++) {
             const id = ordered[i];
             const card = byId.get(id);
             if (card === undefined) continue; // CR 101.3 — no longer there
             revealed.push(id);
             if (matchesCardFilter(ctx, card, op.filter)) {
-                matchId = id;
-                break;
+                matchIds.push(id);
+                if (matchIds.length >= wanted) break;
             }
         }
         // CR 701.20a — the whole revealed prefix is public BEFORE any of it is
@@ -5853,31 +5883,39 @@ export const OP_EXECUTORS: {
             ctx.sourceCardId,
             "reveal"
         );
-        // No match anywhere in the library: the whole library was revealed and
-        // all of it goes to `rest`. The `match` leg's "that card" has no
-        // referent, so that clause is impossible and is ignored (CR 101.3),
-        // while the `rest` clause is performable and is carried out as far as
-        // possible (CR 609.3). Deliberately NOT cited as 608.2b, which is
-        // target legality on resolution and says nothing about impossible
-        // instructions. This is why Oath's clause is a "may": revealing with
-        // no creature card left mills the library.
+        // Fewer matches than wanted (none at all included): the whole library
+        // was revealed and every non-match goes to `rest`. The `match` leg is
+        // carried out for the matches that exist and ignored past them — its
+        // "that card" has no further referent (CR 101.3) — while the `rest`
+        // clause is performable and is carried out as far as possible (CR
+        // 609.3). Deliberately NOT cited as 608.2b, which is target legality
+        // on resolution and says nothing about impossible instructions. This
+        // is why Oath's clause is a "may": revealing with no creature card
+        // left mills the library.
         // ORDERING, and it is a correctness property rather than an accident:
-        // the walk BREAKS at the match, so the match is always LAST in
-        // `revealed` and the whole prefix reaches `rest` before it is routed.
-        // A `match: "battlefield"` card therefore enters with the milled cards
-        // already in the graveyard, which is what an ETB trigger reading them
-        // (a graveyard count, a delirium check) has to see.
-        for (let i = 0; i < revealed.length; i++) {
-            const id = revealed[i];
-            const destination = id === matchId ? op.match : op.rest;
-            // The rest stays where it is: the shuffle below moves it.
-            if (destination === "shuffleIntoLibrary") continue;
-            if (destination === "battlefield") {
-                ctx.putFromLibraryOntoBattlefield(playerId, id);
-            } else {
-                ctx.moveCardById(playerId, id, "library", destination);
-            }
+        // the whole `rest` prefix is routed BEFORE any match. A `match:
+        // "battlefield"` card therefore enters with the milled cards already
+        // in the graveyard, which is what an ETB trigger reading them (a
+        // graveyard count, a delirium check) has to see.
+        const matchSet = new Set(matchIds);
+        const restIds = revealed.filter((id) => !matchSet.has(id));
+        if (op.rest === "libraryBottomRandom") {
+            // CR 401.4 (issue #10561) — "the rest on the bottom of your
+            // library in a random order": an in-place seeded reorder that
+            // also ends the reveal (the knowledge clear).
+            ctx.putCardsOnBottomInRandomOrder(playerId, restIds, "library");
+        } else if (op.rest !== "shuffleIntoLibrary") {
+            // The shuffle-back rest stays where it is: the shuffle below
+            // moves it.
+            routeRevealedFromLibrary(ctx, playerId, restIds, op.rest, false);
         }
+        routeRevealedFromLibrary(
+            ctx,
+            playerId,
+            matchIds,
+            op.match,
+            op.tapped === true
+        );
         // CR 701.24a — "shuffle all other cards revealed this way into your
         // library": ONE shuffle, after the match has left, also on a walk
         // that found no match (the whole library was revealed, CR 609.3).
@@ -5888,8 +5926,8 @@ export const OP_EXECUTORS: {
         // Issue #2608 — "that card", named for a later Op by its id (a picks
         // binding). No match → no referent, the binding stays uncaptured and
         // every reader skips (CR 609.3).
-        if (op.bind !== undefined && matchId !== undefined) {
-            ctx.noteChoice(op.bind, [matchId]);
+        if (op.bind !== undefined && matchIds.length > 0) {
+            ctx.noteChoice(op.bind, matchIds);
         }
     },
     // CR 701.44 (issue #2376) — the Explore keyword action. A thin declarative

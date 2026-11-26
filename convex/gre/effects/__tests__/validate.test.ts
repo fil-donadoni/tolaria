@@ -2912,6 +2912,29 @@ describe("validateEffectScript — forEach simultaneous batch reanimation (CR 40
         expect(validateEffectScript(host({ effects: [script] }))).toEqual([]);
     });
 
+    it("revealUntilMatch: accepts matchCount + tapped + libraryBottomRandom, rejects tapped off the battlefield (issue #10561)", () => {
+        const ok: EffectOp = {
+            op: "revealUntilMatch",
+            player: "controller",
+            filter: { type: "Land" },
+            matchCount: 2,
+            match: "battlefield",
+            tapped: true,
+            rest: "libraryBottomRandom",
+        };
+        expect(validateEffectScript(host({ effects: [ok] }))).toEqual([]);
+        const toHand: EffectOp = { ...ok, match: "hand" };
+        expect(
+            validateEffectScript(host({ effects: [toHand] })).some((e) =>
+                /"tapped" is only valid with match: "battlefield"/.test(e)
+            )
+        ).toBe(true);
+        const zero: EffectOp = { ...ok, matchCount: 0 };
+        expect(
+            validateEffectScript(host({ effects: [zero] })).length
+        ).toBeGreaterThan(0);
+    });
+
     it("rejects simultaneous over a non-graveyard set", () => {
         const script: EffectOp = {
             op: "forEach",
