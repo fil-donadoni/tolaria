@@ -28,7 +28,7 @@ import {
 import { getStoredSession } from "~/lib/session";
 import type { QuizState } from "./ai-decision-verdict-quiz-settle";
 import {
-    reportPublishFailure,
+    reportQuizFailure,
     settleQuiz,
 } from "./ai-decision-verdict-quiz-settle";
 import DebugButton from "./debug-button";
@@ -104,12 +104,14 @@ export default function AiDecisionVerdictQuiz({
         // that state is a separate step below, because an error React raises
         // from the panel's own `setState` is not a builder failure (issue
         // #9822) and must not be filed as one.
-        void settleQuiz(feed).then((settled) => {
+        void settleQuiz(feed, (cause) =>
+            reportQuizFailure(cause, subject, "build")
+        ).then((settled) => {
             if (cancelled) return;
             try {
                 setState(settled);
             } catch (cause: unknown) {
-                reportPublishFailure(cause, subject);
+                reportQuizFailure(cause, subject, "publish");
                 try {
                     setState({
                         status: "unbuildable",

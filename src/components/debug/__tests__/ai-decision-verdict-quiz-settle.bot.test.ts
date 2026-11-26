@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { describeCause, type QuizFeed } from "~/lib/ai/verdict-quiz";
 import {
-    reportPublishFailure,
+    reportQuizFailure,
     settleQuiz,
 } from "../ai-decision-verdict-quiz-settle";
 
@@ -28,6 +28,13 @@ describe("settleQuiz (issue #9822)", () => {
         // The raw cause: a frame, not only a message.
         expect(settled.refusal.detail).toMatch(/\n\s+at /);
     });
+
+    it("hands the raw throw to onThrow, so a builder-threw is reported", async () => {
+        const seen: unknown[] = [];
+        await settleQuiz(BROKEN_FEED, (cause) => seen.push(cause));
+        expect(seen).toHaveLength(1);
+        expect(seen[0]).toBeInstanceOf(Error);
+    });
 });
 
 describe("describeCause", () => {
@@ -43,15 +50,15 @@ describe("describeCause", () => {
     });
 });
 
-describe("reportPublishFailure", () => {
+describe("reportQuizFailure", () => {
     it("reports to the console and never throws", () => {
         const spy = vi.spyOn(console, "error").mockImplementation(() => {});
         expect(() =>
-            reportPublishFailure(new Error("x"), {
-                id: 3,
-                seq: 129,
-                feed: null,
-            })
+            reportQuizFailure(
+                new Error("x"),
+                { id: 3, seq: 129, feed: null },
+                "publish"
+            )
         ).not.toThrow();
         expect(spy).toHaveBeenCalledOnce();
         spy.mockRestore();
