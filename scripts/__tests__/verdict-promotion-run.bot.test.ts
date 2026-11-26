@@ -139,7 +139,7 @@ function checkout(): string {
     // The Prototype gate read (PRD issue #10849): a Promotion may run.
     writeFileSync(
         join(root, PROTOTYPE_GATE_MARKER_PATH),
-        '{ "reading": "docs/research/prototype-gate.md" }\n'
+        '{ "reading": "the Prototype gate reading" }\n'
     );
     return root;
 }
