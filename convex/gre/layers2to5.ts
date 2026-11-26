@@ -86,6 +86,7 @@ import type { DependencyTemplate } from "./dependency";
 import { CDA_STATIC_EFFECT_KINDS } from "./dependency";
 import { orderByDependency } from "./dependency";
 import { applySubstitution } from "./textChanges";
+import { CREATURE_SUBTYPES } from "../oracle/grammar/shared/subtypes";
 import type { ContinuousEffect } from "./continuousEffects";
 import type { Duration } from "./state/declarations";
 import {
@@ -783,10 +784,21 @@ function finishEffectsFor(
                 characteristicDefining: false,
             });
         }
-        if (
-            animation.addedSubtype !== undefined &&
-            animation.seq !== undefined
-        ) {
+        // CR 205.3m (issue #10511) — "with all creature types" (Mutavault)
+        // expands to the whole creature-type list here, at derivation time,
+        // in the SAME layer-4 add as the single `addedSubtype`: one entry, the
+        // animation's own timestamp (CR 613.7), so it leaves with the
+        // animation and a later creature-type set still replaces it.
+        const addedSubtypes = (
+            animation.addedSubtype !== undefined ? [animation.addedSubtype] : []
+        ).concat(
+            animation.addedAllCreatureTypes
+                ? [...CREATURE_SUBTYPES].filter(
+                      (s) => s !== animation.addedSubtype
+                  )
+                : []
+        );
+        if (addedSubtypes.length > 0 && animation.seq !== undefined) {
             entries.push({
                 id: `ce-animate-subtype-${instance.id}`,
                 layer: 4,
@@ -795,7 +807,7 @@ function finishEffectsFor(
                 affected: { kind: "instances", instanceIds: [instance.id] },
                 payload: {
                     kind: "subtype-change",
-                    add: [animation.addedSubtype],
+                    add: addedSubtypes,
                 },
                 characteristicDefining: false,
             });

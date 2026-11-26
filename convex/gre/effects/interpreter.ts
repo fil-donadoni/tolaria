@@ -5462,6 +5462,8 @@ export const OP_EXECUTORS: {
             power: op.power,
             toughness: op.toughness,
             subtype: op.subtype,
+            // CR 205.3m (issue #10511) — "with all creature types".
+            allCreatureTypes: op.allCreatureTypes,
             additionalTypes: op.additionalTypes,
             grantedAbilities: op.grantedAbilities,
             // CR 113.1 / 611.2a (issue #7203) — the quoted static ability,

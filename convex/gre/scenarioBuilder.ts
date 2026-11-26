@@ -3071,6 +3071,7 @@ function lowerAnimation(
     }
     const lowered: AnimateSpecWithPT = { power, toughness };
     if (anim.addedSubtype !== undefined) lowered.subtype = anim.addedSubtype;
+    if (anim.addedAllCreatureTypes) lowered.allCreatureTypes = true;
     if (anim.addedTypes && anim.addedTypes.length > 0) {
         lowered.additionalTypes = anim.addedTypes.slice();
     }
