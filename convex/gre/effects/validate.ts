@@ -4447,7 +4447,7 @@ function isCaptureMap(value: unknown): boolean {
             k !== "$each" &&
             k !== "$source" &&
             k !== "$host" &&
-            k !== "$tapped" &&
+            k !== "$costTapped" &&
             (isNonEmptyString(v) ||
                 isTargetRef(v) ||
                 isBareRef(v) ||
@@ -4474,7 +4474,7 @@ function isReflexiveCaptureMap(value: unknown): boolean {
             k !== "$each" &&
             k !== "$source" &&
             k !== "$host" &&
-            k !== "$tapped" &&
+            k !== "$costTapped" &&
             (isNonEmptyString(v) ||
                 isTargetRef(v) ||
                 isBareRef(v) ||
@@ -11037,7 +11037,7 @@ const ABILITY_BINDINGS: ReadonlySet<string> = new Set([
     "$source",
     "$host",
     // CR 702.184a (issue #10528) — the permanent tapped to pay the cost.
-    "$tapped",
+    "$costTapped",
 ]);
 /** What `AsEntersChoice.whenCopied`'s body may read: the ability site's own, and
  *  the card the copy effect copied. */

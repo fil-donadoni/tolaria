@@ -229,7 +229,7 @@ export function manaCostAfterSubstitution(
  *  "the tapped creature" (Station's "Tap another untapped creature you
  *  control: Put … equal to the tapped creature's power"). Recorded on the
  *  stack item by every commit site (`activation.ts` and the search's
- *  `applyActivationCostsForSearch`) and read back as `$tapped`. */
+ *  `applyActivationCostsForSearch`) and read back as `$costTapped`. */
 export function singleCostTappedId(
     tappedIds: readonly string[]
 ): string | undefined {

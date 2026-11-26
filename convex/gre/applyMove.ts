@@ -1313,7 +1313,7 @@ export function applyActivationCostsForSearch(
         if (perm) tapPermanent(state, perm);
     }
     // CR 702.184a (issue #10528) — "the tapped creature" the ability reads back
-    // as `$tapped`, the same id the mutation path records.
+    // as `$costTapped`, the same id the mutation path records.
     const costTappedId = singleCostTappedId(idList);
     if (out && costTappedId) out.costTappedId = costTappedId;
     // CR 118.5 — exile from a graveyard (Night Soil, Grim Lavamancer): the

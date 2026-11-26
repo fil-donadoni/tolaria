@@ -994,7 +994,7 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
         base.additionalSacrificeSnapshot = item.additionalSacrificeSnapshot;
     }
     // CR 702.184a (issue #10528) — the creature tapped for the cost, read back
-    // as `$tapped` when the ability resolves after a save.
+    // as `$costTapped` when the ability resolves after a save.
     if (item.costTapped) base.costTapped = item.costTapped;
     // CR 607.2q — the cards exiled to pay the spell's cost, read by its
     // permanent at entry; a cast parked on the stack across a save keeps them.

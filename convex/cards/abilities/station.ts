@@ -11,7 +11,7 @@
 //   with station symbols that are themselves keyword abilities (CR 721).
 // CR 702.184c: static abilities may make a station ability use a
 //   characteristic other than the tapped creature's power. No card in the
-//   catalogue does; the count is the ONE `$tapped.power` read below, which is
+//   catalogue does; the count is the ONE `$costTapped.power` read below, which is
 //   where such an ability would substitute its characteristic.
 // CR 721.2a: "{N+}[abilities]" means "As long as this permanent has N or more
 //   charge counters on it, it has [abilities]."
@@ -28,7 +28,7 @@
 //
 // Primitives reused, none added for the threshold half:
 //   - the `counters` Op (`action: "add"`) on `$source`, the count read off the
-//     implicit `$tapped` binding (`interpreter.ts`, the permanent the
+//     implicit `$costTapped` binding (`interpreter.ts`, the permanent the
 //     single-pick `tapOtherFilter` leg tapped, CR 608.2h last-known
 //     information once it has left);
 //   - `tapOtherFilter { count: 1 }` (the Hand of Justice leg, which already
@@ -108,7 +108,7 @@ export function buildStationAbility(): ActivatedAbility {
                 target: { ref: "$source" },
                 // CR 702.184a / 608.2h — "equal to the tapped creature's
                 // power", read as the ability resolves.
-                count: { ref: "$tapped.power" },
+                count: { ref: "$costTapped.power" },
             },
         ],
     };

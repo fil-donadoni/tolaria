@@ -6427,7 +6427,7 @@ export interface SpellContext {
      *  this ability's "tap another untapped creature" leg (`StackItem.
      *  costTapped`): its id, plus its last known power/toughness once it has
      *  left the battlefield. `undefined` when no single permanent was tapped
-     *  for the cost. Seeds the implicit `$tapped` binding. */
+     *  for the cost. Seeds the implicit `$costTapped` binding. */
     getCostTapped: () =>
         | { id: string; lkiPower?: number; lkiToughness?: number }
         | undefined;
@@ -17367,7 +17367,7 @@ export type EffectValue =
  *  (which totals a characteristic over the same kind of set) and, like it, NOT
  *  an Op and NOT a structural construct: it only READS a binding.
  *
- *  `of` is a bare PICKS ref (`{ ref: "$tapped" }`) naming a `choice` Op's
+ *  `of` is a bare PICKS ref (`{ ref: "$costTapped" }`) naming a `choice` Op's
  *  `bind` or `mill`'s `bindAll` — both store the identical `string[]` of
  *  instance ids. Unlike `sum` it names no zone: counting the ids needs no
  *  lookup, and the count is the number CHOSEN, which is what an Oracle "X"

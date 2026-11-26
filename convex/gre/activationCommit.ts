@@ -66,7 +66,7 @@ export type ActivatedAbilityCommit = {
      *  additional cost, captured at commit because it is gone by resolution. */
     additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
     /** CR 702.184a (issue #10528) — the one permanent a single-pick
-     *  `tapOtherFilter` leg tapped, read back as `$tapped`. */
+     *  `tapOtherFilter` leg tapped, read back as `$costTapped`. */
     costTappedId?: string;
     /** CR 106.10 — the mana-pool delta noted for a battery (Jeweled Amulet). */
     notedManaSpent?: Record<string, number>;

@@ -2581,7 +2581,7 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  "tap another untapped creature you control" leg (`cost.tapOtherFilter`
      *  with `count: 1`), so the ability can name "the tapped creature" (CR
      *  702.184a, Station). Its characteristics are read LIVE at resolution
-     *  (CR 608.2h) through the implicit `$tapped` binding; `lkiPower` /
+     *  (CR 608.2h) through the implicit `$costTapped` binding; `lkiPower` /
      *  `lkiToughness` are stamped ONCE, at the battlefield-departure funnel
      *  (`removeFromBattlefield`), and read instead once it has left. Cleared
      *  with the other cast-instance fields when the item leaves the stack. */

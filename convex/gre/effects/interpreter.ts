@@ -9062,14 +9062,14 @@ export const HOST_BINDING = "$host";
 /** The implicit binding name an ability-site script gets for the permanent
  *  TAPPED TO PAY its cost (CR 702.184a, issue #10528): Station's "Put a number
  *  of charge counters on this permanent equal to the tapped creature's power"
- *  is `{ ref: "$tapped.power" }`. Seeded on a FRESH entry when the resolving
+ *  is `{ ref: "$costTapped.power" }`. Seeded on a FRESH entry when the resolving
  *  stack item recorded exactly one such permanent (`StackItem.costTapped`):
  *  from the live permanent while it is on the battlefield — CR 608.2h reads
  *  the characteristic as the ability resolves — and from the last known
  *  power/toughness stamped at its departure once it has left. Like `$host`,
  *  it is no target (CR 115.10), and an ability that tapped nothing seeds
  *  nothing, so every ref to it skips its Op (CR 608.2b). */
-export const TAPPED_BINDING = "$tapped";
+export const TAPPED_BINDING = "$costTapped";
 
 /** The per-iteration binding name a `forEach` body gets for free (ADR 0045,
  *  issue #807): the current member of the iterated set. */
@@ -9755,7 +9755,7 @@ function seedSourceBindings(ctx: SpellContext): void {
     }
 }
 
-/** CR 702.184a / 608.2h — seeds `$tapped` (see {@link TAPPED_BINDING}). */
+/** CR 702.184a / 608.2h — seeds `$costTapped` (see {@link TAPPED_BINDING}). */
 function seedCostTappedBinding(ctx: SpellContext): void {
     const tapped = ctx.getCostTapped();
     if (tapped === undefined) return;
