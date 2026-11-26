@@ -96,6 +96,10 @@ export type TriggerHeadIR =
           /** CR 111.1 — "another NONTOKEN Bird": the entering permanent is
            *  not a token. Lowers to `PermanentFilter.isToken: false`. */
           readonly nontoken?: true;
+          /** CR 205.2a — "whenever a LAND enters": narrows the entering
+           *  permanent by the land card type. Lowers to
+           *  `PermanentFilter.types`. */
+          readonly permanentType?: "Land";
       }
     /** CR 603.6 — "when [this / a creature] dies". */
     | { readonly kind: "dies"; readonly scope: TriggerSubjectScope }
@@ -271,8 +275,11 @@ export type TriggerHeadIR =
      * CR 605.1b + CR 303.4b — "whenever enchanted land is tapped for mana":
      * the Aura's host tapped for a mana ability's cost. The tapped land's
      * controller (`$event.controllerId`) is "its controller" of the body.
+     * `any` is "whenever a player taps a land for mana" (CR 106.12): every
+     * land, whoever controls it, and the player who tapped it is "that
+     * player".
      */
-    | { readonly kind: "tapped-for-mana"; readonly scope: "host" }
+    | { readonly kind: "tapped-for-mana"; readonly scope: "host" | "any" }
     /**
      * CR 702.29c — "when you cycle this card": the source discarded to pay a
      * cycling cost. Fires from the zone the card lands in, so the pronoun "it"
@@ -450,6 +457,18 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
             subtypes: ["Forest"],
         },
     ],
+    // CR 603.6a + CR 205.2a — a land entering, whoever controls it. "A land
+    // you control" and "an opponent controls" are neighbours that earn their
+    // own row and fixture.
+    [
+        "whenever a land enters",
+        {
+            kind: "enters",
+            scope: "any",
+            creaturesOnly: false,
+            permanentType: "Land",
+        },
+    ],
     // CR 603.6 — a creature dying. The event is `CREATURE_DIED`, so the type
     // narrowing is the EVENT's, not a filter's — a "creaturesOnly" flag here
     // would be a second, redundant authority on the same fact.
@@ -526,6 +545,13 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
         "whenever enchanted land is tapped for mana",
         { kind: "tapped-for-mana", scope: "host" },
     ],
+    // CR 106.12 + CR 605.1b — any land tapped for a mana ability's cost; the
+    // player who tapped it is its controller (CR 602.2: only an object's
+    // controller activates its activated abilities).
+    [
+        "whenever a player taps a land for mana",
+        { kind: "tapped-for-mana", scope: "any" },
+    ],
     // CR 603.6a — step boundaries (CR 500.1).
     [
         "at the beginning of your upkeep",
@@ -538,6 +564,17 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     [
         "at the beginning of each player's upkeep",
         { kind: "phase", phase: "UPKEEP", scope: "each", namesPlayer: true },
+    ],
+    // CR 603.2b — the upkeep of each player other than the controller; the
+    // head names that player ("that player"), as an opponent.
+    [
+        "at the beginning of each opponent's upkeep",
+        {
+            kind: "phase",
+            phase: "UPKEEP",
+            scope: "opponents",
+            namesPlayer: true,
+        },
     ],
     // CR 614.12 + CR 603.2b — the player the source chose as it entered ("As
     // this artifact enters, choose an opponent"): the head fires on THAT
@@ -562,6 +599,12 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     [
         "at the beginning of each end step",
         { kind: "phase", phase: "END_STEP", scope: "each" },
+    ],
+    // CR 513.1 + CR 603.2b — the same events as "each end step", but the
+    // head NAMES the player whose end step it is: "that player".
+    [
+        "at the beginning of each player's end step",
+        { kind: "phase", phase: "END_STEP", scope: "each", namesPlayer: true },
     ],
     // CR 500.1 — every turn has an end step, and the unqualified phrase names
     // each player's (see the header note above): the same event as "each end

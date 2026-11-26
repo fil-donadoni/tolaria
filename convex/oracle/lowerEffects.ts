@@ -244,10 +244,11 @@ export interface SiteAntecedents {
     /** "that player". */
     readonly player?: EffectPlayerRef;
     /**
-     * CR 303.4b — "its controller": the controller of the permanent a
-     * host-tapped head fired for, set only by that head.
+     * CR 110.2 — "its controller" / "that land's controller": the controller
+     * of the LAND the head named — the Aura's host tapped for mana
+     * (CR 303.4b) or a land entering (CR 603.6a). Set only by those heads.
      */
-    readonly tappedController?: EffectPlayerRef;
+    readonly landController?: EffectPlayerRef;
     /** "that opponent" — set only by a head that names an OPPONENT. */
     readonly opponent?: EffectPlayerRef;
     /**
@@ -780,6 +781,16 @@ function sweepOps(
         subject = {
             ...mass,
             select: { ...mass.select, controller: { target: index.value } },
+        };
+    }
+    // CR 110.2 — "lands ITS CONTROLLER controls": the head's land controller.
+    if (mass.landControllerControls === true) {
+        const named = site.antecedents?.landController;
+        if (named === undefined)
+            return unlowerable('"its controller" names no land at this site');
+        subject = {
+            ...subject,
+            select: { ...subject.select, controller: named },
         };
     }
     const each: EffectObjectSelector = { ref: "$each" };
@@ -1994,6 +2005,13 @@ function playerRef(
             return unlowerable(
                 '"that creature\'s controller" is read only as a damage recipient'
             );
+        // CR 110.2 — the controller of the land the head named.
+        case "that-land-controller":
+            return site.antecedents?.landController !== undefined
+                ? lowered(site.antecedents.landController)
+                : unlowerable(
+                      '"that land\'s controller" names no land at this site'
+                  );
         case "acted-on-controller":
             return unlowerable(
                 '"its controller" is read only as a life recipient'
@@ -5666,7 +5684,7 @@ function lowerSentenceBody(
                 return lowered([{ op: "addMana", mana }]);
             }
             if (sentence.itsController === true) {
-                const named = site.antecedents?.tappedController;
+                const named = site.antecedents?.landController;
                 return named !== undefined
                     ? lowered([
                           { op: "addMana", mana: sentence.mana, player: named },
