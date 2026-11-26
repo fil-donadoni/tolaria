@@ -683,6 +683,48 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
             expect(v.tags).toContain("self-cost");
         });
 
+        // CR 603.7a / 603.10a (issue #10821) — a leave-watch whose body only
+        // returns the object it watches puts back the board the evaluation
+        // already scores as standing: worth nothing, however many zones it
+        // returns from. The same return at a phase boundary is certain and
+        // keeps its price.
+        it("prices a leave-watch that only returns the watched object at nothing", () => {
+            const returnIt = (
+                timing: "leaves-battlefield-indefinite" | "next-end-step"
+            ): EffectOp => ({
+                op: "delayedTrigger",
+                timing,
+                oracleText:
+                    "When it dies or is exiled, return it to the battlefield tapped.",
+                watch: { target: 0 },
+                capture: { $land: { target: 0 } },
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { ref: "$land" },
+                        from: "graveyard",
+                        to: "battlefield",
+                        tapped: true,
+                        controller: "controller",
+                    },
+                    {
+                        op: "moveZone",
+                        target: { ref: "$land" },
+                        from: "exile",
+                        to: "battlefield",
+                        tapped: true,
+                        controller: "controller",
+                    },
+                ],
+            });
+            expect(
+                valueOp(returnIt("leaves-battlefield-indefinite"), cf).points
+            ).toBe(0);
+            expect(
+                valueOp(returnIt("next-end-step"), cf).points
+            ).toBeGreaterThan(0);
+        });
+
         // The coarse-catch-all failure mode this fix must NOT reproduce: a
         // ref that is NOT the ability's own source (here, a `choice`-bound
         // picks ref) stays priced as the ordinary bounce/regrowth benefit.
