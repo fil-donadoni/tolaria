@@ -33413,6 +33413,7 @@
         {"id":"720.2","line":"// CR 720.2 (issue #1199) — crowning the monarch is a GLOBAL","sites":1,"status":"baseline"},
         {"id":"119.9","line":"* change (CR 119.9), and an absent view fails closed.","sites":1,"status":"confirmed","ruleHash":"532bb57b405cca83"},
         {"id":"603.6e","line":"// CR 603.6e — \"When you cast this spell, counter it unless you sacrifice","sites":1,"status":"baseline"},
+        {"id":"700.7","line":"// CR 700.7 — \"this <noun>\" names the source; the rule reads it only where","sites":1,"status":"confirmed","ruleHash":"e34d7c1a943ba32a"},
         {"id":"122","line":"* the \"for each …\" numeric construct (CR 122 counting). No object handles","sites":1,"status":"baseline"},
         {"id":"514.2","line":"// --- Temporary-effect durations (CR 611.2, 514.2, 511.3) ---","sites":1,"status":"baseline"},
         {"id":"122.1","line":"* - `energy` — CR 122.1, the {E} resource: \"you get {E}\" / \"you pay {E}\".","sites":1,"status":"baseline"},
