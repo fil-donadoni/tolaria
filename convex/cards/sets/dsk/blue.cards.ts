@@ -91,10 +91,9 @@ export const enduringCuriosity = defineCard(() => ({
 // CONTROLLER: "manifest dread" reads "your library" (CR 701.62a), never the
 // opponent whose upkeep it is.
 //
-// Guard C (issue #2701) — both clauses are sub-floor Grammar Gaps today: the
-// additional-cost static and the opponent-upkeep trigger head (#4582).
+// Guard C (issue #2701) — the additional-cost static is a sub-floor Grammar
+// Gap today.
 // compiler-gap: As an additional cost to cast this spell, exile six cards from your graveyard. (#2693)
-// compiler-gap: At the beginning of each opponent's upkeep, manifest dread. (#4582)
 export const abhorrentOculus = defineCard(() => ({
     id: "d2705b43-a94a-44c0-8740-82e0b296820c",
     name: "Abhorrent Oculus",
