@@ -5982,6 +5982,7 @@
         {"key":"e88a930687d3","text":"Delirium — {2}{B}{B}: Return this card from your graveyard to the battlefield with a finality counter on it. Activate only if there are four or more card types among cards in your graveyard and only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","zone reference"],"span":"the battlefield with a finality counter on it"}},
         {"key":"a85d100e6e32","text":"Delirium — {2}{G}, Sacrifice this enchantment: Return up to one target creature card and up to one target land card from your graveyard to your hand. Activate only if there are four or more card types among cards in your graveyard.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","target filter","object descriptor"],"span":"creature card and up to one target land card from your graveyard"}},
         {"key":"a0f3d898c6db","text":"Delirium — {2}{G}{G}: Return this card from your graveyard to the battlefield with a finality counter on it. Activate only if there are four or more card types among cards in your graveyard and only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","zone reference"],"span":"the battlefield with a finality counter on it"}},
+        {"key":"b2992f00cac8","text":"Delirium — {2}{G}{G}: This land becomes a copy of target permanent card in your graveyard until end of turn. Activate only if there are four or more card types among cards in your graveyard.","reason":"a card outside the battlefield is not a permanent (CR 110.1, CR 400.1)","cards":1},
         {"key":"bc7270895642","text":"Delirium — {self} deals 6 damage instead if there are four or more card types among cards in your graveyard.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"{self} deals 6 damage instead if there are four or more card types among cards in your graveyard"}},
         {"key":"f70f6552378a","text":"Democracy is in effect until {self} leaves the battlefield.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Democracy is in effect until {self} leaves the battlefield"}},
         {"key":"7c6fb0a50bad","text":"Demons you control have menace, lifelink, and haste.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Demons you control have menace, lifelink, and haste"}},
@@ -14410,24 +14411,19 @@
         {"key":"eff08ac83231","text":"This land enters tapped unless you control a Dimension.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Dimension"}},
         {"key":"cddd9cae862b","text":"This land enters tapped unless you control a Forest or a Plains.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Forest or a Plains"}},
         {"key":"096f8063eca4","text":"This land enters tapped unless you control a Forest or an Island.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Forest or an Island"}},
-        {"key":"edfdc93790d5","text":"This land enters tapped unless you control a Forest.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Forest"}},
         {"key":"16d965f4d19b","text":"This land enters tapped unless you control a Mount or Vehicle.","reason":"no slot consumed the line","cards":5,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Mount or Vehicle"}},
         {"key":"77904cdde658","text":"This land enters tapped unless you control a Mountain or a Forest.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Mountain or a Forest"}},
         {"key":"0f96f88a0477","text":"This land enters tapped unless you control a Mountain or a Plains.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Mountain or a Plains"}},
-        {"key":"da9cdf3270f4","text":"This land enters tapped unless you control a Mountain.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Mountain"}},
         {"key":"1940e2e85598","text":"This land enters tapped unless you control a Plains or a Swamp.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Plains or a Swamp"}},
         {"key":"6ae13f20d152","text":"This land enters tapped unless you control a Plains or an Island.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Plains or an Island"}},
-        {"key":"57018622388a","text":"This land enters tapped unless you control a Plains.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Plains"}},
         {"key":"99baec4c8dc4","text":"This land enters tapped unless you control a Swamp or a Forest.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Swamp or a Forest"}},
         {"key":"9147ca0e1580","text":"This land enters tapped unless you control a Swamp or a Mountain.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Swamp or a Mountain"}},
-        {"key":"d1fa2d5c3fab","text":"This land enters tapped unless you control a Swamp.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a Swamp"}},
         {"key":"406b7c65aec7","text":"This land enters tapped unless you control a legendary creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a legendary creature"}},
         {"key":"798f2c89f144","text":"This land enters tapped unless you control a legendary green creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a legendary green creature"}},
         {"key":"6c2e7cde37e8","text":"This land enters tapped unless you control a planeswalker.","reason":"no slot consumed the line","cards":10,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control a planeswalker"}},
         {"key":"2e9a983d17b1","text":"This land enters tapped unless you control an Equipment.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control an Equipment"}},
         {"key":"cf16ff5cd4e6","text":"This land enters tapped unless you control an Island or a Mountain.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control an Island or a Mountain"}},
         {"key":"cb3a2e470bb2","text":"This land enters tapped unless you control an Island or a Swamp.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control an Island or a Swamp"}},
-        {"key":"61fe50c518bd","text":"This land enters tapped unless you control an Island.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control an Island"}},
         {"key":"8a71d39cdd40","text":"This land enters tapped unless you control three or more other Forests.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control three or more other Forests"}},
         {"key":"87b0995dca89","text":"This land enters tapped unless you control three or more other Islands.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control three or more other Islands"}},
         {"key":"42bf151ad825","text":"This land enters tapped unless you control three or more other Mountains.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This land enters tapped unless you control three or more other Mountains"}},
@@ -56196,7 +56192,7 @@
 
         {"oracleId":"63dd611e-1c36-4e5d-ba45-87c7f629cd54","name":"Rakdos Pit Dragon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["482a638fc723"]},
 
-        {"oracleId":"63dfe794-5f56-41ec-9883-5523b41cc3e0","name":"Arena of Glory","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["891946a24f4b","da9cdf3270f4"]},
+        {"oracleId":"63dfe794-5f56-41ec-9883-5523b41cc3e0","name":"Arena of Glory","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["891946a24f4b"]},
 
         {"oracleId":"63e0f03f-16da-4c09-ad03-8945f660942d","name":"Daughter of the Deep","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["512472325542"]},
 
@@ -57988,7 +57984,7 @@
 
         {"oracleId":"69db9cb8-9152-4d1b-9ac9-16aac42c0908","name":"Virtual Assistant","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["b24938fa4195"]},
 
-        {"oracleId":"69ddca4b-5cc0-45f3-b2e6-a047c8d601be","name":"Spymaster's Vault","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6596273ef7a6","d1fa2d5c3fab"]},
+        {"oracleId":"69ddca4b-5cc0-45f3-b2e6-a047c8d601be","name":"Spymaster's Vault","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6596273ef7a6"]},
 
         {"oracleId":"69e0d9f1-f9dd-4614-ad9f-13e7153710ce","name":"Dragonclaw Strike","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["78300b231d6e"]},
 
@@ -62994,7 +62990,7 @@
 
         {"oracleId":"7c27136a-bf9d-4f42-9c37-abe347fad1bb","name":"Weaponcraft Enthusiast","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["270992804632"]},
 
-        {"oracleId":"7c2a4fe5-43e8-4e20-bef2-0278d18afc4b","name":"Shifting Woodland","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["edfdc93790d5"]},
+        {"oracleId":"7c2a4fe5-43e8-4e20-bef2-0278d18afc4b","name":"Shifting Woodland","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b2992f00cac8"]},
 
         {"oracleId":"7c2c460d-8059-41ff-b2d7-374aa498f011","name":"Historian's Wisdom","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0c8ce92479ab","d8fe97e9e716"]},
 
@@ -69082,7 +69078,7 @@
 
         {"oracleId":"91f95d83-3637-4cf8-af6c-56bc4e4b2591","name":"Akki Underling","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["2cadd54a6f8a"]},
 
-        {"oracleId":"91fbb25b-8521-483f-88b0-77778d25f7fd","name":"Castle Embereth","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["da9cdf3270f4"]},
+        {"oracleId":"91fbb25b-8521-483f-88b0-77778d25f7fd","name":"Castle Embereth","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","mana-ability","static"],"opsUsed":["forEach","pump"],"definition":{"name":"Castle Embereth","types":["Land"],"oracleText":"This land enters tapped unless you control a Mountain.\n{T}: Add {R}.\n{1}{R}{R}, {T}: Creatures you control get +1/+0 until end of turn.","activatedAbilities":[{"id":"castle-embereth-mana","oracleText":"{T}: Add {R}.","cost":{"tap":true},"useStack":false,"manaProduced":{"R":1}},{"id":"castle-embereth-ability-2","oracleText":"{1}{R}{R}, {T}: Creatures you control get +1/+0 until end of turn.","cost":{"mana":{"X":1,"R":2},"tap":true},"useStack":true,"effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","controller":"controller","filter":{"type":"Creature"}},"effects":[{"op":"pump","target":{"ref":"$each"},"power":1,"toughness":0,"duration":{"phase":"end-of-turn"}}]}]}],"entersTappedUnlessControls":{"kind":"controls","filter":{"subtypes":["Mountain"]},"atLeast":1}},"botReach":"played"},
 
         {"oracleId":"91fbc00a-0a2b-4351-8717-5228c72fd825","name":"Tibalt, Wicked Tormentor","state":"unparsed","gaps":["819c35632972","a6f189acbf95","fac722ea6fb2"]},
 
@@ -81282,7 +81278,7 @@
 
         {"oracleId":"be7e220e-272e-45ca-8265-8d78da2cd2a7","name":"Unforgiving Aim","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","destroy"],"definition":{"name":"Unforgiving Aim","types":["Instant"],"manaCost":{"X":2,"G":1},"oracleText":"Choose one —\n• Destroy target creature with flying.\n• Destroy target enchantment.\n• Create a 2/2 black and green Elf creature token.","modes":[{"id":"unforgiving-aim-mode-1","label":"Destroy target creature with flying","oracleText":"Destroy target creature with flying.","effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1,"requireAbility":"flying"}},{"id":"unforgiving-aim-mode-2","label":"Destroy target enchantment","oracleText":"Destroy target enchantment.","effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":"Enchantment","count":1}},{"id":"unforgiving-aim-mode-3","label":"Create a 2/2 black and green Elf creature token","oracleText":"Create a 2/2 black and green Elf creature token.","effects":[{"op":"createToken","token":{"name":"Elf","types":["Creature"],"subtypes":["Elf"],"power":2,"toughness":2,"colors":["B","G"]},"controller":"controller"}]}]},"botReach":"played"},
 
-        {"oracleId":"be811e70-aaaa-41f3-bf9e-5d3f9f719b49","name":"Castle Locthwain","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7395d3c80cc9","d1fa2d5c3fab"]},
+        {"oracleId":"be811e70-aaaa-41f3-bf9e-5d3f9f719b49","name":"Castle Locthwain","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7395d3c80cc9"]},
 
         {"oracleId":"be836ed0-fe0e-40a0-a7f2-cad50d36cee8","name":"Consuming Rage","state":"unparsed","gaps":["a5a1837545bc"]},
 
@@ -81564,7 +81560,7 @@
 
         {"oracleId":"bfa0ec94-8851-4518-92e7-ab9f1f90a051","name":"Sanity Grinding","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4b5dda60ae9f"]},
 
-        {"oracleId":"bfa20bc7-4626-4a52-87f4-6e2763cb8ed5","name":"Archway of Innovation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["61fe50c518bd","c2c5c446aeb3"]},
+        {"oracleId":"bfa20bc7-4626-4a52-87f4-6e2763cb8ed5","name":"Archway of Innovation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c2c5c446aeb3"]},
 
         {"oracleId":"bfa21cbc-8a04-4456-bf02-bae6b514d50a","name":"Exile into Darkness","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["da7ec8384adf","e428c40f171f"]},
 
@@ -82934,7 +82930,7 @@
 
         {"oracleId":"c48d844c-3976-4fa5-8e0d-3f0e535e7619","name":"Charming Prince","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["59563517b59a"]},
 
-        {"oracleId":"c48df45c-3513-4d56-aed6-30c2f3a759cd","name":"Monumental Henge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["57018622388a","9f1e34bd6aee"]},
+        {"oracleId":"c48df45c-3513-4d56-aed6-30c2f3a759cd","name":"Monumental Henge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9f1e34bd6aee"]},
 
         {"oracleId":"c490157a-cff5-417b-8f83-15f84398e34f","name":"Mystic Doom Sandwich","state":"unparsed","poolIn":["commander"],"gaps":["7800673dd12a"]},
 
@@ -85530,7 +85526,7 @@
 
         {"oracleId":"cdf34da6-d952-43ca-855d-fcd9d49efae6","name":"Exocrine","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["b60f325cb993"]},
 
-        {"oracleId":"cdf41cf4-4e77-453d-be5b-0abbbd358934","name":"Castle Vantress","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["61fe50c518bd"]},
+        {"oracleId":"cdf41cf4-4e77-453d-be5b-0abbbd358934","name":"Castle Vantress","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","mana-ability","static"],"opsUsed":["scryReorder"],"definition":{"name":"Castle Vantress","types":["Land"],"oracleText":"This land enters tapped unless you control an Island.\n{T}: Add {U}.\n{2}{U}{U}, {T}: Scry 2.","activatedAbilities":[{"id":"castle-vantress-mana","oracleText":"{T}: Add {U}.","cost":{"tap":true},"useStack":false,"manaProduced":{"U":1}},{"id":"castle-vantress-ability-2","oracleText":"{2}{U}{U}, {T}: Scry 2.","cost":{"mana":{"X":2,"U":2},"tap":true},"useStack":true,"effects":[{"op":"scryReorder","player":"controller","count":2,"destination":"library-bottom"}]}],"entersTappedUnlessControls":{"kind":"controls","filter":{"subtypes":["Island"]},"atLeast":1}},"botReach":"played"},
 
         {"oracleId":"cdf5c31c-c324-471f-b6d7-06a06e91daa3","name":"Vislor Turlough","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0d2664fab106","c6847cd9f5cf","c7e98bb2e773"]},
 
@@ -90218,7 +90214,7 @@
 
         {"oracleId":"de7593ef-4115-46f7-a90b-5e12f049ec73","name":"Shahrazad and Sindbad","state":"unparsed","gaps":["1c4def028684","5efc38980163"]},
 
-        {"oracleId":"de75e5dd-8a52-406c-b55c-96d686885500","name":"Castle Garenbrig","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a1f537802ae4","edfdc93790d5"]},
+        {"oracleId":"de75e5dd-8a52-406c-b55c-96d686885500","name":"Castle Garenbrig","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a1f537802ae4"]},
 
         {"oracleId":"de7839fb-7040-48ab-a6d4-d1952972943d","name":"Black Vise","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["static","triggered"],"opsUsed":["dealDamage"],"definition":{"name":"Black Vise","types":["Artifact"],"manaCost":{"X":1},"oracleText":"As this artifact enters, choose an opponent.\nAt the beginning of the chosen player's upkeep, this artifact deals X damage to that player, where X is the number of cards in their hand minus 4.","compiledTriggeredAbilities":[{"id":"black-vise-trigger","oracleText":"At the beginning of the chosen player's upkeep, this artifact deals X damage to that player, where X is the number of cards in their hand minus 4.","head":{"kind":"phase","phase":"UPKEEP","scope":"chosen-player"},"effects":[{"op":"dealDamage","amount":{"difference":{"from":{"count":{"zone":"hand","controller":{"ref":"$event.activePlayerId"}}},"minus":4}},"to":{"player":{"ref":"$event.activePlayerId"}}}]}],"entersWith":{"asEnters":[{"kind":"opponent"}]}},"botReach":"played"},
 
@@ -97670,7 +97666,7 @@
 
         {"oracleId":"f8f450c1-f405-4ccc-aef3-f0186d1f5056","name":"Elvish Hexhunter","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["destroy"],"definition":{"name":"Elvish Hexhunter","types":["Creature"],"subtypes":["Elf","Shaman"],"manaCost":{"hybrid":[["G","W"]]},"power":1,"toughness":1,"oracleText":"{G/W}, {T}, Sacrifice this creature: Destroy target enchantment.","activatedAbilities":[{"id":"elvish-hexhunter-ability","oracleText":"{G/W}, {T}, Sacrifice this creature: Destroy target enchantment.","cost":{"mana":{"hybrid":[["G","W"]]},"tap":true,"sacrifice":true},"useStack":true,"effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":"Enchantment","count":1}}]},"botReach":"played"},
 
-        {"oracleId":"f8f4fc60-725d-46d8-8e8f-e68e00d20589","name":"Castle Ardenvale","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["57018622388a"]},
+        {"oracleId":"f8f4fc60-725d-46d8-8e8f-e68e00d20589","name":"Castle Ardenvale","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","mana-ability","static"],"opsUsed":["createToken"],"definition":{"name":"Castle Ardenvale","types":["Land"],"oracleText":"This land enters tapped unless you control a Plains.\n{T}: Add {W}.\n{2}{W}{W}, {T}: Create a 1/1 white Human creature token.","activatedAbilities":[{"id":"castle-ardenvale-mana","oracleText":"{T}: Add {W}.","cost":{"tap":true},"useStack":false,"manaProduced":{"W":1}},{"id":"castle-ardenvale-ability-2","oracleText":"{2}{W}{W}, {T}: Create a 1/1 white Human creature token.","cost":{"mana":{"X":2,"W":2},"tap":true},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Human","types":["Creature"],"subtypes":["Human"],"power":1,"toughness":1,"colors":["W"]},"controller":"controller"}]}],"entersTappedUnlessControls":{"kind":"controls","filter":{"subtypes":["Plains"]},"atLeast":1}},"botReach":"played"},
 
         {"oracleId":"f8fac28d-adf4-47e9-bdd3-8402cbf0f228","name":"Boggart Loggers","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["destroy"],"definition":{"name":"Boggart Loggers","types":["Creature"],"subtypes":["Goblin","Rogue"],"manaCost":{"X":2,"B":1},"power":2,"toughness":1,"oracleText":"Forestwalk (This creature can't be blocked as long as defending player controls a Forest.)\n{2}{B}, Sacrifice this creature: Destroy target Treefolk or Forest.","staticAbilities":["forestwalk"],"activatedAbilities":[{"id":"boggart-loggers-ability","oracleText":"{2}{B}, Sacrifice this creature: Destroy target Treefolk or Forest.","cost":{"mana":{"X":2,"B":1},"sacrifice":true},"useStack":true,"effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":["Creature","Land"],"count":1,"subtypeFilter":["Treefolk","Forest"]}}]},"botReach":"played"},
 

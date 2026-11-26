@@ -28,7 +28,9 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 // Op reads the announced graveyard card's printed values; CR 611.2a / 514.2 —
 // "until end of turn" is its timed form. CR 207.2c — Delirium is an ability
 // word: the rules weight is the printed restriction, carried as data.
-// hand-tail: This land enters tapped unless you control a Forest. (#8505)
+// CR 614.1d / 305.6 — "enters tapped unless you control a Forest" is the
+// `entersTappedUnlessControls` data the compiler emits for the same line.
+// hand-tail: Delirium — {2}{G}{G}: This land becomes a copy of target permanent card in your graveyard until end of turn. Activate only if there are four or more card types among cards in your graveyard. (#8505)
 export const shiftingWoodland = defineCard(() => ({
     id: "059164e1-894d-4586-9800-e60d6fbd6eb6",
     rarity: "rare",
@@ -36,17 +38,10 @@ export const shiftingWoodland = defineCard(() => ({
     oracleText:
         "This land enters tapped unless you control a Forest.\n{T}: Add {G}.\nDelirium — {2}{G}{G}: This land becomes a copy of target permanent card in your graveyard until end of turn. Activate only if there are four or more card types among cards in your graveyard.",
     types: ["Land"],
-    entersTappedUnless(
-        view: LandEntryStateView,
-        controllerId: string
-    ): boolean {
-        for (const player of view.players) {
-            if (player.id !== controllerId) continue;
-            return player.battlefield.some((p) =>
-                p.subtypes.includes("Forest")
-            );
-        }
-        return false;
+    entersTappedUnlessControls: {
+        kind: "controls",
+        filter: { subtypes: ["Forest"] },
+        atLeast: 1,
     },
     activatedAbilities: [
         {
