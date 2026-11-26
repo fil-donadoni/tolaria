@@ -7192,6 +7192,13 @@ export const OP_EXECUTORS: {
         // got there (a replacement moved it elsewhere, or it is still in a
         // hand) resolves to no carrier or a `hand-card` one, so no token is
         // created — which is "If you do" for free.
+        //
+        // Known edge, no card today: a ref bound to a BATTLEFIELD permanent
+        // that the script then exiles also resolves to this carrier (the
+        // issue #1401 blink fallback in `resolveObjectRef`). CR 608.2h wants
+        // that object's last known information (`lastKnownCopiable`), not
+        // the card's printed values in exile; a blink-then-copy card must
+        // add that opt-in before it ships.
         if (source?.type === "graveyard-card") recoveredLastKnown = true;
         // The `graveyard-card` carrier is the generic "card sitting in a
         // non-battlefield zone" selection shape (see `moveZone`); either
