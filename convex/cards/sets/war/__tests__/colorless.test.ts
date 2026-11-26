@@ -15,7 +15,7 @@ import {
     resolveActivated,
     submitChoice,
 } from "../../../__tests__/setup.helper";
-import { getCardByName } from "../../..";
+import { getDefinition } from "../../../index";
 import { activateAbilityOnState } from "../../../../gre/activation";
 import { applyOneTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
@@ -30,15 +30,24 @@ import type {
     GameState,
     PlayerState,
 } from "../../../../gre/state";
-import { karnTheGreatCreator } from "../colorless.cards";
 
-const KARN = karnTheGreatCreator().id;
+/** Karn, the Great Creator — the WAR printing. */
+const KARN = "3ec0c0fb-1a4f-45f4-85b7-346a6d3ce2c5";
 const PLUS1 = "karn-the-great-creator-plus1";
 const MINUS2 = "karn-the-great-creator-minus2";
 const LOCK_TEXT =
     "Activated abilities of artifacts your opponents control can't be activated.";
 
-const idOf = (name: string) => getCardByName(name).id;
+/** Literal ids (the earliest paper printings), never a name lookup. */
+const CARD_IDS: Record<string, string> = {
+    "Jayemdae Tome": "cac8c421-5b92-481d-b2de-560c0231ab58",
+    "Sol Ring": "c4300d24-1cae-4dd5-be7e-38cc677cf5bd",
+    "Chalice of the Void": "1a02ca71-5e39-4a5f-aaba-a1e3e10a6a3e",
+    "Grizzly Bears": "ce2d603a-3231-4a8c-bf39-1617586ea870",
+    "Mind Stone": "162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71",
+    "Seat of the Synod": "5da5587d-6b6c-4645-8cc9-2866d1e6911b",
+};
+const idOf = (name: string) => CARD_IDS[name]!;
 
 function perm(
     name: string,
@@ -102,8 +111,8 @@ describe("Karn, the Great Creator — static (CR 602.5)", () => {
             activateAbilityOnState(state, {
                 playerId: "p2",
                 cardInstanceId: "their-tome",
-                abilityId:
-                    getCardByName("Jayemdae Tome").activatedAbilities![0]!.id,
+                abilityId: getDefinition(idOf("Jayemdae Tome"))
+                    .activatedAbilities![0]!.id,
             })
         ).toThrow(LOCK_TEXT);
         expect(state.stack).toHaveLength(0);
