@@ -2864,6 +2864,48 @@ export function finalizeCleanupDiscard(
     drainAutoPasses(state);
 }
 
+/** CR 514.2 — true iff THIS turn's cleanup step revokes `card`'s
+ *  play-from-exile grant: the one predicate the cleanup sweep applies, and the
+ *  one the Bot's evaluation reads to tell a grant that lapses tonight from one
+ *  that persists.
+ *
+ *  Two upper bounds (issue #3235). The absolute one counts GLOBAL turns ("this
+ *  turn", "until your next end step"); the own-turn one counts the GRANTEE's
+ *  own `turnsTaken` ("until the end of YOUR next turn"), because extra turns
+ *  (CR 500.7) break the alternation an absolute stamp needs. A card carries at
+ *  most one; a card carrying neither is an open-ended grant (Ice Cauldron "as
+ *  long as it remains exiled", Robber of the Rich while-source-lives) and
+ *  never lapses here. */
+export function exileGrantLapsesAtCleanup(
+    state: Pick<GameState, "turn" | "players">,
+    card: Pick<
+        CardInstanceState,
+        | "castableFromExileBy"
+        | "castableFromExileUntilTurn"
+        | "castableFromExileUntilOwnTurn"
+    >
+): boolean {
+    if (
+        card.castableFromExileUntilTurn !== undefined &&
+        state.turn >= card.castableFromExileUntilTurn
+    ) {
+        return true;
+    }
+    if (
+        card.castableFromExileUntilOwnTurn === undefined ||
+        card.castableFromExileBy === undefined
+    ) {
+        return false;
+    }
+    const grantee = state.players.find(
+        (q) => q.id === card.castableFromExileBy
+    );
+    return (
+        grantee !== undefined &&
+        (grantee.turnsTaken ?? 0) >= card.castableFromExileUntilOwnTurn
+    );
+}
+
 /** CR 514.2 / 500.4 — revoke a card's play-from-exile grant and
  *  every rider that shares its window, while the card stays exiled. Shared by
  *  the cleanup sweep (`finalizeCleanup`) and the upkeep-entry sweep
@@ -3072,30 +3114,7 @@ export function finalizeCleanup(state: GameState): void {
         const cardList3 = p.exile;
         for (let j = 0; j < cardList3.length; j++) {
             const card = cardList3[j];
-            // CR 514.2 / 608.2g (issue #3235) — two upper bounds, one sweep.
-            // The absolute one counts GLOBAL turns ("this turn", "until your
-            // next end step"); the own-turn one counts the GRANTEE's own
-            // `turnsTaken` ("until the end of YOUR next turn"), because extra
-            // turns (CR 500.7) break the alternation an absolute stamp needs.
-            // A card carries at most one; a card carrying neither is an
-            // open-ended grant (Ice Cauldron "as long as it remains exiled",
-            // Robber of the Rich while-source-lives) and is untouched.
-            const grantee =
-                card.castableFromExileUntilOwnTurn !== undefined &&
-                card.castableFromExileBy !== undefined
-                    ? state.players.find(
-                          (q) => q.id === card.castableFromExileBy
-                      )
-                    : undefined;
-            const ownTurnExpired =
-                grantee !== undefined &&
-                (grantee.turnsTaken ?? 0) >=
-                    card.castableFromExileUntilOwnTurn!;
-            if (
-                (card.castableFromExileUntilTurn !== undefined &&
-                    state.turn >= card.castableFromExileUntilTurn) ||
-                ownTurnExpired
-            ) {
+            if (exileGrantLapsesAtCleanup(state, card)) {
                 revokeExilePlayGrant(card);
             }
         }

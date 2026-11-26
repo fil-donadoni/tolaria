@@ -34373,4 +34373,89 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             moves: [{ kind: "activate-ability", card: "Loot, the Pathfinder" }],
         },
     },
+    {
+        // Issue #10464 — an exiled land under a this-turn PLAY grant (Laelia's
+        // attack trigger already resolved) beside a land in hand, the drop
+        // unused: the exiled one lapses at cleanup (CR 514.2), the hand one
+        // keeps.
+        label: "expiring exile land: play the exiled land before the hand land (CR 305.2)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Snow-Covered Mountain",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Laelia, the Blade Reforged",
+                    owner: "me",
+                    tapped: true,
+                },
+                { name: "Mountain", owner: "me" },
+                { name: "Mountain", owner: "me" },
+                { name: "Mountain", owner: "me" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "exile",
+                    castableFromExile: true,
+                    castableFromExileIncludesLand: true,
+                },
+                { name: "Grizzly Bears", owner: "opp" },
+                { name: "Forest", owner: "opp" },
+                { name: "Forest", owner: "opp" },
+            ],
+            phase: "POSTCOMBAT_MAIN",
+            turn: 7,
+            libraryCount: 20,
+            activePlayer: "me",
+            priority: "me",
+        },
+        bot: "me",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5],
+        tier: "must",
+        expect: { moves: [{ kind: "play-land", card: "Mountain" }] },
+        note: "Issue #10464, CR 305.2 / 514.2. One land drop, two lands: the exiled Mountain's grant lapses at this turn's cleanup, so the Snow-Covered Mountain in hand is the land that keeps. `evaluate` counts an exiled land under a lapsing grant as latent material only while a drop is still open this turn (`exileLandPlayableBeforeLapse`), so playing the hand land reads as spending the exiled one too.",
+    },
+    {
+        // Issue #10464 — the same turn one step earlier: Laelia can attack,
+        // and her trigger exiles the top card with a this-turn play grant. The
+        // library is `libraryCount` basics, so that card is a land.
+        label: "expiring exile land: hold the hand land drop for Laelia's attack (CR 305.2)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the attack trigger can exile a land under a this-turn play grant",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Laelia, the Blade Reforged", owner: "me" },
+                { name: "Mountain", owner: "me" },
+                { name: "Mountain", owner: "me" },
+                { name: "Mountain", owner: "me" },
+                {
+                    name: "Snow-Covered Mountain",
+                    owner: "me",
+                    zone: "hand",
+                },
+                { name: "Forest", owner: "opp" },
+                { name: "Forest", owner: "opp" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 7,
+            libraryCount: 20,
+            activePlayer: "me",
+            priority: "me",
+        },
+        bot: "me",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4, 5],
+        tier: "must",
+        expect: { moves: [{ kind: "pass" }] },
+        note: "Issue #10464, CR 305.2. Nothing in hand needs the fourth mana, so the drop now and the drop after combat are two orders of one play, and the later one also opens the line where the drop goes to the land Laelia exiles. The search sees it (at 3000 iterations `pass` out-rewards the drop), but at 300 the deferred node's extra land decision dilutes its margin and the material tie-break took the drop. `free-development`'s deferred-drop arm keeps `pass` when it is outcome-equal and its subtree plays a land out of exile this turn that the root cannot (`Edge.exileLandTurn`).",
+    },
 ];

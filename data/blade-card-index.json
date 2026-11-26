@@ -973,6 +973,11 @@
             "label": "enter-trigger discard: Fear of Missing Out discards the surplus land",
             "tier": "must",
             "needsSetup": true
+        },
+        {
+            "label": "expiring exile land: play the exiled land before the hand land (CR 305.2)",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Mox Diamond": [
