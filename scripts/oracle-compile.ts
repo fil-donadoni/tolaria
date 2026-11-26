@@ -214,6 +214,7 @@ function toOracleCard(card: CorpusCard): OracleCard {
         power: card.power,
         toughness: card.toughness,
         loyalty: card.loyalty,
+        ...(card.colorIndicator ? { colorIndicator: card.colorIndicator } : {}),
         layout: card.layout,
         // CR 715 / 722 (ADR 0120 §5) — the corpus reducer has produced
         // `card_faces` since before anything consumed it. Threading it here is

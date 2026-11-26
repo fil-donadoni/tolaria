@@ -18,9 +18,9 @@ export const livingEnd = defineCard(() => ({
     rarity: "rare",
     oracleText:
         "Suspend 3—{2}{B}{B} (Rather than cast this card from your hand, pay {2}{B}{B} and exile it with three time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)\nEach player exiles all creature cards from their graveyard, then sacrifices all creatures they control, then puts all cards they exiled this way onto the battlefield.",
+    // CR 202.2e — no mana cost; its black colour indicator makes it black.
+    colorIndicator: ["B"],
     types: ["Sorcery"],
-    // CR 202.2e — its black color indicator is not modeled: with no mana cost
-    // the card reads colorless. tracked-by: #10761
     staticAbilities: ["suspend 3"],
     suspend: { X: 2, B: 2 },
     effects: [

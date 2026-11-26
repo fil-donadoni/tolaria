@@ -424,6 +424,11 @@ export function goldOracleCard(definition: CardDefinition): OracleCard {
             definition.loyalty === undefined
                 ? undefined
                 : String(definition.loyalty),
+        // CR 202.2e — a front face's colour indicator is corpus data, not
+        // rules text: the hand-written card's claim is the compiler's input.
+        ...(definition.colorIndicator
+            ? { colorIndicator: [...definition.colorIndicator] }
+            : {}),
         // CR 715 / 722 (ADR 0120 §5) — an adventurer card's Oracle text lives
         // in `card_faces`, and so must the round-trip's input: compiling the
         // parent's text alone would compile a fragment of the card while
