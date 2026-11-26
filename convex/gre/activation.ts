@@ -173,7 +173,7 @@ import {
     payLifeCost,
 } from "./state";
 import type { ManaRiders, SpellManaRiders } from "./state";
-import { canPayTapOtherCost } from "./tapOtherCost";
+import { canPayTapOtherCost, singleCostTappedId } from "./tapOtherCost";
 import type { ManaRestriction, RestrictionSubject } from "./types";
 import { ConvexError } from "convex/values";
 
@@ -1375,6 +1375,7 @@ export function tryAutoCommitPendingActivation(
     // while mana was being paid. If any pick is no longer a legal payment,
     // drop the activation silently (lands stay tapped, mirroring the
     // vanished-source policy above).
+    let costTappedId: string | undefined;
     if (pa.tapOtherChoice) {
         const picks: CardInstanceState[] = [];
         const idList2 = pa.tapOtherChoice.pickedIds;
@@ -1391,6 +1392,7 @@ export function tryAutoCommitPendingActivation(
             const perm = picks[i];
             tapPermanent(state, perm);
         }
+        costTappedId = singleCostTappedId(picks.map((p) => p.id));
     }
     // CR 601.2h — a cost that moves an object from the LIBRARY to a public
     // zone is paid after every other cost: "Exile the top card of your
@@ -1452,6 +1454,7 @@ export function tryAutoCommitPendingActivation(
               }
             : {}),
         ...(notedManaSpent ? { notedManaSpent } : {}),
+        ...(costTappedId ? { costTappedId } : {}),
     });
     state.stack.push(stackItem);
     announceChosenX(state, stackItem);

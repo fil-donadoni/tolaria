@@ -4108,6 +4108,7 @@ export function resetStackTransientState(item: StackItem): void {
     delete item.chosenModeIds;
     delete item.modeTargetCounts;
     delete item.additionalSacrificeSnapshot;
+    delete item.costTapped;
     delete item.castExiledCardIds;
     delete item.notedManaSpent;
     delete item.restrictedXManaOwed;
@@ -8284,6 +8285,21 @@ export function removePermanentTo(
             item.triggerEvent = {
                 ...item.triggerEvent,
                 enlistedPower: getEffectivePT(state, creature).power,
+            };
+        }
+        // CR 702.184a / 608.2h (issue #10528) — a station ability still on the
+        // stack reads "the tapped creature's power" as it last existed on the
+        // battlefield. Stamped once: a same-id object that re-enters is a new
+        // object (CR 400.7) and must not overwrite the first departure.
+        if (
+            item.costTapped?.id === creature.id &&
+            item.costTapped.lkiPower === undefined
+        ) {
+            const pt = getEffectivePT(state, creature);
+            item.costTapped = {
+                id: creature.id,
+                lkiPower: pt.power,
+                lkiToughness: pt.toughness,
             };
         }
     }
@@ -18287,6 +18303,9 @@ export function buildSpellContext(
         },
         getAdditionalSacrificePower(): number | undefined {
             return item.additionalSacrificeSnapshot?.power;
+        },
+        getCostTapped() {
+            return item.costTapped;
         },
         getAdditionalSacrificeToughness(): number | undefined {
             return item.additionalSacrificeSnapshot?.toughness;

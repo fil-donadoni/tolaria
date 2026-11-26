@@ -65,6 +65,9 @@ export type ActivatedAbilityCommit = {
     /** CR 118.8 / 601.2f — snapshot of the permanent sacrificed as an
      *  additional cost, captured at commit because it is gone by resolution. */
     additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
+    /** CR 702.184a (issue #10528) — the one permanent a single-pick
+     *  `tapOtherFilter` leg tapped, read back as `$costTapped`. */
+    costTappedId?: string;
     /** CR 106.10 — the mana-pool delta noted for a battery (Jeweled Amulet). */
     notedManaSpent?: Record<string, number>;
 };
@@ -106,6 +109,7 @@ export function buildActivatedAbilityStackItem(
     if (commit.additionalSacrificeSnapshot) {
         item.additionalSacrificeSnapshot = commit.additionalSacrificeSnapshot;
     }
+    if (commit.costTappedId) item.costTapped = { id: commit.costTappedId };
     if (commit.notedManaSpent) item.notedManaSpent = commit.notedManaSpent;
     // CR 701.27f (issue #3537) — the moment this ability is put onto the
     // stack, as its source and that source's transform count.

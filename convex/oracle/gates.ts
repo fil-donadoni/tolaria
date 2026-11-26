@@ -58,6 +58,7 @@ import { isRegisteredEffectOp } from "../cards/mechanicsRegistry";
 import { expandCascade } from "../cards/abilities/cascade";
 import { expandHideaway } from "../cards/abilities/hideaway";
 import { buildLevelBarAbility } from "../cards/abilities/classLevels";
+import { buildStationAbility } from "../cards/abilities/station";
 import { registerTokenDefinition } from "../cards/registry";
 import { resolveCompiledTrigger } from "../cards/compiledTriggers";
 import type { CompiledTriggerHead } from "../cards/compiledTriggers";
@@ -450,6 +451,14 @@ export function expanderOps(definition: CompiledDefinition): string[] {
             buildLevelBarAbility
         ) as unknown as CompiledDefinition
     );
+    // CR 702.184a — a station card's station ability, whose `counters` no
+    // authored script carries.
+    if (bare.stationThresholds?.length)
+        barOps.push(
+            ...collectOps({
+                activatedAbilities: [buildStationAbility()],
+            } as unknown as CompiledDefinition)
+        );
     // CR 702.75a — `hideaway N` runs the `hideaway` Op via `expandHideaway`.
     const expanded = expandHideaway(expandCascade(bare));
     if (expanded === bare) return barOps;

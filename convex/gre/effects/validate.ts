@@ -4447,6 +4447,7 @@ function isCaptureMap(value: unknown): boolean {
             k !== "$each" &&
             k !== "$source" &&
             k !== "$host" &&
+            k !== "$costTapped" &&
             (isNonEmptyString(v) ||
                 isTargetRef(v) ||
                 isBareRef(v) ||
@@ -4473,6 +4474,7 @@ function isReflexiveCaptureMap(value: unknown): boolean {
             k !== "$each" &&
             k !== "$source" &&
             k !== "$host" &&
+            k !== "$costTapped" &&
             (isNonEmptyString(v) ||
                 isTargetRef(v) ||
                 isBareRef(v) ||
@@ -11037,7 +11039,12 @@ const EMPTY_BINDINGS: ReadonlySet<string> = new Set();
  *  seeded at runtime for an actually-attached source: an unattached source
  *  resolves it to undefined and the reading Op skips (CR 608.2b), exactly as
  *  `$source` does for a source that has left the battlefield. */
-const ABILITY_BINDINGS: ReadonlySet<string> = new Set(["$source", "$host"]);
+const ABILITY_BINDINGS: ReadonlySet<string> = new Set([
+    "$source",
+    "$host",
+    // CR 702.184a (issue #10528) — the permanent tapped to pay the cost.
+    "$costTapped",
+]);
 /** What `AsEntersChoice.whenCopied`'s body may read: the ability site's own, and
  *  the card the copy effect copied. */
 const COPY_LINKED_TRIGGER_BINDINGS: ReadonlySet<string> = new Set([

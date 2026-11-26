@@ -14,6 +14,7 @@ import type {
 import { activationRestrictionViolation } from "./activationRestrictions";
 import { COLORED_MANA_COLORS, isManaAbilityForRules } from "./constants";
 import { exhaustGateOpen } from "./exhaust";
+import { stationChargeGateOpen } from "../cards/abilities/station";
 import { maxSpeedGateOpen } from "./speed";
 
 /**
@@ -55,6 +56,7 @@ export function activationPreconditionViolation(
         | "requiresMaxSpeed"
         | "id"
         | "exhaust"
+        | "functionsAtStationCharge"
         | "activateFromGraveyard"
         | "useStack"
         | "manaProduced"
@@ -89,6 +91,11 @@ export function activationPreconditionViolation(
     // CR 702.177a — an exhaust ability is activated only once.
     if (!exhaustGateOpen(ability, source)) {
         return "Activate only once";
+    }
+    // CR 721.2a (issue #10528) — an ability printed in a `{N+}` striation
+    // exists only at N or more charge counters.
+    if (!stationChargeGateOpen(ability, source)) {
+        return "Ability cannot be activated right now";
     }
     if (
         ability.activationCondition !== undefined &&

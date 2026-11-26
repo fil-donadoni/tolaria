@@ -15664,6 +15664,16 @@
         "source": "compiled"
     },
     {
+        "name": "Class-F Shuttlecraft",
+        "scryfallId": "55e0a183-4145-472f-8bed-a1f247febe06",
+        "oracleId": "4ccc91f2-4d6e-4d64-b438-3d8b4361040a",
+        "firstSet": "trk",
+        "firstPrintId": "55e0a183-4145-472f-8bed-a1f247febe06",
+        "firstPrintSet": "trk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Clattering Augur",
         "scryfallId": "a22dd28d-eb65-410a-af17-51b5064c6033",
         "oracleId": "d88f249f-5bf1-448a-91d1-f81538dfd475",
@@ -28246,6 +28256,16 @@
         "source": "compiled"
     },
     {
+        "name": "Enterprise NX-01",
+        "scryfallId": "385638fe-cafb-4541-ba37-19bc57520c48",
+        "oracleId": "947729a8-f8b0-4e08-9a87-6602af0e3c0a",
+        "firstSet": "trk",
+        "firstPrintId": "385638fe-cafb-4541-ba37-19bc57520c48",
+        "firstPrintSet": "trk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Enthusiastic Mechanaut",
         "scryfallId": "ac00521f-1b7d-478d-afe8-6761ea512d8d",
         "oracleId": "c9722086-23e8-43dc-8a8c-541ff6962318",
@@ -29011,6 +29031,16 @@
         "firstPrintId": "547e7238-ed01-462a-8135-08114ada7541",
         "firstPrintSet": "trc",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Evendo, Waking Haven",
+        "scryfallId": "2fa09104-acbe-4410-b101-2fe6ac28efde",
+        "oracleId": "83161d59-2520-4741-9328-e2a4a8b5d5bc",
+        "firstSet": "eoe",
+        "firstPrintId": "2fa09104-acbe-4410-b101-2fe6ac28efde",
+        "firstPrintSet": "eoe",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {
@@ -35194,6 +35224,16 @@
         "firstSet": "mh2",
         "firstPrintId": "06373318-e548-4664-b227-17e3b6fd0a88",
         "firstPrintSet": "mh2"
+    },
+    {
+        "name": "Galvanizing Sawship",
+        "scryfallId": "5bbce9fb-401f-4e78-acd5-9d3b506687fd",
+        "oracleId": "dfe8f77a-cc26-438b-92ae-2ca7a91f813b",
+        "firstSet": "eoe",
+        "firstPrintId": "5bbce9fb-401f-4e78-acd5-9d3b506687fd",
+        "firstPrintSet": "eoe",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Game of Chaos",
@@ -53372,6 +53412,16 @@
         "firstPrintId": "6c86c84e-9bab-4a2c-b594-7f7b4b6bba88",
         "firstPrintSet": "isd",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Lumen-Class Frigate",
+        "scryfallId": "0cc59b5a-65fa-47cc-8ac7-b7c3f533a782",
+        "oracleId": "3aa0cda4-fb2d-4fd4-84f6-482089a85547",
+        "firstSet": "eoe",
+        "firstPrintId": "0cc59b5a-65fa-47cc-8ac7-b7c3f533a782",
+        "firstPrintSet": "eoe",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -97277,6 +97327,26 @@
         "source": "compiled"
     },
     {
+        "name": "U.S.S. Defiant, Tough Little Ship",
+        "scryfallId": "e92acccf-d5a6-4559-8acd-d24492b0649e",
+        "oracleId": "87b8fef3-f40e-44a9-afd5-31d3917b1d59",
+        "firstSet": "trc",
+        "firstPrintId": "e92acccf-d5a6-4559-8acd-d24492b0649e",
+        "firstPrintSet": "trc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "U.S.S. Excelsior, Cutting Edge",
+        "scryfallId": "de62b452-3780-4eeb-8163-f44176495615",
+        "oracleId": "9f4ae54b-f77d-43df-87d5-792ac0905058",
+        "firstSet": "trk",
+        "firstPrintId": "de62b452-3780-4eeb-8163-f44176495615",
+        "firstPrintSet": "trk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Ubul Sar Gatekeepers",
         "scryfallId": "f5b2e327-adfd-459b-8d18-faa39d88b5de",
         "oracleId": "f4e15575-2277-4cb1-a343-e9407c050eb1",
@@ -98680,6 +98750,16 @@
         "firstPrintId": "2ff21a6f-83a7-4bf3-a078-294e303232cc",
         "firstPrintSet": "lea",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Uthros, Titanic Godcore",
+        "scryfallId": "11da39d6-cfa6-498d-91b1-11454cc7e5a3",
+        "oracleId": "df08ac72-010f-42f8-beb3-6d645c638e1e",
+        "firstSet": "eoe",
+        "firstPrintId": "11da39d6-cfa6-498d-91b1-11454cc7e5a3",
+        "firstPrintSet": "eoe",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {

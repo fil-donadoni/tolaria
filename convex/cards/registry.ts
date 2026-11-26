@@ -55,6 +55,7 @@ import { expandRiot } from "./abilities/riot";
 import { expandExtort } from "./abilities/extort";
 import { expandChapterAbilities } from "./abilities/sagas";
 import { expandClassLevelBars } from "./abilities/classLevels";
+import { expandStationThresholds } from "./abilities/station";
 import { expandCompiledStatics } from "./compiledStatics";
 import { expandShuffleFromAnywhere } from "./abilities/shuffleFromAnywhereReplacement";
 import { expandControllerDamagePrevention } from "./abilities/controllerDamagePrevention";
@@ -234,6 +235,27 @@ const classSectionStatics = (
         ...(bar.compiledStaticEffects ?? []),
     ]);
 
+/** CR 721.2a/b (issue #10528) — the kinds `expandStationThresholds` injects
+ *  for a striation's P/T box and keywords, at the same post-index seam. */
+const STATION_INJECTED_KINDS = ["type-add", "pt-set", "keyword-grant"] as const;
+
+/** CR 721.2a — a station striation's printed statics, plus the kinds the
+ *  expander will inject for its P/T box and keywords; none exist on the raw
+ *  entry this index reads. */
+const stationSectionDeclaresKind = (
+    def: CardDefinition,
+    kinds: ReadonlySet<string>
+): boolean =>
+    (def.stationThresholds ?? []).some(
+        (t) =>
+            [
+                ...(t.staticEffects ?? []),
+                ...(t.compiledStaticEffects ?? []),
+            ].some((e) => kinds.has(e.kind)) ||
+            ((t.creature !== undefined || (t.keywords ?? []).length > 0) &&
+                STATION_INJECTED_KINDS.some((kind) => kinds.has(kind)))
+    );
+
 const declaresStaticKind = (
     def: CardDefinition,
     kinds: ReadonlySet<string>
@@ -243,6 +265,7 @@ const declaresStaticKind = (
     // CR 716.2a — a Class section's statics reach `staticEffects` only at the
     // `expandClassLevelBars` seam, after this index reads the raw entry.
     classSectionStatics(def).some((e) => kinds.has(e.kind)) ||
+    stationSectionDeclaresKind(def, kinds) ||
     (def.modes ?? []).some((m) =>
         (m.staticEffects ?? []).some((e) => kinds.has(e.kind))
     ) ||
@@ -696,27 +719,30 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
                                             expandHideaway(
                                                 expandKeywordTriggers(
                                                     expandFadingVanishing(
-                                                        // CR 716.2 (issue #3234) — the Class level bars sit
+                                                        // CR 716.2 (issue #3234) — the Class level bars (and
+                                                        // CR 721.2 station striations, issue #10528) sit
                                                         // beside `expandChapterAbilities`: both desugar a
                                                         // printed TEXT BOX SECTION declared as data, and
                                                         // both must run before any expander that reads the
                                                         // ability arrays they inject into.
-                                                        expandClassLevelBars(
-                                                            expandChapterAbilities(
-                                                                expandCompiledTriggers(
-                                                                    expandCompiledStatics(
-                                                                        // CR 614.1a — the compiled
-                                                                        // "shuffle it into its owner's
-                                                                        // library instead" flag, rebuilt
-                                                                        // innermost beside the other
-                                                                        // compiled descriptors.
-                                                                        expandShuffleFromAnywhere(
-                                                                            expandDamagePreventionCounterRemoval(
-                                                                                expandControllerDamagePrevention(
-                                                                                    expandDamageLifeFloor(
-                                                                                        expandDamageAsCounters(
-                                                                                            expandCompiledReplacements(
-                                                                                                base
+                                                        expandStationThresholds(
+                                                            expandClassLevelBars(
+                                                                expandChapterAbilities(
+                                                                    expandCompiledTriggers(
+                                                                        expandCompiledStatics(
+                                                                            // CR 614.1a — the compiled
+                                                                            // "shuffle it into its owner's
+                                                                            // library instead" flag, rebuilt
+                                                                            // innermost beside the other
+                                                                            // compiled descriptors.
+                                                                            expandShuffleFromAnywhere(
+                                                                                expandDamagePreventionCounterRemoval(
+                                                                                    expandControllerDamagePrevention(
+                                                                                        expandDamageLifeFloor(
+                                                                                            expandDamageAsCounters(
+                                                                                                expandCompiledReplacements(
+                                                                                                    base
+                                                                                                )
                                                                                             )
                                                                                         )
                                                                                     )
