@@ -29,3 +29,55 @@ export const stockUp = defineCard(() => ({
         },
     ],
 }));
+
+// Mindspring Merfolk — {U} Creature — Merfolk Wizard 1/1. "Exhaust — {X}{U}{U},
+// {T}: Draw X cards. Put a +1/+1 counter on each Merfolk creature you control."
+// CR 702.177a: the `exhaust` gate makes the ability "Activate only once"; CR
+// 107.3k: the X in its activation cost is chosen for this activation alone and
+// read back by `draw`'s `{ X: true }` count. CR 122.1a: the mass +1/+1 counter
+// placement is `forEach` over the Merfolk creatures its controller controls on
+// resolution.
+// hand-tail: Exhaust — {X}{U}{U}, {T}: Draw X cards. Put a +1/+1 counter on each Merfolk creature you control. (#10510)
+export const mindspringMerfolk = defineCard(() => ({
+    id: "b6250b8b-1943-445f-ada9-30b41eb6d29b",
+    name: "Mindspring Merfolk",
+    rarity: "rare",
+    oracleText:
+        "Exhaust — {X}{U}{U}, {T}: Draw X cards. Put a +1/+1 counter on each Merfolk creature you control. (Activate each exhaust ability only once.)",
+    manaCost: { U: 1 },
+    types: ["Creature"],
+    subtypes: ["Merfolk", "Wizard"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "mindspring-merfolk-ability",
+            oracleText:
+                "Exhaust — {X}{U}{U}, {T}: Draw X cards. Put a +1/+1 counter on each Merfolk creature you control.",
+            cost: { mana: { X: "X", U: 2 }, tap: true },
+            useStack: true,
+            exhaust: true,
+            effects: [
+                { op: "draw", player: "controller", count: { X: true } },
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature", subtype: "Merfolk" },
+                    },
+                    effects: [
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "+1/+1",
+                            target: { ref: "$each" },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+}));
