@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import { defineCard } from "../../types";
+import { defineCard, IS_NONBASIC_LAND } from "../../types";
 import { investigateOp } from "../../abilities/tokens/clueToken";
 import {
     drawTrigger,
@@ -328,5 +328,48 @@ export const strixSerenade = defineCard(() => ({
             count: 1,
         },
         { op: "counter", target: { target: 0 } },
+    ],
+}));
+
+// ─────────────────────────────────────────────────────────────────────────
+// Harbinger of the Seas (issue #10502)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// {1}{U}{U} 2/2 Creature — Merfolk Wizard. "Nonbasic lands are Islands." is
+// Blood Moon's land type-change (`sets/drk/red.cards.ts`) with Island for
+// Mountain, so it is that composition — the shared `IS_NONBASIC_LAND`
+// predicate (`cards/types.ts`) scanned twice:
+//   • `subtype-set` (CR 305.7 layer 4) replaces its land types with Island,
+//   • `ability-loss` (CR 613.1f layer 6) strips the land's printed abilities,
+// so the only ability a nonbasic land keeps is the intrinsic "{T}: Add {U}"
+// its new basic land type grants (CR 305.6). Basic lands are untouched.
+// hand-tail: Nonbasic lands are Islands. (#10502)
+export const harbingerOfTheSeas = defineCard(() => ({
+    id: "00212714-a410-4cbc-bf1c-f90d7d77378c",
+    rarity: "rare",
+    name: "Harbinger of the Seas",
+    oracleText: "Nonbasic lands are Islands.",
+    manaCost: { X: 1, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Merfolk", "Wizard"],
+    power: 2,
+    toughness: 2,
+    staticEffects: [
+        // CR 613.1f — the layer-6 ability strip, so the land keeps only what
+        // its new Island subtype grants it.
+        {
+            kind: "ability-loss",
+            applies: IS_NONBASIC_LAND,
+        },
+        // CR 305.7 — the land's land types become Island, and only Island.
+        {
+            kind: "subtype-set",
+            applies: IS_NONBASIC_LAND,
+            subtypes: ["Island"],
+            // CR 613.8a clause (b) — `IS_NONBASIC_LAND` reads the printed type
+            // line and the Basic supertype, never a land's subtypes, so no
+            // layer-4 effect can make this one wait.
+            reads: [{ characteristic: "supertypes", values: ["Basic"] }],
+        },
     ],
 }));
