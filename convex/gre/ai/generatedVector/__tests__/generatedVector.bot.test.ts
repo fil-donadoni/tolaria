@@ -310,11 +310,14 @@ describe("generated vector — a column names a class, never a card (ADR 0186, D
         ...colors,
         ...CARD_TYPES,
         ...PLAYER_COUNTER_KINDS,
-        ...NEED_MEASURES,
-        ...NEED_SIDES,
         "MULLIGAN",
         ...PHASE_ORDER,
     ]);
+
+    /** The `need` family's measures: this module's own closed list, so it
+     *  may only ADMIT a segment — never excuse one that spells a card's
+     *  name, which the catalogue-wide test below still refuses. */
+    const ownVocabulary = new Set<string>([...NEED_MEASURES, ...NEED_SIDES]);
 
     const segments = new Set<string>();
     for (const name of generatedColumns()) {
@@ -332,14 +335,12 @@ describe("generated vector — a column names a class, never a card (ADR 0186, D
         // shape: one camelCase identifier, never a name with spaces or a
         // card id.
         for (const leg of costLegs) expect(leg).toMatch(/^[a-z][A-Za-z]*$/);
-        // The `need` family's measures are this module's own closed list,
-        // held to the same shape; the catalogue-wide test below holds them
-        // against every card's name.
-        for (const m of NEED_MEASURES) expect(m).toMatch(/^[a-z][A-Za-z0-9]*$/);
+        for (const m of ownVocabulary) expect(m).toMatch(/^[a-z][A-Za-z0-9]*$/);
         const foreign = [...segments].filter(
             (segment) =>
                 !mechanicNames.has(segment) &&
                 !structural.has(segment) &&
+                !ownVocabulary.has(segment) &&
                 !costLegs.has(segment)
         );
         expect(foreign).toEqual([]);
