@@ -78,7 +78,7 @@ export async function getLatestGameState(
     gameId: GenericId<"games">
 ): Promise<LoadedGameState | null> {
     const loaded = await loadGameStateRows(ctx, gameId);
-    if (loaded) await hydrateAutoOrderSeats(ctx, gameId, loaded.state);
+    if (loaded) await hydrateAutoOrderSeats(ctx, gameId, loaded);
     return loaded;
 }
 
@@ -106,18 +106,29 @@ async function loadGameStateRows(
     };
 }
 
+/** The `vsAi` flag the `gameStates` row mirrors (`convex/schema.ts`), or
+ *  `undefined` on a legacy row that carries NEITHER mode flag — the same
+ *  legacy marker `getPublicState` reads. Both are written together, the
+ *  `false` case included, so one present flag means the other is known. */
+function knownVsAi(row: Pick<Doc<"gameStates">, "solo" | "vsAi">) {
+    if (row.solo === undefined && row.vsAi === undefined) return undefined;
+    return row.vsAi === true;
+}
+
 /** Issue #9988 — hang the seats that opted into automatic trigger/graveyard
  *  ordering on the loaded state (transient: `compactState` drops it). Absent
  *  when no seat opted in, which is the default. */
 async function hydrateAutoOrderSeats(
     ctx: ReadCtx,
     gameId: GenericId<"games">,
-    state: GameState
+    loaded: LoadedGameState
 ): Promise<void> {
+    const state = loaded.state as GameState;
     const seats = await loadAutoOrderSeatIds(
         ctx,
         gameId,
-        state.players.map((p) => p.id)
+        state.players.map((p) => p.id),
+        knownVsAi(loaded)
     );
     if (seats.length > 0) state.autoOrderSeatIds = seats;
 }

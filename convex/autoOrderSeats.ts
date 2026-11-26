@@ -19,15 +19,24 @@ function seatUserId(seatId: string): string {
 
 /** Seats of `gameId` whose user turned the preference on. The Bot seat of a
  *  vs-AI Game is never listed: the Bot orders by search, not by preference.
- *  Empty when nobody opted in (the default), so callers can skip the field. */
+ *  Empty when nobody opted in (the default), so callers can skip the field.
+ *
+ *  `knownVsAi` is the caller's mode flag when it already holds one — the
+ *  `gameStates` row mirrors `vsAi` at insert (`convex/schema.ts`), and a
+ *  mutation's loader has just read that row. Passing it keeps the `games`
+ *  row out of every game mutation's read set (issue #10900: a document read
+ *  is billed whole, and this ran on every mutation of every vs-AI Game).
+ *  `undefined` = unknown (a legacy row with neither flag): read `games`. */
 export async function loadAutoOrderSeatIds(
     ctx: ReadCtx,
     gameId: GenericId<"games">,
-    seatIds: readonly string[]
+    seatIds: readonly string[],
+    knownVsAi?: boolean
 ): Promise<string[]> {
     // Only a `-p2` seat can be the Bot's, and only a vs-AI Game has one — the
-    // Game row is read lazily, for that seat alone.
-    let vsAi: boolean | undefined;
+    // Game row is read lazily, for that seat alone, and only when the caller
+    // did not already know the mode.
+    let vsAi: boolean | undefined = knownVsAi;
     const optedIn = new Map<string, boolean>();
     const seats: string[] = [];
     for (const seatId of seatIds) {
