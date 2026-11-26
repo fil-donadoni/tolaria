@@ -456,8 +456,9 @@ export type RestrictionSubject = {
 };
 /** CR 106.6 (issue #9861) — the object a mana payment is FOR, as a spend
  *  restriction judges it: a spell being cast (its card types, supertypes and
- *  colour/subtype subject) or an activated ability (its source's types and
- *  subject). `restrictedManaMayPay` (`state.ts`) is the one reader. */
+ *  colour/subtype subject), an activated ability (its source's types and
+ *  subject), or a `may-pay` leg (the one restriction the choice admits).
+ *  `restrictedManaMayPay` (`state.ts`) is the one reader. */
 export type ManaPaymentSubject =
     | {
           kind: "spell";
@@ -469,7 +470,8 @@ export type ManaPaymentSubject =
           kind: "ability";
           sourceTypes: readonly string[];
           sourceSubject?: RestrictionSubject;
-      };
+      }
+    | { kind: "may-pay"; restriction?: ManaRestriction };
 /** Pile-division divide-then-choose family (ADR 0053, CR-generic "separate
  *  into two piles" cycle — Fact or Fiction, Do or Die, …). Two ordered
  *  members driven by ONE `divideIntoPiles` Effect Script Op:

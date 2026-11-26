@@ -589,10 +589,11 @@ function spendableManaPoolForRestriction(
 
 /** Whether the bot can pay a `may-pay` cost from its CURRENT mana pool — the
  *  intentionally minimal "trivially affordable" test (ADR 0016). A cost-less
- *  may-pay is always affordable. `submitMayPay` pays from the pool only (lands
- *  must already be tapped) and throws if it can't cover, so this conservative
- *  check guarantees an accepted submission is never rejected back into a freeze;
- *  it ignores mana substitutions, which only make the server MORE permissive.
+ *  may-pay is always affordable. `submitMayPay` would Auto-Tap what the pool is
+ *  short of, but the Bot taps its own plan first (a Move's `tapPlan`), so this
+ *  check reads the pool alone: conservative, an accepted submission is never
+ *  rejected back into a freeze. It ignores mana substitutions, which only make
+ *  the server MORE permissive.
  *  The mana leg additionally draws on `head.manaRestriction`-matching
  *  `restrictedMana` (CR 106.6, ADR 0042) — e.g. Snowfall / Adarkar Unicorn
  *  mana reserved for a cumulative-upkeep `may-pay` — via

@@ -102,8 +102,10 @@ export type SubmitMayPayArgs = {
 
 /** Validates and applies a yes/no `may-pay` submission (CR 117.3a / 118.4)
  *  against the current head pending choice. Mutates `state` in place. On accept
- *  with a cost, the cost is paid from the player's mana pool (lands must already
- *  have been tapped via `tapForPayment`); throws if the pool can't cover it.
+ *  with a cost, the cost is paid from the player's mana pool: the sources that
+ *  make it are tapped BEFORE this runs (by hand, by the Bot's tap plan, or by
+ *  the `submitMayPay` mutation's Auto-Tap leg); throws if the pool can't cover
+ *  it.
  *  Throws on identity mismatch or a non-`may-pay` head. Extracted from the
  *  `submitMayPay` mutation so the mutation and the bot's resolution path
  *  (ADR 0016) drive the SAME primitive. */

@@ -19,7 +19,7 @@ import { usePendingChoiceBuffer } from "./usePendingChoiceBuffer";
 
 export type PendingChoicePrimaryAction = {
     /** Whether the affirmative button is currently legal to fire (mana
-     *  covered for `may-pay`; buffer within [min, max] for zone picks). */
+     *  covered — by the pool or by Auto-Tap — for `may-pay`; buffer within [min, max] for zone picks). */
     canConfirm: boolean;
     /** Commit the primary choice (Pay/Yes for `may-pay`, Done/Skip for zone
      *  picks). No-op while a submission is in flight. */
@@ -240,7 +240,8 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                           // energy survives the wire projection unchanged
                           // (`PlayerState.energyCounters`).
                           chooser.energyCounters,
-                          chooser.graveyard
+                          chooser.graveyard,
+                          choice.manaAutoTappable
                       )
                     : false));
     } else if (choice.kind === "miracle-reveal") {
