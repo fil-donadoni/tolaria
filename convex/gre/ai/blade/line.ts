@@ -198,6 +198,9 @@ export function walkLine(
     return null;
 }
 
+/** `matchesMove`'s refusal of a name with no instance (`matcher.ts`). */
+const UNDEALT_NAME = /but no instance of it exists in/;
+
 /** `matchesMove` on a world the search imagined: a name with no instance in
  *  it (an opponent's card the determinization did not deal) matches nothing.
  *  On the built position the same name is an authoring error, and the walk
@@ -209,8 +212,11 @@ function matchesOnWorld(
 ): boolean {
     try {
         return matchesMove(state, move, matcher);
-    } catch {
-        return false;
+    } catch (error) {
+        if (error instanceof Error && UNDEALT_NAME.test(error.message)) {
+            return false;
+        }
+        throw error;
     }
 }
 
