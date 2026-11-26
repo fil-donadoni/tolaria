@@ -32500,6 +32500,14 @@
         "source": "compiled"
     },
     {
+        "name": "Floodpits Drowner",
+        "scryfallId": "a6a62aa3-8edb-4000-8ebd-15ec4b00eed7",
+        "oracleId": "43c69d19-c06c-470a-bdba-a0335ff2d655",
+        "firstSet": "dsk",
+        "firstPrintId": "a6a62aa3-8edb-4000-8ebd-15ec4b00eed7",
+        "firstPrintSet": "dsk"
+    },
+    {
         "name": "Floodwaters",
         "scryfallId": "3a211df0-fe9e-4d2c-9e0e-c7be50e6b906",
         "oracleId": "e89cce0e-4fd7-40fa-8a55-b07d72826956",
