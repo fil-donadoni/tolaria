@@ -379,6 +379,49 @@ describe("deck-relative distance — the data shapes (issue #10856)", () => {
         });
     });
 
+    it("a permanent that matches its own count's filter counts itself", () => {
+        // "{T}: if you control three or more artifacts, draw a card" on an
+        // artifact: with it and two more artifacts in play, the count is met.
+        const base = getDefinition(id(ARTIFACT));
+        const def: CardDefinition = {
+            ...base,
+            id: "deck-needs-counts-itself",
+            activatedAbilities: [
+                {
+                    id: "deck-needs-counts-itself-draw",
+                    oracleText: "",
+                    cost: { tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: {
+                                    count: {
+                                        zone: "battlefield",
+                                        controller: "controller",
+                                        filter: { type: "Artifact" },
+                                    },
+                                },
+                                op: "ge",
+                                right: 3,
+                            },
+                            then: [
+                                { op: "draw", count: 1, player: "controller" },
+                            ],
+                        } as unknown as EffectOp,
+                    ],
+                },
+            ],
+        };
+        withTemporaryDefinition(def, () => {
+            const met = withArtifacts(def, 2, "battlefield");
+            expect(measure(met.state, met.list, "met")).toBe(1);
+            const short = withArtifacts(def, 1, "battlefield");
+            expect(measure(short.state, short.list, "distanceMin")).toBe(2);
+        });
+    });
+
     it("a requirement no copy left can meet is unreachable, never a distance", () => {
         const def: CardDefinition = {
             ...bolt,

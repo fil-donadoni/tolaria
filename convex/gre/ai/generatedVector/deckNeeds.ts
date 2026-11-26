@@ -64,8 +64,9 @@ import type {
     ManaCost,
 } from "../../../cards/types";
 import { definitionMatchesFilter } from "../../alternativeCost";
-import { manaValue } from "../../constants";
+import { isTapLockedBySummoningSickness, manaValue } from "../../constants";
 import { unseenRemainder } from "../../deckKnowledge";
+import { isFaceDownExile } from "../../faceDown";
 import { canPayCost, type ManaUnits } from "../../manaAvailability";
 import type { CardInstanceState, GameState, PlayerState } from "../../state";
 import { childOpArrays } from "../effectOpChildren";
@@ -409,6 +410,12 @@ function deriveRequirements(list: readonly string[]): Requirement[] {
             const { threshold, home } = thresholds[i];
             if (threshold.zone !== "battlefield" || !threshold.mine) continue;
             const filter = threshold.filter;
+            // A requirer waiting on the battlefield counts itself when it
+            // matches its own filter ("if you control three or more
+            // artifacts" on an artifact): one piece fewer to find.
+            const selfCounts =
+                home === "battlefield" && permanentCardMatches(def, filter);
+            const pieces = threshold.atLeast - (selfCounts ? 1 : 0);
             out.push({
                 requirerId,
                 home,
@@ -418,7 +425,7 @@ function deriveRequirements(list: readonly string[]): Requirement[] {
                         accepts: idsMatching(distinct, defs, (d) =>
                             permanentCardMatches(d, filter)
                         ),
-                        copies: threshold.atLeast,
+                        copies: pieces,
                     },
                 ],
             });
@@ -549,8 +556,26 @@ function copiesOf(
     const unseen = new Map<string, number>();
     const remainder = unseenRemainder(state, seat, list, seat.id);
     for (let i = 0; i < remainder.length; i++) bump(unseen, remainder[i]);
+    // The seat's own face-down cards are not in its library, though no
+    // OBSERVER could subtract them: the seat knows what it put face down.
+    const ownFaceDown = new Map<string, number>();
+    for (let p = 0; p < state.players.length; p++) {
+        const player = state.players[p];
+        const zones = [player.battlefield, player.exile];
+        for (let z = 0; z < zones.length; z++) {
+            const zone = zones[z];
+            for (let i = 0; i < zone.length; i++) {
+                const c = zone[i];
+                if (c.ownerId !== seat.id) continue;
+                if (c.faceDown === true || isFaceDownExile(c)) {
+                    bump(ownFaceDown, cardIdOf(c));
+                }
+            }
+        }
+    }
     unseen.forEach((n, id) => {
-        const left = n - (copies.hand.get(id) ?? 0);
+        const left =
+            n - (copies.hand.get(id) ?? 0) - (ownFaceDown.get(id) ?? 0);
         if (left > 0) copies.library.set(id, left);
     });
     return copies;
@@ -670,10 +695,16 @@ function searchesOf(seat: PlayerState, now: ManaUnits): Search[] {
         for (let i = 0; i < activated.length; i++) {
             const ability = activated[i];
             if (ability.activateFromHand) continue;
+            // CR 302.6 — a creature's {T} ability can't be activated unless
+            // it has been under its controller's control since their most
+            // recent turn began; any {T} needs the permanent untapped.
             push(
                 siteScripts(ability),
                 ability.cost.mana,
-                !(ability.cost.tap && card.isTapped)
+                !(
+                    ability.cost.tap &&
+                    (card.isTapped || isTapLockedBySummoningSickness(card))
+                )
             );
         }
     }
@@ -698,6 +729,10 @@ const FAR = 4;
  * position. `list` is the seat's own decklist (its Deck Knowledge); with no
  * list there is nothing to read and every measure is zero. `now` is the mana
  * the seat can pay with right now.
+ *
+ * `distanceMin` is zero in three positions — every requirement met, none
+ * reachable, none stated — which `met`, `unreachable` and `requirements`
+ * tell apart.
  */
 export function deckNeedMeasures(
     state: GameState,

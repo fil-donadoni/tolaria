@@ -62145,6 +62145,7 @@
         {"id":"506.5","line":"/** CR 506.5 — \"attacks alone\": fires only when the source is the","sites":1,"status":"confirmed","ruleHash":"8589eb6a1ea9a633"},
         {"id":"104.4a","line":"/** True when the game ended in a draw (CR 104.4a — Divine Intervention). */","sites":1,"status":"baseline"},
         {"id":"614","line":"// (CR 614 / ADR 0061), then the modal `option-pick` (issue #1428) and","sites":1,"status":"baseline"},
+        {"id":"302.6","line":"// CR 302.6 — a creature's {T} ability can't be activated unless","sites":1,"status":"confirmed","ruleHash":"c432b8106e4836fc"},
         {"id":"305.7","line":"describe(\"Sea Kings' Blessing (creatures become blue EOT, CR 305.7 layer 5)\", () => {","sites":1,"status":"baseline"},
         {"id":"122","line":"// `counters` (issue #841) puts/removes counters (CR 122). The","sites":1,"status":"baseline"},
         {"id":"107.1","line":"/** CR 106.1 + CR 107.1 — \"Add {R} for each creature you control\": the pips,","sites":1,"status":"confirmed","ruleHash":"124e361bd2bd01cc"},
