@@ -52,14 +52,13 @@
  * "…in your commander's color identity", "two mana of any one color" — is
  * refused by THIS rule, because each needs a descriptor it does not emit.
  *
- * The painland rider (`PAINLAND_RIDER` below, issue #3828) is scoped to the
- * literal "This land …" — the Talisman cycle prints the byte-identical shape
- * on "This artifact …" (`cards/abilities/index.ts`'s `makeTalisman`, whose own
- * comment calls out the shared shape) and stays unparsed here. Widening the
- * pattern to every self-referring noun (`grammar/shared/cost.ts`'s
- * `isSelfPhrase`) is the natural next slice — left for the corpus report to
- * rank rather than folded into this one, which is scoped to the land cycle
- * issue #3828 names.
+ * The painland rider (`SELF_DAMAGE_RIDER` below, issues #3828, #10560) reads
+ * the self-referring noun the card's own type line licenses: "This land …" on
+ * a land (the painland cycle) and "This artifact …" on an artifact (the
+ * Talisman cycle, `cards/abilities/index.ts`'s `makeTalisman` — the
+ * byte-identical shape). A noun the card is not ("This artifact" on a land),
+ * and every other self-referring noun (`grammar/shared/cost.ts`'s
+ * `isSelfPhrase`: "This creature …" is its own gap key), stays unparsed.
  */
 
 import { PERMANENT_TYPES } from "../../../cards/types";
@@ -349,13 +348,32 @@ export const MANA_ABILITY_RIDER = "mana ability rider";
  * unconditional `dealsDamageToControllerOnTap` (Ancient Tomb) — a different
  * field this rule does not read; a FIXED production is refused the rider by
  * `addEffect` below rather than by this pattern.
+ *
+ * "This artifact deals N damage to you" is the same rider on the Talisman
+ * cycle (issue #10560), read on a CHOICE production only: no printed card
+ * puts it after a fixed production, so `readManaRider` refuses that form.
  */
-const PAINLAND_RIDER = /^This land deals (\S+) damage to you$/;
+const SELF_DAMAGE_RIDER = /^This (land|artifact) deals (\S+) damage to you$/;
 
-function readPainlandDamage(span: string): number | null {
-    const m = PAINLAND_RIDER.exec(span);
+/** The self-referring noun of the rider, read against the card's own type. */
+const SELF_DAMAGE_NOUN_TYPE = { land: "Land", artifact: "Artifact" } as const;
+
+type SelfDamageNoun = keyof typeof SELF_DAMAGE_NOUN_TYPE;
+
+function readSelfDamageRider(
+    span: string,
+    ctx: ParseContext,
+    nouns: readonly SelfDamageNoun[]
+): number | null {
+    const m = SELF_DAMAGE_RIDER.exec(span);
     if (m === null) return null;
-    const damage = readNumberWord(m[1]!);
+    const noun = m[1] as SelfDamageNoun;
+    // CR 700.7 — "this <noun>" names the source; the rule reads it only where
+    // the card's own type line prints that noun as a type (fail-closed: no
+    // printed card says "This artifact" on a land).
+    if (!nouns.includes(noun)) return null;
+    if (!ctx.typeLine.types.includes(SELF_DAMAGE_NOUN_TYPE[noun])) return null;
+    const damage = readNumberWord(m[2]!);
     // "Deals 0 damage" is not a printed sentence, and the field it would
     // write is a no-op the engine silently accepts — stay fail-closed rather
     // than emit a rider with no effect.
@@ -413,11 +431,12 @@ const NEXT_UNTAP_RETURN_RIDER =
  * CR 605.1a — the rider sentence after a production this grammar reads, for
  * the production it follows. Fail-closed: the sentence must be one of the
  * four printed forms below; the painland damage form is owned by the CHOICE
- * production (`readPainlandDamage`), the unconditional form by the FIXED one.
+ * production (`readSelfDamageRider`), the unconditional form by the FIXED one.
  */
 function readManaRider(
     head: ManaProductionIR,
-    span: string
+    span: string,
+    ctx: ParseContext
 ): ManaProductionIR | null {
     const rider = ((): ManaRiderIR | null => {
         if (span === DRAW_RIDER) return { kind: "draw-card" };
@@ -434,7 +453,7 @@ function readManaRider(
                 counter: sacrifice[1]!,
             };
         if (head.kind === "fixed") {
-            const damage = readPainlandDamage(span);
+            const damage = readSelfDamageRider(span, ctx, ["land"]);
             if (damage !== null)
                 return { kind: "damage-to-controller", amount: damage };
         }
@@ -459,14 +478,17 @@ const addEffect: Rule<ManaProductionIR> = rule("add effect", (span, ctx) => {
     if (!head.ok) return r;
     const riderSpan = body.slice(stop + ". ".length);
     if (head.value.kind === "choice") {
-        const damage = readPainlandDamage(riderSpan);
+        const damage = readSelfDamageRider(riderSpan, ctx, [
+            "land",
+            "artifact",
+        ]);
         if (damage !== null)
             return ok({
                 ...head.value,
                 dealsDamageToControllerOnColoredTap: damage,
             });
     }
-    const withRider = readManaRider(head.value, riderSpan);
+    const withRider = readManaRider(head.value, riderSpan, ctx);
     if (withRider !== null) return ok(withRider);
     return fail(r.reason, r.fragment, {
         path: [MANA_ABILITY_RIDER],
