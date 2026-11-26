@@ -219,6 +219,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     meld: true,
     setBasePT: false,
     setCardTypes: false,
+    addCardType: false,
     setColor: false,
     restrictAttackers: false,
     setProtectionFromEverything: false,

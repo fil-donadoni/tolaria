@@ -3571,6 +3571,12 @@ const setSubtype: Valuer<"setSubtype"> = () => ZERO_OP_VALUE;
 // `loseAllAbilities` + `setBasePT`). ZERO rather than an invented magnitude.
 const setCardTypes: Valuer<"setCardTypes"> = () => ZERO_OP_VALUE;
 
+// A card-type ADD (CR 205.1b layer 4, issue #3725) is the same pure enabler as
+// `setCardTypes` / `addSubtype`: becoming an artifact changes what the
+// permanent IS (what an artifact-matter card or removal can see), not how much
+// board it represents. ZERO rather than an invented magnitude.
+const addCardType: Valuer<"addCardType"> = () => ZERO_OP_VALUE;
+
 // Stripping every ability (CR 613.1f layer 6) is a NEUTRALIZE: the permanent
 // stays on the battlefield but stops doing anything it was printed to do —
 // the same shape the `setBasePT` shrink is valued as (a targeted soft removal
@@ -3822,6 +3828,7 @@ export const OP_VALUERS: {
     setColor,
     setSubtype,
     setCardTypes,
+    addCardType,
     loseAllAbilities,
     loseAllAbilitiesWhileSourceRemains,
     shuffleSelfIntoLibrary,
@@ -4428,6 +4435,11 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // creature. The composed effect's sign comes from the Ops it is paired
     // with — same treatment as `transform` below.
     setCardTypes: "neutral",
+    // CR 205.1b layer 4 (issue #3725) — adding a card type helps or hurts the
+    // recipient only through OTHER cards on the board (your artifact anthem
+    // vs. the opponent's artifact removal), never through a field of the Op;
+    // no stake is moved by the Op itself.
+    addCardType: "neutral",
     // CR 707.2 — whether becoming a copy helps or hurts the recipient is a
     // function of the TWO bodies (your artifact copying your best creature is
     // a gift; an opponent's dragon copying a 1/1 is an attack), and neither

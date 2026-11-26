@@ -5547,6 +5547,15 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.setCardTypes(target, op.types, op.duration);
     },
+    // CR 205.1b / 613.1d layer 4 (issue #3725) — ADD a card type, keeping
+    // the target's own, for `duration` or indefinitely (CR 611.2a). A thin
+    // declarative skin over `addCardType`, ONE execution path (ADR 0045).
+    // Skipped when the referenced permanent is gone (CR 608.2b).
+    addCardType(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.addCardType(target, op.cardType, op.duration);
+    },
     // CR 613.1f layer 6 (issue #2361) — the target permanent LOSES ALL
     // ABILITIES indefinitely (CR 611.2c — Oko, Thief of Crowns' `+1`). A thin
     // declarative skin over `loseAllAbilities`, ONE execution path (ADR 0045):
@@ -8700,6 +8709,7 @@ export const MELD_GROUP_DISPOSITION: Readonly<
         "captures the reference only; the delayed body's own Ops act and expand",
     airbend:
         "exiles the object through the move that takes both cards, then grants each itself (CR 712.21e)",
+    addCardType: BATTLEFIELD_ONLY,
     addSubtype: BATTLEFIELD_ONLY,
     animate: BATTLEFIELD_ONLY,
     attach: BATTLEFIELD_ONLY,

@@ -158,7 +158,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Ashen Ghoul",
     "Ashes to Ashes",
     "Ashnod's Battle Gear",
-    "Ashnod's Transmogrant",
     "Aspect of Wolf",
     "Aurochs",
     "Aurora Griffin",

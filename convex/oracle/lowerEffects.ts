@@ -6447,6 +6447,31 @@ function lowerFrameChain(
                 });
                 break;
             }
+            // CR 205.1b + CR 613.1d (issue #3725) — one card type added,
+            // keeping the object's own, for the printed duration or
+            // indefinitely (CR 611.2a). A permanent on the battlefield only.
+            case "addCardType": {
+                const subject = frame.subject;
+                if (
+                    subject.kind === "target" &&
+                    subject.requirement.zone !== undefined &&
+                    subject.requirement.zone !== "battlefield"
+                )
+                    return unlowerable(
+                        "a card type is added to a permanent on the battlefield (CR 205.1b)"
+                    );
+                const target = objectSelector(subject, walk.targets, site);
+                if (!target.ok) return target;
+                ops.push({
+                    op: "addCardType",
+                    target: target.value,
+                    cardType: frame.cardType,
+                    ...(frame.duration === undefined
+                        ? {}
+                        : { duration: durationSpec(frame.duration) }),
+                });
+                break;
+            }
             // CR 701.26a + CR 701.26b + CR 608.2d — one announced target, the
             // direction picked on resolution. Precedent: Twiddle's modes.
             case "tapOrUntap": {

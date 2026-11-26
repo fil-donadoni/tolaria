@@ -4058,6 +4058,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Argent Mutation",
+        "scryfallId": "507fa5fd-2aa5-4721-a059-2c8c3056a4ca",
+        "oracleId": "652ef093-06e9-4bf1-b9cf-950fe043b319",
+        "firstSet": "nph",
+        "firstPrintId": "507fa5fd-2aa5-4721-a059-2c8c3056a4ca",
+        "firstPrintSet": "nph",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Argivian Archaeologist",
         "scryfallId": "ce83a3cb-467d-44f6-a051-4855c8cf52a6",
         "oracleId": "4b889ec0-6130-4e31-bb02-03fdabd28bee",
@@ -52203,6 +52213,26 @@
         "source": "compiled"
     },
     {
+        "name": "Liquimetal Coating",
+        "scryfallId": "43ec9201-06e7-4a70-8dcf-7462a019965d",
+        "oracleId": "f4bdc551-c2eb-4a34-a3e3-b4a017c925af",
+        "firstSet": "som",
+        "firstPrintId": "43ec9201-06e7-4a70-8dcf-7462a019965d",
+        "firstPrintSet": "som",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Liquimetal Torque",
+        "scryfallId": "13c6101a-da40-4785-8ccb-4e779bbbdb55",
+        "oracleId": "b7d4b7dd-fbb1-4ca3-875f-ef13a95e66ad",
+        "firstSet": "mh2",
+        "firstPrintId": "13c6101a-da40-4785-8ccb-4e779bbbdb55",
+        "firstPrintSet": "mh2",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Literal Delver of Secrets",
         "scryfallId": "2f2b15f1-56f3-4410-a710-fd7f63d5e499",
         "oracleId": "14fbd5af-5675-4809-8165-af8924a3f0e9",
@@ -55912,6 +55942,16 @@
         "firstPrintId": "d75629cb-91e2-46fa-9c80-6feb29e1ceb8",
         "firstPrintSet": "eoe",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Memnarch",
+        "scryfallId": "57ae2417-b859-4254-a3a5-6bff159447ca",
+        "oracleId": "52d8e70b-7e94-4e17-811f-70afe39ff9bd",
+        "firstSet": "dst",
+        "firstPrintId": "57ae2417-b859-4254-a3a5-6bff159447ca",
+        "firstPrintSet": "dst",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -59725,6 +59765,16 @@
         "firstSet": "one",
         "firstPrintId": "6046e50a-f4c9-4029-a589-62a19371b734",
         "firstPrintSet": "one",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Myr Landshaper",
+        "scryfallId": "0fb654ac-9bb0-465e-8878-5456c154274f",
+        "oracleId": "7432fbe1-dce6-4b3c-a6b4-764f4612a6b6",
+        "firstSet": "dst",
+        "firstPrintId": "0fb654ac-9bb0-465e-8878-5456c154274f",
+        "firstPrintSet": "dst",
         "rarity": "common",
         "source": "compiled"
     },

@@ -16146,6 +16146,45 @@ export function buildSpellContext(
             applyCardTypeSet(found.card, types, allocStaticTimestamp(state));
             syncLayers2to5(state);
         },
+        // CR 205.1b / 613.1d layer 4 (issue #3725) — ADD a card type "in
+        // addition to its other types", for `duration` or indefinitely
+        // (CR 611.2a). One registry entry, source-independent (CR 611.2c): the
+        // registry tick (`tickContinuousEffectDurations`) ends a timed one at
+        // its boundary, `purgeContinuousEffectsForInstance` drops it with the
+        // object (CR 400.7). The effect's controller is the resolving item's.
+        addCardType(
+            target: TargetSelection,
+            cardType: CardType,
+            duration?: DurationSpec
+        ): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            ensureLayers2to5Base(found.card);
+            // CR 611.2c — the effect's controller is the RESOLVING item's
+            // controller (deliberately not `castById`: they differ only when
+            // the stack item changed control, and then the controller is the
+            // one who generated the effect).
+            const controllerId = item.controllerId;
+            pushContinuousEffect(state, {
+                layer: 4,
+                affected: { kind: "instances", instanceIds: [found.card.id] },
+                expiry: duration
+                    ? {
+                          kind: "duration",
+                          duration: resolveDuration(
+                              duration,
+                              controllerId,
+                              state
+                          ),
+                          controllerId,
+                      }
+                    : { kind: "indefinite", controllerId },
+                payload: { kind: "type-change", add: [cardType] },
+                characteristicDefining: false,
+            });
+            syncLayers2to5(state);
+        },
         // CR 613.1f layer 6 (issue #2361) — a target permanent LOSES ALL
         // ABILITIES indefinitely, from a RESOLVING one-shot ability (CR
         // 611.2c: independent of its source, so it never reverts). The

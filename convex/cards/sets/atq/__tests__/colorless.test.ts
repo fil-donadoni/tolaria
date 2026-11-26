@@ -2159,7 +2159,7 @@ describe("Rakalite (prevent next 1, return self next end step, CR 615.1)", () =>
     });
 });
 
-// Ashnod's Transmogrant (CR 122.1 +1/+1 counter; artifact-type clause deferred)
+// Ashnod's Transmogrant (CR 122.1 +1/+1 counter; CR 205.1b artifact type, issue #3725)
 describe("Ashnod's Transmogrant ({T}, sac: +1/+1 on nonartifact creature)", () => {
     it("excludes artifact creatures from legal targets (nonartifact only)", () => {
         const trans = makeInstance(ashnodsTransmogrant.id, { id: "trans" });
