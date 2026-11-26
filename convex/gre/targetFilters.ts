@@ -727,6 +727,20 @@ const isTokenDescriptor = defineFilter<boolean>({
     },
 });
 
+// CR 122.1 — "target creature with a stun counter on it" (Floodpits
+// Drowner): at least one counter of the named kind. Reads the live
+// `CardInstanceState.counters`, the same map `EffectCardFilter.hasCounter`
+// reads off a card in a zone.
+const hasCounterDescriptor = defineFilter<{ type: string }>({
+    lower: (req) => req.hasCounter,
+    checks: {
+        permanent: (card, value) =>
+            (card.counters?.[value.type] ?? 0) >= 1
+                ? null
+                : `Target must have a ${value.type} counter on it`,
+    },
+});
+
 /** CR 302.6 / 400.7 (issue #1824) — "…the active player has controlled
  *  continuously since the beginning of the turn" (Norritt, Arcum's Whistle).
  *  Supplies only the CONTINUITY half; the "who controls it" half is
@@ -1655,6 +1669,7 @@ export const PERMANENT_FILTER_KEYS = [
     "mvFilter",
     "sameController",
     "isToken",
+    "hasCounter",
     "controlledSinceTurnStart",
     "attachedToFilter",
 ] as const;
@@ -1766,6 +1781,7 @@ export const REGISTRY = {
     putIntoGraveyardThisTurn:
         putIntoGraveyardThisTurnDescriptor as FilterDescriptor<unknown>,
     isToken: isTokenDescriptor as FilterDescriptor<unknown>,
+    hasCounter: hasCounterDescriptor as FilterDescriptor<unknown>,
     controlledSinceTurnStart:
         controlledSinceTurnStartDescriptor as FilterDescriptor<unknown>,
     attachedToFilter: attachedToFilterDescriptor as FilterDescriptor<unknown>,
@@ -1802,6 +1818,7 @@ export type PermanentFilterValues = Partial<{
     mvFilter: { min?: number; max?: number; equals?: number };
     sameController: boolean;
     isToken: boolean;
+    hasCounter: { type: string };
     controlledSinceTurnStart: boolean;
     attachedToFilter: {
         types?: CardType[];

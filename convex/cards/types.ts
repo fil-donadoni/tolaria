@@ -1472,6 +1472,11 @@ export interface TargetRequirement {
      *  documented since #1459 ("TargetRequirement has no token filter
      *  field") — see that card for the fix. */
     isToken?: boolean;
+    /** CR 122.1 — restricts legal permanent targets to those with at least
+     *  one counter of `type` on them ("target creature with a stun counter on
+     *  it", Floodpits Drowner). The announced-target twin of
+     *  `EffectCardFilter.hasCounter`; ignored for player / spell targets. */
+    hasCounter?: { type: string };
     /** Restricts legal permanent targets to those their CURRENT controller has
      *  controlled continuously since the beginning of the current turn — the
      *  same continuity window CR 302.6 describes for summoning sickness, but

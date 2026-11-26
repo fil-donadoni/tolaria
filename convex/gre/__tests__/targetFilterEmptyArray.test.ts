@@ -68,6 +68,7 @@ const SHAPE: Record<FilterKey, "array" | "other"> = {
     zoneOwnerId: "other",
     putIntoGraveyardThisTurn: "other",
     isToken: "other",
+    hasCounter: "other",
     controlledSinceTurnStart: "other",
     attachedToFilter: "other",
 };
