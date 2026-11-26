@@ -28,7 +28,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { activateAbilityOnState } from "../game";
+import { activateAbilityOnState, applyOneTargetSelection } from "../game";
 import { buildStateFromScenario } from "../gre/scenarioBuilder";
 import { createInitialGameState, type PlayerInput } from "../gre/setup";
 import { getCardByName } from "../cards";
@@ -251,5 +251,51 @@ describe("activateAbilityOnState — timing gates apply to the TARGETED path too
         });
 
         expect(state.pendingTarget?.abilityId).toBe("skullclamp-equip");
+    });
+});
+
+describe("activateAbilityOnState — Equip may target the creature it already equips (CR 701.3b)", () => {
+    // CR 701.3b (issue #10468) — attaching to the object it is already
+    // attached to "does nothing", but the target is legal: the server stays
+    // permissive, only the client stops offering it.
+    it("accepts the current host as Equip's target", () => {
+        const state = build({
+            cards: [
+                {
+                    name: "Skullclamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    attachedTo: "Grizzly Bears",
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+        });
+        const clamp = find(state, "Skullclamp");
+        const bears = find(state, "Grizzly Bears");
+        expect(clamp.attachedTo).toBe(bears.id);
+        const playerId = state.players[0].id;
+
+        activateAbilityOnState(state, {
+            playerId,
+            cardInstanceId: clamp.id,
+            abilityId: "skullclamp-equip",
+        });
+        applyOneTargetSelection(state, playerId, {
+            targetType: "permanent",
+            targetId: bears.id,
+        });
+
+        expect(state.pendingTarget).toBeUndefined();
+        expect(
+            state.pendingActivation !== undefined || state.stack.length === 1
+        ).toBe(true);
     });
 });

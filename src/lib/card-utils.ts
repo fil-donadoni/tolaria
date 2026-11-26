@@ -1490,6 +1490,24 @@ const NON_PERMANENT_TARGET_TYPES = new Set([
  * So a "no candidates" answer is reliable; a "has candidates" answer only means
  * the ability is worth offering.
  */
+/** CR 701.3 — the ability's whole effect is attaching its source to its
+ *  first target (Equip, Reconfigure's attach half). Attaching to the object
+ *  the source is already attached to does nothing (CR 701.3b). */
+export function isAttachSourceToTargetAbility(
+    ability: Pick<ActivatedAbility, "effects">
+): boolean {
+    const effects = ability.effects;
+    if (effects === undefined || effects.length !== 1) return false;
+    const [op] = effects;
+    return (
+        op.op === "attach" &&
+        op.attachment === undefined &&
+        typeof op.target === "object" &&
+        "target" in op.target &&
+        op.target.target === 0
+    );
+}
+
 /** The minimum number of targets `requirement.count` demands (CR 601.2c) —
  *  the client-side mirror of `game.ts`'s own `minTargetCount`, widened to
  *  also accept the literal `"X"` count form (a `TargetRequirement.count` this
@@ -1507,7 +1525,11 @@ function minTargetCountHint(count: TargetRequirement["count"]): number {
 export function hasBattlefieldTargetCandidate(
     requirement: TargetRequirement,
     source: CardInstance,
-    stateView: TriggerStateView | undefined
+    stateView: TriggerStateView | undefined,
+    /** A permanent that is a legal target but not a USEFUL one: the host an
+     *  attach-to-target ability's source is already attached to (CR 701.3b,
+     *  issue #10468). It does not count as a candidate. */
+    uselessCandidateId?: string
 ): boolean {
     // No view to judge against — fail open (the caller may be a test or a
     // surface without player state).
@@ -1559,6 +1581,12 @@ export function hasBattlefieldTargetCandidate(
             if (
                 requirement.excludeSource === true &&
                 permanent.id === source.id
+            ) {
+                continue;
+            }
+            if (
+                uselessCandidateId !== undefined &&
+                permanent.id === uselessCandidateId
             ) {
                 continue;
             }
@@ -2767,6 +2795,8 @@ export function getStackAbilities(
         /** CR 601.2c — the ability's declared target requirement, when it
          *  targets. Read by the CR 602.2b no-legal-target gate below. */
         targetRequirement?: TargetRequirement;
+        /** Read by the CR 701.3b attach-to-current-host gate (issue #10468). */
+        effects?: ActivatedAbility["effects"];
         controllerTurnOnly?: boolean;
         /** CR 702.142a — Boast's "Activate only if this creature attacked this
          *  turn", weighed by the shared `isActivationTimingAllowed` predicate
@@ -3088,9 +3118,18 @@ export function getStackAbilities(
         // activated, so offering it is offering a move the server will reject
         // (an Equipment's Equip with no creature anywhere on the battlefield).
         // Conservative and fail-open — see `hasBattlefieldTargetCandidate`.
+        // CR 701.3b (issue #10468) — an attach-to-target ability (Equip) whose
+        // only candidate is the host its source is already attached to is
+        // legal but does nothing; the server accepts it, the client does not
+        // offer it.
         if (
             a.targetRequirement !== undefined &&
-            !hasBattlefieldTargetCandidate(a.targetRequirement, card, stateView)
+            !hasBattlefieldTargetCandidate(
+                a.targetRequirement,
+                card,
+                stateView,
+                isAttachSourceToTargetAbility(a) ? card.attachedTo : undefined
+            )
         ) {
             return false;
         }
