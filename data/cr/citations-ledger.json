@@ -22455,6 +22455,7 @@
         {"id":"615.1","line":"* would deal damage to `playerId`, that damage is prevented (CR 615.1,","sites":1,"status":"baseline"},
         {"id":"105.2c","line":"// CR 105.2c — colourless has none of the excluded colours.","sites":1,"status":"confirmed","ruleHash":"a0edfafd2d30c774"},
         {"id":"605.1a","line":"/** CR 106.4 / 605.1a — refund the mana recorded by","sites":1,"status":"baseline"},
+        {"id":"505.1","line":"* boundary: the precombat main phase (CR 505.1) of the first turn after the","sites":1,"status":"confirmed","ruleHash":"92fb1f9b0365009d"},
         {"id":"119.3","line":"// Its life-LOSS twin (CR 119.3 / 119.4, issue #3237) — \"each opponent who","sites":1,"status":"confirmed","ruleHash":"9a5ff675580c9251"},
         {"id":"106.1a","line":"// (CR 106.1a): Quirion Sentinel's golden, its hand-written twin compiled","sites":1,"status":"confirmed","ruleHash":"fc88ebc4d8d12367"},
         {"id":"604.3","line":"describe(\"chapter II — the Construct maker (CR 604.3 CDA)\", () => {","sites":1,"status":"baseline"},
