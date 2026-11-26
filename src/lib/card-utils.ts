@@ -1494,7 +1494,7 @@ const NON_PERMANENT_TARGET_TYPES = new Set([
  *  first target (Equip, Reconfigure's attach half). Attaching to the object
  *  the source is already attached to does nothing (CR 701.3b). */
 export function isAttachSourceToTargetAbility(
-    ability: ActivatedAbility
+    ability: Pick<ActivatedAbility, "effects">
 ): boolean {
     const effects = ability.effects;
     if (effects === undefined || effects.length !== 1) return false;
@@ -2795,6 +2795,8 @@ export function getStackAbilities(
         /** CR 601.2c — the ability's declared target requirement, when it
          *  targets. Read by the CR 602.2b no-legal-target gate below. */
         targetRequirement?: TargetRequirement;
+        /** Read by the CR 701.3b attach-to-current-host gate (issue #10468). */
+        effects?: ActivatedAbility["effects"];
         controllerTurnOnly?: boolean;
         /** CR 702.142a — Boast's "Activate only if this creature attacked this
          *  turn", weighed by the shared `isActivationTimingAllowed` predicate
