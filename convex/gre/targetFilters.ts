@@ -66,7 +66,7 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "./layers";
-import { hasSupertypeLive } from "./snow";
+import { hasSupertypeLive, type SupertypeView } from "./snow";
 import { totalKickerCount } from "./kicker";
 import {
     getProducibleColorsOnBoard,
@@ -607,22 +607,33 @@ const subtypeFilterDescriptor = defineFilter<string[]>({
  *  `gre/state.ts`) both ask this, so what an Aura may target and what it may
  *  stay on cannot disagree (CR 702.5a). */
 export function matchesTypeOrSubtype(
-    card: Pick<CardInstanceState, "types" | "subtypes">,
+    card: Pick<CardInstanceState, "types" | "subtypes"> & SupertypeView,
     filter: TypeOrSubtypeFilter
 ): boolean {
     return (
         filter.types.some((t) => card.types.includes(t)) ||
-        filter.subtypes.some((s) => card.subtypes.includes(s))
+        filter.subtypes.some((s) => card.subtypes.includes(s)) ||
+        (filter.supertypes ?? []).some((s) => hasSupertypeLive(card, s))
     );
+}
+
+function typeOrSubtypeViolation(
+    card: CardInstanceState,
+    value: TypeOrSubtypeFilter
+): string | null {
+    return matchesTypeOrSubtype(card, value)
+        ? null
+        : `Target must be ${[...(value.supertypes ?? []), ...value.types, ...value.subtypes].join(" or ")}`;
 }
 
 const typeOrSubtypeFilterDescriptor = defineFilter<TypeOrSubtypeFilter>({
     lower: (req) => req.typeOrSubtypeFilter,
     checks: {
-        permanent: (card, value) =>
-            matchesTypeOrSubtype(card, value)
-                ? null
-                : `Target must be ${[...value.types, ...value.subtypes].join(" or ")}`,
+        permanent: typeOrSubtypeViolation,
+        // CR 700.6 — a graveyard-zone "target historic card" is a CARD-kind
+        // candidate; the union is read the same way a permanent's is, so the
+        // offered and accepted sets share one check.
+        card: typeOrSubtypeViolation,
     },
 });
 
@@ -2237,6 +2248,7 @@ export const CARD_FILTER_KEYS = [
     "mvFilter",
     "excludeTypes",
     "subtypeFilter",
+    "typeOrSubtypeFilter",
     "excludeSubtypes",
     "colorFilterAny",
     "supertypeFilter",
@@ -2257,6 +2269,7 @@ export type CardFilterValues = Partial<{
     mvFilter: { min?: number; max?: number; equals?: number };
     excludeTypes: CardType[];
     subtypeFilter: string[];
+    typeOrSubtypeFilter: TypeOrSubtypeFilter;
     excludeSubtypes: string[];
     colorFilterAny: ReadonlyArray<Color>;
     supertypeFilter: string[];

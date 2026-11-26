@@ -50,6 +50,13 @@ export function formatTargetLabel(
     for (const subtype of typeOrSubtypeFilter?.subtypes ?? []) {
         labels.push(`a${/^[AEIOU]/.test(subtype) ? "n" : ""} ${subtype}`);
     }
+    // CR 700.6 — the supertype axis of the union ("historic": legendary,
+    // artifact, or Saga); a bare supertype is an adjective, so it names the
+    // object it qualifies.
+    for (const supertype of typeOrSubtypeFilter?.supertypes ?? []) {
+        const noun = zone === "graveyard" ? "card" : "permanent";
+        labels.push(`a ${supertype.toLowerCase()} ${noun}`);
+    }
     let head: string;
     if (labels.length === 0) head = "a target";
     else if (labels.length === 1) head = labels[0];
