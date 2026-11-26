@@ -4768,6 +4768,22 @@ export const OP_EXECUTORS: {
                     if (op.to === "exile" && op.linkToSource) {
                         ctx.linkExileToSource(id, ctx.sourceInstanceId);
                     }
+                    // CR 608.2h / 400.2 (issue #10557) — snapshot the card
+                    // that just landed in exile, a public zone, so a follow-up
+                    // Op can name "the exiled card" (`createTokenCopy`'s
+                    // `source`). Bound only when the card actually arrived: a
+                    // replacement that sent it elsewhere leaves the binding
+                    // uncaptured and every reader skips — "If you do".
+                    if (op.to === "exile" && op.bind) {
+                        const exiledOwner = ctx.getExileCardOwner(id);
+                        if (exiledOwner !== undefined) {
+                            bindSnapshot(ctx, op.bind, {
+                                type: "graveyard-card",
+                                id,
+                                playerId: exiledOwner,
+                            });
+                        }
+                    }
                 }
             }
             return;
@@ -7165,6 +7181,25 @@ export const OP_EXECUTORS: {
                 lastKnownCopiable = true;
             }
         }
+        // CR 608.2h / 400.2 (issue #10557) — a source that RESOLVED to a card
+        // in a public non-battlefield zone: a bound ref to a card this script
+        // itself moved there ("exile an artifact or creature card from your
+        // hand. If you do, create a token that's a copy of the exiled card"),
+        // or an announced graveyard-card target. Exile/graveyard is the zone
+        // the effect expects that card in, so its current copiable values are
+        // the reading (CR 707.2) — opt in to `createTokenCopyOf`'s public-zone
+        // widening instead of the battlefield-only fizzle. A card that never
+        // got there (a replacement moved it elsewhere, or it is still in a
+        // hand) resolves to no carrier or a `hand-card` one, so no token is
+        // created — which is "If you do" for free.
+        //
+        // Known edge, no card today: a ref bound to a BATTLEFIELD permanent
+        // that the script then exiles also resolves to this carrier (the
+        // issue #1401 blink fallback in `resolveObjectRef`). CR 608.2h wants
+        // that object's last known information (`lastKnownCopiable`), not
+        // the card's printed values in exile; a blink-then-copy card must
+        // add that opt-in before it ships.
+        if (source?.type === "graveyard-card") recoveredLastKnown = true;
         // The `graveyard-card` carrier is the generic "card sitting in a
         // non-battlefield zone" selection shape (see `moveZone`); either
         // carrier names an instance id `createTokenCopyOf` can locate.
