@@ -9357,7 +9357,12 @@ function selectForEachMembers(
     // The member ids are read straight off the binding; each is snapshotted at
     // iteration entry by `execForEach`, so a member that has left is skipped
     // there (CR 608.2b). Absent binding (empty capture) → iterate nothing.
-    if (select.set === "bound") return readBinding(ctx, select.ref) ?? [];
+    if (select.set === "bound") {
+        const ids = readBinding(ctx, select.ref) ?? [];
+        return select.filter === undefined
+            ? ids
+            : exiledMatching(ctx, ids, select.filter);
+    }
     // `targets` (issue #1083) — iterate the currently-resolving spell/
     // ability's WHOLE announced target set (Distorting Wake's "X target
     // nonland permanents", Sway of Illusion's "any number of target
@@ -9454,6 +9459,27 @@ function selectForEachMembers(
     return members.filter((id) => damaged.has(id));
 }
 
+/** CR 110.4a + CR 400.7 — the members of a frozen id list that are still in
+ *  an exile zone and match `filter` ("all PERMANENT cards exiled this way"),
+ *  in list order. A member that has left exile is a new object the list no
+ *  longer names, so it is dropped rather than read elsewhere. */
+function exiledMatching(
+    ctx: SpellContext,
+    ids: readonly string[],
+    filter: EffectCardFilter
+): string[] {
+    const out: string[] = [];
+    for (let i = 0; i < ids.length; i++) {
+        const owner = ctx.getExileCardOwner(ids[i]);
+        if (owner === undefined) continue;
+        const card = ctx.getExileCards(owner).find((c) => c.id === ids[i]);
+        if (card !== undefined && matchesCardFilter(ctx, card, filter)) {
+            out.push(ids[i]);
+        }
+    }
+    return out;
+}
+
 /** Executes one `forEach` construct (ADR 0045, issue #807) against the shared
  *  pre-order cursor. The construct's own position (checkpointed by `runOpList`
  *  just before dispatch) keys the frozen member set; each iteration binds
@@ -9498,10 +9524,13 @@ function execForEach(
     // re-run the batch move a second time.
     if (
         (op.select.set === "graveyard" ||
-            op.select.set === "exiledWithSource") &&
+            op.select.set === "exiledWithSource" ||
+            op.select.set === "bound") &&
         op.simultaneous
     ) {
-        // CR 607.2a — the linked exile pile batches the same way, from exile.
+        // CR 607.2a — the linked exile pile batches the same way, from exile;
+        // so does a frozen "exiled this way" list (CR 608.2c), whose body the
+        // validator holds to the same `from: "exile"` return.
         const fromZone = op.select.set === "graveyard" ? "graveyard" : "exile";
         const resultKey = `#forEach:${pos}:simultaneousResult`;
         if (ctx.recallChoice(resultKey) === undefined) {

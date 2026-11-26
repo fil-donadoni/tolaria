@@ -173,6 +173,8 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             return { kind: "blocks" };
         case "enters-or-attacks":
             return { kind: "enters-or-attacks" };
+        case "enters-or-upkeep":
+            return { kind: "enters-or-upkeep" };
         case "combat-damage-to-player":
             return { kind: "combat-damage-to-player" };
         case "damage-dealt":

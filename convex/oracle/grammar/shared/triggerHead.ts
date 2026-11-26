@@ -213,6 +213,13 @@ export type TriggerHeadIR =
      */
     | { readonly kind: "enters-or-attacks" }
     /**
+     * CR 603.2 + CR 603.6a + CR 603.2b — "when this permanent enters and at
+     * the beginning of your upkeep": ONE Oracle line over the source's own
+     * entry and the beginning of its controller's upkeep. Self only
+     * (CR 201.5).
+     */
+    | { readonly kind: "enters-or-upkeep" }
+    /**
      * CR 508.3a + CR 509.3a — "whenever a creature attacks or blocks": ONE
      * Oracle line (CR 603.2) over two per-creature trigger conditions. Both
      * halves count per creature, so the head does too, and "it" names whichever
@@ -860,6 +867,13 @@ export const SELF_HEADS: readonly {
         tail: " enters or attacks",
         ir: { kind: "enters-or-attacks" },
     },
+    // CR 603.2 + CR 603.6a + CR 603.2b — the source's own entry AND its
+    // controller's every upkeep, one line. The corpus prints only "your".
+    {
+        opener: "when ",
+        tail: " enters and at the beginning of your upkeep",
+        ir: { kind: "enters-or-upkeep" },
+    },
     // CR 509.3a — the source's own declaration as a blocker. "blocks a
     // creature", "blocks or becomes blocked" and the "whenever" opener are
     // other heads, refused until a rule reads them.
@@ -1049,6 +1063,7 @@ export function headPronounReferent(
             return head.scope === "self" ? "source" : "combatant";
         // CR 201.5 — both halves name the source itself.
         case "enters-or-attacks":
+        case "enters-or-upkeep":
         case "combat-damage-to-player":
         case "attacks-unblocked":
         case "becomes-blocked":

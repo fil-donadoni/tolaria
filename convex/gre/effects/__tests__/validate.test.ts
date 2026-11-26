@@ -3064,6 +3064,80 @@ describe("validateEffectScript — animate colours (CR 613.1e layer 5, issue #18
     });
 });
 
+describe("validateEffectScript — cards exiled this way (CR 110.4a, CR 608.2c, issue #10552)", () => {
+    const EXILE = {
+        op: "exileTopOfLibrary",
+        player: "controller",
+        count: 4,
+        bindAll: "$exiled",
+    };
+    const BODY = {
+        op: "moveZone",
+        target: { ref: "$each" },
+        from: "exile",
+        to: "battlefield",
+    };
+    const PERMANENT = {
+        set: "bound",
+        ref: "$exiled",
+        filter: { type: ["Artifact", "Land"] },
+    };
+    const script = (forEach: Record<string, unknown>) =>
+        host({ effects: [EXILE, forEach] as unknown as EffectOp[] });
+
+    it("accepts the filtered simultaneous return of the bound exile list", () => {
+        expect(
+            validateEffectScript(
+                script({
+                    op: "forEach",
+                    select: PERMANENT,
+                    simultaneous: true,
+                    effects: [BODY],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects a bound filter on the per-member walk (it reads exile cards only)", () => {
+        const errors = validateEffectScript(
+            script({ op: "forEach", select: PERMANENT, effects: [BODY] })
+        );
+        expect(
+            errors.some((e) =>
+                /\{ set: "bound", filter \} requires "simultaneous": true/.test(
+                    e
+                )
+            )
+        ).toBe(true);
+    });
+
+    it("rejects a simultaneous bound return whose body does not name exile", () => {
+        const errors = validateEffectScript(
+            script({
+                op: "forEach",
+                select: PERMANENT,
+                simultaneous: true,
+                effects: [{ ...BODY, from: "graveyard" }],
+            })
+        );
+        expect(errors.some((e) => /over \{ set: "bound" \}/.test(e))).toBe(
+            true
+        );
+    });
+
+    it("rejects a bound selector field it does not read", () => {
+        const errors = validateEffectScript(
+            script({
+                op: "forEach",
+                select: { ...PERMANENT, controller: "controller" },
+                simultaneous: true,
+                effects: [BODY],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+});
+
 describe("validateEffectScript — linked exile pile (CR 607.2a, issue #5200)", () => {
     const pileReturn = (
         body: Record<string, unknown>,
