@@ -42,6 +42,8 @@ import {
     COUNT_ZONES,
     MANA_SYMBOLS,
     MANA_UNIT_KINDS,
+    NEED_MEASURES,
+    NEED_SIDES,
     READ_ZONES,
     SIDES,
     countOf,
@@ -296,6 +298,7 @@ describe("generated vector — a column names a class, never a card (ADR 0186, D
         "cards",
         "hidden",
         "step",
+        "need",
         "total",
         // engine vocabularies
         ...SIDES,
@@ -307,6 +310,8 @@ describe("generated vector — a column names a class, never a card (ADR 0186, D
         ...colors,
         ...CARD_TYPES,
         ...PLAYER_COUNTER_KINDS,
+        ...NEED_MEASURES,
+        ...NEED_SIDES,
         "MULLIGAN",
         ...PHASE_ORDER,
     ]);
@@ -327,6 +332,10 @@ describe("generated vector — a column names a class, never a card (ADR 0186, D
         // shape: one camelCase identifier, never a name with spaces or a
         // card id.
         for (const leg of costLegs) expect(leg).toMatch(/^[a-z][A-Za-z]*$/);
+        // The `need` family's measures are this module's own closed list,
+        // held to the same shape; the catalogue-wide test below holds them
+        // against every card's name.
+        for (const m of NEED_MEASURES) expect(m).toMatch(/^[a-z][A-Za-z0-9]*$/);
         const foreign = [...segments].filter(
             (segment) =>
                 !mechanicNames.has(segment) &&

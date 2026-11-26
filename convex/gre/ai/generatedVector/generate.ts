@@ -21,10 +21,11 @@
 // So fed a full-information state — a rebuilt Verdict position, a
 // determinized world of the search — the generator still reads no more of the
 // opponent's hand than the projection of that state would hand the Brain. The
-// cards the search SAMPLES into that hand are not the opponent's cards; what
-// the Brain legitimately knows there is the decklist, and columns over a
-// decklist are the Deck Needs slice's to add (PRD issue #10849), not a leak
-// to allow here.
+// cards the search SAMPLES into that hand are not the opponent's cards.
+//
+// THE SEAT'S OWN LIST is read by the `need` family (`deckNeeds.ts`), handed in
+// as Deck Knowledge: what its cards require and how far the position is from
+// it, never what order the library is in.
 //
 // TWO PLAYERS is what the Bot plays; with more, every seat that is not
 // `seatId` adds into `opp`.
@@ -37,6 +38,7 @@ import {
     type CardDefinition,
     type PlayerCounterKind,
 } from "../../../cards/types";
+import { knowledgeFor, type DeckKnowledgeBySeat } from "../../deckKnowledge";
 import type { ManaUnits } from "../../manaAvailability";
 import { censusOf, type ManaCensusMemo } from "../../manaCensusMemo";
 import type {
@@ -48,6 +50,7 @@ import type {
 import {
     COUNT_ZONES,
     MANA_UNIT_KINDS,
+    NEED_MEASURES,
     READ_ZONES,
     columnAt,
     columnLayout,
@@ -55,6 +58,7 @@ import {
     type CountZone,
     type ReadZone,
 } from "./columns";
+import { deckNeedMeasures } from "./deckNeeds";
 import { profileOf, siteOpCounts, type AxisCounts } from "./profile";
 import { vectorOf, type GeneratedVector } from "./vector";
 
@@ -300,12 +304,13 @@ function addManaUnits(
     }
 }
 
+/** Adds `player`'s columns; returns the mana it can pay with right now. */
 function addPlayer(
     run: Run,
     state: GameState,
     player: PlayerState,
     seatId: string
-): void {
+): ManaUnits {
     const side = player.id === seatId ? SELF : OPP;
     const { layout } = run;
 
@@ -352,6 +357,25 @@ function addPlayer(
     const census = censusOf(state, player, run.memo);
     addManaUnits(run, "manaNow", census.now, side);
     addManaUnits(run, "manaBase", census.base, side);
+    return census.now;
+}
+
+/** The `need` family: the seat's own list read against the position. */
+function addNeeds(
+    run: Run,
+    state: GameState,
+    seat: PlayerState,
+    list: readonly string[] | undefined,
+    now: ManaUnits
+): void {
+    const measures = deckNeedMeasures(state, seat, list, now);
+    for (let k = 0; k < NEED_MEASURES.length; k++) {
+        add(
+            run,
+            columnAt(run.layout, "need", k, 0),
+            measures.get(NEED_MEASURES[k]) ?? 0
+        );
+    }
 }
 
 /**
@@ -365,17 +389,31 @@ function addPlayer(
  * a probe): the census is most of what a call costs, and a reader that
  * already took it for this position hands it over instead of paying twice.
  * Same contract as everywhere else — valid only while `state` is not mutated.
+ *
+ * `deckKnowledge` is what the search knows of each seat's list; the `need`
+ * family reads the entry of `seatId` and is zero without one.
  */
 export function generatedVector(
     state: GameState,
     seatId: string,
-    memo?: ManaCensusMemo
+    memo?: ManaCensusMemo,
+    deckKnowledge?: DeckKnowledgeBySeat
 ): GeneratedVector {
     const layout = columnLayout();
     const run: Run = { layout, counts: new Map(), memo };
 
     for (let i = 0; i < state.players.length; i++) {
-        addPlayer(run, state, state.players[i], seatId);
+        const player = state.players[i];
+        const now = addPlayer(run, state, player, seatId);
+        if (player.id === seatId) {
+            addNeeds(
+                run,
+                state,
+                player,
+                knowledgeFor(deckKnowledge, seatId),
+                now
+            );
+        }
     }
 
     for (let i = 0; i < state.stack.length; i++) {
