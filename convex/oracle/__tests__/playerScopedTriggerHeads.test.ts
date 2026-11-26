@@ -318,7 +318,7 @@ describe("player-scoped trigger heads — refused neighbours", () => {
             "'that opponent' behind each player's end step",
             "At the beginning of each player's end step, this artifact deals 1 damage to that opponent.",
         ],
-        // CR 608.2h — a land head names a land, not a player.
+        // CR 603.6a — a land head names a land, not a player.
         [
             "'that player' behind a land enters",
             "Whenever a land enters, this artifact deals 2 damage to that player.",

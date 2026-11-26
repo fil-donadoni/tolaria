@@ -45660,6 +45660,16 @@
         "source": "compiled"
     },
     {
+        "name": "Iron Maiden",
+        "scryfallId": "ad925fb0-1d5c-44a0-8347-202a38c23107",
+        "oracleId": "e0351638-9224-4779-8f7c-f2b11d134a5f",
+        "firstSet": "ulg",
+        "firstPrintId": "ad925fb0-1d5c-44a0-8347-202a38c23107",
+        "firstPrintSet": "ulg",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Iron Man Armor",
         "scryfallId": "361c2f3b-f04e-446b-a683-9195e238daf0",
         "oracleId": "958d81c2-ca09-4275-890e-3bb595317325",
@@ -68479,6 +68489,16 @@
         "source": "compiled"
     },
     {
+        "name": "Rackling",
+        "scryfallId": "10f82f2e-a6db-491b-b253-82c34cd6c940",
+        "oracleId": "41d116d7-3b1e-4777-b3c0-54f8ca6b2785",
+        "firstSet": "nem",
+        "firstPrintId": "10f82f2e-a6db-491b-b253-82c34cd6c940",
+        "firstPrintSet": "nem",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Radha, Heir to Keld",
         "scryfallId": "7fc23b2e-9124-4f88-b93e-8bfe90e6eb41",
         "oracleId": "61d94fe7-b559-4bd4-94a7-f4ed4c853b4b",
@@ -75181,6 +75201,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sarinth Greatwurm",
+        "scryfallId": "eaee6fcb-23de-4347-84b6-1e9849a537fc",
+        "oracleId": "5b5b9390-bb3a-4f71-809a-cfe2a6566b59",
+        "firstSet": "bro",
+        "firstPrintId": "eaee6fcb-23de-4347-84b6-1e9849a537fc",
+        "firstPrintSet": "bro",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Sarkhan Unbroken",
         "scryfallId": "192452f8-93c2-4a20-a52b-0093741a9e45",
         "oracleId": "1d37b453-f10c-42f2-8390-626a8a8eb27c",
@@ -78809,6 +78839,16 @@
         "firstSet": "dmu",
         "firstPrintId": "d67be074-cdd4-41d9-ac89-0a0456c4e4b2",
         "firstPrintSet": "dmu"
+    },
+    {
+        "name": "Sheoldred, Whispering One",
+        "scryfallId": "3bb8347b-8663-40b8-bdfb-411236d2efc8",
+        "oracleId": "9218b56d-aaec-482f-99e9-d95d227bfe25",
+        "firstSet": "nph",
+        "firstPrintId": "3bb8347b-8663-40b8-bdfb-411236d2efc8",
+        "firstPrintSet": "nph",
+        "rarity": "mythic",
+        "source": "compiled"
     },
     {
         "name": "Sheoldred's Edict",
@@ -99389,6 +99429,16 @@
         "source": "compiled"
     },
     {
+        "name": "Viseling",
+        "scryfallId": "a3eb86c5-d6fe-4dde-ad07-c3109b3a1611",
+        "oracleId": "05b9dccb-2364-4bca-a12e-8cb54a3f3a0b",
+        "firstSet": "nem",
+        "firstPrintId": "a3eb86c5-d6fe-4dde-ad07-c3109b3a1611",
+        "firstPrintSet": "nem",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Vision Charm",
         "scryfallId": "78b384d3-3adf-493a-8b89-bfe68fd1c3e2",
         "oracleId": "c56d2c5b-c3e3-4236-bc38-286e250aa4f7",
@@ -102407,6 +102457,16 @@
         "firstSet": "lea",
         "firstPrintId": "67b369c4-faa8-45c8-a1b9-98f228b69682",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Wheel of Torture",
+        "scryfallId": "87edc873-169a-4cd3-8a94-84b5810b5ed8",
+        "oracleId": "7a3e6e84-a8c2-472d-99fb-7cd14850b5ce",
+        "firstSet": "ulg",
+        "firstPrintId": "87edc873-169a-4cd3-8a94-84b5810b5ed8",
+        "firstPrintSet": "ulg",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Where We're Going...",
