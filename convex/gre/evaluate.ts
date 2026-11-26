@@ -55,7 +55,13 @@ import {
     POISON_LOSS_COUNTERS,
     liveStaticDefinition,
 } from "./constants";
-import { currentLoyalty, LOYALTY_COUNTER_KEY } from "./loyalty";
+import {
+    currentLoyalty,
+    LOYALTY_COUNTER_KEY,
+    loyaltyActivationsExhausted,
+    loyaltyTimingOpen,
+} from "./loyalty";
+import { turnFaceUpCosts } from "./morph";
 import type { ActivatedAbility } from "../cards/types";
 import {
     getEffectiveActivatedAbilities,
@@ -123,6 +129,7 @@ import {
     ownHandColorCoverage,
 } from "./ai/colorCoverage";
 import {
+    cardValueById,
     creatureValueRaw,
     declaresStandingLock,
     dslEtbAbilityInFlightValueById,
@@ -1581,7 +1588,8 @@ function manaDevelopmentTerm(
     state: GameState,
     player: PlayerState,
     base: ManaUnits,
-    weights: EvalWeights
+    weights: EvalWeights,
+    seat: SeatView
 ): number {
     // The TOP OF THE CURVE this player's mana base is for: the largest mana
     // value across the hand AND the non-land permanents already in play, never
@@ -1667,6 +1675,16 @@ function manaDevelopmentTerm(
     for (let i = 0; i < cList3.length; i++) {
         const c = cList3[i];
         if (isLand(c)) lands += 1;
+        // CR 708.2 — a face-down permanent has no mana cost, so it raised the
+        // curve by nothing: casting a morph read as throwing away the
+        // development its six-drop card stood for. What the base is still
+        // developing toward is the cost of turning it face up (CR 702.37e,
+        // CR 701.40b) — `faceDownTurnUpManaValue`, read only by the seat
+        // that may look at the card (CR 708.5).
+        else if (seat === "own" && c.faceDown === true) {
+            const mv = faceDownTurnUpManaValue(c, base, player);
+            if (mv > curveTop) curveTop = mv;
+        }
         // A TOKEN is not the other half of a cast — nobody paid its cost, and a
         // token COPY presents the copied card's printed cost (copy.ts drops
         // `manaCostOverride`), so counting it would read 12 x MV of development
@@ -1675,6 +1693,75 @@ function manaDevelopmentTerm(
         else if (c.isToken !== true) raise(c);
     }
     return weights.manaDevWeight * Math.min(lands, curveTop);
+}
+
+/** CR 702.37e / 701.40b — the mana value of the cheapest cost `perm` may be
+ *  turned face up for whose colours `base` can supply (`coversCostColors`,
+ *  the question `manaDevelopmentTerm` asks of a hand card), or 0 when it has
+ *  no turn-up procedure (CR 708.2: an Illusionary Mask creature) or none
+ *  this base can ever pay. Colours only, never quantity, exactly as a hand
+ *  card's demand: three lands are developing TOWARD a four-mana turn-up. */
+function faceDownTurnUpManaValue(
+    perm: CardInstanceState,
+    base: ManaUnits,
+    player: PlayerState
+): number {
+    let best = 0;
+    const costs = turnFaceUpCosts(perm);
+    for (let i = 0; i < costs.length; i++) {
+        const cost = costs[i];
+        if (!coversCostColors(base, cost, { life: player.life })) continue;
+        const mv = manaValue(cost);
+        if (best === 0 || mv < best) best = mv;
+    }
+    return best;
+}
+
+/** CR 708.2 / 702.37e — the floor under the realized worth of a face-down
+ *  creature its controller can turn face up: the latent worth of the card it
+ *  is (`cardValueById` on `faceDownOf`, at the hand's creature discounts),
+ *  so the cast never reads below the card it was — the counter-clock
+ *  creature's rule (`nonCreatureBodyValue`). The face-down 2/2 is the whole
+ *  reading otherwise, and a morph cast priced a six-drop in hand as a
+ *  vanilla body. 0 when there is no turn-up cost this base can supply
+ *  (`faceDownTurnUpManaValue`). Read only by the seat that may look at the
+ *  card (CR 708.5); the observed seat's face-down creature stays a 2/2. */
+function faceDownTurnUpFloor(
+    perm: CardInstanceState,
+    player: PlayerState,
+    base: ManaUnits,
+    weights: EvalWeights,
+    seat: SeatView
+): number {
+    if (seat !== "own" || perm.faceDown !== true || !perm.faceDownOf) return 0;
+    if (faceDownTurnUpManaValue(perm, base, player) === 0) return 0;
+    return cardValueById(perm.faceDownOf, weights.latent, "hand", {
+        creature: weights.latentCreatureDiscount,
+        flash: weights.latentFlashCreatureDiscount,
+    });
+}
+
+/** CR 606.3 — the loyalty activation a planeswalker still holds THIS turn:
+ *  its controller is inside the window (`loyaltyTimingOpen`: own main phase,
+ *  empty stack, holding priority) and the allowance is not spent
+ *  (`loyaltyActivationsExhausted`). Its loyalty arm (`loyaltyArmValueById`)
+ *  already stands for ONE turn of the walker; the turn whose activation is
+ *  still unused is a second, realised before any opponent can attack it.
+ *  Without it a walker read the same before and after the activation's
+ *  effect landed, so a leaf on its controller's main phase priced the walker
+ *  one activation short of the line that used it. 0 for a non-walker, a
+ *  walker at 0 loyalty (CR 704.5i) and an `aiValue` override (which reads
+ *  no arm, as in `nonCreatureBodyValue`). */
+function pendingLoyaltyActivationWorth(
+    state: GameState,
+    perm: CardInstanceState,
+    weights: EvalWeights
+): number {
+    if (!isPlaneswalker(perm) || currentLoyalty(perm) <= 0) return 0;
+    if (getInstanceAiValue(perm) !== undefined) return 0;
+    if (loyaltyActivationsExhausted(perm)) return 0;
+    if (!loyaltyTimingOpen(state, perm)) return 0;
+    return loyaltyArmValueById(String(perm.card.id ?? ""), weights.latent);
 }
 
 /** CR 704.5c (issue #5153) — the cost of poison counters, `libraryTerm`'s
@@ -2311,7 +2398,13 @@ function baseAggregateTerms(
         // castability (issue #2686) — additive to `mana`, never a replacement
         // for it, and zero on any board whose land count already covers the
         // hand's mana needs.
-        manaDevelopment: manaDevelopmentTerm(state, player, base, weights),
+        manaDevelopment: manaDevelopmentTerm(
+            state,
+            player,
+            base,
+            weights,
+            seat
+        ),
         // Colour coverage (issue #3532) — the same `base` census, asked the
         // colour question instead of the count one: what fraction of the
         // colours this seat needs can its own mana base actually produce. The
@@ -2451,6 +2544,9 @@ function playerTerms(
         graveyardReach: graveyardReachTerm(state, player, weights),
     };
 
+    // The face-down creatures read below, with their realized bodies: their
+    // turn-up floor (`faceDownTurnUpFloor`) needs the mana base census.
+    const faceDownBodies: [CardInstanceState, number][] = [];
     const permList = player.battlefield;
     for (let i = 0; i < permList.length; i++) {
         const perm = permList[i];
@@ -2473,7 +2569,9 @@ function playerTerms(
         // (`costModifierStandingWorth`), read once here and by the lens.
         terms.permanents += costModifierStandingWorth(state, perm, weights);
         if (fightsAsCreatureBody(state, perm)) {
-            terms.creatures += boardCreatureWorth(state, perm, weights, pass);
+            const body = boardCreatureWorth(state, perm, weights, pass);
+            terms.creatures += body;
+            if (perm.faceDown === true) faceDownBodies.push([perm, body]);
         } else {
             // Non-creature, non-land beneficial permanents (a static buff
             // Enchantment like Castle, a card-advantage Artifact like Jayemdae
@@ -2527,6 +2625,17 @@ function playerTerms(
     terms.creatures += returning.creatures;
     terms.permanents += returning.permanents;
     const manaCensus = availableManaUnitsFor(state, player, memo);
+    for (let i = 0; i < faceDownBodies.length; i++) {
+        const [perm, body] = faceDownBodies[i];
+        const floor = faceDownTurnUpFloor(
+            perm,
+            player,
+            manaCensus.base,
+            weights,
+            seat
+        );
+        if (floor > body) terms.creatures += floor - body;
+    }
     // MATERIAL: how many sources are owned, not how many are untapped right
     // now (issue #3377 — see `manaSourceTermFor`). Tapping a source to pay for
     // something forfeits nothing durable; it untaps next turn (CR 502.3), and
@@ -2708,8 +2817,28 @@ function valueFromMargin(
             : dangerClock(state, playerId, pass)) +
         declaredCombatDelta(state, me.id, weights, pass, memo) +
         lethalUnblockedDelta(state, playerId, weights, pass, memo) +
-        deckOutDelta(state, me, opp, weights)
+        deckOutDelta(state, me, opp, weights) +
+        pendingLoyaltyActivationsDelta(state, me, weights) -
+        pendingLoyaltyActivationsDelta(state, opp, weights)
     );
+}
+
+/** CR 606.3 — the loyalty activations `player`'s planeswalkers still hold
+ *  this turn (`pendingLoyaltyActivationWorth`, summed). Kept OUT of the
+ *  material margin with the race and combat terms: an activation not yet
+ *  taken is an option of this turn, not material on the board, so the
+ *  material tie-break still reads a walker at what it holds. */
+function pendingLoyaltyActivationsDelta(
+    state: GameState,
+    player: PlayerState,
+    weights: EvalWeights
+): number {
+    let sum = 0;
+    const list = player.battlefield;
+    for (let i = 0; i < list.length; i++) {
+        sum += pendingLoyaltyActivationWorth(state, list[i], weights);
+    }
+    return sum;
 }
 
 /** CR 704.5a / 704.5c — a player at 0 or less life, or with ten or more

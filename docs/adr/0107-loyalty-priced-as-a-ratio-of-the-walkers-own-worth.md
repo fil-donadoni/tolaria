@@ -135,10 +135,29 @@ surveiled him away for a random draw.
   which flipped the Snapcaster Mage hold-or-cast Eval Pair. At 0 the walker
   is gone and so is the arm.
 
+## Amendment II (issue #10819, 2026-11-26) — the activation still unused this turn
+
+The arm stands for ONE turn of the walker. On its controller's main phase,
+before the activation, the leaf read the walker exactly as after it: the turn
+being played and the next were one arm between them, and a rollout stopped
+there (the `horizon-b` root clock) priced a fresh walker below the creature
+face it flipped from.
+
+- **An unused activation inside its window** (CR 606.3: own main phase, empty
+  stack, priority, allowance not spent) is worth the arm once more,
+  `pendingLoyaltyActivationWorth` in `evaluate.ts`. After the activation it
+  is gone and the ability's effect stands in for it.
+- **It is kept out of the material margin**, beside the Danger Clock and the
+  combat deltas: an activation not yet taken is an option of this turn, so the
+  material tie-break still reads the walker at body plus one arm.
+- "One arm, never the sum" above is about abilities within a turn and still
+  holds: the second arm is a second TURN, never a second ability.
+
 ## References
 
 - Issue #2491 (both halves: enumeration and evaluation)
 - Issue #9973 (Amendment I: the loyalty arm)
+- Issue #10819 (Amendment II: the activation still unused this turn)
 - CR 306.5b (starting loyalty), CR 606.2/606.3/606.4/606.6 (loyalty abilities),
   CR 704.5i (the zero-loyalty state-based action)
 - ADR 0058 (the loyalty framework slice this completes for the bot)
