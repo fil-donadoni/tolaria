@@ -138,6 +138,19 @@ describe("the Bot spends the expiring land drop first (blade)", () => {
         expect(runBladeScenario(entry(PRECOMBAT)).failureMessage).toBe("");
     });
 
+    it("precombat at a budget where `pass` wins outright: the drop is not swapped back in", () => {
+        // At this budget `pass` out-rewards the drop, and the land-drop arm
+        // that turns a robust `pass` into an outcome-equal land play must not
+        // undo the hold.
+        const base = entry(PRECOMBAT);
+        const scenario: BladeScenario = {
+            ...base,
+            budget: { iterations: 3000 },
+            seeds: [1],
+        };
+        expect(runBladeScenario(scenario).failureMessage).toBe("");
+    }, 300_000);
+
     it("precombat, the attack can exile no land: the drop is not held for it", () => {
         // The same board with a library of uncastable nonland cards: no line
         // plays a land out of exile, so the deferred drop has nothing to wait

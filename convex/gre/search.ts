@@ -7049,7 +7049,18 @@ export function selectRootMove(
         const develop = pool.find(
             (e) =>
                 mean(e) >= bestMean - weights.outcomeEps &&
-                (e.move.kind === "play-land" ||
+                ((e.move.kind === "play-land" &&
+                    !(
+                        !!rootState &&
+                        !!botId &&
+                        defersHandDropForExileLand(
+                            rootState,
+                            botId,
+                            e.move,
+                            best,
+                            moves
+                        )
+                    )) ||
                     (!!rootState &&
                         !!botId &&
                         isLastBankingWindow(rootState) &&
@@ -7101,38 +7112,27 @@ export function selectRootMove(
     }
 
     // The same rule, the other way round: the robust pick is a HAND land drop
-    // before the turn's last main phase, and `pass` is outcome-equal and plays
-    // a land out of EXILE later this same turn that the root cannot play now
-    // (an attack trigger's "you may play that card this turn", which ends at
-    // cleanup, CR 514.2). Again two ORDERS of one land drop (CR 305.2):
-    // passing keeps the
-    // hand land playable in the later main phase, so every line through the
-    // drop now stays open behind it, and it opens the line where the turn's
-    // one drop goes to the card that lapses at cleanup while the hand card
-    // keeps. Its mean can still read lower for the reason above: the deferred
-    // node carries the extra land decision whose weak replies dilute it, and
-    // the material tie-break then ranks the diluted margin. The unlock is read
-    // off the tree (`Edge.exileLandTurn`), never off a card: whatever grants
-    // the play, the line that reached it is the evidence.
+    // that `defersHandDropForExileLand` says the outcome-equal `pass` should
+    // wait with (the first arm above already declines to swap it in). The
+    // mean of the deferred line can read lower for the reason the arm above
+    // gives: its node carries the extra land decision whose weak replies
+    // dilute it, and the material tie-break then ranks the diluted margin.
     if (
         rootState &&
         botId &&
         ruleOn("free-development") &&
-        best.move.kind === "play-land" &&
-        !isLastBankingWindow(rootState) &&
-        rootState.players
-            .find((p) => p.id === botId)
-            ?.hand.some(
-                (c) =>
-                    c.id ===
-                    (best.move as { cardInstanceId: string }).cardInstanceId
-            )
+        best.move.kind === "play-land"
     ) {
         const hold = pool.find(
             (e) =>
-                e.move.kind === "pass" &&
                 mean(e) >= bestMean - weights.outcomeEps &&
-                deferredDropPlaysExileLand(e.node, botId, rootState.turn, moves)
+                defersHandDropForExileLand(
+                    rootState,
+                    botId,
+                    best.move,
+                    e,
+                    moves
+                )
         );
         if (hold) return finish(hold, "free-development", true);
     }
@@ -9224,10 +9224,6 @@ function banksCardKeepingHeldOptions(
     return evaluateBreakdown(after, botId).self.flexibility >= before;
 }
 
-/** CR 702.143a / 702.170d (issues #2096, #7587) — the part of the mover's own
- *  turn where a banking special action can no longer compete with a
- *  sorcery-speed play: the postcombat main phase and the ending phase.
- *  Earlier windows defer to this one. */
 /** The turn `move` plays a land out of an EXILE zone of `world`, or
  *  `undefined` for any other move — stamped on the edge it opens
  *  (`Edge.exileLandTurn`). */
@@ -9237,6 +9233,38 @@ function exileLandPlayTurn(world: GameState, move: Move): number | undefined {
     return world.players.some((p) => p.exile.some((c) => c.id === id))
         ? world.turn
         : undefined;
+}
+
+/** True iff the hand land drop `landMove` should wait for the `pass` edge
+ *  `passEdge`: before the turn's last main phase (`isLastBankingWindow`),
+ *  `pass`'s line plays a land out of EXILE later this same turn that the root
+ *  cannot play now (an attack trigger's "you may play that card this turn",
+ *  which ends at cleanup, CR 514.2). Two ORDERS of one land drop (CR 305.2):
+ *  passing keeps the hand land playable in the later main phase, so every
+ *  line through the drop now stays open behind it, and it opens the line where
+ *  the turn's one drop goes to the card that lapses while the hand card keeps.
+ *  The unlock is read off the tree (`Edge.exileLandTurn`), never off a card:
+ *  whatever grants the play, the line that reached it is the evidence. */
+function defersHandDropForExileLand(
+    rootState: GameState,
+    botId: string,
+    landMove: Move,
+    passEdge: Edge,
+    rootMoves: readonly Move[]
+): boolean {
+    if (landMove.kind !== "play-land" || passEdge.move.kind !== "pass") {
+        return false;
+    }
+    if (isLastBankingWindow(rootState)) return false;
+    const id = landMove.cardInstanceId;
+    const bot = rootState.players.find((p) => p.id === botId);
+    if (!bot?.hand.some((c) => c.id === id)) return false;
+    return deferredDropPlaysExileLand(
+        passEdge.node,
+        botId,
+        rootState.turn,
+        rootMoves
+    );
 }
 
 /** True iff a visited edge of `botId`'s below `node` plays a land out of
@@ -9271,6 +9299,10 @@ function deferredDropPlaysExileLand(
     return found;
 }
 
+/** CR 702.143a / 702.170d (issues #2096, #7587) — the part of the mover's own
+ *  turn where a banking special action can no longer compete with a
+ *  sorcery-speed play: the postcombat main phase and the ending phase.
+ *  Earlier windows defer to this one. */
 function isLastBankingWindow(state: GameState): boolean {
     return (
         state.phase === "POSTCOMBAT_MAIN" ||
