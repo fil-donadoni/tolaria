@@ -464,6 +464,17 @@ ramp, evasion, tempo, disruption, recursion, tokens, pump, protection). What a
 [fitted evaluation](#fitted-evaluation) would put weights on. Code:
 `convex/gre/ai/featureBasis.ts`.
 
+<a id="generated-vector"></a>**Generated vector** — a second, much wider list
+of inputs for the [evaluation](#evaluation) that nobody writes by hand (ADR
+0186). Each column counts one class of thing the cards and the board already
+declare — an Effect Script Op by where it sits on the card, a keyword, a card
+type, a cost, mana, life, the step — per zone and per side (`self` / `opp`),
+and is named after it: `op.dealDamage.spell.hand.self`. The columns come from
+the Mechanics Registry, so a new Op has its columns without anyone adding
+them; none names a card. The seat reads only what its own view of the game
+shows: an opponent's hidden hand is a count. Nothing reads the vector yet — no
+weight, no fit. Code: `convex/gre/ai/generatedVector/`.
+
 <a id="danger-clock"></a>**Danger clock** — each player's estimated turns to
 death from the board as it stands; the evaluation rewards holding the faster
 clock. The one term that looks past the [horizon](#horizon).
