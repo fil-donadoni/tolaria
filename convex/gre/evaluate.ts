@@ -76,6 +76,7 @@ import {
 } from "./ai/abilityTiming";
 import { loyaltyRealizationRatio } from "./ai/loyaltyValue";
 import { scheduledEndStepDeparture } from "./ai/doomedEntry";
+import { holdsUnpayableLossObligation } from "./ai/paymentObligation";
 import {
     asEventualCreature,
     isCounterClockCreature,
@@ -2799,6 +2800,16 @@ function valueFromMargin(
     const meLost = hasLostByLifeOrPoison(me);
     if (oppLost && !meLost) return weights.winScore + margin;
     if (meLost && !oppLost) return -weights.winScore + margin;
+    // CR 603.7a / 104.3e (issue #10818) — a delayed "pay or lose the game"
+    // obligation its payer cannot meet is the same loss, one trigger before
+    // the engine records it (`holdsUnpayableLossObligation`). Read here, in
+    // the shared leaf, so the rollout policy's one-ply probe (which resolves
+    // the cast that queues it) and a leaf cut before the upkeep both see it.
+    // Exactly zero with no delayed trigger queued.
+    const oppBound = holdsUnpayableLossObligation(state, opp.id);
+    const meBound = holdsUnpayableLossObligation(state, me.id);
+    if (oppBound && !meBound) return weights.winScore + margin;
+    if (meBound && !oppBound) return -weights.winScore + margin;
 
     // Open position: add the Danger Clock race term (ADR 0018) and, on a
     // declare-attackers leaf, the expected combat exchange (ADR 0020 §3). Both
