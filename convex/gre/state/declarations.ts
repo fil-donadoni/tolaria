@@ -2583,7 +2583,7 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  702.184a, Station). Its characteristics are read LIVE at resolution
      *  (CR 608.2h) through the implicit `$costTapped` binding; `lkiPower` /
      *  `lkiToughness` are stamped ONCE, at the battlefield-departure funnel
-     *  (`removeFromBattlefield`), and read instead once it has left. Cleared
+     *  (`removePermanentTo`), and read instead once it has left. Cleared
      *  with the other cast-instance fields when the item leaves the stack. */
     costTapped?: { id: string; lkiPower?: number; lkiToughness?: number };
     /** Snapshot of the permanent sacrificed OR exiled as an additional cost at

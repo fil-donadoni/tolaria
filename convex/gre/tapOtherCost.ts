@@ -228,8 +228,10 @@ export function manaCostAfterSubstitution(
  *  tapped exactly ONE, which is the only case in which an ability can name
  *  "the tapped creature" (Station's "Tap another untapped creature you
  *  control: Put … equal to the tapped creature's power"). Recorded on the
- *  stack item by every commit site (`activation.ts` and the search's
- *  `applyActivationCostsForSearch`) and read back as `$costTapped`. */
+ *  stack item by both STACK commit paths (`activation.ts` and the search's
+ *  `applyActivationCostsForSearch`) and read back as `$costTapped`. The two
+ *  mana-ability paths (`commitNonStackActivation`, `activateManaAbility`) do
+ *  not record it: no mana ability names "the tapped creature". */
 export function singleCostTappedId(
     tappedIds: readonly string[]
 ): string | undefined {
