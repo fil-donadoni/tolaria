@@ -6260,6 +6260,8 @@ const OP_SCHEMAS: OpSchemaTable = {
             power: isNonNegativeInt,
             toughness: isNonNegativeInt,
             subtype: isNonEmptyString,
+            // CR 205.3m (issue #10511) — "with all creature types".
+            allCreatureTypes: (v) => v === true,
             additionalTypes: (v) => isStringArray(v, TOKEN_CARD_TYPES),
             grantedAbilities: (v) => isStringArray(v),
             grantedStaticId: isNonEmptyString,

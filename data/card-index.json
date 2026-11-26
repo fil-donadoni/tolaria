@@ -59239,6 +59239,14 @@
         "source": "compiled"
     },
     {
+        "name": "Mutavault",
+        "scryfallId": "8ca3c48b-f104-4292-9a4e-2ce87a65893c",
+        "oracleId": "6b3cc59a-7ea5-4eb5-9bf9-5a9c07f80e2b",
+        "firstSet": "mor",
+        "firstPrintId": "8ca3c48b-f104-4292-9a4e-2ce87a65893c",
+        "firstPrintSet": "mor"
+    },
+    {
         "name": "Mwonvuli Acid-Moss",
         "scryfallId": "6841dbf6-5023-4612-bbd7-182fd35b05c8",
         "oracleId": "53fb8118-f332-407b-add8-1b329e420226",

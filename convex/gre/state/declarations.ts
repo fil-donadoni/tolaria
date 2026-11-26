@@ -652,6 +652,12 @@ export type CardInstanceState = {
          *  or already present). Exactly one occurrence is spliced out on
          *  expiry. */
         addedSubtype?: string;
+        /** CR 205.3m (issue #10511) — the animation adds EVERY creature type
+         *  (`AnimateSpec.allCreatureTypes`, Mutavault). Recorded as a flag, not
+         *  the ~300-name list: the layer-4 derivation expands it from
+         *  `CREATURE_SUBTYPES` at read time, so the persisted record stays one
+         *  boolean. */
+        addedAllCreatureTypes?: true;
         /** Omitted for an INDEFINITE animation (CR 611.2a, `AnimateSpec.duration`
          *  unset — Earthbend N): the phase-boundary purge (`tickAllDurations`,
          *  phases.ts) skips any entry with no `duration`, so it never reverts on

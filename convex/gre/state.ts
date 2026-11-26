@@ -95,6 +95,7 @@ import {
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
 import { withChangelingSubtypes } from "../cards/abilities/changeling";
+import { CREATURE_SUBTYPES } from "../oracle/grammar/shared/subtypes";
 import { classLevelOf } from "../cards/abilities/classLevels";
 import {
     deriveLayer6,
@@ -10889,6 +10890,9 @@ export function animatePermanentAsCreature(
             addedCreatureType,
             addedTypes: addedTypes.length > 0 ? addedTypes : undefined,
             addedSubtype,
+            // CR 205.3m (issue #10511) — "with all creature types": a flag the
+            // layer-4 derivation expands (`layers2to5EffectsFor`).
+            ...(spec.allCreatureTypes ? { addedAllCreatureTypes: true } : {}),
             // CR 611.2a — omitted `spec.duration` means an INDEFINITE
             // animation (Earthbend N): no `Duration` is stored, so the
             // phase-boundary purge (`tickAllDurations`) never reverts it.
@@ -11103,6 +11107,14 @@ export function revertAnimation(card: CardInstanceState): void {
                 .slice(0, idx)
                 .concat(card.subtypes.slice(idx + 1));
         }
+    }
+    // CR 205.3m (issue #10511) — "with all creature types": drop every
+    // creature type the layer-4 base does not carry (a printed one stays).
+    if (anim.addedAllCreatureTypes) {
+        const base = new Set(card.baseSubtypes ?? []);
+        card.subtypes = card.subtypes.filter(
+            (s) => !CREATURE_SUBTYPES.has(s) || base.has(s)
+        );
     }
     // CR 208.2, 611.1: remove exactly the types the animation added — the
     // creature type and any `additionalTypes` (e.g. "Artifact" for Mishra's
