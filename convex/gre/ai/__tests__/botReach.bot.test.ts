@@ -51,9 +51,11 @@ describe("Bot-play sweep (ADR 0105 § 7.2) — core verdict classes and determin
             return first;
         };
         expect(twice(getCardByName("Grizzly Bears")).outcome).toBe("played");
-        expect(twice(NO_OP_SORCERY)).toMatchObject({
-            outcome: "ignored",
-            cause: "never-chosen",
+        withTemporaryDefinition(NO_OP_SORCERY, () => {
+            expect(twice(NO_OP_SORCERY)).toMatchObject({
+                outcome: "ignored",
+                cause: "never-chosen",
+            });
         });
         withTemporaryDefinition(UNTARGETABLE_INSTANT, () => {
             expect(twice(UNTARGETABLE_INSTANT)).toMatchObject({

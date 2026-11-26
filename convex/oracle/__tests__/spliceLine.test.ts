@@ -98,10 +98,10 @@ describe("Splice line — refusals (fail-closed)", () => {
         expect(parsed.ok).toBe(false);
     });
 
-    it("Evermind: an instant with no mana cost stays unparsed (CR 118.6)", () => {
-        // Its only line the grammar could not read was the splice line; with
-        // it read, the card would compile — and the engine casts an absent
-        // mana cost for {0}, turning an uncastable card into a free draw.
+    it("Evermind: an instant with no mana cost compiles WITHOUT a mana cost (CR 118.6)", () => {
+        // CR 118.6 — the absent cost is unpayable, and the engine's cast gate
+        // refuses it (`canPotentiallyPayCost`), so the definition keeps no
+        // `manaCost` rather than a free {0}: the card is splice-only.
         const outcome = compileCard(
             arcaneInstant(
                 "Evermind",
@@ -109,11 +109,10 @@ describe("Splice line — refusals (fail-closed)", () => {
                 `(Nonexistent mana costs can't be paid.)\nDraw a card.\nSplice onto Arcane {1}{U}${SPLICE_REMINDER}`
             )
         );
-        expect(outcome.state).toBe("unparsed");
-        if (outcome.state !== "unparsed") return;
-        expect(JSON.stringify(outcome.gaps)).toContain(
-            "an instant or sorcery with no mana cost (CR 118.6)"
-        );
+        expect(outcome.state).not.toBe("unparsed");
+        if (outcome.state === "unparsed") return;
+        expect(outcome.definition.manaCost).toBeUndefined();
+        expect(outcome.definition.splice).toBeDefined();
     });
 
     it("Glacial Ray: a targeting splice card compiles, its target requirement riding the reveal (CR 702.47b/d)", () => {

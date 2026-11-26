@@ -213,9 +213,10 @@ describe("Suspend N—[cost] (CR 702.62a, issue #10495)", () => {
             expect(parsed.value).toEqual({ kind: "suspend", count, cost });
     });
 
-    it("a suspend card with no mana cost is refused whole (CR 118.6)", () => {
-        // Lotus Bloom — an ARTIFACT, so the instant/sorcery leg alone let it
-        // compile into a card the engine would cast from hand for {0}.
+    it("a suspend card with no mana cost compiles WITHOUT a mana cost (CR 118.6)", () => {
+        // Lotus Bloom — the absent cost is unpayable, and the engine's cast
+        // gate refuses a hand cast for it (`canPotentiallyPayCost`), so the
+        // definition keeps no `manaCost` rather than a free {0}.
         const outcome = compileCard(
             oracleCard({
                 name: "Lotus Bloom",
@@ -227,7 +228,10 @@ describe("Suspend N—[cost] (CR 702.62a, issue #10495)", () => {
                     "Suspend 3—{0} (Rather than cast this card from your hand, pay {0} and exile it with three time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)\n{T}, Sacrifice this artifact: Add three mana of any one color.",
             })
         );
-        expect(outcome.state).toBe("unparsed");
+        expect(outcome.state).not.toBe("unparsed");
+        if (outcome.state === "unparsed") return;
+        expect(outcome.definition.manaCost).toBeUndefined();
+        expect(outcome.definition.suspend).toEqual({});
     });
 
     it.each([
