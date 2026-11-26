@@ -472,8 +472,13 @@ type, a cost, mana, life, the step — per zone and per side (`self` / `opp`),
 and is named after it: `op.dealDamage.spell.hand.self`. The columns come from
 the Mechanics Registry, so a new Op has its columns without anyone adding
 them; none names a card. The seat reads only what its own view of the game
-shows: an opponent's hidden hand is a count. Nothing reads the vector yet — no
-weight, no fit. Code: `convex/gre/ai/generatedVector/`.
+shows: an opponent's hidden hand is a count. One family, `need.*.self`, is read
+against the seat's own decklist (its Deck Knowledge): how many steps the
+position is from what the deck's cards require of each other (the Urza lands
+waiting for the other two), and whether a search in hand or in play can fetch
+a missing piece and be paid for now. With no Deck Knowledge it is zero. Nothing
+reads the vector yet — no weight, no fit. Code:
+`convex/gre/ai/generatedVector/`.
 
 <a id="danger-clock"></a>**Danger clock** — each player's estimated turns to
 death from the board as it stands; the evaluation rewards holding the faster
