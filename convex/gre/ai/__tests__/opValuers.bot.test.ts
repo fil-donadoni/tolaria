@@ -19,6 +19,7 @@ import {
     contextAwareGrounding,
 } from "../index";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
+import { CF_ASSUMED_REF } from "../grounding";
 
 const cf = contextFreeGrounding();
 
@@ -34,6 +35,32 @@ const LATENT = DEFAULT_EVAL_WEIGHTS.latent;
 const EDICT = (LATENT.boardRemoval * 3) / 4;
 
 describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
+    describe("animate — a base P/T read off the game (issue #10555)", () => {
+        it("grounds a mana-value body like any amount: priced as the representative body, never as a 0/0", () => {
+            const read: EffectValue = { manaValue: { of: { target: 0 } } };
+            const dynamic = valueOp(
+                {
+                    op: "animate",
+                    target: { target: 0 },
+                    power: read,
+                    toughness: read,
+                },
+                cf
+            );
+            const literal = valueOp(
+                {
+                    op: "animate",
+                    target: { target: 0 },
+                    power: CF_ASSUMED_REF,
+                    toughness: CF_ASSUMED_REF,
+                },
+                cf
+            );
+            expect(dynamic.points).toBeGreaterThan(0);
+            expect(dynamic.points).toBe(literal.points);
+        });
+    });
+
     describe("dealDamage (CR 120)", () => {
         it("scores damage to a player positively, scaled by amount", () => {
             const op: EffectOp = {
