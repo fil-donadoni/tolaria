@@ -27,7 +27,9 @@ import { describe, it, expect } from "vitest";
 import { debugSetupScenario } from "../game";
 import {
     normalizeScenarioSpec,
+    SCENARIO_CAST_MODE_FLAGS,
     scenarioSpecValidator,
+    scenarioStackItemValidator,
     type ScenarioSpec,
 } from "../debugScenarioSpec";
 import {
@@ -184,6 +186,12 @@ describe("debugSetupScenario args validator declares `life` (issue #2147, sixth 
                         { kind: "permanent", name: "Plains", seat: "me" },
                     ],
                     castOffSorceryTiming: true,
+                    // CR 601.2a / 601.2b (issue #10405) — the spell-only cast
+                    // facts; the read path used to strip `castFromZone`.
+                    castFromZone: "exile",
+                    ...Object.fromEntries(
+                        SCENARIO_CAST_MODE_FLAGS.map((flag) => [flag, true])
+                    ),
                 },
             ],
             companion: { name: "Lurrus of the Dream-Den", owner: "me" },
@@ -205,5 +213,20 @@ describe("debugSetupScenario args validator declares `life` (issue #2147, sixth 
         // And the declared stack specifically, in full: a shallow presence
         // check would pass on a branch that kept `kind` and lost the targets.
         expect(normalized.stack).toEqual(EVERY_FIELD.stack);
+    });
+
+    // Issue #10405 — the cast-mode flag list is DERIVED (from the exhaustive
+    // `CastModeMarkers` table), the validator is written out by hand: a flag
+    // the table gains and the validator lacks is refused at the mutation
+    // boundary on every load.
+    it("declares every derived cast-mode flag on the stack item validator", () => {
+        const stackItemFields = (
+            validatorJsonOf(scenarioStackItemValidator) as {
+                value: Record<string, FieldJson>;
+            }
+        ).value;
+        for (const flag of SCENARIO_CAST_MODE_FLAGS) {
+            expect(stackItemFields, flag).toHaveProperty(flag);
+        }
     });
 });
