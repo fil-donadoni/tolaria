@@ -18455,4 +18455,336 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 608.2c + CR 400.7 + CR 205.3 — Splash Portal: "If that creature is a
+    // Bird, Frog, Otter, or Rat, draw a card" reads the flickered creature as it
+    // is after it returned, a live subtype match on the return's own bind.
+    {
+        rule: "leading gate",
+        card: {
+            oracleId: "29b537f5-4d9f-40ed-b38b-e8faa2b5af7d",
+            name: "Splash Portal",
+            manaCost: "{U}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Exile target creature you control, then return it to the battlefield under its owner's control. If that creature is a Bird, Frog, Otter, or Rat, draw a card.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Splash Portal",
+            types: ["Sorcery"],
+            manaCost: {
+                U: 1,
+            },
+            oracleText:
+                "Exile target creature you control, then return it to the battlefield under its owner's control. If that creature is a Bird, Frog, Otter, or Rat, draw a card.",
+            effects: [
+                {
+                    op: "exile",
+                    target: {
+                        target: 0,
+                    },
+                    bind: "$that1",
+                },
+                {
+                    op: "moveZone",
+                    target: {
+                        ref: "$that1",
+                    },
+                    from: "exile",
+                    to: "battlefield",
+                    bind: "$that2",
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        objectMatchesFilter: {
+                            ref: "$that2",
+                        },
+                        filter: {
+                            subtype: ["Bird", "Frog", "Otter", "Rat"],
+                        },
+                    },
+                    then: [
+                        {
+                            op: "draw",
+                            player: "controller",
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+        },
+    },
+    // CR 608.2c + CR 118.12a — Dazzling Denial: the one-clause "If you control a
+    // Bird, counter that spell unless its controller pays {4} instead".
+    {
+        rule: "instead if you control",
+        card: {
+            oracleId: "6d56bd32-f47a-4e54-a88e-b69d16283ea4",
+            name: "Dazzling Denial",
+            manaCost: "{1}{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Counter target spell unless its controller pays {2}. If you control a Bird, counter that spell unless its controller pays {4} instead.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Dazzling Denial",
+            types: ["Instant"],
+            manaCost: {
+                X: 1,
+                U: 1,
+            },
+            oracleText:
+                "Counter target spell unless its controller pays {2}. If you control a Bird, counter that spell unless its controller pays {4} instead.",
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            count: {
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: {
+                                    subtype: "Bird",
+                                },
+                            },
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "mayPay",
+                            player: {
+                                controllerOf: {
+                                    target: 0,
+                                },
+                            },
+                            cost: {
+                                X: 4,
+                            },
+                            prompt: "Pay {4} to prevent your spell from being countered?",
+                            bind: "$may2",
+                        },
+                        {
+                            op: "if",
+                            predicate: {
+                                not: {
+                                    binding: "$may2",
+                                },
+                            },
+                            then: [
+                                {
+                                    op: "counter",
+                                    target: {
+                                        target: 0,
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                    else: [
+                        {
+                            op: "mayPay",
+                            player: {
+                                controllerOf: {
+                                    target: 0,
+                                },
+                            },
+                            cost: {
+                                X: 2,
+                            },
+                            prompt: "Pay {2} to prevent your spell from being countered?",
+                            bind: "$may1",
+                        },
+                        {
+                            op: "if",
+                            predicate: {
+                                not: {
+                                    binding: "$may1",
+                                },
+                            },
+                            then: [
+                                {
+                                    op: "counter",
+                                    target: {
+                                        target: 0,
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: {
+                type: "spell",
+                count: 1,
+            },
+        },
+    },
+    // CR 608.2c + CR 109.5 — Rabbit Response: "If you control a Rabbit, scry 2",
+    // a count of the controller's Rabbits gating the scry as the spell resolves.
+    {
+        rule: "leading gate",
+        card: {
+            oracleId: "9f7abd7d-1087-495c-8a52-2a2368cc1032",
+            name: "Rabbit Response",
+            manaCost: "{2}{W}{W}",
+            typeLine: "Instant",
+            oracleText:
+                "Creatures you control get +2/+1 until end of turn. If you control a Rabbit, scry 2. (Look at the top two cards of your library, then put any number of them on the bottom and the rest on top in any order.)",
+            layout: "normal",
+        },
+        expected: {
+            name: "Rabbit Response",
+            types: ["Instant"],
+            manaCost: {
+                X: 2,
+                W: 2,
+            },
+            oracleText:
+                "Creatures you control get +2/+1 until end of turn. If you control a Rabbit, scry 2. (Look at the top two cards of your library, then put any number of them on the bottom and the rest on top in any order.)",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: {
+                            type: "Creature",
+                        },
+                    },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: {
+                                ref: "$each",
+                            },
+                            power: 2,
+                            toughness: 1,
+                            duration: {
+                                phase: "end-of-turn",
+                            },
+                        },
+                    ],
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            count: {
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: {
+                                    subtype: "Rabbit",
+                                },
+                            },
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "scryReorder",
+                            player: "controller",
+                            count: 2,
+                            destination: "library-bottom",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 608.2c + CR 118.12 — Take Out the Trash: "If you control a Raccoon, you
+    // may discard a card. If you do, draw a card": the gate closes over the fold.
+    {
+        rule: "leading gate",
+        card: {
+            oracleId: "e07700e7-218a-45a3-9ee4-de2cc25cdc02",
+            name: "Take Out the Trash",
+            manaCost: "{1}{R}",
+            typeLine: "Instant",
+            oracleText:
+                "Take Out the Trash deals 3 damage to target creature or planeswalker. If you control a Raccoon, you may discard a card. If you do, draw a card.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Take Out the Trash",
+            types: ["Instant"],
+            manaCost: {
+                X: 1,
+                R: 1,
+            },
+            oracleText:
+                "Take Out the Trash deals 3 damage to target creature or planeswalker. If you control a Raccoon, you may discard a card. If you do, draw a card.",
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: 3,
+                    to: {
+                        target: 0,
+                    },
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            count: {
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: {
+                                    subtype: "Raccoon",
+                                },
+                            },
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            cost: {
+                                hand: {
+                                    action: "discard",
+                                    requirements: [
+                                        {
+                                            filter: {},
+                                            count: 1,
+                                        },
+                                    ],
+                                },
+                            },
+                            prompt: "Discard a card?",
+                            bind: "$paid1",
+                        },
+                        {
+                            op: "if",
+                            predicate: {
+                                binding: "$paid1",
+                            },
+                            then: [
+                                {
+                                    op: "draw",
+                                    player: "controller",
+                                    count: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: {
+                type: ["Creature", "Planeswalker"],
+                count: 1,
+            },
+        },
+    },
 ]);

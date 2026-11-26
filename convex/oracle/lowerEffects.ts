@@ -3181,15 +3181,20 @@ function lowerSentenceBody(
                 // nothing later reads it as the acted-on target.
                 const bind = walk.nextBind("that");
                 exile.bind = bind;
-                return lowered([
-                    exile,
-                    {
-                        op: "moveZone",
-                        target: { ref: bind },
-                        from: "exile",
-                        to: "battlefield",
-                    },
-                ]);
+                const returned: Extract<EffectOp, { op: "moveZone" }> = {
+                    op: "moveZone",
+                    target: { ref: bind },
+                    from: "exile",
+                    to: "battlefield",
+                };
+                // CR 400.7j — the returned permanent is the one object a
+                // later "that creature" of this effect finds, as it is now.
+                walk.introduced = {
+                    op: returned,
+                    creature: subjectIsCreature(sentence.subject),
+                    slots: walk.targets.requirements().length,
+                };
+                return lowered([exile, returned]);
             }
             recordActedOn(walk, sentence.subject, exile);
             return lowered([exile]);
@@ -6238,11 +6243,15 @@ function lowerFrameChain(
             // gated sentence lowers through the same walk, so a target it
             // announces is still announced (CR 601.2c).
             case "gate": {
+                // The condition first: it reads the creature the sentence
+                // before introduced, which the gated sentence forgets.
+                const predicate = gatePredicate(frame.condition, walk);
+                if (!predicate.ok) return predicate;
                 const inner = gatedSentence(frame.effect, walk, site);
                 if (!inner.ok) return inner;
                 ops.push({
                     op: "if",
-                    predicate: gatePredicate(frame.condition),
+                    predicate: predicate.value,
                     then: inner.value,
                 });
                 break;
@@ -7310,23 +7319,72 @@ function lowerReflexive(
 }
 
 /**
- * CR 601.2i + CR 202.2 — a trailing gate's condition as an `if` predicate:
- * "an opponent has cast a blue or black spell this turn" is at least one
- * spell of those colours in the opponent's cast tally. `"opponent"` is the
- * one opponent the interpreter resolves, which is every opponent in the
- * two-player and solo games this engine runs.
+ * CR 608.2c — a gate's condition as an `if` predicate, read as the spell
+ * resolves.
+ *
+ * - CR 601.2i + CR 202.2 — "an opponent has cast a blue or black spell this
+ *   turn" is at least one spell of those colours in the opponent's cast
+ *   tally. `"opponent"` is the one opponent the interpreter resolves, which
+ *   is every opponent in the two-player and solo games this engine runs.
+ * - CR 109.5 — "you control a Rabbit" is a `count` of the controller's
+ *   matching permanents, at least the clause's own threshold.
+ * - CR 400.7 + CR 205.3 — "that creature is a Bird, …" reads the creature the
+ *   sentence before put onto the battlefield (`SentenceWalk.introduced`) as
+ *   it is NOW: a live match, false once it is gone (a token exiled never
+ *   returns). With no such creature the gate names nothing and is refused.
  */
-function gatePredicate(condition: GateConditionIR): EffectPredicate {
-    return {
-        left: {
-            spellsCastThisTurn: {
-                of: "opponent",
-                colors: [...condition.colors],
-            },
-        },
-        op: "ge",
-        right: 1,
-    };
+function gatePredicate(
+    condition: GateConditionIR,
+    walk: SentenceWalk
+): Lowered<EffectPredicate> {
+    switch (condition.kind) {
+        case "opponent-cast-spell-this-turn":
+            return lowered({
+                left: {
+                    spellsCastThisTurn: {
+                        of: "opponent",
+                        colors: [...condition.colors],
+                    },
+                },
+                op: "ge",
+                right: 1,
+            });
+        case "you-control": {
+            const filter = countFilterOf(condition.condition.filter, {
+                subtypes: true,
+            });
+            if (!filter.ok) return filter;
+            return lowered({
+                left: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: filter.value,
+                    },
+                },
+                op: "ge",
+                right: condition.condition.atLeast,
+            });
+        }
+        case "that-creature-is": {
+            const introduced = walk.introduced;
+            if (introduced === null || !introduced.creature)
+                return unlowerable(
+                    '"that creature" names no creature the sentence before put onto the battlefield (CR 608.2h)'
+                );
+            const bind = introduced.op.bind ?? walk.nextBind("that");
+            introduced.op.bind = bind;
+            return lowered({
+                objectMatchesFilter: { ref: bind },
+                filter: {
+                    subtype:
+                        condition.subtypes.length === 1
+                            ? condition.subtypes[0]!
+                            : [...condition.subtypes],
+                },
+            });
+        }
+    }
 }
 
 function gatedSentence(
@@ -7378,7 +7436,7 @@ function lowerUpgrade(
         );
     const predicates: EffectPredicate[] = [];
     for (const condition of sentence.conditions) {
-        const filter = countFilterOf(condition.filter);
+        const filter = countFilterOf(condition.filter, { subtypes: true });
         if (!filter.ok) return filter;
         predicates.push({
             left: {
@@ -7407,24 +7465,41 @@ function lowerUpgrade(
 
 /**
  * A controls clause's `PermanentFilter` as the `count` construct's
- * `EffectCardFilter` — the two members a condition emits today (CR 205.2a
- * types, CR 105.1 colours). Any other field is refused rather than dropped: a
- * dropped clause counts permanents the card does not mean.
+ * `EffectCardFilter` — CR 205.2a types, CR 105.1 colours and, where the
+ * caller admits it, one CR 205.3 subtype. Any other field is refused rather
+ * than dropped: a dropped clause counts permanents the card does not mean.
  */
 export function countFilterOf(
-    filter: PermanentFilter
+    filter: PermanentFilter,
+    admits: {
+        /** CR 205.3 — ONE subtype ("you control a Bird"), at the sites that
+         *  have a fixture for it. */
+        readonly subtypes?: true;
+    } = {}
 ): Lowered<EffectCardFilter> {
     const out: EffectCardFilter = {};
     for (const [key, value] of Object.entries(filter)) {
         if (value === undefined) continue;
         if (key === "types") out.type = [...(value as CardType[])];
         else if (key === "colors") out.color = [...(value as Color[])];
+        else if (
+            key === "subtypes" &&
+            admits.subtypes === true &&
+            (value as string[]).length === 1
+        )
+            out.subtype = (value as string[])[0]!;
         else
             return unlowerable(
                 `a "${key}" clause has no resolution-time count here`
             );
     }
     return lowered(out);
+}
+
+/** CR 608.2h — the subject is one announced creature ("target creature you
+ *  control"), so the object a flicker returns is a creature as well. */
+function subjectIsCreature(subject: SubjectIR): boolean {
+    return subject.kind === "target" && subject.requirement.type === "Creature";
 }
 
 /** CR 401.4 — the picker's prompt for a `putBack`. */

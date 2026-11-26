@@ -222,11 +222,9 @@ describe("refused neighbours (fail-closed)", () => {
         expect(outcome.state).toBe("unparsed");
     });
 
+    // The one-clause form is read since Dazzling Denial printed it
+    // (`tribalConditionsAndLords.test.ts`); three clauses are still no form.
     it.each([
-        [
-            "a single controls clause",
-            "If you control a black permanent, you gain 4 life instead",
-        ],
         [
             "three controls clauses",
             "If you control a black permanent and a red permanent and a green permanent, you gain 4 life instead",

@@ -15,7 +15,7 @@
  * a union of two filter dimensions and is refused here.
  */
 
-import { isPermanentSubtype } from "./subtypes";
+import { isPermanentSubtype, singularOfPermanentSubtype } from "./subtypes";
 
 export interface SubtypeListIR {
     /** As printed, in order, singular. At least two. */
@@ -38,7 +38,7 @@ export function readSubtypeList(phrase: string): SubtypeListIR | null {
     const singular = words.every(isPermanentSubtype);
     // CR 205.3i — "Plains" and its like are their own plural; a list of them
     // alone reads as singular, and any other mix of numbers is refused.
-    const subtypes = singular ? words : words.map(singularOf);
+    const subtypes = singular ? words : words.map(singularOfPermanentSubtype);
     if (subtypes.some((s) => s === null)) return null;
     if (new Set(subtypes).size !== subtypes.length) return null;
     return {
@@ -46,11 +46,4 @@ export function readSubtypeList(phrase: string): SubtypeListIR | null {
         conjunction,
         number: singular ? "singular" : "plural",
     };
-}
-
-/** "Squirrels" → "Squirrel"; `null` for anything but a regular `-s` plural. */
-function singularOf(word: string): string | null {
-    if (!word.endsWith("s")) return null;
-    const singular = word.slice(0, -1);
-    return isPermanentSubtype(singular) ? singular : null;
 }
