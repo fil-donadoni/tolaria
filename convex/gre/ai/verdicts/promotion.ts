@@ -47,7 +47,12 @@ import {
     verdictIdOfObjectName,
     verdictObjectName,
 } from "../../../verdictStore";
-import { positionKeyOf, verdictIdOf, type VerdictJudgement } from "./identity";
+import {
+    positionKeyOf,
+    scenarioKeyOf,
+    verdictIdOf,
+    type VerdictJudgement,
+} from "./identity";
 import {
     serializeVerdictLock,
     verdictsFromLock,
@@ -93,7 +98,7 @@ export const VERDICT_PROMOTION_OUT_ENV = "VERDICT_PROMOTION_OUT";
 export type VerdictPromotionInput = {
     /** `testers` is `bun run verdicts:testers` (issue #3585): read-only, like
      *  `validate`, plus the fit report over the committed lock. */
-    mode: "validate" | "promote" | "testers";
+    mode: "validate" | "promote" | "testers" | "exam";
     /** The committed lock file's contents, `null` when there is none. */
     lock: string | null;
     /** The contents of `EVAL_WEIGHTS_PATH`. */
@@ -125,6 +130,16 @@ export type VerdictPromotionOutput =
     | { mode: "validate"; text: string }
     | { mode: "testers"; text: string }
     | { mode: "promote"; noop: true; text: string }
+    | { mode: "exam"; noop: true; text: string }
+    | {
+          /** `bun run verdicts:exam` (issue #10851): the lock widens on the
+           *  exam side only, so no weight moves and only the lock is written. */
+          mode: "exam";
+          noop: false;
+          text: string;
+          lock: VerdictLock;
+          lockText: string;
+      }
     | {
           mode: "promote";
           noop: false;
@@ -593,10 +608,15 @@ export function planPromotion(
         verdictIds,
         isReferenceJudge
     );
+    // The exam side is carried, never widened nor narrowed by a Promotion:
+    // a Verdict held out by rule stays held out (issue #10851); one dropped
+    // from the lock leaves the exam with it.
+    const examIds = (current?.examIds ?? []).filter((id) => keptIds.has(id));
     const lock: VerdictLock = {
         verdictIds,
         packHash: sha256Hex(encodeVerdictPack(entries)),
         ...(Object.keys(readings).length === 0 ? {} : { readings }),
+        ...(examIds.length === 0 ? {} : { examIds }),
     };
     // A regrade is a change: the fit reads the grade off the lock, so a lock
     // whose readings moved is rewritten even when no id did.
@@ -614,6 +634,154 @@ export function planPromotion(
         dropped,
         noop,
     };
+}
+
+export type ExamPlan = {
+    /** The lock the exam step writes: the committed one, with `named`
+     *  appended to `verdictIds` AND to `examIds`. */
+    lock: VerdictLock;
+    /** The locked payloads, in lock order — the pack's lines. */
+    entries: StoredVerdictPayload[];
+    /** Ids put on the exam side, sorted. */
+    named: string[];
+    /** Promotable ids left out of the lock, each with why — they wait for a
+     *  Promotion. */
+    skipped: { verdictId: string; why: string }[];
+    /** Nothing to write: no promotable verdict the lock does not name. */
+    noop: boolean;
+};
+
+type PairedPayload = { pairOf?: { anchorId: string } };
+
+/**
+ * The exam step (ADR 0186 Decision 7, issue #10851): every promotable
+ * verdict the committed lock does not name enters it ON THE EXAM SIDE —
+ * appended to `verdictIds` and named in `examIds` — so the Weight Fit reads
+ * exactly what it read before and no weight moves.
+ *
+ * NOTHING ALREADY LOCKED MOVES. The committed ids, their order, their
+ * readings and their sides are kept as they are; a locked verdict that is no
+ * longer promotable throws, because dropping it would move the weights, which
+ * only a Promotion does. A Minimal Pair enters as one unit or not at all: a
+ * half whose anchor is already on a side (locked, or a registry Verdict) is
+ * skipped, and so is a unit with a member at a Test Position (`testPositions`,
+ * `testPositionKeysOf`) — the override would make it fit-side. Re-running
+ * with nothing new is a no-op: idempotent by construction.
+ */
+export function planExam(
+    current: VerdictLock | null,
+    validation: StoreValidation,
+    testPositions: ReadonlySet<string>,
+    isReferenceJudge: (author: string) => boolean = () => false
+): ExamPlan {
+    const promotable = new Map(
+        validation.promotable.map((entry) => [entry.verdictId, entry])
+    );
+    const rowById = new Map(
+        validation.rows
+            .filter((r) => r.verdictId !== null)
+            .map((r) => [r.verdictId as string, r])
+    );
+    const lockedIds = current?.verdictIds ?? [];
+    const kept: StoredVerdictPayload[] = [];
+    for (let i = 0; i < lockedIds.length; i++) {
+        const verdictId = lockedIds[i];
+        const entry = promotable.get(verdictId);
+        if (entry === undefined) {
+            const why =
+                rowById.get(verdictId)?.reasons.join("; ") ??
+                "the store listing holds no object for it";
+            throw new Error(
+                `${verdictId}: the committed lock names this verdict, but it is no longer promotable (${why}) — dropping it would move the weights, which only a Promotion does (PRD issue #10849); nothing written`
+            );
+        }
+        kept.push(entry);
+    }
+    const locked = new Set(lockedIds);
+    const fresh = validation.promotable.filter((e) => !locked.has(e.verdictId));
+    const freshIds = new Set(fresh.map((e) => e.verdictId));
+    const anchorOf = (e: StoredVerdictPayload): string =>
+        (e.payload as PairedPayload).pairOf?.anchorId ?? e.verdictId;
+    const skippedWhy = new Map<string, string>();
+    // A unit is keyed by its anchor's id: refuse it whole when its anchor is
+    // already on a side, or any member sits at a Test Position.
+    const refusedUnits = new Map<string, string>();
+    for (let i = 0; i < fresh.length; i++) {
+        const e = fresh[i];
+        const anchor = anchorOf(e);
+        if (!freshIds.has(anchor)) {
+            skippedWhy.set(
+                e.verdictId,
+                `its Minimal Pair anchor ${anchor} is already on a side — the half enters with a Promotion, never apart from its unit (ADR 0148)`
+            );
+            continue;
+        }
+        if (
+            testPositions.has(scenarioKeyOf(e.payload as VerdictJudgement)) &&
+            !refusedUnits.has(anchor)
+        ) {
+            refusedUnits.set(
+                anchor,
+                "its Minimal Pair unit sits at a Test Position, fit-side by rule — it enters with a Promotion"
+            );
+        }
+    }
+    const named: StoredVerdictPayload[] = [];
+    for (let i = 0; i < fresh.length; i++) {
+        const e = fresh[i];
+        if (skippedWhy.has(e.verdictId)) continue;
+        const unitRefusal = refusedUnits.get(anchorOf(e));
+        if (unitRefusal !== undefined) {
+            skippedWhy.set(e.verdictId, unitRefusal);
+            continue;
+        }
+        named.push(e);
+    }
+    const namedIds = named.map((e) => e.verdictId);
+    const entries = kept.concat(named);
+    const readings = {
+        ...(current?.readings ?? {}),
+        ...promotionReadings(validation, namedIds, isReferenceJudge),
+    };
+    const examIds = (current?.examIds ?? []).concat(namedIds);
+    const lock: VerdictLock = {
+        verdictIds: entries.map((e) => e.verdictId),
+        packHash: sha256Hex(encodeVerdictPack(entries)),
+        ...(Object.keys(readings).length === 0 ? {} : { readings }),
+        ...(examIds.length === 0 ? {} : { examIds }),
+    };
+    return {
+        lock: named.length === 0 && current !== null ? current : lock,
+        entries,
+        named: namedIds,
+        skipped: [...skippedWhy.entries()]
+            .map(([verdictId, why]) => ({ verdictId, why }))
+            .sort((a, b) => byString(a.verdictId, b.verdictId)),
+        noop: named.length === 0,
+    };
+}
+
+/** The report `verdicts:exam` prints: what entered the exam side, and what
+ *  waits for a Promotion. */
+export function formatExamReport(plan: ExamPlan, lockedBefore: number): string {
+    const examN = plan.lock.examIds?.length ?? 0;
+    const out = [
+        `== Verdict exam (issue #10851, ADR 0186 Decision 7) — player Verdicts the Weight Fit never reads`,
+        `  lock                   : ${lockedBefore} → ${plan.lock.verdictIds.length} verdicts (+${plan.named.length}, all on the exam side)`,
+        `  exam side by rule      : ${examN} verdicts`,
+        `  pack                   : packs/${plan.lock.packHash}.jsonl.gz`,
+        `  weights moved          : 0 (the fit side is unchanged)`,
+        `\n== verdicts put on the exam side (${plan.named.length})`,
+        ...plan.named.map((id) => `  ${id}`),
+    ];
+    if (plan.skipped.length > 0) {
+        out.push(`\n== promotable verdicts left out (${plan.skipped.length})`);
+        for (let i = 0; i < plan.skipped.length; i++) {
+            const s = plan.skipped[i];
+            out.push(`  ${s.verdictId}`, `    ${s.why}`);
+        }
+    }
+    return out.join("\n");
 }
 
 /** What `verdicts:validate` prints. */

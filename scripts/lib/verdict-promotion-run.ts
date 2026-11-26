@@ -116,8 +116,13 @@ export async function snapshotVerdictStore(
         // Author aliases (issue #3585) join one person's accounts — the
         // per-tester report and the Admission Candidates (issue #3985) read
         // them, so only those pay the listing.
-        ...(mode === "testers" || mode === "promote"
+        ...(mode === "testers" || mode === "promote" || mode === "exam"
             ? { aliasObjects: await readPrefix(reader, ALIAS_OBJECT_PREFIX) }
+            : {}),
+        // The exam step reads grades for the verdicts it names, as a
+        // Promotion does — and nothing else of a Promotion's inputs.
+        ...(mode === "exam"
+            ? { referenceJudge: readConfigBlock(root, "referenceJudge") }
             : {}),
         // The Admission Candidates' inputs (issue #3985): the streak ledger a
         // promotion advances, and the bar it is read against.
@@ -200,9 +205,47 @@ export type VerdictsPromoteOutcome = {
     bladePassed: boolean | null;
 };
 
+/** The committed marker that says the Prototype gate was read (ADR 0186
+ *  Decision 7, PRD issue #10849). Until it exists, every player Verdict not in
+ *  the lock goes to the exam side (`verdicts:exam`), and a Promotion — which
+ *  would hand them to the fit — is refused. A JSON object naming where the
+ *  reading is recorded: `{ "reading": "docs/research/…" }`. */
+export const PROTOTYPE_GATE_MARKER_PATH = "data/prototype-gate-read.json";
+
+/** Why a Promotion may not run in `root`, or `null` when the marker says the
+ *  Prototype gate was read. */
+export function promotionRefusal(root: string): string | null {
+    const text = readIfExists(join(root, PROTOTYPE_GATE_MARKER_PATH));
+    const why =
+        text === null
+            ? `${PROTOTYPE_GATE_MARKER_PATH} is not committed`
+            : markerProblem(text);
+    if (why === null) return null;
+    return `refused — the Prototype gate (PRD issue #10849, ADR 0186 Decision 7) is not read: ${why}. Until it is, player Verdicts are the exam and a Promotion would hand them to the fit. Put new Verdicts on the exam side with \`bun run verdicts:exam\`; nothing read, nothing written`;
+}
+
+function markerProblem(text: string): string | null {
+    let raw: unknown;
+    try {
+        raw = JSON.parse(text);
+    } catch {
+        return `${PROTOTYPE_GATE_MARKER_PATH} is not valid JSON`;
+    }
+    const reading =
+        typeof raw === "object" && raw !== null && !Array.isArray(raw)
+            ? (raw as Record<string, unknown>).reading
+            : undefined;
+    return typeof reading === "string" && reading.trim() !== ""
+        ? null
+        : `${PROTOTYPE_GATE_MARKER_PATH} names no "reading" (where the gate's reading is recorded)`;
+}
+
 export async function runVerdictsPromote(
     ports: VerdictsPromotePorts
 ): Promise<VerdictsPromoteOutcome> {
+    // Before the store is read: a refused Promotion costs nothing.
+    const refusal = promotionRefusal(ports.root);
+    if (refusal !== null) throw new Error(refusal);
     const output = await ports.engineStep(
         await snapshotVerdictStore(ports.reader, ports.root, "promote")
     );
@@ -245,6 +288,54 @@ export async function runVerdictsPromote(
         text: `${output.text}\n\n${formatBladeMust(blade)}\n\n${PICK_AGREEMENT_POINTER}`,
         wrote: true,
         bladePassed: blade.passed,
+    };
+}
+
+export type VerdictsExamPorts = VerdictsValidatePorts &
+    Pick<VerdictsPromotePorts, "cacheDir" | "writePack">;
+
+export type VerdictsExamOutcome = {
+    text: string;
+    /** `false` exactly for a no-op. */
+    wrote: boolean;
+};
+
+/**
+ * `bun run verdicts:exam` (ADR 0186 Decision 7, issue #10851): every
+ * promotable verdict the lock does not name enters it on the exam side. The
+ * engine step proves the fit unchanged; the pack is written and read back as
+ * for a Promotion, and then the LOCK alone is written — no weight, no streak
+ * ledger, no blade run, since nothing the fit reads moved. Never refused by
+ * the Prototype gate marker: it is what runs while the gate is unread.
+ */
+export async function runVerdictsExam(
+    ports: VerdictsExamPorts
+): Promise<VerdictsExamOutcome> {
+    const output = await ports.engineStep(
+        await snapshotVerdictStore(ports.reader, ports.root, "exam")
+    );
+    if (output.mode !== "exam") {
+        throw new Error(
+            `the engine step answered "${output.mode}", not an exam step`
+        );
+    }
+    if (output.noop) return { text: output.text, wrote: false };
+    const stored = await ports.writePack(output.lock.verdictIds);
+    if (stored.packHash !== output.lock.packHash) {
+        throw new Error(
+            `the deployment stored pack ${stored.packHash}, but this snapshot encodes to ${output.lock.packHash} — nothing written`
+        );
+    }
+    await loadLockedVerdicts(output.lock, {
+        cacheDir: ports.cacheDir,
+        store: () => ports.reader,
+    });
+    const path = join(ports.root, VERDICT_LOCK_PATH);
+    writeFileSync(`${path}.${process.pid}.partial`, output.lockText);
+    renameSync(`${path}.${process.pid}.partial`, path);
+    return {
+        text: `${output.text}\n\n${PICK_AGREEMENT_POINTER}`,
+        wrote: true,
     };
 }
 

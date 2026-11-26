@@ -549,7 +549,9 @@ on 5 seeds — thresholds are configuration. A candidate whose pick is red is
 REPORTED, never auto-filed under `stretch`. Not to be confused with
 **promotion** (`verdicts:promote`), which is automatic and widens what the fit
 reads: a promoted Verdict teaches the evaluation, an admitted one binds the
-gate.
+gate. Until the Prototype gate is read (ADR 0186 Decision 7, PRD issue
+#10849), `verdicts:promote` refuses to run. New Verdicts go to the exam side
+with `bun run verdicts:exam` instead, and no weight moves.
 
 <a id="player-verdict"></a>**Verdict (a player's)** — one player's answer to
 one decision the Bot faced: the position, every legal candidate, the right
@@ -570,7 +572,12 @@ the player did (no search, microseconds, printed by every promotion) — and
 included, picks the player's move (fixed iterations and seed; minutes, never
 in a PR gate). Pick agreement is the strength number; the gap between the two
 is what the search adds or costs. Always printed with `n` and per decision
-class; under n = 100 it is indicative, never a claim. The unseen side is
+class; under n = 100 it is indicative, never a claim. Since ADR 0186 Decision 7
+the unseen side has two parts. The **hash side** is the 20% above. The **rule
+side**, or exam side, is every Verdict the lock lists in `examIds`: every player
+Verdict that `bun run verdicts:exam` took in while the Prototype gate is
+unread, whatever its hash. Both counts read the whole exam and print
+`n = total (hash side H, rule side R)`. The unseen side is
 immutable: a held-out Verdict never migrates to the fit side, and one the
 owner admits to `must` anyway leaves it for good and is counted as **burned**.
 Where it stands: the Verdict Lock holds 101 Verdicts (last promotion
@@ -578,7 +585,8 @@ Where it stands: the Verdict Lock holds 101 Verdicts (last promotion
 14/24 = 58.3% (`pass` 6/7, `land-drop` 5/9, `cast` 2/6), stable across eleven
 runs within 13–15. No health or nightly step runs it: at this `n` the number
 moves from run to run, so an automated reading raises false alarms. Run it by
-hand after each `verdicts:promote`, whose report ends by saying so:
+hand after each `verdicts:promote` or `verdicts:exam`, whose report ends by
+saying so:
 `bun run verdicts:pick-agreement` (≈ 7 minutes). It exits 0 only when every
 held-out Verdict could be searched, so its printed block is paste-able as the
 held-out receipt a strength claim owes.

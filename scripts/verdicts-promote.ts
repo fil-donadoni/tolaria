@@ -5,6 +5,11 @@
 // reads: new Eval Pairs, pairs the fit could not satisfy, per-weight movement
 // and the blade `must` result.
 //
+// Refused, before the store is read, until the committed marker
+// `data/prototype-gate-read.json` says the Prototype gate was read (ADR 0186
+// Decision 7, PRD issue #10849): until then player Verdicts are the exam,
+// and `bun run verdicts:exam` is the step that takes them in.
+//
 // Needs this machine's reader key AND a deploy key in the environment
 // (`CONVEX_DEPLOY_KEY`): the pack is written by the deployment, never from
 // here. Re-running with nothing new is a no-op. Exits 1 when the blade `must`

@@ -26,6 +26,15 @@
 // keyed on the registry's ENTRIES, not on the Verdicts they lower to, so an
 // entry the lowering refuses (a `gap`) still claims its scenario.
 //
+// THE EXAM SIDE BY RULE (ADR 0186 Decision 7). A Verdict the
+// lock names in `examIds` (`heldOutByRule`, set by `verdictsFromLock`) is
+// held out whatever its scenario hashes to: player Verdicts are the exam
+// until the Prototype gate is read. The Test Position override still wins —
+// a position admitted to the registry is fitted by the registry's own Verdict
+// anyway, so a rule-side store Verdict there is BURNED, like a hash-side one.
+// The lock refuses a Minimal Pair the rule would split, so the anchor's flag
+// is the unit's.
+//
 // A MINIMAL PAIR IS ONE UNIT (ADR 0148, GLOSSARY.md § Held-out Agreement):
 // either half alone is half an argument — a "wrong now" fitted without its
 // right-hand half teaches "never", the half alone "always" — so the two halves
@@ -139,6 +148,7 @@ export function verdictSideOf(
     modulus: number = HELD_OUT_SPLIT_MODULUS
 ): VerdictSide {
     if (isTestPosition(verdict, testPositions)) return "fit";
+    if (verdict.heldOutByRule === true) return "held-out";
     return heldOutBucketOf(scenarioKeyOf(verdict), modulus) === 0
         ? "held-out"
         : "fit";
@@ -185,7 +195,8 @@ export function verdictSidesOf(
 
 /**
  * The BURNED Verdicts: store Verdicts whose unit hashes into the held-out
- * bucket but which the Test Position override makes fit-side — held-out
+ * bucket, or is held out by rule (its anchor `heldOutByRule`), but which the
+ * Test Position override makes fit-side — held-out
  * positions a human admitted to the registry anyway (issue #3983, PRD #3980).
  * Each is a position the held-out side can no longer grade.
  *
@@ -211,7 +222,8 @@ export function burnedOf(
         const unitAnchor = v.pairOf ? byHash.get(v.pairOf.anchorId) : v;
         return (
             unitAnchor !== undefined &&
-            heldOutBucketOf(scenarioKeyOf(unitAnchor), modulus) === 0
+            (unitAnchor.heldOutByRule === true ||
+                heldOutBucketOf(scenarioKeyOf(unitAnchor), modulus) === 0)
         );
     });
 }

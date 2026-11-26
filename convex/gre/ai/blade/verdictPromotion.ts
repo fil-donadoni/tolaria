@@ -33,6 +33,8 @@ import {
     minimalPairFitOutcomes,
     parseVerdictLock,
     planPromotion,
+    planExam,
+    formatExamReport,
     formatTesterQuality,
     rewriteDefaultEvalWeights,
     serializeVerdictLock,
@@ -113,6 +115,10 @@ export function runVerdictPromotionStep(
             mode: "testers",
             text: testersText(input, validation, scenarios),
         };
+    }
+
+    if (input.mode === "exam") {
+        return examStep(input, validation, validationText, scenarios);
     }
 
     const current = input.lock === null ? null : parseVerdictLock(input.lock);
@@ -242,6 +248,89 @@ export function runVerdictPromotionStep(
             result
         ),
         streakLedgerText: serializePromotionStreakLedger(advanced.ledger),
+    };
+}
+
+/**
+ * `bun run verdicts:exam` (ADR 0186 Decision 7, issue #10851): widen the lock
+ * on the exam side only. The fit over the widened lock is RE-RUN and must
+ * rewrite the committed weights to the byte — the proof that the rule side is
+ * invisible to the fit; anything else throws and nothing is written. The
+ * held-out agreement block is read at those weights, over the whole exam.
+ */
+function examStep(
+    input: VerdictPromotionInput,
+    validation: StoreValidation,
+    validationText: string,
+    scenarios: readonly BladeScenario[]
+): VerdictPromotionOutput {
+    const current = input.lock === null ? null : parseVerdictLock(input.lock);
+    const testPositions = testPositionKeysOf(scenarios);
+    const referenceJudge = parseReferenceJudgeConfig(input.referenceJudge);
+    const plan = planExam(
+        current,
+        validation,
+        testPositions,
+        referenceJudgeIn(input, validation, referenceJudge)
+    );
+    const lockedBefore = current?.verdictIds.length ?? 0;
+    if (plan.noop) {
+        return {
+            mode: "exam",
+            noop: true,
+            text: [
+                validationText,
+                "",
+                formatExamReport(plan, lockedBefore),
+                "",
+                "nothing to put on the exam side — the lock already names every promotable verdict it can hold out; nothing rewritten",
+            ].join("\n"),
+        };
+    }
+    const corpus = lockedVerdictCorpus(plan.lock, plan.entries, scenarios);
+    const before = collectVerdictReport(corpus.verdicts, {
+        gaps: corpus.gaps,
+        weights: FIT_BASE_EVAL_WEIGHTS,
+        testPositions,
+    });
+    if (before.errors.length > 0) {
+        throw new Error(
+            `the widened corpus does not rebuild, so no lock over it could pass the guard:\n${before.errors
+                .map((e) => `  ${e.verdictId}: ${e.error}`)
+                .join("\n")}`
+        );
+    }
+    const result = fitWeights(
+        fitInputPairs(before.pairs, corpus.verdicts, testPositions),
+        FIT_BASE_EVAL_WEIGHTS
+    );
+    if (
+        rewriteDefaultEvalWeights(input.evalWeightsSource, result) !==
+        input.evalWeightsSource
+    ) {
+        throw new Error(
+            "the fit over the widened lock does not reproduce the committed weights — the exam side must be invisible to the fit (issue #10851); nothing written"
+        );
+    }
+    const after = collectVerdictReport(corpus.verdicts, {
+        gaps: corpus.gaps,
+        weights: result.weights,
+        testPositions,
+    });
+    return {
+        mode: "exam",
+        noop: false,
+        text: [
+            validationText,
+            "",
+            formatExamReport(plan, lockedBefore),
+            "",
+            formatHeldOutEvalAgreement(
+                heldOutEvalAgreement(after, corpus.verdicts, testPositions)
+            ),
+        ].join("\n"),
+        lock: plan.lock,
+        lockText: serializeVerdictLock(plan.lock),
     };
 }
 

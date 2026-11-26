@@ -223,6 +223,13 @@ Hand the reviewer, per preference row:
    note is the provenance; author alias and email never appear (ADR 0149
    § Consequences).
 
+**Until ADR 0186's Prototype gate is read** (no `data/prototype-gate-read.json`
+committed, PRD issue #10849), `verdicts:promote` refuses: run
+`bun run verdicts:exam` instead and commit the lock diff it writes. The pair
+lands on the exam side, the fit never reads it, so there is no Minimal Pair
+outcome to read and no `preference` issue from this door (Decision 8's
+freeze). With the marker committed, the rest of this section applies.
+
 Then, in the same session, from the audit's branch on a checkout with the reader key:
 
 ```bash

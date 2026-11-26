@@ -294,7 +294,7 @@ A fit reads the corpus the committed Verdict Lock names from ONE
 ## Promote the corpus
 
 The [bucket](#g-bucket) holds everything ever submitted; the committed
-`data/verdicts.lock.json` names what a fit runs over. Two commands move one
+`data/verdicts.lock.json` names what a fit runs over. Three commands move one
 into the other (issue #3583, ADR 0128 §7).
 
 `bun run verdicts:validate` is read-only and needs only the reader
@@ -303,12 +303,40 @@ exactly why: not what its name promises, unloadable, a position that no
 longer rebuilds, no [attestation](#g-attestation), attested only implicitly,
 or contested.
 
-`bun run verdicts:promote` is a [promotion](#g-promotion). It needs the reader
-[key](#g-key) and a deploy key (`CONVEX_DEPLOY_KEY`) for the deployment
-holding the writer's [key](#g-key):
+**Until the Prototype gate is read, no promotion runs** (ADR 0186 Decision 7,
+PRD issue #10849, issue #10851). Player verdicts are the exam then: every one
+the lock does not name goes to the [exam side](#g-exam-side) with
+`bun run verdicts:exam`. `verdicts:promote` refuses before it reads the
+[bucket](#g-bucket), exits 1 and names PRD issue #10849, while
+`data/prototype-gate-read.json` is not committed. That file is a JSON object
+whose `reading` names where the gate's reading is recorded
+(`{ "reading": "docs/research/…" }`). It lands with that reading, and so does
+the decision on the permanent split.
+
+`bun run verdicts:exam` needs the same two keys as a promotion:
+
+1. Every promotable verdict the lock does not name enters it on the exam
+   side. It is appended to `verdictIds` and listed in `examIds`. Nothing
+   already locked moves. A locked verdict that is no longer promotable stops
+   the run, because dropping it would move the weights. A Minimal Pair enters
+   whole or not at all: a half whose anchor is already locked waits for a
+   promotion.
+2. The fit is re-run over the widened lock. Its weights must rewrite the
+   committed `DEFAULT_EVAL_WEIGHTS` to the byte, or nothing is written.
+3. The [pack](#g-pack) is stored and read back as for a promotion. Then the
+   lock alone is written: no weights, no streak ledger, no blade run.
+
+It prints what entered the exam side, what was left out and why, and the
+held-out eval agreement over the whole exam. Its last line points at
+`bun run verdicts:pick-agreement`. Re-running with nothing new writes nothing.
+
+Once the marker is committed, `bun run verdicts:promote` is a
+[promotion](#g-promotion). It needs the reader [key](#g-key) and a deploy key
+(`CONVEX_DEPLOY_KEY`) for the deployment holding the writer's [key](#g-key):
 
 1. Every promotable verdict enters the lock: the verdicts already locked keep
-   their order, new ones are appended. The lock also records the Verdict Grade
+   their order, new ones are appended. The exam side (`examIds`) is carried
+   unchanged, so a verdict held out by rule stays held out. The lock also records the Verdict Grade
    each one is read with (`readings`, issue #10087), taken from its
    [attestations](#g-attestation): the Reference Judge's grade when they
    attested it, otherwise the least committal grade present. A Clear verdict,
@@ -478,6 +506,14 @@ One object holding every verdict a Verdict Lock names, one JSON line each,
 gzipped and named by the sha256 of its uncompressed text. The read form of
 the corpus: one fetch instead of one per verdict. Never trusted for being in
 the [bucket](#g-bucket) — it is verified against the lock on every read.
+
+### <a id="g-exam-side"></a>Exam side
+
+The verdicts the lock names in `examIds`: held out by rule, whatever their
+scenario hashes to (ADR 0186 Decision 7). The Weight Fit never reads them, and
+held-out agreement always counts them. Each agreement block prints the exam's
+size as `n = total (hash side H, rule side R)`. A lock with no `examIds` reads
+as having no exam side and keeps its bytes.
 
 ### <a id="g-promotion"></a>Promotion
 
