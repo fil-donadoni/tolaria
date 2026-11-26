@@ -919,6 +919,19 @@ function finishEffectsFor(
         const stored = storedList[i];
         if (stored.layer < 2 || stored.layer > 5) continue;
         if (!entryApplies(stored, target)) continue;
+        // CR 611.2b — a resolved effect lasting "for as long as <source>
+        // remains on the battlefield" applies only while that source is here.
+        // `state` is the view the sync derives against, which already omits a
+        // source that has STOPPED applying (`stoppedSourceIds`), so the effect
+        // ends at the departure itself, before the registry splice
+        // (`releaseSourceLinkedEffects`) catches up.
+        if (
+            stored.affected.kind === "instances" &&
+            stored.expiry.kind === "source" &&
+            !findPermanent(state, stored.expiry.sourceId)
+        ) {
+            continue;
+        }
         entries.push(stored);
     }
 

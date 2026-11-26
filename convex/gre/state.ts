@@ -501,6 +501,7 @@ import type { ContinuousEffect } from "./continuousEffects";
 import {
     pruneLostControlEffects,
     purgeContinuousEffectsForInstance,
+    releaseSourceLinkedEffects,
     removeContinuousEffect,
 } from "./continuousEffects";
 import { withGraveyardArrivalBatch } from "./graveyardOrder";
@@ -8763,6 +8764,9 @@ export function phaseOutPermanent(
     for (let i = 0; i < phasing.length; i++) {
         const card = phasing[i];
         releaseAbilityLossHolds(state, card.id);
+        // CR 702.26f — a "for as long as this remains on the battlefield"
+        // effect tracking a phasing card ends now and stays ended.
+        releaseSourceLinkedEffects(state, card.id);
         endTrackedDurations(card);
     }
     const bundle: PhasedOutBundle = {
@@ -11446,9 +11450,11 @@ export function resetBattlefieldTransientState(
     // CR 400.7 (ADR 0082, PRD #2064 S6) — the registry half of this reset.
     // Every duration- and indefinite-scoped continuous effect naming this
     // instance goes with the old object, exactly as the instance-borne ledgers
-    // below do. Source- and counter-provenance entries need nothing: they are
-    // re-derived from the live board at every read and the departing permanent
-    // is simply no longer in it.
+    // below do. Derived source- and counter-provenance entries need nothing:
+    // they are re-derived from the live board at every read and the departing
+    // permanent is simply no longer in it. A STORED entry tracking this
+    // permanent as its source (CR 611.2b, "for as long as this remains") is
+    // spliced by the same purge (`releaseSourceLinkedEffects`).
     purgeContinuousEffectsForInstance(state, card.id);
     // CR 400.7 / 509.1c (issue #3713) — instance ids survive zone changes, so a
     // "blocks <this creature> this turn if able" requirement recorded on a
@@ -15918,6 +15924,45 @@ export function buildSpellContext(
                 seq: allocStaticTimestamp(state),
                 ...(family ? { family } : {}),
             };
+            syncLayers2to5(state);
+        },
+        // CR 305.7 / 611.2b — a subtype replacement lasting "for as long as
+        // this creature remains on the battlefield" (Tide Shaper's "target
+        // land becomes an Island …"). A Continuous Effects Registry entry
+        // affecting the target, with the RESOLVING permanent as its `source`
+        // expiry: the layer walk applies it only while that permanent is on
+        // the battlefield, and its departure or phase-out splices it
+        // (`releaseSourceLinkedEffects`, CR 400.7 / 702.26f). A fresh CR 613.7
+        // stamp, so it orders against a live `subtype-set` by when it
+        // resolved. CR 611.2b — a duration already over (the source left, or
+        // left and came back as a new object, before this resolved) never
+        // starts: the effect does nothing.
+        setSubtypesWhileSourceRemains(
+            target: TargetSelection,
+            subtypes: string[],
+            family?: "creature"
+        ): void {
+            if (target.type !== "permanent") return;
+            if (item.sourceLki) return;
+            const src = findOnBattlefield(
+                state,
+                item.triggerSourceId ?? item.id
+            );
+            if (!src) return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            ensureLayer4Base(found.card);
+            pushContinuousEffect(state, {
+                layer: 4,
+                affected: { kind: "instances", instanceIds: [found.card.id] },
+                expiry: { kind: "source", sourceId: src.card.id },
+                payload: {
+                    kind: "subtype-change",
+                    set: subtypes.slice(),
+                    ...(family ? { family } : {}),
+                },
+                characteristicDefining: false,
+            });
             syncLayers2to5(state);
         },
         // CR 205.4a — indefinite supertype mutation (Arcum's Weathervane).

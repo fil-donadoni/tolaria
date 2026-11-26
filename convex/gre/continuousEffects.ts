@@ -110,10 +110,12 @@ export type ContinuousEffectSlot =
  *  (`staticEffects[]` gave the gate, the `*Permanent` grant primitives gave
  *  source-independence, neither gave both).
  *
- *  NOT exhaustive of the CR: a "for as long as ..." duration (CR 611.2b,
- *  Master Thief) has no variant here, because the engine's stored `Duration`
- *  is phase-boundary-only. That is a pre-existing limitation this slice
- *  neither introduces nor closes — a later slice adding it adds a variant.
+ *  A "for as long as <source> remains on the battlefield" duration (CR 611.2b)
+ *  is NOT a variant: it is `affected: instances` + this `source` expiry
+ *  (issue #10503, `setSubtypesWhileSourceRemains`), applied while the source
+ *  is on the battlefield and spliced at its departure or phase-out
+ *  (`releaseSourceLinkedEffects`). Other "for as long as" shapes (Master
+ *  Thief's "as long as you control") have their own variants or none yet.
  *
  *  `controllerId` rides on the two RESOLUTION-generated variants and only
  *  those. The controller of a continuous effect from a resolving spell or
@@ -364,11 +366,18 @@ export type ContinuousEffect = ContinuousEffectSlot &
  *  permanent from it for free and there is nothing to purge. Entries are
  *  SPLICED rather than blanked — `id` is the removal handle, and
  *  `nextContinuousEffectOrdinal` mints past the highest suffix in use so a
- *  removal cannot let a later entry re-issue a live id. */
+ *  removal cannot let a later entry re-issue a live id.
+ *
+ *  The departing permanent may also be the SOURCE a resolved effect tracks
+ *  ("target land becomes an Island for as long as this creature remains on the
+ *  battlefield", CR 611.2b): that duration ends with this departure, so
+ *  {@link releaseSourceLinkedEffects} runs first — otherwise the reused id
+ *  would revive the effect the moment the card came back as a new object. */
 export function purgeContinuousEffectsForInstance(
     state: GameState,
     instanceId: string
 ): void {
+    releaseSourceLinkedEffects(state, instanceId);
     const entries = state.continuousEffects;
     if (!entries?.length) return;
     let changed = false;
@@ -394,6 +403,33 @@ export function purgeContinuousEffectsForInstance(
         });
     }
     if (!changed) return;
+    state.continuousEffects = kept.length > 0 ? kept : undefined;
+}
+
+/** CR 611.2b — splices out every RESOLVED effect lasting "for as long as
+ *  `sourceId` remains on the battlefield": an `instances`-affected entry with
+ *  a `source` expiry (`SpellContext.setSubtypesWhileSourceRemains`). The
+ *  layer walks already stop applying such an entry while its source is absent
+ *  (`layers2to5EffectsFor`); this makes the end PERMANENT, because the
+ *  duration tracked that object and a card that comes back is a new one
+ *  (CR 400.7), and a permanent that phases back in never left (CR 702.26f —
+ *  the duration ended when it phased out and stays ended).
+ *
+ *  A `predicate`-affected `source` entry is a static ability's derived effect
+ *  and is never touched: it re-derives from the live board at every read. */
+export function releaseSourceLinkedEffects(
+    state: GameState,
+    sourceId: string
+): void {
+    const entries = state.continuousEffects;
+    if (!entries?.length) return;
+    const kept = entries.filter(
+        (entry) =>
+            entry.affected.kind !== "instances" ||
+            entry.expiry.kind !== "source" ||
+            entry.expiry.sourceId !== sourceId
+    );
+    if (kept.length === entries.length) return;
     state.continuousEffects = kept.length > 0 ? kept : undefined;
 }
 

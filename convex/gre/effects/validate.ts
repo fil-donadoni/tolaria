@@ -6182,8 +6182,21 @@ const OP_SCHEMAS: OpSchemaTable = {
             const errors: string[] = [];
             // issue #3809 — the family is carried by the timed ledger row
             // only; the indefinite `setSubtypes` path has no family slot.
-            if ("family" in entry && !("duration" in entry)) {
-                errors.push('field "family" requires "duration"');
+            if (
+                "family" in entry &&
+                !("duration" in entry) &&
+                !("whileSourceRemains" in entry)
+            ) {
+                errors.push(
+                    'field "family" requires "duration" or "whileSourceRemains"'
+                );
+            }
+            // CR 611.2 — one duration: a phase boundary OR the source's
+            // stay on the battlefield (CR 611.2b), never both.
+            if ("duration" in entry && "whileSourceRemains" in entry) {
+                errors.push(
+                    'fields "duration" and "whileSourceRemains" are exclusive'
+                );
             }
             // A chosen type is a CREATURE type (CR 205.3m) or a LAND type
             // (CR 205.3i): a `{ ref }` list must declare which, so the
@@ -6224,6 +6237,9 @@ const OP_SCHEMAS: OpSchemaTable = {
             // CR 611.2a (issue #1746) — omitted REPLACES the subtypes
             // INDEFINITELY (Figure of Destiny's staged respec).
             duration: isDurationSpec,
+            // CR 611.2b — "for as long as this creature remains on the
+            // battlefield" (Tide Shaper).
+            whileSourceRemains: (v) => v === true,
         },
     },
     // CR 208.2 / 611.1 (issue #1317) — turn a permanent into a creature.

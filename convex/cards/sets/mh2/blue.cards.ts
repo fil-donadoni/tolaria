@@ -4,6 +4,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { cardLeftGraveyardTrigger } from "../../abilities/triggers/cardLeftGraveyardTrigger";
 import { evokeTrigger } from "../../abilities/evoke";
 import { affinityForArtifacts } from "../../abilities/affinity";
+import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 
 // Subtlety — {2}{U}{U} Creature — Elemental Incarnation, 3/3 (MH2, issue #1205).
 // "Flash. Flying. When this creature enters, choose up to one target creature
@@ -219,6 +220,81 @@ export const inevitableBetrayal = defineCard(() => ({
             controller: "controller",
         },
         { op: "libraryLook", action: "shuffle", player: { target: 0 } },
+    ],
+}));
+
+// Tide Shaper — {U} Creature — Merfolk Wizard, 1/1 (MH2 72, issue #10503).
+// "Kicker {1}. When this creature enters, if it was kicked, target land becomes
+// an Island for as long as this creature remains on the battlefield. This
+// creature gets +1/+1 as long as an opponent controls an Island."
+//
+// CR 702.33a kicker; CR 603.4 — the intervening "if it was kicked" is the
+// Verduran Emissary pair (check-time `conditionOnSelf` + resolution-time
+// `additionalCostPaid`). CR 305.7 — setting a land's subtype to Island ends
+// its old land types AND the abilities its rules text gives it, so the land
+// keeps only the intrinsic "{T}: Add {U}" (the Harbinger of the Seas pair,
+// `mh3/blue`): `setSubtype` (layer 4) + `loseAllAbilitiesWhileSourceRemains`
+// (CR 613.1f layer 6), both for as long as Tide Shaper remains on the
+// battlefield (CR 611.2b) — `whileSourceRemains` ends the type change the
+// moment it leaves or phases out. The +1/+1 is the compiled layer-7c
+// `pt-buff` (CR 613.4c) gated on an opponent controlling an Island.
+// hand-tail: When this creature enters, if it was kicked, target land becomes an Island for as long as this creature remains on the battlefield. (#10503)
+export const tideShaper = defineCard(() => ({
+    id: "2ff414bc-6736-428b-bb60-9d62793a5ae5", // MH2 72
+    name: "Tide Shaper",
+    rarity: "uncommon",
+    oracleText:
+        "Kicker {1} (You may pay an additional {1} as you cast this spell.)\nWhen this creature enters, if it was kicked, target land becomes an Island for as long as this creature remains on the battlefield.\nThis creature gets +1/+1 as long as an opponent controls an Island.",
+    manaCost: { U: 1 },
+    types: ["Creature"],
+    subtypes: ["Merfolk", "Wizard"],
+    power: 1,
+    toughness: 1,
+    kickers: [{ id: "kicker", description: "Kicker {1}", mana: { X: 1 } }],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "tide-shaper-kicked",
+            oracleText:
+                "When this creature enters, if it was kicked, target land becomes an Island for as long as this creature remains on the battlefield.",
+            scope: "self",
+            conditionOnSelf: additionalCostPaidCondition("kicker"),
+            targetRequirement: { type: "Land", count: 1 },
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { additionalCostPaid: "kicker" },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "setSubtype",
+                            target: { target: 0 },
+                            subtypes: ["Island"],
+                            whileSourceRemains: true,
+                        },
+                        {
+                            op: "loseAllAbilitiesWhileSourceRemains",
+                            target: { target: 0 },
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+    compiledStaticEffects: [
+        {
+            kind: "pt-buff",
+            appliesTo: "self",
+            power: 1,
+            toughness: 1,
+            condition: {
+                kind: "opponent-controls",
+                filter: { subtypes: ["Island"] },
+                atLeast: 1,
+            },
+        },
     ],
 }));
 
