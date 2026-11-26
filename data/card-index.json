@@ -90967,12 +90967,62 @@
         "firstPrintSet": "mrd"
     },
     {
+        "name": "Talisman of Hierarchy",
+        "scryfallId": "826f99c7-f534-4183-8f0d-efe1609808ac",
+        "oracleId": "b693c3de-2eaf-4850-b405-e79d00adefda",
+        "firstSet": "mh1",
+        "firstPrintId": "826f99c7-f534-4183-8f0d-efe1609808ac",
+        "firstPrintSet": "mh1",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Talisman of Impulse",
+        "scryfallId": "a00b65f7-70d0-4bbd-ac13-be24cc3374ee",
+        "oracleId": "f2ccc9e8-8e92-4f8c-8728-8c748630e0dd",
+        "firstSet": "mrd",
+        "firstPrintId": "a00b65f7-70d0-4bbd-ac13-be24cc3374ee",
+        "firstPrintSet": "mrd",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Talisman of Indulgence",
+        "scryfallId": "e14011b3-56ce-4b93-833f-d8403809159c",
+        "oracleId": "1d9aeaaa-66f6-41cb-9bac-162d6fd8662c",
+        "firstSet": "mrd",
+        "firstPrintId": "e14011b3-56ce-4b93-833f-d8403809159c",
+        "firstPrintSet": "mrd",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Talisman of Progress",
         "scryfallId": "41ff849e-2439-4690-8aa4-769039b6da4c",
         "oracleId": "00e35322-1a9a-41e3-9ce1-359c8eaa3bc7",
         "firstSet": "mrd",
         "firstPrintId": "41ff849e-2439-4690-8aa4-769039b6da4c",
         "firstPrintSet": "mrd"
+    },
+    {
+        "name": "Talisman of Resilience",
+        "scryfallId": "cc25a254-edd2-4817-ab80-7373239da7d2",
+        "oracleId": "42b8aa14-10bc-4bd6-88d9-4bb287eadd19",
+        "firstSet": "mh1",
+        "firstPrintId": "cc25a254-edd2-4817-ab80-7373239da7d2",
+        "firstPrintSet": "mh1",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Talisman of Unity",
+        "scryfallId": "d6cc8a5a-b98b-4758-a168-bf2ef738fb05",
+        "oracleId": "e5fcc5d7-6a60-4a5b-9d02-6c30041a95b9",
+        "firstSet": "mrd",
+        "firstPrintId": "d6cc8a5a-b98b-4758-a168-bf2ef738fb05",
+        "firstPrintSet": "mrd",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Talon Gates of Madara",
