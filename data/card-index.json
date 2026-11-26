@@ -56567,6 +56567,14 @@
         "source": "compiled"
     },
     {
+        "name": "Mindspring Merfolk",
+        "scryfallId": "b6250b8b-1943-445f-ada9-30b41eb6d29b",
+        "oracleId": "35142b01-4b8d-4335-a943-a3172fa04573",
+        "firstSet": "dft",
+        "firstPrintId": "b6250b8b-1943-445f-ada9-30b41eb6d29b",
+        "firstPrintSet": "dft"
+    },
+    {
         "name": "Mindstab",
         "scryfallId": "3efd28ef-77db-4e7b-a69d-5a089e016737",
         "oracleId": "338c06ec-47b5-47e7-9fe1-39ff381b36a5",
