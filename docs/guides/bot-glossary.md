@@ -215,7 +215,12 @@ playing to the end.
 <a id="horizon"></a>**Horizon** — where a rollout stops. Here: the start of
 the Bot's next turn (ADR 0015), capped at 6 turns. A payoff that only shows up
 beyond the horizon is invisible to the search — one of the named causes of a
-[beyond-budget](#beyond-budget) position.
+[beyond-budget](#beyond-budget) position. Production reads it from where each
+rollout starts; the `horizon-b` [search variant](#search-variant) (off by
+default, PRD issue #10815) reads it on the search ROOT's clock instead — the
+precombat main phase of the first turn after the root's on which the Bot is
+active — and the tree stops descending there too, so every candidate is scored
+at the same game-clock point.
 
 <a id="leaf"></a>**Leaf** — the position at the end of an iteration, where the
 rollout stopped. It is scored by the [evaluation](#evaluation); that score,
