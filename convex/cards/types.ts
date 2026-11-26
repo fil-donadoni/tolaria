@@ -14489,6 +14489,11 @@ export interface TriggerStateView {
      *  `GameState.lifeGainedThisTurn`; an absent entry means 0 (a player who
      *  gained no life, or gained exactly 0 — CR 119.3: not a life gain). */
     lifeGainedThisTurn?: Readonly<Record<string, number>>;
+    /** Life lost by each player this turn (CR 119.3 tally), keyed by player
+     *  id — the twin of `lifeGainedThisTurn`, so a CR 603.4 intervening-if can
+     *  answer "if an opponent lost life this turn". Mirrors
+     *  `GameState.lifeLostThisTurn`; an absent entry means 0. */
+    lifeLostThisTurn?: Readonly<Record<string, number>>;
     /** Player ids under Abeyance's turn-scoped "can't activate abilities that
      *  aren't mana abilities" lock (CR 602.1 / 605.1a, issue #1124). Mirrors
      *  `GameState.cannotActivateAbilitiesThisTurn`; exposed so `getStackAbilities`

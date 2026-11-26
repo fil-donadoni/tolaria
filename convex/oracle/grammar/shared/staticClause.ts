@@ -295,6 +295,10 @@ export type StaticClauseIR =
               readonly type: string;
               readonly count: number | "X";
           };
+          /** CR 614.1c + CR 119.3 — "… on it if an opponent lost life this
+           *  turn": the counters only when some opponent of the controller
+           *  has lost life this turn as the permanent enters. */
+          readonly ifOpponentLostLifeThisTurn?: true;
       }
     /** CR 614.1c / 122.1 — how this permanent enters. */
     | {
@@ -1843,6 +1847,35 @@ const entersWithCounters: Rule<StaticClauseIR> = pattern(
         return ok({
             kind: "enters-with-counters" as const,
             counters: { type: match[3]!, count },
+        });
+    }
+);
+
+const ENTERS_WITH_IF_OPPONENT_LOST_LIFE =
+    /^(.+) enters with (\S+) (\S+) counters? on it if an opponent lost life this turn$/;
+
+/**
+ * "<self> enters with N <kind> counters on it if an opponent lost life this
+ * turn" — the same CR 614.1c entry replacement, its count gated on the
+ * per-turn life-loss tally (CR 119.3) read as the permanent enters. Printed
+ * counts only: an "X" here would name no announced value worth gating.
+ */
+const entersWithCountersIfOpponentLostLife: Rule<StaticClauseIR> = pattern(
+    "enters with counters if an opponent lost life",
+    ENTERS_WITH_IF_OPPONENT_LOST_LIFE,
+    (match): RuleResult<StaticClauseIR> => {
+        if (!isSelfPhrase(uncapitalise(match[1]!)))
+            return fail(
+                `"${match[1]}" is not this permanent (CR 109.2)`,
+                match[1]!
+            );
+        const count = readNumberWord(match[2]!);
+        if (count === null || count < 1)
+            return fail(`"${match[2]}" is not a printed count`, match[2]!);
+        return ok({
+            kind: "enters-with-counters" as const,
+            counters: { type: match[3]!, count },
+            ifOpponentLostLifeThisTurn: true as const,
         });
     }
 );
@@ -3609,6 +3642,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         cantBeCounteredRule,
         beginOnBattlefieldRule,
         entersWithCounters,
+        entersWithCountersIfOpponentLostLife,
         asEntersChooseCreatureType,
         asEntersChooseCardName,
         asEntersChooseOpponent,

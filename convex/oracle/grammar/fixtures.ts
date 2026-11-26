@@ -10408,6 +10408,46 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 119.9 + CR 603.3d — "Whenever you gain life, target opponent loses that much life": the life-gain head's amount (`LIFE_GAINED.amount`, the life actually gained) read as the drained amount, `{ ref: "$event.amount" }`, beside the opponent announced as the trigger goes on the stack.
+    {
+        rule: "trigger head",
+        card: {
+            name: "Sanguine Bond",
+            manaCost: "{3}{B}{B}",
+            typeLine: "Enchantment",
+            oracleText:
+                "Whenever you gain life, target opponent loses that much life.",
+            oracleId: "73089a39-a2f6-4aa2-a058-e6551475153d",
+            layout: "normal",
+        },
+        expected: {
+            name: "Sanguine Bond",
+            types: ["Enchantment"],
+            manaCost: { X: 3, B: 2 },
+            oracleText:
+                "Whenever you gain life, target opponent loses that much life.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "sanguine-bond-trigger",
+                    oracleText:
+                        "Whenever you gain life, target opponent loses that much life.",
+                    head: { kind: "life-gained", scope: "you" },
+                    targetRequirement: {
+                        type: "player",
+                        count: 1,
+                        controller: "opponent",
+                    },
+                    effects: [
+                        {
+                            op: "loseLife",
+                            player: { target: 0 },
+                            amount: { ref: "$event.amount" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 702.33e + CR 603.4 — the unnamed "if it was kicked" on a card printing one single kicker, an untargeted body. Exhibits the lone kicker's payment amount, which the canned smoke scenario casts unkicked.
     {
         rule: "kicked trigger condition",
