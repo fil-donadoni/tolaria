@@ -3167,12 +3167,9 @@ export function leadingGateSentenceRule(
             condition = { kind: "you-control", condition: read.value };
             body = controls[2]!;
         } else {
+            // The head's own pattern admits only the "or" list.
             const list = readSubtypeList(creature![2]!);
-            if (
-                list === null ||
-                list.conjunction !== "or" ||
-                list.number !== "singular"
-            )
+            if (list === null || list.number !== "singular")
                 return fail(
                     `"${creature![2]}" is not an or-list of CR 205.3 subtypes`,
                     span
