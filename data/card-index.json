@@ -20602,6 +20602,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dazzling Denial",
+        "scryfallId": "8739f1ac-2e57-4b52-a7ff-cc8df5936aad",
+        "oracleId": "6d56bd32-f47a-4e54-a88e-b69d16283ea4",
+        "firstSet": "blb",
+        "firstPrintId": "8739f1ac-2e57-4b52-a7ff-cc8df5936aad",
+        "firstPrintSet": "blb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Dazzling Ramparts",
         "scryfallId": "ce43a2df-4305-4ab1-ae45-96cca597650e",
         "oracleId": "0527fc47-2bfc-4d02-90fa-5a1284f89a0a",
@@ -68315,6 +68325,16 @@
         "source": "compiled"
     },
     {
+        "name": "Rabbit Response",
+        "scryfallId": "c4ded450-346d-4917-917a-b62bc0267509",
+        "oracleId": "9f7abd7d-1087-495c-8a52-2a2368cc1032",
+        "firstSet": "blb",
+        "firstPrintId": "c4ded450-346d-4917-917a-b62bc0267509",
+        "firstPrintSet": "blb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Rabid Rats",
         "scryfallId": "ed8c028e-6656-47ef-97fb-de99f8833d5f",
         "oracleId": "0f2504b0-bd5a-4b61-b8bb-c8b20aa1e26e",
@@ -84803,6 +84823,16 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Splash Portal",
+        "scryfallId": "adbaa356-28ba-487f-930a-a957d9960ab0",
+        "oracleId": "29b537f5-4d9f-40ed-b38b-e8faa2b5af7d",
+        "firstSet": "blb",
+        "firstPrintId": "adbaa356-28ba-487f-930a-a957d9960ab0",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Splatter Goblin",
         "scryfallId": "5045027d-0ff4-484c-b4cb-e0b61885d428",
         "oracleId": "a7cf5b74-123c-4def-a4aa-771ecd3be260",
@@ -89391,6 +89421,16 @@
         "firstSet": "znr",
         "firstPrintId": "e1894cf9-7d53-4b7e-aaae-8db42bdd8e49",
         "firstPrintSet": "znr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Take Out the Trash",
+        "scryfallId": "7a1c6f00-af4c-4d35-b682-6c0e759df9a5",
+        "oracleId": "e07700e7-218a-45a3-9ee4-de2cc25cdc02",
+        "firstSet": "blb",
+        "firstPrintId": "7a1c6f00-af4c-4d35-b682-6c0e759df9a5",
+        "firstPrintSet": "blb",
         "rarity": "common",
         "source": "compiled"
     },
@@ -95918,6 +95958,16 @@
         "firstPrintId": "d40e073a-ec98-4f8e-ae4b-6cfd0530bcdf",
         "firstPrintSet": "msc",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Ultron, Machine Overlord",
+        "scryfallId": "b38f8149-0ab8-42cb-9af6-8c647550ab68",
+        "oracleId": "19fd953c-b6d4-457f-b85f-b681c5b0e341",
+        "firstSet": "msc",
+        "firstPrintId": "b38f8149-0ab8-42cb-9af6-8c647550ab68",
+        "firstPrintSet": "msc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

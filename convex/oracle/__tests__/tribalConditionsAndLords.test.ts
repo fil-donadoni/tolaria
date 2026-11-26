@@ -222,6 +222,49 @@ describe("golden — lord subjects (CR 613.4c + CR 205.3)", () => {
             })
         );
     });
+
+    it('Ultron, Machine Overlord: the pair "Other Robots and Constructs you control get +2/+2"', () => {
+        const oracleText =
+            "Flying\nOther Robots and Constructs you control get +2/+2.";
+        const outcome = compileCard(
+            oracleCard({
+                name: "Ultron, Machine Overlord",
+                manaCost: "{5}",
+                typeLine: "Legendary Artifact Creature — Robot Villain",
+                power: "4",
+                toughness: "4",
+                oracleText,
+            })
+        );
+        expect(outcome.state).toBe("ready");
+        if (outcome.state === "unparsed") return;
+        expect(sortKeys(outcome.definition)).toEqual(
+            sortKeys({
+                name: "Ultron, Machine Overlord",
+                types: ["Artifact", "Creature"],
+                supertypes: ["Legendary"],
+                subtypes: ["Robot", "Villain"],
+                manaCost: { X: 5 },
+                power: 4,
+                toughness: 4,
+                oracleText,
+                staticAbilities: ["flying"],
+                compiledStaticEffects: [
+                    {
+                        kind: "pt-buff",
+                        filter: {
+                            types: ["Creature"],
+                            subtypes: ["Robot", "Construct"],
+                            controllerRelation: "you",
+                            excludeSource: true,
+                        },
+                        power: 2,
+                        toughness: 2,
+                    },
+                ],
+            })
+        );
+    });
 });
 
 describe("refusals — neighbours the rules do not read (ADR 0105 § 2)", () => {
