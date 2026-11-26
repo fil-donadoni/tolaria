@@ -2,7 +2,13 @@
 // Scryfall oracle text is authoritative (ADR 0004). Lands and colourless
 // artifacts (no coloured cost) live here per the colour-split convention.
 
-import { defineCard, type ActivatedAbilityContext } from "../../types";
+import {
+    defineCard,
+    type ActivatedAbilityContext,
+    type PermanentView,
+    type StaticEffectStateView,
+} from "../../types";
+import { readEffectivePT } from "../../effectivePT";
 
 // Volrath's Stronghold — Legendary Land. "{T}: Add {C}." plus "{1}{B}, {T}:
 // Put target creature card from your graveyard on top of your library."
@@ -51,6 +57,54 @@ export const volrathsStronghold = defineCard(() => ({
             effects: [
                 { op: "moveZone", target: { target: 0 }, to: "library-top" },
             ],
+        },
+    ],
+}));
+
+// Ensnaring Bridge — {3} Artifact. "Creatures with power greater than the
+// number of cards in your hand can't attack." (CR 508.1c — a restriction on
+// declaring attackers, checked for every creature on the battlefield, either
+// side's.) A battlefield-scanned `global-attack-restriction` (the Moat shape):
+// the source forbids the attack of any creature, itself included if it is
+// animated, so the predicate is read at every declaration against the board
+// as it stands then — the hand count and the power both move between
+// declarations.
+//
+// CR 613.4 — "power" is the attacker's EFFECTIVE power, read through the
+// layer-7 pipeline (`readEffectivePT`, counters and anthems included), never
+// its printed characteristic. "Your hand" is the Bridge's controller's. A
+// view with no hand data (`hand` absent, `StaticEffectStateView` § hand)
+// cannot verify the count, so the restriction does not bind there — the
+// server's `GameState` always carries it.
+//
+// hand-tail: Creatures with power greater than the number of cards in your hand can't attack. (#10553)
+export const ensnaringBridge = defineCard(() => ({
+    id: "27d838a1-2739-45f7-a856-6202334fa76a", // STH 133
+    rarity: "rare",
+    name: "Ensnaring Bridge",
+    oracleText:
+        "Creatures with power greater than the number of cards in your hand can't attack.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    staticEffects: [
+        {
+            kind: "global-attack-restriction",
+            id: "ensnaring-bridge-power-over-hand-cant-attack",
+            forbids: (
+                attacker: PermanentView,
+                source: PermanentView,
+                state: StaticEffectStateView
+            ) => {
+                const handSize = state.players.find(
+                    (p) => p.id === source.controllerId
+                )?.hand?.length;
+                if (handSize === undefined) return false;
+                return (
+                    readEffectivePT(attacker, state as never).power > handSize
+                );
+            },
+            oracleText:
+                "Creatures with power greater than the number of cards in your hand can't attack (Ensnaring Bridge).",
         },
     ],
 }));
