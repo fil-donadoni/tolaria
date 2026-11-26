@@ -116,7 +116,7 @@ export const ROOT_RULE_ALLOWLIST: Record<
     "free-development": {
         kind: "rule",
         issue: 206,
-        why: "a land drop / free mana source / mana dork / untargeted sorcery-speed artifact or enchantment with a controller-held activated ability / a banking special action — foretell, plot (issues #2096, #7587): deploying and deferring reach the same rollout leaves (the pass edge casts it later the same turn), so no evaluation term separates them (ADR 0020 §1, issue #4070); and a free mana source ahead of another outcome-equal cast at sorcery timing (issue #8296): going first keeps every line of the other order, and the mean only reads lower because its wider node dilutes it",
+        why: "a land drop / free mana source / mana dork / untargeted sorcery-speed artifact or enchantment with a controller-held activated ability / a banking special action — foretell, plot (issues #2096, #7587): deploying and deferring reach the same rollout leaves (the pass edge casts it later the same turn), so no evaluation term separates them (ADR 0020 §1, issue #4070); and a free mana source ahead of another outcome-equal cast at sorcery timing (issue #8296): going first keeps every line of the other order, and the mean only reads lower because its wider node dilutes it; and a hand land drop deferred while the outcome-equal pass line plays a land out of exile the same turn (issue #10464): two orders of one drop, the later one keeping the card that lapses at cleanup",
     },
     "hold-trick": {
         kind: "rule",
