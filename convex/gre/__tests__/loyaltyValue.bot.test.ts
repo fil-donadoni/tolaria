@@ -56,6 +56,8 @@ const EXPECTED_CEILING: Record<string, number> = {
     "Kaito, Bane of Nightmares": 5,
     // start 5, spends 1/2
     "Karn, Scion of Urza": 6,
+    // start 5, spend 2 — the starting count is the larger bound
+    "Karn, the Great Creator": 6,
     // start 7, spend 1 — starting count again
     "Kiora, Behemoth Beckoner": 8,
     // start 3, spends 2/6
