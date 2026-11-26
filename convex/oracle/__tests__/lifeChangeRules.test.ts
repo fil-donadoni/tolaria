@@ -437,7 +437,7 @@ describe("the rebuilt life-change triggers (CR 119.9, CR 603.2)", () => {
             })
         );
         expect(ability.event).toEqual(["LIFE_GAINED", "LIFE_LOST"]);
-        // CR 603.2h — "This ability triggers only once each turn".
+        // CR 603.2 — "This ability triggers only once each turn".
         expect(ability.maxTriggersPerTurn).toBe(1);
         const mine = board({ activePlayerId: "p1" });
         const theirs = board({ activePlayerId: "p2" });
