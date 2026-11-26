@@ -166,7 +166,7 @@ describe("station cards in the compiler (CR 721)", () => {
         expect(outcome.state).toBe("unparsed");
     });
 
-    it("a d20 table spelled `N+ |` is not a station card (CR 706.2)", () => {
+    it("a d20 table spelled `N+ |` is not a station card (CR 706.3a)", () => {
         expect(
             readStationSections(
                 [

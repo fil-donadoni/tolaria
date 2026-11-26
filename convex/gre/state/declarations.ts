@@ -2577,7 +2577,7 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  in exile (CR 607.2a / 400.7). Cast-instance-scoped: cleared when the
      *  item leaves the stack (`resetStackTransientState`). */
     castExiledCardIds?: string[];
-    /** CR 602.2b / 118.8 (issue #10528) — the ONE permanent tapped to pay a
+    /** CR 602.1a (issue #10528) — the ONE permanent tapped to pay a
      *  "tap another untapped creature you control" leg (`cost.tapOtherFilter`
      *  with `count: 1`), so the ability can name "the tapped creature" (CR
      *  702.184a, Station). Its characteristics are read LIVE at resolution

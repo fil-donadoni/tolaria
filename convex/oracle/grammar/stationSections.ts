@@ -14,7 +14,7 @@
  * `expandStationThresholds` adds for every station card — and its reminder is
  * the one place Oracle text says which striation holds the P/T box ("It's an
  * artifact creature at 8+."). A card is a station card only when it prints the
- * keyword: the same `N+ | ` spelling heads a d20 result line (CR 706.2,
+ * keyword: the same `N+ | ` spelling heads a d20 result line (CR 706.3a,
  * "15+ | Return those cards …"), which this reader never sees.
  */
 
