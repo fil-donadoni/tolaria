@@ -11450,9 +11450,11 @@ export function resetBattlefieldTransientState(
     // CR 400.7 (ADR 0082, PRD #2064 S6) — the registry half of this reset.
     // Every duration- and indefinite-scoped continuous effect naming this
     // instance goes with the old object, exactly as the instance-borne ledgers
-    // below do. Source- and counter-provenance entries need nothing: they are
-    // re-derived from the live board at every read and the departing permanent
-    // is simply no longer in it.
+    // below do. Derived source- and counter-provenance entries need nothing:
+    // they are re-derived from the live board at every read and the departing
+    // permanent is simply no longer in it. A STORED entry tracking this
+    // permanent as its source (CR 611.2b, "for as long as this remains") is
+    // spliced by the same purge (`releaseSourceLinkedEffects`).
     purgeContinuousEffectsForInstance(state, card.id);
     // CR 400.7 / 509.1c (issue #3713) — instance ids survive zone changes, so a
     // "blocks <this creature> this turn if able" requirement recorded on a

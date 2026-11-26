@@ -110,10 +110,12 @@ export type ContinuousEffectSlot =
  *  (`staticEffects[]` gave the gate, the `*Permanent` grant primitives gave
  *  source-independence, neither gave both).
  *
- *  NOT exhaustive of the CR: a "for as long as ..." duration (CR 611.2b,
- *  Master Thief) has no variant here, because the engine's stored `Duration`
- *  is phase-boundary-only. That is a pre-existing limitation this slice
- *  neither introduces nor closes — a later slice adding it adds a variant.
+ *  A "for as long as <source> remains on the battlefield" duration (CR 611.2b)
+ *  is NOT a variant: it is `affected: instances` + this `source` expiry
+ *  (issue #10503, `setSubtypesWhileSourceRemains`), applied while the source
+ *  is on the battlefield and spliced at its departure or phase-out
+ *  (`releaseSourceLinkedEffects`). Other "for as long as" shapes (Master
+ *  Thief's "as long as you control") have their own variants or none yet.
  *
  *  `controllerId` rides on the two RESOLUTION-generated variants and only
  *  those. The controller of a continuous effect from a resolving spell or
