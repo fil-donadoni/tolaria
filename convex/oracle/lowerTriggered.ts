@@ -692,6 +692,9 @@ export function lowerTriggeredAbility(input: {
             : {}),
     };
     delete (laterAntecedents as { object?: unknown }).object;
+    // CR 608.2h — "its controller" after the first sentence may mean an
+    // object that sentence acted on, so the head's land is withheld there too.
+    delete (laterAntecedents as { landController?: unknown }).landController;
     // CR 608.2b — "This ability still resolves if its target becomes
     // illegal" is the ability's, whichever sentence carries it. Only an
     // entered head's factory forwards it.

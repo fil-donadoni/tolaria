@@ -3556,6 +3556,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › That player adds one mana of any type that land produced",
+            "issue": 3742
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › That player chooses target player who controls more creatures than they do and is their opponent",
             "issue": 5692
         },

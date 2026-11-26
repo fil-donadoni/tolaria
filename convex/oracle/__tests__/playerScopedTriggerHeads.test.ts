@@ -332,6 +332,12 @@ describe("player-scoped trigger heads — refused neighbours", () => {
             "'lands its controller controls' behind a creature enters",
             "Whenever a creature enters, tap all lands its controller controls.",
         ],
+        // CR 608.2h — after a sentence that acted on another object, "its"
+        // may mean that object: the head's land is withheld there.
+        [
+            "'its controller' in a later sentence behind a land enters",
+            "Whenever a land enters, destroy target creature. Tap all lands its controller controls.",
+        ],
         [
             "'untap all lands its controller controls'",
             "Whenever a land enters, untap all lands its controller controls.",
