@@ -1,5 +1,7 @@
 # The evaluation's weights are fitted from player Verdicts by a deterministic Weight Fit, never hand-picked and never tuned on the Ladder
 
+**Amended by ADR 0186 (2026-11-26):** § 1 gains a gated source (Synthetic Verdicts) and a generated vector beside the hand-written terms; § 5's moratorium now covers every hand-written weight and preference rule, not only root rules.
+
 **Amended by ADR 0151 (2026-11-08, issue #8726):** the latent script value (symmetric effect by Differential, latent floor).
 
 ## Status

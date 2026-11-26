@@ -1,5 +1,7 @@
 # Gameplay telemetry PROPOSES verdicts; only a judgement the player confirmed ever trains the evaluation
 
+**Amended by ADR 0186 (2026-11-26):** a language model's label (a Synthetic Verdict) may train without a player's confirmation, as a class of its own and only behind a measured gate; a move merely chosen in play still never trains.
+
 ## Status
 
 accepted (2026-09-14, "formato verdicts" grill session; extends ADR 0124,

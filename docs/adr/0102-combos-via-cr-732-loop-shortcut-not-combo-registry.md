@@ -1,5 +1,7 @@
 # Combos are found through a CR 732 loop shortcut the engine offers as a Move, never through a per-card combo registry
 
+**Amended by ADR 0186 (2026-11-26):** a per-card correction fitted from judged decisions and shrunk to zero (the Card Residual) is admitted as an escape hatch; a hand-registered per-card or per-combo layer stays rejected.
+
 **Amended by ADR 0164 (2026-11-08, issue #8726):** a third knowledge source (the Executable-gated Combo Corpus) is admitted; the deletion of the boost layer stands.
 
 _Dated (2026-11-08, issue #8726): repo paths named below that no longer exist (path retired): `convex/gre/ai/comboAnnotations.ts`._
