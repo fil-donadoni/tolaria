@@ -5586,9 +5586,7 @@ function withoutAlso(clause: string): string {
  * CR 702.174m — a target inside a promised part is chosen only if the gift
  * was promised: the lowering's `announcedOnlyIfKicked`, as for a kicker.
  *
- * A combinator like `kickedSentenceRule`, and as fail-closed. The additive
- * clause opening on a subject pronoun ("…, it deals 2 damage …") is refused:
- * the kicker binds that "it" to the spell, and no gift card prints it.
+ * A combinator like `kickedSentenceRule`, and as fail-closed.
  */
 export function giftSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
     return rule(`gift ${inner.label}`, (span, ctx) => {
@@ -5602,11 +5600,6 @@ export function giftSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
             : adds
               ? withoutAlso(span.slice(GIFT_PROMISED_ADDS.length))
               : unpromised![1]!;
-        if (adds && leadingSubjectPronoun(uncapitalise(clause)) !== null)
-            return fail(
-                'a pronoun subject after "if the gift was promised" has no fixture',
-                span
-            );
         const parsed = inner.run(
             capitalise(clause),
             replaces && EXACT_PAIR_CLAUSE.test(clause)

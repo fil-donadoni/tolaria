@@ -548,7 +548,7 @@ describe("Additive gift clause — refusals (fail-closed, ADR 0105 § 2)", () =>
     it.each([
         // A clause reading the promise on a card with no gift.
         "Draw a card. If the gift was promised, draw a card.",
-        // A pronoun subject: the kicker binds it to the spell, no gift prints it.
+        // A pronoun subject: no gift card prints one, the sentence rule refuses it.
         GIFT +
             "Test Gift Spell deals 2 damage to target creature. If the gift was promised, it deals 2 damage to that creature's controller.",
         // "also" repeating nothing the sentence before acted on.
