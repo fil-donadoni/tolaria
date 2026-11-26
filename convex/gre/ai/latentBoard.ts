@@ -78,11 +78,7 @@ import type { Phase } from "../types";
 import type { EvalWeights } from "./evalWeights";
 import { libraryTerm } from "./decking";
 import { tryGetDefinition } from "../../cards";
-import {
-    hasGraveyardRecursionAccess,
-    latentGraveyardValue,
-} from "./graveyardReach";
-import { graveyardPlayUnlockWorth } from "./graveyardPlayWorth";
+import { hasGraveyardRecursionAccess } from "./graveyardReach";
 import type {
     EachPlayerSide,
     HandStep,
@@ -600,24 +596,6 @@ export function makeLatentBoardLens(
             return total;
         },
         heldDifferentialFraction: weights.heldDifferentialFraction,
-        graveyardPlayWorth(grant) {
-            const caster = state.players.find((p) => p.id === casterId);
-            if (!caster) return undefined;
-            measured = true;
-            const discounts = {
-                creature: weights.latentCreatureDiscount,
-                flash: weights.latentFlashCreatureDiscount,
-            };
-            // The card carrying the grant is paid for out of the same mana
-            // while it is still in hand.
-            return graveyardPlayUnlockWorth(
-                state,
-                caster,
-                grant,
-                card.zone === "hand" ? card : undefined,
-                (c) => latentGraveyardValue(c, weights.latent, discounts)
-            );
-        },
         measured: () => measured,
     };
     if (card.zone !== "battlefield") {

@@ -1796,10 +1796,7 @@ export function rollout(
     /** The search root's clock, for `scoreLeaf`'s win timing. */
     since?: GameClock,
     /** The search's wall-clock cap, read once per ply (issue #10408). */
-    deadline?: RolloutDeadline,
-    /** The mana-base sacrifice casts this line's root move unlocked
-     *  (`rootUnlockedSacrificeCasts`): the policies may play them. */
-    unlockedSacrificeCasts?: ReadonlySet<string>
+    deadline?: RolloutDeadline
 ): Leaf {
     const startTurn = state.turn;
     let lastTurn = state.turn;
@@ -1851,17 +1848,10 @@ export function rollout(
         if (enumerated.length === 0) break;
         // Issue #5445 — neither policy plays a mana-base sacrifice: the root
         // weighs it NOW, and a rollout that takes it later is the `pass`
-        // edge paying the cast edge's cost. One the line's root move unlocked
-        // has no root edge to be weighed at, and stays. Never emptying.
+        // edge paying the cast edge's cost. Never emptying.
         const kept = enumerated.filter(
             (m) =>
-                !isHeldBackSacrificeCast(
-                    state,
-                    pid,
-                    botId,
-                    m,
-                    unlockedSacrificeCasts
-                ) &&
+                !isManaBaseSacrificeCast(state, pid, botId, m) &&
                 !isDoomedEntryMove(state, pid, botId, m) &&
                 !isOneSidedPutCast(state, pid, botId, m)
         );
@@ -3732,128 +3722,6 @@ export function isManaBaseSacrificeCast(
     );
 }
 
-/** The mana-base sacrifice casts each root move UNLOCKS, by root edge key.
- *  See {@link rootUnlockedSacrificeCasts}. */
-export type RootUnlockedSacrificeCasts = ReadonlyMap<
-    string,
-    ReadonlySet<string>
->;
-
-/** One mana-base sacrifice cast across the nodes of a search: the card, the
- *  cost it is cast for and the zone it leaves. The bot's own cards keep
- *  their instance ids in every determinized world. */
-function sacrificeCastKey(move: Extract<Move, { kind: "cast-spell" }>): string {
-    return `${move.cardInstanceId}|${move.alternativeCostId ?? ""}|${
-        move.castFromZone ?? "hand"
-    }`;
-}
-
-/** {@link isManaBaseSacrificeCast} as the tree below the root and both
- *  rollout policies read it: held back, unless the root move of this line
- *  unlocked the cast. */
-function isHeldBackSacrificeCast(
-    state: GameState,
-    pid: string,
-    botId: string,
-    move: Move,
-    unlocked: ReadonlySet<string> | undefined
-): boolean {
-    if (!isManaBaseSacrificeCast(state, pid, botId, move)) return false;
-    return !(
-        unlocked !== undefined &&
-        move.kind === "cast-spell" &&
-        unlocked.has(sacrificeCastKey(move))
-    );
-}
-
-/** Whether `card`'s definition can ask for a permanent sacrifice in place of
- *  its mana cost at all — the cheap gate on {@link rootUnlockedSacrificeCasts}. */
-function hasSacrificeCastCost(card: CardInstanceState): boolean {
-    const cardId = (card.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
-    return (
-        (def?.alternativeCosts ?? []).some(
-            (a) => a.permanent?.action === "sacrifice"
-        ) || getFlashbackAdditionalCost(card)?.sacrifice !== undefined
-    );
-}
-
-/** The mana-base sacrifice casts each root move UNLOCKS: castable by the bot
- *  once the move has resolved, and not offered at the root (CR 601.3 — a
- *  graveyard play permission, then a graveyard card cast for its "sacrifice
- *  two Mountains" cost).
- *
- *  {@link isManaBaseSacrificeCast} is dropped below the root because the root
- *  weighs the cast itself. A cast only one root move makes castable has no
- *  root edge: that move's subtree is the one place its payoff can be read,
- *  and with the cast dropped there too the move is scored as if it unlocked
- *  nothing — a kill two steps long is invisible at any budget. So the cast
- *  stays, in that subtree alone: every sibling's subtree still drops it, and
- *  `pass` still cannot absorb a line the unlocking move owns.
- *
- *  Only a cast or an activation unlocks: its resolution is what grants the
- *  cast, and it spends a card or mana the bot would not spend otherwise. A
- *  land drop does not — it is taken on outcome-equality anyway
- *  (`free-development`) and the cast it pays for is weighed at the next real
- *  decision's root — nor does `pass`, which changes only the window, nor a
- *  declaration. Empty unless the bot holds a card with such a cost in a
- *  public zone, so the common search pays three zone scans. Read on the real
- *  root state, like `unlockingRootKeys`.
- *
- *  Per-card-agnostic, never a card name (ADR 0102). */
-export function rootUnlockedSacrificeCasts(
-    state: GameState,
-    botId: string,
-    moves: readonly Move[]
-): RootUnlockedSacrificeCasts | undefined {
-    const bot = state.players.find((p) => p.id === botId);
-    if (
-        !bot ||
-        ![bot.hand, bot.graveyard, bot.exile].some((zone) =>
-            zone.some(hasSacrificeCastCost)
-        )
-    ) {
-        return undefined;
-    }
-    const sacrificeCastsOf = (position: GameState, offered: readonly Move[]) =>
-        offered
-            .filter(
-                (m): m is Extract<Move, { kind: "cast-spell" }> =>
-                    m.kind === "cast-spell" &&
-                    isManaBaseSacrificeCast(position, botId, botId, m)
-            )
-            .map(sacrificeCastKey);
-    const atRoot = new Set(sacrificeCastsOf(state, moves));
-    const unlocked = new Map<string, Set<string>>();
-    for (let i = 0; i < moves.length; i++) {
-        const move = moves[i];
-        if (move.kind !== "cast-spell" && move.kind !== "activate-ability") {
-            continue;
-        }
-        // The greedy sandbox: the move resolved with no response, and the
-        // priority back with the active player (CR 117.3b).
-        let after: GameState;
-        try {
-            after = applyMoveForSearch(state, botId, move);
-        } catch {
-            // The resolution could not be simulated: nothing known unlocked.
-            continue;
-        }
-        if (after.gameOver) continue;
-        const fresh = sacrificeCastsOf(
-            after,
-            enumerateMoves(after, botId)
-        ).filter((key) => !atRoot.has(key));
-        if (fresh.length > 0) {
-            unlocked.set(
-                priorityMoveKey(state, botId, botId, move),
-                new Set(fresh)
-            );
-        }
-    }
-    return unlocked.size > 0 ? unlocked : undefined;
-}
-
 /** The filter of an alternative cost's permanent leg when that leg
  *  SACRIFICES (CR 118.9 / 701.21a); `undefined` for a return leg or none. */
 function alternativeCostSacrificeLeg(
@@ -4135,8 +4003,7 @@ function puctDescend(
     config: ActionPriorConfig,
     since: GameClock,
     shared: Node = node,
-    deadline?: RolloutDeadline,
-    unlockedSacrificeCasts?: RootUnlockedSacrificeCasts
+    deadline?: RolloutDeadline
 ): boolean {
     let cache = node.policyValues;
     if (!cache) {
@@ -4250,15 +4117,7 @@ function puctDescend(
     if (existed) return false;
     backpropagate(
         path,
-        rollout(
-            world,
-            botId,
-            rng,
-            weights,
-            since,
-            deadline,
-            unlockedSacrificeCasts?.get(path[0]?.key ?? "")
-        ),
+        rollout(world, botId, rng, weights, since, deadline),
         botId
     );
     return true;
@@ -4348,8 +4207,7 @@ function iterate(
     opponentModel: OpponentModel | null = null,
     openRootByPolicy = false,
     unlockingRootKeys?: ReadonlySet<string>,
-    deadline?: RolloutDeadline,
-    unlockedSacrificeCasts?: RootUnlockedSacrificeCasts
+    deadline?: RolloutDeadline
 ): void {
     const world = determinize(
         rootState,
@@ -4441,13 +4299,7 @@ function iterate(
                                 bodyCosts
                             ))
                     ) &&
-                    !isHeldBackSacrificeCast(
-                        world,
-                        pid,
-                        botId,
-                        k.move,
-                        unlockedSacrificeCasts?.get(path[0]?.key ?? "")
-                    ) &&
+                    !isManaBaseSacrificeCast(world, pid, botId, k.move) &&
                     !isEvokeCast(world, pid, botId, k.move) &&
                     !isDoomedEntryMove(world, pid, botId, k.move) &&
                     !isOneSidedPutCast(world, pid, botId, k.move)
@@ -4488,8 +4340,7 @@ function iterate(
                     actionPriors,
                     since,
                     shared,
-                    deadline,
-                    unlockedSacrificeCasts
+                    deadline
                 )
             ) {
                 return; // expanded + rolled out
@@ -4554,15 +4405,7 @@ function iterate(
             }
             backpropagate(
                 path,
-                rollout(
-                    world,
-                    botId,
-                    rng,
-                    weights,
-                    since,
-                    deadline,
-                    unlockedSacrificeCasts?.get(path[0]?.key ?? "")
-                ),
+                rollout(world, botId, rng, weights, since, deadline),
                 botId
             );
             return;
@@ -6571,27 +6414,6 @@ export function makeRootScorer(
     return { mean, oneply, share };
 }
 
-/** Whether some root edge other than `hold` WINS where `hold` does not: its
- *  mean rollout reward is in the band `rewardFromValue` reserves for a won
- *  game (`1 − terminalBand` and up), and its root score clears `hold`'s by
- *  more than `OUTCOME_EPS`. The second half is what keeps this silent on a
- *  board the bot is winning anyway, where every edge — `hold` included —
- *  reads in the won band. */
-export function outrewardedByWinningSibling(
-    pool: readonly Edge[],
-    hold: Edge,
-    mean: (e: Edge) => number,
-    weights: EvalWeights
-): boolean {
-    const held = mean(hold);
-    return pool.some(
-        (e) =>
-            e !== hold &&
-            e.totalReward / e.visits >= 1 - weights.terminalBand &&
-            mean(e) > held + weights.outcomeEps
-    );
-}
-
 /** Whether `searchStats` says the root was starved — under
  *  `STARVED_ROOT_VISITS_PER_CHILD` iterations per root candidate, so one or
  *  two noisy rollouts per child are the whole evidence. */
@@ -7312,16 +7134,7 @@ export function selectRootMove(
                 e.move.kind === "pass" &&
                 mean(e) >= bestMean - weights.outcomeEps
         );
-        // Outcome-equality with the DUMP says nothing about a third move.
-        // A sibling whose rollouts sit in the won band and whose score
-        // clears the hold by more than `OUTCOME_EPS` is a line that wins
-        // (issue #10401): under-visited, so the visit band kept it from
-        // being the pick, yet passing over it is not keeping an option, it
-        // is declining a win. The hold stands down and the search's pick is
-        // left to the rules below.
-        if (hold && !outrewardedByWinningSibling(pool, hold, mean, weights)) {
-            return finish(hold, "hold-trick", hold !== best);
-        }
+        if (hold) return finish(hold, "hold-trick", hold !== best);
     }
 
     // Keep mana open, HOLD half (issue #4757, PRD #4754): a deferrable
@@ -9102,11 +8915,6 @@ function runSearchWithTrace(
             .filter((m) => isCostUnlockingLandTypeChange(state, m))
             .map((m) => priorityMoveKey(state, playerId, playerId, m))
     );
-    const unlockedSacrificeCasts = rootUnlockedSacrificeCasts(
-        state,
-        playerId,
-        moves
-    );
 
     // Extra-turn soundness guard (issue #2685, issue #244): the extra-turn
     // structural credit in `selectRootMove` is the ONE full-pool tie-break not
@@ -9158,8 +8966,7 @@ function runSearchWithTrace(
             opponentModel,
             openRootByPolicy,
             unlockingRootKeys,
-            deadline,
-            unlockedSacrificeCasts
+            deadline
         );
         i++;
         if (timeMs !== undefined && now() - start >= timeMs) {
