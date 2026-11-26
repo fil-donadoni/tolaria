@@ -77,6 +77,8 @@
  *   "Enchanted <noun> has <keyword>[, …, and <kw>]" → layer 6, host scope
  *   'Enchanted <noun> has "<activated ability>"'    → layer 6 `activated-grant`
  *   "Enchanted <noun> can't attack[ or block]"      → CR 508.1c / 509.1b
+ *   "Enchanted creature doesn't untap during its controller's untap step"
+ *                                                   → CR 502.3 `does-not-untap`
  *   "You control enchanted <noun>"                  → layer 2 `control-change`
  *
  * "Enchanted" names ONE object — the Aura's host (CR 303.4b) — so these
@@ -722,6 +724,13 @@ export type HostEffectIR =
      * new type grants (CR 305.6).
      */
     | { readonly kind: "land-type-set"; readonly subtype: string }
+    /**
+     * CR 502.3 — "Enchanted creature doesn't untap during its controller's
+     * untap step": the host keeps its tapped state through the untap step of
+     * the player who controls it, which is the per-permanent `does-not-untap`
+     * marker the untap step reads, granted to the host.
+     */
+    | { readonly kind: "does-not-untap" }
     /**
      * CR 508.1c / 509.1b. `sentence` is the restriction ALONE ("Enchanted
      * creature can't block.") — the rejection reason the engine shows, which
@@ -2818,6 +2827,8 @@ const YOU_CONTROL_HOST = new RegExp(
 const HOST_PT = /^gets ([+-]\d+)\/([+-]\d+)(?: and (.+))?$/;
 const QUOTED_GRANT = /^has "([^"]+)"$/;
 const HOST_LAND_TYPE = /^is (an?) (\S+)$/;
+/** CR 502.3 — the host's untap lock, the whole predicate. */
+const HOST_DOES_NOT_UNTAP = "doesn't untap during its controller's untap step";
 
 /**
  * CR 305.7 — "Enchanted land is a Swamp" / "… is an Island": the land's land
@@ -3024,6 +3035,17 @@ function readHostPredicate(
     ctx: ParseContext
 ): RuleResult<readonly HostEffectIR[]> {
     const sentence = `${subject} ${span}.`;
+    // CR 502.3 — the host's controller's untap step, the one a creature
+    // host untaps in. Read on a creature host only: the form the corpus
+    // prints under this rule's fixture; another noun keeps its own gap.
+    if (span === HOST_DOES_NOT_UNTAP) {
+        if (host !== "Creature")
+            return fail(
+                `"${subject} ${span}" — the untap lock is read on a creature host only`,
+                span
+            );
+        return ok([{ kind: "does-not-untap" as const }]);
+    }
     if (span === "can't attack")
         return ok([{ kind: "attack-restriction" as const, sentence }]);
     if (span === "can't block")

@@ -468,8 +468,9 @@ export type CompiledTriggerHead =
     /** CR 708.8 — "when this creature is turned face up". Self only. */
     | { readonly kind: "turned-face-up" }
     | { readonly kind: "transforms" }
-    /** CR 701.26a — "whenever this permanent becomes tapped" (any tap). Self only. */
-    | { readonly kind: "tapped"; readonly scope: "self" }
+    /** CR 701.26a — "whenever this permanent becomes tapped" (any tap);
+     *  `host` (CR 303.4b) — "whenever enchanted creature becomes tapped". */
+    | { readonly kind: "tapped"; readonly scope: "self" | "host" }
     /**
      * CR 605.1b + CR 303.4b — "whenever enchanted land is tapped for mana":
      * the Aura host's mana-ability tap. The trigger is itself a mana ability
@@ -478,8 +479,9 @@ export type CompiledTriggerHead =
      */
     | { readonly kind: "tapped-for-mana"; readonly scope: "host" | "any" }
     /** CR 603.2 — "whenever this creature becomes the target of a spell or
-     *  ability" (any spell or ability). Self only. */
-    | { readonly kind: "became-target" }
+     *  ability" (any spell or ability); `scope: "host"` (CR 303.4b) — "when
+     *  enchanted creature becomes the target of a spell or ability". */
+    | { readonly kind: "became-target"; readonly scope?: "host" }
     /** CR 702.29c — "when you cycle this card". */
     | { readonly kind: "cycled" }
     /** CR 603.8 — "when this creature's power is N or greater" (state trigger). */
@@ -1076,6 +1078,7 @@ function resolveCompiledTriggerHead(
         case "became-target":
             return becameTargetTrigger({
                 ...common,
+                ...(head.scope === "host" ? { scope: "host" as const } : {}),
                 ...(descriptor.maxTriggersPerTurn !== undefined
                     ? { maxTriggersPerTurn: descriptor.maxTriggersPerTurn }
                     : {}),

@@ -1285,7 +1285,8 @@ export type EffectSentenceIR =
     | {
           /**
            * CR 701.13a — exile a permanent: put it into the exile zone from the
-           * battlefield. The subject is always an announced target; a sweep
+           * battlefield. The subject is an announced target or the Aura's
+           * host ("Exile enchanted creature", CR 303.4b); a sweep
            * ("exile all creatures") and a card in a graveyard (`move-zone`) are
            * other shapes.
            */
@@ -5055,12 +5056,43 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
  */
 export function hostSubject(
     span: string,
-    ctx: unknown
+    ctx: unknown,
+    sites: readonly HostSite[] = ACTIVATED_ONLY
 ): RuleResult<SubjectIR> | null {
     if (uncapitalise(span) !== "enchanted creature") return null;
-    if ((ctx as ParseContext).auraHost !== true) return null;
+    const context = ctx as ParseContext;
+    const at: HostSite | null =
+        context.auraHost === true
+            ? "activated"
+            : context.auraTriggerHost === true
+              ? "triggered"
+              : null;
+    if (at === null || !sites.includes(at)) return null;
     return ok({ kind: "host" as const });
 }
+
+/**
+ * CR 303.4b / CR 301.5a — whether a sentence names the source's attachment
+ * host ANYWHERE in its IR: a verb's subject, a damage recipient, a zone
+ * change's object, an optional's or a conjunction's inner sentence. Walked
+ * structurally, so a new place the host is read can never be missed by the
+ * guards that refuse it where `$host` (seeded from the live attachment) would
+ * be gone — a cost that removes the Aura, a trigger on the source's own
+ * departure.
+ */
+export function namesHost(value: unknown): boolean {
+    if (Array.isArray(value)) return value.some(namesHost);
+    if (value === null || typeof value !== "object") return false;
+    if ((value as { kind?: unknown }).kind === "host") return true;
+    return Object.values(value).some(namesHost);
+}
+
+/** The two Aura ability sites "enchanted creature" may be read at: the
+ *  activated slot's (`auraHost`) and the triggered slot's (`auraTriggerHost`). */
+export type HostSite = "activated" | "triggered";
+const ACTIVATED_ONLY: readonly HostSite[] = ["activated"];
+const TRIGGERED_ONLY: readonly HostSite[] = ["triggered"];
+const EITHER_SITE: readonly HostSite[] = ["activated", "triggered"];
 
 /**
  * CR 301.5a — "equipped creature" as the object of an Equipment's own
@@ -9496,7 +9528,10 @@ function effectSentence(
                     })
                   : sweep !== null && sweep.ok
                     ? sweepRecipient(sweep.value, withPlayers)
-                    : subjectRule.run(damage[3]!, ctx);
+                    : // CR 303.4b — "… deals N damage to enchanted
+                      // creature" on an Aura's own trigger: the host.
+                      (hostSubject(damage[3]!, ctx, TRIGGERED_ONLY) ??
+                      subjectRule.run(damage[3]!, ctx));
         if (!to.ok) return to;
         return ok({
             kind: "deal-damage" as const,
@@ -9934,7 +9969,11 @@ function effectSentence(
                 } as SubjectIR,
             } satisfies EffectSentenceIR);
         }
-        const subject = sweepableSubject(span.slice(verb.length), ctx);
+        // CR 303.4b — "Tap / Untap enchanted creature" on an Aura's own
+        // ability, activated or triggered: the host, never announced.
+        const subject =
+            hostSubject(span.slice(verb.length), ctx, EITHER_SITE) ??
+            sweepableSubject(span.slice(verb.length), ctx);
         if (!subject.ok) return subject;
         return ok({
             kind: "tap-untap" as const,
@@ -10061,7 +10100,11 @@ function effectSentence(
 
     // ── regenerate (CR 701.19a) ────────────────────────────────────────────
     if (span.startsWith("Regenerate ")) {
-        const subject = subjectRule.run(span.slice("Regenerate ".length), ctx);
+        // CR 303.4b — "Regenerate enchanted creature" on an Aura's
+        // activated ability: the host, never announced (CR 115.10).
+        const regenerated = span.slice("Regenerate ".length);
+        const subject =
+            hostSubject(regenerated, ctx) ?? subjectRule.run(regenerated, ctx);
         if (!subject.ok) return subject;
         return ok({
             kind: "regenerate" as const,
@@ -10300,6 +10343,7 @@ function effectSentence(
         const subject =
             enteredThisTurnSweep(counters[3]!, ctx) ??
             equippedHostSubject(counters[3]!, ctx) ??
+            hostSubject(counters[3]!, ctx, EITHER_SITE) ??
             subjectRule.run(counters[3]!, ctx);
         if (!subject.ok) return subject;
         return ok({
@@ -10444,6 +10488,17 @@ function effectSentence(
             return ok({
                 kind: "exile-graveyard" as const,
                 player,
+            } satisfies EffectSentenceIR);
+        }
+        // CR 303.4b + CR 701.13a — "Exile enchanted creature" on an Aura's
+        // activated ability: the host is on the battlefield, so it is the
+        // `exile` Op's, as an announced permanent is.
+        const exiledHost = hostSubject(span.slice("Exile ".length), ctx);
+        if (exiledHost !== null) {
+            if (!exiledHost.ok) return exiledHost;
+            return ok({
+                kind: "exile" as const,
+                subject: exiledHost.value,
             } satisfies EffectSentenceIR);
         }
         const flicker = span.match(EXILE_THEN_RETURN);

@@ -591,14 +591,19 @@ describe("untap-step marker (CR 502.3)", () => {
         ).toEqual({ kind: "does-not-untap" });
     });
 
-    it("REFUSES the host-scoped line — a different sentence", () => {
+    it("reads the host-scoped line as the HOST's lock, never the source's marker", () => {
         // "during ITS CONTROLLER's untap step" is what an Aura says about the
-        // permanent it enchants; the marker means the source's own step.
+        // permanent it enchants: the enchanted-host frame grants the host the
+        // lock; the self marker (the source's own step) is not what it says.
         expect(
-            refusal(
+            clause(
                 "Enchanted creature doesn't untap during its controller's untap step."
             )
-        ).toBeTruthy();
+        ).toEqual({
+            kind: "enchanted-host",
+            host: "Creature",
+            effects: [{ kind: "does-not-untap" }],
+        });
     });
 
     it("REFUSES the same sentence said about ANOTHER permanent (CR 109.2)", () => {
