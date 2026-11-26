@@ -484,7 +484,14 @@ export type BladeSetupStep =
      *  Throws when the scan puts nothing on the stack — a position that
      *  silently fired no trigger must not pass for one that fired the trigger
      *  under test. */
-    | { kind: "phase-trigger"; phase?: GameState["phase"] };
+    | { kind: "phase-trigger"; phase?: GameState["phase"] }
+    /** Play `seat`'s first enumerated move the matcher accepts, through the
+     *  search's own applier (`applyMoveInSearch`), then walk the forced
+     *  answers to the next decision (`advanceToDecision`): one step of a
+     *  Line's walk (`line.ts`), so a Verdict lowered from a Line's later
+     *  decision rebuilds the position the Line reached. Throws when `seat`
+     *  is not the deciding seat or no enumerated move matches. */
+    | { kind: "move"; seat: BladeSeat; move: MoveMatcher };
 
 /**
  * Why a blade entry only passes ABOVE its declared budget (ADR 0070 §2).
@@ -664,3 +671,43 @@ export type RegistryBladeScenario = BladeScenario &
               classification?: undefined;
           }
     );
+
+/**
+ * One Bot decision of a Line (ADR 0186 Decision 9): what the Bot must play,
+ * then what the opponent plays before the Bot decides again.
+ */
+export type BladeLineStep = {
+    /** The Bot's move here: it must match AT LEAST ONE matcher. */
+    expect: MoveMatcher[];
+    /** The opponent's moves before the Bot's next decision, in order. Each
+     *  is played at the opponent's first decision where an enumerated move
+     *  matches it; at every other decision of its the opponent passes. A
+     *  reply still unplayed when the Bot decides again is a malformed Line. */
+    replies?: MoveMatcher[];
+};
+
+/**
+ * A LINE (ADR 0186 Decision 9, GLOSSARY "Line"): a starting position and the
+ * moves played from it, decision by decision, the opponent's replies
+ * included. A Test Position the Bot must carry to its end (`line.ts`), and
+ * one Verdict per Bot decision along it (`verdictsFromLines`).
+ */
+export type BladeLine = {
+    label: string;
+    spec: ScenarioSpec;
+    /** Engine-real steps to the first decision, as on a blade entry. The
+     *  built position must be the Bot's decision. */
+    setup?: BladeSetupStep[];
+    bot: BladeSeat;
+    deckKnowledge?: { seat: BladeSeat; cards: string[] }[];
+    /** Iterations only, per consult, as every blade entry. */
+    budget: { iterations: number };
+    seeds?: number[];
+    tier: BladeTier;
+    /** Why the Bot cannot follow it yet — mandatory on a `stretch` Line,
+     *  refused on a `must` one (`lineEntryProblems`). */
+    cause?: string;
+    /** Every Bot decision of the Line, in order. */
+    steps: BladeLineStep[];
+    note: string;
+};
