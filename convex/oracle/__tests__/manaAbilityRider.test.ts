@@ -136,3 +136,73 @@ describe("refusals — what the rider rule must not do", () => {
         ).toBe(1);
     });
 });
+
+// The Talisman cycle (issue #10560) prints the painland rider on its own
+// self-referring noun — "This artifact deals N damage to you." — and compiles
+// to the shape `makeTalisman` (`cards/abilities/index.ts`) ships.
+function artifact(name: string, oracleText: string): OracleCard {
+    return oracleCard({
+        oracleId: name,
+        name,
+        manaCost: "{2}",
+        typeLine: "Artifact",
+        oracleText,
+        power: undefined,
+        toughness: undefined,
+    });
+}
+
+describe("golden — the Talisman line merges like the painland", () => {
+    it("Talisman of Unity (MRD, corpus card the modern-tron Target needs)", () => {
+        const text =
+            "{T}: Add {C}.\n{T}: Add {G} or {W}. This artifact deals 1 damage to you.";
+        expect(compiledOf(artifact("Talisman of Unity", text))).toEqual({
+            name: "Talisman of Unity",
+            types: ["Artifact"],
+            manaCost: { X: 2 },
+            oracleText: text,
+            activatedAbilities: [
+                {
+                    id: "talisman-of-unity-mana",
+                    oracleText: text,
+                    cost: { tap: true },
+                    useStack: false,
+                    manaChoices: [{ C: 1 }, { G: 1 }, { W: 1 }],
+                    dealsDamageToControllerOnColoredTap: 1,
+                },
+            ],
+        });
+    });
+});
+
+describe("refusals — the self-referring noun is the card's own type", () => {
+    it('"This artifact" on a land stays unparsed', () => {
+        const outcome = compileCard(
+            land(
+                "Test Wastes",
+                "{T}: Add {C}.\n{T}: Add {W} or {U}. This artifact deals 1 damage to you."
+            )
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+
+    it('"This land" on a non-land artifact stays unparsed', () => {
+        const outcome = compileCard(
+            artifact(
+                "Test Talisman",
+                "{T}: Add {C}.\n{T}: Add {W} or {U}. This land deals 1 damage to you."
+            )
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+
+    it("a FIXED production's artifact ping is not read (no printed card)", () => {
+        const outcome = compileCard(
+            artifact(
+                "Test Tomb",
+                "{T}: Add {C}{C}. This artifact deals 2 damage to you."
+            )
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+});

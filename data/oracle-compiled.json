@@ -27118,13 +27118,11 @@
         {"key":"f434f16aacb4","text":"{T}: Add two mana of the chosen color. Spend this mana only to activate abilities of land sources.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana production"],"span":"two mana of the chosen color. Spend this mana only to activate abilities of land sources"}},
         {"key":"c135eea11bd3","text":"{T}: Add {B} or one mana of the chosen color.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"mana-ability","path":["mana production"],"span":"{B} or one mana of the chosen color"}},
         {"key":"d98c20669d63","text":"{T}: Add {B} or {G}. Activate only if you control a Swamp.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if you control a Swamp"}},
-        {"key":"60e38dfcf615","text":"{T}: Add {B} or {G}. This artifact deals 1 damage to you.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"This artifact deals 1 damage to you"}},
         {"key":"f2d6112f2c17","text":"{T}: Add {B} or {G}. You get a poison counter.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"You get a poison counter"}},
         {"key":"26fb8458cc06","text":"{T}: Add {B} or {R}. Activate only if this land entered this turn or if you control a basic land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if this land entered this turn or if you control a basic land"}},
         {"key":"5864df7cbf2f","text":"{T}: Add {B} or {R}. Activate only if you control a Swamp.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if you control a Swamp"}},
         {"key":"885017e8524f","text":"{T}: Add {B} or {R}. If this mana is spent to cast a Goblin spell, you get an experience counter.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"If this mana is spent to cast a Goblin spell, you get an experience counter"}},
         {"key":"95787a81cd2d","text":"{T}: Add {B} or {R}. Put a depletion counter on this land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Put a depletion counter on this land"}},
-        {"key":"ae8b29c0e949","text":"{T}: Add {B} or {R}. This artifact deals 1 damage to you.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"This artifact deals 1 damage to you"}},
         {"key":"f33759f7c759","text":"{T}: Add {B} or {R}. This land doesn't untap during your next untap step.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"This land doesn't untap during your next untap step"}},
         {"key":"0eefcdb1fe8e","text":"{T}: Add {B}. Activate only if you control a Swamp or a Forest.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if you control a Swamp or a Forest"}},
         {"key":"c4ae87b9ce01","text":"{T}: Add {B}. Activate only if you control an Island or a Swamp.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if you control an Island or a Swamp"}},
@@ -27180,10 +27178,8 @@
         {"key":"a26384e6f875","text":"{T}: Add {G} for each creature you control with defender.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana production"],"span":"{G} for each creature you control with defender"}},
         {"key":"c3c16ff0025c","text":"{T}: Add {G} or one mana of the chosen color.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"mana-ability","path":["mana production"],"span":"{G} or one mana of the chosen color"}},
         {"key":"4fc526ffefd0","text":"{T}: Add {G} or {U}. If you control a Nissa planeswalker, you gain 2 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"If you control a Nissa planeswalker, you gain 2 life"}},
-        {"key":"63e235c39c26","text":"{T}: Add {G} or {U}. This artifact deals 1 damage to you.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"This artifact deals 1 damage to you"}},
         {"key":"6126af270192","text":"{T}: Add {G} or {W}. Activate only if this land entered this turn or if you control a basic land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if this land entered this turn or if you control a basic land"}},
         {"key":"b701048d0642","text":"{T}: Add {G} or {W}. Put a depletion counter on this land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Put a depletion counter on this land"}},
-        {"key":"604095555e88","text":"{T}: Add {G} or {W}. This artifact deals 1 damage to you.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"This artifact deals 1 damage to you"}},
         {"key":"2598cd96cbc1","text":"{T}: Add {G} or {W}. This land doesn't untap during your next untap step.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"This land doesn't untap during your next untap step"}},
         {"key":"c35767ec5ef0","text":"{T}: Add {G}, {U}, or {R}. If you don't have the city's blessing, you lose 1 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"If you don't have the city's blessing, you lose 1 life"}},
         {"key":"b26083b7375d","text":"{T}: Add {G}. Activate only if you control a Forest or an Island.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if you control a Forest or an Island"}},
@@ -27208,9 +27204,7 @@
         {"key":"21a98edea1ab","text":"{T}: Add {R} or {G}. Activate only if this land entered this turn or if you control a basic land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if this land entered this turn or if you control a basic land"}},
         {"key":"8647765ac3b0","text":"{T}: Add {R} or {G}. Each opponent gains 1 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Each opponent gains 1 life"}},
         {"key":"59551d724588","text":"{T}: Add {R} or {G}. Put a depletion counter on this land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Put a depletion counter on this land"}},
-        {"key":"df46cc49ffbb","text":"{T}: Add {R} or {G}. This artifact deals 1 damage to you.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"This artifact deals 1 damage to you"}},
         {"key":"cc470dcd3a0d","text":"{T}: Add {R} or {G}. This land doesn't untap during your next untap step.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"This land doesn't untap during your next untap step"}},
-        {"key":"7a8db9692b52","text":"{T}: Add {R} or {W}. This artifact deals 1 damage to you.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"This artifact deals 1 damage to you"}},
         {"key":"1f2a53de629a","text":"{T}: Add {R}, {W}, or {B}. Spend this mana only to cast a Knight or Equipment spell.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Spend this mana only to cast a Knight or Equipment spell"}},
         {"key":"f095fbdf290c","text":"{T}: Add {R}. Activate only if you control a Mountain or a Plains.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if you control a Mountain or a Plains"}},
         {"key":"bb2da3305e65","text":"{T}: Add {R}. Activate only if you control a Swamp or a Mountain.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if you control a Swamp or a Mountain"}},
@@ -27235,11 +27229,9 @@
         {"key":"73fddf264bb8","text":"{T}: Add {U} or {B}. Activate only if this land entered this turn or if you control a basic land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if this land entered this turn or if you control a basic land"}},
         {"key":"a811d0588aee","text":"{T}: Add {U} or {B}. Activate only if you control a Swamp.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if you control a Swamp"}},
         {"key":"ac97be139023","text":"{T}: Add {U} or {B}. Put a depletion counter on this land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Put a depletion counter on this land"}},
-        {"key":"43aee9e17904","text":"{T}: Add {U} or {B}. This artifact deals 1 damage to you.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"This artifact deals 1 damage to you"}},
         {"key":"a5f35e54c67d","text":"{T}: Add {U} or {B}. This land doesn't untap during your next untap step.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"This land doesn't untap during your next untap step"}},
         {"key":"332881616bc5","text":"{T}: Add {U} or {C}{U}. Spend this mana only to pay cumulative upkeep costs.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Spend this mana only to pay cumulative upkeep costs"}},
         {"key":"63362401be00","text":"{T}: Add {U} or {R}. Spend this mana only to cast a noncreature spell.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Spend this mana only to cast a noncreature spell"}},
-        {"key":"7342e314a8ea","text":"{T}: Add {U} or {R}. This artifact deals 1 damage to you.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"This artifact deals 1 damage to you"}},
         {"key":"83061517f50f","text":"{T}: Add {U}. Activate only if you control a Plains or an Island.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if you control a Plains or an Island"}},
         {"key":"690707e4a108","text":"{T}: Add {U}. Activate only if you control a Plains.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if you control a Plains"}},
         {"key":"a83b2c38abe6","text":"{T}: Add {U}. Activate only if you control an Island or a Mountain.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if you control an Island or a Mountain"}},
@@ -27261,10 +27253,8 @@
         {"key":"a49af38ed76c","text":"{T}: Add {U}{U}. Spend this mana only to activate abilities of artifact sources.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Spend this mana only to activate abilities of artifact sources"}},
         {"key":"03f043fac7fb","text":"{T}: Add {W} or one mana of the chosen color.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"mana-ability","path":["mana production"],"span":"{W} or one mana of the chosen color"}},
         {"key":"6d1f9d6b1d03","text":"{T}: Add {W} or {B}. Activate only if you control a Swamp.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if you control a Swamp"}},
-        {"key":"60657269a76a","text":"{T}: Add {W} or {B}. This artifact deals 1 damage to you.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"This artifact deals 1 damage to you"}},
         {"key":"b32db1f54063","text":"{T}: Add {W} or {U}. Activate only if this land entered this turn or if you control a basic land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if this land entered this turn or if you control a basic land"}},
         {"key":"2d1c3ebbb965","text":"{T}: Add {W} or {U}. Put a depletion counter on this land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Put a depletion counter on this land"}},
-        {"key":"d062ebff5f21","text":"{T}: Add {W} or {U}. This artifact deals 1 damage to you.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"This artifact deals 1 damage to you"}},
         {"key":"c1a362127deb","text":"{T}: Add {W} or {U}. This land doesn't untap during your next untap step.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"This land doesn't untap during your next untap step"}},
         {"key":"7ac0a6468e14","text":"{T}: Add {W}, {U}, or {R}. When this mana is spent to cast a legendary spell, put a +1/+1 counter on this land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"When this mana is spent to cast a legendary spell, put a +1/+1 counter on this land"}},
         {"key":"dd8cda592bf9","text":"{T}: Add {W}. Activate only if you control a Forest or a Plains.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana ability rider"],"span":"Activate only if you control a Forest or a Plains"}},
@@ -28942,7 +28932,7 @@
 
         {"oracleId":"00e25126-b807-4753-ba63-9a533755e5ce","name":"Lantern of Revealing","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"gaps":["84e16038098a"]},
 
-        {"oracleId":"00e35322-1a9a-41e3-9ce1-359c8eaa3bc7","name":"Talisman of Progress","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d062ebff5f21"]},
+        {"oracleId":"00e35322-1a9a-41e3-9ce1-359c8eaa3bc7","name":"Talisman of Progress","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["mana-ability"],"opsUsed":[],"definition":{"name":"Talisman of Progress","types":["Artifact"],"manaCost":{"X":2},"oracleText":"{T}: Add {C}.\n{T}: Add {W} or {U}. This artifact deals 1 damage to you.","activatedAbilities":[{"id":"talisman-of-progress-mana","oracleText":"{T}: Add {C}.\n{T}: Add {W} or {U}. This artifact deals 1 damage to you.","cost":{"tap":true},"useStack":false,"manaChoices":[{"C":1},{"W":1},{"U":1}],"dealsDamageToControllerOnColoredTap":1}]},"botReach":"played"},
 
         {"oracleId":"00e36265-0cd8-4084-adf5-d1ed44f0d689","name":"Harvest Pyre","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["c68124ff6e3b"]},
 
@@ -34518,7 +34508,7 @@
 
         {"oracleId":"14d14ded-8831-47ad-ad90-f6f242cccf03","name":"Leonin Iconoclast","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["fdd78d7c8dc7"]},
 
-        {"oracleId":"14d2979d-5728-42d7-a027-0eb1f754655d","name":"Talisman of Creativity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7342e314a8ea"]},
+        {"oracleId":"14d2979d-5728-42d7-a027-0eb1f754655d","name":"Talisman of Creativity","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["mana-ability"],"opsUsed":[],"definition":{"name":"Talisman of Creativity","types":["Artifact"],"manaCost":{"X":2},"oracleText":"{T}: Add {C}.\n{T}: Add {U} or {R}. This artifact deals 1 damage to you.","activatedAbilities":[{"id":"talisman-of-creativity-mana","oracleText":"{T}: Add {C}.\n{T}: Add {U} or {R}. This artifact deals 1 damage to you.","cost":{"tap":true},"useStack":false,"manaChoices":[{"C":1},{"U":1},{"R":1}],"dealsDamageToControllerOnColoredTap":1}]},"botReach":"played"},
 
         {"oracleId":"14d3e014-9c4f-4864-8f1e-a45ac27e4dbf","name":"Shang-Chi, Martial Mentor","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["b47c180d1085","e1d16a64894f"]},
 
@@ -36938,7 +36928,7 @@
 
         {"oracleId":"1d95b5c0-d193-4a03-9954-23861ac1c762","name":"Ghost-Spider, Gwen Stacy","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["26b6128c5031"]},
 
-        {"oracleId":"1d9aeaaa-66f6-41cb-9bac-162d6fd8662c","name":"Talisman of Indulgence","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ae8b29c0e949"]},
+        {"oracleId":"1d9aeaaa-66f6-41cb-9bac-162d6fd8662c","name":"Talisman of Indulgence","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["mana-ability"],"opsUsed":[],"definition":{"name":"Talisman of Indulgence","types":["Artifact"],"manaCost":{"X":2},"oracleText":"{T}: Add {C}.\n{T}: Add {B} or {R}. This artifact deals 1 damage to you.","activatedAbilities":[{"id":"talisman-of-indulgence-mana","oracleText":"{T}: Add {C}.\n{T}: Add {B} or {R}. This artifact deals 1 damage to you.","cost":{"tap":true},"useStack":false,"manaChoices":[{"C":1},{"B":1},{"R":1}],"dealsDamageToControllerOnColoredTap":1}]},"botReach":"played"},
 
         {"oracleId":"1d9b8859-14e3-4bbe-ad92-916b25a37b31","name":"Raiding Party","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["9c9b5e68c889","f6dbe5da2309"]},
 
@@ -46976,7 +46966,7 @@
 
         {"oracleId":"42b44108-4a03-4333-bf5a-e42493f4d5e4","name":"Outmaneuver","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["7fdea74544df"]},
 
-        {"oracleId":"42b8aa14-10bc-4bd6-88d9-4bb287eadd19","name":"Talisman of Resilience","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["60e38dfcf615"]},
+        {"oracleId":"42b8aa14-10bc-4bd6-88d9-4bb287eadd19","name":"Talisman of Resilience","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["mana-ability"],"opsUsed":[],"definition":{"name":"Talisman of Resilience","types":["Artifact"],"manaCost":{"X":2},"oracleText":"{T}: Add {C}.\n{T}: Add {B} or {G}. This artifact deals 1 damage to you.","activatedAbilities":[{"id":"talisman-of-resilience-mana","oracleText":"{T}: Add {C}.\n{T}: Add {B} or {G}. This artifact deals 1 damage to you.","cost":{"tap":true},"useStack":false,"manaChoices":[{"C":1},{"B":1},{"G":1}],"dealsDamageToControllerOnColoredTap":1}]},"botReach":"played"},
 
         {"oracleId":"42b9d383-3fe2-4fc8-ab86-f80a288d502b","name":"Murmuring Bosk","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3c88ad014148"]},
 
@@ -49582,7 +49572,7 @@
 
         {"oracleId":"4c095e91-b6ab-417f-94f3-684e64259f97","name":"Brittle Blast","state":"unparsed","gaps":["5eefa07f02b9"]},
 
-        {"oracleId":"4c0a0448-b9d6-43a0-8549-64066dac63f0","name":"Talisman of Dominance","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["43aee9e17904"]},
+        {"oracleId":"4c0a0448-b9d6-43a0-8549-64066dac63f0","name":"Talisman of Dominance","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["mana-ability"],"opsUsed":[],"definition":{"name":"Talisman of Dominance","types":["Artifact"],"manaCost":{"X":2},"oracleText":"{T}: Add {C}.\n{T}: Add {U} or {B}. This artifact deals 1 damage to you.","activatedAbilities":[{"id":"talisman-of-dominance-mana","oracleText":"{T}: Add {C}.\n{T}: Add {U} or {B}. This artifact deals 1 damage to you.","cost":{"tap":true},"useStack":false,"manaChoices":[{"C":1},{"U":1},{"B":1}],"dealsDamageToControllerOnColoredTap":1}]},"botReach":"played"},
 
         {"oracleId":"4c0a8eed-f2e2-4821-8011-6e6ad2081936","name":"Solitary Sanctuary","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["473486a4a22c"]},
 
@@ -58444,7 +58434,7 @@
 
         {"oracleId":"6c31f06d-bf02-48a7-9c17-be2a226b8eae","name":"Thran Turbine","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["ebb11daca585"]},
 
-        {"oracleId":"6c326439-5620-4ec6-a56a-fe9c3d5d2a46","name":"Talisman of Conviction","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7a8db9692b52"]},
+        {"oracleId":"6c326439-5620-4ec6-a56a-fe9c3d5d2a46","name":"Talisman of Conviction","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["mana-ability"],"opsUsed":[],"definition":{"name":"Talisman of Conviction","types":["Artifact"],"manaCost":{"X":2},"oracleText":"{T}: Add {C}.\n{T}: Add {R} or {W}. This artifact deals 1 damage to you.","activatedAbilities":[{"id":"talisman-of-conviction-mana","oracleText":"{T}: Add {C}.\n{T}: Add {R} or {W}. This artifact deals 1 damage to you.","cost":{"tap":true},"useStack":false,"manaChoices":[{"C":1},{"R":1},{"W":1}],"dealsDamageToControllerOnColoredTap":1}]},"botReach":"played"},
 
         {"oracleId":"6c34674f-856b-4062-87d5-6ed73d9a9855","name":"Wildvine Pummeler","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["c778b523d2e6"]},
 
@@ -67382,7 +67372,7 @@
 
         {"oracleId":"8c3495bf-02e7-4ad9-949d-92eb3d2b662a","name":"Torbran, Thane of Red Fell","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["19cac2dc819c"]},
 
-        {"oracleId":"8c34b089-aad1-476e-958a-3077bf1bbb51","name":"Talisman of Curiosity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["63e235c39c26"]},
+        {"oracleId":"8c34b089-aad1-476e-958a-3077bf1bbb51","name":"Talisman of Curiosity","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["mana-ability"],"opsUsed":[],"definition":{"name":"Talisman of Curiosity","types":["Artifact"],"manaCost":{"X":2},"oracleText":"{T}: Add {C}.\n{T}: Add {G} or {U}. This artifact deals 1 damage to you.","activatedAbilities":[{"id":"talisman-of-curiosity-mana","oracleText":"{T}: Add {C}.\n{T}: Add {G} or {U}. This artifact deals 1 damage to you.","cost":{"tap":true},"useStack":false,"manaChoices":[{"C":1},{"G":1},{"U":1}],"dealsDamageToControllerOnColoredTap":1}]},"botReach":"played"},
 
         {"oracleId":"8c35fd11-be45-4984-bd83-6e4f3fbc47a9","name":"Wild Ricochet","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ed4d4845b14b"]},
 
@@ -78956,7 +78946,7 @@
 
         {"oracleId":"b693c24f-07d9-40fa-aa4a-8f7ba61f3452","name":"Retether","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7be2bf04773a"]},
 
-        {"oracleId":"b693c3de-2eaf-4850-b405-e79d00adefda","name":"Talisman of Hierarchy","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["60657269a76a"]},
+        {"oracleId":"b693c3de-2eaf-4850-b405-e79d00adefda","name":"Talisman of Hierarchy","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["mana-ability"],"opsUsed":[],"definition":{"name":"Talisman of Hierarchy","types":["Artifact"],"manaCost":{"X":2},"oracleText":"{T}: Add {C}.\n{T}: Add {W} or {B}. This artifact deals 1 damage to you.","activatedAbilities":[{"id":"talisman-of-hierarchy-mana","oracleText":"{T}: Add {C}.\n{T}: Add {W} or {B}. This artifact deals 1 damage to you.","cost":{"tap":true},"useStack":false,"manaChoices":[{"C":1},{"W":1},{"B":1}],"dealsDamageToControllerOnColoredTap":1}]},"botReach":"played"},
 
         {"oracleId":"b69701d6-8e46-4184-991b-9f5e95a5e16d","name":"Hisoka, Minamo Sensei","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["49ceaf376a0e"]},
 
@@ -92130,7 +92120,7 @@
 
         {"oracleId":"e5fcbbaf-9431-4fa8-ac11-12ace1f2054c","name":"Become the Avalanche","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["81383f92c15c"]},
 
-        {"oracleId":"e5fcc5d7-6a60-4a5b-9d02-6c30041a95b9","name":"Talisman of Unity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["604095555e88"]},
+        {"oracleId":"e5fcc5d7-6a60-4a5b-9d02-6c30041a95b9","name":"Talisman of Unity","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["mana-ability"],"opsUsed":[],"definition":{"name":"Talisman of Unity","types":["Artifact"],"manaCost":{"X":2},"oracleText":"{T}: Add {C}.\n{T}: Add {G} or {W}. This artifact deals 1 damage to you.","activatedAbilities":[{"id":"talisman-of-unity-mana","oracleText":"{T}: Add {C}.\n{T}: Add {G} or {W}. This artifact deals 1 damage to you.","cost":{"tap":true},"useStack":false,"manaChoices":[{"C":1},{"G":1},{"W":1}],"dealsDamageToControllerOnColoredTap":1}]},"botReach":"played"},
 
         {"oracleId":"e5fdd6fd-6492-47ec-8b74-9ff22ff9849a","name":"Dead Man's Chest","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d6242440bea7"]},
 
@@ -95830,7 +95820,7 @@
 
         {"oracleId":"f2c9957e-d673-4b32-a201-811849c5de31","name":"Teferi, Druid of Argoth","state":"unparsed","gaps":["54ec5307f23a"]},
 
-        {"oracleId":"f2ccc9e8-8e92-4f8c-8728-8c748630e0dd","name":"Talisman of Impulse","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["df46cc49ffbb"]},
+        {"oracleId":"f2ccc9e8-8e92-4f8c-8728-8c748630e0dd","name":"Talisman of Impulse","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["mana-ability"],"opsUsed":[],"definition":{"name":"Talisman of Impulse","types":["Artifact"],"manaCost":{"X":2},"oracleText":"{T}: Add {C}.\n{T}: Add {R} or {G}. This artifact deals 1 damage to you.","activatedAbilities":[{"id":"talisman-of-impulse-mana","oracleText":"{T}: Add {C}.\n{T}: Add {R} or {G}. This artifact deals 1 damage to you.","cost":{"tap":true},"useStack":false,"manaChoices":[{"C":1},{"R":1},{"G":1}],"dealsDamageToControllerOnColoredTap":1}]},"botReach":"played"},
 
         {"oracleId":"f2ce9e55-07c0-4f36-a59e-127693fc0f62","name":"Magnifying Glass","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","mana-ability"],"opsUsed":["createToken","draw"],"definition":{"name":"Magnifying Glass","types":["Artifact"],"manaCost":{"X":3},"oracleText":"{T}: Add {C}.\n{4}, {T}: Investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")","activatedAbilities":[{"id":"magnifying-glass-mana","oracleText":"{T}: Add {C}.","cost":{"tap":true},"useStack":false,"manaProduced":{"C":1}},{"id":"magnifying-glass-ability-2","oracleText":"{4}, {T}: Investigate.","cost":{"mana":{"X":4},"tap":true},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Clue","types":["Artifact"],"subtypes":["Clue"],"activatedAbilities":[{"id":"sacrifice-draw","oracleText":"{2}, Sacrifice this token: Draw a card.","cost":{"mana":{"generic":2},"sacrifice":true},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"controller":"controller"}]}]},"botReach":"played"},
 
