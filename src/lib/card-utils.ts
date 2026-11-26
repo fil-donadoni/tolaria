@@ -59,6 +59,7 @@ import type { UnblockedAttackerScope } from "@convex/gre/combat";
 import { ninjutsuReturnCandidateIds } from "@convex/gre/ninjutsu";
 import { activationPreconditionViolation } from "@convex/gre/activationPrecondition";
 import { exhaustGateOpen } from "@convex/gre/exhaust";
+import { stationChargeGateOpen } from "@convex/cards/abilities/station";
 import { maxSpeedGateOpen } from "@convex/gre/speed";
 import { activationRestrictionViolation } from "@convex/gre/activationRestrictions";
 // CR 606 (issue #10318) — the shared loyalty authority. The client reads the
@@ -559,6 +560,8 @@ function clientManaAbilities(
             )
             // CR 702.177a — an exhausted mana ability is not offered.
             .filter((a) => exhaustGateOpen(a, card))
+            // CR 721.2a — nor one in a station striation not yet reached.
+            .filter((a) => stationChargeGateOpen(a, card))
             // CR 118.3 / 602.1a (issue #2712) — an UNPAYABLE fixed counter-removal
             // leg means no usable mana ability, the same answer the server's
             // `getActivatedManaAbility` gives. Unlike the `canActivate` gate above

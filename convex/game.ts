@@ -682,6 +682,7 @@ import {
     restoreExhaustOnUntap,
 } from "./gre/exhaust";
 import { maxSpeedGateOpen } from "./gre/speed";
+import { stationChargeGateOpen } from "./cards/abilities/station";
 import { activationRestrictionViolation } from "./gre/activationRestrictions";
 import { commitCast } from "./gre/castCommit";
 import {
@@ -2167,7 +2168,9 @@ export function tapSourceIntoPayment(
     if (
         producing &&
         (!maxSpeedGateOpen(producing, card, state.players) ||
-            !exhaustGateOpen(producing, card))
+            !exhaustGateOpen(producing, card) ||
+            // CR 721.2a — nor one printed in a station striation not reached.
+            !stationChargeGateOpen(producing, card))
     ) {
         throw new Error("Card does not produce mana");
     }

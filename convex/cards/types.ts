@@ -2769,6 +2769,15 @@ export interface ActivatedAbility {
      *  abilities a bar grants rather than the bar itself, and declarative for
      *  exactly the same reason. Built by `expandClassLevelBars`. */
     functionsAtClassLevel?: number;
+    /** CR 721.2a (issue #10528) — this ability is printed in the striation of
+     *  a station symbol `{N+}`, so the permanent "has" it only "as long as
+     *  [it] has N or more charge counters on it". The station twin of
+     *  `functionsAtClassLevel`, declarative for the same reason (a
+     *  `canActivate` closure is opaque to the Bot enumerator and the client
+     *  affordance). Read by the ONE gate, `stationChargeGateOpen`
+     *  (`cards/abilities/station.ts`), at every site `exhaustGateOpen` is read.
+     *  Built by `expandStationThresholds`; a card never writes it by hand. */
+    functionsAtStationCharge?: number;
     /** CR 702.142 — marks this ability as a BOAST ability. Boast is a keyword
      *  that adds rules to the activated ability that follows it: "Boast —
      *  [Cost]: [Effect]" means "[Cost]: [Effect]. Activate only if this
@@ -6414,6 +6423,14 @@ export interface SpellContext {
      *  was sacrificed for the cost. Used by Freyalise Supplicant ("deals damage
      *  equal to half the sacrificed creature's power, rounded down"). */
     getAdditionalSacrificePower: () => number | undefined;
+    /** CR 702.184a / 608.2h (issue #10528) — the ONE permanent tapped to pay
+     *  this ability's "tap another untapped creature" leg (`StackItem.
+     *  costTapped`): its id, plus its last known power/toughness once it has
+     *  left the battlefield. `undefined` when no single permanent was tapped
+     *  for the cost. Seeds the implicit `$tapped` binding. */
+    getCostTapped: () =>
+        | { id: string; lkiPower?: number; lkiToughness?: number }
+        | undefined;
     /** Effective TOUGHNESS snapshotted alongside `getAdditionalSacrificePower`
      *  (CR 608.2h last-known information, CR 613 layer 7c). Returns
      *  `undefined` when no creature was sacrificed for the cost. Read by the
@@ -14634,6 +14651,35 @@ export interface ClassLevelBarDefinition {
      *  `expandCompiledStatics`, before `expandClassLevelBars` gates it. */
     compiledStaticEffects?: CompiledStaticEffect[];
     /** The compiler's JSON form of `triggeredAbilities` above, rebuilt by
+     *  `expandCompiledTriggers` at the same seam. */
+    compiledTriggeredAbilities?: CompiledTriggeredAbility[];
+}
+
+/** One station symbol of a station card (CR 721.2) with the abilities printed
+ *  in its striation, declared as data. Desugared by `expandStationThresholds`
+ *  (`convex/cards/abilities/station.ts`). */
+export interface StationThresholdDefinition {
+    /** N in `{N+}` — the fewest charge counters at which the striation's
+     *  abilities apply (CR 721.2a). */
+    charge: number;
+    /** CR 721.2b — the P/T box printed in this striation: "is a creature with
+     *  base power and toughness [P/T] in addition to its other types". At most
+     *  one striation of a card carries it. */
+    creature?: { power: number; toughness: number };
+    /** Keyword abilities printed in the striation ("Flying, vigilance"). */
+    keywords?: string[];
+    /** Static effects printed in the striation (CR 721.2a). */
+    staticEffects?: GateableStaticEffect[];
+    /** Triggered abilities printed in the striation — they exist, and so can
+     *  trigger, only at N or more charge counters (CR 721.2a, 603.2). */
+    triggeredAbilities?: TriggeredAbility[];
+    /** Activated abilities printed in the striation, activatable only at N or
+     *  more charge counters (CR 721.2a, 602.1). */
+    activatedAbilities?: ActivatedAbility[];
+    /** The compiler's JSON form of `staticEffects`, rebuilt by
+     *  `expandCompiledStatics` before `expandStationThresholds` gates it. */
+    compiledStaticEffects?: CompiledStaticEffect[];
+    /** The compiler's JSON form of `triggeredAbilities`, rebuilt by
      *  `expandCompiledTriggers` at the same seam. */
     compiledTriggeredAbilities?: CompiledTriggeredAbility[];
 }
@@ -24290,6 +24336,16 @@ export interface CardDefinition {
      *  declared on the definition normally and this field never touches
      *  them. */
     classLevelBars?: ClassLevelBarDefinition[];
+    /** CR 702.184 / 721 (issue #10528) — a station card's station symbols,
+     *  declared as data, in printed order. Its presence makes the card a
+     *  station card (CR 702.184b): the `getDefinition` seam
+     *  (`expandStationThresholds`, `convex/cards/abilities/station.ts`) adds
+     *  the station keyword ability (CR 702.184a, which the card has at all
+     *  times, CR 721.4) and charge-gates every ability printed in each
+     *  symbol's striation (CR 721.2a), plus the creature type and base P/T of
+     *  the striation that holds the P/T box (CR 721.2b). A station card
+     *  declares no top-level `power`/`toughness` (CR 721.2c). */
+    stationThresholds?: StationThresholdDefinition[];
     staticAbilities?: string[];
     /** Continuous static effects (CR 611). Applied at stat-read time by the layer system. */
     staticEffects?: StaticEffect[];

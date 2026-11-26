@@ -2577,6 +2577,15 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  in exile (CR 607.2a / 400.7). Cast-instance-scoped: cleared when the
      *  item leaves the stack (`resetStackTransientState`). */
     castExiledCardIds?: string[];
+    /** CR 602.2b / 118.8 (issue #10528) — the ONE permanent tapped to pay a
+     *  "tap another untapped creature you control" leg (`cost.tapOtherFilter`
+     *  with `count: 1`), so the ability can name "the tapped creature" (CR
+     *  702.184a, Station). Its characteristics are read LIVE at resolution
+     *  (CR 608.2h) through the implicit `$tapped` binding; `lkiPower` /
+     *  `lkiToughness` are stamped ONCE, at the battlefield-departure funnel
+     *  (`removeFromBattlefield`), and read instead once it has left. Cleared
+     *  with the other cast-instance fields when the item leaves the stack. */
+    costTapped?: { id: string; lkiPower?: number; lkiToughness?: number };
     /** Snapshot of the permanent sacrificed OR exiled as an additional cost at
      *  announcement (CR 118.8 / 601.2f). Captured at commit and read at
      *  resolve via `SpellContext.getAdditionalSacrificeMv` (mana value) and

@@ -1323,6 +1323,29 @@ function expandBarStatics(base: CardDefinition): CardDefinition {
     };
 }
 
+/** CR 721.2a (issue #10528) — a station striation's descriptors, rebuilt in
+ *  place on their threshold so `expandStationThresholds`, which runs after this
+ *  seam, gates them. Gateable kinds only, as for a Class section. */
+function expandStationStatics(base: CardDefinition): CardDefinition {
+    const thresholds = base.stationThresholds;
+    if (thresholds?.some((t) => t.compiledStaticEffects) !== true) return base;
+    return {
+        ...base,
+        stationThresholds: thresholds.map((threshold) => {
+            const { compiledStaticEffects: descriptors, ...rest } = threshold;
+            if (descriptors === undefined) return threshold;
+            return {
+                ...rest,
+                staticEffects: (threshold.staticEffects ?? []).concat(
+                    descriptors.map(
+                        resolveCompiledStatic
+                    ) as GateableStaticEffect[]
+                ),
+            };
+        }),
+    };
+}
+
 /**
  * ADR 0054 seam — rebuild every compiled descriptor into a real static effect,
  * and REMOVE the descriptor field from the expanded definition.
@@ -1333,7 +1356,7 @@ function expandBarStatics(base: CardDefinition): CardDefinition {
  * descriptor would read as a compiler defect on every static card.
  */
 export function expandCompiledStatics(raw: CardDefinition): CardDefinition {
-    const base = expandBarStatics(raw);
+    const base = expandStationStatics(expandBarStatics(raw));
     const descriptors = base.compiledStaticEffects;
     if (descriptors === undefined || descriptors.length === 0) return base;
     const expanded: CardDefinition = {

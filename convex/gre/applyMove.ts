@@ -223,6 +223,7 @@ import { consumeMadnessCastChoice, declineMadness } from "./madness";
 import { consumeReboundCastChoice, declineRebound } from "./rebound";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { announcedModeFields } from "./modeSelection";
+import { singleCostTappedId } from "./tapOtherCost";
 import { searchCombatDamageAssignments } from "./ai/damageSplit";
 
 /** CR 614.12 / ADR 0051 — drain every pending stackless `land-entry-tapped`
@@ -972,6 +973,7 @@ export function applyActivationCostsForSearch(
      *  ability with the same numbers live play would. */
     out?: {
         additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
+        costTappedId?: string;
     }
 ): boolean {
     // CR 113.3c — the source may be on another player's battlefield ("any
@@ -1310,6 +1312,10 @@ export function applyActivationCostsForSearch(
         const perm = owner.battlefield.find((c) => c.id === id);
         if (perm) tapPermanent(state, perm);
     }
+    // CR 702.184a (issue #10528) — "the tapped creature" the ability reads back
+    // as `$tapped`, the same id the mutation path records.
+    const costTappedId = singleCostTappedId(idList);
+    if (out && costTappedId) out.costTappedId = costTappedId;
     // CR 118.5 — exile from a graveyard (Night Soil, Grim Lavamancer): the
     // cards leave the graveyard now, so a later graveyard-cost play in the
     // same rollout cannot reuse them.
@@ -1955,6 +1961,7 @@ export function payActivationInSearch(
     move: Extract<Move, { kind: "activate-ability" }>,
     out?: {
         additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
+        costTappedId?: string;
     }
 ): boolean {
     applyTapPlanInSearch(state, playerId, move.tapPlan);
