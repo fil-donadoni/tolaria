@@ -274,6 +274,11 @@ export type Verdict = {
      *  is every registry and authored Verdict and every locked one the lock
      *  writes no reading for. Not part of the judgement, so not of the id. */
     reading?: VerdictReading;
+    /** Held out BY RULE: the Verdict Lock names it on the exam side
+     *  (`VerdictLock.examIds`, ADR 0186 Decision 7), so the Weight Fit never
+     *  reads it whatever its scenario hashes to (`heldOut.ts`). Set only by
+     *  `verdictsFromLock`; not part of the judgement, so not of the id. */
+    heldOutByRule?: true;
 };
 
 /** Why a blade entry produced NO verdict — listed by the report, never

@@ -739,8 +739,12 @@ The committed list naming exactly which **Verdicts** a **Weight Fit** was run ov
 _Avoid_: Manifest, index, allowlist, approved list
 
 **Promotion**:
-The one step that widens the **Verdict Lock**: every **Verdict** in the **Verdict Store** that still loads and rebuilds, carries an **Attestation** from someone who gave it, is not part of a **Contested Position**, and is not a **Conditional Verdict** still missing its **Minimal Pair** enters the lock, and the **Weight Fit** is re-run in the same change so the committed weights move with it. Reviewed as its delta — which judgements came in, which pairs the fit cannot satisfy, how far each weight moved, whether the must tier still passes — never row by row, because a review that does not scale is skipped.
+The one step that widens the **Verdict Lock**: every **Verdict** in the **Verdict Store** that still loads and rebuilds, carries an **Attestation** from someone who gave it, is not part of a **Contested Position**, and is not a **Conditional Verdict** still missing its **Minimal Pair** enters the lock, and the **Weight Fit** is re-run in the same change so the committed weights move with it. Reviewed as its delta — which judgements came in, which pairs the fit cannot satisfy, how far each weight moved, whether the must tier still passes — never row by row, because a review that does not scale is skipped. No Promotion runs until the Prototype gate is read (ADR 0186): until then a new **Verdict** enters the lock on the **Exam Side**, and no weight moves.
 _Avoid_: Import, sync, publish, approval
+
+**Exam Side**:
+The **Verdicts** the **Verdict Lock** holds out by rule rather than by their content: the **Weight Fit** never reads them, and **Held-out Agreement** always counts them. While the Prototype gate is unread, every player **Verdict** the lock did not name goes there. Nothing ever leaves it for the fit side, and the two halves of a **Minimal Pair** are on it together or not at all.
+_Avoid_: Test set, quarantine, holdout list
 
 **Contested Position**:
 A decision about which people who GAVE a judgement disagree: two or more **Verdicts** on the same position with different answers. Every one of them is quarantined — kept out of the **Verdict Lock** until a human looks at the board and resolves it — because averaging them would teach the **Evaluation** a preference no player holds, and fitting both would make the **Weight Fit** report the disagreement as a missing term. Testers who agree are one **Verdict**, counted, never contested. Only judgements a person gave can contest; a move merely chosen in play cannot. Counted per corpus and per tester: a rising count says the question is asked badly, not that testers are careless.

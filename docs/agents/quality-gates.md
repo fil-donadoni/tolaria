@@ -1150,7 +1150,7 @@ and ran health against its own self-hosted Convex
 deployment (issues #5467, #5468). The bot refresh steps (`bot:reach`,
 `seed:bot-findings`, `gaps:sync`) leave health for a nightly cron and the
 robustness audit runs weekly, on the same machine (held-out pick agreement
-is run by hand after `verdicts:promote`, issue #8698). A failed
+is run by hand after `verdicts:promote` or `verdicts:exam`, issue #8698). A failed
 vitest project is re-run once before RED (issue #5461): 11 % of health reds
 were flaky.
 
@@ -1180,7 +1180,7 @@ days (green runs, range):
 | `gaps:sync`               | 1 m 27 s – 3 m 57 s             | `bun run health:nightly`, primary at the tip                    |
 | `derive:sync`             | 4.6 s (+ push); `--fresh` 0.8 s | `bun run housekeeping`, every run; `post-merge sync` (ADR 0157) |
 | robustness audit          | 13 m 30 s – 18 m 51 s           | `bun run health:nightly`, weekly (Sunday night)                 |
-| `verdicts:pick-agreement` | ≈ 400 s                         | by hand, after `verdicts:promote` (issue #8698)                 |
+| `verdicts:pick-agreement` | ≈ 400 s                         | by hand, after `verdicts:promote` / `verdicts:exam` (#8698)     |
 
 The offline phase is ~10–15 min. `check:convex-heap` is the first member of a
 third guard tier, `MAINTENANCE_SCRIPTS` (`scripts/lib/health-step.ts`): a

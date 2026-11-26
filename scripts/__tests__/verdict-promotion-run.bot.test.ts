@@ -37,6 +37,7 @@ import { verdictPackObjectName } from "../../convex/gre/ai/verdicts/pack";
 import { PROMOTION_STREAK_PATH } from "../../convex/gre/ai/verdicts/promotionStreak";
 import {
     EVAL_WEIGHTS_PATH,
+    planExam,
     planPromotion,
     validateStoreObjects,
     type VerdictPromotionInput,
@@ -56,6 +57,8 @@ import {
 import {
     parseBladeMust,
     PICK_AGREEMENT_POINTER,
+    PROTOTYPE_GATE_MARKER_PATH,
+    runVerdictsExam,
     runVerdictsPromote,
     runVerdictsTesters,
     snapshotVerdictStore,
@@ -133,6 +136,11 @@ function checkout(): string {
     mkdirSync(join(root, "data"), { recursive: true });
     mkdirSync(join(root, "convex/gre/ai"), { recursive: true });
     writeFileSync(join(root, EVAL_WEIGHTS_PATH), WEIGHTS);
+    // The Prototype gate read (PRD issue #10849): a Promotion may run.
+    writeFileSync(
+        join(root, PROTOTYPE_GATE_MARKER_PATH),
+        '{ "reading": "the Prototype gate reading" }\n'
+    );
     return root;
 }
 
@@ -258,6 +266,100 @@ describe("verdicts:promote — writes (issue #3583)", () => {
         await expect(runVerdictsPromote(p)).rejects.toThrow(/has no packs\//);
         expect(read(root, VERDICT_LOCK_PATH)).toBeNull();
         expect(read(root, EVAL_WEIGHTS_PATH)).toBe(WEIGHTS);
+    });
+});
+
+describe("verdicts:promote — refused until the Prototype gate is read (issue #10851)", () => {
+    for (const [why, marker] of [
+        ["absent", null],
+        ["not JSON", "read\n"],
+        ["naming no reading", '{ "reading": " " }\n'],
+    ] as const) {
+        it(`exits non-zero naming PRD issue #10849 when the marker is ${why}, and reads and writes nothing`, async () => {
+            const store = createMemoryVerdictStore();
+            await attested(store, 1);
+            const root = checkout();
+            const markerPath = join(root, PROTOTYPE_GATE_MARKER_PATH);
+            if (marker === null) rmSync(markerPath);
+            else writeFileSync(markerPath, marker);
+            let stepped = 0;
+            const { ports: p, calls } = ports(root, store, {
+                engineStep: async (input) => {
+                    stepped++;
+                    return engineStep(input);
+                },
+            });
+
+            await expect(runVerdictsPromote(p)).rejects.toThrow(
+                /Prototype gate \(PRD issue #10849, ADR 0186 Decision 7\) is not read[^]*verdicts:exam/
+            );
+            expect(stepped).toBe(0);
+            expect(calls).toEqual({ writePack: 0, blade: 0 });
+            expect(read(root, VERDICT_LOCK_PATH)).toBeNull();
+            expect(read(root, EVAL_WEIGHTS_PATH)).toBe(WEIGHTS);
+        });
+    }
+});
+
+describe("verdicts:exam — writes the lock alone (issue #10851)", () => {
+    /** The exam engine step played by the pure planner, as `engineStep`
+     *  plays a Promotion. */
+    async function examStep(
+        input: VerdictPromotionInput
+    ): Promise<VerdictPromotionOutput> {
+        const decode = (objects: VerdictPromotionInput["verdictObjects"]) =>
+            objects.map(({ name, base64 }) => ({
+                name,
+                bytes: new Uint8Array(Buffer.from(base64, "base64")),
+            }));
+        const plan = planExam(
+            input.lock === null ? null : parseVerdictLock(input.lock),
+            validateStoreObjects(
+                decode(input.verdictObjects),
+                decode(input.attestationObjects),
+                () => null,
+                []
+            ),
+            new Set()
+        );
+        if (plan.noop) return { mode: "exam", noop: true, text: "noop" };
+        return {
+            mode: "exam",
+            noop: false,
+            text: "examined",
+            lock: plan.lock,
+            lockText: serializeVerdictLock(plan.lock),
+        };
+    }
+
+    it("runs with no marker, writes the pack and the lock, and leaves the weights and the ledger alone; a re-run writes nothing", async () => {
+        const store = createMemoryVerdictStore();
+        const id = await attested(store, 1);
+        const root = checkout();
+        rmSync(join(root, PROTOTYPE_GATE_MARKER_PATH));
+        const { ports: p, calls } = ports(root, store, {
+            engineStep: examStep,
+        });
+
+        const outcome = await runVerdictsExam(p);
+
+        expect(outcome.wrote).toBe(true);
+        const lock = parseVerdictLock(read(root, VERDICT_LOCK_PATH)!);
+        expect(lock.verdictIds).toEqual([id]);
+        expect(lock.examIds).toEqual([id]);
+        expect(store.objects.has(verdictPackObjectName(lock.packHash))).toBe(
+            true
+        );
+        expect(read(root, EVAL_WEIGHTS_PATH)).toBe(WEIGHTS);
+        expect(read(root, PROMOTION_STREAK_PATH)).toBeNull();
+        expect(calls).toEqual({ writePack: 1, blade: 0 });
+
+        const lockText = read(root, VERDICT_LOCK_PATH);
+        const again = await runVerdictsExam(
+            ports(root, store, { engineStep: examStep }).ports
+        );
+        expect(again).toEqual({ text: "noop", wrote: false });
+        expect(read(root, VERDICT_LOCK_PATH)).toBe(lockText);
     });
 });
 

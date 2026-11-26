@@ -43,28 +43,47 @@ export function heldOutVerdicts(
     );
 }
 
-/** The burned count (`burnedOf`) beside the held-out `n` it reduced. */
+/** The burned count (`burnedOf`) beside the held-out `n` it reduced, and
+ *  that `n` split by what holds each Verdict out. */
 export type BurnedCount = {
     burned: number;
-    /** Held-out Verdicts that remain (`heldOutVerdicts`). */
+    /** Held-out Verdicts that remain (`heldOutVerdicts`):
+     *  `byHash + byRule`. */
     heldOutN: number;
+    /** Held out by their scenario's bucket alone (`heldOutBucketOf`). */
+    byHash: number;
+    /** Held out by rule: the lock names them on the exam side
+     *  (`VerdictLock.examIds`, ADR 0186 Decision 7) — whatever they hash to. */
+    byRule: number;
 };
 
 /** `burnedOf` and the held-out `n` it reduced — printed beside every
- *  agreement number (issue #3983). */
+ *  agreement number (issue #3983), with the hash and rule sides' sizes. */
 export function burnedCountOf(
     verdicts: readonly Verdict[],
     testPositions: ReadonlySet<string>
 ): BurnedCount {
+    const heldOut = heldOutVerdicts(verdicts, testPositions);
+    const byRule = heldOut.filter((v) => v.heldOutByRule === true).length;
     return {
         burned: burnedOf(verdicts, testPositions).length,
-        heldOutN: heldOutVerdicts(verdicts, testPositions).length,
+        heldOutN: heldOut.length,
+        byHash: heldOut.length - byRule,
+        byRule,
     };
 }
 
-/** The `burned` line of an agreement block. */
-export function formatBurned({ burned, heldOutN }: BurnedCount): string {
-    return `  burned             : ${burned} held-out positions admitted to the registry anyway (held-out n = ${heldOutN} remaining)`;
+/** The `burned` and `exam` lines of an agreement block. */
+export function formatBurned({
+    burned,
+    heldOutN,
+    byHash,
+    byRule,
+}: BurnedCount): string {
+    return [
+        `  burned             : ${burned} held-out positions admitted to the registry anyway (held-out n = ${heldOutN} remaining)`,
+        `  exam               : n = ${heldOutN} (hash side ${byHash}, rule side ${byRule})`,
+    ].join("\n");
 }
 
 /** One tally: how many of `n` agreed. */
