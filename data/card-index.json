@@ -21626,6 +21626,14 @@
         "source": "compiled"
     },
     {
+        "name": "Deep Space 9",
+        "scryfallId": "76b039c5-e0a1-410a-954b-52f304e31f7f",
+        "oracleId": "14442f5b-0bad-4c58-b268-d775787571d8",
+        "firstSet": "trk",
+        "firstPrintId": "76b039c5-e0a1-410a-954b-52f304e31f7f",
+        "firstPrintSet": "trk"
+    },
+    {
         "name": "Deep Spawn",
         "scryfallId": "69c9e4a5-735f-471c-ab1a-6e6d50ba5724",
         "oracleId": "d1aba343-d85a-4829-bdfe-db31fcb3c320",

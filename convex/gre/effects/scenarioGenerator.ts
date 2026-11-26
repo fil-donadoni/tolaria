@@ -262,6 +262,9 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     // CR 603.6a / 508.3a — the source entered or attacked and is on the
     // battlefield as the trigger is put on the stack.
     "enters-or-attacks": () => true,
+    // CR 603.6a / 603.2b — the source entered, or is on the battlefield as
+    // its controller's upkeep begins.
+    "enters-or-upkeep": () => true,
     "combat-damage-to-player": () => true,
     // CR 120.3 — the source is the DAMAGE dealer or recipient, and it is still
     // on the battlefield when the trigger is put on the stack.

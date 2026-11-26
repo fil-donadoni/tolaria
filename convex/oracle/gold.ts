@@ -887,6 +887,8 @@ const TRIGGER_HEAD_EVENT: Record<CompiledTriggerHead["kind"], GameEventType> = {
     // CR 603.2 — two events again; the pairing key names the first member of
     // the array a hand-written twin declares.
     "enters-or-attacks": "PERMANENT_ENTERED",
+    // CR 603.2 — two events; the pairing key names the first member.
+    "enters-or-upkeep": "PERMANENT_ENTERED",
     "combat-damage-to-player": "DAMAGE_DEALT",
     "damage-dealt": "DAMAGE_DEALT",
     "damage-taken": "DAMAGE_DEALT",

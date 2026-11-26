@@ -4089,8 +4089,13 @@ function isForEachSelector(value: unknown): boolean {
     // `bound` (ADR 0049, issue #866) — iterate a `string[]` LIST binding.
     // Exactly `{ set, ref }`; `ref` must be a binding name (its family — a list
     // binding — is checked by the ordered ref pass, not here).
+    // CR 110.4a — the optional `filter` narrows a list of exiled cards; its
+    // pairing with `simultaneous` is the `forEach` check's question.
     if (s.set === "bound") {
-        return Object.keys(s).length === 2 && isBindingName(s.ref);
+        const bAllowed = new Set(["set", "ref", "filter"]);
+        if (!Object.keys(s).every((k) => bAllowed.has(k))) return false;
+        if ("filter" in s && !isCardFilter(s.filter)) return false;
+        return isBindingName(s.ref);
     }
     // A bulk graveyard-set sweep (issue #1056, CR 404) — exactly `{ set,
     // controller?, filter? }`; no `zone` (a graveyard is the only zone this set
@@ -7444,6 +7449,18 @@ const OP_SCHEMAS: OpSchemaTable = {
                     'forEach over { set: "exiledWithSource" } requires "simultaneous": true (CR 607.2a — the linked pile returns as one instruction)'
                 );
             }
+            // CR 110.4a — a bound-set `filter` reads EXILE cards, which only
+            // the simultaneous exile-return batch carries; the per-member walk
+            // snapshots battlefield objects a card filter cannot read.
+            if (
+                select?.set === "bound" &&
+                "filter" in (select as object) &&
+                entry.simultaneous !== true
+            ) {
+                errors.push(
+                    'forEach over { set: "bound", filter } requires "simultaneous": true (CR 110.4a — the filter narrows a list of exiled cards the batch return reads)'
+                );
+            }
             if (entry.simultaneous === true) {
                 const set = select?.set;
                 if (set === "graveyard") {
@@ -7458,6 +7475,14 @@ const OP_SCHEMAS: OpSchemaTable = {
                             'field "simultaneous" over { set: "exiledWithSource" } requires "effects" to be exactly [{ op: "moveZone", target: { ref: "$each" }, from: "exile", to: "battlefield" }] — the CR 607.2a linked-pile return the batch primitive executes'
                         );
                     }
+                } else if (set === "bound") {
+                    // CR 608.2c — "put all [permanent] cards exiled this way
+                    // onto the battlefield": the frozen exile list, one event.
+                    if (!isSimultaneousExileReturnBody(entry.effects)) {
+                        errors.push(
+                            'field "simultaneous" over { set: "bound" } requires "effects" to be exactly [{ op: "moveZone", target: { ref: "$each" }, from: "exile", to: "battlefield" }] — the "cards exiled this way" return the batch primitive executes'
+                        );
+                    }
                 } else if (set === "players") {
                     if (!isSimultaneousPlayerChoiceBody(entry.effects)) {
                         errors.push(
@@ -7466,7 +7491,7 @@ const OP_SCHEMAS: OpSchemaTable = {
                     }
                 } else {
                     errors.push(
-                        'field "simultaneous" is only valid with { select: { set: "graveyard" } } (CR 400.7 batch reanimation), { select: { set: "exiledWithSource" } } (CR 607.2a linked-pile return) or { select: { set: "players" } } (CR 101.4 choices-then-actions)'
+                        'field "simultaneous" is only valid with { select: { set: "graveyard" } } (CR 400.7 batch reanimation), { select: { set: "exiledWithSource" } } (CR 607.2a linked-pile return), { select: { set: "bound" } } (CR 608.2c exiled-this-way return) or { select: { set: "players" } } (CR 101.4 choices-then-actions)'
                     );
                 }
             }
