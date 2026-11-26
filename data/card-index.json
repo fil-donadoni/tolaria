@@ -89437,6 +89437,14 @@
         "source": "compiled"
     },
     {
+        "name": "Sundering Titan",
+        "scryfallId": "3e4bd552-e629-41a4-868f-d656187317b7",
+        "oracleId": "d17d071d-dbee-4d65-8435-137f35cd89ca",
+        "firstSet": "dst",
+        "firstPrintId": "3e4bd552-e629-41a4-868f-d656187317b7",
+        "firstPrintSet": "dst"
+    },
+    {
         "name": "Sundering Vitae",
         "scryfallId": "1ab15b40-c5c8-4d77-a4c0-982b6bf94267",
         "oracleId": "132c8a62-00bc-4b89-b775-099d8909f200",
