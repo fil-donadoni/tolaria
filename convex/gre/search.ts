@@ -7103,8 +7103,9 @@ export function selectRootMove(
     // The same rule, the other way round: the robust pick is a HAND land drop
     // before the turn's last main phase, and `pass` is outcome-equal and plays
     // a land out of EXILE later this same turn that the root cannot play now
-    // (an attack trigger's "you may play that card this turn", CR 305.9 /
-    // 514.2). Again two ORDERS of one land drop (CR 305.2): passing keeps the
+    // (an attack trigger's "you may play that card this turn", which ends at
+    // cleanup, CR 514.2). Again two ORDERS of one land drop (CR 305.2):
+    // passing keeps the
     // hand land playable in the later main phase, so every line through the
     // drop now stays open behind it, and it opens the line where the turn's
     // one drop goes to the card that lapses at cleanup while the hand card

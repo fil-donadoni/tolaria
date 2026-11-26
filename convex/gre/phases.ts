@@ -2864,7 +2864,7 @@ export function finalizeCleanupDiscard(
     drainAutoPasses(state);
 }
 
-/** CR 514.2 / 608.2g — true iff THIS turn's cleanup step revokes `card`'s
+/** CR 514.2 — true iff THIS turn's cleanup step revokes `card`'s
  *  play-from-exile grant: the one predicate the cleanup sweep applies, and the
  *  one the Bot's evaluation reads to tell a grant that lapses tonight from one
  *  that persists.

@@ -6961,7 +6961,7 @@ export function enumerateMoves(
     // `getLegalActions` decides. A land is never cast, so it stops there.
     // The caster is `player` on both sides, the subject `assertLegalAction`
     // asks about at the mutation, because the drop count and the sorcery
-    // window are the caster's (CR 305.2, 307.1).
+    // window are the caster's (CR 305.1, 305.2).
     const zoneOwnerList = state.players;
     for (let i = 0; i < zoneOwnerList.length; i++) {
         const zoneOwner = zoneOwnerList[i];

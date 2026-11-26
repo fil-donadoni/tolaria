@@ -320,8 +320,8 @@ describe("onlyPassIsLegal names every move source of the priority window", () =>
         expect(end).toBeGreaterThan(start);
         // A new site is a new way to act with priority: teach
         // `onlyPassIsLegal` (gre/moves.ts) to rule it out, then move this.
-        // Twenty-two since the land play from exile under a play grant (CR
-        // 305.9), which `onlyPassIsLegal` rules out in its exile scan.
+        // Twenty-two since the land play from exile under a play grant,
+        // which `onlyPassIsLegal` rules out in its exile scan.
         expect(source.slice(start, end).split("moves.push(").length - 1).toBe(
             22
         );
