@@ -8,7 +8,6 @@
 // real wire projection is `src/lib/__tests__/historic-graveyard-target.test.ts`.
 
 import { describe, expect, it } from "vitest";
-import { getCardByName } from "../../../index";
 import {
     makeInstance,
     makePlayer,
@@ -27,10 +26,10 @@ import { abstergoEntertainment as abstergoFactory } from "../colorless.cards";
 const abstergoEntertainment = abstergoFactory();
 
 const RECOVER = "abstergo-entertainment-recover";
-const BEARS = getCardByName("Grizzly Bears").id; // not historic
-const MEMNITE = getCardByName("Memnite").id; // artifact
-const LUTRI = getCardByName("Lutri, the Spellchaser").id; // legendary
-const FABLE = getCardByName("Fable of the Mirror-Breaker").id; // Saga
+const BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // not historic
+const MEMNITE = "469cc4e0-49c0-4009-97ea-28e44addec69"; // artifact
+const LUTRI = "fb1189c9-7842-466e-8238-1e02677d8494"; // legendary
+const FABLE = "24c0d87b-0049-4beb-b9cb-6f813b7aa7dc"; // Saga
 
 function card(cardId: string, id: string, owner: "p1" | "p2") {
     return makeInstance(cardId, {
