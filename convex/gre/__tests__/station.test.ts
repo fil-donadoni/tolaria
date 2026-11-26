@@ -130,7 +130,7 @@ describe("Station — the keyword ability (CR 702.184a)", () => {
 
     it("activates only as a sorcery (CR 702.184a, CR 307.5)", () => {
         const state = stationBoard(SPACECRAFT_ID);
-        state.phase = "BEGIN_COMBAT";
+        state.phase = "BEGINNING_OF_COMBAT";
         refreshExpectedInput(state);
         expect(() =>
             activateAbilityOnState(state, {
@@ -207,7 +207,7 @@ describe("Station symbols (CR 721.2)", () => {
         );
         const projected = projectPublicState(state, 1, "p1");
         const inHand = projected.players[0].hand.find(
-            (c) => c.id === "ship-in-hand"
+            (c) => c?.id === "ship-in-hand"
         ) as { power?: number; toughness?: number } | undefined;
         expect(inHand?.power).toBeUndefined();
         expect(inHand?.toughness).toBeUndefined();

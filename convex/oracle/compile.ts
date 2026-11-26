@@ -16,6 +16,7 @@
 
 import { expanderOps, runGates } from "./gates";
 import { readClassSections } from "./grammar/classSections";
+import { readStationSections } from "./grammar/stationSections";
 import { groupLines } from "./grammar/lineGroups";
 import { routeLine } from "./grammar/router";
 import type { LineParse } from "./grammar/ir";
@@ -34,6 +35,7 @@ import type {
     CardType,
     ClassLevelBarDefinition,
     Color,
+    StationThresholdDefinition,
     InsetSpellKind,
     SplitHalf,
 } from "../cards/types";
@@ -48,6 +50,8 @@ import {
     classLevelBarsViolation,
     isGateableStaticEffect,
 } from "../cards/abilities/classLevels";
+import { stationThresholdsViolation } from "../cards/abilities/station";
+import { isDefinitionLevelKeyword } from "./lowerStatic";
 import { resolveCompiledStatic } from "../cards/compiledStatics";
 import { MECHANICS_REGISTRY } from "../cards/mechanicsRegistry";
 import type { TokenStaticEffectKey } from "../cards/types";
@@ -319,6 +323,10 @@ export function compileCard(card: OracleCard): CompileOutcome {
     if (layout === MELD_LAYOUT) return compileMeldLayout(card);
     if (layout === TRANSFORM_LAYOUT) return compileTransformLayout(card);
     if (layout === CLASS_LAYOUT) return compileClassLayout(card);
+    // CR 721 (issue #10528) — a station card is a "normal" layout whose text
+    // box is striated; its printed keyword is what says so.
+    if (layout === "normal" && readStationSections(card.oracleText) !== null)
+        return compileStationCard(card);
     if (!SUPPORTED_LAYOUTS.has(layout)) {
         return unparsed([
             {
@@ -679,6 +687,189 @@ function classSectionRefusal(
             return `class level ${level} section prints a "becomes level ${head.level}" trigger`;
     }
     return null;
+}
+
+/**
+ * CR 721.2a — what a station striation's lines may compile to, beyond the
+ * identity every compile carries: each kind of ability has a charge gate the
+ * engine reads (`expandStationThresholds`). Anything else would function at
+ * every charge, so it refuses the card rather than truncate it.
+ */
+const STATION_SECTION_FIELDS = new Set<string>([
+    "name",
+    "manaCost",
+    "types",
+    "subtypes",
+    "supertypes",
+    "oracleText",
+    "staticAbilities",
+    "activatedAbilities",
+    "compiledTriggeredAbilities",
+    "compiledStaticEffects",
+]);
+
+/** What one striation's compiled lines cannot carry, or `null`. */
+function stationSectionRefusal(
+    section: CompiledDefinition,
+    charge: number
+): string | null {
+    const carried = Object.keys(section).filter(
+        (k) => !STATION_SECTION_FIELDS.has(k)
+    );
+    if (carried.length > 0)
+        return `station ${charge}+ striation carries ${carried.join(", ")}, which has no charge gate`;
+    for (const descriptor of section.compiledStaticEffects ?? []) {
+        if (!isGateableStaticEffect(resolveCompiledStatic(descriptor)))
+            return `station ${charge}+ striation holds a ${descriptor.kind} static, which has no charge gate`;
+    }
+    return null;
+}
+
+/**
+ * CR 702.184 / 721 — compile a STATION card: the lines above the first symbol
+ * are the card (CR 721.4), the keyword line is the station ability every
+ * station card gets, and each symbol owns the lines printed in its striation
+ * (`grammar/stationSections.ts`). Each part runs the ordinary pipeline on its
+ * own lines, like a Class section.
+ *
+ * CR 721.2b / 721.2c — the printed P/T is the box of ONE striation, never the
+ * card's: it moves onto the threshold the reminder names ("It's an artifact
+ * creature at N+."), or onto the only symbol when there is one. A card with a
+ * box, several symbols and a bare keyword does not say which striation holds
+ * it, so it refuses.
+ */
+function compileStationCard(card: OracleCard): CompileOutcome {
+    const read = readStationSections(card.oracleText)!;
+    const asCard = (lines: readonly string[]): OracleCard => {
+        // CR 721.2c — the card's printed P/T is a striation's box, never the
+        // card's own, so no part is compiled with it.
+        const rest: OracleCard = { ...card };
+        delete rest.power;
+        delete rest.toughness;
+        return { ...rest, oracleText: lines.join("\n"), layout: "normal" };
+    };
+    const refuse = (line: string, reason: string): CompileOutcome =>
+        unparsed([{ line, fragment: line, reason }]);
+    const top = compileCard(asCard(read.top));
+    const sections = read.sections.map((s) => compileCard(asCard(s.lines)));
+    const outcomes = [top, ...sections];
+    const gaps = outcomes.flatMap((o) =>
+        o.state === "unparsed" ? o.gaps : []
+    );
+    if (gaps.length > 0) return unparsed(gaps);
+
+    const hasBox = card.power !== undefined || card.toughness !== undefined;
+    let boxCharge: number | undefined;
+    if (hasBox) {
+        boxCharge =
+            read.creatureAt ??
+            (read.sections.length === 1 ? read.sections[0]!.charge : undefined);
+        if (boxCharge === undefined)
+            return refuse(
+                read.keywordLine,
+                "a station card with a power/toughness box and several station symbols prints no reminder naming the box's striation (CR 721.2b)"
+            );
+        const power = Number(card.power);
+        const toughness = Number(card.toughness);
+        if (!Number.isInteger(power) || !Number.isInteger(toughness))
+            return refuse(
+                card.typeLine,
+                `the station P/T box ${card.power}/${card.toughness} is not a fixed integer pair (CR 721.2b)`
+            );
+    } else if (read.creatureAt !== undefined) {
+        return refuse(
+            read.keywordLine,
+            "the station reminder names a creature striation on a card that prints no power/toughness box (CR 721.2b)"
+        );
+    }
+
+    const thresholds: StationThresholdDefinition[] = [];
+    const ungrantable: string[] = [];
+    for (const [i, { charge, symbolLine }] of read.sections.entries()) {
+        const outcome = sections[i]!;
+        if (outcome.state === "unparsed") return unparsed(outcome.gaps);
+        const refusal = stationSectionRefusal(outcome.definition, charge);
+        if (refusal !== null) return refuse(symbolLine, refusal);
+        const {
+            staticAbilities,
+            activatedAbilities,
+            compiledTriggeredAbilities,
+            compiledStaticEffects,
+        } = outcome.definition;
+        ungrantable.push(
+            ...(staticAbilities ?? []).filter(isDefinitionLevelKeyword)
+        );
+        // Each striation lowered alone, so each numbered its ids from one; the
+        // card's abilities are told apart by id.
+        const suffix = `-station-${charge}`;
+        thresholds.push({
+            charge,
+            ...(boxCharge === charge
+                ? {
+                      creature: {
+                          power: Number(card.power),
+                          toughness: Number(card.toughness),
+                      },
+                  }
+                : {}),
+            ...(staticAbilities?.length ? { keywords: staticAbilities } : {}),
+            ...(activatedAbilities?.length
+                ? {
+                      activatedAbilities: activatedAbilities.map((a) => ({
+                          ...a,
+                          id: `${a.id}${suffix}`,
+                      })),
+                  }
+                : {}),
+            ...(compiledTriggeredAbilities
+                ? {
+                      compiledTriggeredAbilities:
+                          compiledTriggeredAbilities.map((t) => ({
+                              ...t,
+                              id: `${t.id}${suffix}`,
+                          })),
+                  }
+                : {}),
+            ...(compiledStaticEffects ? { compiledStaticEffects } : {}),
+        });
+    }
+    if (boxCharge !== undefined && !thresholds.some((t) => t.creature))
+        return refuse(
+            read.keywordLine,
+            `the station reminder names ${boxCharge}+, which is no station symbol of this card (CR 721.2b)`
+        );
+    const violation = stationThresholdsViolation(thresholds);
+    if (violation !== null) return refuse(read.keywordLine, violation);
+    if (top.state === "unparsed") return unparsed(top.gaps);
+
+    const definition: CompiledDefinition = {
+        ...top.definition,
+        oracleText: card.oracleText,
+        stationThresholds: thresholds,
+    };
+    const parsed = outcomes.flatMap((o) => (o.state === "unparsed" ? [] : [o]));
+    const opsUsed = [
+        ...new Set([
+            ...parsed.flatMap((o) => o.opsUsed),
+            ...expanderOps(definition),
+        ]),
+    ].sort();
+    const slots = [
+        ...new Set([...parsed.flatMap((o) => o.slots), "station-symbol"]),
+    ].sort();
+    // One card is one card: a quarantined striation quarantines the card. A
+    // definition-level keyword (ADR 0054) granted by a striation produces
+    // nothing, the same reason `runGates` gives for any other grant.
+    const reasons = [
+        ...parsed.flatMap((o) => (o.state === "quarantine" ? o.reasons : [])),
+        ...ungrantable.map((keyword) => ({
+            kind: "ungrantable-keyword" as const,
+            detail: `keyword "${keyword}" is implemented by definition-level expansion (ADR 0054), so a station striation granting it would produce nothing`,
+        })),
+    ];
+    return reasons.length > 0
+        ? { state: "quarantine", definition, opsUsed, slots, reasons }
+        : { state: "ready", definition, opsUsed, slots };
 }
 
 /**

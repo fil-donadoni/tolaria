@@ -81,7 +81,7 @@ describe("Station — Bot reachability (CR 702.184a)", () => {
 
     it("does not enumerate it outside sorcery timing (CR 307.5)", () => {
         const state = board();
-        state.phase = "BEGIN_COMBAT";
+        state.phase = "BEGINNING_OF_COMBAT";
         expect(stationMoves(state)).toEqual([]);
     });
 
@@ -98,7 +98,9 @@ describe("Station — Bot reachability (CR 702.184a)", () => {
         );
         expect(move).toBeDefined();
         applyMoveInSearch(state, "p1", move!);
-        expect(state.stack.at(-1)?.costTapped?.id).toBe("bear");
+        expect(state.stack[state.stack.length - 1]?.costTapped?.id).toBe(
+            "bear"
+        );
         resolveTopOfStack(state);
         const ship = state.players[0].battlefield.find((c) => c.id === "ship")!;
         expect(ship.counters?.[CHARGE_COUNTER]).toBe(2);
