@@ -6833,6 +6833,47 @@ describe("getStackAbilities — targeting abilities with no legal target (CR 602
             )
         ).not.toContain("lavaspur-boots-equip");
     });
+
+    // CR 701.3b (issue #10468) — attaching to the host it is already attached
+    // to does nothing: legal, so the server accepts it, but not worth offering.
+    function equippedBoard(extraCreature: boolean) {
+        const bear = makeCardInstance({
+            id: "bear-1",
+            types: ["Creature"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const equipment = { ...boots(), attachedTo: bear.id };
+        const second = makeCardInstance({
+            id: "bear-3",
+            types: ["Creature"],
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const view = buildTriggerStateView(
+            [
+                makePlayerLike({
+                    id: "p1",
+                    battlefield: extraCreature
+                        ? [equipment, bear, second]
+                        : [equipment, bear],
+                }),
+                makePlayerLike({ id: "p2", battlefield: [] }),
+            ],
+            "p1"
+        );
+        return getStackAbilities(equipment, "PRECOMBAT_MAIN", true, view).map(
+            (a) => a.id
+        );
+    }
+
+    it("hides Equip when the only creature is the one it is already attached to (CR 701.3b)", () => {
+        expect(equippedBoard(false)).not.toContain("lavaspur-boots-equip");
+    });
+
+    it("offers Equip on an equipped Equipment once a second creature exists", () => {
+        expect(equippedBoard(true)).toContain("lavaspur-boots-equip");
+    });
 });
 
 // ---------------------------------------------------------------------------
