@@ -65,9 +65,10 @@ export const volrathsStronghold = defineCard(() => ({
 // number of cards in your hand can't attack." (CR 508.1c — a restriction on
 // declaring attackers, checked for every creature on the battlefield, either
 // side's.) A battlefield-scanned `global-attack-restriction` (the Moat shape):
-// the source forbids any OTHER permanent's attack, so the predicate is read
-// at every declaration against the board as it stands then — the hand count
-// and the power both move between declarations.
+// the source forbids the attack of any creature, itself included if it is
+// animated, so the predicate is read at every declaration against the board
+// as it stands then — the hand count and the power both move between
+// declarations.
 //
 // CR 613.4 — "power" is the attacker's EFFECTIVE power, read through the
 // layer-7 pipeline (`readEffectivePT`, counters and anthems included), never
