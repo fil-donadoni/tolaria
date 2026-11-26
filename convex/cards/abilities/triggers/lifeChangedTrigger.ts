@@ -37,7 +37,7 @@ const DIRECTION_EVENT: Record<LifeChangeDirection, GameEventType> = {
 export interface LifeChangedTriggerArgs {
     /** Stable id within the source card's `triggeredAbilities` array. */
     id: string;
-    /** Oracle text shown on the stack and in trigger logs (CR 603.3a). */
+    /** Oracle text shown on the stack and in trigger logs (CR 603.3). */
     oracleText: string;
     /** The directions printed: `["gained"]` for "whenever you gain life",
      *  both for "whenever you gain or lose life". */
