@@ -5474,9 +5474,26 @@ export const OP_EXECUTORS: {
     animate(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
+        // CR 608.2h (issue #10555) — a value read off the game ("each equal
+        // to its mana value") is determined once, here, when the effect is
+        // applied; the primitive stores the locked numbers. A declared stat
+        // that cannot be answered (CR 608.2b — its object is gone) skips the
+        // Op rather than animate with half a base P/T.
+        const power =
+            op.power === undefined ? undefined : resolveValue(ctx, op.power);
+        const toughness =
+            op.toughness === undefined
+                ? undefined
+                : resolveValue(ctx, op.toughness);
+        if (
+            (op.power !== undefined && power === undefined) ||
+            (op.toughness !== undefined && toughness === undefined)
+        ) {
+            return;
+        }
         ctx.animateAsCreature(target, {
-            power: op.power,
-            toughness: op.toughness,
+            power,
+            toughness,
             subtype: op.subtype,
             // CR 205.3m (issue #10511) — "with all creature types".
             allCreatureTypes: op.allCreatureTypes,
@@ -5526,7 +5543,7 @@ export const OP_EXECUTORS: {
     setCardTypes(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
-        ctx.setCardTypes(target, op.types);
+        ctx.setCardTypes(target, op.types, op.duration);
     },
     // CR 613.1f layer 6 (issue #2361) — the target permanent LOSES ALL
     // ABILITIES indefinitely (CR 611.2c — Oko, Thief of Crowns' `+1`). A thin

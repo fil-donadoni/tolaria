@@ -38,7 +38,11 @@
 //
 // PURE: reads state, mutates nothing.
 
-import type { ActivatedAbility, EffectOp } from "../../cards/types";
+import type {
+    ActivatedAbility,
+    EffectOp,
+    EffectValue,
+} from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
 import { animatePermanentAsCreature, payRemoveCounterCost } from "../state";
 import { validateBlockerEligibility } from "../combat";
@@ -369,6 +373,10 @@ export function animationHasCombatWindow(
     if (!blockDeclarationPending(state)) return false;
     const op = selfAnimateOp(ability);
     if (!op) return true;
+    // A base P/T read off the game (issue #10555) is answered only by the
+    // resolving script; with no literal body to simulate, judge it as the
+    // script-less case above does.
+    if (!isLiteralStat(op.power) || !isLiteralStat(op.toughness)) return true;
     const world = cloneGameState(state);
     const body = world.players
         .flatMap((p) => p.battlefield)
@@ -389,6 +397,12 @@ export function animationHasCombatWindow(
         pid
     );
     return canBlockADeclaredAttacker(world, body);
+}
+
+/** An `animate` base stat this module can simulate without a resolving
+ *  script: absent (the permanent keeps its own) or a literal. */
+function isLiteralStat(v: EffectValue | undefined): v is number | undefined {
+    return v === undefined || typeof v === "number";
 }
 
 function grantsHaste(ability: ActivatedAbility): boolean {

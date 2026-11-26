@@ -16107,10 +16107,42 @@ export function buildSpellContext(
         // provenance through the identical code; this primitive stays the
         // after-the-fact form, for a permanent ALREADY on the battlefield
         // (Oko's `+1`).
-        setCardTypes(target: TargetSelection, types: CardType[]): void {
+        setCardTypes(
+            target: TargetSelection,
+            types: CardType[],
+            duration?: DurationSpec
+        ): void {
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
+            if (duration) {
+                // CR 205.1a / 611.2a (issue #10555) — the same whole-line set
+                // for a STATED duration: a Continuous Effects Registry entry
+                // the registry's boundary tick expires, so the printed line
+                // returns when the duration ends. The ABILITY's controller
+                // owns the duration ("your next turn").
+                ensureLayer4Base(found.card);
+                pushContinuousEffect(state, {
+                    layer: 4,
+                    affected: {
+                        kind: "instances",
+                        instanceIds: [found.card.id],
+                    },
+                    expiry: {
+                        kind: "duration",
+                        duration: resolveDuration(
+                            duration,
+                            item.castById,
+                            state
+                        ),
+                        controllerId: item.castById,
+                    },
+                    payload: { kind: "type-change", set: types.slice() },
+                    characteristicDefining: false,
+                });
+                syncLayers2to5(state);
+                return;
+            }
             applyCardTypeSet(found.card, types, allocStaticTimestamp(state));
             syncLayers2to5(state);
         },
@@ -22217,6 +22249,26 @@ export function buildSpellContext(
             flashback: boolean;
         }> {
             return getPlayer(state, playerId).exile.map((c) => {
+                // CR 406.3a — "A card exiled face down has no
+                // characteristics": no name, type, colour or mana value a
+                // filter could match, even for a player allowed to look at it
+                // (issue #10555 — "choose a face-up artifact card you own in
+                // exile" can't take one). It is still a card in exile, so an
+                // unfiltered pick or a count still sees it.
+                if (isFaceDownExile(c)) {
+                    return {
+                        id: c.id,
+                        name: "",
+                        types: [],
+                        subtypes: [],
+                        supertypes: [],
+                        manaValue: 0,
+                        colors: [],
+                        counters: c.counters ?? {},
+                        cost: undefined,
+                        flashback: false,
+                    };
+                }
                 const cardId = (c.card as { id?: string }).id;
                 const def = cardId ? tryGetDefinition(cardId) : undefined;
                 // CR 113.6c — see `getHandCards` above.
