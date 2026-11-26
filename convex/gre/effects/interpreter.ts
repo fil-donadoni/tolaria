@@ -942,7 +942,9 @@ function resolveValue(
         const parsed = parseRef(value.ref);
         if (!parsed) return undefined;
         const snap = readBinding(ctx, parsed.binding);
-        if (!snap) return undefined;
+        // An EMPTY capture (a forEach member that already left, an empty pick)
+        // has no characteristics to read: skip, never NaN.
+        if (!snap || snap.length === 0) return undefined;
         if (parsed.property === "power") return Number(snap[SNAP_POWER]);
         if (parsed.property === "toughness") {
             return Number(snap[SNAP_TOUGHNESS]);
