@@ -1269,11 +1269,13 @@ function anyCastAnnouncementLegal(
         /** The mana this cast pays for the announced subject. A closure, not a
          *  value: a permission that pays "the card's printed mana cost" owes
          *  the HALF's (CR 709.3a), while escape / flashback / madness owe what
-         *  their own ability states about the card in its zone (CR 709.4b). */
+         *  their own ability states about the card in its zone (CR 709.4b).
+         *  `undefined` = "its mana cost" on a card that has none: CR 118.6
+         *  makes that cost unpayable, so the probe refuses the cast. */
         cost: (
             subject: CardInstanceState,
             alternativeCostId: string | undefined
-        ) => ManaCost;
+        ) => ManaCost | undefined;
         /** Anything else this mechanism asks OF THE SUBJECT — Bolas's Citadel's
          *  life total against the half's mana value, and nothing else today. */
         alsoLegal?: (
@@ -1710,7 +1712,7 @@ export function getLegalActions(
                 cost: (subject) =>
                     requiredAltCost
                         ? (requiredAltCost.mana ?? {})
-                        : (getInstanceManaCost(subject) ?? {}),
+                        : getInstanceManaCost(subject),
             })
         ) {
             actions.push("cast");
@@ -1748,7 +1750,7 @@ export function getLegalActions(
                 cost: (subject) =>
                     card.castFromGraveyardWithoutPayingManaCost
                         ? {}
-                        : (getInstanceManaCost(subject) ?? {}),
+                        : getInstanceManaCost(subject),
             })
         ) {
             actions.push("cast");
@@ -1778,7 +1780,7 @@ export function getLegalActions(
                 timingZone: "graveyard",
                 // CR 709.3a — the permission pays "its mana cost", and the
                 // spell it puts on the stack is the announced HALF.
-                cost: (subject) => getInstanceManaCost(subject) ?? {},
+                cost: (subject) => getInstanceManaCost(subject),
             })
         ) {
             actions.push("cast");
@@ -1810,7 +1812,7 @@ export function getLegalActions(
                 // CR 702.81a / 709.3a — retrace ADDS the discard to "its other
                 // costs" instead of replacing the mana cost, so the mana is the
                 // spell's own: the announced half's printed cost.
-                cost: (subject) => getInstanceManaCost(subject) ?? {},
+                cost: (subject) => getInstanceManaCost(subject),
             })
         ) {
             actions.push("cast");
@@ -1827,7 +1829,7 @@ export function getLegalActions(
             canPayJumpStartDiscard(player, card.id) &&
             anyCastAnnouncementLegal(state, caster, card, {
                 timingZone: "graveyard",
-                cost: (subject) => getInstanceManaCost(subject) ?? {},
+                cost: (subject) => getInstanceManaCost(subject),
             })
         ) {
             actions.push("cast");
@@ -1994,7 +1996,7 @@ export function getLegalActions(
             hasPayableAdditionalCost(player, card) &&
             anyCastAnnouncementLegal(state, caster, card, {
                 timingZone: "outsideGame",
-                cost: (subject) => getInstanceManaCost(subject) ?? {},
+                cost: (subject) => getInstanceManaCost(subject),
                 costOpts: flashSurchargeRequired(state, caster.id, card)
                     ? { extraMana: flashSurchargeOf(card) }
                     : {},
@@ -2063,8 +2065,7 @@ export function getLegalActions(
                     replacesManaCost(altCostId, decline)
                         ? {}
                         : (libraryTopOptionManaCost(card, altCostId) ??
-                          getInstanceManaCost(subject) ??
-                          {}),
+                          getInstanceManaCost(subject)),
                 costOpts: mandatoryCostOpts,
                 // CR 119.4 — a player may pay life only while their life total
                 // is at least the amount. Paying down to exactly 0 is legal
@@ -3432,7 +3433,17 @@ function canPotentiallyPayCost(
     } = {}
 ): boolean {
     let rawCost = costOverride ?? getInstanceManaCost(card);
-    if (!rawCost) return true;
+    // CR 118.6 — "Some objects have no mana cost. This represents an
+    // unpayable cost. ... attempting to pay an unpayable cost is an illegal
+    // action." A card with no printed mana cost (Living End, Inevitable
+    // Betrayal) is never cast for its mana cost — from hand, nor under a
+    // permission that pays "its mana cost" (Yawgmoth's Will, Lurrus, retrace,
+    // the library top), which hands no override for an absent cost. CR
+    // 118.6a — an alternative cost, including "without paying its mana
+    // cost", may still be paid: those branches hand their own `costOverride`
+    // (`{}` for a waiver). `{}` is a printed {0} (Ornithopter), a real cost,
+    // and stays payable.
+    if (!rawCost) return false;
     // CR 107.4e — a `{2/W}` pip is castable whenever SOME leg combination is
     // affordable; the cheapest affordable legs are folded into the cost and the
     // rest of the probe (modifiers, extra mana) runs on that.

@@ -2612,6 +2612,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ancestral Vision",
+        "scryfallId": "bccedc4d-38c7-4bf3-9ca7-4febd6c49d3d",
+        "oracleId": "9728dec9-d482-4c7a-8cdc-44d010dc878d",
+        "firstSet": "tsp",
+        "firstPrintId": "bccedc4d-38c7-4bf3-9ca7-4febd6c49d3d",
+        "firstPrintSet": "tsp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Anchor to the Aether",
         "scryfallId": "15058f91-d266-4804-96af-fc050b6c8436",
         "oracleId": "3e00326d-2bf4-4731-a6cd-1c015f94f553",
@@ -18042,6 +18052,16 @@
         "source": "compiled"
     },
     {
+        "name": "Crashing Footfalls",
+        "scryfallId": "a8cca2a2-69e3-4136-936c-7a2774c19351",
+        "oracleId": "2b166d97-c2c1-4642-b151-9bb1ad32e362",
+        "firstSet": "mh1",
+        "firstPrintId": "a8cca2a2-69e3-4136-936c-7a2774c19351",
+        "firstPrintSet": "mh1",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Craterhoof Behemoth",
         "scryfallId": "a249be17-73ed-4108-89c0-f7e87939beb8",
         "oracleId": "8c52bd39-0586-48ca-b263-17210cf9feb6",
@@ -28546,6 +28566,16 @@
         "firstPrintSet": "wwk"
     },
     {
+        "name": "Evermind",
+        "scryfallId": "0186a93c-000a-4b8f-983d-e1471185dc1f",
+        "oracleId": "14e23074-95b8-4477-b981-6231c19bacdc",
+        "firstSet": "sok",
+        "firstPrintId": "0186a93c-000a-4b8f-983d-e1471185dc1f",
+        "firstPrintSet": "sok",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Evernight Shade",
         "scryfallId": "1091fadf-97c4-4f87-8466-6a1246a72226",
         "oracleId": "9af1b6c4-295f-41d2-b3a0-0863798330d4",
@@ -34340,6 +34370,16 @@
         "firstSet": "drk",
         "firstPrintId": "0e1ae3d6-6d96-4db6-bbc4-cee91bae6cf7",
         "firstPrintSet": "drk"
+    },
+    {
+        "name": "Gaea's Will",
+        "scryfallId": "488996b2-06c8-4866-bf0d-4664640c2be1",
+        "oracleId": "87efff06-b6cb-4a8f-937b-e50e367fd896",
+        "firstSet": "mh2",
+        "firstPrintId": "488996b2-06c8-4866-bf0d-4664640c2be1",
+        "firstPrintSet": "mh2",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Gainsay",
@@ -51475,6 +51515,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Living End",
+        "scryfallId": "3be0ff69-d9f3-4b81-b02f-1360e4064aff",
+        "oracleId": "3939fbe0-3be4-41ef-828d-c93f2cb33b4f",
+        "firstSet": "tsp",
+        "firstPrintId": "3be0ff69-d9f3-4b81-b02f-1360e4064aff",
+        "firstPrintSet": "tsp"
+    },
+    {
         "name": "Living Lands",
         "scryfallId": "80be0580-7948-4d8e-8c0f-5e2797ac411b",
         "oracleId": "8f0179fe-6d7d-49cc-ab06-d3b402c6fc8d",
@@ -52247,6 +52295,16 @@
         "firstSet": "rtr",
         "firstPrintId": "3b628197-f26c-457a-b9a4-c1f1d3e02f3d",
         "firstPrintSet": "rtr",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Lotus Bloom",
+        "scryfallId": "73127ee0-9a0c-48fa-9c60-b4c600ace8f7",
+        "oracleId": "04cf02dc-f053-414e-87d8-1537f25bcbf4",
+        "firstSet": "tsp",
+        "firstPrintId": "73127ee0-9a0c-48fa-9c60-b4c600ace8f7",
+        "firstPrintSet": "tsp",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -58420,6 +58478,16 @@
         "firstPrintId": "82da0972-b17b-4600-9efd-e9430a0db04b",
         "firstPrintSet": "lea",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Mox Tantalite",
+        "scryfallId": "dcd05b01-dc73-4dd2-970a-32ec6e153c86",
+        "oracleId": "cc319819-68f9-4c1e-8d60-25a5e3e50669",
+        "firstSet": "mh1",
+        "firstPrintId": "dcd05b01-dc73-4dd2-970a-32ec6e153c86",
+        "firstPrintSet": "mh1",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {
@@ -67079,6 +67147,16 @@
         "source": "compiled"
     },
     {
+        "name": "Profane Tutor",
+        "scryfallId": "2afc6f7d-ab59-4d64-bd11-6bd0fd4bfcd2",
+        "oracleId": "27a1f42c-0b86-4609-9609-1fa9cab7e7c9",
+        "firstSet": "mh2",
+        "firstPrintId": "2afc6f7d-ab59-4d64-bd11-6bd0fd4bfcd2",
+        "firstPrintSet": "mh2",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Professor Zei, Anthropologist",
         "scryfallId": "27baccc0-7e25-4f39-be0d-31cd98ca0dc5",
         "oracleId": "59a10335-72df-44a5-a514-5bac392cd282",
@@ -71480,6 +71558,16 @@
         "firstPrintId": "ecf47c52-4065-4b81-acdc-878e74767bba",
         "firstPrintSet": "dtk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Resurgent Belief",
+        "scryfallId": "01880c6f-be00-48b5-913f-ec6c80ced184",
+        "oracleId": "0fcfef04-a954-4423-82b0-c70dc64a8fbc",
+        "firstSet": "mh2",
+        "firstPrintId": "01880c6f-be00-48b5-913f-ec6c80ced184",
+        "firstPrintSet": "mh2",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -82806,6 +82894,16 @@
         "firstPrintId": "c4300d24-1cae-4dd5-be7e-38cc677cf5bd",
         "firstPrintSet": "lea",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Sol Talisman",
+        "scryfallId": "a51fb64d-cc0c-400d-971f-78c28d42043b",
+        "oracleId": "867f0cdf-cf75-40f0-bf1e-ccb92e55e9a3",
+        "firstSet": "mh2",
+        "firstPrintId": "a51fb64d-cc0c-400d-971f-78c28d42043b",
+        "firstPrintSet": "mh2",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
