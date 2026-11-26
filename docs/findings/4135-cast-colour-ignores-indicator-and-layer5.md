@@ -1,7 +1,8 @@
 ---
 title: SPELL_CAST colours come from the mana cost alone, so a cast spell's colour indicator or layer-5 change is invisible to colour-filtered cast triggers
 discoveredBy: 4135
-status: draft
+status: triaged
+issue: 10761
 confidence: medium
 ---
 

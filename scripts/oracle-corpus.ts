@@ -96,6 +96,10 @@ export interface CorpusFace {
 export interface CorpusCard extends CorpusFace {
     oracleId: string;
     layout: string;
+    /** Scryfall top-level `color_indicator` (CR 202.2e / 204.2): the colours a
+     *  FRONT face's colour indicator denotes — usually a nonland card with no
+     *  mana cost (CR 204.1, Living End). Absent when the card has none. */
+    colorIndicator?: string[];
     /** Formats (of REPORTED_FORMATS) in which this oracle id is legal. */
     legalIn: ReportedFormat[];
     /**
@@ -184,7 +188,7 @@ const EXCLUDED_LAYOUTS = new Set([
 // except "not_legal"/absent.
 const IN_POOL = new Set(["legal", "banned", "restricted"]);
 
-function reduceCard(raw: Record<string, unknown>): CorpusCard | null {
+export function reduceCard(raw: Record<string, unknown>): CorpusCard | null {
     const oracleId = raw.oracle_id;
     if (typeof oracleId !== "string" || oracleId.length === 0) return null;
     if (EXCLUDED_LAYOUTS.has(String(raw.layout ?? "normal"))) return null;
@@ -196,6 +200,10 @@ function reduceCard(raw: Record<string, unknown>): CorpusCard | null {
         legalIn: REPORTED_FORMATS.filter((f) => legalities[f] === "legal"),
         poolIn: REPORTED_FORMATS.filter((f) => IN_POOL.has(legalities[f])),
     };
+    // CR 202.2e — a colour indicator makes the object each colour it denotes,
+    // and no rules text states it, so only the corpus can carry it.
+    if (Array.isArray(raw.color_indicator) && raw.color_indicator.length > 0)
+        card.colorIndicator = raw.color_indicator.map(String);
     const faces = raw.card_faces;
     if (Array.isArray(faces) && faces.length > 0) {
         card.faces = faces.map((f) =>

@@ -41,6 +41,11 @@ export interface OracleCard {
     readonly power?: string;
     readonly toughness?: string;
     readonly loyalty?: string;
+    /** CR 202.2e / 204.2 — Scryfall's top-level `color_indicator`: the colours
+     *  a front face's colour indicator denotes (Living End). No rules text
+     *  states them, so the lowering copies them onto
+     *  `CardDefinition.colorIndicator`. Absent = no indicator. */
+    readonly colorIndicator?: readonly string[];
     readonly layout?: string;
     /** Scryfall's `card_faces`, for a layout that has them. Ignored for
      *  `"normal"`, and REQUIRED (exactly two) for an inset-spell layout — see

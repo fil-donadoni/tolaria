@@ -18,6 +18,7 @@ import type {
     AlternativeCost,
     CardDefinition,
     AbilityMode,
+    Color,
     DamageLifeFloor,
     EffectOp,
     KickerCost,
@@ -1592,6 +1593,10 @@ export function lowerCard(
             return { ok: false, reason: cost.reason, fragment: cost.fragment };
         definition.manaCost = cost.cost;
     }
+    // CR 202.2e — the object is each colour its colour indicator denotes; the
+    // corpus row states it (no rules text does).
+    if (card.colorIndicator !== undefined && card.colorIndicator.length > 0)
+        definition.colorIndicator = [...card.colorIndicator] as Color[];
 
     if (typeLine.types.includes("Creature")) {
         const definedByCda = acc.definesPowerToughnessLines.length > 0;
@@ -2195,6 +2200,9 @@ const REVEALABLE_SPLICE_FIELDS: ReadonlySet<string> = new Set([
     "supertypes",
     "subtypes",
     "manaCost",
+    // CR 202.2e — a characteristic of the revealed card, like its mana cost;
+    // the spell it is spliced onto gains only its text (CR 702.47a).
+    "colorIndicator",
     "oracleText",
     "effects",
     // CR 702.47d — "Choose targets for the added text normally (see rule

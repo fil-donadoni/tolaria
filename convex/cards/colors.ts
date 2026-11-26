@@ -97,18 +97,35 @@ export function getPipCountsFromCost(
     return pips;
 }
 
-/** CR 105.2 / 202.2 — the card's actual printed COLOUR(s): exactly the colours
- *  of its mana cost. A card with no coloured mana in its cost is COLOURLESS
- *  (CR 105.2a) even when it TAPS for coloured mana — a basic Island is
- *  colourless, an artifact with a generic cost is colourless, a devoid card is
- *  colourless whatever it costs ({@link hasDevoid}). Colour indicators
- *  (CR 202.2b) are not modelled on `CardDefinition`, matching the layer-5 base
- *  colour (`gre/layers.ts`). This is the gameplay authority for every "a <colour> card"
+/** CR 105.2 / 202.2 — the card's actual printed COLOUR(s): the colours of its
+ *  mana cost plus those its colour indicator denotes (CR 202.2e,
+ *  `CardDefinition.colorIndicator` — Living End is black with no mana cost). A
+ *  card with neither is COLOURLESS (CR 105.2c) even when it TAPS for coloured
+ *  mana — a basic Island is colourless, an artifact with a generic cost is
+ *  colourless, a devoid card is colourless whatever it costs ({@link
+ *  hasDevoid}). This is the gameplay authority for every "a <colour> card"
  *  cost / filter (Flash of Insight, Force of Will, flashback exile). For the
  *  deck-builder / draft notion — which folds a land's PRODUCED mana in so an
  *  Island groups under blue — use {@link getCardColorIdentity} instead. */
 export function getCardColors(def: CardDefinition): Color[] {
-    return hasDevoid(def) ? [] : getColorsFromCost(def.manaCost);
+    return printedCardColors(def, def.manaCost);
+}
+
+/** CR 202.2 / 202.2e — the printed colours of `def` when its mana cost is
+ *  `cost` (an instance can carry a cost other than the definition's, CR 707.2:
+ *  `getInstanceManaCost`): the cost's colours UNIONED with the colour
+ *  indicator's, in WUBRG order. A devoid definition has none (CR 702.114a). */
+export function printedCardColors(
+    def: Pick<CardDefinition, "staticAbilities" | "colorIndicator">,
+    cost: ManaCost | undefined
+): Color[] {
+    if (hasDevoid(def)) return [];
+    const fromCost = getColorsFromCost(cost);
+    const indicator = def.colorIndicator;
+    if (!indicator?.length) return fromCost;
+    return MANA_COLORS.filter(
+        (c) => c !== "C" && (fromCost.includes(c) || indicator.includes(c))
+    );
 }
 
 /** CR 105.2 / 202.2 — true iff the card's actual printed COLOUR (its
