@@ -404,7 +404,18 @@ export function declineLosesGame(
     if (!item || item.controllerId !== choice.playerId) return false;
     const script = resolvingEffectScript(item);
     if (!script) return false;
-    const bind = unscopedBindingName(choice.choiceId);
+    return unpaidArmLosesGame(script, unscopedBindingName(choice.choiceId));
+}
+
+/** Whether `script` reads the payment bound at `bind` in an `if` whose UNPAID
+ *  arm is a `loseGame` of the script's controller (CR 104.3e) — the shape
+ *  `declineLosesGame` asks of a live choice, read off a bare script so a
+ *  delayed obligation not yet on the stack can be asked the same question
+ *  (issue #10818). Pure. */
+export function unpaidArmLosesGame(
+    script: readonly EffectOp[],
+    bind: string
+): boolean {
     return flattenOps(script, []).some((op) => {
         if (op.op !== "if") return false;
         const predicate = op.predicate as {
