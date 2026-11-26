@@ -14,6 +14,7 @@ export * from "./evalPairs";
 export * from "./report";
 export * from "./searchAgreement";
 export * from "./coverage";
+export * from "./generatedCoverage";
 export * from "./fit";
 export * from "./identity";
 export * from "./heldOut";
