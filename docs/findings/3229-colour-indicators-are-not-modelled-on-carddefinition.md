@@ -1,7 +1,8 @@
 ---
 title: Colour indicators (CR 202.2b) are not modelled, so the three shipped Kobolds read as colourless to every cost-derived colour check
 discoveredBy: 3229
-status: draft
+status: triaged
+issue: 10761
 confidence: medium
 ---
 
