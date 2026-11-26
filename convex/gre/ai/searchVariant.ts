@@ -37,6 +37,8 @@ import {
     type EvalWeights,
     type LatentWeights,
 } from "./evalWeights";
+import type { Move } from "../moves";
+import type { GameState } from "../state";
 import {
     ROOT_DECISION_MECHANISMS,
     ROOT_RULE_ALLOWLIST,
@@ -136,7 +138,93 @@ export type SearchVariant = {
      *  the two structural mechanisms are the search's own selection and
      *  `resolveDisabledRootRules` throws on them. */
     disabledRootRules?: RootDecisionMechanism[];
+    /** The FORCED GUIDE (ADR 0186, the Ceiling gate's instrument): along a
+     *  bound Line, the Line's move takes the whole prior at every decision of
+     *  the Bot's, in the tree and in the rollouts. Absent = production. An
+     *  arm with no `line` bound forces nothing and resolves to `null`, so it
+     *  runs the production search verbatim on every position that is not a
+     *  Line. Never a root rule: `selectRootMove` still picks by the search's
+     *  own statistics, so a forced move that loses on the engine loses. */
+    forcedGuide?: ForcedGuideConfig;
 };
+
+/** Where a search stands on a Line (`LineGuide`): `step` is the index of the
+ *  Line's next Bot decision, `replied` how many of the opponent's replies
+ *  BEFORE that decision were already played. */
+export type LineCursor = { readonly step: number; readonly replied: number };
+
+/** A Line as the search reads it — the blade binds one per decision
+ *  (`blade/line.ts`); the search sees moves, never matchers.
+ *
+ *  `lineMoveIndex` answers, at a decision of `pid` with the search at
+ *  `cursor`, the index into `moves` of the move the Line plays there, or -1:
+ *
+ *  - for the Bot: the Line's expected move (-1 past the Line's end, with an
+ *    opponent reply still unplayed, or when no offered move matches);
+ *  - for the opponent: its next reply (-1 when none is pending or none of
+ *    the offered moves matches it).
+ *
+ *  The cursor moves by fixed rules (`stepLineCursor`): the Bot playing the
+ *  Line's move advances to the next decision, any other Bot move leaves the
+ *  Line; the opponent playing its reply consumes it, passing with no reply
+ *  offered keeps the cursor, anything else leaves the Line. Those are the
+ *  rules `walkLine` plays the Line by, so "a decision of the Line" means the
+ *  same thing to the search and to the test. */
+export type LineGuide = {
+    start: LineCursor;
+    lineMoveIndex(
+        state: GameState,
+        pid: string,
+        cursor: LineCursor,
+        moves: readonly Move[]
+    ): number;
+};
+
+export type ForcedGuideConfig = {
+    /** `true`: off the Line a rollout ply keeps today's probing policy.
+     *  `false`: off the Line a rollout ply plays a uniformly drawn move with
+     *  no 1-ply probe — the ceiling of a guide that needs no simulation. */
+    probes: boolean;
+    /** The Line the guide forces. Bound per decision by the caller that knows
+     *  which Line the position is on; unbound = nothing to force. */
+    line?: LineGuide;
+};
+
+/** The forced guide one search runs under, or `null` (production, and an arm
+ *  with no Line bound). */
+export type ResolvedForcedGuide = { line: LineGuide; probes: boolean };
+
+/** Resolve the forced guide for one search. Same discipline as the resolvers
+ *  below: read once, at the top of `runSearchWithTrace`, threaded down. */
+export function resolveForcedGuide(
+    variant: SearchVariant | null
+): ResolvedForcedGuide | null {
+    const guide = variant?.forcedGuide;
+    if (!guide?.line) return null;
+    return { line: guide.line, probes: guide.probes };
+}
+
+/** The cursor after a move at a decision where the Line had a move of its
+ *  own (`hasLineMove`) or none — `null` once the play left the Line.
+ *  `playedLine` says whether the move played IS the Line's. The rules are
+ *  `LineGuide`'s. */
+export function stepLineCursor(
+    cursor: LineCursor,
+    isBot: boolean,
+    hasLineMove: boolean,
+    playedLine: boolean,
+    played: Move
+): LineCursor | null {
+    if (isBot) {
+        return hasLineMove && playedLine
+            ? { step: cursor.step + 1, replied: 0 }
+            : null;
+    }
+    if (hasLineMove && playedLine) {
+        return { step: cursor.step, replied: cursor.replied + 1 };
+    }
+    return !hasLineMove && played.kind === "pass" ? cursor : null;
+}
 
 /** The live action-prior config (issue #8700): PUCT with a `policyValue` prior
  *  and first-play urgency. The derivation of `c` and `fpu` is on the
@@ -562,5 +650,23 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
     "opponent-blind": {
         name: "opponent-blind",
         opponentModel: "blind",
+    },
+    /** The FORCED GUIDE (ADR 0186, the Ceiling gate): along a Line, the
+     *  Line's move takes the whole prior at every Bot decision, in the tree
+     *  and in the rollouts; off the Line the rollouts keep today's probing
+     *  policy. The Line is bound by the blade's Line runner
+     *  (`runBladeLine(line, variant)`); every other position runs the
+     *  production search, so the `must` tier cannot move under it. An
+     *  experiment arm, never shipped on. */
+    "forced-guide": {
+        name: "forced-guide",
+        forcedGuide: { probes: true },
+    },
+    /** `forced-guide` with probe-free rollouts: a rollout ply plays the
+     *  Line's move when one applies and a uniformly drawn move otherwise —
+     *  the ceiling of a guide that scores a move without simulating it. */
+    "forced-guide-no-probes": {
+        name: "forced-guide-no-probes",
+        forcedGuide: { probes: false },
     },
 };

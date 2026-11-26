@@ -259,11 +259,16 @@ import {
     resolveActionPriors,
     resolveDisabledRootRules,
     resolveEvalWeights,
+    resolveForcedGuide,
     resolveRolloutHorizon,
     type RolloutHorizon,
     resolveOpponentModel,
+    stepLineCursor,
     type ActionPriorConfig,
+    type LineCursor,
+    type LineGuide,
     type OpponentModel,
+    type ResolvedForcedGuide,
 } from "./ai/searchVariant";
 import {
     applyLandEntrySubmit,
@@ -1781,6 +1786,75 @@ export function setRolloutPlyRecorder(
     return previous;
 }
 
+/** One iteration's place on a forced-guide Line (`ResolvedForcedGuide`, ADR
+ *  0186's Ceiling gate): fed every move the tree and then the rollout play,
+ *  in order. `cursor` is `null` once the play left the Line. */
+type LineTrack = {
+    guide: LineGuide;
+    probes: boolean;
+    cursor: LineCursor | null;
+};
+
+/** Called at every Bot decision of a Line where the forced guide gave the
+ *  Line's move the whole prior (the tree) or played it (a rollout), with the
+ *  Line decision's index and the move. A measurement seam, never an input:
+ *  `null` outside the tests that install it around one search. */
+export type LineGuideRecorder = (
+    where: "tree" | "rollout",
+    step: number,
+    move: Move
+) => void;
+let lineGuideRecorder: LineGuideRecorder | null = null;
+
+/** Install (or remove) the forced-guide recorder; returns the one it
+ *  replaced. */
+export function setLineGuideRecorder(
+    recorder: LineGuideRecorder | null
+): LineGuideRecorder | null {
+    const previous = lineGuideRecorder;
+    lineGuideRecorder = recorder;
+    return previous;
+}
+
+function lineTrackFor(
+    guide: ResolvedForcedGuide | null
+): LineTrack | undefined {
+    return guide
+        ? { guide: guide.line, probes: guide.probes, cursor: guide.line.start }
+        : undefined;
+}
+
+/** The index into `moves` of the move the Line plays for `pid` here, or -1
+ *  (no track, the play already left the Line, or the Line names none). */
+function lineMoveIndexAt(
+    line: LineTrack | undefined,
+    state: GameState,
+    pid: string,
+    moves: readonly Move[]
+): number {
+    return line?.cursor
+        ? line.guide.lineMoveIndex(state, pid, line.cursor, moves)
+        : -1;
+}
+
+function stepLineTrack(
+    line: LineTrack | undefined,
+    pid: string,
+    botId: string,
+    hasLineMove: boolean,
+    playedLine: boolean,
+    played: Move
+): void {
+    if (!line?.cursor) return;
+    line.cursor = stepLineCursor(
+        line.cursor,
+        pid === botId,
+        hasLineMove,
+        playedLine,
+        played
+    );
+}
+
 /** The search's wall-clock cap, as a rollout reads it (issue #10408).
  *
  *  The search loop reads its clock BETWEEN iterations, so before this the
@@ -1857,7 +1931,10 @@ export function rollout(
     deadline?: RolloutDeadline,
     /** The iteration's root-clock horizon (issue #10816). Absent = the
      *  production horizon, read from this rollout's start. */
-    horizon?: RootHorizonTracker
+    horizon?: RootHorizonTracker,
+    /** The iteration's forced-guide Line, where the tree left it. Absent =
+     *  production. */
+    line?: LineTrack
 ): Leaf {
     const startTurn = state.turn;
     let lastTurn = state.turn;
@@ -1908,6 +1985,17 @@ export function rollout(
         // stream must not notice which of the two paths took the ply.
         if (onlyPassIsLegal(state, pid)) {
             rng();
+            if (line?.cursor) {
+                const at = lineMoveIndexAt(line, state, pid, [FORCED_PASS]);
+                if (at >= 0 && pid === botId) {
+                    lineGuideRecorder?.(
+                        "rollout",
+                        line.cursor.step,
+                        FORCED_PASS
+                    );
+                }
+                stepLineTrack(line, pid, botId, at >= 0, at >= 0, FORCED_PASS);
+            }
             applyMoveInSearch(state, pid, FORCED_PASS, true);
             continue;
         }
@@ -1927,8 +2015,17 @@ export function rollout(
         // One census per seat for the whole ply (issue #4461): `state` is only
         // read until the chosen move is applied below.
         const memo = newManaCensusMemo();
+        // The forced guide (ADR 0186): at a Bot decision of the Line the
+        // rollout plays the Line's move; off it, the probe-free arm draws
+        // uniformly and probes nothing. Production carries no `line`.
+        const lineIndex = lineMoveIndexAt(line, state, pid, moves);
         let chosen: Move;
-        if (
+        if (lineIndex >= 0 && pid === botId) {
+            chosen = moves[lineIndex];
+            lineGuideRecorder?.("rollout", line!.cursor!.step, chosen);
+        } else if (line && !line.probes) {
+            chosen = moves[Math.floor(rng() * moves.length)];
+        } else if (
             moves.length === 1 ||
             rng() < rolloutEpsilonFor(state, weights, memo)
         ) {
@@ -2007,6 +2104,14 @@ export function rollout(
                 memo
             );
         }
+        stepLineTrack(
+            line,
+            pid,
+            botId,
+            lineIndex >= 0,
+            lineIndex >= 0 && chosen === moves[lineIndex],
+            chosen
+        );
         applyMoveInSearch(state, pid, chosen, true);
     }
     return scoreLeaf(state, botId, weights, since);
@@ -4071,21 +4176,25 @@ function puctDescend(
     since: GameClock,
     shared: Node = node,
     deadline?: RolloutDeadline,
-    horizon?: RootHorizonTracker
+    horizon?: RootHorizonTracker,
+    line?: LineTrack,
+    /** The tree key of the Line's move here (`LineTrack`), or `null`. */
+    lineKey: string | null = null
 ): boolean {
     let cache = node.policyValues;
     if (!cache) {
         cache = new Map();
         node.policyValues = cache;
     }
-    const priors = computeActionPriors(
-        world,
-        pid,
-        botId,
-        keyed,
-        weights,
-        cache
-    );
+    // The forced guide (ADR 0186): at a Bot decision of the Line, the Line's
+    // move takes the whole prior and every sibling none. Selection, FPU and
+    // the reward statistics are untouched, so the siblings are still opened
+    // by UCB and the search still prefers whatever its own reward says.
+    const forced = pid === botId ? lineKey : null;
+    const priors =
+        forced !== null
+            ? forcedPriors(keyed, forced)
+            : computeActionPriors(world, pid, botId, keyed, weights, cache);
 
     // Parent statistics for the PUCT numerator and the FPU baseline. Every
     // child of a node shares one mover, so their stored rewards are in one
@@ -4161,6 +4270,14 @@ function puctDescend(
         }
     }
 
+    stepLineTrack(
+        line,
+        pid,
+        botId,
+        lineKey !== null,
+        bestKeyed!.key === lineKey,
+        bestKeyed!.move
+    );
     // Apply THIS world's move for the selected key (see `iterate`'s note): an
     // edge is keyed by stable identity, so its stored move may name instances
     // from a different determinization.
@@ -4189,10 +4306,24 @@ function puctDescend(
     if (existed) return false;
     backpropagate(
         path,
-        rollout(world, botId, rng, weights, since, deadline, horizon),
+        rollout(world, botId, rng, weights, since, deadline, horizon, line),
         botId
     );
     return true;
+}
+
+/** The forced guide's prior vector (ADR 0186): the whole mass on `key`,
+ *  none on any sibling. */
+export function forcedPriors(
+    keyed: KeyedMove[],
+    key: string
+): Map<string, number> {
+    const out = new Map<string, number>();
+    for (let i = 0; i < keyed.length; i++) {
+        const k = keyed[i];
+        out.set(k.key, k.key === key ? 1 : 0);
+    }
+    return out;
 }
 
 /** The child node a newly opened edge of `view` points at (issue #8939).
@@ -4284,7 +4415,8 @@ export function iterate(
     openRootByPolicy = false,
     unlockingRootKeys?: ReadonlySet<string>,
     deadline?: RolloutDeadline,
-    rolloutHorizon: RolloutHorizon | null = null
+    rolloutHorizon: RolloutHorizon | null = null,
+    forcedGuide: ResolvedForcedGuide | null = null
 ): void {
     const world = determinize(
         rootState,
@@ -4301,6 +4433,9 @@ export function iterate(
     // that reached the boundary is a leaf, scored where every other
     // candidate's rollout stops, never expanded further.
     const horizon = rootHorizonTracker(rolloutHorizon, rootState.turn);
+    // The forced guide's Line (ADR 0186), one cursor per iteration, at the
+    // root's decision of the Line. `undefined` in production.
+    const line = lineTrackFor(forcedGuide);
 
     for (let depth = 0; depth < MAX_TREE_DEPTH; depth++) {
         if (horizon && pastRootHorizon(horizon, world, botId)) break;
@@ -4400,6 +4535,30 @@ export function iterate(
         }
         if (keyed.length === 0) break;
 
+        // The forced guide (ADR 0186): the Line's move here, if any. At a Bot
+        // decision of the Line it takes the whole prior on every selection
+        // rule below (PUCT, a choice node's prior, the opening order).
+        const lineIndex = line?.cursor
+            ? lineMoveIndexAt(
+                  line,
+                  world,
+                  pid,
+                  keyed.map((k) => k.move)
+              )
+            : -1;
+        const lineKey = lineIndex >= 0 ? keyed[lineIndex].key : null;
+        if (lineKey !== null && pid === botId) {
+            lineGuideRecorder?.(
+                "tree",
+                line!.cursor!.step,
+                keyed[lineIndex].move
+            );
+            keyed = keyed.map((k) => ({
+                ...k,
+                prior: k.key === lineKey ? 1 : 0,
+            }));
+        }
+
         // PUCT on the ORDINARY action space (issue #2684, the live rule since
         // issue #8700; a variant may turn it off). A choice node is left alone: its candidates already carry real priors from
         // `priorFor` and are already opened in prior order by
@@ -4425,7 +4584,9 @@ export function iterate(
                     since,
                     shared,
                     deadline,
-                    horizon
+                    horizon,
+                    line,
+                    lineKey
                 )
             ) {
                 return; // expanded + rolled out
@@ -4441,7 +4602,13 @@ export function iterate(
         // the selection term of an already-opened edge is untouched, and
         // `selectOpeningCandidate` spends the same rng draw either way.
         let openingPriors: Map<string, number> | null = null;
-        if (openRootByPolicy && depth === 0 && pid === botId && !atChoiceNode) {
+        if (
+            openRootByPolicy &&
+            depth === 0 &&
+            pid === botId &&
+            !atChoiceNode &&
+            lineKey === null
+        ) {
             node.policyValues ??= new Map();
             openingPriors = computeActionPriors(
                 world,
@@ -4470,6 +4637,14 @@ export function iterate(
                     : untried,
                 rng
             )!;
+            stepLineTrack(
+                line,
+                pid,
+                botId,
+                lineKey !== null,
+                pick.key === lineKey,
+                pick.move
+            );
             const exileLandTurn = exileLandPlayTurn(world, pick.move);
             applyMoveInSearch(world, pid, pick.move);
             const { child, existed } = sharedChild(shared, view, pick);
@@ -4492,7 +4667,16 @@ export function iterate(
             }
             backpropagate(
                 path,
-                rollout(world, botId, rng, weights, since, deadline, horizon),
+                rollout(
+                    world,
+                    botId,
+                    rng,
+                    weights,
+                    since,
+                    deadline,
+                    horizon,
+                    line
+                ),
                 botId
             );
             return;
@@ -4531,6 +4715,14 @@ export function iterate(
         // so its stored move may name instances from a different
         // determinization — true at a choice node AND, since issue #1520, at
         // an opponent priority node whose key stabilized a hand-sourced id.
+        stepLineTrack(
+            line,
+            pid,
+            botId,
+            lineKey !== null,
+            bestKeyed!.key === lineKey,
+            bestKeyed!.move
+        );
         applyMoveInSearch(world, pid, bestKeyed!.move);
         path.push(bestEdge!);
         node = bestEdge!.node;
@@ -8944,6 +9136,9 @@ function runSearchWithTrace(
     // `iterate` takes it as an argument and builds each iteration's tracker.
     // `null` outside a variant run — the production horizon.
     const rolloutHorizon = resolveRolloutHorizon(getSearchVariant());
+    // The forced guide along a bound Line (ADR 0186). Same one place, same
+    // reason. `null` outside a Line run under a forced-guide arm.
+    const forcedGuide = resolveForcedGuide(getSearchVariant());
 
     // Dominance pruning (issue #1887) runs EXACTLY ONCE per search, here, on
     // the real root state — not at every tree node (issue #1905 review finding
@@ -9100,7 +9295,8 @@ function runSearchWithTrace(
             openRootByPolicy,
             unlockingRootKeys,
             deadline,
-            rolloutHorizon
+            rolloutHorizon,
+            forcedGuide
         );
         i++;
         if (timeMs !== undefined && now() - start >= timeMs) {
