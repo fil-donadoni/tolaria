@@ -22541,6 +22541,7 @@
         {"id":"601.2","line":"describe(\"graveyard cast grant — one sentence (CR 601.2, CR 614.1)\", () => {","sites":1,"status":"confirmed","ruleHash":"6a49ef9497db28ee"},
         {"id":"122","line":"// CR 122 — \"in all graveyards\" (Accumulated Knowledge, issue #985): SUM","sites":1,"status":"baseline"},
         {"id":"604.1","line":"// (`castTimingBaseLegal`, `gre/rules.ts`); not the keyword (CR 604.1).","sites":1,"status":"confirmed","ruleHash":"b2492eccea17a2bf"},
+        {"id":"608.2h","line":"// issue #1401 blink fallback in `resolveObjectRef`). CR 608.2h wants","sites":1,"status":"confirmed","ruleHash":"4020079ffa4c17c4"},
         {"id":"304.5","line":"- CR 304.5: \"any time they could cast an instant\" means only that the player","sites":1,"status":"confirmed","ruleHash":"7d796367b8af5a53"},
         {"id":"611","line":"// CR 611 continuous effect): `cantBeTargeted: true` with an `applies` predicate,","sites":1,"status":"baseline"},
         {"id":"601.2h","line":"describe(\"Overload — the cast commit pays the overload cost and stamps the marker (CR 601.2h / 702.96a)\", () => {","sites":1,"status":"baseline"},
