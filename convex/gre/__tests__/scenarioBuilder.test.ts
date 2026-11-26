@@ -961,6 +961,39 @@ describe("buildStateFromScenario — tokens (CR 111 / 707.2)", () => {
         );
     });
 
+    // A stored position names a token by the catalogue KEY the capture wrote
+    // (`specFromState`), and a key carries its characteristics suffix only
+    // while its name is ambiguous in the pool. Food once had two shapes
+    // (`Food (C ability)`, `Food (C ability) #2`) and now has one, keyed `Food`:
+    // the old keys must still rebuild that shape, since a Verdict is immutable.
+    it.each(["Food (C ability)", "Food (C ability) #2"])(
+        "rebuilds a token named by a key its shape no longer carries (%s)",
+        (key) => {
+            const base = makeState();
+            const spec: ScenarioSpec = {
+                cards: [{ name: key, owner: "me", token: true }],
+            };
+
+            const state = buildStateFromScenario(base, spec);
+
+            const token = state.players[0].battlefield[0];
+            expect(token.isToken).toBe(true);
+            const def = tryGetDefinition((token.card as { id: string }).id);
+            expect(def?.name).toBe("Food");
+        }
+    );
+
+    it("still throws on a stale key whose characteristics no live shape has", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [{ name: "Food (2/2 G)", owner: "me", token: true }],
+        };
+
+        expect(() => buildStateFromScenario(base, spec)).toThrow(
+            /Unknown token/
+        );
+    });
+
     it("survives the wire projection — the client can still resolve the token's definition", () => {
         const base = makeState();
         const spec: ScenarioSpec = {

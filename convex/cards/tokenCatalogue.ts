@@ -318,9 +318,13 @@ export function getAllTokenKeys(): string[] {
  * unique catalogue key first (case-insensitive), then falls back to a bare
  * token NAME — so a spec authored as `{ name: "Treasure", token: true }` keeps
  * working even if a later card introduces a second "Treasure" shape and the
- * canonical key gains a suffix (the first shape by sort order wins). Returns
- * undefined when nothing matches; the caller decides whether that is an error.
- * A `token:` definition id is decoded instead of looked up.
+ * canonical key gains a suffix (the first shape by sort order wins). The
+ * reverse drift is read too: a SUFFIXED key written while the name was
+ * ambiguous (`Food (C ability)`, `Food (C ability) #2`) names the one live
+ * shape with that name and that characteristics suffix, once the pool no
+ * longer needs the suffix — see {@link findBySuffixedKey}. Returns undefined
+ * when nothing matches; the caller decides whether that is an error. A
+ * `token:` definition id is decoded instead of looked up.
  */
 export function findTokenSpec(reference: string): TokenSpec | undefined {
     // A raw content-derived definition id (`token:…`) — what `specFromState`
@@ -336,6 +340,35 @@ export function findTokenSpec(reference: string): TokenSpec | undefined {
     const catalogue = listTokenCatalogue();
     return (
         catalogue.find((e) => e.key.toLowerCase() === wanted)?.spec ??
-        catalogue.find((e) => e.name.toLowerCase() === wanted)?.spec
+        catalogue.find((e) => e.name.toLowerCase() === wanted)?.spec ??
+        findBySuffixedKey(catalogue, wanted)
     );
+}
+
+/** A key of the `<name> (<suffix>)[ #N]` form `listTokenCatalogue` mints for
+ *  an ambiguous name. */
+const SUFFIXED_KEY = /^(.+) \((.+)\)(?: #\d+)?$/;
+
+/**
+ * A stale suffixed key → the spec of the ONE live shape sharing its name and
+ * its characteristics suffix. A key is only unique within the pool it was
+ * minted from: a stored scenario (a Verdict's position is immutable) keeps the
+ * key its capture wrote after the pool changes, and the suffix — what the
+ * shape IS — outlives the `#N` tail, which only ordered shapes the suffix
+ * could not tell apart. Several live matches is ambiguous and a different
+ * suffix is a different shape: both answer undefined rather than guess.
+ */
+function findBySuffixedKey(
+    catalogue: readonly TokenCatalogueEntry[],
+    wanted: string
+): TokenSpec | undefined {
+    const parsed = SUFFIXED_KEY.exec(wanted);
+    if (!parsed) return undefined;
+    const [, name, suffix] = parsed;
+    const matches = catalogue.filter(
+        (e) =>
+            e.name.toLowerCase() === name &&
+            characteristicsSuffix(e.spec).toLowerCase() === suffix
+    );
+    return matches.length === 1 ? matches[0].spec : undefined;
 }
