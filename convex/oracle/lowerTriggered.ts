@@ -16,6 +16,7 @@
  */
 
 import type { PermanentFilter } from "../cards/filters";
+import { namesHost } from "./grammar/shared/effectClause";
 import type {
     CompiledTriggerCondition,
     CompiledTriggerHead,
@@ -196,7 +197,9 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
         case "tapped-for-mana":
             return { kind: "tapped-for-mana", scope: head.scope };
         case "becomes-target":
-            return { kind: "became-target" };
+            return head.scope === "host"
+                ? { kind: "became-target", scope: "host" }
+                : { kind: "became-target" };
         case "cycled":
             return { kind: "cycled" };
         case "phase":
@@ -367,6 +370,14 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
         ...(head.kind === "phase" && head.scope === "host-controller"
             ? { creature: { ref: "$host" } }
             : {}),
+        // CR 303.4b + CR 608.2h — "that creature" behind a head whose
+        // subject is the Aura's host (it became tapped, or the target of a
+        // spell or ability) is that host.
+        ...((head.kind === "becomes-tapped" ||
+            head.kind === "becomes-target") &&
+        head.scope === "host"
+            ? { creature: { ref: "$host" } }
+            : {}),
         // CR 120.3 + CR 608.2h — "that creature" behind "deals damage to a
         // creature" is the creature the event dealt damage to.
         ...(head.kind === "damage-dealt" && head.recipient === "creature"
@@ -404,7 +415,9 @@ function pronounAntecedent(head: TriggerHeadIR): {
         object:
             referent === "source"
                 ? { ref: "$source" }
-                : { ref: "$event.combatant" },
+                : referent === "host"
+                  ? { ref: "$host" }
+                  : { ref: "$event.combatant" },
     };
 }
 
@@ -582,8 +595,7 @@ const SELF_DEPARTURE_HEADS: ReadonlySet<TriggerHeadIR["kind"]> = new Set([
 
 /** CR 301.5a / CR 303.4b — the sentence acts on the source's host. */
 function readsHost(sentence: EffectSentenceIR): boolean {
-    if (sentence.kind === "optional") return readsHost(sentence.effect);
-    return "subject" in sentence && sentence.subject.kind === "host";
+    return namesHost(sentence);
 }
 
 /** CR 113.6b — a (possibly optional) "return this card from your graveyard". */
@@ -677,9 +689,12 @@ export function lowerTriggeredAbility(input: {
     // itself resolves after the Equipment has left, so "equipped creature"
     // would need the host as last-known information, which `$host` (seeded
     // from the live attachment) does not carry: refused rather than inert.
+    // CR 303.4b — the same holds when the departing object IS the host ("when
+    // enchanted creature dies, … enchanted creature"): it is gone by the time
+    // the ability resolves, so `$host` names nothing.
     if (
         "scope" in input.head &&
-        input.head.scope === "self" &&
+        (input.head.scope === "self" || input.head.scope === "host") &&
         SELF_DEPARTURE_HEADS.has(input.head.kind) &&
         input.effects.some(readsHost)
     )

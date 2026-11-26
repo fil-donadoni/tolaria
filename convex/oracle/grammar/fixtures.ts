@@ -19000,4 +19000,402 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 303.4b + CR 701.26a — "When this Aura enters, tap enchanted creature": the Aura's own trigger taps its host, named by the text and never announced (CR 115.10), so `tapUntap` acts on `{ ref: "$host" }`; "Enchanted creature doesn't untap during its controller's untap step" (CR 502.3) grants the host the `does-not-untap` marker. Exhibits the tap on `$host`, a target the canned smoke scenario does not seed (issue #4583).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Waterknot",
+            manaCost: "{1}{U}{U}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\nWhen this Aura enters, tap enchanted creature.\nEnchanted creature doesn't untap during its controller's untap step.",
+            oracleId: "002100cd-1ab1-44da-93a0-1269d47a712a",
+            layout: "normal",
+        },
+        expected: {
+            name: "Waterknot",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { X: 1, U: 2 },
+            oracleText:
+                "Enchant creature\nWhen this Aura enters, tap enchanted creature.\nEnchanted creature doesn't untap during its controller's untap step.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "waterknot-trigger",
+                    oracleText:
+                        "When this Aura enters, tap enchanted creature.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: { ref: "$host" },
+                        },
+                    ],
+                },
+            ],
+            compiledStaticEffects: [
+                {
+                    kind: "keyword-grant",
+                    appliesTo: "host",
+                    keyword: "does-not-untap",
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 303.4b + CR 701.26a — "{U}: Untap enchanted creature": the untap on `$host` from an Aura's activated ability (issue #4583).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Freed from the Real",
+            manaCost: "{2}{U}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\n{U}: Tap enchanted creature.\n{U}: Untap enchanted creature.",
+            oracleId: "03d32ace-dd99-48c6-bcae-9b915d041aef",
+            layout: "normal",
+        },
+        expected: {
+            name: "Freed from the Real",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { X: 2, U: 1 },
+            oracleText:
+                "Enchant creature\n{U}: Tap enchanted creature.\n{U}: Untap enchanted creature.",
+            activatedAbilities: [
+                {
+                    id: "freed-from-the-real-ability",
+                    oracleText: "{U}: Tap enchanted creature.",
+                    cost: { mana: { U: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: { ref: "$host" },
+                        },
+                    ],
+                },
+                {
+                    id: "freed-from-the-real-ability-2",
+                    oracleText: "{U}: Untap enchanted creature.",
+                    cost: { mana: { U: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "untap",
+                            target: { ref: "$host" },
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 303.4b + CR 701.19a — "{B}: Regenerate enchanted creature": `regenerate` on `$host`, beside the pump and keyword grant on the host the activated slot already read (issue #4583).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Keldon Mantle",
+            manaCost: "{1}{R}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\n{B}: Regenerate enchanted creature.\n{R}: Enchanted creature gets +1/+0 until end of turn.\n{G}: Enchanted creature gains trample until end of turn.",
+            oracleId: "170cc0c4-0fba-4751-8613-e934b0438364",
+            layout: "normal",
+        },
+        expected: {
+            name: "Keldon Mantle",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { X: 1, R: 1 },
+            oracleText:
+                "Enchant creature\n{B}: Regenerate enchanted creature.\n{R}: Enchanted creature gets +1/+0 until end of turn.\n{G}: Enchanted creature gains trample until end of turn.",
+            activatedAbilities: [
+                {
+                    id: "keldon-mantle-ability",
+                    oracleText: "{B}: Regenerate enchanted creature.",
+                    cost: { mana: { B: 1 } },
+                    useStack: true,
+                    effects: [{ op: "regenerate", target: { ref: "$host" } }],
+                },
+                {
+                    id: "keldon-mantle-ability-2",
+                    oracleText:
+                        "{R}: Enchanted creature gets +1/+0 until end of turn.",
+                    cost: { mana: { R: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$host" },
+                            power: 1,
+                            toughness: 0,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+                {
+                    id: "keldon-mantle-ability-3",
+                    oracleText:
+                        "{G}: Enchanted creature gains trample until end of turn.",
+                    cost: { mana: { G: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "grantAbility",
+                            target: { ref: "$host" },
+                            ability: "trample",
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 303.4b + CR 701.13a — "{2}{W}: Exile enchanted creature": the host is a battlefield permanent, so the `exile` Op acts on `$host` (issue #4583).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Cooped Up",
+            manaCost: "{1}{W}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\nEnchanted creature can't attack or block.\n{2}{W}: Exile enchanted creature.",
+            oracleId: "3e8bcb44-b875-4fe4-b96f-97a20cbfec93",
+            layout: "normal",
+        },
+        expected: {
+            name: "Cooped Up",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { X: 1, W: 1 },
+            oracleText:
+                "Enchant creature\nEnchanted creature can't attack or block.\n{2}{W}: Exile enchanted creature.",
+            activatedAbilities: [
+                {
+                    id: "cooped-up-ability",
+                    oracleText: "{2}{W}: Exile enchanted creature.",
+                    cost: { mana: { X: 2, W: 1 } },
+                    useStack: true,
+                    effects: [{ op: "exile", target: { ref: "$host" } }],
+                },
+            ],
+            compiledStaticEffects: [
+                {
+                    kind: "attack-restriction",
+                    id: "cooped-up-cant-attack",
+                    oracleText: "Enchanted creature can't attack or block.",
+                },
+                {
+                    kind: "block-restriction",
+                    id: "cooped-up-cant-block",
+                    oracleText: "Enchanted creature can't attack or block.",
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 303.4b + CR 400.7 — "{W}: Return enchanted creature to its owner's hand": the moveZone frame's hand return of `$host` (issue #4583).
+    {
+        rule: "verb frame",
+        card: {
+            name: "Sun Clasp",
+            manaCost: "{1}{W}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\nEnchanted creature gets +1/+3.\n{W}: Return enchanted creature to its owner's hand.",
+            oracleId: "cb8f5ee4-285a-4c37-adcb-514b3e4bdad3",
+            layout: "normal",
+        },
+        expected: {
+            name: "Sun Clasp",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { X: 1, W: 1 },
+            oracleText:
+                "Enchant creature\nEnchanted creature gets +1/+3.\n{W}: Return enchanted creature to its owner's hand.",
+            activatedAbilities: [
+                {
+                    id: "sun-clasp-ability",
+                    oracleText:
+                        "{W}: Return enchanted creature to its owner's hand.",
+                    cost: { mana: { W: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$host" },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+            compiledStaticEffects: [
+                { kind: "pt-buff", appliesTo: "host", power: 1, toughness: 3 },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 303.4b + CR 120.3 — "At the beginning of your upkeep, this Aura deals 4 damage to enchanted creature": the Aura's trigger names its host as the damage recipient (issue #4583).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Fatal Attraction",
+            manaCost: "{2}{R}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\nWhen this Aura enters, it deals 2 damage to enchanted creature.\nAt the beginning of your upkeep, this Aura deals 4 damage to enchanted creature.",
+            oracleId: "e5d896f0-78ed-4374-bca0-9b1a70cab86c",
+            layout: "normal",
+        },
+        expected: {
+            name: "Fatal Attraction",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { X: 2, R: 1 },
+            oracleText:
+                "Enchant creature\nWhen this Aura enters, it deals 2 damage to enchanted creature.\nAt the beginning of your upkeep, this Aura deals 4 damage to enchanted creature.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "fatal-attraction-trigger",
+                    oracleText:
+                        "When this Aura enters, it deals 2 damage to enchanted creature.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        { op: "dealDamage", amount: 2, to: { ref: "$host" } },
+                    ],
+                },
+                {
+                    id: "fatal-attraction-trigger-2",
+                    oracleText:
+                        "At the beginning of your upkeep, this Aura deals 4 damage to enchanted creature.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "your" },
+                    effects: [
+                        { op: "dealDamage", amount: 4, to: { ref: "$host" } },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 701.26a + CR 303.4b — "Whenever enchanted creature becomes tapped, this Aura deals 2 damage to that creature's controller": the host-scoped tap head; "that creature" is the host, its controller read off `$host` (issue #4583).
+    {
+        rule: "trigger head",
+        card: {
+            name: "Insolence",
+            manaCost: "{2}{R}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\nWhenever enchanted creature becomes tapped, this Aura deals 2 damage to that creature's controller.",
+            oracleId: "33a6d78a-a3c7-44f1-8ce9-d6632123fec1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Insolence",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { X: 2, R: 1 },
+            oracleText:
+                "Enchant creature\nWhenever enchanted creature becomes tapped, this Aura deals 2 damage to that creature's controller.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "insolence-trigger",
+                    oracleText:
+                        "Whenever enchanted creature becomes tapped, this Aura deals 2 damage to that creature's controller.",
+                    head: { kind: "tapped", scope: "host" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: 2,
+                            to: { player: { ref: "$host.controller" } },
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 701.26a + CR 608.2h — "Whenever enchanted creature becomes tapped, put a -0/-2 counter on it": behind the host-scoped tap head "it" is the host (issue #4583).
+    {
+        rule: "trigger head",
+        card: {
+            name: "Spirit Shackle",
+            manaCost: "{B}{B}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\nWhenever enchanted creature becomes tapped, put a -0/-2 counter on it.",
+            oracleId: "ddb770c1-a783-49c9-a36d-2434b8580743",
+            layout: "normal",
+        },
+        expected: {
+            name: "Spirit Shackle",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { B: 2 },
+            oracleText:
+                "Enchant creature\nWhenever enchanted creature becomes tapped, put a -0/-2 counter on it.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "spirit-shackle-trigger",
+                    oracleText:
+                        "Whenever enchanted creature becomes tapped, put a -0/-2 counter on it.",
+                    head: { kind: "tapped", scope: "host" },
+                    effects: [
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "-0/-2",
+                            target: { ref: "$host" },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 603.2 + CR 303.4b — "When enchanted creature becomes the target of a spell or ability, destroy that creature. It can't be regenerated.": the host-scoped became-target head; "that creature" is the host (issue #4583).
+    {
+        rule: "trigger head",
+        card: {
+            name: "Spinal Graft",
+            manaCost: "{1}{B}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\nEnchanted creature gets +3/+3.\nWhen enchanted creature becomes the target of a spell or ability, destroy that creature. It can't be regenerated.",
+            oracleId: "70b5eca0-c61b-4066-ae5f-90948912c04e",
+            layout: "normal",
+        },
+        expected: {
+            name: "Spinal Graft",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { X: 1, B: 1 },
+            oracleText:
+                "Enchant creature\nEnchanted creature gets +3/+3.\nWhen enchanted creature becomes the target of a spell or ability, destroy that creature. It can't be regenerated.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "spinal-graft-trigger",
+                    oracleText:
+                        "When enchanted creature becomes the target of a spell or ability, destroy that creature. It can't be regenerated.",
+                    head: { kind: "became-target", scope: "host" },
+                    effects: [
+                        {
+                            op: "destroy",
+                            target: { ref: "$host" },
+                            cantBeRegenerated: true,
+                        },
+                    ],
+                },
+            ],
+            compiledStaticEffects: [
+                { kind: "pt-buff", appliesTo: "host", power: 3, toughness: 3 },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
 ]);

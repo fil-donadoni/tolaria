@@ -5,7 +5,9 @@
 // the event names exactly one object and the scope test is identity with the
 // source. Not narrowed to an opponent's spell or ability: that narrowing is
 // Ward's own (CR 702.21a), and this wording says plainly "a spell or ability".
-// This factory models the self-subject head only.
+// `scope: "host"` (CR 303.4b) is the Aura's twin, "when enchanted creature
+// becomes the target of a spell or ability": the targeted object is the
+// permanent the source is attached to.
 
 import type {
     EffectOp,
@@ -20,6 +22,9 @@ import { withTriggerGate } from "./shared";
 export interface BecameTargetTriggerArgs {
     id: string;
     oracleText: string;
+    /** Whose targeting fires it: the source itself (absent), or the
+     *  permanent the source is attached to (`host`, CR 303.4b). */
+    scope?: "host";
     /** CR 603.4 check-time predicate. */
     condition?: (
         event: GameEvent,
@@ -42,7 +47,7 @@ export interface BecameTargetTriggerArgs {
 }
 
 /** Builds a `TriggeredAbility` listening for `BECAME_TARGET` (CR 603.2) on
- *  the source itself. */
+ *  the source itself, or on its attachment host (`scope: "host"`). */
 export function becameTargetTrigger(
     args: BecameTargetTriggerArgs
 ): TriggeredAbility {
@@ -56,7 +61,9 @@ export function becameTargetTrigger(
         matches: (event: GameEvent, self, state) => {
             if (event.type !== "BECAME_TARGET") return false;
             if (event.target.type !== "permanent") return false;
-            if (event.target.id !== self.id) return false;
+            const watched = args.scope === "host" ? self.attachedTo : self.id;
+            if (watched === undefined || event.target.id !== watched)
+                return false;
             return args.condition ? args.condition(event, self, state) : true;
         },
         ...(args.maxTriggersPerTurn !== undefined

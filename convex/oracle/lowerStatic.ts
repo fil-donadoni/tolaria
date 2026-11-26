@@ -1673,6 +1673,17 @@ function lowerHostClause(
             case "control-change":
                 effects.push({ kind: "control-change", appliesTo: "host" });
                 break;
+            // CR 502.3 — the untap step's per-permanent marker, granted to
+            // the host: an engine-internal marker, not a Mechanics Registry
+            // keyword, so it joins no keyword census (the hand-written Auras
+            // grant it the same way).
+            case "does-not-untap":
+                effects.push({
+                    kind: "keyword-grant",
+                    appliesTo: "host",
+                    keyword: DOES_NOT_UNTAP_MARKER,
+                });
+                break;
             case "land-type-set":
                 // CR 305.7 — two effects, the shape Blood Moon is written in:
                 // the layer-6 strip of every ability the land's rules text

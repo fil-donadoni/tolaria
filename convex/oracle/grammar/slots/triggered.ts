@@ -410,14 +410,21 @@ const labelledTriggeredBody: Rule<SlotIR> = rule(
 );
 
 /**
+ * CR 303.4b — on an Aura, "enchanted creature" in a triggered ability's effect
+ * names the permanent the Aura is attached to (`auraTriggerHost`). A granted
+ * ability is read under its HOST's type line (no subtypes), so it never names
+ * an Aura.
+ *
  * CR 301.5a — on an Equipment, "equipped creature" in a triggered ability's
  * effect names the creature the source is attached to. An Equipment that is
  * also a creature equips only through reconfigure (CR 301.5c) and no fixture
  * pins its triggers, so it never raises the flag; a granted ability is read
  * under its HOST's type line (no subtypes), so it never names an Equipment.
  */
-function withEquipmentHost(ctx: unknown): unknown {
+function withAttachmentHost(ctx: unknown): unknown {
     const context = ctx as ParseContext;
+    if (context.typeLine.subtypes.includes("Aura"))
+        return { ...context, auraTriggerHost: true as const };
     return context.typeLine.subtypes.includes("Equipment") &&
         !context.typeLine.types.includes("Creature")
         ? { ...context, equipmentHost: true as const }
@@ -426,9 +433,9 @@ function withEquipmentHost(ctx: unknown): unknown {
 
 export const triggeredSlot: Rule<SlotIR> = rule(TRIGGERED_SLOT, (span, ctx) =>
     span.includes(GROUP_SEPARATOR)
-        ? modalTriggeredBody.run(span, withEquipmentHost(ctx))
+        ? modalTriggeredBody.run(span, withAttachmentHost(ctx))
         : terminated(".", labelledTriggeredBody).run(
               span,
-              withEquipmentHost(ctx)
+              withAttachmentHost(ctx)
           )
 );

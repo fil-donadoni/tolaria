@@ -274,16 +274,18 @@ export type TriggerHeadIR =
     /**
      * CR 701.26a — "whenever this land becomes tapped": the source itself
      * going from untapped to tapped, however it was tapped (a {T} cost, a
-     * mana ability, an effect). Self only; "enchanted land is tapped for
-     * mana" names a recipient the payload does not reach and stays refused.
+     * mana ability, an effect). `host` (CR 303.4b) — "whenever enchanted
+     * creature becomes tapped": the Aura's host, however it was tapped.
      */
-    | { readonly kind: "becomes-tapped"; readonly scope: "self" }
+    | { readonly kind: "becomes-tapped"; readonly scope: "self" | "host" }
     /**
      * CR 603.2 + CR 115.1 — "whenever this creature becomes the target of a
      * spell or ability": the source named as a target by any spell or ability,
      * its controller's or not (Ward's opponent narrowing is CR 702.21a's own).
+     * `scope: "host"` (CR 303.4b) — "when enchanted creature becomes the
+     * target of a spell or ability": the Aura's host is the one targeted.
      */
-    | { readonly kind: "becomes-target" }
+    | { readonly kind: "becomes-target"; readonly scope?: "host" }
     /**
      * CR 605.1b + CR 303.4b — "whenever enchanted land is tapped for mana":
      * the Aura's host tapped for a mana ability's cost. The tapped land's
@@ -542,6 +544,17 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     // trigger looks back in time, so the Aura (put into the graveyard by the
     // SBA only afterwards, CR 704.5m) still sees what it enchanted.
     ["when enchanted creature dies", { kind: "dies", scope: "host" }],
+    // CR 701.26a + CR 303.4b — the Aura's host becoming tapped, by any means.
+    [
+        "whenever enchanted creature becomes tapped",
+        { kind: "becomes-tapped", scope: "host" },
+    ],
+    // CR 603.2 + CR 303.4b — the Aura's host becoming the target of a spell
+    // or ability. The corpus prints "when", and only "when", for it.
+    [
+        "when enchanted creature becomes the target of a spell or ability",
+        { kind: "becomes-target", scope: "host" },
+    ],
     // CR 120.3 / 303.4b — the Aura host dealing or being dealt damage. Only the
     // forms the corpus prints: "…deals damage to an opponent" on an Aura is a
     // different recipient scope and earns its own row when a card needs it.
@@ -1024,7 +1037,7 @@ export function matchSelfHead(span: string): TriggerHeadIR | null {
  */
 export function headPronounReferent(
     head: TriggerHeadIR
-): "source" | "combatant" | null {
+): "source" | "combatant" | "host" | null {
     switch (head.kind) {
         case "enters":
         case "dies":
@@ -1077,12 +1090,14 @@ export function headPronounReferent(
         // object "it" names; `host` names the Aura's host, not the Aura.
         case "damage-taken":
             return head.scope === "self" ? "source" : null;
-        // CR 701.26a — the tapped permanent is the source itself.
+        // CR 701.26a — the tapped permanent: the source itself, or the
+        // Aura's host (CR 303.4b).
         case "becomes-tapped":
-            return "source";
-        // CR 603.2 — the targeted permanent is the source itself.
+            return head.scope === "host" ? "host" : "source";
+        // CR 603.2 — the targeted permanent: the source itself, or the
+        // Aura's host (CR 303.4b).
         case "becomes-target":
-            return "source";
+            return head.scope === "host" ? "host" : "source";
         // CR 303.4b — "its controller" names the host's, not the Aura's.
         case "tapped-for-mana":
             return null;

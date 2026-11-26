@@ -17,6 +17,7 @@ import {
     type ActivationCostIR,
     type CostAtomIR,
 } from "./grammar/shared/cost";
+import { namesHost } from "./grammar/shared/effectClause";
 import type {
     EffectSentenceIR,
     RestrictionIR,
@@ -201,9 +202,11 @@ function mayRemoveSource(atom: CostAtomIR): boolean {
     }
 }
 
-/** CR 303.4b — the sentence acts on the Aura's host ("enchanted creature"). */
+/** CR 303.4b — the sentence acts on the Aura's host ("enchanted creature"),
+ *  wherever the IR carries it (a verb's subject, a damage recipient, a zone
+ *  change's object). */
 function actsOnHost(sentence: EffectSentenceIR): boolean {
-    return "subject" in sentence && sentence.subject.kind === "host";
+    return namesHost(sentence);
 }
 
 export function lowerActivatedAbility(input: {
