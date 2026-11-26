@@ -29,6 +29,8 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
+import { mishrasFactory } from "../../cards/sets/atq/colorless.cards";
+import { getBasicLandManaColors } from "../../gre/constants";
 import { projectPublicState } from "../../gameProjections";
 import { getEffectiveActivatedAbilities } from "../../gre/activatedAbilities";
 import {
@@ -88,6 +90,25 @@ const CREATURE_AURA: Pick<
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },
 };
+
+const LAND_AURA: Pick<
+    CompiledDefinition,
+    "types" | "subtypes" | "targetRequirement"
+> = {
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Land", count: 1 },
+};
+
+/** CR 305.7 — "Enchanted land is a <basic land type>", lowered. */
+function LAND_TYPE_SET(
+    subtype: string
+): NonNullable<CompiledDefinition["compiledStaticEffects"]> {
+    return [
+        { kind: "ability-loss", appliesTo: "host" },
+        { kind: "subtype-set", appliesTo: "host", subtypes: [subtype] },
+    ];
+}
 
 // ── 1. Golden fixtures ─────────────────────────────────────────────────────
 
@@ -357,6 +378,49 @@ const GOLDEN: readonly (readonly [OracleCard, CompiledDefinition])[] = [
             ],
         },
     ],
+    // CR 305.7 — a land host's land types SET to one basic land type: the
+    // layer-6 strip of its rules-text abilities, then the layer-4 replace.
+    // Spreading Seas also prints its ETB draw, read by the triggered slot.
+    [
+        aura(
+            "Spreading Seas",
+            "{1}{U}",
+            "Enchant land\nWhen this Aura enters, draw a card.\nEnchanted land is an Island.",
+            "af32757c-9d3c-4f6c-a6fa-d5729a440382"
+        ),
+        {
+            ...LAND_AURA,
+            name: "Spreading Seas",
+            manaCost: { X: 1, U: 1 },
+            oracleText:
+                "Enchant land\nWhen this Aura enters, draw a card.\nEnchanted land is an Island.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "spreading-seas-trigger",
+                    oracleText: "When this Aura enters, draw a card.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
+            compiledStaticEffects: LAND_TYPE_SET("Island"),
+        },
+    ],
+    // CR 305.7 — the "a" article twin: any basic land type (CR 305.6).
+    [
+        aura(
+            "Evil Presence",
+            "{B}",
+            "Enchant land\nEnchanted land is a Swamp.",
+            "3d8ac41c-0566-48b2-a744-39db2f72272c"
+        ),
+        {
+            ...LAND_AURA,
+            name: "Evil Presence",
+            manaCost: { B: 1 },
+            oracleText: "Enchant land\nEnchanted land is a Swamp.",
+            compiledStaticEffects: LAND_TYPE_SET("Swamp"),
+        },
+    ],
 ];
 
 describe("Aura statics — golden fixtures (CR 303.4b)", () => {
@@ -464,6 +528,27 @@ describe("Aura statics — refusals", () => {
         expect(
             refusedOf(aura("Refused", "{W}", `Enchant creature\n${line}`))
         ).toContain("no slot consumed the line");
+    });
+
+    it.each([
+        // CR 305.6 — only the five basic land types; "Desert" is a land type
+        // CR 305.7 does not speak of.
+        "Enchant land\nEnchanted land is a Desert.",
+        // The article must be the Oracle one.
+        "Enchant land\nEnchanted land is a Island.",
+        "Enchant land\nEnchanted land is an Swamp.",
+        // Neighbour forms the rule does not read (each its own gap).
+        "Enchant land\nEnchanted land is a Mountain, Forest, and Plains.",
+        "Enchant land\nEnchanted land is the chosen type.",
+        "Enchant land\nEnchanted land is every basic land type in addition to its other types.",
+        // Only the WHOLE predicate: no P/T clause rides with it.
+        "Enchant land\nEnchanted land gets +1/+1 and is an Island.",
+        // CR 305.7 is a rule about lands.
+        "Enchant creature\nEnchanted creature is an Island.",
+    ])("refuses the land-type neighbour %s", (text) => {
+        expect(refusedOf(aura("Refused", "{U}", text))).toContain(
+            "no slot consumed the line"
+        );
     });
 
     it('refuses "enchanted" on a card with no enchant line (CR 303.4b)', () => {
@@ -668,6 +753,60 @@ describe("Aura statics in the real engine (CR 303.4b)", () => {
                 (c) => c.card.id === def.id
             );
             expect(attached?.attachedTo).toBe("bear");
+        });
+    });
+    it("sets a land host's land types and strips its rules text (CR 305.7)", () => {
+        const def = registered(
+            aura(
+                "Compiled Seas",
+                "{1}{U}",
+                "Enchant land\nWhen this Aura enters, draw a card.\nEnchanted land is an Island."
+            ),
+            "compiled-seas-10513"
+        );
+        withTemporaryDefinition(def, () => {
+            const factory = makeInstance(mishrasFactory().id, {
+                id: "factory",
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+            const bystander = makeInstance(mishrasFactory().id, {
+                id: "bystander",
+                controllerId: "p2",
+                ownerId: "p2",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1"),
+                    makePlayer("p2", { battlefield: [factory, bystander] }),
+                ],
+            });
+            pushSpell(state, def.id, "p1", [
+                { type: "permanent", id: "factory" },
+            ]);
+            resolveTopOfStack(state);
+            checkStateBasedActions(state);
+            const projected = projectPublicState(state, 1, "p1");
+            const slim = (id: string) =>
+                projected.players[1]!.battlefield.find((c) => c.id === id)!;
+            // Layer 4: the host is an Island and only an Island; the land
+            // type change never touches its card type (CR 305.7).
+            expect(slim("factory").subtypes).toEqual(["Island"]);
+            expect(slim("factory").types).toEqual(["Land"]);
+            // Layer 6: its printed abilities are gone; the intrinsic
+            // "{T}: Add {U}" of its new type is the one it keeps (CR 305.6).
+            const host = state.players[1]!.battlefield.find(
+                (c) => c.id === "factory"
+            )!;
+            expect(getEffectiveActivatedAbilities(host)).toEqual([]);
+            expect(getBasicLandManaColors(host)).toEqual(["U"]);
+            // The host, and only the host.
+            const other = state.players[1]!.battlefield.find(
+                (c) => c.id === "bystander"
+            )!;
+            expect(slim("bystander").subtypes ?? []).toEqual([]);
+            expect(getEffectiveActivatedAbilities(other)).toHaveLength(3);
+            expect(getBasicLandManaColors(other)).toEqual([]);
         });
     });
 });
