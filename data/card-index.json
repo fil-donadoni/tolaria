@@ -51459,6 +51459,16 @@
         "source": "compiled"
     },
     {
+        "name": "Lingering Mirage",
+        "scryfallId": "050b4a82-a1d5-4dcc-9264-96005fdf53f5",
+        "oracleId": "cce17310-585d-4738-8d5b-bbad65008c37",
+        "firstSet": "usg",
+        "firstPrintId": "050b4a82-a1d5-4dcc-9264-96005fdf53f5",
+        "firstPrintSet": "usg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Lingering Souls",
         "scryfallId": "891a92d7-9ccf-4de1-8286-aa5254f27ba9",
         "oracleId": "0b8c3337-04dd-4798-8203-6d8b8cfb936b",
@@ -76859,6 +76869,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sea's Claim",
+        "scryfallId": "fb652a5c-464e-4ba4-a4ab-1181be70cf7a",
+        "oracleId": "ed11efb6-1423-4ce0-be1d-9e0320124758",
+        "firstSet": "ons",
+        "firstPrintId": "fb652a5c-464e-4ba4-a4ab-1181be70cf7a",
+        "firstPrintSet": "ons",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Seachrome Coast",
         "scryfallId": "99939b90-e88c-4c2f-ba78-56d455611703",
         "oracleId": "9e7a240d-dc33-47ac-9f17-77fab4c1c340",
@@ -85263,6 +85283,16 @@
         "firstSet": "inv",
         "firstPrintId": "ac86055d-ce08-4b05-a92c-45e007ca0ba4",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Spreading Seas",
+        "scryfallId": "37454c1c-4098-4ac2-884e-3f65f1384bdb",
+        "oracleId": "af32757c-9d3c-4f6c-a6fa-d5729a440382",
+        "firstSet": "zen",
+        "firstPrintId": "37454c1c-4098-4ac2-884e-3f65f1384bdb",
+        "firstPrintSet": "zen",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Spring of Eternal Peace",

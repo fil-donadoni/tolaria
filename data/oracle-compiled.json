@@ -7605,8 +7605,6 @@
         {"key":"ed060cd06db3","text":"Enchanted land is a 5/6 green Treefolk creature that's still a land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Enchanted land is a 5/6 green Treefolk creature that's still a land"}},
         {"key":"a73f72295d2b","text":"Enchanted land is a 6/4 green Elemental creature. It's still a land.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Enchanted land is a 6/4 green Elemental creature. It's still a land"}},
         {"key":"9207bd87e887","text":"Enchanted land is a Mountain, Forest, and Plains.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Enchanted land is a Mountain, Forest, and Plains"}},
-        {"key":"58837ca925b1","text":"Enchanted land is a Swamp.","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"static","path":["static clause"],"span":"Enchanted land is a Swamp"}},
-        {"key":"23025f4663fb","text":"Enchanted land is an Island.","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"static","path":["static clause"],"span":"Enchanted land is an Island"}},
         {"key":"0c37f6d31e6d","text":"Enchanted land is every basic land type in addition to its other types.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Enchanted land is every basic land type in addition to its other types"}},
         {"key":"16e7b5788257","text":"Enchanted land is snow.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Enchanted land is snow"}},
         {"key":"f4ff97c12e3c","text":"Enchanted land is the chosen color.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Enchanted land is the chosen color"}},
@@ -45722,7 +45720,7 @@
 
         {"oracleId":"3d8aae86-266f-4bfd-a058-0fe12b5ea354","name":"Ceremonial Guard","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["5dd38f18247d"]},
 
-        {"oracleId":"3d8ac41c-0566-48b2-a744-39db2f72272c","name":"Evil Presence","state":"unparsed","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"gaps":["58837ca925b1"]},
+        {"oracleId":"3d8ac41c-0566-48b2-a744-39db2f72272c","name":"Evil Presence","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Evil Presence","types":["Enchantment"],"subtypes":["Aura"],"manaCost":{"B":1},"oracleText":"Enchant land\nEnchanted land is a Swamp.","compiledStaticEffects":[{"kind":"ability-loss","appliesTo":"host"},{"kind":"subtype-set","appliesTo":"host","subtypes":["Swamp"]}],"targetRequirement":{"type":"Land","count":1}},"botReach":"played"},
 
         {"oracleId":"3d8dfd57-7d26-4a3b-a9c3-33077c85b3db","name":"Definitely Not a Turtle","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["5e7f16195f28"]},
 
@@ -52406,7 +52404,7 @@
 
         {"oracleId":"55dfe722-7487-4d25-b90c-e6ad2c82a671","name":"Tobias Andrion","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Tobias Andrion","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Human","Advisor"],"manaCost":{"X":3,"W":1,"U":1},"power":4,"toughness":4},"botReach":"played"},
 
-        {"oracleId":"55e04860-f4f5-445b-81f2-b500fa9b456a","name":"Contaminated Ground","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["3ff54eacaff7","58837ca925b1"]},
+        {"oracleId":"55e04860-f4f5-445b-81f2-b500fa9b456a","name":"Contaminated Ground","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["3ff54eacaff7"]},
 
         {"oracleId":"55e21534-ec3e-46e1-8faf-59f0c3d48128","name":"Veilstone Amulet","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0321dafee930"]},
 
@@ -77086,7 +77084,7 @@
 
         {"oracleId":"af31febb-af53-4b48-b930-9e1f9e5d8f26","name":"Umbris, Fear Manifest","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["120529b76d23","c514ab6158fb"]},
 
-        {"oracleId":"af32757c-9d3c-4f6c-a6fa-d5729a440382","name":"Spreading Seas","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["23025f4663fb"]},
+        {"oracleId":"af32757c-9d3c-4f6c-a6fa-d5729a440382","name":"Spreading Seas","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","static","triggered"],"opsUsed":["draw"],"definition":{"name":"Spreading Seas","types":["Enchantment"],"subtypes":["Aura"],"manaCost":{"X":1,"U":1},"oracleText":"Enchant land\nWhen this Aura enters, draw a card.\nEnchanted land is an Island.","compiledTriggeredAbilities":[{"id":"spreading-seas-trigger","oracleText":"When this Aura enters, draw a card.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"draw","player":"controller","count":1}]}],"compiledStaticEffects":[{"kind":"ability-loss","appliesTo":"host"},{"kind":"subtype-set","appliesTo":"host","subtypes":["Island"]}],"targetRequirement":{"type":"Land","count":1}},"botReach":"played"},
 
         {"oracleId":"af32ce11-c026-4135-b1e3-10c6aa15c72c","name":"Specter's Wail","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["discardAtRandom"],"definition":{"name":"Specter's Wail","types":["Sorcery"],"manaCost":{"X":1,"B":1},"oracleText":"Target player discards a card at random.","effects":[{"op":"discardAtRandom","player":{"target":0},"count":1}],"targetRequirement":{"type":"player","count":1}},"botReach":"played"},
 
@@ -78254,7 +78252,7 @@
 
         {"oracleId":"b3595359-0d40-495e-85da-6a56fbce7357","name":"Blistering Firecat","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["sacrifice"],"definition":{"name":"Blistering Firecat","types":["Creature"],"subtypes":["Elemental","Cat"],"manaCost":{"X":1,"R":3},"power":7,"toughness":1,"oracleText":"Trample, haste\nAt the beginning of the end step, sacrifice this creature.\nMorph {R}{R} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)","staticAbilities":["trample","haste"],"compiledTriggeredAbilities":[{"id":"blistering-firecat-trigger","oracleText":"At the beginning of the end step, sacrifice this creature.","head":{"kind":"phase","phase":"END_STEP","scope":"each"},"effects":[{"op":"sacrifice","target":{"ref":"$source"}}]}],"morph":{"R":2}},"botReach":"played"},
 
-        {"oracleId":"b35b3ea6-ae9c-4128-a47f-069d88ee49c2","name":"Tainted Well","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["58837ca925b1"]},
+        {"oracleId":"b35b3ea6-ae9c-4128-a47f-069d88ee49c2","name":"Tainted Well","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["keyword-line","static","triggered"],"opsUsed":["draw"],"definition":{"name":"Tainted Well","types":["Enchantment"],"subtypes":["Aura"],"manaCost":{"X":2,"B":1},"oracleText":"Enchant land\nWhen this Aura enters, draw a card.\nEnchanted land is a Swamp.","compiledTriggeredAbilities":[{"id":"tainted-well-trigger","oracleText":"When this Aura enters, draw a card.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"draw","player":"controller","count":1}]}],"compiledStaticEffects":[{"kind":"ability-loss","appliesTo":"host"},{"kind":"subtype-set","appliesTo":"host","subtypes":["Swamp"]}],"targetRequirement":{"type":"Land","count":1}},"botReach":"played"},
 
         {"oracleId":"b35c1b30-c1dc-489f-bd79-ad6566fb9389","name":"Stormfront Pegasus","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Stormfront Pegasus","types":["Creature"],"subtypes":["Pegasus"],"manaCost":{"X":1,"W":1},"power":2,"toughness":1,"oracleText":"Flying","staticAbilities":["flying"]},"botReach":"played"},
 
@@ -85242,7 +85240,7 @@
 
         {"oracleId":"cce081eb-8820-415a-a7b2-3c5b9d4a2601","name":"Gala Greeters","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["fb55236df72e"]},
 
-        {"oracleId":"cce17310-585d-4738-8d5b-bbad65008c37","name":"Lingering Mirage","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["23025f4663fb"]},
+        {"oracleId":"cce17310-585d-4738-8d5b-bbad65008c37","name":"Lingering Mirage","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":["draw"],"definition":{"name":"Lingering Mirage","types":["Enchantment"],"subtypes":["Aura"],"manaCost":{"X":1,"U":1},"oracleText":"Enchant land\nEnchanted land is an Island.\nCycling {2} ({2}, Discard this card: Draw a card.)","activatedAbilities":[{"id":"cycling","oracleText":"Cycling {2} ({2}, Discard this card: Draw a card.)","cost":{"mana":{"generic":2},"discardThis":true,"cyclingCost":true},"activateFromHand":true,"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}],"compiledStaticEffects":[{"kind":"ability-loss","appliesTo":"host"},{"kind":"subtype-set","appliesTo":"host","subtypes":["Island"]}],"targetRequirement":{"type":"Land","count":1}},"botReach":"played"},
 
         {"oracleId":"cce328b9-6100-417e-9ddf-808bbe3e3bc5","name":"Hushwood Verge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["dd8cda592bf9"]},
 
@@ -94330,7 +94328,7 @@
 
         {"oracleId":"ed10bb4c-f7ef-4046-8dde-465041b55078","name":"Artificer's Epiphany","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["1958bfdc69ea"]},
 
-        {"oracleId":"ed11efb6-1423-4ce0-be1d-9e0320124758","name":"Sea's Claim","state":"unparsed","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"gaps":["23025f4663fb"]},
+        {"oracleId":"ed11efb6-1423-4ce0-be1d-9e0320124758","name":"Sea's Claim","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Sea's Claim","types":["Enchantment"],"subtypes":["Aura"],"manaCost":{"U":1},"oracleText":"Enchant land (Target a land as you cast this. This card enters attached to that land.)\nEnchanted land is an Island.","compiledStaticEffects":[{"kind":"ability-loss","appliesTo":"host"},{"kind":"subtype-set","appliesTo":"host","subtypes":["Island"]}],"targetRequirement":{"type":"Land","count":1}},"botReach":"played"},
 
         {"oracleId":"ed14be15-8f8d-4fe3-a147-f5da8ed873bf","name":"Conduit of Worlds","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a67bee6a4c6b"]},
 

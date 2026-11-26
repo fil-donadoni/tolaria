@@ -367,8 +367,10 @@ export const drainLife = defineCard(() => ({
 
 // Evil Presence — "Enchant land. Enchanted land is a Swamp." (CR 305.7
 // subtype replacement, CR 303.4 aura). Layer 4 subtype-set replaces the
-// host's subtypes with ["Swamp"], which also changes its mana production
-// via getBasicLandMana (Swamp → {B}).
+// host's land types with ["Swamp"], which also changes its mana production
+// via getBasicLandMana (Swamp → {B}); CR 305.7 also strips every ability the
+// land's rules text generates — the layer-6 ability-loss beside it, the shape
+// the compiler lowers this line to (issue #10513).
 export const evilPresence = defineCard(() => ({
     id: "0551d66e-8cd4-48f0-aa17-15f26be9d85f",
     rarity: "uncommon",
@@ -379,6 +381,7 @@ export const evilPresence = defineCard(() => ({
     subtypes: ["Aura"],
     targetRequirement: { type: "Land", count: 1 },
     staticEffects: [
+        { kind: "ability-loss", applies: AURA_AFFECTS_HOST },
         {
             kind: "subtype-set",
             applies: AURA_AFFECTS_HOST,
