@@ -1875,9 +1875,11 @@ export function rollout(
             break;
         }
 
-        // Turn-boundary horizon: a fresh bot-turn START is the active player
-        // being the bot right after a turn crossing (not the bot turn the
-        // rollout began in). Stop once we've reached enough of them.
+        // Turn-boundary horizon. Under a root-clock variant, the iteration's
+        // tracker decides (`pastRootHorizon`). In production, a fresh bot-turn
+        // START is the active player being the bot right after a turn
+        // crossing (not the bot turn the rollout began in): stop once we've
+        // reached enough of them.
         const turnChanged = state.turn !== lastTurn;
         lastTurn = state.turn;
         if (horizon) {
@@ -4260,7 +4262,11 @@ function opponentOptionView(node: Node, keyed: KeyedMove[]): Node {
  *  opened as a child, still collect visits, and still be selectable. Filtering
  *  the depth-0 candidate set removes it from the tree instead — the same
  *  outcome the old per-node probing bought, at 1/1682 of the probe cost
- *  (issue #1905 review finding 3). */
+ *  (issue #1905 review finding 3).
+ *
+ *  Exported as a test seam: where the tree stops descending under a
+ *  root-clock horizon is a property of the tree's shape, which a whole
+ *  search's trace does not expose. */
 export function iterate(
     root: Node,
     rootState: GameState,
