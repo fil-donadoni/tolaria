@@ -64,6 +64,17 @@ as a missing term rather than patched at the root. `RootDecisionMechanism` is
 FROZEN behind `ROOT_RULE_ALLOWLIST` (`convex/gre/ai/decisionTelemetry.ts`) — a
 new member does not compile and does not pass its guard test.
 
+**The freeze is wider while ADR 0186's gates are read** (owner ruling
+2026-11-26, § Decision 8). Until its Prototype gate is read, write NO new
+hand-written weight or preference: no root rule, no rollout priority, no
+dominance prune, no hand-picked constant. A report that the Bot preferred the
+wrong LEGAL move becomes an example — a Verdict, a Minimal Pair or a Line —
+and stops there. What still gets code: a bug, a card the Bot never plays (a
+Bot Gap), a forced loss in the `must` tier, a missing QUANTITY the Evaluation
+cannot read (the quantity is code, its weight is not), the rollout horizon
+(PRD issue #10815). And run no `verdicts:promote`: every player Verdict
+outside the Verdict Lock is the exam.
+
 **1. Capture the position — do not reconstruct it from memory.** A symptom you
 cannot re-run is an anecdote, and a board rebuilt from recollection is a
 _different_ position: get the phase or the untapped-mana count wrong and the
