@@ -269,7 +269,13 @@ export const BLADE_LINES: BladeLine[] = [
                     owner: "me",
                     zone: "battlefield",
                 },
-                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Ugin's Labyrinth", owner: "me", zone: "battlefield" },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
                 { name: "Expedition Map", owner: "me", zone: "battlefield" },
                 { name: "Sylvan Scrying", owner: "me", zone: "hand" },
                 {
@@ -357,7 +363,7 @@ export const BLADE_LINES: BladeLine[] = [
             { expect: [{ kind: "resolution-choice", cards: ["Urza's Mine"] }] },
             { expect: [{ kind: "play-land", card: "Urza's Mine" }] },
         ],
-        note: "Two turns on the Eldrazi Tron preset (`data/modern-preset-decks.json`), with the Sylvan Scrying the issue names. The Map goes first, spending the exposed artifact and keeping the sorcery in hand. The Tower goes first because the library holds two Towers to four Mines, so the scarcer piece is tutored while both tutors stand. Next turn Scrying finds the Mine and Tron is complete. `rngSeed` 1 makes the turn-two draw a Devourer of Destiny, which cannot be cast that turn; the opponent's declare-attackers with no creature is named as its reply. The opponent holds Stone Rain here and does not cast it; the sibling Line does.",
+        note: "Two turns on the Eldrazi Tron preset (`data/modern-preset-decks.json`), with the Sylvan Scrying the issue names. The Forest is already tapped this turn, so Sylvan Scrying cannot be cast now and the Map, paid from Power Plant and Ugin's Labyrinth, is the turn's only tutor. The Tower is found first because the library holds two Towers to four Mines, so the scarcer piece is tutored while both tutors stand. Next turn Scrying finds the Mine and Tron is complete. `rngSeed` 1 makes the turn-two draw a Devourer of Destiny, which cannot be cast that turn; the opponent's declare-attackers with no creature is named as its reply. The opponent holds Stone Rain here and does not cast it; the sibling Line does.",
     },
     {
         label: "line: Tron, the Tower destroyed between the turns \u2014 Sylvan Scrying re-reads the library for the last Urza's Tower",
@@ -368,7 +374,13 @@ export const BLADE_LINES: BladeLine[] = [
                     owner: "me",
                     zone: "battlefield",
                 },
-                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Ugin's Labyrinth", owner: "me", zone: "battlefield" },
+                {
+                    name: "Forest",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
                 { name: "Expedition Map", owner: "me", zone: "battlefield" },
                 { name: "Sylvan Scrying", owner: "me", zone: "hand" },
                 {
@@ -470,6 +482,6 @@ export const BLADE_LINES: BladeLine[] = [
             },
             { expect: [{ kind: "play-land", card: "Urza's Tower" }] },
         ],
-        note: "The Tron Line with one difference: the opponent casts Stone Rain on Urza's Tower in its main phase. With one Tower and four Mines left, Sylvan Scrying now finds the Tower, the piece with fewer copies left to draw, and the Bot has to read that off the board instead of repeating the first Line's Mine. Decisions 1 to 19 are the first Line's own.",
+        note: "The Tron Line with one difference: the opponent casts Stone Rain on Urza's Tower in its main phase. With one Tower and four Mines left, Sylvan Scrying now finds the Tower, the piece with fewer copies left to draw, and the Bot has to read that off the board instead of repeating the first Line's Mine. Decisions 1 to 11 are the first Line's own; decision 12 is the Bot's priority with Stone Rain on the stack.",
     },
 ];
