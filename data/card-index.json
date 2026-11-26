@@ -40612,6 +40612,14 @@
         "source": "compiled"
     },
     {
+        "name": "Harbinger of the Seas",
+        "scryfallId": "00212714-a410-4cbc-bf1c-f90d7d77378c",
+        "oracleId": "84910453-e5dc-4bff-8554-86a5f4ab2746",
+        "firstSet": "mh3",
+        "firstPrintId": "00212714-a410-4cbc-bf1c-f90d7d77378c",
+        "firstPrintSet": "mh3"
+    },
+    {
         "name": "Harbinger of the Tides",
         "scryfallId": "94ca53de-cffb-4740-b318-a4ebfb3a31af",
         "oracleId": "9f5277e8-1cbe-478c-a8bc-ac028f13305e",
