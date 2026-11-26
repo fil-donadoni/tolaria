@@ -16,6 +16,9 @@ import {
     submitChoice,
 } from "../../../__tests__/setup.helper";
 import { getDefinition } from "../../../index";
+import { preloadDefinitions } from "../../../registry";
+import { resolveCardExport } from "../../../defineCard";
+import { karnTheGreatCreator as karnModuleExport } from "../colorless.cards";
 import { activateAbilityOnState } from "../../../../gre/activation";
 import { applyOneTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
@@ -30,6 +33,11 @@ import type {
     GameState,
     PlayerState,
 } from "../../../../gre/state";
+
+// The PR head carries no `definition-index.json` row for the card (ADR 0157:
+// derived state is regenerated post-merge), so register the module's own
+// definition rather than depend on the lazy catalogue source.
+preloadDefinitions([resolveCardExport(karnModuleExport)!]);
 
 /** Karn, the Great Creator — the WAR printing. */
 const KARN = "3ec0c0fb-1a4f-45f4-85b7-346a6d3ce2c5";
