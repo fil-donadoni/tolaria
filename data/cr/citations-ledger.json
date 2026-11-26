@@ -42277,7 +42277,7 @@
         {"id":"110.2","line":"// (a) Non-Aura enchantments the caster controls (CR 110.2). Auras are","sites":1,"status":"baseline"},
         {"id":"608.2h","line":"// (CR 608.2h). The read itself is proven in `sourceChosenXOnCast.test.ts`.","sites":1,"status":"confirmed","ruleHash":"4020079ffa4c17c4"},
         {"id":"508.1a","line":"// active player's battlefield (CR 508.1a), blockers from the defending","sites":1,"status":"baseline"},
-        {"id":"205.3","line":"// A printed \"and\" list (\"Rabbits, Bats, Birds, and Mice\", CR 205.3) is","sites":2,"status":"confirmed","ruleHash":"d0c1f44c2a421f15"},
+        {"id":"205.3","line":"// A printed \"and\" list (\"Rabbits, Bats, Birds, and Mice\", CR 205.3) is","sites":1,"status":"confirmed","ruleHash":"d0c1f44c2a421f15"},
         {"id":"400.7","line":"// deals 2 damage to target creature.\" (CR 400.7 zone change; CR 120.1","sites":1,"status":"baseline"},
         {"id":"603.6a","line":"describe(\"Minion of Tevesh Szat (upkeep pay-or-damage, CR 603.6a)\", () => {","sites":1,"status":"baseline"},
         {"id":"113.1","line":"// CR 113.1 (issue #1706) — idempotence keys on THIS grant's own","sites":1,"status":"baseline"},
