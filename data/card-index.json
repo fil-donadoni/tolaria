@@ -84739,6 +84739,14 @@
         "source": "compiled"
     },
     {
+        "name": "Soulless Jailer",
+        "scryfallId": "bf9991fd-ea6a-4ed7-b5f1-46a95f8d0634",
+        "oracleId": "7866ab01-22f3-4d87-bdb0-c0ae0e91ffc9",
+        "firstSet": "one",
+        "firstPrintId": "bf9991fd-ea6a-4ed7-b5f1-46a95f8d0634",
+        "firstPrintSet": "one"
+    },
+    {
         "name": "Soulless Revival",
         "scryfallId": "6b36712c-1ccb-4efe-8db8-823b9b80a99f",
         "oracleId": "5f00dcc4-38e7-4dde-96d4-f8d4c08b334a",
