@@ -59818,6 +59818,7 @@
         {"id":"601.2c","line":"// CR 601.2c — a divided spell's targets are targets: while a","sites":1,"status":"confirmed","ruleHash":"6209ab42af526807"},
         {"id":"605.1a","line":"// - CR 605.1a — the option list scales EACH mana ability by its OWN count:","sites":1,"status":"confirmed","ruleHash":"ab1518e4c1e43bc2"},
         {"id":"608.2c","line":"'\"it\" does not name the ability\\'s own source here (CR 608.2c)'","sites":1,"status":"confirmed","ruleHash":"44f2057e47f7054f"},
+        {"id":"608.2","line":"* hand-written id, checkpointed on its may-pay (CR 608.2). */","sites":1,"status":"confirmed","ruleHash":"9fae3cec44bb97b3"},
         {"id":"615","line":"// CR 615 / 615.12 — a resolved Fog. `applyAllCombatDamage` returns","sites":1,"status":"baseline"},
         {"id":"510.4","line":"// CR 510.4 decision — the step's priority round (CR 117.3a, issue","sites":1,"status":"baseline"},
         {"id":"117.1a","line":"/** CR 307.1 / 117.1a — the cast-time snapshot","sites":1,"status":"baseline"},

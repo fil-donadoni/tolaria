@@ -43,6 +43,7 @@
 // any pair and routed to `timing` instead of `pairs`: never fitted, never
 // dropped silently, and checked by the search (`verdicts:search`).
 
+import { currentAbilityId } from "../../../cards/retiredAbilityIds";
 import { cloneGameState } from "../../clone";
 import type { EvalTerms } from "../../evaluate";
 import type { Move } from "../../moves";
@@ -299,15 +300,6 @@ export function evalPairsOf(
     return { verdict, pairs, timing, features };
 }
 
-/** Ability ids a retirement renamed (ADR 0114): the hand-written twin's id →
- *  the compiled twin's. Stored verdict keys are immutable, so a verdict taken
- *  before a retirement resolves through this table. Add a row only for an id a
- *  committed verdict names. */
-const RETIRED_ABILITY_IDS: Readonly<Record<string, string>> = {
-    "treetop-village-animate": "treetop-village-ability-2",
-    "blazing-rootwalla-pump": "blazing-rootwalla-ability",
-};
-
 /** The verdict's candidates as the moves `state` enumerates for `botId`, in
  *  the verdict's own order — or why one no longer resolves. Exported for the search
  *  agreement report (`verdicts:search`, issue #4764), which has to map the
@@ -413,8 +405,8 @@ function candidateResolver(
         // its compiled twin's; a verdict recorded under the old id names the
         // same activation, so read it under the new one before matching.
         if (stored.kind === "activate-ability") {
-            const renamed = RETIRED_ABILITY_IDS[stored.abilityId];
-            if (renamed) {
+            const renamed = currentAbilityId(stored.abilityId);
+            if (renamed !== stored.abilityId) {
                 stored = { ...stored, abilityId: renamed };
                 const exactRenamed = byKey.get(moveKey(stored));
                 if (exactRenamed) return exactRenamed;
