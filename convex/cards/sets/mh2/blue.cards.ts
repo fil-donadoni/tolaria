@@ -5,6 +5,8 @@ import { cardLeftGraveyardTrigger } from "../../abilities/triggers/cardLeftGrave
 import { evokeTrigger } from "../../abilities/evoke";
 import { affinityForArtifacts } from "../../abilities/affinity";
 import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
+import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
+import { wardAbility } from "../../abilities/ward";
 
 // Subtlety — {2}{U}{U} Creature — Elemental Incarnation, 3/3 (MH2, issue #1205).
 // "Flash. Flying. When this creature enters, choose up to one target creature
@@ -295,6 +297,80 @@ export const tideShaper = defineCard(() => ({
                 atLeast: 1,
             },
         },
+    ],
+}));
+
+// Svyelun of Sea and Sky — {1}{U}{U} Legendary Creature — Merfolk God, 3/4
+// (MH2 69, modern Merfolk, issue #10512).
+//
+//  - "Svyelun has indestructible as long as you control at least two other
+//    Merfolk." — a self-scoped layer-6 `keyword-grant` (CR 613.1f) gated on
+//    the compiled `controls` count (CR 611.3a: not locked in, re-read at every
+//    derivation); "other" is the filter's `excludeSource`. CR 702.12b.
+//  - "Whenever Svyelun attacks, draw a card." — the self-scoped
+//    `attacksTrigger` off the one declare-attackers batch (CR 508.1m).
+//  - "Other Merfolk you control have ward {1}." — a GRANTED ward (CR 702.21a),
+//    the Lavaspur Boots pair: a `keyword-grant` for the board-visible keyword
+//    string plus a `triggered-grant` pushing the enforcing `wardAbility`
+//    trigger. The template is kept off `triggeredAbilities`, so Svyelun
+//    itself has no ward ("other", the source excluded from `applies`).
+// hand-tail: Other Merfolk you control have ward {1}. (#10512)
+export const svyelunOfSeaAndSky = defineCard(() => ({
+    id: "c6f9ece1-669a-47c9-96c3-1e1dbf87421c", // MH2 69
+    name: "Svyelun of Sea and Sky",
+    rarity: "mythic",
+    oracleText:
+        "Svyelun has indestructible as long as you control at least two other Merfolk.\nWhenever Svyelun attacks, draw a card.\nOther Merfolk you control have ward {1}. (Whenever another Merfolk you control becomes the target of a spell or ability an opponent controls, counter it unless that player pays {1}.)",
+    manaCost: { X: 1, U: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Merfolk", "God"],
+    power: 3,
+    toughness: 4,
+    compiledStaticEffects: [
+        {
+            kind: "keyword-grant",
+            appliesTo: "self",
+            keyword: "indestructible",
+            condition: {
+                kind: "controls",
+                filter: { subtypes: ["Merfolk"], excludeSource: true },
+                atLeast: 2,
+            },
+        },
+    ],
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: (target, source, ctx) =>
+                target.id !== source.id &&
+                target.controllerId === source.controllerId &&
+                ctx.hasSubtype(target, "Merfolk"),
+            keyword: "ward {1}",
+        },
+        {
+            kind: "triggered-grant",
+            applies: (target, source, ctx) =>
+                target.id !== source.id &&
+                target.controllerId === source.controllerId &&
+                ctx.hasSubtype(target, "Merfolk"),
+            abilityId: "svyelun-of-sea-and-sky-ward",
+        },
+    ],
+    triggeredGrantTemplates: [
+        wardAbility({
+            id: "svyelun-of-sea-and-sky-ward",
+            cost: { generic: 1 },
+            costLabel: "{1}",
+        }),
+    ],
+    triggeredAbilities: [
+        attacksTrigger({
+            id: "svyelun-of-sea-and-sky-attack-draw",
+            oracleText: "Whenever Svyelun attacks, draw a card.",
+            scope: "self",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        }),
     ],
 }));
 
