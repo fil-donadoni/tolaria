@@ -61,8 +61,8 @@ REPORTED as a missing term. `RootDecisionMechanism` is FROZEN behind
 Prototype gate is read the freeze covers every hand-written weight or
 preference (root rule, rollout priority, dominance prune, hand-picked
 constant); a bug, a Bot Gap, a `must` forced loss and a missing QUANTITY still
-get code. Run no `verdicts:promote`: player Verdicts outside the lock are the
-exam.
+get code. Run no `verdicts:promote` (it refuses): player Verdicts outside the
+lock are the exam, taken in by `bun run verdicts:exam`.
 
 **1. Capture the position — do not reconstruct it from memory.** A symptom you
 cannot re-run is an anecdote, and a board rebuilt from recollection is a
