@@ -5527,7 +5527,7 @@ export const OP_EXECUTORS: {
     setCardTypes(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
-        ctx.setCardTypes(target, op.types);
+        ctx.setCardTypes(target, op.types, op.duration);
     },
     // CR 613.1f layer 6 (issue #2361) — the target permanent LOSES ALL
     // ABILITIES indefinitely (CR 611.2c — Oko, Thief of Crowns' `+1`). A thin

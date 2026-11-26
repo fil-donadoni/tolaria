@@ -16091,10 +16091,42 @@ export function buildSpellContext(
         // provenance through the identical code; this primitive stays the
         // after-the-fact form, for a permanent ALREADY on the battlefield
         // (Oko's `+1`).
-        setCardTypes(target: TargetSelection, types: CardType[]): void {
+        setCardTypes(
+            target: TargetSelection,
+            types: CardType[],
+            duration?: DurationSpec
+        ): void {
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
+            if (duration) {
+                // CR 205.1a / 611.2a (issue #10555) — the same whole-line set
+                // for a STATED duration: a Continuous Effects Registry entry
+                // the registry's boundary tick expires, so the printed line
+                // returns when the duration ends. The ABILITY's controller
+                // owns the duration ("your next turn").
+                ensureLayer4Base(found.card);
+                pushContinuousEffect(state, {
+                    layer: 4,
+                    affected: {
+                        kind: "instances",
+                        instanceIds: [found.card.id],
+                    },
+                    expiry: {
+                        kind: "duration",
+                        duration: resolveDuration(
+                            duration,
+                            item.castById,
+                            state
+                        ),
+                        controllerId: item.castById,
+                    },
+                    payload: { kind: "type-change", set: types.slice() },
+                    characteristicDefining: false,
+                });
+                syncLayers2to5(state);
+                return;
+            }
             applyCardTypeSet(found.card, types, allocStaticTimestamp(state));
             syncLayers2to5(state);
         },

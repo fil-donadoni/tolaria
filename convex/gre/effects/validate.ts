@@ -2246,6 +2246,14 @@ function isDivideValue(value: unknown): boolean {
     return isDivideOperand(s.value);
 }
 
+/** A BASE power/toughness an animation sets (issue #10555): a literal — 0
+ *  is legal (the earthbend 0/0), which `isEffectValue`'s positive
+ *  literal refuses — or any `EffectValue` read off the game at resolution
+ *  (CR 608.2h — "each equal to its mana value"). */
+function isBaseStatValue(value: unknown): boolean {
+    return isNonNegativeInt(value) || isEffectValue(value);
+}
+
 /** A numeric Op parameter (ADR 0045 value grammar): a positive-int literal,
  *  a `ref`, a `count`, the chosen-cost `X`, a `counters` count
  *  on a selected object, a selected object's `manaValue`, a characteristic of the cost-`sacrificed` permanent,
@@ -2258,14 +2266,6 @@ function isDivideValue(value: unknown): boolean {
  *  Exactly those — one non-nestable subtraction, one non-nestable
  *  multiplication, one non-nestable division, and beyond them no arithmetic
  *  and no expressions. */
-/** A BASE power/toughness an animation sets (issue #10555): a literal — 0
- *  is legal (CR 107.4b, the earthbend 0/0), which `isEffectValue`'s positive
- *  literal refuses — or any `EffectValue` read off the game at resolution
- *  (CR 608.2h — "each equal to its mana value"). */
-function isBaseStatValue(value: unknown): boolean {
-    return isNonNegativeInt(value) || isEffectValue(value);
-}
-
 function isEffectValue(value: unknown): boolean {
     return (
         isPositiveInt(value) ||
@@ -6300,6 +6300,11 @@ const OP_SCHEMAS: OpSchemaTable = {
         required: {
             target: isObjectSelector,
             types: (v) => isNonEmptyStringArray(v, TOKEN_CARD_TYPES),
+        },
+        optional: {
+            // Issue #10555 — a stated duration (CR 611.2a); omitted is the
+            // indefinite set.
+            duration: isDurationSpec,
         },
     },
     // CR 613.1f layer 6 (issue #2361) — a permanent LOSES ALL ABILITIES,

@@ -18,11 +18,13 @@ import { defineCard } from "../../types";
 //     abilities in other zones stay activatable.
 //   • +1 — "Until your next turn, up to one target noncreature artifact
 //     becomes an artifact creature with power and toughness each equal to its
-//     mana value." Up to one target is min 0 (CR 601.2c). `animate` adds the
-//     Creature type (CR 205.1b) with a base P/T read off the target's mana
-//     value (CR 202.3e — an {X} counts 0 on the battlefield), determined once
-//     when the effect is applied (CR 608.2h). "Until your next turn" ends as
-//     Karn's controller's next untap step begins (CR 611.2a).
+//     mana value." Up to one target is min 0 (CR 601.2c). The type line is
+//     SET to artifact creature (CR 205.1a — no "still a land" clause, so an
+//     artifact land or artifact enchantment loses its other card types):
+//     `setCardTypes` with a duration. `animate` then sets the base P/T read
+//     off the target's mana value (CR 202.3e — an {X} counts 0 on the
+//     battlefield), determined once when the effect is applied (CR 608.2h).
+//     Both last until Karn's controller's next untap step begins (CR 611.2a).
 //   • −2 — "You may reveal an artifact card you own from outside the game or
 //     choose a face-up artifact card you own in exile. Put that card into your
 //     hand." The player picks one of the two sources during resolution
@@ -66,6 +68,12 @@ export const karnTheGreatCreator = defineCard(() => ({
                 count: { min: 0, max: 1 },
             },
             effects: [
+                {
+                    op: "setCardTypes",
+                    target: { target: 0 },
+                    types: ["Artifact", "Creature"],
+                    duration: { phase: "untap", player: "controller" },
+                },
                 {
                     op: "animate",
                     target: { target: 0 },

@@ -138,6 +138,17 @@ describe("Karn, the Great Creator — +1 (CR 608.2h, CR 611.2a)", () => {
         });
     });
 
+    it("the type line is SET: an artifact land becomes an artifact creature and stops being a land (CR 205.1a)", () => {
+        const state = board({
+            theirs: [perm("Seat of the Synod", "seat", "p2")],
+        });
+        resolveActivated(state, karnOf(state), PLUS1, [
+            { type: "permanent", id: "seat" },
+        ]);
+        const seat = onBattlefield(state, "seat")!;
+        expect([...seat.types].sort()).toEqual(["Artifact", "Creature"]);
+    });
+
     it("an {X} artifact's mana value is 0 on the battlefield, so it dies as a 0/0 (CR 202.3e)", () => {
         const state = board({
             theirs: [perm("Chalice of the Void", "chalice", "p2")],
