@@ -765,6 +765,10 @@ _Avoid_: Move type, action kind, category
 A decision telemetry noticed and queued for the player to rule on later. Most are disagreements — the play they made differed from what the **Evaluation** would have picked, by more than a margin worth recording — but a share are ordinary decisions where player and **Brain** agreed, sampled by quota per **Decision Class** so that the kinds of decision nobody argues about are judged too: a corpus made only of disagreements cannot see a change that breaks what the **Brain** already gets right. A decision the player commented while playing is always queued, whatever the quota, and carries their words and the **Plan** they had in force at it. It is a question, never an answer: confirmed, it becomes a **Verdict**; unconfirmed, it stays a position nobody has judged, whether or not the **Brain** agreed. The distinction is the whole point — a move a player chose in the middle of a game is not a move they would defend. A player reviewing their own plays after a game answers the same queue. The **Brain**'s pick on each sampled decision is computed on the player's own device once the game is over, apart from the Bot's search, at a fixed iteration budget and seed, so the same decision gets the same answer whatever device it was played on.
 _Avoid_: Implicit verdict, auto-label, inferred judgement
 
+**Synthetic Verdict**:
+A language model's answer to one decision — the position, the candidate moves and the one it picks, as a **Verdict** holds them — given outside any game. Never a **Verdict**, which is a player's, and never an **Attestation**: it is a class of its own, and it may teach the **Evaluation** only while the model's answers, measured on players' **Verdicts** it was never shown, agree with players more often than the **Brain** does. Players' **Verdicts** are what it is measured against, so they are never replaced by it.
+_Avoid_: LLM verdict, generated verdict, auto-label, **Attestation**
+
 **Eval Pair**:
 Two positions ordered by a **Verdict** — the board after the right move against the board after any other candidate — checked against the **Evaluation** alone: no search, microseconds. The **Evaluation**'s own correctness metric, as the **Test Position** is the search's: a test position proves a forced play is not missed, an eval pair proves the value function orders two boards the way a player would.
 _Avoid_: Eval test, weight test, position test
@@ -772,6 +776,10 @@ _Avoid_: Eval test, weight test, position test
 **Weight Fit**:
 The deterministic procedure that turns the accumulated **Verdicts** into the **Evaluation**'s weights: every **Eval Pair** is a constraint the weights should satisfy by a fixed margin, the fit moves the weights as little as possible from where they are to satisfy as many as it can, and reports the pairs it could not — those name a missing term, never a bad player. A **Minimal Pair** is reported as one unit: when the fit satisfies one half and not the other, it has settled on "always" or "never", and the report names the **Discriminant** no term of the **Evaluation** reads. Same verdicts, same weights, to the bit; no self-play, no **Ladder**.
 _Avoid_: Training, machine learning, tuning run, calibration
+
+**Card Residual**:
+A correction to what the **Evaluation** makes of one specific card, over and above what that card's mechanics are worth. The **Weight Fit** pulls it toward zero, so it stays at nothing until many judged decisions say the mechanics alone misprice the card. A large one is a finding before it is a fix: it names a mechanic the **Evaluation** does not read yet. The escape hatch, never the model — whatever a mechanic can express is priced by the mechanic.
+_Avoid_: Card weight, card rating (the draft's rating of a card is a different number), per-card boost
 
 **Held-out Agreement**:
 How often the **Brain** answers the way a player did on **Verdicts** it was never tuned against. The **Verdicts** are divided once, by their own content, into a side the **Weight Fit** may read and a side it never sees; the two halves of a **Minimal Pair** always fall on the same side, since either half alone is half an argument; agreement is counted only on the unseen side, because agreement on judgements the weights were fitted to is inflated by memorisation and says nothing about a position nobody has judged yet. Counted two ways: _eval agreement_ — the share of unseen **Eval Pairs** the **Evaluation** alone orders as the player did — and _pick agreement_ — the share of unseen **Verdicts** where the whole **Brain**, search included, chooses the player's move. Pick agreement is the **Brain**'s strength number, the one that is meant to climb; the gap between the two says what the search adds to, or takes from, the **Evaluation** beneath it.
@@ -1428,7 +1436,11 @@ _Avoid_: Plan (that is what a player intends at the table), deck plan, strategy,
 
 **Plan**:
 What a **Player** intends to do over the coming turns, stated before acting: "remove a creature this turn, Jace next turn, two lands open at their end step". Declared by a person in play, never read off the moves they then made, and it stands until they state another. The multi-turn intent a single **Verdict** cannot hold. Distinct from **Deck Needs**, which the cards carry whoever is playing them.
-_Avoid_: Intent, game plan, line, strategy, Deck Needs (the former holder of this name)
+_Avoid_: Intent, game plan, strategy, **Line** (that is the moves actually played), Deck Needs (the former holder of this name)
+
+**Line**:
+A demonstrated course of play: a starting position and the moves actually made from it, decision by decision, over as many turns as it takes, the opponent's replies included. Distinct from a **Plan**: the Plan is the intention a player states, the Line is what was played. It is read twice — as a test, where the **Brain** played forward from the start must carry it to its end, and as one judged decision for each move of the player it demonstrates.
+_Avoid_: Sequence (in code that names two consecutive decisions on a kept tree), combo, script, **Plan**
 
 **Rationale**:
 Why a **Player** made one decision, in their own words kept verbatim, together with its decomposition: the factors that weighed on it and which one dominated the others in that position. The decomposition may be proposed by tooling but counts only once its author confirms it. One person's word, so it is kept with their **Attestation**, never on the **Verdict** two people share.

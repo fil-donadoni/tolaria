@@ -1,5 +1,7 @@
 # Bot strength is held-out agreement with player Verdicts; the ladder keeps no objective
 
+**Amended by ADR 0186 (2026-11-26):** until its Prototype gate is read, every player Verdict not yet in the Verdict Lock lands on the held-out side and no Promotion runs; the permanent ratio is decided at that reading.
+
 **Amended by ADR 0148 (2026-11-08, issue #8726):** the split rule and paired Verdicts.
 
 ## Status
