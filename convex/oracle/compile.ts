@@ -743,10 +743,13 @@ function compileStationCard(card: OracleCard): CompileOutcome {
     const asCard = (lines: readonly string[]): OracleCard => {
         // CR 721.2c — the card's printed P/T is a striation's box, never the
         // card's own, so no part is compiled with it.
-        const rest: OracleCard = { ...card };
-        delete rest.power;
-        delete rest.toughness;
-        return { ...rest, oracleText: lines.join("\n"), layout: "normal" };
+        return {
+            ...card,
+            power: undefined,
+            toughness: undefined,
+            oracleText: lines.join("\n"),
+            layout: "normal",
+        };
     };
     const refuse = (line: string, reason: string): CompileOutcome =>
         unparsed([{ line, fragment: line, reason }]);
