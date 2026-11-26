@@ -445,9 +445,10 @@ export type CompiledTriggerHead =
     /**
      * CR 605.1b + CR 303.4b — "whenever enchanted land is tapped for mana":
      * the Aura host's mana-ability tap. The trigger is itself a mana ability
-     * (CR 605.1b) and resolves without the stack.
+     * (CR 605.1b) and resolves without the stack. `any` is "whenever a player
+     * taps a land for mana" (CR 106.12): every land, whoever controls it.
      */
-    | { readonly kind: "tapped-for-mana"; readonly scope: "host" }
+    | { readonly kind: "tapped-for-mana"; readonly scope: "host" | "any" }
     /** CR 603.2 — "whenever this creature becomes the target of a spell or
      *  ability" (any spell or ability). Self only. */
     | { readonly kind: "became-target" }
@@ -969,15 +970,20 @@ function resolveCompiledTriggerHead(
                 common.effects.length > 0 &&
                 common.effects.every((op) => op.op === "addMana");
             const bonus = fixedExtraMana(common.effects);
+            // CR 205.2a — "a player taps a LAND": the tapped permanent's type.
+            const anyLand = head.scope === "any";
             return tappedTrigger({
                 ...common,
                 scope: head.scope,
+                ...(anyLand ? { filter: { types: "Land" as const } } : {}),
                 forMana: true,
                 ...(addsMana ? { manaAbility: true } : {}),
                 ...(bonus !== undefined
                     ? {
                           manaBonusForPotential: {
-                              appliesTo: "host" as const,
+                              appliesTo: anyLand
+                                  ? { filter: { types: "Land" as const } }
+                                  : ("host" as const),
                               amount: { kind: "fixed" as const, mana: bonus },
                           },
                       }

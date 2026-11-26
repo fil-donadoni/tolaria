@@ -710,7 +710,7 @@ export type EffectSentenceIR =
           /**
            * CR 605.4 — "Its controller adds an additional {G}":
            * the mana goes to the controller of the permanent a host-tapped
-           * head named (`SiteAntecedents.tappedController`).
+           * head named (`SiteAntecedents.landController`).
            */
           readonly itsController?: true;
           /**
@@ -5847,6 +5847,8 @@ const LOSE_ABILITIES_BECOME_CREATURE =
 const QUOTED_GRANT_TAIL = /^"([^"]+)"$/;
 const DAMAGE = /^(.+) deals (\S+|that much) damage to (.+)$/;
 const THAT_CREATURE_CONTROLLER = "that creature's controller";
+/** CR 110.2 — the controller of the land the trigger head named. */
+const THAT_LAND_CONTROLLER = "that land's controller";
 /** CR 601.2d — "deals N damage divided as you choose among <targets>". */
 const DAMAGE_DIVIDED =
     /^(.+) deals (\S+) damage divided as you choose among (.+)$/;
@@ -6248,6 +6250,11 @@ function permanentCardTypeList(phrase: string): readonly CardType[] | null {
 /** "up to one target creature" is a TARGET (CR 115.1) and stays with the
  *  announced-subject path; only an unannounced noun phrase is a choice. */
 const UNTAP_UP_TO = /^Untap up to (\S+) (?!target )(.+)$/;
+/**
+ * CR 701.26a + CR 110.2 — "Tap all lands its controller controls": a tap
+ * sweep over the battlefield of the land the trigger head named.
+ */
+const TAP_LAND_CONTROLLER_SWEEP = /^Tap (all .+) its controller controls$/;
 /** CR 106.4 — the tail of a tap sweep over an announced player's permanents. */
 const TAP_TARGET_PLAYER_SWEEP_DRAIN =
     /^Tap (all .+) target player controls and that player loses all unspent mana$/;
@@ -9428,15 +9435,21 @@ function effectSentence(
         // CR 110.2 + CR 608.2h — "that creature's controller": the player who
         // controls the creature an earlier sentence targeted. Read as one exact
         // phrase; the referent is the lowering's to check.
+        // CR 110.2 — "that land's controller": the land the head named.
         const to: RuleResult<SubjectIR> =
             damage[3] === THAT_CREATURE_CONTROLLER
                 ? ok({
                       kind: "player" as const,
                       player: { kind: "that-creature-controller" as const },
                   })
-                : sweep !== null && sweep.ok
-                  ? sweepRecipient(sweep.value, withPlayers)
-                  : subjectRule.run(damage[3]!, ctx);
+                : damage[3] === THAT_LAND_CONTROLLER
+                  ? ok({
+                        kind: "player" as const,
+                        player: { kind: "that-land-controller" as const },
+                    })
+                  : sweep !== null && sweep.ok
+                    ? sweepRecipient(sweep.value, withPlayers)
+                    : subjectRule.run(damage[3]!, ctx);
         if (!to.ok) return to;
         return ok({
             kind: "deal-damage" as const,
@@ -9836,6 +9849,26 @@ function effectSentence(
                     targetPlayerControls: true as const,
                 } as SubjectIR,
                 thenDrainsManaPool: true as const,
+            } satisfies EffectSentenceIR);
+        }
+        // CR 701.26a + CR 110.2 — "Tap all lands its controller controls":
+        // the swept permanents are those of the land's controller the head
+        // named; the lowering supplies that player, or refuses the line.
+        const landSwept =
+            action === "tap" ? span.match(TAP_LAND_CONTROLLER_SWEEP) : null;
+        if (landSwept !== null) {
+            const mass = massSubjectRule.run(landSwept[1]!, ctx);
+            if (!mass.ok) return mass;
+            if (mass.value.select.controller !== undefined)
+                return fail("two controller clauses", span);
+            return ok({
+                kind: "tap-untap" as const,
+                action,
+                subject: {
+                    kind: "mass" as const,
+                    ...mass.value,
+                    landControllerControls: true as const,
+                } as SubjectIR,
             } satisfies EffectSentenceIR);
         }
         const subject = sweepableSubject(span.slice(verb.length), ctx);

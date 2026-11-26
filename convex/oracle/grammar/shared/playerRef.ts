@@ -59,6 +59,14 @@ export type PlayerRefIR =
      */
     | { readonly kind: "that-creature-controller" }
     /**
+     * CR 110.2 + CR 608.2h — "that land's controller": the controller of the
+     * LAND the trigger head named ("whenever a land enters"). Never in
+     * `PHRASES`: only the damage recipient reads it (`effectClause.ts`). The
+     * lowering site supplies the referent, and a head that named no land
+     * refuses the line.
+     */
+    | { readonly kind: "that-land-controller" }
+    /**
      * CR 109.4 + CR 608.2h — "its controller" / "that artifact's controller":
      * the controller of the ONE object the sentence before acted on. Never in
      * `PHRASES`: only the life recipient reads it (`effectClause.ts`), so every
