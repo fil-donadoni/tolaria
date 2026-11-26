@@ -5551,24 +5551,55 @@ const GIFT_PROMISED_INSTEAD = "If the gift was promised, instead ";
 const EXACT_PAIR_CLAUSE =
     /^(?:destroy two target .+|return two target .+ to your hand)$/;
 const GIFT_NOT_PROMISED = /^If the gift wasn(?:'|’)t promised, (.+)$/;
+const GIFT_PROMISED_ADDS = "If the gift was promised, ";
+/**
+ * "<subject> also <verb> …": the adverb an additive clause prints when it
+ * repeats an object the sentence before it acted on — the spell ("{self} also
+ * deals 3 damage …"), the creature it targeted ("that creature also gains …"),
+ * the group it swept ("permanents you control also gain …"). It adds nothing
+ * the gate does not already say, so it is dropped — for exactly those subjects
+ * and the verbs the corpus prints behind a gift, and nowhere else: "target
+ * creature also gains …" repeats nothing, and the kicker twin ("If this spell
+ * was kicked, that creature also gains …") has no fixture here.
+ */
+const GIFT_ALSO_SUBJECTS: ReadonlySet<string> = new Set([
+    SELF_MARKER,
+    "that creature",
+    "permanents you control",
+]);
+const GIFT_ALSO = /^(.+?) also (deals|gains?) (.+)$/;
+
+/** The additive clause's tail with its "also" dropped (`GIFT_ALSO`). */
+function withoutAlso(clause: string): string {
+    const also = clause.match(GIFT_ALSO);
+    return also === null || !GIFT_ALSO_SUBJECTS.has(also[1]!)
+        ? clause
+        : `${also[1]} ${also[2]} ${also[3]}`;
+}
 
 /**
  * CR 702.174k — a spell sentence that reads its gift's promise: "If the gift
  * was promised, instead <effect>" replaces the effect before it, "If the gift
- * wasn't promised, <effect>" does its work only when the promise was not made.
+ * wasn't promised, <effect>" does its work only when the promise was not made,
+ * and the ADDITIVE "If the gift was promised, <effect>" (CR 702.174b's "if
+ * this spell's gift cost was paid, [effect]") adds its effect to the base's.
+ * CR 702.174m — a target inside a promised part is chosen only if the gift
+ * was promised: the lowering's `announcedOnlyIfKicked`, as for a kicker.
  *
- * A combinator like `kickedSentenceRule`, and as fail-closed. The ADDITIVE
- * clause ("If the gift was promised, <effect>") is not read here: it stays
- * refused under its own gap key.
+ * A combinator like `kickedSentenceRule`, and as fail-closed.
  */
 export function giftSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
     return rule(`gift ${inner.label}`, (span, ctx) => {
         const replaces = span.startsWith(GIFT_PROMISED_INSTEAD);
         const unpromised = span.match(GIFT_NOT_PROMISED);
-        if (!replaces && unpromised === null) return inner.run(span, ctx);
+        const adds = !replaces && span.startsWith(GIFT_PROMISED_ADDS);
+        if (!replaces && unpromised === null && !adds)
+            return inner.run(span, ctx);
         const clause = replaces
             ? span.slice(GIFT_PROMISED_INSTEAD.length)
-            : unpromised![1]!;
+            : adds
+              ? withoutAlso(span.slice(GIFT_PROMISED_ADDS.length))
+              : unpromised![1]!;
         const parsed = inner.run(
             capitalise(clause),
             replaces && EXACT_PAIR_CLAUSE.test(clause)
@@ -5593,7 +5624,7 @@ export function giftSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
                           kind: "kicked" as const,
                           kicked: { kind: "gift" as const },
                           effect: parsed.value.effect,
-                          unpaid: true as const,
+                          ...(adds ? {} : { unpaid: true as const }),
                       },
                   }
         );

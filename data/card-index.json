@@ -9560,6 +9560,16 @@
         "firstPrintSet": "vow"
     },
     {
+        "name": "Blooming Blast",
+        "scryfallId": "0cd92a83-cec3-4085-a929-3f204e3e0140",
+        "oracleId": "2e5b8973-4f6e-4abe-bbbe-81fdca784997",
+        "firstSet": "blb",
+        "firstPrintId": "0cd92a83-cec3-4085-a929-3f204e3e0140",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Blooming Marsh",
         "scryfallId": "90da33d4-fe9c-42fe-b326-2fe337dc3ecd",
         "oracleId": "66fa2326-1b5d-41fb-b919-83bf9f383577",
@@ -17150,6 +17160,16 @@
         "source": "compiled"
     },
     {
+        "name": "Consumed by Greed",
+        "scryfallId": "e50acc41-3517-42db-b1d3-1bdfd7294d84",
+        "oracleId": "b548578c-4910-402c-8e78-498924e0a9be",
+        "firstSet": "blb",
+        "firstPrintId": "e50acc41-3517-42db-b1d3-1bdfd7294d84",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Consuming Aetherborn",
         "scryfallId": "7311ade8-eb75-40f8-b018-668762aa3b77",
         "oracleId": "4d472308-5bc7-4a3c-81b5-0a757f00d9e2",
@@ -18667,6 +18687,16 @@
         "firstPrintId": "6c05bfb5-dd36-44c5-a60d-43f7f8c68a6b",
         "firstPrintSet": "por",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Crumb and Get It",
+        "scryfallId": "3c7b3b25-d4b3-4451-9f5c-6eb369541175",
+        "oracleId": "93596258-bb44-4aa3-833d-9a0ab16b5ec1",
+        "firstSet": "blb",
+        "firstPrintId": "3c7b3b25-d4b3-4451-9f5c-6eb369541175",
+        "firstPrintSet": "blb",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -20471,6 +20501,16 @@
         "firstPrintId": "76e80656-6bcb-4d99-8bd2-ca5f75f40daf",
         "firstPrintSet": "ecl",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Dawn's Truce",
+        "scryfallId": "8f72bfa0-efef-48ce-aff8-d5818ed71ba6",
+        "oracleId": "37c06f89-db36-4937-9404-2b07cd22e1a6",
+        "firstSet": "blb",
+        "firstPrintId": "8f72bfa0-efef-48ce-aff8-d5818ed71ba6",
+        "firstPrintSet": "blb",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -75589,6 +75629,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sazacap's Brew",
+        "scryfallId": "6d963080-b3ec-467d-82f7-39db6ecd6bbc",
+        "oracleId": "ac7d1986-8388-4e4c-973e-d90382b12acf",
+        "firstSet": "blb",
+        "firstPrintId": "6d963080-b3ec-467d-82f7-39db6ecd6bbc",
+        "firstPrintSet": "blb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Scab-Clan Charger",
         "scryfallId": "964c88d3-3141-44ab-8856-44a3f08331ea",
         "oracleId": "2f947056-fa10-4491-95e5-532ea3b76d10",
@@ -97522,6 +97572,16 @@
         "firstPrintId": "7256451f-0122-452a-88e8-0fb0f6bea3f3",
         "firstPrintSet": "blb",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Valley Rally",
+        "scryfallId": "b6178258-1ad6-4122-a56f-6eb7d0611e84",
+        "oracleId": "5b919920-b1b6-499b-a7fe-c630778a7831",
+        "firstSet": "blb",
+        "firstPrintId": "b6178258-1ad6-4122-a56f-6eb7d0611e84",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
