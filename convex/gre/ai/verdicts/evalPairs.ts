@@ -306,6 +306,7 @@ export function evalPairsOf(
 const RETIRED_ABILITY_IDS: Readonly<Record<string, string>> = {
     "treetop-village-animate": "treetop-village-ability-2",
     "blazing-rootwalla-pump": "blazing-rootwalla-ability",
+    "strip-mine-destroy": "strip-mine-ability-2",
 };
 
 /** The verdict's candidates as the moves `state` enumerates for `botId`, in
