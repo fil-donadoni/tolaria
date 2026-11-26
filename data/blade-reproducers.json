@@ -2706,6 +2706,94 @@
         }
     },
     "exile trigger: Leyline Binding takes the greater of two threats": null,
+    "expiring exile land: hold the hand land drop for Laelia's attack (CR 305.2)": {
+        "cards": [
+            {
+                "name": "Laelia, the Blade Reforged",
+                "owner": "me"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me"
+            },
+            {
+                "name": "Snow-Covered Mountain",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "opp"
+            },
+            {
+                "name": "Forest",
+                "owner": "opp"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 7,
+        "libraryCount": 20,
+        "activePlayer": "me",
+        "priority": "me"
+    },
+    "expiring exile land: play the exiled land before the hand land (CR 305.2)": {
+        "cards": [
+            {
+                "name": "Snow-Covered Mountain",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Laelia, the Blade Reforged",
+                "owner": "me",
+                "tapped": true
+            },
+            {
+                "name": "Mountain",
+                "owner": "me"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "exile",
+                "castableFromExile": true,
+                "castableFromExileIncludesLand": true
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp"
+            },
+            {
+                "name": "Forest",
+                "owner": "opp"
+            },
+            {
+                "name": "Forest",
+                "owner": "opp"
+            }
+        ],
+        "phase": "POSTCOMBAT_MAIN",
+        "turn": 7,
+        "libraryCount": 20,
+        "activePlayer": "me",
+        "priority": "me"
+    },
     "explore: bins the revealed blank instead of leaving it as the next draw": null,
     "extra turn: casts Time Walk with attackers on board": {
         "phase": "POSTCOMBAT_MAIN",
