@@ -258,3 +258,62 @@ export const theOneRing = defineCard(() => ({
         },
     ],
 }));
+
+// Horn of the Mark — {2} Legendary Artifact (issue #10509, PRD #10494 Modern
+// Merfolk).
+//   Trigger head: CR 508.3a — "Whenever [a creature] attacks [a player]"
+//     triggers if that creature is declared as an attacker attacking that
+//     player. "Two or more creatures you control attack a player" reads the
+//     declared defender of each attacker: an entry in `combat.attackTargets`
+//     names a planeswalker or battle, and its absence the defending player
+//     (the same read Dethrone makes, `abilities/dethrone.ts`). Per the
+//     official ruling, attackers at a planeswalker or battle do not count, and
+//     the two must attack the SAME player — in this engine's two-player scope
+//     CR 506.2 makes the nonactive player the only player who can be
+//     attacked, so the count of player-attackers in the one
+//     `ATTACKERS_DECLARED` batch is that player's count, and the ability
+//     fires at most once per declaration.
+//   Body: the shared `lookDistribute` Op, the shape Once Upon a Time
+//     (`eld/green.cards.ts`) and Narset already use for "look at the top N,
+//     you may reveal one matching card and put it into your hand, the rest
+//     on the bottom in a random order". No new Op.
+// hand-tail: Whenever two or more creatures you control attack a player, look at the top five cards of your library. You may reveal a creature card from among them and put it into your hand. Put the rest on the bottom of your library in a random order. (#10509)
+export const hornOfTheMark = defineCard(() => ({
+    id: "dd86b71f-d736-426f-bf15-013bc8da1a08",
+    name: "Horn of the Mark",
+    rarity: "rare",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    supertypes: ["Legendary"],
+    oracleText:
+        "Whenever two or more creatures you control attack a player, look at the top five cards of your library. You may reveal a creature card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.",
+    triggeredAbilities: [
+        {
+            id: "horn-of-the-mark-attack",
+            oracleText:
+                "Whenever two or more creatures you control attack a player, look at the top five cards of your library. You may reveal a creature card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.",
+            event: "ATTACKERS_DECLARED",
+            matches: (event, self, state) =>
+                event.type === "ATTACKERS_DECLARED" &&
+                event.attackingPlayerId === self.controllerId &&
+                state !== undefined &&
+                event.attackerIds.filter(
+                    (id) => state.combat?.attackTargets?.[id] === undefined
+                ).length >= 2,
+            effects: [
+                {
+                    op: "lookDistribute",
+                    keepTo: "hand",
+                    player: "controller",
+                    look: 5,
+                    take: 1,
+                    optional: true,
+                    filter: { type: ["Creature"] },
+                    reveal: "kept",
+                    randomBottom: true,
+                    prompt: "Horn of the Mark — you may put a creature card into your hand.",
+                },
+            ],
+        },
+    ],
+}));
