@@ -20139,12 +20139,20 @@ export type EffectOp =
      *  not at all: omitting both (issue #7212) sets no base P/T, so the
      *  permanent keeps the one it has — CR 301.7b's "it immediately has its
      *  printed power and toughness" for a crew ability GRANTED to a permanent
-     *  whose stats the granting card cannot know. */
+     *  whose stats the granting card cannot know.
+     *
+     *  `power`/`toughness` are `EffectValue`s (issue #10555): a literal, or a
+     *  value read off the game — "becomes an artifact creature with power and
+     *  toughness each equal to its mana value" (Karn, the Great Creator) is
+     *  `{ manaValue: { of: { target: 0 } } }`. CR 608.2h — the answer is
+     *  determined ONCE, when the effect is applied: the interpreter resolves
+     *  both at resolution and hands the primitive the numbers, so the base
+     *  P/T is locked for the animation's lifetime. */
     | {
           op: "animate";
           target: EffectObjectSelector;
-          power?: number;
-          toughness?: number;
+          power?: EffectValue;
+          toughness?: EffectValue;
           subtype?: string;
           /** CR 205.3m (issue #10511) — "with all creature types"; see
            *  `AnimateSpec.allCreatureTypes`. */

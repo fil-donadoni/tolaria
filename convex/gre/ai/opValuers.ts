@@ -2481,15 +2481,24 @@ const drainManaPool: Valuer<"drainManaPool"> = () => ZERO_OP_VALUE;
 
 const addSubtype: Valuer<"addSubtype"> = () => ZERO_OP_VALUE;
 
-const animate: Valuer<"animate"> = (op) => {
+const animate: Valuer<"animate"> = (op, ctx) => {
     const points =
         ANIMATE_DISCOUNT *
         creatureValueRaw(
             // Both absent (issue #7212): the body is the permanent's own, which
             // a leaf valuer has no state to read; the animation prices as the
-            // bare type change.
-            Math.max(0, op.power ?? 0),
-            Math.max(0, op.toughness ?? 0),
+            // bare type change. A value read off the game (issue #10555 —
+            // "each equal to its mana value") grounds like every other amount;
+            // a literal grounds to itself, so literal animations price as
+            // before.
+            Math.max(
+                0,
+                op.power === undefined ? 0 : ctx.value(op.power).amount
+            ),
+            Math.max(
+                0,
+                op.toughness === undefined ? 0 : ctx.value(op.toughness).amount
+            ),
             0,
             op.grantedAbilities ?? []
         );

@@ -2258,6 +2258,14 @@ function isDivideValue(value: unknown): boolean {
  *  Exactly those — one non-nestable subtraction, one non-nestable
  *  multiplication, one non-nestable division, and beyond them no arithmetic
  *  and no expressions. */
+/** A BASE power/toughness an animation sets (issue #10555): a literal — 0
+ *  is legal (CR 107.4b, the earthbend 0/0), which `isEffectValue`'s positive
+ *  literal refuses — or any `EffectValue` read off the game at resolution
+ *  (CR 608.2h — "each equal to its mana value"). */
+function isBaseStatValue(value: unknown): boolean {
+    return isNonNegativeInt(value) || isEffectValue(value);
+}
+
 function isEffectValue(value: unknown): boolean {
     return (
         isPositiveInt(value) ||
@@ -4572,6 +4580,7 @@ isPredicate.fieldKind = "amountHost" as const;
 // A comparison predicate's two operands (`EffectComparisonPredicate`).
 isPredicate.innerAmounts = ["left", "right"] as const;
 isLibraryPosition.fieldKind = "amount" as const;
+isBaseStatValue.fieldKind = "amount" as const;
 isEffectTokenSpec.fieldKind = "scriptScope" as const;
 
 const OP_SCHEMAS: OpSchemaTable = {
@@ -6257,8 +6266,8 @@ const OP_SCHEMAS: OpSchemaTable = {
             target: isObjectSelector,
         },
         optional: {
-            power: isNonNegativeInt,
-            toughness: isNonNegativeInt,
+            power: isBaseStatValue,
+            toughness: isBaseStatValue,
             subtype: isNonEmptyString,
             // CR 205.3m (issue #10511) — "with all creature types".
             allCreatureTypes: (v) => v === true,

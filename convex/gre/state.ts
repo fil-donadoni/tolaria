@@ -22198,6 +22198,26 @@ export function buildSpellContext(
             flashback: boolean;
         }> {
             return getPlayer(state, playerId).exile.map((c) => {
+                // CR 406.3a — "A card exiled face down has no
+                // characteristics": no name, type, colour or mana value a
+                // filter could match, even for a player allowed to look at it
+                // (issue #10555 — "choose a face-up artifact card you own in
+                // exile" can't take one). It is still a card in exile, so an
+                // unfiltered pick or a count still sees it.
+                if (isFaceDownExile(c)) {
+                    return {
+                        id: c.id,
+                        name: "",
+                        types: [],
+                        subtypes: [],
+                        supertypes: [],
+                        manaValue: 0,
+                        colors: [],
+                        counters: c.counters ?? {},
+                        cost: undefined,
+                        flashback: false,
+                    };
+                }
                 const cardId = (c.card as { id?: string }).id;
                 const def = cardId ? tryGetDefinition(cardId) : undefined;
                 // CR 113.6c — see `getHandCards` above.
