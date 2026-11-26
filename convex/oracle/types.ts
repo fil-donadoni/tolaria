@@ -206,6 +206,13 @@ export interface ParseContext {
      */
     readonly auraHost?: true;
     /**
+     * CR 303.4b — the triggered twin of `auraHost`: set by the triggered slot,
+     * and ONLY there, on an Aura's own triggered ability. Read by the verbs
+     * that declare the triggered site among those they have been shown
+     * "enchanted creature" at (`hostSubject`'s `sites`).
+     */
+    readonly auraTriggerHost?: true;
+    /**
      * CR 301.5a — set by the triggered slot, and ONLY there, on a
      * non-creature Equipment's own ability: "equipped creature" in its effect
      * names the creature the source is attached to, lowered as `$host`. Read

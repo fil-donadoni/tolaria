@@ -1821,7 +1821,20 @@ function readMoveMember(
         to = readReturnDestination(zone);
     }
     if (!to.ok) return to;
-    const object = readMoveObject(objectSpan, ctx, referent);
+    // CR 303.4b — "Return enchanted creature to its owner's hand" on an
+    // Aura's activated ability: the host, never announced (CR 115.10). Read
+    // behind the hand return only — exiling the host is the `exile` Op's
+    // (`effectClause.ts`), as an announced battlefield permanent's is.
+    const host =
+        word === "return" && to.value.zone === "hand"
+            ? hostSubject(objectSpan, ctx)
+            : null;
+    const object: RuleResult<MoveObjectIR> =
+        host === null
+            ? readMoveObject(objectSpan, ctx, referent)
+            : host.ok
+              ? ok({ kind: "subject" as const, subject: host.value })
+              : host;
     if (!object.ok) return object;
     const refused = admits(
         object.value,

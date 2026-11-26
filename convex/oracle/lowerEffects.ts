@@ -2653,7 +2653,7 @@ function lowerSentenceBody(
             const to =
                 sentence.to.kind === "player" &&
                 sentence.to.player.kind === "that-creature-controller"
-                    ? lowerThatCreatureController(walk)
+                    ? lowerThatCreatureController(walk, site)
                     : damageTarget(sentence.to, slots, site);
             if (!to.ok) return to;
             const damaged = to.value as { target?: number };
@@ -7573,9 +7573,24 @@ function countWord(n: number): string {
  * information); a creature that stays (tap, pump, counter) is read live.
  */
 function lowerThatCreatureController(
-    walk: SentenceWalk
+    walk: SentenceWalk,
+    site: SiteOptions
 ): Lowered<{ player: EffectPlayerRef }> {
     const announced = walk.targets.requirements();
+    // CR 303.4b + CR 608.2h — behind a head whose subject is the Aura's host
+    // ("whenever enchanted creature becomes tapped, this Aura deals 2 damage
+    // to that creature's controller"), with nothing announced and nothing
+    // acted on before it, "that creature" is the host, and its controller is
+    // read off the `$host` snapshot.
+    const creature = site.antecedents?.creature;
+    if (
+        announced.length === 0 &&
+        walk.actedOn === null &&
+        creature !== undefined &&
+        "ref" in creature &&
+        creature.ref === "$host"
+    )
+        return lowered({ player: { ref: "$host.controller" } });
     const only = announced.length === 1 ? announced[0]! : null;
     if (
         only === null ||
