@@ -2868,6 +2868,15 @@ export interface AnimateSpec {
     toughness?: number;
     /** Optional creature subtype to add while animated (e.g. "Golem"). */
     subtype?: string;
+    /** CR 205.3m (issue #10511) — "becomes a 2/2 creature with ALL CREATURE
+     *  TYPES" (Mutavault): every creature type on the CR 205.3m list is ADDED
+     *  to the subtype line while animated (layer 4, CR 613.1d), and leaves
+     *  with the animation. Not changeling (CR 702.73a is a characteristic-
+     *  defining keyword of the printed object, never granted — see
+     *  `isDefinitionLevelKeyword`); this is an ordinary layer-4 add with the
+     *  animation's own timestamp, so a later "becomes a Frog" still replaces
+     *  the types (CR 613.7). Composes with `subtype` (the add is a union). */
+    allCreatureTypes?: true;
     /** Additional card types to add while animated, beyond "Creature" (which
      *  every animate effect grants implicitly). Mishra's Factory becomes a
      *  "2/2 Assembly-Worker artifact creature" — `additionalTypes: ["Artifact"]`
@@ -20121,6 +20130,9 @@ export type EffectOp =
           power?: number;
           toughness?: number;
           subtype?: string;
+          /** CR 205.3m (issue #10511) — "with all creature types"; see
+           *  `AnimateSpec.allCreatureTypes`. */
+          allCreatureTypes?: true;
           additionalTypes?: CardType[];
           grantedAbilities?: string[];
           /** CR 113.1 / 611.2a / 613.1f (issue #7203) — the `id` of a
