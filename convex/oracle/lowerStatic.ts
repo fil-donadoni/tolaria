@@ -182,8 +182,9 @@ export interface LoweredStatic {
     readonly replacements?: readonly CompiledReplacementEffect[];
     readonly entersWithCounters?: {
         readonly type: string;
-        /** `"X"`: CR 107.3m, the cast X (`lower.ts` checks the {X} pip). */
-        readonly count: number | "X";
+        /** `"X"`: CR 107.3m, the cast X (`lower.ts` checks the {X} pip).
+         *  `{ ifOpponentLostLifeThisTurn }`: CR 119.3, gated on the tally. */
+        readonly count: number | "X" | { ifOpponentLostLifeThisTurn: number };
     };
     /** CR 614.12a / 205.3m — "As this enters, choose a creature type". */
     readonly asEntersCreatureType?: true;
@@ -685,11 +686,31 @@ export function lowerStaticClause(
                 },
             };
         }
-        case "enters-with-counters":
+        case "enters-with-counters": {
+            const { type, count } = clause.counters;
+            // CR 614.1c + CR 119.3 — the gated count rides the entry
+            // vocabulary; a gated "X" is no printed form.
+            if (clause.ifOpponentLostLifeThisTurn === true) {
+                if (typeof count !== "number")
+                    return {
+                        ok: false,
+                        reason: "a life-loss-gated entry rider needs a printed count",
+                    };
+                return {
+                    ok: true,
+                    lowered: {
+                        entersWithCounters: {
+                            type,
+                            count: { ifOpponentLostLifeThisTurn: count },
+                        },
+                    },
+                };
+            }
             return {
                 ok: true,
                 lowered: { entersWithCounters: clause.counters },
             };
+        }
         case "enters-tapped":
             return {
                 ok: true,

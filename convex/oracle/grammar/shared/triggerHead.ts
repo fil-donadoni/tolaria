@@ -133,6 +133,19 @@ export type TriggerHeadIR =
     | { readonly kind: "library-searched"; readonly scope: "opponents" }
     /** CR 702.174c — "whenever you give a gift". */
     | { readonly kind: "gift-given"; readonly scope: "you" }
+    /** CR 119.9 — "whenever you gain life": one life-gain event of the
+     *  ability's controller (a gain of 0 is no event). */
+    | { readonly kind: "life-gained"; readonly scope: "you" }
+    /**
+     * CR 119.3 + CR 603.2 — "whenever you gain or lose life during your
+     * turn": ONE Oracle line over both events of the controller's life total,
+     * narrowed to the controller's own turn as the event happens.
+     */
+    | {
+          readonly kind: "life-gained-or-lost";
+          readonly scope: "you";
+          readonly duringYourTurn: true;
+      }
     /**
      * CR 603.6c — "when this <permanent> is put into a graveyard from the
      * battlefield": the battlefield exit that ends in a graveyard, for ANY
@@ -742,6 +755,15 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     // CR 702.174c — a gift-paid instant or sorcery of yours, or a gift
     // trigger of a permanent you control, resolving.
     ["whenever you give a gift", { kind: "gift-given", scope: "you" }],
+    // CR 119.9 — "you" is the ability's controller; an opponent's gain is
+    // another head.
+    ["whenever you gain life", { kind: "life-gained", scope: "you" }],
+    // CR 119.3 + CR 603.2 — either change of the controller's life total,
+    // only while it is the controller's turn.
+    [
+        "whenever you gain or lose life during your turn",
+        { kind: "life-gained-or-lost", scope: "you", duringYourTurn: true },
+    ],
 ]);
 
 /** Self-subject heads: `<opener> <self phrase> <tail>` (CR 109.2). */
@@ -1073,11 +1095,14 @@ export function headPronounReferent(
         // CR 716.2a — so does the level.
         case "class-level-gained":
             return "source";
+        // CR 119.3 — a life-change head names a player, never an object.
         case "phase":
         case "spell-cast":
         case "sacrificed":
         case "library-searched":
         case "gift-given":
+        case "life-gained":
+        case "life-gained-or-lost":
             return null;
     }
 }

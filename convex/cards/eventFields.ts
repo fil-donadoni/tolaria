@@ -300,6 +300,18 @@ export const EVENT_FIELD_REGISTRY: Record<
                     : undefined,
         },
     },
+    // CR 119.3 — "whenever you gain life, put THAT MANY +1/+1 counters": the
+    // life the event actually gained (post-replacement), the
+    // `DAMAGE_DEALT.amount` shape.
+    LIFE_GAINED: {
+        amount: {
+            family: "number",
+            resolve: (e) =>
+                e.type === "LIFE_GAINED" && Number.isFinite(e.amount)
+                    ? String(e.amount)
+                    : undefined,
+        },
+    },
     // CR 603.6a — "at the beginning of [step]". `activePlayerId` is the player
     // on whose step the event fired (issue #1066 — Collapsing Borders' "at the
     // beginning of EACH PLAYER'S upkeep, THAT PLAYER gains life…"). Unblocks a

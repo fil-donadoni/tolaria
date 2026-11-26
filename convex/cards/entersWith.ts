@@ -90,6 +90,12 @@ export type EntersWithCount =
     // enters with N time counters on it": N when the entering object's
     // impending cost was paid, else nothing.
     | { readonly ifImpended: number }
+    // CR 614.1c + CR 119.3 — "This creature enters with a +1/+1 counter on it
+    // if an opponent lost life this turn": N when any opponent of the entering
+    // permanent's controller has lost life this turn, else nothing. A board
+    // read like `spellsCastThisTurn`, so it counts however the permanent
+    // enters.
+    | { readonly ifOpponentLostLifeThisTurn: number }
     // CR 607.2q — "for each [type] card exiled with it": the cards exiled to
     // pay the cost of the spell that became this permanent (Delve, CR 702.66,
     // or any other cast-time exile cost), still in exile as it enters (CR
@@ -172,6 +178,11 @@ export interface EntersWithCastValues {
         readonly total: number;
         readonly byType: Readonly<Partial<Record<CardType, number>>>;
     };
+    /** CR 119.3 — some opponent of the entering permanent's controller has
+     *  lost life this turn (`GameState.lifeLostThisTurn`). A board read,
+     *  filled by the same one applier as `spellsCastThisTurn`; absent reads
+     *  false (a fixture with no board, a debug placement). */
+    opponentLostLifeThisTurn?: boolean;
 }
 
 /** CR 601.2i (issue #9434) — how many spells the entering permanent's
@@ -265,35 +276,42 @@ export function resolveEntersWithCounters(
                               entry.count.spellsCastThisTurn.types
                           )
                         : typeof entry.count === "object" &&
-                            "ifImpended" in entry.count
-                          ? // CR 702.176a — the impending count, only when that
-                            // cost was paid for the entering object.
-                            cast.impended === true
-                              ? entry.count.ifImpended
+                            "ifOpponentLostLifeThisTurn" in entry.count
+                          ? // CR 614.1c + CR 119.3 — the count only when an
+                            // opponent has lost life this turn.
+                            cast.opponentLostLifeThisTurn === true
+                              ? entry.count.ifOpponentLostLifeThisTurn
                               : 0
-                          : typeof entry.count === "object"
-                            ? // CR 702.33f — "if this creature was kicked with its
-                              // {1}{U} kicker": how many times THAT kicker was paid,
-                              // read by id. An unknown id reads 0 (fail-closed, the
-                              // `kickerPaidCount` rule in `gre/kicker.ts`, not
-                              // imported here to keep this module frontend-light).
-                              Math.max(
-                                  0,
-                                  cast.kickerPayments?.[
-                                      entry.count.additionalCostPaid
-                                  ] ?? 0
-                              )
-                            : // CR 702.44a — Sunburst: "it enters with a charge counter
-                              // on it for each color of mana spent to cast it" (a +1/+1
-                              // counter instead if the object is entering as a creature,
-                              // ignoring type-changing effects — which is why the counter
-                              // TYPE is declared per card and this vocabulary word only
-                              // supplies the COUNT). CR 702.44b restricts it to a
-                              // resolving spell, which is exactly the one entry site that
-                              // can pass a non-empty `manaSpentToCast`.
-                              entry.count === "sunburst"
-                              ? distinctColorsSpent(cast.manaSpentToCast)
-                              : entry.count;
+                          : typeof entry.count === "object" &&
+                              "ifImpended" in entry.count
+                            ? // CR 702.176a — the impending count, only when that
+                              // cost was paid for the entering object.
+                              cast.impended === true
+                                ? entry.count.ifImpended
+                                : 0
+                            : typeof entry.count === "object"
+                              ? // CR 702.33f — "if this creature was kicked with its
+                                // {1}{U} kicker": how many times THAT kicker was paid,
+                                // read by id. An unknown id reads 0 (fail-closed, the
+                                // `kickerPaidCount` rule in `gre/kicker.ts`, not
+                                // imported here to keep this module frontend-light).
+                                Math.max(
+                                    0,
+                                    cast.kickerPayments?.[
+                                        entry.count.additionalCostPaid
+                                    ] ?? 0
+                                )
+                              : // CR 702.44a — Sunburst: "it enters with a charge counter
+                                // on it for each color of mana spent to cast it" (a +1/+1
+                                // counter instead if the object is entering as a creature,
+                                // ignoring type-changing effects — which is why the counter
+                                // TYPE is declared per card and this vocabulary word only
+                                // supplies the COUNT). CR 702.44b restricts it to a
+                                // resolving spell, which is exactly the one entry site that
+                                // can pass a non-empty `manaSpentToCast`.
+                                entry.count === "sunburst"
+                                ? distinctColorsSpent(cast.manaSpentToCast)
+                                : entry.count;
         if (n <= 0) continue;
         delta[entry.type] = (delta[entry.type] ?? 0) + n;
     }

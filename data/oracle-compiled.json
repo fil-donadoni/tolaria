@@ -2942,10 +2942,8 @@
         {"key":"99cdea27ac82","text":"At the beginning of your end step, if a player controls no creatures, sacrifice {self}, then put a creature card exiled with it onto the battlefield under your control with two additional +1/+1 counters on it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","zone reference"],"span":"the battlefield under your control with two additional +1/+1 counters on it"}},
         {"key":"230e3b8822af","text":"At the beginning of your end step, if a player lost 4 or more life this turn, put a +1/+1 counter on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"a player lost 4 or more life this turn"}},
         {"key":"da32f40ed6ec","text":"At the beginning of your end step, if an artifact or creature was put into a graveyard from the battlefield this turn, put a +1/+1 counter on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"an artifact or creature was put into a graveyard from the battlefield this turn"}},
-        {"key":"e64174418bd4","text":"At the beginning of your end step, if an opponent lost life this turn, put a +1/+1 counter on target Vampire you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"an opponent lost life this turn"}},
-        {"key":"c63aa0d2b9b5","text":"At the beginning of your end step, if an opponent lost life this turn, put a +1/+1 counter on this creature and draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"an opponent lost life this turn"}},
-        {"key":"dba79dfd2c9e","text":"At the beginning of your end step, if an opponent lost life this turn, put a +1/+1 counter on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"an opponent lost life this turn"}},
-        {"key":"f7c0294a9adf","text":"At the beginning of your end step, if an opponent lost life this turn, you may draw cards equal to your speed. If you do, discard two cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"an opponent lost life this turn"}},
+        {"key":"0fe6da8f25a8","text":"At the beginning of your end step, if an opponent lost life this turn, put a +1/+1 counter on this creature and draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"this creature and draw a card"}},
+        {"key":"37e3650bae4c","text":"At the beginning of your end step, if an opponent lost life this turn, you may draw cards equal to your speed. If you do, discard two cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Draw cards equal to your speed"}},
         {"key":"ac21552741ee","text":"At the beginning of your end step, if an opponent was dealt 3 or more damage this turn, you may pay {R}. If you do, return this card from your graveyard to the battlefield.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"an opponent was dealt 3 or more damage this turn"}},
         {"key":"633f3612673d","text":"At the beginning of your end step, if another Human died under your control this turn, create a Food token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"another Human died under your control this turn"}},
         {"key":"dbd61214e0b3","text":"At the beginning of your end step, if another creature entered the battlefield under your control this turn, surveil 1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"another creature entered the battlefield under your control this turn"}},
@@ -3025,7 +3023,6 @@
         {"key":"23a6815a9642","text":"At the beginning of your end step, if you gained 3 or more life this turn, each opponent loses 3 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you gained 3 or more life this turn"}},
         {"key":"9233ec6f97c7","text":"At the beginning of your end step, if you gained 3 or more life this turn, return this card from your graveyard to the battlefield tapped.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you gained 3 or more life this turn"}},
         {"key":"0e88eb01a4c6","text":"At the beginning of your end step, if you gained 3 or more life this turn, transform this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you gained 3 or more life this turn"}},
-        {"key":"58f4dfe970d8","text":"At the beginning of your end step, if you gained and lost life this turn, create a 1/1 black Bat creature token with flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you gained and lost life this turn"}},
         {"key":"84bab4ffd23d","text":"At the beginning of your end step, if you gained life this turn, create a 1/1 white Cat creature token. Then if you have the city's blessing, for each token you control that entered this turn, create a token that's a copy of it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you gained life this turn"}},
         {"key":"ed7c3cf8b6bb","text":"At the beginning of your end step, if you gained life this turn, create a Blood token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you gained life this turn"}},
         {"key":"c502484b2de2","text":"At the beginning of your end step, if you gained life this turn, create an X/X white Avatar creature token, where X is the amount of life you gained this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you gained life this turn"}},
@@ -3037,9 +3034,9 @@
         {"key":"826aaa23b79f","text":"At the beginning of your end step, if you gained life this turn, you may cast this creature from your graveyard.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you gained life this turn"}},
         {"key":"52f87f8dbce7","text":"At the beginning of your end step, if you gained life this turn, you may pay X life, where X is the amount of life you gained this turn. If you do, create an X/X black Demon creature token with flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you gained life this turn"}},
         {"key":"5034fdc483d0","text":"At the beginning of your end step, if you gained life this turn, you may pay {2}. If you do, draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you gained life this turn"}},
-        {"key":"dcfe5af7ab52","text":"At the beginning of your end step, if you gained or lost life this turn, look at the top four cards of your library. You may reveal a creature card with power 3 or less from among them and put it into your hand. Put the rest on the bottom of your library in a random order.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you gained or lost life this turn"}},
-        {"key":"5d114b5fa614","text":"At the beginning of your end step, if you gained or lost life this turn, surveil 1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you gained or lost life this turn"}},
-        {"key":"200b753a8290","text":"At the beginning of your end step, if you gained or lost life this turn, target opponent loses 3 life unless they sacrifice a nonland permanent of their choice or discard a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you gained or lost life this turn"}},
+        {"key":"271a5f3f5f35","text":"At the beginning of your end step, if you gained or lost life this turn, look at the top four cards of your library. You may reveal a creature card with power 3 or less from among them and put it into your hand. Put the rest on the bottom of your library in a random order.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Reveal a creature card with power 3 or less from among them and put it into your hand"}},
+        {"key":"851cef016ae1","text":"At the beginning of your end step, if you gained or lost life this turn, surveil 1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Surveil 1"}},
+        {"key":"c671f666f8f0","text":"At the beginning of your end step, if you gained or lost life this turn, target opponent loses 3 life unless they sacrifice a nonland permanent of their choice or discard a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Target opponent loses 3 life unless they sacrifice a nonland permanent of their choice or discard a card"}},
         {"key":"0b881c70daeb","text":"At the beginning of your end step, if you had a land enter the battlefield under your control this turn, venture into the dungeon.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you had a land enter the battlefield under your control this turn"}},
         {"key":"f167616db9c4","text":"At the beginning of your end step, if you have a boon, you mill three cards, draw a card, and lose 2 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you have a boon"}},
         {"key":"0ac4afc6d7e4","text":"At the beginning of your end step, if you have at least 15 life more than your starting life total, each player this creature attacked this turn loses the game.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"you have at least 15 life more than your starting life total"}},
@@ -14096,7 +14093,6 @@
         {"key":"0cf69c3fec38","text":"This creature enters with a +1/+1 counter on it for each other creature you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This creature enters with a +1/+1 counter on it for each other creature you control"}},
         {"key":"8e9620227900","text":"This creature enters with a +1/+1 counter on it for each other spell cast this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This creature enters with a +1/+1 counter on it for each other spell cast this turn"}},
         {"key":"7ff2848f4f57","text":"This creature enters with a +1/+1 counter on it if a creature died this turn.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"This creature enters with a +1/+1 counter on it if a creature died this turn"}},
-        {"key":"8a6bc7ee63aa","text":"This creature enters with a +1/+1 counter on it if an opponent lost life this turn.","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"static","path":["static clause"],"span":"This creature enters with a +1/+1 counter on it if an opponent lost life this turn"}},
         {"key":"677493096339","text":"This creature enters with a +1/+1 counter on it if you control a modified creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This creature enters with a +1/+1 counter on it if you control a modified creature"}},
         {"key":"e35efc4f31cd","text":"This creature enters with a +1/+1 counter on it if you control a permanent with mana value 4 or greater.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This creature enters with a +1/+1 counter on it if you control a permanent with mana value 4 or greater"}},
         {"key":"4c2538df0e14","text":"This creature enters with a +1/+1 counter on it if you revealed a Dragon card or controlled a Dragon as you cast this spell.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"This creature enters with a +1/+1 counter on it if you revealed a Dragon card or controlled a Dragon as you cast this spell"}},
@@ -16522,13 +16518,10 @@
         {"key":"f8e8da2224a6","text":"When this creature enters, if an opponent controls more lands than you, create a tapped Vibranium token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Create a tapped Vibranium token"}},
         {"key":"3acee0c5277e","text":"When this creature enters, if an opponent controls more lands than you, you create a Treasure token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"You create a Treasure token"}},
         {"key":"b8677f41d270","text":"When this creature enters, if an opponent controls more lands than you, you may search your library for a Plains card and put it onto the battlefield tapped. Then if an opponent controls more lands than you, repeat this process once. If you search your library this way, shuffle.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Then if an opponent controls more lands than you, repeat this process once"}},
-        {"key":"b566580bedbd","text":"When this creature enters, if an opponent lost life this turn, add {B}{R}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"an opponent lost life this turn"}},
-        {"key":"fd7be29dff82","text":"When this creature enters, if an opponent lost life this turn, add {R}{R}{R}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"an opponent lost life this turn"}},
-        {"key":"9f2b7c7df2db","text":"When this creature enters, if an opponent lost life this turn, create a 1/1 black Bat creature token with flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"an opponent lost life this turn"}},
-        {"key":"52a2ac9299d4","text":"When this creature enters, if an opponent lost life this turn, each opponent discards a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"an opponent lost life this turn"}},
-        {"key":"5d3409248ef3","text":"When this creature enters, if an opponent lost life this turn, each opponent loses 2 life and you gain 2 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"an opponent lost life this turn"}},
-        {"key":"25421498a2b8","text":"When this creature enters, if an opponent lost life this turn, it deals X damage to up to one target creature or planeswalker, where X is the number of Vampires you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"an opponent lost life this turn"}},
-        {"key":"5a36a28d6978","text":"When this creature enters, if an opponent lost life this turn, put a +1/+1 counter on each other Vampire you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"an opponent lost life this turn"}},
+        {"key":"797966f58c4e","text":"When this creature enters, if an opponent lost life this turn, each opponent discards a card.","reason":"\"each player\" is not in grammar v0","cards":1},
+        {"key":"e8accbfac7b7","text":"When this creature enters, if an opponent lost life this turn, each opponent loses 2 life and you gain 2 life.","reason":"\"each player\" is not in grammar v0","cards":1},
+        {"key":"be91460864b0","text":"When this creature enters, if an opponent lost life this turn, it deals X damage to up to one target creature or planeswalker, where X is the number of Vampires you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"If an opponent lost life this turn, it deals X damage to up to one target creature or planeswalker"}},
+        {"key":"741edf563b24","text":"When this creature enters, if an opponent lost life this turn, put a +1/+1 counter on each other Vampire you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"each other Vampire you control"}},
         {"key":"5c39309594fb","text":"When this creature enters, if evidence was collected, put a +1/+1 counter on target creature and you gain 2 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"target creature and you gain 2 life"}},
         {"key":"97175b1207b9","text":"When this creature enters, if it entered from your graveyard or you cast it from your graveyard, exile it. If you do, create a 5/5 black Demon creature token with flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"it entered from your graveyard or you cast it from your graveyard"}},
         {"key":"5efc256f6f14","text":"When this creature enters, if it isn't a token, create two tokens that are copies of it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["condition"],"span":"it isn't a token"}},
@@ -20015,6 +20008,7 @@
         {"key":"c611068dd6c4","text":"Whenever another creature you control dies, put a +1/+1 counter on {self}. When this ability resolves for the third time this turn, {self} fights up to one target creature you don't control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"When this ability resolves for the third time this turn, {self}"}},
         {"key":"1e21d32e82ae","text":"Whenever another creature you control dies, surveil 1, then remove a -1/-1 counter from this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","effect clause"],"span":"Surveil 1"}},
         {"key":"7c875db4c916","text":"Whenever another creature you control dies, you gain 1 life. If that creature was an Elemental, put a +1/+1 counter on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"If that creature was an Elemental, put a +1/+1 counter on this creature"}},
+        {"key":"73acbd89c43a","text":"Whenever another creature you control dies, you gain life equal to its toughness.","reason":"\"its toughness\" names no object acted on before it (CR 608.2h)","cards":1},
         {"key":"9f6e18ea7cec","text":"Whenever another creature you control dies, you may pay 2 life. If you do, draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Pay 2 life"}},
         {"key":"fdc879c644e9","text":"Whenever another creature you control enters and whenever you activate a power-up ability, put a +1/+1 counter on {self}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever another creature you control enters and whenever you activate a power-up ability"}},
         {"key":"a9b6d7225d77","text":"Whenever another creature you control enters or dies, if that creature's power is greater than this creature's, put a +1/+1 counter on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever another creature you control enters or dies"}},
@@ -22948,63 +22942,40 @@
         {"key":"c06e49a0e135","text":"Whenever you gain life for the first time each turn, put a +1/+1 counter on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life for the first time each turn"}},
         {"key":"5d48e4a338f4","text":"Whenever you gain life for the first time each turn, surveil 1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life for the first time each turn"}},
         {"key":"cdc6e0cd300a","text":"Whenever you gain life for the first time each turn, this creature becomes prepared.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life for the first time each turn"}},
-        {"key":"0682293a15a7","text":"Whenever you gain life, a random creature card in your hand perpetually gets +X/+X, where X is the amount of life you gained.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"5b918f687e44","text":"Whenever you gain life, choose up to that many target creatures you control. Put a +1/+1 counter on each of them.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"e5dd33b4200a","text":"Whenever you gain life, create a colorless artifact token named Lotus with \"{T}, Sacrifice this token: Add three mana of any one color.\" This ability triggers only once each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Whenever you gain life"}},
-        {"key":"9a4dd0f622c9","text":"Whenever you gain life, creature cards in your hand and graveyard perpetually get +1/+1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"b85e9b568c27","text":"Whenever you gain life, draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"c713750e6298","text":"Whenever you gain life, draw a card. This ability triggers only once each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"f1155cfa8a20","text":"Whenever you gain life, draw that many cards.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"7ace6f04df93","text":"Whenever you gain life, each Advisor, Artificer, and Monk you control gains vigilance and gets +X/+0 until end of turn, where X is the amount of life you gained.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"74c25c7c7bbe","text":"Whenever you gain life, each opponent loses 1 life.","reason":"no slot consumed the line","cards":6,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"8b52077c1085","text":"Whenever you gain life, put a +1/+1 counter on Dr. Crusher.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"f962d8bee3ff","text":"Whenever you gain life, put a +1/+1 counter on each Angel you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"1e422233f49a","text":"Whenever you gain life, put a +1/+1 counter on each Cleric you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"12f56a59e550","text":"Whenever you gain life, put a +1/+1 counter on each Pest, Bat, Insect, Snake, and Spider you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"d4d2a4d36a2f","text":"Whenever you gain life, put a +1/+1 counter on each Villain you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"fc15cbb6d2a0","text":"Whenever you gain life, put a +1/+1 counter on each creature you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"357cc2abefd6","text":"Whenever you gain life, put a +1/+1 counter on target creature or enchantment you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"4cb00cdd1d58","text":"Whenever you gain life, put a +1/+1 counter on target creature you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"bba3d3b66595","text":"Whenever you gain life, put a +1/+1 counter on target creature you control. If you have a full party, put three +1/+1 counters on that creature instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"500d715c3add","text":"Whenever you gain life, put a +1/+1 counter on target creature you control. It gains indestructible until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"10cace15c93d","text":"Whenever you gain life, put a +1/+1 counter on this creature.","reason":"no slot consumed the line","cards":16,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"03a0cd3fda36","text":"Whenever you gain life, put a +1/+1 counter on {self} and scry 1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"365b931626e0","text":"Whenever you gain life, put a +1/+1 counter on {self}.","reason":"no slot consumed the line","cards":6,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"cd6c8531a358","text":"Whenever you gain life, put a charge counter on {self}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"b3816120b231","text":"Whenever you gain life, put a feeding counter on {self}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"7e8ce13b9c56","text":"Whenever you gain life, put a growth counter on this enchantment.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"1e434d33f74d","text":"Whenever you gain life, put a loyalty counter on Ajani.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"d26b7fd32b34","text":"Whenever you gain life, put a loyalty counter on each planeswalker you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"06ec3559b93e","text":"Whenever you gain life, put that many +1/+1 counters on target Halfling or Treefolk.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"03ff79d457e5","text":"Whenever you gain life, put that many +1/+1 counters on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"8407e53fe09f","text":"Whenever you gain life, put that many ribbon counters on this creature. Then if there are three or more ribbon counters on this creature, remove those counters and untap it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"9266d32ccfb8","text":"Whenever you gain life, put two +1/+1 counters on Karlov.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"eadf7df64b45","text":"Whenever you gain life, put two +1/+1 counters on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"6e0c52569cc3","text":"Whenever you gain life, put two +1/+1 counters on {self}.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"571a57cdef01","text":"Whenever you gain life, target opponent loses that much life.","reason":"no slot consumed the line","cards":4,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"47ed44742bae","text":"Whenever you gain life, this creature gains deathtouch until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"57da58c2927c","text":"Whenever you gain life, this creature gains flying until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"d4d2d128eddd","text":"Whenever you gain life, this creature gets +1/+1 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"2453c95df23c","text":"Whenever you gain life, untap this creature.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"6090fbc8aaf5","text":"Whenever you gain life, you get that many {E} .","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"a68e508e05ef","text":"Whenever you gain life, you may convert {self}. When you do, return target artifact card with mana value less than or equal to the amount of life you gained this turn from your graveyard to the battlefield tapped.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"3f3a62b89e0c","text":"Whenever you gain life, you may pay that much life. If you do, draw that many cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"486506200253","text":"Whenever you gain life, you may pay {1}. If you do, draw a card and each opponent loses 1 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"0f9455d89f94","text":"Whenever you gain life, you may pay {1}. If you do, put a +1/+1 counter on each creature you control and those creatures gain trample until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"f189517382eb","text":"Whenever you gain life, you may pay {1}{W}. If you do, put a +1/+1 counter on target creature for each 1 life you gained.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"573f08e3678a","text":"Whenever you gain life, you may pay {2}. If you do, create a 4/4 green Fungus Beast creature token with trample.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"0616c99e29ea","text":"Whenever you gain life, you may pay {2}. If you do, draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"c2aa9677e168","text":"Whenever you gain life, you may pay {2}. If you do, this enchantment deals 2 damage to any target.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"692e32de5d0b","text":"Whenever you gain life, you may pay {B}. If you do, return target creature card from your graveyard to your hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"8b6576ffc790","text":"Whenever you gain life, you may pay {G/W}. When you do, target creature gets +X/+X until end of turn, where X is the amount of life you gained.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"a88219339129","text":"Whenever you gain life, you may pay {W}. If you do, put a +1/+1 counter on target creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"ca4abd7ea01e","text":"Whenever you gain life, you may pay {X}, where X is less than or equal to the amount of life you gained. If you do, draw X cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"9273c8aa3dff","text":"Whenever you gain life, you may put that many +1/+1 counters on each creature you control. Do this only once each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"7ea9c2a2d823","text":"Whenever you gain life, {self} explores. Then destroy all other creatures if its power is exactly 20.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"e8ee3d4a3817","text":"Whenever you gain life, {self} gains indestructible until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"9323ba6c05d1","text":"Whenever you gain life, {self} perpetually gets +1/+1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain life"}},
-        {"key":"a902fd726f3f","text":"Whenever you gain or lose life during your turn, Bats you control get +1/+0 and gain deathtouch until end of turn. This ability triggers only once each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain or lose life during your turn"}},
-        {"key":"695bb2ed9815","text":"Whenever you gain or lose life during your turn, this creature gets +1/+0 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you gain or lose life during your turn"}},
+        {"key":"4848d6bf8db7","text":"Whenever you gain life, a random creature card in your hand perpetually gets +X/+X, where X is the amount of life you gained.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"A random creature card in your hand perpetually gets +X/+X, where X is the amount of life you gained"}},
+        {"key":"38f38da308d6","text":"Whenever you gain life, choose up to that many target creatures you control. Put a +1/+1 counter on each of them.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Choose up to that many target creatures you control"}},
+        {"key":"7c81e63d73de","text":"Whenever you gain life, create a colorless artifact token named Lotus with \"{T}, Sacrifice this token: Add three mana of any one color.\" This ability triggers only once each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Create a colorless artifact token named Lotus with \"{T}, Sacrifice this token: Add three mana of any one color.\" This ability triggers only once each turn"}},
+        {"key":"d6024c48701d","text":"Whenever you gain life, creature cards in your hand and graveyard perpetually get +1/+1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Creature cards in your hand and graveyard perpetually get +1/+1"}},
+        {"key":"4f64eb061edd","text":"Whenever you gain life, draw that many cards.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Draw that many cards"}},
+        {"key":"4f4e9c3725c0","text":"Whenever you gain life, each Advisor, Artificer, and Monk you control gains vigilance and gets +X/+0 until end of turn, where X is the amount of life you gained.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Each Advisor, Artificer, and Monk you control"}},
+        {"key":"8c38190fbaa5","text":"Whenever you gain life, each opponent loses 1 life.","reason":"\"each player\" is not in grammar v0","cards":4},
+        {"key":"1ade888ecf33","text":"Whenever you gain life, put a +1/+1 counter on Dr. Crusher.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Dr"}},
+        {"key":"1c182ea58161","text":"Whenever you gain life, put a +1/+1 counter on each Angel you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"each Angel you control"}},
+        {"key":"300ffe353bf0","text":"Whenever you gain life, put a +1/+1 counter on each Cleric you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"each Cleric you control"}},
+        {"key":"430e2b7a4df8","text":"Whenever you gain life, put a +1/+1 counter on each Pest, Bat, Insect, Snake, and Spider you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"each Pest, Bat, Insect, Snake, and Spider you control"}},
+        {"key":"7d5868b733bf","text":"Whenever you gain life, put a +1/+1 counter on each Villain you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"each Villain you control"}},
+        {"key":"d843fb69d408","text":"Whenever you gain life, put a +1/+1 counter on each creature you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"each creature you control"}},
+        {"key":"1b22a87f9985","text":"Whenever you gain life, put a +1/+1 counter on target creature you control. If you have a full party, put three +1/+1 counters on that creature instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"If you have a full party, put three +1/+1 counters on that creature instead"}},
+        {"key":"d580862d230f","text":"Whenever you gain life, put a +1/+1 counter on target creature you control. It gains indestructible until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"It"}},
+        {"key":"61a50264da49","text":"Whenever you gain life, put a +1/+1 counter on {self} and scry 1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"{self} and scry 1"}},
+        {"key":"7c41a245a2dc","text":"Whenever you gain life, put a loyalty counter on Ajani.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Ajani"}},
+        {"key":"9de053fe229e","text":"Whenever you gain life, put a loyalty counter on each planeswalker you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"each planeswalker you control"}},
+        {"key":"74e41153ef49","text":"Whenever you gain life, put that many +1/+1 counters on target Halfling or Treefolk.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"target Halfling or Treefolk"}},
+        {"key":"037bfb51f793","text":"Whenever you gain life, put that many +1/+1 counters on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"this creature"}},
+        {"key":"99c2a427ecaf","text":"Whenever you gain life, put that many ribbon counters on this creature. Then if there are three or more ribbon counters on this creature, remove those counters and untap it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"this creature"}},
+        {"key":"a4b58ba7c80b","text":"Whenever you gain life, put two +1/+1 counters on Karlov.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Karlov"}},
+        {"key":"4938b32b6c2c","text":"Whenever you gain life, you get that many {E} .","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"You get that many {E} "}},
+        {"key":"67eb11329405","text":"Whenever you gain life, you may convert {self}. When you do, return target artifact card with mana value less than or equal to the amount of life you gained this turn from your graveyard to the battlefield tapped.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Convert {self}"}},
+        {"key":"65ecb3a6d8ac","text":"Whenever you gain life, you may pay that much life. If you do, draw that many cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Pay that much life"}},
+        {"key":"9a6b66d94303","text":"Whenever you gain life, you may pay {1}. If you do, draw a card and each opponent loses 1 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","effect clause"],"span":"Draw a card and each opponent loses 1 life"}},
+        {"key":"5e948601f6ec","text":"Whenever you gain life, you may pay {1}. If you do, put a +1/+1 counter on each creature you control and those creatures gain trample until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","effect clause"],"span":"each creature you control and those creatures gain trample until end of turn"}},
+        {"key":"9b35bdc275b2","text":"Whenever you gain life, you may pay {1}{W}. If you do, put a +1/+1 counter on target creature for each 1 life you gained.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","effect clause"],"span":"target creature for each 1 life you gained"}},
+        {"key":"d8e89087b100","text":"Whenever you gain life, you may pay {G/W}. When you do, target creature gets +X/+X until end of turn, where X is the amount of life you gained.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","effect clause"],"span":"Target creature gets +X/+X until end of turn, where X is the amount of life you gained"}},
+        {"key":"e989c7e04b5f","text":"Whenever you gain life, you may pay {X}, where X is less than or equal to the amount of life you gained. If you do, draw X cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","verb frame"],"span":"Pay {X}, where X is less than or equal to the amount of life you gained"}},
+        {"key":"c2a80208cb9a","text":"Whenever you gain life, you may put that many +1/+1 counters on each creature you control. Do this only once each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"each creature you control"}},
+        {"key":"883819f6db78","text":"Whenever you gain life, {self} explores. Then destroy all other creatures if its power is exactly 20.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Then destroy all other creatures if its power is exactly 20"}},
+        {"key":"c564b98f6ee0","text":"Whenever you gain life, {self} perpetually gets +1/+1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"{self} perpetually gets +1/+1"}},
+        {"key":"866a6e6c87c8","text":"Whenever you gain or lose life during your turn, Bats you control get +1/+0 and gain deathtouch until end of turn. This ability triggers only once each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","duration"],"span":"and gain deathtouch until end of turn"}},
         {"key":"e1815a1b9bb1","text":"Whenever you get one or more {E} , put a +1/+1 counter on target creature you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you get one or more {E} "}},
         {"key":"b7c674455c5e","text":"Whenever you get one or more {E} , this creature gets +2/+2 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you get one or more {E} "}},
         {"key":"806994e11d97","text":"Whenever you get one or more {E} during your turn, creatures you control get +1/+1 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you get one or more {E} during your turn"}},
@@ -28878,7 +28849,7 @@
 
         {"oracleId":"003d9c17-5d5c-469f-ad87-d78faf55e025","name":"Seedship Agrarian","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["185ebf70ba70"]},
 
-        {"oracleId":"003e5dc6-8b26-4a0a-a50b-5f0806a7bacd","name":"South Wind Avatar","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["74c25c7c7bbe"]},
+        {"oracleId":"003e5dc6-8b26-4a0a-a50b-5f0806a7bacd","name":"South Wind Avatar","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["73acbd89c43a"]},
 
         {"oracleId":"0040db73-ac11-4c15-a1ac-5a2c4c085f09","name":"Instill Infection","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["counters","draw"],"definition":{"name":"Instill Infection","types":["Instant"],"manaCost":{"X":3,"B":1},"oracleText":"Put a -1/-1 counter on target creature.\nDraw a card.","effects":[{"op":"counters","action":"add","counter":"-1/-1","target":{"target":0},"count":1},{"op":"draw","player":"controller","count":1}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
@@ -29364,7 +29335,7 @@
 
         {"oracleId":"01dbf1bc-ca62-4fb6-959c-ef7c0dc03bb0","name":"Benevolent Hydra","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["23cc6dc2848f"]},
 
-        {"oracleId":"01dc15ee-83de-49d5-aa37-e0bdd419887e","name":"Hallowed Priest","state":"unparsed","gaps":["10cace15c93d"]},
+        {"oracleId":"01dc15ee-83de-49d5-aa37-e0bdd419887e","name":"Hallowed Priest","state":"ready","slots":["triggered"],"opsUsed":["counters"],"definition":{"name":"Hallowed Priest","types":["Creature"],"subtypes":["Human","Cleric"],"manaCost":{"X":1,"W":1},"power":1,"toughness":1,"oracleText":"Whenever you gain life, put a +1/+1 counter on this creature.","compiledTriggeredAbilities":[{"id":"hallowed-priest-trigger","oracleText":"Whenever you gain life, put a +1/+1 counter on this creature.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
         {"oracleId":"01dc86f3-5ebb-4b10-bf68-8fc9f232c724","name":"Master of the Feast","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1aef968c072c"]},
 
@@ -29374,7 +29345,7 @@
 
         {"oracleId":"01e311d2-8fe6-4e64-9575-3ef266985f0b","name":"Sulam Djinn","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["cb6712fa4e3a"]},
 
-        {"oracleId":"01e742ed-660c-43c6-b393-e589a54cbe1b","name":"Voice of the Blessed","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["10cace15c93d","6990c823a2b4","e0ff2c9e196d"]},
+        {"oracleId":"01e742ed-660c-43c6-b393-e589a54cbe1b","name":"Voice of the Blessed","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6990c823a2b4","e0ff2c9e196d"]},
 
         {"oracleId":"01e81249-6c45-4fae-86ee-9ef5fbec99ec","name":"Embraal Gear-Smasher","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["dealDamage"],"definition":{"name":"Embraal Gear-Smasher","types":["Creature"],"subtypes":["Human","Warrior"],"manaCost":{"X":2,"R":1},"power":2,"toughness":3,"oracleText":"{T}, Sacrifice an artifact: This creature deals 2 damage to each opponent.","activatedAbilities":[{"id":"embraal-gear-smasher-ability","oracleText":"{T}, Sacrifice an artifact: This creature deals 2 damage to each opponent.","cost":{"tap":true,"sacrificeFilter":{"types":["Artifact"]}},"useStack":true,"effects":[{"op":"dealDamage","amount":2,"to":{"player":"opponent"}}]}]},"botReach":"played"},
 
@@ -30832,7 +30803,7 @@
 
         {"oracleId":"06f42f49-32f0-413b-8437-b8efa4d647c2","name":"Genesis Ultimatum","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["01312b7ed0eb"]},
 
-        {"oracleId":"06f647a7-ee53-42bd-8c73-53a0c6ede34a","name":"MJ, Rising Star","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["365b931626e0"]},
+        {"oracleId":"06f647a7-ee53-42bd-8c73-53a0c6ede34a","name":"MJ, Rising Star","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["counters"],"definition":{"name":"MJ, Rising Star","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Human","Performer"],"manaCost":{"X":2,"W":1},"power":2,"toughness":3,"oracleText":"Vigilance (Attacking doesn't cause this creature to tap.)\nWhenever you gain life, put a +1/+1 counter on MJ.","staticAbilities":["vigilance"],"compiledTriggeredAbilities":[{"id":"mj-rising-star-trigger","oracleText":"Whenever you gain life, put a +1/+1 counter on MJ.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
         {"oracleId":"06f7ec6d-d70e-44d8-bf43-ae667d244ab4","name":"Espers to Magicite","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["abe55a65ff2b"]},
 
@@ -30992,7 +30963,7 @@
 
         {"oracleId":"07a26388-773e-4614-a3de-f133c6694d59","name":"Grave Sifter","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["c2566cc5d153"]},
 
-        {"oracleId":"07a28621-e617-46b0-af3e-2efb03b5056a","name":"Kwia Vigorbloom","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e5dd33b4200a"]},
+        {"oracleId":"07a28621-e617-46b0-af3e-2efb03b5056a","name":"Kwia Vigorbloom","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7c81e63d73de"]},
 
         {"oracleId":"07a39452-f9d5-41ba-acbc-fc5e7f698f64","name":"Plunge into Darkness","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["13701325a33c","48c36ed13d59"]},
 
@@ -31114,7 +31085,7 @@
 
         {"oracleId":"083dc9dc-3548-4e55-90d1-3fae33f71dab","name":"Enter the Eternities","state":"unparsed","gaps":["9d086d39e205"]},
 
-        {"oracleId":"083dcc19-3357-48e4-94e8-8da5bbfba210","name":"Gideon's Company","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["eadf7df64b45","fef9e8875ab9"]},
+        {"oracleId":"083dcc19-3357-48e4-94e8-8da5bbfba210","name":"Gideon's Company","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["fef9e8875ab9"]},
 
         {"oracleId":"083ea8b0-ff2a-406e-90f1-668f33443747","name":"Ichor Shade","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["da32f40ed6ec"]},
 
@@ -31446,7 +31417,7 @@
 
         {"oracleId":"096a878e-cff0-430a-90b5-031ecb9bfe1b","name":"Tam, Mindful First-Year","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0856e9afa7df","9d744324d080"]},
 
-        {"oracleId":"096eac52-00c2-4439-b2f3-ff555d15ec88","name":"Marina Vendrell's Grimoire","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0f3fa5145516","ca1e2f7cede2","e5b95a30d54b","f1155cfa8a20"]},
+        {"oracleId":"096eac52-00c2-4439-b2f3-ff555d15ec88","name":"Marina Vendrell's Grimoire","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0f3fa5145516","4f64eb061edd","ca1e2f7cede2","e5b95a30d54b"]},
 
         {"oracleId":"096fbb51-be73-4edc-a051-770a12c09005","name":"Tales of Master Seshiro // Seshiro's Living Legacy","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["f39c2bc30951"]},
 
@@ -32146,7 +32117,7 @@
 
         {"oracleId":"0c0845c3-f4b5-444e-8f42-da0c7dbf2841","name":"Henrika Domnathi // Henrika, Infernal Seer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["01ffcf9768af","c9615a786d7e"]},
 
-        {"oracleId":"0c0940c6-8126-4d58-809e-871cf8588ef9","name":"Starlit Soothsayer","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["5d114b5fa614"]},
+        {"oracleId":"0c0940c6-8126-4d58-809e-871cf8588ef9","name":"Starlit Soothsayer","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["851cef016ae1"]},
 
         {"oracleId":"0c0bb9b0-e7e0-465e-826b-2e56032aed1b","name":"Stunning Shot","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["025fbc3d9059"]},
 
@@ -32494,7 +32465,7 @@
 
         {"oracleId":"0d603aef-2b92-43fb-81ba-f89953a198df","name":"Dawnglare Invoker","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["571a6183a47c"]},
 
-        {"oracleId":"0d60c095-4c6c-4618-8ef3-508f3d454efa","name":"Ajani Resolute","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1e434d33f74d","2db9396a4607","9181fd5f07f5"]},
+        {"oracleId":"0d60c095-4c6c-4618-8ef3-508f3d454efa","name":"Ajani Resolute","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2db9396a4607","7c41a245a2dc","9181fd5f07f5"]},
 
         {"oracleId":"0d60cfb1-dd77-4013-b862-41e95fdb53ae","name":"MACO Strike Team","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9cc35f3cbaed"]},
 
@@ -33154,7 +33125,7 @@
 
         {"oracleId":"0fc93bc8-b3d4-4161-b6a8-385fac1525b4","name":"Agent of Raffine","state":"unparsed","gaps":["0600361d4e3c"]},
 
-        {"oracleId":"0fca3328-484f-4050-925e-91840710b5d6","name":"Lyra, Archangel of Dawn","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f962d8bee3ff"]},
+        {"oracleId":"0fca3328-484f-4050-925e-91840710b5d6","name":"Lyra, Archangel of Dawn","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1c182ea58161"]},
 
         {"oracleId":"0fca46ec-ec1a-4e6c-bb0e-cdb834b38c92","name":"Battle Frenzy","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["ddd3c3263979"]},
 
@@ -34006,7 +33977,7 @@
 
         {"oracleId":"129ee7d6-e3df-40ef-9502-7aad10183031","name":"Prism Ring","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["28c13b8843ca"]},
 
-        {"oracleId":"12a165c4-229b-458b-8fc7-c1b7cba35a8e","name":"Starseer Mentor","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["200b753a8290"]},
+        {"oracleId":"12a165c4-229b-458b-8fc7-c1b7cba35a8e","name":"Starseer Mentor","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c671f666f8f0"]},
 
         {"oracleId":"12a43da3-57aa-4394-8cce-e53ec7e3538e","name":"Tyranid Prime","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["163b57bbe794"]},
 
@@ -34084,7 +34055,7 @@
 
         {"oracleId":"12e4e6b6-e684-49df-9373-d1e057664272","name":"Shuttlecraft Galileo","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["18e58b12216f","48ba92017b9c","e21642264b90"]},
 
-        {"oracleId":"12eeabe1-a02c-42a3-aa87-6774c4de7093","name":"Malakir Familiar","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d4d2d128eddd"]},
+        {"oracleId":"12eeabe1-a02c-42a3-aa87-6774c4de7093","name":"Malakir Familiar","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["pump"],"definition":{"name":"Malakir Familiar","types":["Creature"],"subtypes":["Bat"],"manaCost":{"X":2,"B":1},"power":2,"toughness":1,"oracleText":"Flying, deathtouch\nWhenever you gain life, this creature gets +1/+1 until end of turn.","staticAbilities":["flying","deathtouch"],"compiledTriggeredAbilities":[{"id":"malakir-familiar-trigger","oracleText":"Whenever you gain life, this creature gets +1/+1 until end of turn.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
         {"oracleId":"12ef651c-5a86-49c4-a512-292e9d135a76","name":"Gerrard's Battle Cry","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["forEach","pump"],"definition":{"name":"Gerrard's Battle Cry","types":["Enchantment"],"manaCost":{"W":1},"oracleText":"{2}{W}: Creatures you control get +1/+1 until end of turn.","activatedAbilities":[{"id":"gerrard-s-battle-cry-ability","oracleText":"{2}{W}: Creatures you control get +1/+1 until end of turn.","cost":{"mana":{"X":2,"W":1}},"useStack":true,"effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","controller":"controller","filter":{"type":"Creature"}},"effects":[{"op":"pump","target":{"ref":"$each"},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}]}]}]},"botReach":"played"},
 
@@ -34530,7 +34501,7 @@
 
         {"oracleId":"1470f614-88eb-4d3c-bc4f-270dfb512b6c","name":"Extra Arms","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["02eb9454a7ab"]},
 
-        {"oracleId":"1473580d-7cb2-48f5-a77d-08f49244c5e8","name":"Essence Channeler","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["10cace15c93d","2748ce17fb08","7b6a59b23f7c"]},
+        {"oracleId":"1473580d-7cb2-48f5-a77d-08f49244c5e8","name":"Essence Channeler","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2748ce17fb08","7b6a59b23f7c"]},
 
         {"oracleId":"147d1e5c-fcfd-4115-a2f9-bea9b7ad7bb6","name":"Intrepid Trufflesnout // Go Hog Wild","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell","triggered"],"opsUsed":["createToken","gainLife","pump"],"definition":{"name":"Intrepid Trufflesnout","types":["Creature"],"subtypes":["Boar"],"manaCost":{"X":1,"G":1},"power":3,"toughness":1,"oracleText":"Whenever this creature attacks alone, create a Food token. (It's an artifact with \"{2}, {T}, Sacrifice this token: You gain 3 life.\")","compiledTriggeredAbilities":[{"id":"intrepid-trufflesnout-trigger","oracleText":"Whenever this creature attacks alone, create a Food token.","head":{"kind":"attacks","alone":true},"effects":[{"op":"createToken","token":{"name":"Food","types":["Artifact"],"subtypes":["Food"],"activatedAbilities":[{"id":"food-token-sacrifice-gain-life","oracleText":"{2}, {T}, Sacrifice this token: You gain 3 life.","cost":{"mana":{"generic":2},"tap":true,"sacrifice":true},"useStack":true,"effects":[{"op":"gainLife","player":"controller","amount":3}]}]},"controller":"controller"}]}],"insetSpell":{"kind":"adventure","name":"Go Hog Wild","manaCost":{"X":1,"G":1},"types":["Instant"],"subtypes":["Adventure"],"oracleText":"Target creature gets +2/+2 until end of turn. (Then exile this card. You may cast the creature later from exile.)","effects":[{"op":"pump","target":{"target":0},"power":2,"toughness":2,"duration":{"phase":"end-of-turn"}}],"targetRequirement":{"type":"Creature","count":1}}},"botReach":"played"},
 
@@ -34660,7 +34631,7 @@
 
         {"oracleId":"14f36157-f55f-495d-9ffe-f38135a59750","name":"Shire Shirriff","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3c8cff43f266"]},
 
-        {"oracleId":"14f55fc9-ec19-4b4a-b3de-d75898c19edf","name":"Prize Pig","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["8407e53fe09f"]},
+        {"oracleId":"14f55fc9-ec19-4b4a-b3de-d75898c19edf","name":"Prize Pig","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["99c2a427ecaf"]},
 
         {"oracleId":"14f6fcb0-bed4-4a38-b7df-1e438d81bedb","name":"Chainer, Nightmare Adept","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1e76bb61f055","f3b72270e288"]},
 
@@ -35092,7 +35063,7 @@
 
         {"oracleId":"169cf74a-07bf-4841-83f3-904df8a0a39b","name":"Jailbreak","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["bf165afa22cd"]},
 
-        {"oracleId":"169d24f3-a308-4a2e-ae25-85dae448994e","name":"Lion Vulture","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["c63aa0d2b9b5"]},
+        {"oracleId":"169d24f3-a308-4a2e-ae25-85dae448994e","name":"Lion Vulture","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0fe6da8f25a8"]},
 
         {"oracleId":"169e415a-9ff6-43bb-bb68-fc49e69f95a8","name":"Vaporkin","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Vaporkin","types":["Creature"],"subtypes":["Elemental"],"manaCost":{"X":1,"U":1},"power":2,"toughness":1,"oracleText":"Flying\nThis creature can block only creatures with flying.","staticAbilities":["flying"],"compiledStaticEffects":[{"kind":"block-restriction","id":"vaporkin-blocks-only-flying","oracleText":"This creature can block only creatures with flying.","onlyAgainst":{"keyword":"flying"}}]},"botReach":"played"},
 
@@ -35806,7 +35777,7 @@
 
         {"oracleId":"19146dcd-f624-4ce5-a8dd-48f7c6321d40","name":"Rafi, Retro Racer","state":"unparsed","gaps":["6b50b5a2c02e","dda76409b3ac"]},
 
-        {"oracleId":"1915a311-209b-4628-8122-af3055a78fed","name":"Cliffhaven Vampire","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["74c25c7c7bbe"]},
+        {"oracleId":"1915a311-209b-4628-8122-af3055a78fed","name":"Cliffhaven Vampire","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8c38190fbaa5"]},
 
         {"oracleId":"191634b4-42e5-499f-a1a8-1d0407626be8","name":"Pick Your Poison","state":"unparsed","gaps":["2fdc295d05f7","3d9c2a418cf0","e8c45e4c7679","fca1c6225a9a"]},
 
@@ -36262,7 +36233,7 @@
 
         {"oracleId":"1aaa85e1-4770-457f-a9af-3eeb56c71447","name":"Ornamental Courage","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["0cad62841cfe"]},
 
-        {"oracleId":"1aabb6bd-8061-42a5-9a71-f9eac718bd22","name":"Wall of Limbs","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["10cace15c93d","72ac5c174e81"]},
+        {"oracleId":"1aabb6bd-8061-42a5-9a71-f9eac718bd22","name":"Wall of Limbs","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["72ac5c174e81"]},
 
         {"oracleId":"1aaddaeb-baab-42b6-a442-d97339da54db","name":"Leech Gauntlet","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":["attach","unattach"],"definition":{"name":"Leech Gauntlet","types":["Artifact","Creature"],"subtypes":["Equipment","Leech"],"manaCost":{"X":1,"B":1},"power":2,"toughness":2,"oracleText":"Lifelink\nEquipped creature has lifelink.\nReconfigure {4} ({4}: Attach to target creature you control; or unattach from a creature. Reconfigure only as a sorcery. While attached, this isn't a creature.)","staticAbilities":["lifelink"],"activatedAbilities":[{"id":"leech-gauntlet-reconfigure-attach","oracleText":"Reconfigure {4}","cost":{"mana":{"generic":4}},"sorcerySpeedOnly":true,"targetRequirement":{"type":"Creature","count":1,"controller":"you","excludeSource":true},"useStack":true,"effects":[{"op":"attach","target":{"target":0}}]},{"id":"leech-gauntlet-reconfigure-unattach","oracleText":"{4}: Unattach this permanent. Activate only if this permanent is attached to a creature and only as a sorcery.","cost":{"mana":{"generic":4}},"sorcerySpeedOnly":true,"activatableOnlyWhileAttached":true,"useStack":true,"effects":[{"op":"unattach"}]}],"compiledStaticEffects":[{"kind":"keyword-grant","appliesTo":"host","keyword":"lifelink"},{"kind":"type-remove","appliesTo":"self-while-attached","types":["Creature"]}]},"botReach":"played"},
 
@@ -37600,7 +37571,7 @@
 
         {"oracleId":"1fbed9e4-86f6-4115-8468-8593e340701f","name":"Krosan Druid","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["gainLife","if"],"definition":{"name":"Krosan Druid","types":["Creature"],"subtypes":["Centaur","Druid"],"manaCost":{"X":2,"G":1},"power":2,"toughness":3,"oracleText":"Kicker {4}{G} (You may pay an additional {4}{G} as you cast this spell.)\nWhen this creature enters, if it was kicked, you gain 10 life.","compiledTriggeredAbilities":[{"id":"krosan-druid-trigger","oracleText":"When this creature enters, if it was kicked, you gain 10 life.","head":{"kind":"entered","scope":"self"},"condition":{"kind":"kicker-paid","kickerId":"kicker"},"effects":[{"op":"if","predicate":{"left":{"additionalCostPaid":"kicker"},"op":"ge","right":1},"then":[{"op":"gainLife","player":"controller","amount":10}]}]}],"kickers":[{"id":"kicker","description":"Kicker {4}{G}","mana":{"X":4,"G":1}}]},"botReach":"played"},
 
-        {"oracleId":"1fc1b0d7-7f15-4d00-bc8f-e06489afd425","name":"Qala, Ajani's Pridemate","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["365b931626e0","97c90af313bf"]},
+        {"oracleId":"1fc1b0d7-7f15-4d00-bc8f-e06489afd425","name":"Qala, Ajani's Pridemate","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["97c90af313bf"]},
 
         {"oracleId":"1fc31651-70fe-4a58-9b7e-7359510bba51","name":"Riling Dawnbreaker // Signaling Roar","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell","triggered"],"opsUsed":["createToken","pump"],"definition":{"name":"Riling Dawnbreaker","types":["Creature"],"subtypes":["Dragon"],"manaCost":{"X":4,"W":1},"power":3,"toughness":4,"oracleText":"Flying, vigilance\nAt the beginning of combat on your turn, another target creature you control gets +1/+0 until end of turn.","staticAbilities":["flying","vigilance"],"compiledTriggeredAbilities":[{"id":"riling-dawnbreaker-trigger","oracleText":"At the beginning of combat on your turn, another target creature you control gets +1/+0 until end of turn.","head":{"kind":"phase","phase":"BEGINNING_OF_COMBAT","scope":"your"},"targetRequirement":{"type":"Creature","count":1,"controller":"you","excludeSource":true},"effects":[{"op":"pump","target":{"target":0},"power":1,"toughness":0,"duration":{"phase":"end-of-turn"}}]}],"insetSpell":{"kind":"adventure","name":"Signaling Roar","manaCost":{"X":1,"W":1},"types":["Sorcery"],"subtypes":["Omen"],"oracleText":"Create a 2/2 white Soldier creature token. (Then shuffle this card into its owner's library.)","effects":[{"op":"createToken","token":{"name":"Soldier","types":["Creature"],"subtypes":["Soldier"],"power":2,"toughness":2,"colors":["W"]},"controller":"controller"}]}},"botReach":"played"},
 
@@ -37940,7 +37911,7 @@
 
         {"oracleId":"211dca11-b633-4deb-9d51-210fd3843995","name":"Dashing Bloodsucker","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f71b06331e64"]},
 
-        {"oracleId":"2121bcb4-f5fe-447f-9112-c7e5b5c45baf","name":"Dina, Soul Steeper","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3d313449a169","74c25c7c7bbe"]},
+        {"oracleId":"2121bcb4-f5fe-447f-9112-c7e5b5c45baf","name":"Dina, Soul Steeper","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3d313449a169"]},
 
         {"oracleId":"21254bdb-7b1f-4ac6-8fdd-f0ac2c35f47d","name":"Grim Flayer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["54979405edb0","69f31107c0d8"]},
 
@@ -39400,7 +39371,7 @@
 
         {"oracleId":"26a623a1-60c9-47e3-af96-616e29551865","name":"Mishra, Claimed by Gix","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["164998c7fdef","d8470be9156a"]},
 
-        {"oracleId":"26a716b2-a2e2-405b-accd-df572416d8bf","name":"Rodolf Duskbringer","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["7681c10f7ad8","e8ee3d4a3817"]},
+        {"oracleId":"26a716b2-a2e2-405b-accd-df572416d8bf","name":"Rodolf Duskbringer","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["7681c10f7ad8"]},
 
         {"oracleId":"26a7f92d-6914-466d-b7c7-9ac121dd5118","name":"Essence of Antiquity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c940bee5d8f9","e73053904a21"]},
 
@@ -40412,7 +40383,7 @@
 
         {"oracleId":"2a9054ce-7276-4030-901a-cf6aa18f2b62","name":"Bequeathal","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["e674f76ac0f7"]},
 
-        {"oracleId":"2a93236d-f182-4826-8112-4048bb3cbaf9","name":"Ageless Entity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["03ff79d457e5"]},
+        {"oracleId":"2a93236d-f182-4826-8112-4048bb3cbaf9","name":"Ageless Entity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["037bfb51f793"]},
 
         {"oracleId":"2a956224-8bdb-40d8-8405-2aa29eb228e0","name":"Golem-Skin Gauntlets","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["2060c7692544"]},
 
@@ -42018,7 +41989,7 @@
 
         {"oracleId":"307be184-176a-40a8-944c-48aa00cfdd29","name":"Radiant Lotus","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7a5aa57e3c02"]},
 
-        {"oracleId":"307d20fd-a9c9-4da9-b990-26c653054640","name":"Savage Gorger","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["dba79dfd2c9e"]},
+        {"oracleId":"307d20fd-a9c9-4da9-b990-26c653054640","name":"Savage Gorger","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["counters"],"definition":{"name":"Savage Gorger","types":["Creature"],"subtypes":["Vampire"],"manaCost":{"X":1,"B":2},"power":1,"toughness":1,"oracleText":"Flying\nAt the beginning of your end step, if an opponent lost life this turn, put a +1/+1 counter on this creature. (Damage causes loss of life.)","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"savage-gorger-trigger","oracleText":"At the beginning of your end step, if an opponent lost life this turn, put a +1/+1 counter on this creature.","head":{"kind":"phase","phase":"END_STEP","scope":"your"},"condition":{"kind":"life-changed-this-turn","player":"opponent","directions":["lost"],"combine":"any"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
         {"oracleId":"307e68e0-5095-474c-af02-bfcb2e463763","name":"Spelltwine","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9a68392f26b0"]},
 
@@ -42368,11 +42339,11 @@
 
         {"oracleId":"31c978b4-06d7-4e9d-82da-bfa4ef16f470","name":"Shah of Naar Isle","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["270d2584b190"]},
 
-        {"oracleId":"31ca9e12-8ad0-472e-8b2a-b7df26370d8c","name":"Minwu, White Mage","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1e422233f49a"]},
+        {"oracleId":"31ca9e12-8ad0-472e-8b2a-b7df26370d8c","name":"Minwu, White Mage","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["300ffe353bf0"]},
 
         {"oracleId":"31caa417-12f7-468b-9f3a-ccfb80e5bc2f","name":"Prison Term","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0c23dbbb322a","b10ce32064d7"]},
 
-        {"oracleId":"31cae00a-3a74-4a59-80b0-a656f524e878","name":"Heroic Feast","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5b918f687e44"]},
+        {"oracleId":"31cae00a-3a74-4a59-80b0-a656f524e878","name":"Heroic Feast","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["38f38da308d6"]},
 
         {"oracleId":"31cb87bf-1020-4fd5-95f7-8ecb197d823b","name":"Pia Nalaar, Chief Mechanic","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["4fdd68a21e5d","cfb5f75f6dde"]},
 
@@ -42700,7 +42671,7 @@
 
         {"oracleId":"330e109c-1885-4946-9edc-895408519b3d","name":"Savaen Elves","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"gaps":["236aba032b63"]},
 
-        {"oracleId":"330e8a18-d224-4416-b59d-02b749c3a674","name":"Christine Chapel, Combat Medic","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["1111f545bcac","6e0c52569cc3"]},
+        {"oracleId":"330e8a18-d224-4416-b59d-02b749c3a674","name":"Christine Chapel, Combat Medic","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["1111f545bcac"]},
 
         {"oracleId":"330f2e60-810d-4fe0-9a35-b3f2b29e3e2a","name":"True-Faith Censer","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["12fe5865804e"]},
 
@@ -43646,7 +43617,7 @@
 
         {"oracleId":"3678c06f-8a33-4a6d-bf20-5b92d5c05a95","name":"The Lonely Mountain","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2e9a983d17b1","61aea449beee"]},
 
-        {"oracleId":"367ac7e2-5056-48f3-a296-87d6cb1f7b54","name":"Nykthos Paragon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9273c8aa3dff"]},
+        {"oracleId":"367ac7e2-5056-48f3-a296-87d6cb1f7b54","name":"Nykthos Paragon","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c2a80208cb9a"]},
 
         {"oracleId":"367bb252-41e1-4f98-9d22-442dd332cccf","name":"Parting Gust","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["createToken","delayedTrigger","exile","if","moveZone"],"definition":{"name":"Parting Gust","types":["Instant"],"manaCost":{"W":2},"oracleText":"Gift a tapped Fish (You may promise an opponent a gift as you cast this spell. If you do, they create a tapped 1/1 blue Fish creature token before its other effects.)\nExile target nontoken creature. If the gift wasn't promised, return that card to the battlefield under its owner's control with a +1/+1 counter on it at the beginning of the next end step.","kickers":[{"id":"gift","keyword":"gift","description":"Gift a tapped Fish"}],"effects":[{"op":"if","predicate":{"left":{"additionalCostPaid":"gift"},"op":"ge","right":1},"then":[{"op":"createToken","token":{"name":"Fish","types":["Creature"],"subtypes":["Fish"],"power":1,"toughness":1,"colors":["U"],"entersTapped":true},"controller":"opponent"}]},{"op":"exile","target":{"target":0},"bind":"$that1"},{"op":"if","predicate":{"left":{"additionalCostPaid":"gift"},"op":"lt","right":1},"then":[{"op":"delayedTrigger","timing":"next-end-step","oracleText":"Return that card to the battlefield under its owner's control with a +1/+1 counter on it at the beginning of the next end step.","capture":{"$c":{"ref":"$that1"}},"effects":[{"op":"moveZone","target":{"ref":"$c"},"from":"exile","to":"battlefield","entersWithCounters":{"+1/+1":1}}]}]}],"targetRequirement":{"type":"Creature","count":1,"isToken":false}},"botReach":"played"},
 
@@ -44628,7 +44599,7 @@
 
         {"oracleId":"39d8406a-90c3-460c-b4e8-0f590573db51","name":"Mechanized Production","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b6f95a9dc423"]},
 
-        {"oracleId":"39d993be-30ad-4756-a494-fd8808d474c9","name":"Tigra, Feline Fury","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["365b931626e0"]},
+        {"oracleId":"39d993be-30ad-4756-a494-fd8808d474c9","name":"Tigra, Feline Fury","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["counters"],"definition":{"name":"Tigra, Feline Fury","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Cat","Human","Hero"],"manaCost":{"X":1,"G":1},"power":2,"toughness":1,"oracleText":"Flash\nTrample\nWhenever you gain life, put a +1/+1 counter on Tigra.","staticAbilities":["flash","trample"],"compiledTriggeredAbilities":[{"id":"tigra-feline-fury-trigger","oracleText":"Whenever you gain life, put a +1/+1 counter on Tigra.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
         {"oracleId":"39da2aa8-f4d9-44f6-a446-488beaec821f","name":"Wrap in Vigor","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["fa9fefb2350a"]},
 
@@ -47010,7 +46981,7 @@
 
         {"oracleId":"426bfd00-e727-49f4-be2d-df5289d2cc61","name":"Shriek Raptor","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Shriek Raptor","types":["Creature"],"subtypes":["Phyrexian","Bird"],"manaCost":{"X":3,"W":2},"power":2,"toughness":3,"oracleText":"Flying\nInfect (This creature deals damage to creatures in the form of -1/-1 counters and to players in the form of poison counters.)","staticAbilities":["flying","infect"]},"botReach":"played"},
 
-        {"oracleId":"426dbe89-0cbb-4a3b-8812-d9761d063373","name":"Wax-Wane Witness","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["695bb2ed9815"]},
+        {"oracleId":"426dbe89-0cbb-4a3b-8812-d9761d063373","name":"Wax-Wane Witness","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["pump"],"definition":{"name":"Wax-Wane Witness","types":["Creature"],"subtypes":["Bat","Cleric"],"manaCost":{"X":3,"W":1},"power":2,"toughness":4,"oracleText":"Flying, vigilance\nWhenever you gain or lose life during your turn, this creature gets +1/+0 until end of turn.","staticAbilities":["flying","vigilance"],"compiledTriggeredAbilities":[{"id":"wax-wane-witness-trigger","oracleText":"Whenever you gain or lose life during your turn, this creature gets +1/+0 until end of turn.","head":{"kind":"life-gained-or-lost","scope":"you","duringYourTurn":true},"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":0,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
         {"oracleId":"426fa8e8-b0f9-4b6c-b22b-04ec2073187a","name":"Undead Butler","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["if","mayPay","mill","moveZone","reflexiveTrigger"],"definition":{"name":"Undead Butler","types":["Creature"],"subtypes":["Zombie"],"manaCost":{"X":1,"B":1},"power":1,"toughness":2,"oracleText":"When this creature enters, mill three cards. (Put the top three cards of your library into your graveyard.)\nWhen this creature dies, you may exile it. When you do, return target creature card from your graveyard to your hand.","compiledTriggeredAbilities":[{"id":"undead-butler-trigger","oracleText":"When this creature enters, mill three cards.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"mill","player":"controller","count":3}]},{"id":"undead-butler-trigger-2","oracleText":"When this creature dies, you may exile it. When you do, return target creature card from your graveyard to your hand.","head":{"kind":"died","scope":"self"},"effects":[{"op":"mayPay","player":"controller","prompt":"Exile it?","bind":"$may1"},{"op":"if","predicate":{"binding":"$may1"},"then":[{"op":"moveZone","target":{"ref":"$source"},"to":"exile","bind":"$did2"},{"op":"if","predicate":{"boundMatchesFilter":{"ref":"$did2"},"filter":{}},"then":[{"op":"reflexiveTrigger","oracleText":"When you do, return target creature card from your graveyard to your hand.","targetRequirement":{"type":"Creature","count":1,"zone":"graveyard","controller":"you"},"effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}]}]}]}]}]},"botReach":"played"},
 
@@ -47590,7 +47561,7 @@
 
         {"oracleId":"447c7fe0-6ec7-4163-9d9c-f08f0a4c7109","name":"Restoration Gearsmith","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["moveZone"],"definition":{"name":"Restoration Gearsmith","types":["Creature"],"subtypes":["Human","Artificer"],"manaCost":{"X":2,"W":1,"B":1},"power":3,"toughness":3,"oracleText":"When this creature enters, return target artifact or creature card from your graveyard to your hand.","compiledTriggeredAbilities":[{"id":"restoration-gearsmith-trigger","oracleText":"When this creature enters, return target artifact or creature card from your graveyard to your hand.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":["Artifact","Creature"],"count":1,"zone":"graveyard","controller":"you"},"effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}]}]},"botReach":"played"},
 
-        {"oracleId":"447dda85-0807-4f09-a83e-c343bae92a5f","name":"Golden Sidekick","state":"unparsed","gaps":["0682293a15a7"]},
+        {"oracleId":"447dda85-0807-4f09-a83e-c343bae92a5f","name":"Golden Sidekick","state":"unparsed","gaps":["4848d6bf8db7"]},
 
         {"oracleId":"447de961-106c-4189-83ce-ca63d487e1cd","name":"Biorhythm","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["bcd5d0cb584f"]},
 
@@ -48266,7 +48237,7 @@
 
         {"oracleId":"46e57f8f-e742-4913-b19e-80f57623ce38","name":"Rampaging Ursaguana","state":"unparsed","gaps":["2117f58a04f7","d48f7cf16dec"]},
 
-        {"oracleId":"46e8bec0-1a09-4e6e-b78a-7ba161686ca9","name":"Cindering Cutthroat","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["8a6bc7ee63aa"]},
+        {"oracleId":"46e8bec0-1a09-4e6e-b78a-7ba161686ca9","name":"Cindering Cutthroat","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","static"],"opsUsed":["grantAbility"],"definition":{"name":"Cindering Cutthroat","types":["Creature"],"subtypes":["Lizard","Assassin"],"manaCost":{"X":2,"hybrid":[["B","R"]]},"power":3,"toughness":2,"oracleText":"This creature enters with a +1/+1 counter on it if an opponent lost life this turn.\n{1}{B/R}: This creature gains menace until end of turn. (It can't be blocked except by two or more creatures.)","activatedAbilities":[{"id":"cindering-cutthroat-ability","oracleText":"{1}{B/R}: This creature gains menace until end of turn.","cost":{"mana":{"X":1,"hybrid":[["B","R"]]}},"useStack":true,"effects":[{"op":"grantAbility","target":{"ref":"$source"},"ability":"menace","duration":{"phase":"end-of-turn"}}]}],"entersWith":{"counters":[{"type":"+1/+1","count":{"ifOpponentLostLifeThisTurn":1}}]}},"botReach":"played"},
 
         {"oracleId":"46ea8d02-b087-44f7-8403-93ffc1d3a8ad","name":"Leonardo, the Balance","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["311446496c07","6a5403cdcf1d","faa30a6dcecf"]},
 
@@ -48624,7 +48595,7 @@
 
         {"oracleId":"485f710d-5bc2-4c8f-b7e9-eed6caa261a6","name":"Feast or Famine","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","destroy"],"definition":{"name":"Feast or Famine","types":["Instant"],"manaCost":{"X":3,"B":1},"oracleText":"Choose one —\n• Create a 2/2 black Zombie creature token.\n• Destroy target nonartifact, nonblack creature. It can't be regenerated.","modes":[{"id":"feast-or-famine-mode-1","label":"Create a 2/2 black Zombie creature token","oracleText":"Create a 2/2 black Zombie creature token.","effects":[{"op":"createToken","token":{"name":"Zombie","types":["Creature"],"subtypes":["Zombie"],"power":2,"toughness":2,"colors":["B"]},"controller":"controller"}]},{"id":"feast-or-famine-mode-2","label":"Destroy target nonartifact, nonblack creature. It can't be regenerated","oracleText":"Destroy target nonartifact, nonblack creature. It can't be regenerated.","effects":[{"op":"destroy","target":{"target":0},"cantBeRegenerated":true}],"targetRequirement":{"type":"Creature","count":1,"excludeTypes":["Artifact"],"excludeColors":["B"]}}]},"botReach":"played"},
 
-        {"oracleId":"48636afb-e17a-4c7d-9e03-5a689acd4263","name":"Dina, Flesh Sower","state":"unparsed","gaps":["219170be3adb","9323ba6c05d1"]},
+        {"oracleId":"48636afb-e17a-4c7d-9e03-5a689acd4263","name":"Dina, Flesh Sower","state":"unparsed","gaps":["219170be3adb","c564b98f6ee0"]},
 
         {"oracleId":"4863e1cf-3ef2-4c2d-a0ea-b73ca60c660d","name":"Fetid Horror","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["pump"],"definition":{"name":"Fetid Horror","types":["Creature"],"subtypes":["Shade","Horror"],"manaCost":{"X":3,"B":1},"power":1,"toughness":2,"oracleText":"{B}: This creature gets +1/+1 until end of turn.","activatedAbilities":[{"id":"fetid-horror-ability","oracleText":"{B}: This creature gets +1/+1 until end of turn.","cost":{"mana":{"B":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
@@ -50510,7 +50481,7 @@
 
         {"oracleId":"4f2adfd0-c8ab-4bcc-ae55-cb0e798aec7f","name":"Time of Need","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","libraryLook","moveZone","reveal"],"definition":{"name":"Time of Need","types":["Sorcery"],"manaCost":{"X":1,"G":1},"oracleText":"Search your library for a legendary creature card, reveal it, put it into your hand, then shuffle.","effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"type":"Creature","supertype":"Legendary"},"count":{"min":0,"max":1},"prompt":"Search your library for a legendary creature card.","bind":"$found1"},{"op":"reveal","player":"controller","cards":{"ref":"$found1"}},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"hand"},{"op":"libraryLook","action":"shuffle","player":"controller"}]},"botReach":"ignored","botGap":"never-chosen › Sorcery › choice+libraryLook+moveZone+reveal"},
 
-        {"oracleId":"4f2d4538-dc1d-4c09-964b-b0d7c240fb7d","name":"Archangel of Thune","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["fc15cbb6d2a0"]},
+        {"oracleId":"4f2d4538-dc1d-4c09-964b-b0d7c240fb7d","name":"Archangel of Thune","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d843fb69d408"]},
 
         {"oracleId":"4f31eea0-61b9-467d-8393-0ab9f1b6e882","name":"Insatiable Frugivore","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0d4dc459d689","487ab84b1d68"]},
 
@@ -50642,7 +50613,7 @@
 
         {"oracleId":"4f94ce97-5b2d-42fb-ac8e-c64075fe1af2","name":"Cunning Giant","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["92afe60e8001"]},
 
-        {"oracleId":"4f95664f-6113-41e6-a99e-12bfc9d1710a","name":"Ratchet, Field Medic // Ratchet, Rescue Racer","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["45ff352c5869","89a275d8c522","a68e508e05ef"]},
+        {"oracleId":"4f95664f-6113-41e6-a99e-12bfc9d1710a","name":"Ratchet, Field Medic // Ratchet, Rescue Racer","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["45ff352c5869","67eb11329405","89a275d8c522"]},
 
         {"oracleId":"4f958678-2a32-4a30-8fe7-47df9ada6b2f","name":"Birthday Escape","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["0b82262130fd"]},
 
@@ -51072,7 +51043,7 @@
 
         {"oracleId":"510a6ac5-f098-4145-ac07-771b1b6f7cdf","name":"Riverpyre Verge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a83b2c38abe6"]},
 
-        {"oracleId":"510bccb1-61cd-49f1-a54a-80352653d1e3","name":"Titanbones, Towering Heart","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6e0c52569cc3","8bc7a5209f76"]},
+        {"oracleId":"510bccb1-61cd-49f1-a54a-80352653d1e3","name":"Titanbones, Towering Heart","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8bc7a5209f76"]},
 
         {"oracleId":"5114f3e0-339d-46d6-9d44-97fa0afbd7c5","name":"Quilled Slagwurm","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Quilled Slagwurm","types":["Creature"],"subtypes":["Phyrexian","Wurm"],"manaCost":{"X":4,"G":3},"power":8,"toughness":8},"botReach":"played"},
 
@@ -52288,7 +52259,7 @@
 
         {"oracleId":"5591efbc-1b2c-489a-b4f3-935c9b6bd71a","name":"Dai Li Indoctrination","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["0aca68ce93e8"]},
 
-        {"oracleId":"559463f8-396f-40e0-9515-a1be6397ca31","name":"Serene Steward","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a88219339129"]},
+        {"oracleId":"559463f8-396f-40e0-9515-a1be6397ca31","name":"Serene Steward","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["counters","if","mayPay"],"definition":{"name":"Serene Steward","types":["Creature"],"subtypes":["Human","Cleric","Ally"],"manaCost":{"X":1,"W":1},"power":2,"toughness":2,"oracleText":"Whenever you gain life, you may pay {W}. If you do, put a +1/+1 counter on target creature.","compiledTriggeredAbilities":[{"id":"serene-steward-trigger","oracleText":"Whenever you gain life, you may pay {W}. If you do, put a +1/+1 counter on target creature.","head":{"kind":"life-gained","scope":"you"},"targetRequirement":{"type":"Creature","count":1},"effects":[{"op":"mayPay","player":"controller","cost":{"W":1},"prompt":"You may pay {W}. If you do, put a +1/+1 counter on target creature","bind":"$paid1"},{"op":"if","predicate":{"binding":"$paid1"},"then":[{"op":"counters","action":"add","counter":"+1/+1","target":{"target":0},"count":1}]}]}]},"botReach":"played"},
 
         {"oracleId":"559903cd-5cba-47a5-8b5b-7067e393e76a","name":"Hydra's Growth","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6dae0c03415a","85e5c371dd33"]},
 
@@ -52806,7 +52777,7 @@
 
         {"oracleId":"578c5b92-9f7e-4645-9624-f2c1a16b6aaf","name":"Wu Admiral","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Wu Admiral","types":["Creature"],"subtypes":["Human","Soldier"],"manaCost":{"X":4,"U":1},"power":3,"toughness":3,"oracleText":"This creature gets +1/+1 as long as an opponent controls an Island.","compiledStaticEffects":[{"kind":"pt-buff","appliesTo":"self","power":1,"toughness":1,"condition":{"kind":"opponent-controls","filter":{"subtypes":["Island"]},"atLeast":1}}]},"botReach":"played"},
 
-        {"oracleId":"578ddb51-e128-43e5-a115-471f0cae1222","name":"Star Charter","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["dcfe5af7ab52"]},
+        {"oracleId":"578ddb51-e128-43e5-a115-471f0cae1222","name":"Star Charter","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["271a5f3f5f35"]},
 
         {"oracleId":"578e0577-0ad8-4bfb-a317-9684c508770a","name":"Brutal Deceiver","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["640536a2fb7d","86af2bd97d4e"]},
 
@@ -54038,7 +54009,7 @@
 
         {"oracleId":"5bd81d2f-46a1-4536-92e7-28c7e1892735","name":"Akki Battle Squad","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["eeaf16806937"]},
 
-        {"oracleId":"5be3243a-6840-4601-96c8-ffb756041d49","name":"Spider-Man, Peter Parker","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["500d715c3add"]},
+        {"oracleId":"5be3243a-6840-4601-96c8-ffb756041d49","name":"Spider-Man, Peter Parker","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["d580862d230f"]},
 
         {"oracleId":"5be6f245-31cf-4294-ace0-ca6ce3463fed","name":"Raucous Audience","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["31597ab4f706"]},
 
@@ -55068,7 +55039,7 @@
 
         {"oracleId":"5fd113cb-5a8c-4693-84f5-e2dd97b0e4c1","name":"Rings a Bell","state":"unparsed","gaps":["bf46aa1b3b0d","dc8a4d9d72c3"]},
 
-        {"oracleId":"5fd193c0-ed9f-4afb-b6cd-c1a20008fc0b","name":"Comforting Counsel","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7e8ce13b9c56","c137baa33946"]},
+        {"oracleId":"5fd193c0-ed9f-4afb-b6cd-c1a20008fc0b","name":"Comforting Counsel","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c137baa33946"]},
 
         {"oracleId":"5fd4be4c-70a3-4c91-a4c6-788a2051ff13","name":"Viscerid Drone","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["21e27709d9db","c40c60d48234"]},
 
@@ -55090,7 +55061,7 @@
 
         {"oracleId":"5fe3aabd-3271-41bf-ae50-f6efaba7c4ae","name":"Carrot Cake","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["fbff43177b7f"]},
 
-        {"oracleId":"5fe6f4ae-3fb1-4df6-8760-88c8666068df","name":"Dr. Beverly Crusher","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["279ad865dddb","8b52077c1085"]},
+        {"oracleId":"5fe6f4ae-3fb1-4df6-8760-88c8666068df","name":"Dr. Beverly Crusher","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1ade888ecf33","279ad865dddb"]},
 
         {"oracleId":"5fe86083-1009-4de2-b186-f817ad1cc4e4","name":"Prying Blade","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["3e974eb86038"]},
 
@@ -55694,7 +55665,7 @@
 
         {"oracleId":"61f3a549-77b4-4403-afa2-a0f02603f2e6","name":"Angrath's Fury","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b4c39ab22420"]},
 
-        {"oracleId":"61f3e964-6bea-4543-992e-3e36404bf628","name":"Lurking Roper","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2453c95df23c"]},
+        {"oracleId":"61f3e964-6bea-4543-992e-3e36404bf628","name":"Lurking Roper","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["static","triggered"],"opsUsed":["tapUntap"],"definition":{"name":"Lurking Roper","types":["Creature"],"subtypes":["Horror"],"manaCost":{"X":2,"G":1},"power":4,"toughness":5,"oracleText":"This creature doesn't untap during your untap step.\nWhenever you gain life, untap this creature.","staticAbilities":["does-not-untap"],"compiledTriggeredAbilities":[{"id":"lurking-roper-trigger","oracleText":"Whenever you gain life, untap this creature.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"tapUntap","action":"untap","target":{"ref":"$source"}}]}]},"botReach":"played"},
 
         {"oracleId":"61f55e39-4028-4c91-910e-16b88c73beb5","name":"Archon of Coronation","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["a2c6cfdc282f"]},
 
@@ -55730,7 +55701,7 @@
 
         {"oracleId":"620f3851-493d-496e-880a-4a9dee074e79","name":"Shadow Prophecy","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["962113adad72"]},
 
-        {"oracleId":"620ff5f2-7d3f-467f-943d-3b62c2135023","name":"Oloro, Ageless Ascetic","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["486506200253","ea1baaa2c7cc"]},
+        {"oracleId":"620ff5f2-7d3f-467f-943d-3b62c2135023","name":"Oloro, Ageless Ascetic","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["9a6b66d94303","ea1baaa2c7cc"]},
 
         {"oracleId":"62110234-690b-4498-8076-26ba910f9f92","name":"Gang of Devils","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["dealDamageDividedAsChosen"],"definition":{"name":"Gang of Devils","types":["Creature"],"subtypes":["Devil"],"manaCost":{"X":5,"R":1},"power":3,"toughness":3,"oracleText":"When this creature dies, it deals 3 damage divided as you choose among one, two, or three targets.","compiledTriggeredAbilities":[{"id":"gang-of-devils-trigger","oracleText":"When this creature dies, it deals 3 damage divided as you choose among one, two, or three targets.","head":{"kind":"died","scope":"self"},"targetRequirement":{"type":"any","count":{"min":1},"divideAsChosen":{"total":3}},"effects":[{"op":"dealDamageDividedAsChosen","total":3}]}]},"botReach":"played"},
 
@@ -56184,7 +56155,7 @@
 
         {"oracleId":"63e5180f-16d0-4524-94bf-ecbf3c417814","name":"Yuyan Archers","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["draw","if","mayPay"],"definition":{"name":"Yuyan Archers","types":["Creature"],"subtypes":["Human","Archer"],"manaCost":{"X":1,"R":1},"power":3,"toughness":1,"oracleText":"Reach\nWhen this creature enters, you may discard a card. If you do, draw a card.","staticAbilities":["reach"],"compiledTriggeredAbilities":[{"id":"yuyan-archers-trigger","oracleText":"When this creature enters, you may discard a card. If you do, draw a card.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"mayPay","player":"controller","cost":{"hand":{"action":"discard","requirements":[{"filter":{},"count":1}]}},"prompt":"Discard a card?","bind":"$paid1"},{"op":"if","predicate":{"binding":"$paid1"},"then":[{"op":"draw","player":"controller","count":1}]}]}]},"botReach":"played"},
 
-        {"oracleId":"63e596a2-9126-4af6-8782-c38687d664ad","name":"Heliod, Sun-Crowned","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["357cc2abefd6","fe22a054da34"]},
+        {"oracleId":"63e596a2-9126-4af6-8782-c38687d664ad","name":"Heliod, Sun-Crowned","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["fe22a054da34"]},
 
         {"oracleId":"63e6c80a-a7c7-4c98-b760-271c36425dd1","name":"Bride's Gown","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8786c0a5ac1f"]},
 
@@ -56358,7 +56329,7 @@
 
         {"oracleId":"647ca69e-cc01-4b2b-b376-bee2a98331e8","name":"Phyrexian Reclamation","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["moveZone"],"definition":{"name":"Phyrexian Reclamation","types":["Enchantment"],"manaCost":{"B":1},"oracleText":"{1}{B}, Pay 2 life: Return target creature card from your graveyard to your hand.","activatedAbilities":[{"id":"phyrexian-reclamation-ability","oracleText":"{1}{B}, Pay 2 life: Return target creature card from your graveyard to your hand.","cost":{"mana":{"X":1,"B":1},"life":2},"useStack":true,"effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}],"targetRequirement":{"type":"Creature","count":1,"zone":"graveyard","controller":"you"}}]},"botReach":"played"},
 
-        {"oracleId":"647d7988-9a5d-4700-9238-938d0d5fae12","name":"Karlov of the Ghost Council","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["9266d32ccfb8","f954134099a4"]},
+        {"oracleId":"647d7988-9a5d-4700-9238-938d0d5fae12","name":"Karlov of the Ghost Council","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["a4b58ba7c80b","f954134099a4"]},
 
         {"oracleId":"647e5639-6339-48af-af96-e48729e1cad3","name":"Ray of Enfeeblement","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a810da18b819"]},
 
@@ -57372,7 +57343,7 @@
 
         {"oracleId":"6812e4d3-0034-4fc8-9ee9-520f76a0ea94","name":"Innovative Commons","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["6c2e7cde37e8"]},
 
-        {"oracleId":"68175b49-f1e6-4b34-aad9-20d61a43d427","name":"Drogskol Reaver","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b85e9b568c27"]},
+        {"oracleId":"68175b49-f1e6-4b34-aad9-20d61a43d427","name":"Drogskol Reaver","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["draw"],"definition":{"name":"Drogskol Reaver","types":["Creature"],"subtypes":["Spirit"],"manaCost":{"X":5,"W":1,"U":1},"power":3,"toughness":5,"oracleText":"Flying\nDouble strike (This creature deals both first-strike and regular combat damage.)\nLifelink (Damage dealt by this creature also causes you to gain that much life.)\nWhenever you gain life, draw a card.","staticAbilities":["flying","double strike","lifelink"],"compiledTriggeredAbilities":[{"id":"drogskol-reaver-trigger","oracleText":"Whenever you gain life, draw a card.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"draw","player":"controller","count":1}]}]},"botReach":"played"},
 
         {"oracleId":"681ca1eb-2ef5-4d60-b834-58bd9b5a47b8","name":"Tower Gargoyle","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Tower Gargoyle","types":["Artifact","Creature"],"subtypes":["Gargoyle"],"manaCost":{"X":1,"W":1,"U":1,"B":1},"power":4,"toughness":4,"oracleText":"Flying","staticAbilities":["flying"]},"botReach":"played"},
 
@@ -57682,7 +57653,7 @@
 
         {"oracleId":"69003cbc-8e5a-41dc-ac53-18f6e776217b","name":"Sparkmage Apprentice","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["dealDamage"],"definition":{"name":"Sparkmage Apprentice","types":["Creature"],"subtypes":["Human","Wizard"],"manaCost":{"X":1,"R":1},"power":1,"toughness":1,"oracleText":"When this creature enters, it deals 1 damage to any target.","compiledTriggeredAbilities":[{"id":"sparkmage-apprentice-trigger","oracleText":"When this creature enters, it deals 1 damage to any target.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"any","count":1},"effects":[{"op":"dealDamage","amount":1,"to":{"target":0}}]}]},"botReach":"played"},
 
-        {"oracleId":"69038520-7156-48d9-aae8-ba3cc76a5993","name":"Frilled Sparkshooter","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["8a6bc7ee63aa"]},
+        {"oracleId":"69038520-7156-48d9-aae8-ba3cc76a5993","name":"Frilled Sparkshooter","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Frilled Sparkshooter","types":["Creature"],"subtypes":["Lizard","Archer"],"manaCost":{"X":3,"R":1},"power":3,"toughness":3,"oracleText":"Reach, menace\nThis creature enters with a +1/+1 counter on it if an opponent lost life this turn.","staticAbilities":["reach","menace"],"entersWith":{"counters":[{"type":"+1/+1","count":{"ifOpponentLostLifeThisTurn":1}}]}},"botReach":"played"},
 
         {"oracleId":"69095c25-6ae6-42f5-9c3d-1d8f86f03fae","name":"Manacles of Decay","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["c0213a97ed64"]},
 
@@ -59072,7 +59043,7 @@
 
         {"oracleId":"6e152529-64b4-472c-8e50-99095af6af99","name":"Bumbleflower's Sharepot","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","triggered"],"opsUsed":["createToken","destroy","gainLife"],"definition":{"name":"Bumbleflower's Sharepot","types":["Artifact"],"manaCost":{"X":2},"oracleText":"When this artifact enters, create a Food token. (It's an artifact with \"{2}, {T}, Sacrifice this token: You gain 3 life.\")\n{5}, {T}, Sacrifice this artifact: Destroy target nonland permanent. Activate only as a sorcery.","activatedAbilities":[{"id":"bumbleflower-s-sharepot-ability","oracleText":"{5}, {T}, Sacrifice this artifact: Destroy target nonland permanent. Activate only as a sorcery.","cost":{"mana":{"X":5},"tap":true,"sacrifice":true},"useStack":true,"effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1,"excludeTypes":["Land"]},"sorcerySpeedOnly":true}],"compiledTriggeredAbilities":[{"id":"bumbleflower-s-sharepot-trigger","oracleText":"When this artifact enters, create a Food token.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"createToken","token":{"name":"Food","types":["Artifact"],"subtypes":["Food"],"activatedAbilities":[{"id":"food-token-sacrifice-gain-life","oracleText":"{2}, {T}, Sacrifice this token: You gain 3 life.","cost":{"mana":{"generic":2},"tap":true,"sacrifice":true},"useStack":true,"effects":[{"op":"gainLife","player":"controller","amount":3}]}]},"controller":"controller"}]}]},"botReach":"played"},
 
-        {"oracleId":"6e1aa07a-5d9b-4daf-8dc4-c1717360855f","name":"Valentin, Dean of the Vein // Lisette, Dean of the Root","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0f9455d89f94","e97314ea9755"]},
+        {"oracleId":"6e1aa07a-5d9b-4daf-8dc4-c1717360855f","name":"Valentin, Dean of the Vein // Lisette, Dean of the Root","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5e948601f6ec","e97314ea9755"]},
 
         {"oracleId":"6e1b21f9-c890-4d27-81d0-d38bf7493d33","name":"Perimeter Sergeant","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["forEach","pump"],"definition":{"name":"Perimeter Sergeant","types":["Creature"],"subtypes":["Human","Soldier"],"manaCost":{"X":2,"W":1},"power":3,"toughness":2,"oracleText":"Whenever this creature attacks, other Humans you control get +1/+0 until end of turn.","compiledTriggeredAbilities":[{"id":"perimeter-sergeant-trigger","oracleText":"Whenever this creature attacks, other Humans you control get +1/+0 until end of turn.","head":{"kind":"attacks"},"effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","controller":"controller","filter":{"subtype":"Human"},"excludeSource":true},"effects":[{"op":"pump","target":{"ref":"$each"},"power":1,"toughness":0,"duration":{"phase":"end-of-turn"}}]}]}]},"botReach":"played"},
 
@@ -60492,7 +60463,7 @@
 
         {"oracleId":"730897a9-3ead-4990-9492-1a2040d8ccac","name":"Kathril, Aspect Warper","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["db1235a996f9"]},
 
-        {"oracleId":"73089a39-a2f6-4aa2-a058-e6551475153d","name":"Sanguine Bond","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["571a57cdef01"]},
+        {"oracleId":"73089a39-a2f6-4aa2-a058-e6551475153d","name":"Sanguine Bond","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["loseLife"],"definition":{"name":"Sanguine Bond","types":["Enchantment"],"manaCost":{"X":3,"B":2},"oracleText":"Whenever you gain life, target opponent loses that much life.","compiledTriggeredAbilities":[{"id":"sanguine-bond-trigger","oracleText":"Whenever you gain life, target opponent loses that much life.","head":{"kind":"life-gained","scope":"you"},"targetRequirement":{"type":"player","count":1,"controller":"opponent"},"effects":[{"op":"loseLife","player":{"target":0},"amount":{"ref":"$event.amount"}}]}]},"botReach":"played"},
 
         {"oracleId":"73094bde-5466-41a4-88f9-a98e67f5ed2e","name":"Break Down","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["spell"],"opsUsed":["createToken","destroy","exileTopOfLibrary","grantCastFromExile"],"definition":{"name":"Break Down","types":["Instant"],"manaCost":{"X":2,"G":1},"oracleText":"Destroy target artifact or enchantment. Create a Junk token. (It's an artifact with \"{T}, Sacrifice this token: Exile the top card of your library. You may play that card this turn. Activate only as a sorcery.\")","effects":[{"op":"destroy","target":{"target":0}},{"op":"createToken","token":{"name":"Junk","types":["Artifact"],"subtypes":["Junk"],"activatedAbilities":[{"id":"junk-token-exile-play","oracleText":"{T}, Sacrifice this token: Exile the top card of your library. You may play that card this turn. Activate only as a sorcery.","cost":{"tap":true,"sacrifice":true},"useStack":true,"sorcerySpeedOnly":true,"effects":[{"op":"exileTopOfLibrary","player":"controller","count":1,"bindAll":"$exiled"},{"op":"grantCastFromExile","card":{"ref":"$exiled"},"player":"controller","window":"this-turn","includesLand":true}]}]},"controller":"controller"}],"targetRequirement":{"type":["Artifact","Enchantment"],"count":1}},"botReach":"played"},
 
@@ -60534,7 +60505,7 @@
 
         {"oracleId":"73346137-3117-4dc3-b5a4-1aca1da54548","name":"Large Bear","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Large Bear","types":["Creature"],"subtypes":["Bear"],"manaCost":{"X":3,"hybrid":[["B","G"],["B","G"]]},"power":5,"toughness":5,"oracleText":"Reach, trample, haste","staticAbilities":["reach","trample","haste"]},"botReach":"played"},
 
-        {"oracleId":"7336a541-3ae9-4ab2-acb8-f574c0a5b3a9","name":"Vito, Thorn of the Dusk Rose","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["571a57cdef01"]},
+        {"oracleId":"7336a541-3ae9-4ab2-acb8-f574c0a5b3a9","name":"Vito, Thorn of the Dusk Rose","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","triggered"],"opsUsed":["forEach","grantAbility","loseLife"],"definition":{"name":"Vito, Thorn of the Dusk Rose","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Vampire","Cleric"],"manaCost":{"X":2,"B":1},"power":1,"toughness":3,"oracleText":"Whenever you gain life, target opponent loses that much life.\n{3}{B}{B}: Creatures you control gain lifelink until end of turn.","activatedAbilities":[{"id":"vito-thorn-of-the-dusk-rose-ability","oracleText":"{3}{B}{B}: Creatures you control gain lifelink until end of turn.","cost":{"mana":{"X":3,"B":2}},"useStack":true,"effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","controller":"controller","filter":{"type":"Creature"}},"effects":[{"op":"grantAbility","target":{"ref":"$each"},"ability":"lifelink","duration":{"phase":"end-of-turn"}}]}]}],"compiledTriggeredAbilities":[{"id":"vito-thorn-of-the-dusk-rose-trigger","oracleText":"Whenever you gain life, target opponent loses that much life.","head":{"kind":"life-gained","scope":"you"},"targetRequirement":{"type":"player","count":1,"controller":"opponent"},"effects":[{"op":"loseLife","player":{"target":0},"amount":{"ref":"$event.amount"}}]}]},"botReach":"played"},
 
         {"oracleId":"7338f964-b7d8-4491-b933-7d8b7d1b56ed","name":"Voice of Grace","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Voice of Grace","types":["Creature"],"subtypes":["Angel"],"manaCost":{"X":3,"W":1},"power":2,"toughness":2,"oracleText":"Flying, protection from black","staticAbilities":["flying","protection from black"]},"botReach":"played"},
 
@@ -61950,7 +61921,7 @@
 
         {"oracleId":"7857c7b6-9676-47ac-bb28-d0b4cbda5fa7","name":"The Destined Thief","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["34621bfdd860","703e91d9602d","c5f082eacb3a"]},
 
-        {"oracleId":"785c306c-471c-4699-8ab2-43c253d569cf","name":"Lich's Mastery","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["095869619de4","3f2c3a24cbd0","f1155cfa8a20"]},
+        {"oracleId":"785c306c-471c-4699-8ab2-43c253d569cf","name":"Lich's Mastery","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["095869619de4","3f2c3a24cbd0","4f64eb061edd"]},
 
         {"oracleId":"785e451d-87b6-4772-97e5-d2744818e0fd","name":"Yeva's Forcemage","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["pump"],"definition":{"name":"Yeva's Forcemage","types":["Creature"],"subtypes":["Elf","Shaman"],"manaCost":{"X":2,"G":1},"power":2,"toughness":2,"oracleText":"When this creature enters, target creature gets +2/+2 until end of turn.","compiledTriggeredAbilities":[{"id":"yeva-s-forcemage-trigger","oracleText":"When this creature enters, target creature gets +2/+2 until end of turn.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":1},"effects":[{"op":"pump","target":{"target":0},"power":2,"toughness":2,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
@@ -62926,7 +62897,7 @@
 
         {"oracleId":"7bf22390-a6c0-4da6-9f05-e66628f72079","name":"Moaning Wall","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":["draw"],"definition":{"name":"Moaning Wall","types":["Creature"],"subtypes":["Zombie","Wall"],"manaCost":{"X":2,"B":1},"power":0,"toughness":5,"oracleText":"Defender\nCycling {2} ({2}, Discard this card: Draw a card.)","staticAbilities":["defender"],"activatedAbilities":[{"id":"cycling","oracleText":"Cycling {2} ({2}, Discard this card: Draw a card.)","cost":{"mana":{"generic":2},"discardThis":true,"cyclingCost":true},"activateFromHand":true,"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"botReach":"played"},
 
-        {"oracleId":"7bf5196d-a16c-418f-943c-2128e40c55da","name":"Defiant Bloodlord","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["571a57cdef01"]},
+        {"oracleId":"7bf5196d-a16c-418f-943c-2128e40c55da","name":"Defiant Bloodlord","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["loseLife"],"definition":{"name":"Defiant Bloodlord","types":["Creature"],"subtypes":["Vampire"],"manaCost":{"X":5,"B":2},"power":4,"toughness":5,"oracleText":"Flying\nWhenever you gain life, target opponent loses that much life.","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"defiant-bloodlord-trigger","oracleText":"Whenever you gain life, target opponent loses that much life.","head":{"kind":"life-gained","scope":"you"},"targetRequirement":{"type":"player","count":1,"controller":"opponent"},"effects":[{"op":"loseLife","player":{"target":0},"amount":{"ref":"$event.amount"}}]}]},"botReach":"played"},
 
         {"oracleId":"7bf6cb04-a987-4f8f-a070-7ba801ab01ac","name":"Glade of the Pump Spells","state":"unparsed","gaps":["3f573c7fb6eb"]},
 
@@ -63164,7 +63135,7 @@
 
         {"oracleId":"7ccd666a-0d56-4fe3-b16b-d035bf2ad420","name":"Protect the Negotiators","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["46b35c32494a"]},
 
-        {"oracleId":"7cd0bd74-2463-4e9d-9802-69ac4ef6d543","name":"Unflinching Hortimancer","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["10cace15c93d"]},
+        {"oracleId":"7cd0bd74-2463-4e9d-9802-69ac4ef6d543","name":"Unflinching Hortimancer","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["counters"],"definition":{"name":"Unflinching Hortimancer","types":["Creature"],"subtypes":["Human","Cleric"],"manaCost":{"X":1,"W":1},"power":2,"toughness":1,"oracleText":"Ward {1} (Whenever this creature becomes the target of a spell or ability an opponent controls, counter it unless that player pays {1}.)\nWhenever you gain life, put a +1/+1 counter on this creature.","staticAbilities":["ward {1}"],"compiledTriggeredAbilities":[{"id":"unflinching-hortimancer-trigger","oracleText":"Whenever you gain life, put a +1/+1 counter on this creature.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
         {"oracleId":"7cd7102d-6413-4f46-9434-9130aefa2f88","name":"Etched Champion","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ddb2f5bf467e"]},
 
@@ -63972,7 +63943,7 @@
 
         {"oracleId":"7fb88a5d-9b72-4da9-ade4-d09cadd7e1cb","name":"Nuka-Nuke Launcher","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["fb897fd98089"]},
 
-        {"oracleId":"7fba522b-a292-4d1f-9999-f787ba2d5fd1","name":"Neelix, Moral Support","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["365b931626e0"]},
+        {"oracleId":"7fba522b-a292-4d1f-9999-f787ba2d5fd1","name":"Neelix, Moral Support","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["counters","createToken","gainLife"],"definition":{"name":"Neelix, Moral Support","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Talaxian","Advisor"],"manaCost":{"X":1,"G":1},"power":1,"toughness":1,"oracleText":"When Neelix enters, create a Food token. (It's an artifact with \"{2}, {T}, Sacrifice this token: You gain 3 life.\")\nWhenever you gain life, put a +1/+1 counter on Neelix.","compiledTriggeredAbilities":[{"id":"neelix-moral-support-trigger","oracleText":"When Neelix enters, create a Food token.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"createToken","token":{"name":"Food","types":["Artifact"],"subtypes":["Food"],"activatedAbilities":[{"id":"food-token-sacrifice-gain-life","oracleText":"{2}, {T}, Sacrifice this token: You gain 3 life.","cost":{"mana":{"generic":2},"tap":true,"sacrifice":true},"useStack":true,"effects":[{"op":"gainLife","player":"controller","amount":3}]}]},"controller":"controller"}]},{"id":"neelix-moral-support-trigger-2","oracleText":"Whenever you gain life, put a +1/+1 counter on Neelix.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
         {"oracleId":"7fbad3f2-66f6-4e3a-b9e0-1ddbcd94d42a","name":"Shattered Landscape","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line","mana-ability"],"opsUsed":["choice","draw","libraryLook","moveZone"],"definition":{"name":"Shattered Landscape","types":["Land"],"oracleText":"{T}: Add {C}.\n{T}, Sacrifice this land: Search your library for a basic Mountain, Plains, or Swamp card, put it onto the battlefield tapped, then shuffle.\nCycling {R}{W}{B} ({R}{W}{B}, Discard this card: Draw a card.)","activatedAbilities":[{"id":"shattered-landscape-mana","oracleText":"{T}: Add {C}.","cost":{"tap":true},"useStack":false,"manaProduced":{"C":1}},{"id":"shattered-landscape-ability-2","oracleText":"{T}, Sacrifice this land: Search your library for a basic Mountain, Plains, or Swamp card, put it onto the battlefield tapped, then shuffle.","cost":{"tap":true,"sacrifice":true},"useStack":true,"effects":[{"op":"choice","kind":"search-library","player":"controller","zone":"library","filter":{"subtype":["Mountain","Plains","Swamp"],"supertype":"Basic"},"count":{"min":0,"max":1},"prompt":"Search your library for a basic Mountain, Plains, or Swamp card.","bind":"$found1"},{"op":"moveZone","cards":{"ref":"$found1"},"player":"controller","from":"library","to":"battlefield","tapped":true},{"op":"libraryLook","action":"shuffle","player":"controller"}]},{"id":"cycling","oracleText":"Cycling {W}{B}{R} ({W}{B}{R}, Discard this card: Draw a card.)","cost":{"mana":{"W":1,"B":1,"R":1},"discardThis":true,"cyclingCost":true},"activateFromHand":true,"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"botReach":"played"},
 
@@ -64326,7 +64297,7 @@
 
         {"oracleId":"814adb99-6100-4c36-96d9-763bc20dca5d","name":"Builder's Bane","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["b31e48c9949a"]},
 
-        {"oracleId":"814b87fe-2a75-4ff2-8637-7e69e3fb285b","name":"Marauding Blight-Priest","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["74c25c7c7bbe"]},
+        {"oracleId":"814b87fe-2a75-4ff2-8637-7e69e3fb285b","name":"Marauding Blight-Priest","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["8c38190fbaa5"]},
 
         {"oracleId":"814e06c0-9b61-4a64-8c67-73a8eb00a768","name":"Ferocification","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["fb54f9a1a519"]},
 
@@ -64502,7 +64473,7 @@
 
         {"oracleId":"81d80885-3b21-4730-83bf-c519984a210c","name":"Bucket List","state":"unparsed","gaps":["0cfc8b4de4cd","43234124d8e4"]},
 
-        {"oracleId":"81d8ba71-5412-4830-b0f7-cee52b1c0051","name":"Valgavoth, the Lifeline","state":"unparsed","gaps":["9a4dd0f622c9","f5535bd7abaa"]},
+        {"oracleId":"81d8ba71-5412-4830-b0f7-cee52b1c0051","name":"Valgavoth, the Lifeline","state":"unparsed","gaps":["d6024c48701d","f5535bd7abaa"]},
 
         {"oracleId":"81dad7c5-5950-4c45-adb0-cf1a15a74250","name":"Firkraag, Cunning Instigator","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["6682b3067c9e","bfcba03befa8"]},
 
@@ -64958,7 +64929,7 @@
 
         {"oracleId":"83856c3a-652e-4afc-9dc0-0072324ac36f","name":"Sanctuary Wall","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b61e5391f1e0"]},
 
-        {"oracleId":"83860749-1603-46e9-9065-e98001244193","name":"Treebeard, Gracious Host","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["06ec3559b93e"]},
+        {"oracleId":"83860749-1603-46e9-9065-e98001244193","name":"Treebeard, Gracious Host","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["74e41153ef49"]},
 
         {"oracleId":"83865eee-709a-4a34-94f1-9b818f31323f","name":"Springmantle Cleric","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["87c41b6333c0"]},
 
@@ -65680,7 +65651,7 @@
 
         {"oracleId":"85ee8ab6-8db5-45d7-85ae-64838771146a","name":"Momo, Playful Pet","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["fe10f6aafa3e"]},
 
-        {"oracleId":"85eefda9-4aab-467d-a08c-be026cb8ff42","name":"Amalia Benavides Aguirre","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7ea9c2a2d823"]},
+        {"oracleId":"85eefda9-4aab-467d-a08c-be026cb8ff42","name":"Amalia Benavides Aguirre","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["883819f6db78"]},
 
         {"oracleId":"85ef10fd-4a48-4a37-baad-f663fb5439e0","name":"Rebel Informer","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["cf2b74e92739"]},
 
@@ -65814,7 +65785,7 @@
 
         {"oracleId":"865a2194-fca0-446e-aae3-ca475cd66e00","name":"Dismal Backwater","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["mana-ability","static","triggered"],"opsUsed":["gainLife"],"definition":{"name":"Dismal Backwater","types":["Land"],"oracleText":"This land enters tapped.\nWhen this land enters, you gain 1 life.\n{T}: Add {U} or {B}.","activatedAbilities":[{"id":"dismal-backwater-mana","oracleText":"{T}: Add {U} or {B}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"U":1},{"B":1}]}],"compiledTriggeredAbilities":[{"id":"dismal-backwater-trigger","oracleText":"When this land enters, you gain 1 life.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"gainLife","player":"controller","amount":1}]}],"entersTapped":true},"botReach":"played"},
 
-        {"oracleId":"865a9402-b175-425d-9761-3964d1eb4bea","name":"Gomif, Fast Racer","state":"unparsed","gaps":["b94eeb5cbdcb","f5f4c7f44a8a","f7c0294a9adf"]},
+        {"oracleId":"865a9402-b175-425d-9761-3964d1eb4bea","name":"Gomif, Fast Racer","state":"unparsed","gaps":["37e3650bae4c","b94eeb5cbdcb","f5f4c7f44a8a"]},
 
         {"oracleId":"865e569b-6999-4a03-ad02-4bfd595d5820","name":"Iname as One","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9799a7e514f0"]},
 
@@ -66742,7 +66713,7 @@
 
         {"oracleId":"897eef47-3e99-4a5f-8a3e-ddb06bc95e9a","name":"Meat Locker // Drowned Diner","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["90059a0f059e"]},
 
-        {"oracleId":"897f666e-0dda-4577-a3d7-792e3ac2f460","name":"Voldaren Ambusher","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["25421498a2b8"]},
+        {"oracleId":"897f666e-0dda-4577-a3d7-792e3ac2f460","name":"Voldaren Ambusher","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["be91460864b0"]},
 
         {"oracleId":"89812139-9fc1-4fc9-b1d0-d07067d62083","name":"Azor, the Lawbringer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8d33611f970b","ab53e23d0f83"]},
 
@@ -67778,7 +67749,7 @@
 
         {"oracleId":"8d47b78b-11cc-4351-91d6-c891eb63dd98","name":"Keen Sense","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["360b84f6fb72"]},
 
-        {"oracleId":"8d49b6a1-4ae2-4443-a6b3-9ef806cb6fc4","name":"Hurska Sweet-Tooth","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["53d200bbf772","8b6576ffc790"]},
+        {"oracleId":"8d49b6a1-4ae2-4443-a6b3-9ef806cb6fc4","name":"Hurska Sweet-Tooth","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["53d200bbf772","d8e89087b100"]},
 
         {"oracleId":"8d4d6806-cb01-49e3-91cc-fb0e7f7a8684","name":"Thornscape Battlemage","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["dealDamage","destroy","if"],"definition":{"name":"Thornscape Battlemage","types":["Creature"],"subtypes":["Elf","Wizard"],"manaCost":{"X":2,"G":1},"power":2,"toughness":2,"oracleText":"Kicker {R} and/or {W} (You may pay an additional {R} and/or {W} as you cast this spell.)\nWhen this creature enters, if it was kicked with its {R} kicker, it deals 2 damage to any target.\nWhen this creature enters, if it was kicked with its {W} kicker, destroy target artifact.","compiledTriggeredAbilities":[{"id":"thornscape-battlemage-trigger","oracleText":"When this creature enters, if it was kicked with its {R} kicker, it deals 2 damage to any target.","head":{"kind":"entered","scope":"self"},"condition":{"kind":"kicker-paid","kickerId":"kicker-r"},"targetRequirement":{"type":"any","count":1},"effects":[{"op":"if","predicate":{"left":{"additionalCostPaid":"kicker-r"},"op":"ge","right":1},"then":[{"op":"dealDamage","amount":2,"to":{"target":0}}]}]},{"id":"thornscape-battlemage-trigger-2","oracleText":"When this creature enters, if it was kicked with its {W} kicker, destroy target artifact.","head":{"kind":"entered","scope":"self"},"condition":{"kind":"kicker-paid","kickerId":"kicker-w"},"targetRequirement":{"type":"Artifact","count":1},"effects":[{"op":"if","predicate":{"left":{"additionalCostPaid":"kicker-w"},"op":"ge","right":1},"then":[{"op":"destroy","target":{"target":0}}]}]}],"kickers":[{"id":"kicker-r","description":"Kicker {R}","mana":{"R":1}},{"id":"kicker-w","description":"Kicker {W}","mana":{"W":1}}]},"botReach":"played","retired":{"at":"2026-11-15","issue":4035}},
 
@@ -67820,7 +67791,7 @@
 
         {"oracleId":"8d7194f7-1525-4f6e-b974-b947a254f437","name":"Etherium Astrolabe","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["draw"],"definition":{"name":"Etherium Astrolabe","types":["Artifact"],"manaCost":{"X":2,"U":1},"oracleText":"Flash\n{B}, {T}, Sacrifice an artifact: Draw a card.","staticAbilities":["flash"],"activatedAbilities":[{"id":"etherium-astrolabe-ability","oracleText":"{B}, {T}, Sacrifice an artifact: Draw a card.","cost":{"mana":{"B":1},"tap":true,"sacrificeFilter":{"types":["Artifact"]}},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}]},"botReach":"played"},
 
-        {"oracleId":"8d72ddb3-ef6e-4847-b6d4-5d85b1dd5802","name":"Starscape Cleric","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["74c25c7c7bbe"]},
+        {"oracleId":"8d72ddb3-ef6e-4847-b6d4-5d85b1dd5802","name":"Starscape Cleric","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8c38190fbaa5"]},
 
         {"oracleId":"8d75c41f-8318-4944-ac20-b12904c7883f","name":"The Battle of Dragon Brothers // Fate Reforged","state":"unparsed","gaps":["1ad771a37bfb","22e6ce225b16","8fda90fbbf13","e07f95dcca3c","ecced648037b"]},
 
@@ -68968,7 +68939,7 @@
 
         {"oracleId":"919d21ad-3d1e-4f80-8005-64e3f8bf64d1","name":"Call of the Nightwing","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["createToken"],"definition":{"name":"Call of the Nightwing","types":["Sorcery"],"manaCost":{"X":2,"U":1,"B":1},"oracleText":"Create a 1/1 blue and black Horror creature token with flying.\nCipher (Then you may exile this spell card encoded on a creature you control. Whenever that creature deals combat damage to a player, its controller may cast a copy of the encoded card without paying its mana cost.)","staticAbilities":["cipher"],"effects":[{"op":"createToken","token":{"name":"Horror","types":["Creature"],"subtypes":["Horror"],"power":1,"toughness":1,"colors":["U","B"],"staticAbilities":["flying"]},"controller":"controller"}]},"botReach":"played"},
 
-        {"oracleId":"91a45e96-2a93-4c48-b472-11904d2b856d","name":"Vampire Socialite","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5a36a28d6978","bca338670779"]},
+        {"oracleId":"91a45e96-2a93-4c48-b472-11904d2b856d","name":"Vampire Socialite","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["741edf563b24","bca338670779"]},
 
         {"oracleId":"91a69925-1e9b-433a-ad58-88bfd3c4bc46","name":"Gaze of Adamaro","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["58caeb799f70"]},
 
@@ -69404,7 +69375,7 @@
 
         {"oracleId":"9307f7e9-bcd9-41f9-88f8-0fb9700a6b12","name":"Raffine, Scheming Seer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4b5c772cd087"]},
 
-        {"oracleId":"93088b0c-d158-473a-9c06-aa2f344a9868","name":"Bloodtithe Collector","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["52a2ac9299d4"]},
+        {"oracleId":"93088b0c-d158-473a-9c06-aa2f344a9868","name":"Bloodtithe Collector","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["797966f58c4e"]},
 
         {"oracleId":"930b48b8-dbd1-4109-9eaa-7d7e9a04fa5b","name":"Godhunter Octopus","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["47396decb78c"]},
 
@@ -69446,7 +69417,7 @@
 
         {"oracleId":"933e4e8a-01ea-4f58-8f5e-4f6c43f4e105","name":"Platypus-Bear","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["252b0e04565b"]},
 
-        {"oracleId":"933fe6e5-8d00-4411-aa54-7780382c1ea6","name":"Leonardo, Cutting Edge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3509185742bc","365b931626e0"]},
+        {"oracleId":"933fe6e5-8d00-4411-aa54-7780382c1ea6","name":"Leonardo, Cutting Edge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3509185742bc"]},
 
         {"oracleId":"934094d6-c897-4ae2-89cd-08d106600d3c","name":"Ambitious Dragonborn","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"gaps":["5fc68b598972"]},
 
@@ -70062,7 +70033,7 @@
 
         {"oracleId":"95625072-c457-4224-b509-5feaa35e9ca6","name":"Slimy Kavu","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["setSubtype"],"definition":{"name":"Slimy Kavu","types":["Creature"],"subtypes":["Kavu"],"manaCost":{"X":2,"R":1},"power":2,"toughness":2,"oracleText":"{T}: Target land becomes a Swamp until end of turn.","activatedAbilities":[{"id":"slimy-kavu-ability","oracleText":"{T}: Target land becomes a Swamp until end of turn.","cost":{"tap":true},"useStack":true,"effects":[{"op":"setSubtype","target":{"target":0},"subtypes":["Swamp"],"duration":{"phase":"end-of-turn"}}],"targetRequirement":{"type":"Land","count":1}}]},"botReach":"played"},
 
-        {"oracleId":"956250da-532a-4457-8696-73915be56943","name":"Cradle of Vitality","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f189517382eb"]},
+        {"oracleId":"956250da-532a-4457-8696-73915be56943","name":"Cradle of Vitality","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9b35bdc275b2"]},
 
         {"oracleId":"95630a83-3699-4340-b3e5-17e81db1b82f","name":"Hydro-Channeler","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["49cb17753677","c6bd0cb5219a"]},
 
@@ -70204,7 +70175,7 @@
 
         {"oracleId":"95e8e6bb-d83b-46fd-bfdf-fc042d8edd4a","name":"Lion Umbra","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b4045474fd2e"]},
 
-        {"oracleId":"95e94dea-5ac0-4d6f-adec-ca147aee861f","name":"Ajani's Pridemate","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["10cace15c93d"]},
+        {"oracleId":"95e94dea-5ac0-4d6f-adec-ca147aee861f","name":"Ajani's Pridemate","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["counters"],"definition":{"name":"Ajani's Pridemate","types":["Creature"],"subtypes":["Cat","Soldier"],"manaCost":{"X":1,"W":1},"power":2,"toughness":2,"oracleText":"Whenever you gain life, put a +1/+1 counter on this creature.","compiledTriggeredAbilities":[{"id":"ajani-s-pridemate-trigger","oracleText":"Whenever you gain life, put a +1/+1 counter on this creature.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
         {"oracleId":"95ee46ec-4b60-4fea-a09b-d15c083916b3","name":"Unconventional Tactics","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9f00d44c4af1"]},
 
@@ -70552,7 +70523,7 @@
 
         {"oracleId":"974f788a-039f-4310-a2fe-16b14a1e2d35","name":"Skyscanner","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["draw"],"definition":{"name":"Skyscanner","types":["Artifact","Creature"],"subtypes":["Thopter"],"manaCost":{"X":3},"power":1,"toughness":1,"oracleText":"Flying\nWhen this creature enters, draw a card.","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"skyscanner-trigger","oracleText":"When this creature enters, draw a card.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"draw","player":"controller","count":1}]}]},"botReach":"played"},
 
-        {"oracleId":"974fbeb0-77d6-4a29-aa91-226cb5b32233","name":"Citizen V, Helmut Zemo","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["d4d2a4d36a2f"]},
+        {"oracleId":"974fbeb0-77d6-4a29-aa91-226cb5b32233","name":"Citizen V, Helmut Zemo","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["7d5868b733bf"]},
 
         {"oracleId":"975226a4-2d03-4993-9337-cfd6595011bd","name":"Flame Elemental","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["dealDamage"],"definition":{"name":"Flame Elemental","types":["Creature"],"subtypes":["Elemental"],"manaCost":{"X":2,"R":2},"power":3,"toughness":2,"oracleText":"{R}, {T}, Sacrifice this creature: It deals damage equal to its power to target creature.","activatedAbilities":[{"id":"flame-elemental-ability","oracleText":"{R}, {T}, Sacrifice this creature: It deals damage equal to its power to target creature.","cost":{"mana":{"R":1},"tap":true,"sacrifice":true},"useStack":true,"effects":[{"op":"dealDamage","amount":{"sacrificed":{"read":"power"}},"to":{"target":0}}],"targetRequirement":{"type":"Creature","count":1}}]},"botReach":"played"},
 
@@ -71004,7 +70975,7 @@
 
         {"oracleId":"98e547de-b963-4ee4-9a08-67bae010734b","name":"University Campus","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["4a62e22c0c55"]},
 
-        {"oracleId":"98e698ae-1a69-469c-9cfb-0e3fedeb71d4","name":"Enduring Tenacity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["571a57cdef01","63e3f18c7847"]},
+        {"oracleId":"98e698ae-1a69-469c-9cfb-0e3fedeb71d4","name":"Enduring Tenacity","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["63e3f18c7847"]},
 
         {"oracleId":"98e7b75b-f24d-4317-8b45-9397a4742081","name":"Sinstriker's Will","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["afe6e1d48be9"]},
 
@@ -71528,7 +71499,7 @@
 
         {"oracleId":"9ad61841-9894-41da-bdd8-248c2ce21b00","name":"Split the Party","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9a17665ccdc1"]},
 
-        {"oracleId":"9ad730b5-8950-4215-9319-387e2970dd22","name":"Exemplar of Light","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["10cace15c93d","62b1b35a6f74"]},
+        {"oracleId":"9ad730b5-8950-4215-9319-387e2970dd22","name":"Exemplar of Light","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["62b1b35a6f74"]},
 
         {"oracleId":"9ad86d0e-3363-4d98-b0bb-dc491be1ddd5","name":"Convalescence","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["676f8cca0e99"]},
 
@@ -71752,7 +71723,7 @@
 
         {"oracleId":"9b8d9236-0452-4509-aca4-a53a399fff85","name":"Chivalric Alliance","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["41c927df71ac"]},
 
-        {"oracleId":"9b8f6c6a-49a1-4061-a2c4-5be612e138fa","name":"Sphinx of the Revelation","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["6090fbc8aaf5","84ca82113af9"]},
+        {"oracleId":"9b8f6c6a-49a1-4061-a2c4-5be612e138fa","name":"Sphinx of the Revelation","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["4938b32b6c2c","84ca82113af9"]},
 
         {"oracleId":"9b90c7d1-38c6-4210-bc76-68c5fcb91202","name":"Dread Shade","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["pump"],"definition":{"name":"Dread Shade","types":["Creature"],"subtypes":["Shade"],"manaCost":{"B":3},"power":3,"toughness":3,"oracleText":"{B}: This creature gets +1/+1 until end of turn.","activatedAbilities":[{"id":"dread-shade-ability","oracleText":"{B}: This creature gets +1/+1 until end of turn.","cost":{"mana":{"B":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
@@ -73492,7 +73463,7 @@
 
         {"oracleId":"a202276b-1f1b-4277-95ee-26877a204f5e","name":"Sunbillow Verge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f095fbdf290c"]},
 
-        {"oracleId":"a2057118-9fd1-431d-9441-fef198d67ff2","name":"Bloodbond Vampire","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["10cace15c93d"]},
+        {"oracleId":"a2057118-9fd1-431d-9441-fef198d67ff2","name":"Bloodbond Vampire","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["counters"],"definition":{"name":"Bloodbond Vampire","types":["Creature"],"subtypes":["Vampire","Shaman","Ally"],"manaCost":{"X":2,"B":2},"power":3,"toughness":3,"oracleText":"Whenever you gain life, put a +1/+1 counter on this creature.","compiledTriggeredAbilities":[{"id":"bloodbond-vampire-trigger","oracleText":"Whenever you gain life, put a +1/+1 counter on this creature.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
         {"oracleId":"a205cbbf-b16f-44c0-9299-175c36cd86db","name":"Lifeblood","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["3de6a82e5d78"]},
 
@@ -74138,7 +74109,7 @@
 
         {"oracleId":"a46454ad-d912-42f7-b228-492796161d82","name":"Sage of Ancient Lore // Werewolf of Ancient Hunger","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["16329ee0c064","6dbe42fcf39f","b9c5dd7c5793","d4df56d2d7c6"]},
 
-        {"oracleId":"a465ba74-615a-4261-b4a0-fcb0819f10b3","name":"Blood Researcher","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["10cace15c93d"]},
+        {"oracleId":"a465ba74-615a-4261-b4a0-fcb0819f10b3","name":"Blood Researcher","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["counters"],"definition":{"name":"Blood Researcher","types":["Creature"],"subtypes":["Vampire","Druid"],"manaCost":{"X":1,"B":1,"G":1},"power":2,"toughness":2,"oracleText":"Menace (This creature can't be blocked except by two or more creatures.)\nWhenever you gain life, put a +1/+1 counter on this creature.","staticAbilities":["menace"],"compiledTriggeredAbilities":[{"id":"blood-researcher-trigger","oracleText":"Whenever you gain life, put a +1/+1 counter on this creature.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
         {"oracleId":"a465f8a9-d5aa-4dfa-b674-7aa1798cb0bd","name":"Beast Mode","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"gaps":["8f2635ccb376","a557e6f1a049"]},
 
@@ -74328,7 +74299,7 @@
 
         {"oracleId":"a534f06e-dae4-4d1a-96e9-7693bbb21e12","name":"Zhalfirin Knight","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["grantAbility"],"definition":{"name":"Zhalfirin Knight","types":["Creature"],"subtypes":["Human","Knight"],"manaCost":{"X":2,"W":1},"power":2,"toughness":2,"oracleText":"Flanking (Whenever a creature without flanking blocks this creature, the blocking creature gets -1/-1 until end of turn.)\n{W}{W}: This creature gains first strike until end of turn.","staticAbilities":["flanking"],"activatedAbilities":[{"id":"zhalfirin-knight-ability","oracleText":"{W}{W}: This creature gains first strike until end of turn.","cost":{"mana":{"W":2}},"useStack":true,"effects":[{"op":"grantAbility","target":{"ref":"$source"},"ability":"first strike","duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
-        {"oracleId":"a5350327-e84c-44b6-8359-87882e521048","name":"Niv-Mizzet, Ghost Counsel","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["3f3a62b89e0c"]},
+        {"oracleId":"a5350327-e84c-44b6-8359-87882e521048","name":"Niv-Mizzet, Ghost Counsel","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["65ecb3a6d8ac"]},
 
         {"oracleId":"a5375366-7ddc-4bd5-91c9-dc08f8beb3f6","name":"Opal Lake Gatekeepers","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["draw","if","mayPay"],"definition":{"name":"Opal Lake Gatekeepers","types":["Creature"],"subtypes":["Vedalken","Soldier"],"manaCost":{"X":3,"U":1},"power":2,"toughness":4,"oracleText":"When this creature enters, if you control two or more Gates, you may draw a card.","compiledTriggeredAbilities":[{"id":"opal-lake-gatekeepers-trigger","oracleText":"When this creature enters, if you control two or more Gates, you may draw a card.","head":{"kind":"entered","scope":"self"},"condition":{"kind":"controls","filter":{"subtypes":["Gate"]},"atLeast":2},"effects":[{"op":"mayPay","player":"controller","prompt":"Draw a card?","bind":"$may1"},{"op":"if","predicate":{"binding":"$may1"},"then":[{"op":"draw","player":"controller","count":1}]}]}]},"botReach":"played"},
 
@@ -74590,7 +74561,7 @@
 
         {"oracleId":"a62e6cf4-1adb-4c28-b24b-91287bb23e96","name":"Geralf, the Fleshwright","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5439ab7670b0","7f396a20c725"]},
 
-        {"oracleId":"a6342d2c-06e3-4443-9276-b49f4a06a4da","name":"Searing Meditation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c2aa9677e168"]},
+        {"oracleId":"a6342d2c-06e3-4443-9276-b49f4a06a4da","name":"Searing Meditation","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["dealDamage","if","mayPay"],"definition":{"name":"Searing Meditation","types":["Enchantment"],"manaCost":{"X":1,"W":1,"R":1},"oracleText":"Whenever you gain life, you may pay {2}. If you do, this enchantment deals 2 damage to any target.","compiledTriggeredAbilities":[{"id":"searing-meditation-trigger","oracleText":"Whenever you gain life, you may pay {2}. If you do, this enchantment deals 2 damage to any target.","head":{"kind":"life-gained","scope":"you"},"targetRequirement":{"type":"any","count":1},"effects":[{"op":"mayPay","player":"controller","cost":{"X":2},"prompt":"You may pay {2}. If you do, this enchantment deals 2 damage to any target","bind":"$paid1"},{"op":"if","predicate":{"binding":"$paid1"},"then":[{"op":"dealDamage","amount":2,"to":{"target":0}}]}]}]},"botReach":"played"},
 
         {"oracleId":"a6365f98-f652-492b-81de-5f8cd6fe0a1c","name":"Dwarven Hammer","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["b6a13098ad64"]},
 
@@ -75926,7 +75897,7 @@
 
         {"oracleId":"ab46b957-5206-4390-a2f6-aba2e8d1debe","name":"Radiant Kavu","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["6efa60ee4afe"]},
 
-        {"oracleId":"ab478ac9-af59-4df1-afef-5e9806c06643","name":"Veinwitch Coven","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["692e32de5d0b"]},
+        {"oracleId":"ab478ac9-af59-4df1-afef-5e9806c06643","name":"Veinwitch Coven","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["if","mayPay","moveZone"],"definition":{"name":"Veinwitch Coven","types":["Creature"],"subtypes":["Vampire","Warlock"],"manaCost":{"X":2,"B":1},"power":3,"toughness":3,"oracleText":"Menace\nWhenever you gain life, you may pay {B}. If you do, return target creature card from your graveyard to your hand.","staticAbilities":["menace"],"compiledTriggeredAbilities":[{"id":"veinwitch-coven-trigger","oracleText":"Whenever you gain life, you may pay {B}. If you do, return target creature card from your graveyard to your hand.","head":{"kind":"life-gained","scope":"you"},"targetRequirement":{"type":"Creature","count":1,"zone":"graveyard","controller":"you"},"effects":[{"op":"mayPay","player":"controller","cost":{"B":1},"prompt":"You may pay {B}. If you do, return target creature card from your graveyard to your hand","bind":"$paid1"},{"op":"if","predicate":{"binding":"$paid1"},"then":[{"op":"moveZone","target":{"target":0},"to":"hand"}]}]}]},"botReach":"played"},
 
         {"oracleId":"ab48147c-0bd7-4875-8e11-0e26185453dd","name":"Cackling Flames","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["1317c5469d3c"]},
 
@@ -76840,7 +76811,7 @@
 
         {"oracleId":"ae771e78-1d29-4b8c-8511-9da196a78dcf","name":"Fated Infatuation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["81bc5c3c5c29"]},
 
-        {"oracleId":"ae78b6f9-8334-479e-8111-8e3acb2b7ca7","name":"Bloodthirsty Aerialist","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["10cace15c93d"]},
+        {"oracleId":"ae78b6f9-8334-479e-8111-8e3acb2b7ca7","name":"Bloodthirsty Aerialist","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["counters"],"definition":{"name":"Bloodthirsty Aerialist","types":["Creature"],"subtypes":["Vampire","Rogue"],"manaCost":{"X":1,"B":2},"power":2,"toughness":3,"oracleText":"Flying\nWhenever you gain life, put a +1/+1 counter on this creature.","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"bloodthirsty-aerialist-trigger","oracleText":"Whenever you gain life, put a +1/+1 counter on this creature.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
         {"oracleId":"ae78d498-11c7-427f-9d13-3f1b7096f803","name":"Winter's Chill","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["0e314b63bb6a","45ea8bd6acc2","b1843a96987d"]},
 
@@ -77356,7 +77327,7 @@
 
         {"oracleId":"b0391ea4-e37d-48c9-91df-79aefe376bcc","name":"Empty City Ruse","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["833271e59e24"]},
 
-        {"oracleId":"b0394cf2-12a0-4d4f-87e0-fe8937e6faff","name":"Well of Lost Dreams","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ca4abd7ea01e"]},
+        {"oracleId":"b0394cf2-12a0-4d4f-87e0-fe8937e6faff","name":"Well of Lost Dreams","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e989c7e04b5f"]},
 
         {"oracleId":"b039997c-2115-4f6d-9f7b-0ad35a4796a6","name":"Frost Ogre","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Frost Ogre","types":["Creature"],"subtypes":["Ogre","Warrior"],"manaCost":{"X":3,"R":2},"power":5,"toughness":3},"botReach":"played"},
 
@@ -78906,7 +78877,7 @@
 
         {"oracleId":"b5d5dd1f-2d31-4849-8cb9-08354dd48d31","name":"Feral Hydra","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","static"],"opsUsed":["counters"],"definition":{"name":"Feral Hydra","types":["Creature"],"subtypes":["Hydra","Beast"],"manaCost":{"X":"X","G":1},"power":0,"toughness":0,"oracleText":"This creature enters with X +1/+1 counters on it.\n{3}: Put a +1/+1 counter on this creature. Any player may activate this ability.","activatedAbilities":[{"id":"feral-hydra-ability","oracleText":"{3}: Put a +1/+1 counter on this creature. Any player may activate this ability.","cost":{"mana":{"X":3}},"useStack":true,"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}],"activatableByAnyPlayer":true}],"entersWith":{"counters":[{"type":"+1/+1","count":"X"}]}},"botReach":"played"},
 
-        {"oracleId":"b5d64271-4478-4c55-8c71-ba8f02b47fac","name":"Fiendish Panda","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["10cace15c93d","137466ead3d4"]},
+        {"oracleId":"b5d64271-4478-4c55-8c71-ba8f02b47fac","name":"Fiendish Panda","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["137466ead3d4"]},
 
         {"oracleId":"b5d856a3-0305-4c3b-b447-99570d6e8195","name":"Vivid Revival","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7ba02a767cba"]},
 
@@ -78916,7 +78887,7 @@
 
         {"oracleId":"b5e0aa12-920d-4700-a287-5ca24933abb1","name":"Oketra's Last Mercy","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0296cf1c4396"]},
 
-        {"oracleId":"b5e42be3-6bfc-4905-9237-cb8d53e2349e","name":"Mounted Dreadknight","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["8a6bc7ee63aa"]},
+        {"oracleId":"b5e42be3-6bfc-4905-9237-cb8d53e2349e","name":"Mounted Dreadknight","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Mounted Dreadknight","types":["Creature"],"subtypes":["Vampire","Knight"],"manaCost":{"X":4,"R":1},"power":5,"toughness":4,"oracleText":"Trample\nThis creature enters with a +1/+1 counter on it if an opponent lost life this turn.","staticAbilities":["trample"],"entersWith":{"counters":[{"type":"+1/+1","count":{"ifOpponentLostLifeThisTurn":1}}]}},"botReach":"played"},
 
         {"oracleId":"b5e44bd6-0b67-4770-868d-c46af5b6a42f","name":"Zephyr Falcon","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Zephyr Falcon","types":["Creature"],"subtypes":["Bird"],"manaCost":{"X":1,"U":1},"power":1,"toughness":1,"oracleText":"Flying, vigilance","staticAbilities":["flying","vigilance"]},"botReach":"played","retired":{"at":"2026-11-20","issue":4037}},
 
@@ -79188,7 +79159,7 @@
 
         {"oracleId":"b701378f-681b-4840-bd11-1a97c2a675f2","name":"Vampiric Touch","state":"unparsed","poolIn":["pauper","legacy","vintage","commander"],"gaps":["c9aa0fe0ff8f"]},
 
-        {"oracleId":"b7040175-7411-43a8-9b46-dba1d7c2135d","name":"Bloombrute","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["88372d2525d1","c713750e6298"]},
+        {"oracleId":"b7040175-7411-43a8-9b46-dba1d7c2135d","name":"Bloombrute","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["88372d2525d1"]},
 
         {"oracleId":"b704f231-f64c-49fc-84f6-0fc53081bcd0","name":"Blood-Chin Fanatic","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9b27ff3c3c80"]},
 
@@ -79680,7 +79651,7 @@
 
         {"oracleId":"b8e43e56-d85f-4f5a-9e4b-e9b2f3461653","name":"Seasoned Weaponsmith","state":"unparsed","gaps":["4cc25203565a"]},
 
-        {"oracleId":"b8ecddf7-ba89-40dd-9f63-5bad27dd850d","name":"Pest Mascot","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["10cace15c93d"]},
+        {"oracleId":"b8ecddf7-ba89-40dd-9f63-5bad27dd850d","name":"Pest Mascot","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["counters"],"definition":{"name":"Pest Mascot","types":["Creature"],"subtypes":["Pest","Ape"],"manaCost":{"X":1,"B":1,"G":1},"power":2,"toughness":3,"oracleText":"Trample\nWhenever you gain life, put a +1/+1 counter on this creature.","staticAbilities":["trample"],"compiledTriggeredAbilities":[{"id":"pest-mascot-trigger","oracleText":"Whenever you gain life, put a +1/+1 counter on this creature.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
         {"oracleId":"b8ed29be-e95d-4ab0-a85a-9b519716aca3","name":"Genetic Recombinator","state":"unparsed","gaps":["67ebdf18a852"]},
 
@@ -81018,7 +80989,7 @@
 
         {"oracleId":"bdacd7a4-3d14-45eb-85a6-33ee711b34af","name":"Emissary of Soulfire","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9a95050803d5"]},
 
-        {"oracleId":"bdb319a6-a1cd-44f5-999d-af1bb55b2fc4","name":"Epicure of Blood","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["74c25c7c7bbe"]},
+        {"oracleId":"bdb319a6-a1cd-44f5-999d-af1bb55b2fc4","name":"Epicure of Blood","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["8c38190fbaa5"]},
 
         {"oracleId":"bdb3ca68-ec1f-4e16-81cc-d23f8f52c728","name":"Naturalize","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["destroy"],"definition":{"name":"Naturalize","types":["Instant"],"manaCost":{"X":1,"G":1},"oracleText":"Destroy target artifact or enchantment.","effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":["Artifact","Enchantment"],"count":1}},"botReach":"played"},
 
@@ -81118,7 +81089,7 @@
 
         {"oracleId":"be02005c-0e37-4dba-ac8e-3c69d06bbec2","name":"Silver Surfer, Galactus's Herald","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["cc7cdf51f477"]},
 
-        {"oracleId":"be030639-cbc9-416b-b0ca-1a76439791d8","name":"Celestial Unicorn","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["10cace15c93d"]},
+        {"oracleId":"be030639-cbc9-416b-b0ca-1a76439791d8","name":"Celestial Unicorn","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["counters"],"definition":{"name":"Celestial Unicorn","types":["Creature"],"subtypes":["Unicorn"],"manaCost":{"X":2,"W":1},"power":3,"toughness":2,"oracleText":"Whenever you gain life, put a +1/+1 counter on this creature.","compiledTriggeredAbilities":[{"id":"celestial-unicorn-trigger","oracleText":"Whenever you gain life, put a +1/+1 counter on this creature.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
         {"oracleId":"be04f54f-59fa-4f0a-b8b5-790d568932b6","name":"Phyrexian Missionary","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["if","moveZone"],"definition":{"name":"Phyrexian Missionary","types":["Creature"],"subtypes":["Phyrexian","Human","Cleric"],"manaCost":{"X":1,"W":1},"power":2,"toughness":3,"oracleText":"Kicker {1}{B} (You may pay an additional {1}{B} as you cast this spell.)\nLifelink\nWhen this creature enters, if it was kicked, return target creature card from your graveyard to your hand.","staticAbilities":["lifelink"],"compiledTriggeredAbilities":[{"id":"phyrexian-missionary-trigger","oracleText":"When this creature enters, if it was kicked, return target creature card from your graveyard to your hand.","head":{"kind":"entered","scope":"self"},"condition":{"kind":"kicker-paid","kickerId":"kicker"},"targetRequirement":{"type":"Creature","count":1,"zone":"graveyard","controller":"you"},"effects":[{"op":"if","predicate":{"left":{"additionalCostPaid":"kicker"},"op":"ge","right":1},"then":[{"op":"moveZone","target":{"target":0},"to":"hand"}]}]}],"kickers":[{"id":"kicker","description":"Kicker {1}{B}","mana":{"X":1,"B":1}}]},"botReach":"played"},
 
@@ -81150,7 +81121,7 @@
 
         {"oracleId":"be16e9d8-aa73-448b-919c-7d02e2e15911","name":"Hostility","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["071f6d1cbdec","a8f64e989ef8"]},
 
-        {"oracleId":"be175e92-567a-42e3-ad54-136c0631fe0e","name":"Trudge Garden","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["573f08e3678a"]},
+        {"oracleId":"be175e92-567a-42e3-ad54-136c0631fe0e","name":"Trudge Garden","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["createToken","if","mayPay"],"definition":{"name":"Trudge Garden","types":["Enchantment"],"manaCost":{"X":2,"G":1},"oracleText":"Whenever you gain life, you may pay {2}. If you do, create a 4/4 green Fungus Beast creature token with trample.","compiledTriggeredAbilities":[{"id":"trudge-garden-trigger","oracleText":"Whenever you gain life, you may pay {2}. If you do, create a 4/4 green Fungus Beast creature token with trample.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"mayPay","player":"controller","cost":{"X":2},"prompt":"You may pay {2}. If you do, create a 4/4 green Fungus Beast creature token with trample","bind":"$paid1"},{"op":"if","predicate":{"binding":"$paid1"},"then":[{"op":"createToken","token":{"name":"Fungus Beast","types":["Creature"],"subtypes":["Fungus","Beast"],"power":4,"toughness":4,"colors":["G"],"staticAbilities":["trample"]},"controller":"controller"}]}]}]},"botReach":"played"},
 
         {"oracleId":"be19d5ef-15ed-422d-8799-63eabfdbaae3","name":"Vampire Champion Fury","state":"unparsed","poolIn":["commander"],"gaps":["7800673dd12a"]},
 
@@ -81350,7 +81321,7 @@
 
         {"oracleId":"beebed34-3a9b-4b51-aacb-1e85d76cf326","name":"Feral Animist","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["920e1d4859ed"]},
 
-        {"oracleId":"beeed1c5-2f51-4e40-87b9-9a6f810ee4cb","name":"Nazar, the Velvet Fang","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["79a64cbbcd1c","b3816120b231"]},
+        {"oracleId":"beeed1c5-2f51-4e40-87b9-9a6f810ee4cb","name":"Nazar, the Velvet Fang","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["79a64cbbcd1c"]},
 
         {"oracleId":"beef71f4-f607-4718-9fde-98e8d7871ce9","name":"Equal Treatment","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["b65f96821e03"]},
 
@@ -81560,7 +81531,7 @@
 
         {"oracleId":"bfb5104b-01e3-4d37-ac93-1dc342121531","name":"Enhanced Surveillance","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9255dfe15c89"]},
 
-        {"oracleId":"bfb6651c-e0b3-4dbd-b26a-3eeb690985fc","name":"Excalibur II","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["cd6c8531a358","ed6bd3af1347"]},
+        {"oracleId":"bfb6651c-e0b3-4dbd-b26a-3eeb690985fc","name":"Excalibur II","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ed6bd3af1347"]},
 
         {"oracleId":"bfb75b28-0e51-4829-b104-f1679e63c126","name":"Myojin of Blooming Dawn","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["4f9146c6983a","c87b63538a45"]},
 
@@ -82140,7 +82111,7 @@
 
         {"oracleId":"c1bc819a-f291-4b55-94f7-269f160ce76b","name":"Luminate Primordial","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["23f1a87faa0f"]},
 
-        {"oracleId":"c1bdd361-c7f2-4aa2-8d07-b582775551ff","name":"Blech, Loafing Pest","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["12f56a59e550"]},
+        {"oracleId":"c1bdd361-c7f2-4aa2-8d07-b582775551ff","name":"Blech, Loafing Pest","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["430e2b7a4df8"]},
 
         {"oracleId":"c1bf4f41-1afa-467d-96f0-a7b610907d2d","name":"Refreshing Elixir","state":"unparsed","gaps":["290b99235a6b","91eb5610925e"]},
 
@@ -83862,7 +83833,7 @@
 
         {"oracleId":"c80a7d22-076a-4fd7-bcf4-4769143647f0","name":"Kuro, Pitlord","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","triggered"],"opsUsed":["if","mayPay","pump","sacrifice"],"definition":{"name":"Kuro, Pitlord","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Demon","Spirit"],"manaCost":{"X":6,"B":3},"power":9,"toughness":9,"oracleText":"At the beginning of your upkeep, sacrifice Kuro unless you pay {B}{B}{B}{B}.\nPay 1 life: Target creature gets -1/-1 until end of turn.","activatedAbilities":[{"id":"kuro-pitlord-ability","oracleText":"Pay 1 life: Target creature gets -1/-1 until end of turn.","cost":{"life":1},"useStack":true,"effects":[{"op":"pump","target":{"target":0},"power":-1,"toughness":-1,"duration":{"phase":"end-of-turn"}}],"targetRequirement":{"type":"Creature","count":1}}],"compiledTriggeredAbilities":[{"id":"kuro-pitlord-trigger","oracleText":"At the beginning of your upkeep, sacrifice Kuro unless you pay {B}{B}{B}{B}.","head":{"kind":"phase","phase":"UPKEEP","scope":"your"},"effects":[{"op":"mayPay","player":"controller","cost":{"B":4},"prompt":"Pay the cost, or sacrifice Kuro, Pitlord?","bind":"$may1"},{"op":"if","predicate":{"not":{"binding":"$may1"}},"then":[{"op":"sacrifice","target":{"ref":"$source"}}]}]}]},"botReach":"ignored","botGap":"never-chosen › Creature › if+mayPay+pump+sacrifice"},
 
-        {"oracleId":"c8110200-209e-423a-96b7-81a3ac32447c","name":"The Destined White Mage","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["bba3d3b66595"]},
+        {"oracleId":"c8110200-209e-423a-96b7-81a3ac32447c","name":"The Destined White Mage","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["1b22a87f9985"]},
 
         {"oracleId":"c81195d4-19c6-4cac-b312-7f5c33dff962","name":"Iron Man, Armored Avenger","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["15c0f7de2f15","21d7a2e8a988"]},
 
@@ -83940,7 +83911,7 @@
 
         {"oracleId":"c857de66-f4e0-4e97-ad01-fac623af8225","name":"Tomb Blade","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["d3869a8cf6be"]},
 
-        {"oracleId":"c85987b4-090e-472e-b9af-1114cce56ffb","name":"Stromkirk Bloodthief","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e64174418bd4"]},
+        {"oracleId":"c85987b4-090e-472e-b9af-1114cce56ffb","name":"Stromkirk Bloodthief","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["counters"],"definition":{"name":"Stromkirk Bloodthief","types":["Creature"],"subtypes":["Vampire","Rogue"],"manaCost":{"X":2,"B":1},"power":2,"toughness":2,"oracleText":"At the beginning of your end step, if an opponent lost life this turn, put a +1/+1 counter on target Vampire you control.","compiledTriggeredAbilities":[{"id":"stromkirk-bloodthief-trigger","oracleText":"At the beginning of your end step, if an opponent lost life this turn, put a +1/+1 counter on target Vampire you control.","head":{"kind":"phase","phase":"END_STEP","scope":"your"},"condition":{"kind":"life-changed-this-turn","player":"opponent","directions":["lost"],"combine":"any"},"targetRequirement":{"type":"Creature","count":1,"subtypeFilter":["Vampire"],"controller":"you"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"target":0},"count":1}]}]},"botReach":"played"},
 
         {"oracleId":"c85ba59f-2851-4c75-86db-da798334850c","name":"Cultural Exchange","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["ac82bf3d9ccf"]},
 
@@ -84812,7 +84783,7 @@
 
         {"oracleId":"cb66c5ec-e7a4-4bd2-b825-6c9b846ba40d","name":"Silvergill Adept","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["796faf38af5d"]},
 
-        {"oracleId":"cb68d1e4-36aa-4a00-b671-8959e7d526d4","name":"Lunar Convocation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["58f4dfe970d8","f97b041392dc"]},
+        {"oracleId":"cb68d1e4-36aa-4a00-b671-8959e7d526d4","name":"Lunar Convocation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f97b041392dc"]},
 
         {"oracleId":"cb690399-0fb8-4bd8-a73d-5e0e594ff2ae","name":"Fallaji Chaindancer","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["grantAbility"],"definition":{"name":"Fallaji Chaindancer","types":["Creature"],"subtypes":["Human","Soldier"],"manaCost":{"X":3,"R":1},"power":2,"toughness":4,"oracleText":"{2}: This creature gains double strike until end of turn.","activatedAbilities":[{"id":"fallaji-chaindancer-ability","oracleText":"{2}: This creature gains double strike until end of turn.","cost":{"mana":{"X":2}},"useStack":true,"effects":[{"op":"grantAbility","target":{"ref":"$source"},"ability":"double strike","duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
@@ -84876,7 +84847,7 @@
 
         {"oracleId":"cb9994b9-924b-4e10-9075-9cfbec88f2bf","name":"Luminarch Aspirant","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["counters"],"definition":{"name":"Luminarch Aspirant","types":["Creature"],"subtypes":["Human","Cleric"],"manaCost":{"X":1,"W":1},"power":1,"toughness":1,"oracleText":"At the beginning of combat on your turn, put a +1/+1 counter on target creature you control.","compiledTriggeredAbilities":[{"id":"luminarch-aspirant-trigger","oracleText":"At the beginning of combat on your turn, put a +1/+1 counter on target creature you control.","head":{"kind":"phase","phase":"BEGINNING_OF_COMBAT","scope":"your"},"targetRequirement":{"type":"Creature","count":1,"controller":"you"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"target":0},"count":1}]}]},"botReach":"played","retired":{"at":"2026-11-20","issue":4034}},
 
-        {"oracleId":"cb99c675-adc5-4dad-8be8-524f5f921213","name":"Elenda's Hierophant","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0fed7055962d","10cace15c93d"]},
+        {"oracleId":"cb99c675-adc5-4dad-8be8-524f5f921213","name":"Elenda's Hierophant","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0fed7055962d"]},
 
         {"oracleId":"cb9abc41-07f8-4a06-b7b9-9dd6be526e42","name":"Great Intelligence's Plan","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["10525fc9208e"]},
 
@@ -85180,7 +85151,7 @@
 
         {"oracleId":"ccaea194-4b21-4485-ba08-d8d030c9418d","name":"Stone-Seeder Hierophant","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["77d2ca7f7255"]},
 
-        {"oracleId":"ccaeabe1-42fa-4f29-bf80-d9b73498eec6","name":"Scion of the Swarm","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["10cace15c93d"]},
+        {"oracleId":"ccaeabe1-42fa-4f29-bf80-d9b73498eec6","name":"Scion of the Swarm","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["counters"],"definition":{"name":"Scion of the Swarm","types":["Creature"],"subtypes":["Vampire","Cleric"],"manaCost":{"X":3,"B":2},"power":3,"toughness":3,"oracleText":"Flying\nWhenever you gain life, put a +1/+1 counter on this creature.","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"scion-of-the-swarm-trigger","oracleText":"Whenever you gain life, put a +1/+1 counter on this creature.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
         {"oracleId":"ccb0f59b-7947-4563-9e16-5d23246f4232","name":"Wave of Rats","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["73d803f50a2c","759c8da8053b"]},
 
@@ -85266,7 +85237,7 @@
 
         {"oracleId":"cd0e6cdb-9b7f-47d6-9478-fb50003165af","name":"Mammoth Umbra","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Mammoth Umbra","types":["Enchantment"],"subtypes":["Aura"],"manaCost":{"X":4,"W":1},"oracleText":"Enchant creature\nEnchanted creature gets +3/+3 and has vigilance.\nUmbra armor (If enchanted creature would be destroyed, instead remove all damage from it and destroy this Aura.)","staticAbilities":["umbra armor"],"compiledStaticEffects":[{"kind":"pt-buff","appliesTo":"host","power":3,"toughness":3},{"kind":"keyword-grant","appliesTo":"host","keyword":"vigilance"}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
-        {"oracleId":"cd10ebc9-9f6c-4da2-9a86-263902002ebc","name":"Trelasarra, Moon Dancer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["03a0cd3fda36"]},
+        {"oracleId":"cd10ebc9-9f6c-4da2-9a86-263902002ebc","name":"Trelasarra, Moon Dancer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["61a50264da49"]},
 
         {"oracleId":"cd112962-b297-403c-bede-c8b587f379b3","name":"Wall of Nets","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["9b9b3c93d902","bd13c21c5b1d"]},
 
@@ -85682,7 +85653,7 @@
 
         {"oracleId":"ce916c92-350c-4546-882b-555dc450413d","name":"Hammerfist Giant","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["dealDamage","forEach"],"definition":{"name":"Hammerfist Giant","types":["Creature"],"subtypes":["Giant","Warrior"],"manaCost":{"X":4,"R":2},"power":5,"toughness":4,"oracleText":"{T}: This creature deals 4 damage to each creature without flying and each player.","activatedAbilities":[{"id":"hammerfist-giant-ability","oracleText":"{T}: This creature deals 4 damage to each creature without flying and each player.","cost":{"tap":true},"useStack":true,"effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"type":"Creature","excludeAbility":"flying"}},"effects":[{"op":"dealDamage","amount":4,"to":{"ref":"$each"}}]},{"op":"forEach","select":{"set":"players"},"effects":[{"op":"dealDamage","amount":4,"to":{"player":{"ref":"$each"}}}]}]}]},"botReach":"played"},
 
-        {"oracleId":"ce924285-f4c5-44e6-909b-f5f7d302ebaf","name":"Way of the Mentor","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d26b7fd32b34"]},
+        {"oracleId":"ce924285-f4c5-44e6-909b-f5f7d302ebaf","name":"Way of the Mentor","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9de053fe229e"]},
 
         {"oracleId":"ce936736-915f-44bb-a709-b3bdcf90a3be","name":"Orcish Squatters","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["3e449ee040c4"]},
 
@@ -87108,7 +87079,7 @@
 
         {"oracleId":"d371031e-78be-4964-b521-b1eaa22a5480","name":"Alseid of Life's Bounty","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["grantAbility","optionChoice"],"definition":{"name":"Alseid of Life's Bounty","types":["Enchantment","Creature"],"subtypes":["Nymph"],"manaCost":{"W":1},"power":1,"toughness":1,"oracleText":"Lifelink\n{1}, Sacrifice this creature: Target creature or enchantment you control gains protection from the color of your choice until end of turn.","staticAbilities":["lifelink"],"activatedAbilities":[{"id":"alseid-of-life-s-bounty-ability","oracleText":"{1}, Sacrifice this creature: Target creature or enchantment you control gains protection from the color of your choice until end of turn.","cost":{"mana":{"X":1},"sacrifice":true},"useStack":true,"effects":[{"op":"optionChoice","prompt":"Choose a color (Alseid of Life's Bounty).","modes":[{"id":"protection-white","label":"Protection from white","color":"W","effects":[{"op":"grantAbility","ability":"protection from white","target":{"target":0},"duration":{"phase":"end-of-turn"}}]},{"id":"protection-blue","label":"Protection from blue","color":"U","effects":[{"op":"grantAbility","ability":"protection from blue","target":{"target":0},"duration":{"phase":"end-of-turn"}}]},{"id":"protection-black","label":"Protection from black","color":"B","effects":[{"op":"grantAbility","ability":"protection from black","target":{"target":0},"duration":{"phase":"end-of-turn"}}]},{"id":"protection-red","label":"Protection from red","color":"R","effects":[{"op":"grantAbility","ability":"protection from red","target":{"target":0},"duration":{"phase":"end-of-turn"}}]},{"id":"protection-green","label":"Protection from green","color":"G","effects":[{"op":"grantAbility","ability":"protection from green","target":{"target":0},"duration":{"phase":"end-of-turn"}}]}]}],"targetRequirement":{"type":["Creature","Enchantment"],"count":1,"controller":"you"}}]},"botReach":"played"},
 
-        {"oracleId":"d373dc71-5196-43a0-8cc5-67e2a591aad0","name":"Twinblade Paladin","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["10cace15c93d","4a533a03cc1e"]},
+        {"oracleId":"d373dc71-5196-43a0-8cc5-67e2a591aad0","name":"Twinblade Paladin","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4a533a03cc1e"]},
 
         {"oracleId":"d3758fca-0522-4b5a-a1cc-3b2b3ab299ba","name":"Angelic Blessing","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["grantAbility","pump"],"definition":{"name":"Angelic Blessing","types":["Sorcery"],"manaCost":{"X":2,"W":1},"oracleText":"Target creature gets +3/+3 and gains flying until end of turn. (It can't be blocked except by creatures with flying or reach.)","effects":[{"op":"pump","target":{"target":0},"power":3,"toughness":3,"duration":{"phase":"end-of-turn"}},{"op":"grantAbility","target":{"target":0},"ability":"flying","duration":{"phase":"end-of-turn"}}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
@@ -88272,7 +88243,7 @@
 
         {"oracleId":"d76522e0-324f-4ec9-b36e-0fe7448aae69","name":"Crawling Filth","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e82ac0a8f5fd"]},
 
-        {"oracleId":"d767463b-0fc9-43fc-a85f-e60f030f9b96","name":"Flamecache Gecko","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b566580bedbd"]},
+        {"oracleId":"d767463b-0fc9-43fc-a85f-e60f030f9b96","name":"Flamecache Gecko","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","triggered"],"opsUsed":["addMana","draw"],"definition":{"name":"Flamecache Gecko","types":["Creature"],"subtypes":["Lizard","Warlock"],"manaCost":{"X":1,"R":1},"power":2,"toughness":2,"oracleText":"When this creature enters, if an opponent lost life this turn, add {B}{R}.\n{1}{R}, Discard a card: Draw a card.","activatedAbilities":[{"id":"flamecache-gecko-ability","oracleText":"{1}{R}, Discard a card: Draw a card.","cost":{"mana":{"X":1,"R":1},"discardFilter":{"filter":{},"count":1}},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}],"compiledTriggeredAbilities":[{"id":"flamecache-gecko-trigger","oracleText":"When this creature enters, if an opponent lost life this turn, add {B}{R}.","head":{"kind":"entered","scope":"self"},"condition":{"kind":"life-changed-this-turn","player":"opponent","directions":["lost"],"combine":"any"},"effects":[{"op":"addMana","mana":{"B":1,"R":1}}]}]},"botReach":"played"},
 
         {"oracleId":"d76fc3aa-3962-4d64-a082-765e09bcdf25","name":"Kami's Flare","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["3c3d46a606fd"]},
 
@@ -88312,7 +88283,7 @@
 
         {"oracleId":"d79e8ec4-b44b-4598-991c-7781dab55868","name":"Nefarious Lich","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["34764755b677","ea3a29969069"]},
 
-        {"oracleId":"d7a38484-2acc-49a6-b32d-d54dddb14d31","name":"Dawn of Hope","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0616c99e29ea"]},
+        {"oracleId":"d7a38484-2acc-49a6-b32d-d54dddb14d31","name":"Dawn of Hope","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","triggered"],"opsUsed":["createToken","draw","if","mayPay"],"definition":{"name":"Dawn of Hope","types":["Enchantment"],"manaCost":{"X":1,"W":1},"oracleText":"Whenever you gain life, you may pay {2}. If you do, draw a card.\n{3}{W}: Create a 1/1 white Soldier creature token with lifelink.","activatedAbilities":[{"id":"dawn-of-hope-ability","oracleText":"{3}{W}: Create a 1/1 white Soldier creature token with lifelink.","cost":{"mana":{"X":3,"W":1}},"useStack":true,"effects":[{"op":"createToken","token":{"name":"Soldier","types":["Creature"],"subtypes":["Soldier"],"power":1,"toughness":1,"colors":["W"],"staticAbilities":["lifelink"]},"controller":"controller"}]}],"compiledTriggeredAbilities":[{"id":"dawn-of-hope-trigger","oracleText":"Whenever you gain life, you may pay {2}. If you do, draw a card.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"mayPay","player":"controller","cost":{"X":2},"prompt":"You may pay {2}. If you do, draw a card","bind":"$paid1"},{"op":"if","predicate":{"binding":"$paid1"},"then":[{"op":"draw","player":"controller","count":1}]}]}]},"botReach":"played"},
 
         {"oracleId":"d7aaffed-a143-49d6-a516-b9bc8b503aee","name":"Peerless Ropemaster","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["moveZone"],"definition":{"name":"Peerless Ropemaster","types":["Creature"],"subtypes":["Human","Rogue"],"manaCost":{"X":4,"U":1},"power":4,"toughness":4,"oracleText":"When this creature enters, return up to one target tapped creature to its owner's hand.","compiledTriggeredAbilities":[{"id":"peerless-ropemaster-trigger","oracleText":"When this creature enters, return up to one target tapped creature to its owner's hand.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":{"min":0,"max":1},"tappedFilter":"tapped"},"effects":[{"op":"moveZone","target":{"target":0},"to":"hand"}]}]},"botReach":"played"},
 
@@ -89984,7 +89955,7 @@
 
         {"oracleId":"dd99d791-3305-4195-ad12-96d958a28764","name":"Crossbow Infantry","state":"unparsed","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"gaps":["345f300c69c1"]},
 
-        {"oracleId":"dd9a6f6b-f9b7-4292-bc80-b7da326de032","name":"Aerith Gainsborough","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["365b931626e0","c4b6dd9e0ed9"]},
+        {"oracleId":"dd9a6f6b-f9b7-4292-bc80-b7da326de032","name":"Aerith Gainsborough","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c4b6dd9e0ed9"]},
 
         {"oracleId":"dda4b515-49c0-43fe-9f6a-36defa326bb1","name":"Maalfeld Twins","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["createToken"],"definition":{"name":"Maalfeld Twins","types":["Creature"],"subtypes":["Zombie"],"manaCost":{"X":5,"B":1},"power":4,"toughness":4,"oracleText":"When this creature dies, create two 2/2 black Zombie creature tokens.","compiledTriggeredAbilities":[{"id":"maalfeld-twins-trigger","oracleText":"When this creature dies, create two 2/2 black Zombie creature tokens.","head":{"kind":"died","scope":"self"},"effects":[{"op":"createToken","token":{"name":"Zombie","types":["Creature"],"subtypes":["Zombie"],"power":2,"toughness":2,"colors":["B"]},"controller":"controller","count":2}]}]},"botReach":"played"},
 
@@ -92218,7 +92189,7 @@
 
         {"oracleId":"e5e7e7e4-a774-4d68-8767-8ba2bae38250","name":"Tooth of Chiss-Goria","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["4012fe505d82"]},
 
-        {"oracleId":"e5e8368d-43af-4f83-8565-25d03da64360","name":"The Archimandrite","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["333feaeae6d2","7ace6f04df93"]},
+        {"oracleId":"e5e8368d-43af-4f83-8565-25d03da64360","name":"The Archimandrite","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["333feaeae6d2","4f4e9c3725c0"]},
 
         {"oracleId":"e5e8e116-10fe-48b0-b3d8-6edb39bd5f90","name":"Alibou, Ancient Witness","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["341638499ecf","48d528138efd"]},
 
@@ -93246,7 +93217,7 @@
 
         {"oracleId":"e95e100e-4886-4bde-825c-017e878ac825","name":"Empyrial Plate","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4f90ef90441c"]},
 
-        {"oracleId":"e95f22dd-b89a-4836-86ad-5a9a1627af38","name":"Famished Foragers","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["fd7be29dff82"]},
+        {"oracleId":"e95f22dd-b89a-4836-86ad-5a9a1627af38","name":"Famished Foragers","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","triggered"],"opsUsed":["addMana","draw"],"definition":{"name":"Famished Foragers","types":["Creature"],"subtypes":["Vampire"],"manaCost":{"X":3,"R":1},"power":4,"toughness":3,"oracleText":"When this creature enters, if an opponent lost life this turn, add {R}{R}{R}.\n{2}{R}, Discard a card: Draw a card.","activatedAbilities":[{"id":"famished-foragers-ability","oracleText":"{2}{R}, Discard a card: Draw a card.","cost":{"mana":{"X":2,"R":1},"discardFilter":{"filter":{},"count":1}},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}],"compiledTriggeredAbilities":[{"id":"famished-foragers-trigger","oracleText":"When this creature enters, if an opponent lost life this turn, add {R}{R}{R}.","head":{"kind":"entered","scope":"self"},"condition":{"kind":"life-changed-this-turn","player":"opponent","directions":["lost"],"combine":"any"},"effects":[{"op":"addMana","mana":{"R":3}}]}]},"botReach":"played"},
 
         {"oracleId":"e9602731-2e8e-44ea-96a1-6b38e1efbbd9","name":"Rift Elemental","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["52026bb53864"]},
 
@@ -95112,7 +95083,7 @@
 
         {"oracleId":"efb42ccc-6fed-47f0-84b4-e2a9a42e4dfa","name":"Mindwarper","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated","static"],"opsUsed":["choice","discard"],"definition":{"name":"Mindwarper","types":["Creature"],"subtypes":["Spirit"],"manaCost":{"X":2,"B":2},"power":0,"toughness":0,"oracleText":"This creature enters with three +1/+1 counters on it.\n{2}{B}, Remove a +1/+1 counter from this creature: Target player discards a card. Activate only as a sorcery.","activatedAbilities":[{"id":"mindwarper-ability","oracleText":"{2}{B}, Remove a +1/+1 counter from this creature: Target player discards a card. Activate only as a sorcery.","cost":{"mana":{"X":2,"B":1},"removeCounter":{"type":"+1/+1","count":1}},"useStack":true,"effects":[{"op":"choice","kind":"discard-hand","player":{"target":0},"zone":"hand","count":1,"prompt":"Discard a card.","bind":"$discard1"},{"op":"discard","player":{"target":0},"cards":{"ref":"$discard1"}}],"targetRequirement":{"type":"player","count":1},"sorcerySpeedOnly":true}],"entersWith":{"counters":[{"type":"+1/+1","count":3}]}},"botReach":"played"},
 
-        {"oracleId":"efb64da9-1ca7-4686-a427-e0d67101030c","name":"Nirkana Assassin","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["47ed44742bae"]},
+        {"oracleId":"efb64da9-1ca7-4686-a427-e0d67101030c","name":"Nirkana Assassin","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["grantAbility"],"definition":{"name":"Nirkana Assassin","types":["Creature"],"subtypes":["Vampire","Assassin","Ally"],"manaCost":{"X":2,"B":1},"power":2,"toughness":3,"oracleText":"Whenever you gain life, this creature gains deathtouch until end of turn. (Any amount of damage it deals to a creature is enough to destroy it.)","compiledTriggeredAbilities":[{"id":"nirkana-assassin-trigger","oracleText":"Whenever you gain life, this creature gains deathtouch until end of turn.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"grantAbility","target":{"ref":"$source"},"ability":"deathtouch","duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
         {"oracleId":"efb91243-2617-495f-adb0-1c26a669fb80","name":"Mystic Restraints","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["4167d05a4742","529c99929e5d"]},
 
@@ -95438,7 +95409,7 @@
 
         {"oracleId":"f0ea953a-10c3-4ec7-8f03-f7aed75dbb94","name":"Murderer's Axe","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ba4fa79d3a76"]},
 
-        {"oracleId":"f0ead7f5-5c82-40fd-8e89-3e3c5d31fbad","name":"Cleric Class","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4cb00cdd1d58","59f89b02ae81","b8880bceb167"]},
+        {"oracleId":"f0ead7f5-5c82-40fd-8e89-3e3c5d31fbad","name":"Cleric Class","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["59f89b02ae81","b8880bceb167"]},
 
         {"oracleId":"f0ec8681-da50-466b-8cdd-1dc710deccd9","name":"Deserted Beach","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["36abb2ea8c48"]},
 
@@ -95742,7 +95713,7 @@
 
         {"oracleId":"f2025f2e-c931-48dd-af21-8f0a591befb4","name":"Escape from Orthanc","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["0ed2ad3e20a7"]},
 
-        {"oracleId":"f202712d-7cd1-47aa-9664-526a884a1be2","name":"Arrogant Outlaw","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["5d3409248ef3"]},
+        {"oracleId":"f202712d-7cd1-47aa-9664-526a884a1be2","name":"Arrogant Outlaw","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e8accbfac7b7"]},
 
         {"oracleId":"f203671b-76f7-4be0-80a9-826fbb450fe7","name":"Ethereal Champion","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["a7460b5ef944"]},
 
@@ -95768,7 +95739,7 @@
 
         {"oracleId":"f20f27d1-2c50-41d5-b1af-44a0e7ca2e00","name":"Mindwrack Harpy","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["e33e56a89045"]},
 
-        {"oracleId":"f20f6da9-d678-486b-99f9-7121669fef81","name":"Bat Whisperer","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["9f2b7c7df2db"]},
+        {"oracleId":"f20f6da9-d678-486b-99f9-7121669fef81","name":"Bat Whisperer","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["createToken"],"definition":{"name":"Bat Whisperer","types":["Creature"],"subtypes":["Vampire"],"manaCost":{"X":3,"B":1},"power":4,"toughness":2,"oracleText":"When this creature enters, if an opponent lost life this turn, create a 1/1 black Bat creature token with flying.","compiledTriggeredAbilities":[{"id":"bat-whisperer-trigger","oracleText":"When this creature enters, if an opponent lost life this turn, create a 1/1 black Bat creature token with flying.","head":{"kind":"entered","scope":"self"},"condition":{"kind":"life-changed-this-turn","player":"opponent","directions":["lost"],"combine":"any"},"effects":[{"op":"createToken","token":{"name":"Bat","types":["Creature"],"subtypes":["Bat"],"power":1,"toughness":1,"colors":["B"],"staticAbilities":["flying"]},"controller":"controller"}]}]},"botReach":"played"},
 
         {"oracleId":"f2103ab8-a183-4db8-98dd-4146217b5125","name":"Pariah's Shield","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5ab93ad50e01"]},
 
@@ -96838,7 +96809,7 @@
 
         {"oracleId":"f60fb81a-969a-476c-a227-5231bbed4ad4","name":"Forsake the Worldly","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["draw","exile"],"definition":{"name":"Forsake the Worldly","types":["Instant"],"manaCost":{"X":2,"W":1},"oracleText":"Exile target artifact or enchantment.\nCycling {2} ({2}, Discard this card: Draw a card.)","activatedAbilities":[{"id":"cycling","oracleText":"Cycling {2} ({2}, Discard this card: Draw a card.)","cost":{"mana":{"generic":2},"discardThis":true,"cyclingCost":true},"activateFromHand":true,"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]}],"effects":[{"op":"exile","target":{"target":0}}],"targetRequirement":{"type":["Artifact","Enchantment"],"count":1}},"botReach":"played"},
 
-        {"oracleId":"f610748a-8b2c-4c7d-b495-b4677ff4c423","name":"Kalastria Nightwatch","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["57da58c2927c"]},
+        {"oracleId":"f610748a-8b2c-4c7d-b495-b4677ff4c423","name":"Kalastria Nightwatch","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["grantAbility"],"definition":{"name":"Kalastria Nightwatch","types":["Creature"],"subtypes":["Vampire","Warrior","Ally"],"manaCost":{"X":4,"B":1},"power":4,"toughness":5,"oracleText":"Whenever you gain life, this creature gains flying until end of turn.","compiledTriggeredAbilities":[{"id":"kalastria-nightwatch-trigger","oracleText":"Whenever you gain life, this creature gains flying until end of turn.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"grantAbility","target":{"ref":"$source"},"ability":"flying","duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
         {"oracleId":"f61591d5-0f2a-48cd-a091-863d2e93e019","name":"Ivy Seer","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["a9567075fdad"]},
 
@@ -97388,7 +97359,7 @@
 
         {"oracleId":"f80d151c-7489-4189-8c5b-6d2a730d238e","name":"Recoup","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["grantFlashback"],"definition":{"name":"Recoup","types":["Sorcery"],"manaCost":{"X":1,"R":1},"oracleText":"Target sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost. (Mana cost includes color.)\nFlashback {3}{R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)","effects":[{"op":"grantFlashback","card":{"target":0}}],"targetRequirement":{"type":"Sorcery","count":1,"zone":"graveyard","controller":"you"},"flashback":{"X":3,"R":1}},"botReach":"played"},
 
-        {"oracleId":"f80df9c4-f682-4a70-81fe-03c7c5c256e1","name":"Famished Paladin","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2453c95df23c"]},
+        {"oracleId":"f80df9c4-f682-4a70-81fe-03c7c5c256e1","name":"Famished Paladin","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["static","triggered"],"opsUsed":["tapUntap"],"definition":{"name":"Famished Paladin","types":["Creature"],"subtypes":["Vampire","Knight"],"manaCost":{"X":1,"W":1},"power":3,"toughness":3,"oracleText":"This creature doesn't untap during your untap step.\nWhenever you gain life, untap this creature.","staticAbilities":["does-not-untap"],"compiledTriggeredAbilities":[{"id":"famished-paladin-trigger","oracleText":"Whenever you gain life, untap this creature.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"tapUntap","action":"untap","target":{"ref":"$source"}}]}]},"botReach":"played"},
 
         {"oracleId":"f8103865-5086-4f16-a35a-a56acdab1547","name":"Guidelight Pathmaker","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3bfd0e1eb39e"]},
 
@@ -98704,7 +98675,7 @@
 
         {"oracleId":"fcaa5a54-eb73-4d78-96a3-826d1902f642","name":"Mind Maggots","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["155addb29b2e"]},
 
-        {"oracleId":"fcae4f9d-8f81-42f9-93a3-82a482851bdd","name":"Moonstone Harbinger","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a902fd726f3f"]},
+        {"oracleId":"fcae4f9d-8f81-42f9-93a3-82a482851bdd","name":"Moonstone Harbinger","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["866a6e6c87c8"]},
 
         {"oracleId":"fcae9e87-50af-46b4-ab48-42ed92985e10","name":"Lady Orca","state":"ready","poolIn":["pauper","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Lady Orca","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Demon"],"manaCost":{"X":5,"B":1,"R":1},"power":7,"toughness":4},"botReach":"played"},
 

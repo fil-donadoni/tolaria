@@ -157,7 +157,63 @@ export type TriggerConditionIR =
      * spell a cast head introduced, so lowering refuses it behind any other
      * head.
      */
-    | { readonly kind: "no-mana-spent-to-cast" };
+    | { readonly kind: "no-mana-spent-to-cast" }
+    /**
+     * CR 119.3 + CR 603.4 — "if you gained or lost life this turn", "if you
+     * gained and lost life this turn", "if an opponent lost life this turn":
+     * the per-turn life tallies of the ability's controller or of any one of
+     * its opponents, re-read as the trigger resolves.
+     */
+    | LifeChangedThisTurnIR;
+
+/** CR 119.3 — which per-turn life tally a condition reads. */
+export type LifeChangeDirectionIR = "gained" | "lost";
+
+/** CR 119.3 + CR 603.4 — see {@link TriggerConditionIR}. */
+export type LifeChangedThisTurnIR = {
+    readonly kind: "life-changed-this-turn";
+    readonly player: "you" | "opponent";
+    readonly directions: readonly LifeChangeDirectionIR[];
+    readonly combine: "any" | "all";
+};
+
+/**
+ * CR 119.3 — the exact life-tally phrases the corpus prints after a trigger
+ * head. An exact table, not a pattern over "<player> gained/lost life": "if a
+ * player lost life this turn", "if you lost life this turn" and "if an
+ * opponent gained life this turn" are other phrases, refused until a card
+ * earns their row.
+ */
+const LIFE_CHANGED_THIS_TURN: ReadonlyMap<string, LifeChangedThisTurnIR> =
+    new Map<string, LifeChangedThisTurnIR>([
+        [
+            "you gained or lost life this turn",
+            {
+                kind: "life-changed-this-turn",
+                player: "you",
+                directions: ["gained", "lost"],
+                combine: "any",
+            },
+        ],
+        [
+            "you gained and lost life this turn",
+            {
+                kind: "life-changed-this-turn",
+                player: "you",
+                directions: ["gained", "lost"],
+                combine: "all",
+            },
+        ],
+        [
+            "an opponent lost life this turn",
+            {
+                kind: "life-changed-this-turn",
+                player: "opponent",
+                directions: ["lost"],
+                combine: "any",
+            },
+        ],
+    ]);
 
 /**
  * CR 109.5 + CR 603.4 — "an opponent controls more lands than you": a strict
@@ -250,6 +306,8 @@ export const conditionRule: Rule<TriggerConditionIR> = subGrammar(
             });
         if (NO_MANA_SPENT_TO_CAST.test(clause))
             return ok({ kind: "no-mana-spent-to-cast" as const });
+        const lifeChanged = LIFE_CHANGED_THIS_TURN.get(clause);
+        if (lifeChanged !== undefined) return ok(lifeChanged);
         const domain = clause.match(BASIC_LAND_TYPES);
         if (domain !== null) return readBasicLandTypes(domain[1]!, span);
         if (COMPARATIVE_CONTROLS.test(clause))

@@ -41,13 +41,12 @@ import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 // and not a missing Op (the effect itself is the shipped `loseLife`
 // primitive). Migratable the day an event-amount `EffectValue` member lands.
 //
-// Guard C (issue #2701) — the Oracle compiler's grammar has no slot for
-// either half of this card yet, so the fragments are named here for the
-// corpus backlog PRD #2693 ranks the next grammar rule by. The shared
-// dies-trigger fragment is the cycle's, quoted as printed for THIS card;
-// Enduring Innocence carries its own line in the
+// Guard C (issue #2701) — the Oracle compiler reads the lifegain line; the
+// shared dies-trigger is the half its grammar still refuses, named here for
+// the corpus backlog PRD #2693 ranks the next grammar rule by, quoted as
+// printed for THIS card. Enduring Innocence carries its own line in the
 // one-time baseline instead, which only ever shrinks.
-// compiler-gap: Whenever you gain life, target opponent loses that much life. (#10350)
+// compiler-gap: When Enduring Tenacity dies, if it was a creature, return it to the battlefield under its owner's control. (#2693)
 export const enduringTenacity = defineCard(() => ({
     id: "d5756d4b-3068-412c-8643-880d3459151e",
     name: "Enduring Tenacity",

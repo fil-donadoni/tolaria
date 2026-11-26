@@ -72,6 +72,10 @@ import {
 import { entersOrLeavesTrigger } from "./abilities/triggers/entersOrLeavesTrigger";
 import { librarySearchedTrigger } from "./abilities/triggers/librarySearchedTrigger";
 import { giftGivenTrigger } from "./abilities/triggers/giftGivenTrigger";
+import {
+    type LifeChangeDirection,
+    lifeChangedTrigger,
+} from "./abilities/triggers/lifeChangedTrigger";
 import { graveyardEntryTrigger } from "./abilities/triggers/graveyardEntryTrigger";
 import { libraryToGraveyardTrigger } from "./abilities/triggers/libraryToGraveyardTrigger";
 import { creatureCardDirectlyAboveInGraveyard } from "./graveyardOrder";
@@ -274,7 +278,22 @@ export type CompiledTriggerCondition =
      * cast, so the resolution re-check reads the same answer. An event that
      * does not carry the count fails closed.
      */
-    | { readonly kind: "no-mana-spent-to-cast" };
+    | { readonly kind: "no-mana-spent-to-cast" }
+    /**
+     * CR 119.3 + CR 603.4 — "if you gained or lost life this turn", "if you
+     * gained and lost life this turn", "if an opponent lost life this turn":
+     * the per-turn life tallies (`TriggerStateView.lifeGainedThisTurn` /
+     * `lifeLostThisTurn`) of `player` — the controller, or any one of the
+     * controller's opponents. `directions` are the tallies read; `all` is
+     * "and" (every listed tally above 0), `any` is "or". A tally of 0 is no
+     * change (CR 119.9), and an absent view fails closed.
+     */
+    | {
+          readonly kind: "life-changed-this-turn";
+          readonly player: "you" | "opponent";
+          readonly directions: readonly LifeChangeDirection[];
+          readonly combine: "any" | "all";
+      };
 
 /**
  * The predicate of a condition decided from the SOURCE permanent alone — a
@@ -353,6 +372,15 @@ export type CompiledTriggerHead =
     | { readonly kind: "library-searched"; readonly scope: "opponents" }
     /** CR 702.174c — "whenever you give a gift" (`giftGivenTrigger`). */
     | { readonly kind: "gift-given"; readonly scope: "you" }
+    /** CR 119.9 — "whenever you gain life" (`lifeChangedTrigger`). */
+    | { readonly kind: "life-gained"; readonly scope: "you" }
+    /** CR 119.3 + CR 603.2 — "whenever you gain or lose life during your
+     *  turn" (`lifeChangedTrigger`, both directions). */
+    | {
+          readonly kind: "life-gained-or-lost";
+          readonly scope: "you";
+          readonly duringYourTurn: true;
+      }
     /**
      * CR 603.6c — "when this Aura is put into a graveyard from the battlefield"
      * (`toZone` narrows the exit, as `leftTrigger`'s own field does), and its
@@ -531,6 +559,39 @@ export interface CompiledTriggeredAbility {
 }
 
 /**
+ * CR 119.3 + CR 603.4 — whether `condition.player` gained / lost life this
+ * turn, off the per-turn tallies the engine keeps at its life choke points.
+ * "An opponent" holds when ANY opponent of the controller meets it.
+ */
+function lifeChangedThisTurn(
+    condition: Extract<
+        CompiledTriggerCondition,
+        { kind: "life-changed-this-turn" }
+    >,
+    self: PermanentView,
+    state: TriggerStateView
+): boolean {
+    const tallies: Record<
+        LifeChangeDirection,
+        Readonly<Record<string, number>> | undefined
+    > = { gained: state.lifeGainedThisTurn, lost: state.lifeLostThisTurn };
+    const players = state.players
+        .map((p) => p.id)
+        .filter((id) =>
+            condition.player === "you"
+                ? id === self.controllerId
+                : id !== self.controllerId
+        );
+    const changed = (playerId: string, direction: LifeChangeDirection) =>
+        (tallies[direction]?.[playerId] ?? 0) > 0;
+    return players.some((playerId) =>
+        condition.combine === "all"
+            ? condition.directions.every((d) => changed(playerId, d))
+            : condition.directions.some((d) => changed(playerId, d))
+    );
+}
+
+/**
  * CR 603.4 — the condition as a live predicate.
  *
  * Counts the ABILITY CONTROLLER's battlefield, never the whole board: "if you
@@ -577,6 +638,8 @@ function conditionHolds(
         return creatureCardDirectlyAboveInGraveyard(state, self);
     if (condition.kind === "no-mana-spent-to-cast")
         return event?.type === "SPELL_CAST" && event.manaSpentToCast === 0;
+    if (condition.kind === "life-changed-this-turn")
+        return lifeChangedThisTurn(condition, self, state);
     if (condition.kind === "holds-exile-bundle")
         return holdsExileBundle(event, self, state);
     if (condition.kind === "basic-land-types") {
@@ -748,10 +811,12 @@ function resolveCompiledTriggerHead(
     if (
         descriptor.maxTriggersPerTurn !== undefined &&
         head.kind !== "phase" &&
-        head.kind !== "became-target"
+        head.kind !== "became-target" &&
+        head.kind !== "life-gained" &&
+        head.kind !== "life-gained-or-lost"
     )
         throw new Error(
-            `compiled trigger ${descriptor.id}: maxTriggersPerTurn needs a phase or became-target head`
+            `compiled trigger ${descriptor.id}: maxTriggersPerTurn needs a phase, became-target or life-change head`
         );
     if (descriptor.resolvesIfTargetsIllegal && head.kind !== "entered")
         throw new Error(
@@ -823,6 +888,23 @@ function resolveCompiledTriggerHead(
             return librarySearchedTrigger({ ...common, scope: head.scope });
         case "gift-given":
             return giftGivenTrigger({ ...common, scope: head.scope });
+        case "life-gained":
+            return lifeChangedTrigger({
+                ...common,
+                directions: ["gained"],
+                ...(descriptor.maxTriggersPerTurn !== undefined
+                    ? { maxTriggersPerTurn: descriptor.maxTriggersPerTurn }
+                    : {}),
+            });
+        case "life-gained-or-lost":
+            return lifeChangedTrigger({
+                ...common,
+                directions: ["gained", "lost"],
+                duringYourTurn: head.duringYourTurn,
+                ...(descriptor.maxTriggersPerTurn !== undefined
+                    ? { maxTriggersPerTurn: descriptor.maxTriggersPerTurn }
+                    : {}),
+            });
         case "left-to-graveyard": {
             // CR 404.1 — the owner of the card, which `PERMANENT_LEFT` carries
             // as last-known information; the departure's cause is the
