@@ -5431,7 +5431,15 @@ export const OP_EXECUTORS: {
         // INDEFINITELY ("this creature becomes a Kithkin Spirit", Figure of
         // Destiny): the pre-existing `setSubtypes` primitive (Living Lands'
         // resolve() closures) is exactly that effect, so no new primitive.
-        if (op.duration === undefined) {
+        if (op.whileSourceRemains) {
+            // CR 611.2b — "for as long as this creature remains on the
+            // battlefield" (Tide Shaper): tracked by the resolving permanent.
+            ctx.setSubtypesWhileSourceRemains(
+                target,
+                subtypes,
+                op.family === "creature" ? "creature" : undefined
+            );
+        } else if (op.duration === undefined) {
             ctx.setSubtypes(target, subtypes);
         } else {
             ctx.setSubtypesUntil(

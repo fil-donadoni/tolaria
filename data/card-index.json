@@ -93371,6 +93371,14 @@
         "source": "compiled"
     },
     {
+        "name": "Tide Shaper",
+        "scryfallId": "2ff414bc-6736-428b-bb60-9d62793a5ae5",
+        "oracleId": "cf4be71e-0a9a-47a3-b0ec-43e04c3c07a0",
+        "firstSet": "mh2",
+        "firstPrintId": "2ff414bc-6736-428b-bb60-9d62793a5ae5",
+        "firstPrintSet": "mh2"
+    },
+    {
         "name": "Tidehollow Sculler",
         "scryfallId": "1abecc77-07f2-43e4-8585-0a8199cdcf01",
         "oracleId": "51b55057-8b14-4277-894b-4813b4f7eb39",

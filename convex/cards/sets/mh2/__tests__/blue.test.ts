@@ -20,12 +20,31 @@ import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition, getCardByName } from "../../../index";
 import { preloadDefinitions } from "../../../registry";
 import { resolveCardExport } from "../../../defineCard";
-import { inevitableBetrayal as betrayalModuleExport } from "../blue.cards";
+import {
+    inevitableBetrayal as betrayalModuleExport,
+    tideShaper as tideShaperModuleExport,
+} from "../blue.cards";
+import { resolveTriggerOrder } from "../../../__tests__/setup.helper";
+import {
+    getPlayer,
+    phaseInBundle,
+    phaseOutPermanent,
+    putHandCardOntoBattlefield,
+    removePermanentTo,
+    type PendingTarget,
+} from "../../../../gre/state";
+import { compactState, expandState } from "../../../../gre/serialize";
+import { getEffectiveActivatedAbilities } from "../../../../gre/activatedAbilities";
+import { getBasicLandManaColors } from "../../../../gre/constants";
+import { getEffectivePT } from "../../../../gre/layers";
 
 // The PR head carries no `definition-index.json` row for the card (ADR 0157:
 // derived state is regenerated post-merge), so register the module's own
 // definition rather than depend on the lazy catalogue source.
-preloadDefinitions([resolveCardExport(betrayalModuleExport)!]);
+preloadDefinitions([
+    resolveCardExport(betrayalModuleExport)!,
+    resolveCardExport(tideShaperModuleExport)!,
+]);
 const inevitableBetrayal = getDefinition(
     "71725895-38cd-4017-bbf0-0b7dc9b5db60"
 );
@@ -314,6 +333,194 @@ describe("Inevitable Betrayal (CR 701.23b, CR 110.2a)", () => {
         expect(state.players[1].library.map((c) => c.id).sort()).toEqual([
             "their-artifact",
             "their-creature",
+        ]);
+    });
+});
+
+// Tide Shaper — {U} 1/1 Merfolk Wizard (MH2 72, issue #10503). "Kicker {1}.
+// When this creature enters, if it was kicked, target land becomes an Island
+// for as long as this creature remains on the battlefield. This creature gets
+// +1/+1 as long as an opponent controls an Island."
+describe("Tide Shaper — kicked land becomes an Island while it remains (CR 305.7, CR 611.2b, issue #10503)", () => {
+    const TIDE_SHAPER = resolveCardExport(tideShaperModuleExport)!.id;
+    const FACTORY = getDefinition("a696c5b6-f216-454d-8029-74e84bbd1428").id; // Mishra's Factory: nonbasic, {T}: Add {C}
+    const PLAINS = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed").id; // Plains
+
+    /** p2 controls a Mishra's Factory and a Plains; p1 casts Tide Shaper
+     *  (kicked or not) through `game.ts`'s announcement, the spell resolves,
+     *  its ETB goes on the stack, the state round-trips like a mutation save,
+     *  and the trigger's target announcement is raised (CR 603.3d). */
+    function castTideShaper(
+        announce: Pick<PendingTarget, "kickerPayments">
+    ): GameState {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(TIDE_SHAPER, {
+                            id: "shaper",
+                            zone: "hand",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                    manaPool: {
+                        W: 0,
+                        U: announce.kickerPayments ? 2 : 1,
+                        B: 0,
+                        R: 0,
+                        G: 0,
+                        C: 0,
+                    },
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(FACTORY, {
+                            id: "factory",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(PLAINS, {
+                            id: "plains",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+        });
+        finalizeTargetSelection(
+            state,
+            {
+                playerId: "p1",
+                cardInstanceId: "shaper",
+                targetType: "any",
+                count: 0,
+                selected: [],
+                ...announce,
+            },
+            "p1"
+        );
+        resolveTopOfStack(state);
+        resolveTriggerOrder(state);
+        const loaded = expandState(compactState(state));
+        raiseTriggerTargetSelection(loaded);
+        return loaded;
+    }
+
+    function targetLand(state: GameState, landId: string): void {
+        const pt = state.pendingTarget!;
+        expect(pt.kind).toBe("trigger");
+        pt.selected = [{ type: "permanent", id: landId }] as TargetSelection[];
+        finalizeTargetSelection(state, pt, "p1");
+    }
+
+    function onBattlefield(state: GameState, id: string) {
+        for (const p of state.players) {
+            const found = p.battlefield.find((c) => c.id === id);
+            if (found) return found;
+        }
+        throw new Error(`${id} not on the battlefield`);
+    }
+
+    function wireCard(state: GameState, id: string) {
+        const projected = projectPublicState(state, 1, "p1");
+        for (const p of projected.players) {
+            const found = p.battlefield.find((c) => c.id === id);
+            if (found) return found;
+        }
+        throw new Error(`${id} not projected`);
+    }
+
+    it("kicked: the target land is an Island with only {T}: Add {U}, and Tide Shaper is 2/2, through the wire", () => {
+        const state = castTideShaper({ kickerPayments: { kicker: 1 } });
+        targetLand(state, "factory");
+        resolveTopOfStack(state);
+        const saved = expandState(compactState(state));
+
+        // CR 305.7 — the Factory's land types become Island and only Island,
+        // and the abilities its rules text gives it are gone.
+        expect(wireCard(saved, "factory").subtypes).toEqual(["Island"]);
+        const factory = onBattlefield(saved, "factory");
+        expect(getEffectiveActivatedAbilities(factory)).toEqual([]);
+        expect(getBasicLandManaColors(factory)).toEqual(["U"]);
+        // The +1/+1 static (CR 613.4c): an opponent now controls an Island.
+        expect(getEffectivePT(saved, onBattlefield(saved, "shaper"))).toEqual({
+            power: 2,
+            toughness: 2,
+        });
+    });
+
+    it("ends the moment Tide Shaper leaves the battlefield, and stays ended when the card returns (CR 611.2b, CR 400.7)", () => {
+        const state = castTideShaper({ kickerPayments: { kicker: 1 } });
+        targetLand(state, "factory");
+        resolveTopOfStack(state);
+
+        removePermanentTo(state, "shaper", "hand");
+        const factory = onBattlefield(state, "factory");
+        expect(wireCard(state, "factory").subtypes).not.toContain("Island");
+        expect(getEffectiveActivatedAbilities(factory).length).toBeGreaterThan(
+            0
+        );
+        expect(getBasicLandManaColors(factory)).toEqual([]);
+        expect(
+            (state.continuousEffects ?? []).some(
+                (e) =>
+                    e.expiry.kind === "source" && e.expiry.sourceId === "shaper"
+            )
+        ).toBe(false);
+    });
+
+    it("ends when Tide Shaper phases out and stays ended when it phases back in (CR 702.26f)", () => {
+        const state = castTideShaper({ kickerPayments: { kicker: 1 } });
+        targetLand(state, "factory");
+        resolveTopOfStack(state);
+
+        const bundle = phaseOutPermanent(state, "shaper", {
+            returnOn: { kind: "untap-cycle" },
+        })!;
+        expect(wireCard(state, "factory").subtypes).not.toContain("Island");
+        phaseInBundle(state, bundle);
+        expect(onBattlefield(state, "shaper")).toBeDefined();
+        expect(wireCard(state, "factory").subtypes).not.toContain("Island");
+    });
+
+    it("does nothing when Tide Shaper has left before its trigger resolves — the duration never starts (CR 611.2b)", () => {
+        const state = castTideShaper({ kickerPayments: { kicker: 1 } });
+        targetLand(state, "plains");
+        removePermanentTo(state, "shaper", "graveyard");
+        resolveTopOfStack(state);
+
+        expect(wireCard(state, "plains").subtypes).toEqual(["Plains"]);
+        expect(state.continuousEffects ?? []).toEqual([]);
+    });
+
+    it("does nothing when Tide Shaper left and came back before its trigger resolves — a new object (CR 611.2b, CR 400.7)", () => {
+        const state = castTideShaper({ kickerPayments: { kicker: 1 } });
+        targetLand(state, "plains");
+        removePermanentTo(state, "shaper", "hand");
+        expect(putHandCardOntoBattlefield(state, "p1", "shaper")).toBe(true);
+        resolveTopOfStack(state);
+
+        expect(onBattlefield(state, "shaper")).toBeDefined();
+        expect(wireCard(state, "plains").subtypes).toEqual(["Plains"]);
+        expect(state.continuousEffects ?? []).toEqual([]);
+    });
+
+    it("unkicked: the intervening if keeps the trigger off the stack (CR 603.4)", () => {
+        const state = castTideShaper({});
+        expect(state.pendingTarget).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        expect(wireCard(state, "plains").subtypes).toEqual(["Plains"]);
+        expect(getEffectivePT(state, onBattlefield(state, "shaper"))).toEqual({
+            power: 1,
+            toughness: 1,
+        });
+        expect(getPlayer(state, "p1").battlefield.map((c) => c.id)).toEqual([
+            "shaper",
         ]);
     });
 });
