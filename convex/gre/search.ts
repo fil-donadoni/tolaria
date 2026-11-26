@@ -1234,6 +1234,7 @@ export function applyMoveInSearch(
             // cost, gone by resolution (Necropolis reads it as X).
             const costOut: {
                 additionalSacrificeSnapshot?: StackItem["additionalSacrificeSnapshot"];
+                costTappedId?: string;
             } = {};
             const paid = payActivationInSearch(state, playerId, move, costOut);
             // CR 605.3c — a MANA ability never uses the stack: it resolves
@@ -1296,6 +1297,9 @@ export function applyMoveInSearch(
                                   additionalSacrificeSnapshot:
                                       costOut.additionalSacrificeSnapshot,
                               }
+                            : {}),
+                        ...(costOut.costTappedId
+                            ? { costTappedId: costOut.costTappedId }
                             : {}),
                     })
                 );

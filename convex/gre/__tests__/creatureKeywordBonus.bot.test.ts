@@ -145,6 +145,10 @@ const NOT_A_BODY_KEYWORD = new Set([
     // CR 702.171a — an activated ability (Crew's cost shape); its worth is
     // the `becomeSaddled` valuer and the Mount's own payoff, never the body.
     "saddle",
+    // CR 702.184a — an activated ability expanded from `stationThresholds`
+    // (never a `staticAbilities` string); its worth is the `counters` valuer
+    // and the striations the charge turns on, never the body.
+    "station",
     "living-weapon",
     "for-mirrodin",
     "backup",

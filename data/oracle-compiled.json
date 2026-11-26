@@ -770,14 +770,8 @@
         {"key":"50d6644586e6","text":"1 — It gets -2/-2 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"1 — It gets -2/-2 until end of turn"}},
         {"key":"3c3a955057b8","text":"1 — It has base toughness 1 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"1 — It has base toughness 1 until end of turn"}},
         {"key":"475451c49642","text":"1 — Sacrifice this artifact and you lose 5 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"1 — Sacrifice this artifact and you lose 5 life"}},
-        {"key":"159910550702","text":"1+ | At the beginning of combat on your turn, put your choice of a +1/+1 counter or two charge counters on up to one other target artifact.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"1+ | At the beginning of combat on your turn, put your choice of a +1/+1 counter or two charge counters on up to one other target artifact"}},
-        {"key":"1db5021cfde3","text":"1+ | Whenever an opponent discards a card, they lose 3 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"1+ | Whenever an opponent discards a card, they lose 3 life"}},
         {"key":"a2e02e2c411f","text":"1-6 | Add {R}{R}{R}{R}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"1-6 | Add {R}{R}{R}{R}"}},
         {"key":"b51405b620e1","text":"1-9 | Each player draws a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"1-9 | Each player draws a card"}},
-        {"key":"9b23739ec884","text":"10+ | Creatures you control have flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"10+ | Creatures you control have flying"}},
-        {"key":"69976fbce4c3","text":"10+ | Flying","reason":"no slot consumed the line","cards":4},
-        {"key":"5f6e1f23278f","text":"10+ | Flying, vigilance","reason":"no slot consumed the line","cards":1},
-        {"key":"74cb5b1b84da","text":"10+ | Whenever you attack, {self} deals 100 damage to up to one target creature or planeswalker.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"10+ | Whenever you attack, {self} deals 100 damage to up to one target creature or planeswalker"}},
         {"key":"cfc507334192","text":"10,000 Needles — Whenever this creature attacks, it gets +9999/+0 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"10,000 Needles — Whenever this creature attacks, it gets +9999/+0 until end of turn"}},
         {"key":"4a9b2dd50028","text":"10-19 | You draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"10-19 | You draw a card"}},
         {"key":"e6bbb5de896c","text":"10—19 | Copy that card. You may cast the copy by paying {1} rather than paying its mana cost.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"10—19 | Copy that card. You may cast the copy by paying {1} rather than paying its mana cost"}},
@@ -813,14 +807,6 @@
         {"key":"8b081472100d","text":"10—20 | Tap that creature. It doesn't untap during its controller's next untap step.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"10—20 | Tap that creature. It doesn't untap during its controller's next untap step"}},
         {"key":"e6e9be750bd9","text":"10—20 | This artifact deals 5 damage to that creature. Create a Treasure token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"10—20 | This artifact deals 5 damage to that creature. Create a Treasure token"}},
         {"key":"94fd7f5623b2","text":"10—20 | {self} deals 2 damage to each opponent.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"10—20 | {self} deals 2 damage to each opponent"}},
-        {"key":"c45ea52356cb","text":"12+ | Artifact creatures you control have flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"12+ | Artifact creatures you control have flying"}},
-        {"key":"13f57dc92821","text":"12+ | Flying","reason":"no slot consumed the line","cards":2},
-        {"key":"6a151ebee938","text":"12+ | Flying, lifelink","reason":"no slot consumed the line","cards":1},
-        {"key":"c916ab50e89a","text":"12+ | {1}{B}, {T}, Pay 2 life, Sacrifice a creature: Draw cards equal to the sacrificed creature's power. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"12+ | {1}{B}"}},
-        {"key":"71680ab9a051","text":"12+ | {1}{R}, {T}, Sacrifice a land: Create a 2/2 colorless Robot artifact creature token, then creatures you control get +1/+0 and gain haste until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"12+ | {1}{R}"}},
-        {"key":"be68cc3a9ccd","text":"12+ | {3}{W}, {T}: Create a token that's a copy of target artifact or enchantment you control, except it's legendary. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"12+ | {3}{W}"}},
-        {"key":"1919949309d8","text":"12+ | {G}, {T}: Add {G} for each creature you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"12+ | {G}"}},
-        {"key":"8484e0eae772","text":"12+ | {U}, {T}: Add {U} for each artifact you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"12+ | {U}"}},
         {"key":"789fcc028624","text":"15+ | Return those cards from your graveyard to the battlefield.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"15+ | Return those cards from your graveyard to the battlefield"}},
         {"key":"3aae22731777","text":"15+ | Return those cards to your hand. You gain life equal to their total mana value.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"15+ | Return those cards to your hand"}},
         {"key":"68cd4cc7fd53","text":"15+ | Return up to two creature cards put into graveyards this way to the battlefield under your control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"15+ | Return up to two creature cards put into graveyards this way to the battlefield under your control"}},
@@ -830,7 +816,6 @@
         {"key":"193b7acd0431","text":"15-20 | Add {R}{R}{R}{R}{R}{R}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"15-20 | Add {R}{R}{R}{R}{R}{R}"}},
         {"key":"24a11876b3de","text":"15—20 | Create one of those tokens. You may roll again.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"15—20 | Create one of those tokens. You may roll again"}},
         {"key":"39f7b504fbb0","text":"15—20 | You choose which creatures block this turn and how those creatures block.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"15—20 | You choose which creatures block this turn and how those creatures block"}},
-        {"key":"d57d0e63a5b3","text":"16+ | Flying","reason":"no slot consumed the line","cards":1},
         {"key":"0e5e18b35409","text":"1—14 | Choose any number of creatures. They block this turn if able.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"1—14 | Choose any number of creatures"}},
         {"key":"2188957d8bf7","text":"1—14 | Create a tapped and attacking token that's a copy of that creature, except it's not legendary and it has \"At end of combat, exile this token.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"1—14 | Create a tapped and attacking token that's a copy of that creature, except it's not legendary and it has \"At end of combat, exile this token.\""}},
         {"key":"51469ffcb12f","text":"1—14 | Draw X cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"1—14 | Draw X cards"}},
@@ -875,9 +860,6 @@
         {"key":"997e35634a41","text":"2 — Destroy all artifacts.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"2 — Destroy all artifacts"}},
         {"key":"0c804f6d69a9","text":"2 — Prevent all combat damage it would deal this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"2 — Prevent all combat damage it would deal this turn"}},
         {"key":"c2f3d6e3ccf6","text":"2 — Put two -1/-1 counters on it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"2 — Put two -1/-1 counters on it"}},
-        {"key":"ab9d52324919","text":"2+ | At the beginning of combat on your turn, up to one other target artifact you control becomes an artifact creature with base power and toughness 2/2 and gains flying until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"2+ | At the beginning of combat on your turn, up to one other target artifact you control becomes an artifact creature with base power and toughness 2/2 and gains flying until end of turn"}},
-        {"key":"add788573fb3","text":"2+ | Other creatures you control get +1/+1.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"2+ | Other creatures you control get +1/+1"}},
-        {"key":"62c899bbca85","text":"2+ | {1}, {T}, Sacrifice a land: Draw two cards. You may play an additional land this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"2+ | {1}"}},
         {"key":"677d24de9317","text":"20 | Copy each card exiled with this artifact. You may cast any number of the copies without paying their mana costs.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"20 | Copy each card exiled with this artifact. You may cast any number of the copies without paying their mana costs"}},
         {"key":"8b0ea48ecc66","text":"20 | Copy that spell. You may choose new targets for the copy.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"20 | Copy that spell. You may choose new targets for the copy"}},
         {"key":"cad10893da97","text":"20 | Create three 2/2 white Knight creature tokens.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"20 | Create three 2/2 white Knight creature tokens"}},
@@ -903,9 +885,7 @@
         {"key":"4e7088d2268c","text":"20 | You draw seven cards and you lose 7 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"20 | You draw seven cards and you lose 7 life"}},
         {"key":"bfd09ca13f1c","text":"20 | You gain 5 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"20 | You gain 5 life"}},
         {"key":"65d4fcffa93e","text":"20 | {self} deals 6 damage to each creature your opponents control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"20 | {self} deals 6 damage to each creature your opponents control"}},
-        {"key":"6d50d1744526","text":"20+ | Flying","reason":"no slot consumed the line","cards":1},
         {"key":"5d2a76c6da31","text":"20+ | Put those cards onto the battlefield tapped, then shuffle.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"20+ | Put those cards onto the battlefield tapped, then shuffle"}},
-        {"key":"63668bc009eb","text":"20+ | {T}: Add X mana of any one color, where X is the number of charge counters on {self}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"20+ | {T}"}},
         {"key":"40db4bcb0d90","text":"2—9 | Create five Treasure tokens.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"2—9 | Create five Treasure tokens"}},
         {"key":"e3efb8eed44f","text":"3 points each → +1/+1; or +0/+2","reason":"no slot consumed the line","cards":1},
         {"key":"b226e18300b3","text":"3 — Add {U}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"3 — Add {U}"}},
@@ -914,12 +894,6 @@
         {"key":"1c11bcb19822","text":"3 — It gains vigilance until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"3 — It gains vigilance until end of turn"}},
         {"key":"ce97c63b5c45","text":"3 — [-1], then return a card with mana value 2 or less from your graveyard to your hand.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"3 — [-1], then return a card with mana value 2 or less from your graveyard to your hand"}},
         {"key":"dc0ef5ae836d","text":"3 — {self} deals 3 damage to it and you gain 3 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"3 — {self} deals 3 damage to it"}},
-        {"key":"898d80b25c49","text":"3+ | At the beginning of combat on your turn, create a 2/1 red Klingon Warrior creature token with haste. Sacrifice it at the beginning of the next end step.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"3+ | At the beginning of combat on your turn, create a 2/1 red Klingon Warrior creature token with haste. Sacrifice it at the beginning of the next end step"}},
-        {"key":"179af0d6afc9","text":"3+ | Flying","reason":"no slot consumed the line","cards":1},
-        {"key":"5bdf93bacefa","text":"3+ | Flying, haste","reason":"no slot consumed the line","cards":1},
-        {"key":"6e8c98e2c150","text":"3+ | Whenever you cast an artifact spell, draw a card. Put a charge counter on this Spacecraft.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"3+ | Whenever you cast an artifact spell, draw a card. Put a charge counter on this Spacecraft"}},
-        {"key":"7688ce956436","text":"3+ | You may play an additional land on each of your turns.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"3+ | You may play an additional land on each of your turns"}},
-        {"key":"a434bd05ac46","text":"3+ | {T}: Target creature can't be blocked this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"3+ | {T}"}},
         {"key":"97701173f6c5","text":"3/3","reason":"no slot consumed the line","cards":1},
         {"key":"f91bc631bd56","text":"3/4","reason":"no slot consumed the line","cards":1},
         {"key":"830753ad6626","text":"4 or 5 — {self} deals damage equal to the number of loyalty counters on him to a creature or player, then [-2].","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"4 or 5 — {self} deals damage equal to the number of loyalty counters on him to a creature or player, then [-2]"}},
@@ -929,42 +903,19 @@
         {"key":"5a00d5817132","text":"4 — It gains first strike until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"4 — It gains first strike until end of turn"}},
         {"key":"c5ae784b2b00","text":"4 — It gets -4/-4 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"4 — It"}},
         {"key":"8a4f6797399d","text":"4 — {self} deals 3 damage to each creature and each player.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"4 — {self} deals 3 damage to each creature and each player"}},
-        {"key":"20f93320e94b","text":"4+ | Flying","reason":"no slot consumed the line","cards":3},
-        {"key":"e8ca7d2f44f5","text":"4+ | Flying, menace, haste","reason":"no slot consumed the line","cards":1},
         {"key":"28e94d61ef0a","text":"5 — A creature","reason":"no slot consumed the line","cards":1},
         {"key":"da78ad23b5f4","text":"5 — Add {R}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"5 — Add {R}"}},
         {"key":"bfc6a2b5f138","text":"5 — Destroy it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"5 — Destroy it"}},
         {"key":"4451847a9778","text":"5 — Each player discards their hand and draws seven cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"5 — Each player discards their hand and draws seven cards"}},
         {"key":"c099d45bd797","text":"5 — It gains flying until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"5 — It gains flying until end of turn"}},
-        {"key":"6e0606dd185f","text":"5+ | Flying","reason":"no slot consumed the line","cards":1},
-        {"key":"1fb0273f7158","text":"5+ | Flying, hexproof","reason":"no slot consumed the line","cards":1},
-        {"key":"a1048b4ed842","text":"5+ | Flying, trample","reason":"no slot consumed the line","cards":1},
         {"key":"cd62b3598418","text":"6 — Add {G}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"6 — Add {G}"}},
         {"key":"b3028a51f4d2","text":"6 — An instant or sorcery","reason":"no slot consumed the line","cards":1},
         {"key":"e9a06e674367","text":"6 — Exile it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"6 — Exile it"}},
         {"key":"443cf4b9a6ad","text":"6 — It gets +2/+2 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"6 — It gets +2/+2 until end of turn"}},
         {"key":"a9d70b08bfb3","text":"6 — Repeat this process two more times.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"6 — Repeat this process two more times"}},
         {"key":"4d14bf9081c7","text":"6 — [+1], and you may activate Comet's loyalty ability two more times this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"6 — [+1], and you may activate Comet's loyalty ability two more times this turn"}},
-        {"key":"decaa317b167","text":"6+ | Artifact creatures you control have flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"6+ | Artifact creatures you control have flying"}},
-        {"key":"e21642264b90","text":"6+ | Flying","reason":"no slot consumed the line","cards":6},
-        {"key":"d5d1d321d430","text":"6+ | Flying, Deathtouch, Lifelink","reason":"no slot consumed the line","cards":1},
-        {"key":"cbfb684f004f","text":"6+ | Flying, lifelink","reason":"no slot consumed the line","cards":1},
-        {"key":"7f1a3a21fc64","text":"6+ | Flying, vigilance","reason":"no slot consumed the line","cards":2},
-        {"key":"30ffdb5ecf3d","text":"7+ | Flying","reason":"no slot consumed the line","cards":8},
-        {"key":"d0405741dae6","text":"7+ | Flying, vigilance","reason":"no slot consumed the line","cards":1},
         {"key":"ce087141245c","text":"7-14 | Add {R}{R}{R}{R}{R}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"7-14 | Add {R}{R}{R}{R}{R}"}},
-        {"key":"4cebdf1b3d45","text":"8+ | Flying","reason":"no slot consumed the line","cards":11},
-        {"key":"0cf53404aaf6","text":"8+ | Flying, deathtouch","reason":"no slot consumed the line","cards":1},
-        {"key":"146a6828a7d0","text":"8+ | Flying, lifelink","reason":"no slot consumed the line","cards":1},
-        {"key":"7d3a5a4dc94d","text":"8+ | Flying, trample","reason":"no slot consumed the line","cards":1},
-        {"key":"acf8a8996fd2","text":"8+ | Flying, vigilance","reason":"no slot consumed the line","cards":2},
-        {"key":"e0584ddff964","text":"8+ | Flying, vigilance, haste","reason":"no slot consumed the line","cards":2},
-        {"key":"73972ab716cb","text":"8+ | Multivector Assault Mode — Whenever {self} deals combat damage to an opponent, it deals that much damage to each other opponent.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"8+ | Multivector Assault Mode — Whenever {self} deals combat damage to an opponent, it deals that much damage to each other opponent"}},
         {"key":"973e0111fce1","text":"9 or less | Put those cards into your hand, then shuffle.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"9 or less | Put those cards into your hand, then shuffle"}},
-        {"key":"2f0ff3a1038a","text":"9+ | Creatures you control get +3/+3.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"9+ | Creatures you control get +3/+3"}},
-        {"key":"97c308b750b5","text":"9+ | Flying","reason":"no slot consumed the line","cards":1},
-        {"key":"b047200aaf4f","text":"9+ | Flying, first strike","reason":"no slot consumed the line","cards":1},
-        {"key":"6a817d6b59f2","text":"9+ | Flying, vigilance","reason":"no slot consumed the line","cards":1},
         {"key":"c2b9c59a3a04","text":"A Test of Your Reflexes! — When this Equipment enters, you may attach it to target creature you control. If you do, that creature gains first strike until end of turn and must be blocked this turn if able.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","effect clause","duration"],"span":"until end of turn and must be blocked this turn if able"}},
         {"key":"11889c1316fb","text":"A Thousand Souls Die Every Day — {T}, Sacrifice a creature: Add three mana in any combination of colors.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"A Thousand Souls Die Every Day — {T}"}},
         {"key":"470d361ccc82","text":"A deck can have any number of cards named {self}.","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"spell","path":["effect clause"],"span":"A deck can have any number of cards named {self}"}},
@@ -1345,7 +1296,7 @@
         {"key":"c83f2ac2ce40","text":"Artifact creatures you control have afflict 3.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Artifact creatures you control have afflict 3"}},
         {"key":"879d00202662","text":"Artifact creatures you control have double strike.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Artifact creatures you control have double strike"}},
         {"key":"9c91c74643ee","text":"Artifact creatures you control have flying, double strike, vigilance, menace, lifelink, and ward {2}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Artifact creatures you control have flying, double strike, vigilance, menace, lifelink, and ward {2}"}},
-        {"key":"e1cf01bdabeb","text":"Artifact creatures you control have flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Artifact creatures you control have flying"}},
+        {"key":"e1cf01bdabeb","text":"Artifact creatures you control have flying.","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"static","path":["static clause"],"span":"Artifact creatures you control have flying"}},
         {"key":"20f199170dd9","text":"Artifact creatures you control have haste.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Artifact creatures you control have haste"}},
         {"key":"90a6460af4e4","text":"Artifact creatures you control have indestructible.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Artifact creatures you control have indestructible"}},
         {"key":"2294c0d41902","text":"Artifact creatures you control have menace and \"Whenever a creature blocks this creature, that creature gets -1/-1 until end of turn.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Artifact creatures you control have menace and \"Whenever a creature blocks this creature, that creature gets -1/-1 until end of turn.\""}},
@@ -2272,7 +2223,7 @@
         {"key":"404ad2886294","text":"At the beginning of combat on your turn, create a 1/1 red Pirate creature token with menace and haste. Exile it at the beginning of the next end step.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Create a 1/1 red Pirate creature token with menace and haste"}},
         {"key":"80626f294bf4","text":"At the beginning of combat on your turn, create a 2/1 blue Phyrexian Myr artifact creature token. Then you may choose a token you control. If you do, each other token you control becomes a copy of that token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Then you may choose a token you control"}},
         {"key":"ed63f1147327","text":"At the beginning of combat on your turn, create a 2/1 red Elemental creature token with trample and haste. Sacrifice it at the beginning of the next end step.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Create a 2/1 red Elemental creature token with trample and haste"}},
-        {"key":"a64ac92fba83","text":"At the beginning of combat on your turn, create a 2/1 red Klingon Warrior creature token with haste. Sacrifice it at the beginning of the next end step.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Create a 2/1 red Klingon Warrior creature token with haste"}},
+        {"key":"a64ac92fba83","text":"At the beginning of combat on your turn, create a 2/1 red Klingon Warrior creature token with haste. Sacrifice it at the beginning of the next end step.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Create a 2/1 red Klingon Warrior creature token with haste"}},
         {"key":"41779a2c34ab","text":"At the beginning of combat on your turn, create a 2/2 red Mutant creature token. It gains haste until end of turn. Destroy it at the beginning of the next end step.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"It"}},
         {"key":"5856b54f542f","text":"At the beginning of combat on your turn, create a green Aura enchantment token named Settlement attached to up to one target land you control. It has enchant land and \"Enchanted land has '{T}: Add one mana of any color.'\"","reason":"no slot consumed the line","cards":1},
         {"key":"1d5365c74ca0","text":"At the beginning of combat on your turn, create a token that's a copy of equipped creature, except the token isn't legendary. That token gains haste.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"equipped creature, except the token isn't legendary"}},
@@ -2370,6 +2321,7 @@
         {"key":"8baef2fe768b","text":"At the beginning of combat on your turn, put an oil counter on this artifact, then create an X/1 red Phyrexian Horror creature token with trample and haste, where X is the number of oil counters on this artifact. Sacrifice that token at the beginning of the next end step.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"this artifact"}},
         {"key":"f052fc16d503","text":"At the beginning of combat on your turn, put three +1/+1 counters on target artifact you control. If it isn't a creature, it becomes a 0/0 Robot creature in addition to its other types.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"If it isn't a creature, it becomes a 0/0 Robot creature in addition to its other types"}},
         {"key":"167dbe32c100","text":"At the beginning of combat on your turn, put two +1/+1 counters on each creature you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"each creature you control"}},
+        {"key":"3361edd17121","text":"At the beginning of combat on your turn, put your choice of a +1/+1 counter or two charge counters on up to one other target artifact.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"up to one other target artifact"}},
         {"key":"33c7091ef728","text":"At the beginning of combat on your turn, put your choice of a +1/+1, first strike, vigilance, or menace counter on {self}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"{self}"}},
         {"key":"109464fff9a8","text":"At the beginning of combat on your turn, return target Vehicle card from your graveyard to the battlefield. It gains haste. Return it to its owner's hand at the beginning of your next end step.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"It"}},
         {"key":"d1bac1f0a175","text":"At the beginning of combat on your turn, return up to one target artifact or creature card from your graveyard to the battlefield. It gains haste. Exile it at the beginning of the next end step.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"It"}},
@@ -2408,6 +2360,7 @@
         {"key":"2732dea73fd5","text":"At the beginning of combat on your turn, the next time target creature would deal combat damage to one or more players this combat, prevent that damage. If damage is prevented this way, create that many 1/1 colorless Phyrexian Mite artifact creature tokens with toxic 1 and \"This token can't block.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"At the beginning of combat on your turn, the next time target creature would deal combat damage to one or more players this combat, prevent that damage. If damage is prevented this way, create that many 1/1 colorless Phyrexian Mite artifact creature tokens with toxic 1 and \"This token can't block.\""}},
         {"key":"26827d57c657","text":"At the beginning of combat on your turn, this creature explores. Then you may have it become a copy of another creature you control until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Then you may have it become a copy of another creature you control until end of turn"}},
         {"key":"883e13ad1e42","text":"At the beginning of combat on your turn, this creature gets +1/+1 until end of turn for each artifact your opponents control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","duration"],"span":"until end of turn for each artifact your opponents control"}},
+        {"key":"39f5ab46f1ee","text":"At the beginning of combat on your turn, up to one other target artifact you control becomes an artifact creature with base power and toughness 2/2 and gains flying until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause","target filter","object descriptor"],"span":"artifact you control becomes an artifact creature with base power and toughness 2/2 and"}},
         {"key":"2b3265174b8e","text":"At the beginning of combat on your turn, up to one target Blood token you control becomes a 2/2 black Bat creature with flying and haste in addition to its other types.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Up to one target Blood token you control becomes a 2/2 black Bat creature with flying and haste in addition to its other types"}},
         {"key":"93c6171ae568","text":"At the beginning of combat on your turn, up to one target creature gains first strike and vigilance until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Up to one target creature gains first strike and vigilance until end of turn"}},
         {"key":"7eb1d0ba8663","text":"At the beginning of combat on your turn, up to one target creature gets +2/+0 and gains firebending 2 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Up to one target creature gets +2/+0 and gains firebending 2 until end of turn"}},
@@ -10606,6 +10559,7 @@
         {"key":"0c7e41bd2817","text":"Multicolored spells cost {2} less to cast.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Multicolored spells cost {2} less to cast"}},
         {"key":"26e995f7e78d","text":"Multicolored spells you cast have convoke.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Multicolored spells you cast have convoke"}},
         {"key":"c5923194fdc5","text":"Multikicker {W/U}","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"keyword-line","path":["keyword ability"],"span":"Multikicker {W/U}"}},
+        {"key":"bc253efd2517","text":"Multivector Assault Mode — Whenever {self} deals combat damage to an opponent, it deals that much damage to each other opponent.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever {self} deals combat damage to an opponent"}},
         {"key":"f4044a70a074","text":"Murasame — Equip {5}","reason":"no slot consumed the line","cards":1},
         {"key":"b8d03c960779","text":"Mutsunokami — Equip {2}","reason":"no slot consumed the line","cards":1},
         {"key":"b220ce70964e","text":"Mwonvuli Ooze's power and toughness are each equal to 1 plus twice the number of age counters on it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Mwonvuli Ooze's power and toughness are each equal to 1 plus twice the number of age counters on it"}},
@@ -19782,6 +19736,7 @@
         {"key":"d2762cf55f0b","text":"Whenever an opponent discards a card, exile it from their graveyard with a stash counter on it.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever an opponent discards a card"}},
         {"key":"3157ac0dca5e","text":"Whenever an opponent discards a card, put a +1/+1 counter on {self}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever an opponent discards a card"}},
         {"key":"cf8d47e78384","text":"Whenever an opponent discards a card, that player loses 2 life.","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever an opponent discards a card"}},
+        {"key":"5f23161fd6f2","text":"Whenever an opponent discards a card, they lose 3 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever an opponent discards a card"}},
         {"key":"2f9065541ce3","text":"Whenever an opponent discards a card, this creature gets +2/+2 and gains fear until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever an opponent discards a card"}},
         {"key":"22336103fc74","text":"Whenever an opponent discards a card, this enchantment deals 2 damage to that player.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever an opponent discards a card"}},
         {"key":"0dbd3cbdabcc","text":"Whenever an opponent discards a card, you may create a 1/1 green Elf Warrior creature token.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever an opponent discards a card"}},
@@ -21986,6 +21941,7 @@
         {"key":"c23a466400b2","text":"Whenever you attack, you may sacrifice another creature. When you do, choose two —\n• Create two 1/1 red and white Soldier creature tokens with haste that are tapped and attacking.\n• You draw a card and you lose 1 life.\n• {self} deals damage equal to the number of creature tokens you control to target opponent.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Whenever you attack, you may sacrifice another creature. When you do, choose two —\n• Create two 1/1 red and white Soldier creature tokens with haste that are tapped and attacking.\n• You draw a card and you lose 1 life.\n• {self} deals damage equal to the number of creature tokens you control to target opponent"}},
         {"key":"78cdcfe67a47","text":"Whenever you attack, you may sacrifice one or more Treasures. When you do, up to that many target creatures gain double strike until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you attack"}},
         {"key":"9a67d01adb5b","text":"Whenever you attack, {self} deals 1 damage to each opponent.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you attack"}},
+        {"key":"94239a056b98","text":"Whenever you attack, {self} deals 100 damage to up to one target creature or planeswalker.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you attack"}},
         {"key":"5e1fb8b2778a","text":"Whenever you attack, {self} perpetually gets +1/+1. This ability also triggers if {self} is in exile.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you attack"}},
         {"key":"7b154bcc8b6c","text":"Whenever you augment, enchant, or mutate a creature you control, draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you augment"}},
         {"key":"7def4981ba04","text":"Whenever you become the monarch, convert {self}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you become the monarch"}},
@@ -22470,6 +22426,7 @@
         {"key":"6eebe7b10e35","text":"Whenever you cast an artifact spell, create a 1/1 colorless Thopter artifact creature token with flying.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you cast an artifact spell"}},
         {"key":"f4973e914a5f","text":"Whenever you cast an artifact spell, create a 3/1 red Dinosaur creature token. This ability triggers only once each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you cast an artifact spell"}},
         {"key":"b17e46582c7f","text":"Whenever you cast an artifact spell, draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you cast an artifact spell"}},
+        {"key":"41cb6e6f34a9","text":"Whenever you cast an artifact spell, draw a card. Put a charge counter on this Spacecraft.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you cast an artifact spell"}},
         {"key":"728ef43089cc","text":"Whenever you cast an artifact spell, investigate.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you cast an artifact spell"}},
         {"key":"df739c6631bb","text":"Whenever you cast an artifact spell, put a +1/+1 counter on this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you cast an artifact spell"}},
         {"key":"bf1fe70cb20c","text":"Whenever you cast an artifact spell, put a charge counter on this artifact.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you cast an artifact spell"}},
@@ -23100,6 +23057,7 @@
         {"key":"c4603d000c13","text":"Whenever you sacrifice a green creature, you may gain 2 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you sacrifice a green creature"}},
         {"key":"4d2318b3bd5e","text":"Whenever you sacrifice a land, create a tapped 4/4 green Beast creature token and untap this creature.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Create a tapped 4/4 green Beast creature token and untap this creature"}},
         {"key":"1e2e27b4a7ed","text":"Whenever you sacrifice a land, create a tapped token that's a copy of this creature if seven or more land cards are in your graveyard. Otherwise, create a tapped 1/1 black Insect creature token with flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["effect clause"],"span":"Create a tapped token that's a copy of this creature if seven or more land cards are in your graveyard"}},
+        {"key":"c14dd0a201a5","text":"Whenever you sacrifice a land, each opponent loses 2 life.","reason":"\"each player\" is not in grammar v0","cards":1},
         {"key":"e028fe2fd435","text":"Whenever you sacrifice a nontoken Elemental, create a token that's a copy of it. The token gains haste until end of turn. At the beginning of your next end step, sacrifice it unless you pay {W}{U}{B}{R}{G}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you sacrifice a nontoken Elemental"}},
         {"key":"1a200565cc37","text":"Whenever you sacrifice a nontoken permanent, create a 0/1 colorless Eldrazi Spawn creature token with \"Sacrifice this token: Add {C}.\"","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"Whenever you sacrifice a nontoken permanent, create a 0/1 colorless Eldrazi Spawn creature token with \"Sacrifice this token: Add {C}.\""}},
         {"key":"fd0aa8b6597d","text":"Whenever you sacrifice a nontoken permanent, exile the top card of your library.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"triggered","path":["trigger head"],"span":"Whenever you sacrifice a nontoken permanent"}},
@@ -24825,6 +24783,7 @@
         {"key":"48d7950f4bde","text":"{1}{B}, Sacrifice this enchantment: Target opponent exiles two cards from their hand. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Target opponent exiles two cards from their hand"}},
         {"key":"76c92ad1673d","text":"{1}{B}, {T}, Discard a card: Choose a card name. Exile the top six cards of your library, then reveal cards from the top of your library until you reveal a card with the chosen name. Put that card into your hand and exile all other cards revealed this way.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","verb frame"],"span":"reveal cards from the top of your library until you reveal a card with the chosen name"}},
         {"key":"ae87243c99dd","text":"{1}{B}, {T}, Exile a creature card from your graveyard: Each opponent loses 2 life.","reason":"\"each player\" is not in grammar v0","cards":1},
+        {"key":"86305679f841","text":"{1}{B}, {T}, Pay 2 life, Sacrifice a creature: Draw cards equal to the sacrificed creature's power. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Draw cards equal to the sacrificed creature's power"}},
         {"key":"2e6a3b933d12","text":"{1}{B}, {T}, Sacrifice a creature: Search your library for a Zombie card and a Swamp card, reveal them, put them into your hand, then shuffle.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","verb frame"],"span":"Search your library for a Zombie card and a Swamp card"}},
         {"key":"ca2c0aaba0a6","text":"{1}{B}, {T}, Sacrifice a creature: You gain 1 life and draw a card.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"You gain 1 life and draw a card"}},
         {"key":"28281d46ff36","text":"{1}{B}, {T}, Sacrifice another creature: Draw X cards, where X is that creature's power.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Draw X cards, where X is that creature's power"}},
@@ -24945,6 +24904,7 @@
         {"key":"2ec6514a180d","text":"{1}{R}, {T}, Remove any number of charge counters from this artifact: It deals that much damage to any target.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Remove any number of charge counters from this artifact"}},
         {"key":"ca7e4075ed99","text":"{1}{R}, {T}, Remove two pressure counters from this land and sacrifice it: Create a 4/4 red Hellion creature token with haste.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["activation cost"],"span":"Remove two pressure counters from this land and sacrifice it"}},
         {"key":"84a94b2ae691","text":"{1}{R}, {T}, Sacrifice a creature or enchantment: This creature deals 1 damage to target creature. That creature can't block this turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"That creature can't block this turn"}},
+        {"key":"70704e54493e","text":"{1}{R}, {T}, Sacrifice a land: Create a 2/2 colorless Robot artifact creature token, then creatures you control get +1/+0 and gain haste until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","effect clause","duration"],"span":"and gain haste until end of turn"}},
         {"key":"620c3b787158","text":"{1}{R}, {T}, Sacrifice this creature: Cast any number of cards exiled with this creature without paying their mana costs.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Cast any number of cards exiled with this creature without paying their mana costs"}},
         {"key":"f59a956300a3","text":"{1}{R}, {T}, Sacrifice this creature: Each player discards their hand, then draws seven cards.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","effect clause"],"span":"Each player discards their hand"}},
         {"key":"fa94156f1bb4","text":"{1}{R}, {T}, Sacrifice this land: Create a 1/1 colorless Pilot creature token with \"This token saddles Mounts and crews Vehicles as though its power were 2 greater.\" Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Create a 1/1 colorless Pilot creature token with \"This token saddles Mounts and crews Vehicles as though its power were 2 greater.\" Activate only as a sorcery"}},
@@ -26082,6 +26042,7 @@
         {"key":"fb8731740fb8","text":"{3}{W}, Sacrifice another artifact: This creature assembles a Contraption.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"This creature assembles a Contraption"}},
         {"key":"7434309bc16c","text":"{3}{W}, {T}, Exile two creature cards from your graveyard, Sacrifice this artifact: An opponent chooses one of the exiled cards. You put that card on the bottom of your library and return the other to the battlefield tapped. You become the monarch.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"An opponent chooses one of the exiled cards"}},
         {"key":"5399688e28f1","text":"{3}{W}, {T}: Create a 5/5 colorless Vehicle artifact token named Zeppelin with flying and crew 3.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Create a 5/5 colorless Vehicle artifact token named Zeppelin with flying and crew 3"}},
+        {"key":"f5da1be4326b","text":"{3}{W}, {T}: Create a token that's a copy of target artifact or enchantment you control, except it's legendary. Activate only as a sorcery.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","target filter","object descriptor"],"span":"artifact or enchantment you control, except it's legendary"}},
         {"key":"5ecccdb7d036","text":"{3}{W}, {T}: For as long as this artifact remains tapped, another target permanent loses all abilities and can't attack or block.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"For as long as this artifact remains tapped, another target permanent loses all abilities and can't attack or block"}},
         {"key":"52ead7576b92","text":"{3}{W}, {T}: Put a +1/+1 counter on each creature you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"each creature you control"}},
         {"key":"85edf183ac82","text":"{3}{W}, {T}: Seek a nonland card. Activate only once.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Seek a nonland card"}},
@@ -27034,6 +26995,7 @@
         {"key":"071edf0e6672","text":"{T}: Add X mana of any one color, where X is the greatest toughness among other creatures you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana production"],"span":"X mana of any one color, where X is the greatest toughness among other creatures you control"}},
         {"key":"7299056f4326","text":"{T}: Add X mana of any one color, where X is the number of Allies you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana production"],"span":"X mana of any one color, where X is the number of Allies you control"}},
         {"key":"2171459ee825","text":"{T}: Add X mana of any one color, where X is the number of Elves on the battlefield.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana production"],"span":"X mana of any one color, where X is the number of Elves on the battlefield"}},
+        {"key":"0c8326e358d6","text":"{T}: Add X mana of any one color, where X is the number of charge counters on {self}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana production"],"span":"X mana of any one color, where X is the number of charge counters on {self}"}},
         {"key":"a56daf5e786b","text":"{T}: Add X mana of any one color, where X is the number of creature cards in your graveyard.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana production"],"span":"X mana of any one color, where X is the number of creature cards in your graveyard"}},
         {"key":"4b09d8ba9517","text":"{T}: Add X mana of any one color, where X is the number of different Lorwyn creature types among creatures you control without changeling. If you control all eight, add an additional {W}{W}{U}{U}{B}{B}{R}{R}{G}{G}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana production"],"span":"X mana of any one color, where X is the number of different Lorwyn creature types among creatures you control without changeling. If you control all eight, add an additional {W}{W}{U}{U}{B}{B}{R}{R}{G}{G}"}},
         {"key":"1f98a92de3ed","text":"{T}: Add X mana of any one color, where X is the number of enchantments you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"mana-ability","path":["mana production"],"span":"X mana of any one color, where X is the number of enchantments you control"}},
@@ -29680,7 +29642,7 @@
 
         {"oracleId":"03259490-a789-4f96-8c5b-b410425bdd02","name":"Haunted Dead","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["964b403a7171"]},
 
-        {"oracleId":"03259ab0-caa8-4620-b070-127e2c712252","name":"Wedgelight Rammer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["598be8f29434","b047200aaf4f"]},
+        {"oracleId":"03259ab0-caa8-4620-b070-127e2c712252","name":"Wedgelight Rammer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["598be8f29434"]},
 
         {"oracleId":"032a5616-bbaf-4659-86c4-43edf29b9788","name":"Muck Drubb","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["bbfb0ace3b46"]},
 
@@ -33494,13 +33456,13 @@
 
         {"oracleId":"11293f96-3263-45e5-89fc-850df6b25a63","name":"Increasing Confusion","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6a28fbfa1736"]},
 
-        {"oracleId":"112aaaf0-3301-4f79-9640-d36c75a0fb30","name":"Rescue Skiff","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["039ae0b76081","69976fbce4c3"]},
+        {"oracleId":"112aaaf0-3301-4f79-9640-d36c75a0fb30","name":"Rescue Skiff","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["039ae0b76081"]},
 
         {"oracleId":"112df1e4-01aa-4e01-b56f-b5ae519c87fd","name":"Take Possession","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Take Possession","types":["Enchantment"],"subtypes":["Aura"],"manaCost":{"X":5,"U":2},"oracleText":"Split second (As long as this spell is on the stack, players can't cast spells or activate abilities that aren't mana abilities.)\nEnchant permanent\nYou control enchanted permanent.","staticAbilities":["split second"],"compiledStaticEffects":[{"kind":"control-change","appliesTo":"host"}],"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1}},"botReach":"played"},
 
         {"oracleId":"112f2b3f-32e7-40b1-b80e-0b99184a840c","name":"Electroduplicate","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2a1aeda6e46f"]},
 
-        {"oracleId":"11323af4-b8b8-4ca9-932f-377c7fd77dea","name":"The Eternity Elevator","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["63668bc009eb"]},
+        {"oracleId":"11323af4-b8b8-4ca9-932f-377c7fd77dea","name":"The Eternity Elevator","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0c8326e358d6"]},
 
         {"oracleId":"11329dd8-b10b-4659-b747-fbdbecf16308","name":"Myrkul, Lord of Bones","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["3a23a3ef868a","d868f6194510"]},
 
@@ -34006,7 +33968,7 @@
 
         {"oracleId":"12e4d2bd-83e9-4120-a2e8-0645c0ed2387","name":"Ebon Dragon","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["e829bc5fc82a"]},
 
-        {"oracleId":"12e4e6b6-e684-49df-9373-d1e057664272","name":"Shuttlecraft Galileo","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["18e58b12216f","48ba92017b9c","e21642264b90"]},
+        {"oracleId":"12e4e6b6-e684-49df-9373-d1e057664272","name":"Shuttlecraft Galileo","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["18e58b12216f","48ba92017b9c"]},
 
         {"oracleId":"12eeabe1-a02c-42a3-aa87-6774c4de7093","name":"Malakir Familiar","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["pump"],"definition":{"name":"Malakir Familiar","types":["Creature"],"subtypes":["Bat"],"manaCost":{"X":2,"B":1},"power":2,"toughness":1,"oracleText":"Flying, deathtouch\nWhenever you gain life, this creature gets +1/+1 until end of turn.","staticAbilities":["flying","deathtouch"],"compiledTriggeredAbilities":[{"id":"malakir-familiar-trigger","oracleText":"Whenever you gain life, this creature gets +1/+1 until end of turn.","head":{"kind":"life-gained","scope":"you"},"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
@@ -34278,7 +34240,7 @@
 
         {"oracleId":"13db0230-b57e-47fd-9025-580d06cc88ee","name":"Lifecraft Cavalry","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["f61afbee2d2f"]},
 
-        {"oracleId":"13dbfe3f-1e04-4c4f-953c-7c949dba9d33","name":"U.S.S. Discovery, at Black Alert","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["80ae35853972","e21642264b90"]},
+        {"oracleId":"13dbfe3f-1e04-4c4f-953c-7c949dba9d33","name":"U.S.S. Discovery, at Black Alert","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["80ae35853972"]},
 
         {"oracleId":"13de3a23-b78c-4298-a10b-4da0cc07f046","name":"Impatient Iguana","state":"unparsed","gaps":["209b548d3ddb"]},
 
@@ -34402,7 +34364,7 @@
 
         {"oracleId":"14440669-ddf0-46ac-b140-13948a8113b8","name":"Tamanoa","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9d119903f2e4"]},
 
-        {"oracleId":"14442f5b-0bad-4c58-b268-d775787571d8","name":"Deep Space 9","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2f0ff3a1038a","8ae88c1f4360"]},
+        {"oracleId":"14442f5b-0bad-4c58-b268-d775787571d8","name":"Deep Space 9","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8ae88c1f4360"]},
 
         {"oracleId":"1448489c-dfb8-43aa-ae3d-ed832381c1d9","name":"Scrabbling Skullcrab","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4f8963c65c49"]},
 
@@ -36134,7 +36096,7 @@
 
         {"oracleId":"1a8185ed-636b-49ad-bf24-2ab02c7fb91e","name":"Swallowed by Leviathan","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["41c2b95f3bcc"]},
 
-        {"oracleId":"1a82be68-3b74-4dfc-9068-3abea61db709","name":"Fell Gravship","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["146a6828a7d0","91fed180b445"]},
+        {"oracleId":"1a82be68-3b74-4dfc-9068-3abea61db709","name":"Fell Gravship","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["91fed180b445"]},
 
         {"oracleId":"1a840210-204d-41cd-afc0-46abf7ea5f87","name":"Apocalypse Hydra","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a24d03fd9b8a"]},
 
@@ -37500,7 +37462,7 @@
 
         {"oracleId":"1fa3839a-127e-4740-bd2e-97b18fdddedc","name":"Marisi's Twinclaws","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Marisi's Twinclaws","types":["Creature"],"subtypes":["Cat","Warrior"],"manaCost":{"X":2,"G":1,"hybrid":[["R","W"]]},"power":2,"toughness":4,"oracleText":"Double strike","staticAbilities":["double strike"]},"botReach":"played"},
 
-        {"oracleId":"1fa82502-4933-45d2-83b9-93764ded0aae","name":"Squadron Carrier","state":"unparsed","gaps":["38abbddec7d6","9b23739ec884"]},
+        {"oracleId":"1fa82502-4933-45d2-83b9-93764ded0aae","name":"Squadron Carrier","state":"unparsed","gaps":["38abbddec7d6"]},
 
         {"oracleId":"1fa94925-04e5-4073-91af-1857dbc09991","name":"Oak Street Innkeeper","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5e129dde55b9"]},
 
@@ -38258,7 +38220,7 @@
 
         {"oracleId":"22b7975c-37a5-4895-b209-bdeeec0c6aea","name":"Judge's Familiar","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["counter","if","mayPay"],"definition":{"name":"Judge's Familiar","types":["Creature"],"subtypes":["Bird"],"manaCost":{"hybrid":[["W","U"]]},"power":1,"toughness":1,"oracleText":"Flying\nSacrifice this creature: Counter target instant or sorcery spell unless its controller pays {1}.","staticAbilities":["flying"],"activatedAbilities":[{"id":"judge-s-familiar-ability","oracleText":"Sacrifice this creature: Counter target instant or sorcery spell unless its controller pays {1}.","cost":{"sacrifice":true},"useStack":true,"effects":[{"op":"mayPay","player":{"controllerOf":{"target":0}},"cost":{"X":1},"prompt":"Pay {1} to prevent your spell from being countered?","bind":"$may1"},{"op":"if","predicate":{"not":{"binding":"$may1"}},"then":[{"op":"counter","target":{"target":0}}]}],"targetRequirement":{"type":"spell","count":1,"spellTypeFilter":["Instant","Sorcery"]}}]},"botReach":"played"},
 
-        {"oracleId":"22b86863-c992-405b-949a-bdf8859884ef","name":"Sarcophagus, Ship of the Dead","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2bda57c97538","69976fbce4c3"]},
+        {"oracleId":"22b86863-c992-405b-949a-bdf8859884ef","name":"Sarcophagus, Ship of the Dead","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2bda57c97538"]},
 
         {"oracleId":"22b92238-4d6a-483d-b916-fbb07c831870","name":"Faerie Aerie","state":"unparsed","gaps":["8887d2f04422"]},
 
@@ -41124,7 +41086,7 @@
 
         {"oracleId":"2db8fc61-13af-4227-83f9-9f426ab978d3","name":"Jwar Isle Avenger","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["06a7bf352e6b"]},
 
-        {"oracleId":"2db9e07f-d149-447a-b855-ef471274b326","name":"Candela, Aegis of Adagia","state":"unparsed","gaps":["4cebdf1b3d45","718350f979c9"]},
+        {"oracleId":"2db9e07f-d149-447a-b855-ef471274b326","name":"Candela, Aegis of Adagia","state":"unparsed","gaps":["718350f979c9"]},
 
         {"oracleId":"2dba8d8d-891e-482e-8014-879f701d0619","name":"Zilortha, Strength Incarnate","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["40022d53e721"]},
 
@@ -42364,7 +42326,7 @@
 
         {"oracleId":"320d8f2b-005d-4769-80d2-f46d96afffe7","name":"Serra Bestiary","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["94e2b3ce8590"]},
 
-        {"oracleId":"320ed2ec-ef06-41fb-ac8a-72579f11544c","name":"Wurmwall Sweeper","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["20f93320e94b","d7d2ecb54fd6"]},
+        {"oracleId":"320ed2ec-ef06-41fb-ac8a-72579f11544c","name":"Wurmwall Sweeper","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["d7d2ecb54fd6"]},
 
         {"oracleId":"32116127-cf96-4a1b-8896-a1ebc087b597","name":"Llanowar Wastes","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["mana-ability"],"opsUsed":[],"definition":{"name":"Llanowar Wastes","types":["Land"],"oracleText":"{T}: Add {C}.\n{T}: Add {B} or {G}. This land deals 1 damage to you.","activatedAbilities":[{"id":"llanowar-wastes-mana","oracleText":"{T}: Add {C}.\n{T}: Add {B} or {G}. This land deals 1 damage to you.","cost":{"tap":true},"useStack":false,"manaChoices":[{"C":1},{"B":1},{"G":1}],"dealsDamageToControllerOnColoredTap":1}]},"botReach":"played"},
 
@@ -42870,7 +42832,7 @@
 
         {"oracleId":"33e88072-3840-4090-8d0b-7fb38279e150","name":"Megatron, Tyrant // Megatron, Destructive Force","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["576d17dd1a2a","64e2e73cae5f","8b516226b198","9042c8af0a80"]},
 
-        {"oracleId":"33e8904a-9285-4031-900c-0a5c8f0bf6c0","name":"U.S.S. Voyager, Lone Wanderer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5c77bb19c4fb","acf8a8996fd2"]},
+        {"oracleId":"33e8904a-9285-4031-900c-0a5c8f0bf6c0","name":"U.S.S. Voyager, Lone Wanderer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5c77bb19c4fb"]},
 
         {"oracleId":"33e9db5a-986d-4731-88c9-87de6f967db4","name":"Blaring Recruiter","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["88fe75c63c0f"]},
 
@@ -43792,7 +43754,7 @@
 
         {"oracleId":"373ccd23-5c98-4368-995a-e6503cd0dbd8","name":"Elturel Survivors","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["2254a83aa35a"]},
 
-        {"oracleId":"373e2b58-ccf0-444b-aeb2-0b6e8d4e80e7","name":"I.K.S. Negh'Var, Imperial Flagship","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["492e8b47b0fa","5f6e1f23278f"]},
+        {"oracleId":"373e2b58-ccf0-444b-aeb2-0b6e8d4e80e7","name":"I.K.S. Negh'Var, Imperial Flagship","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["492e8b47b0fa"]},
 
         {"oracleId":"3740b86d-b0e6-4837-b408-e7f62b95c787","name":"Underfoot Underdogs","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","triggered"],"opsUsed":["createToken","restrictCombat"],"definition":{"name":"Underfoot Underdogs","types":["Creature"],"subtypes":["Goblin","Warrior"],"manaCost":{"X":2,"R":1},"power":1,"toughness":2,"oracleText":"When this creature enters, create a 1/1 red Goblin creature token.\n{1}, {T}: Target creature you control with power 2 or less can't be blocked this turn.","activatedAbilities":[{"id":"underfoot-underdogs-ability","oracleText":"{1}, {T}: Target creature you control with power 2 or less can't be blocked this turn.","cost":{"mana":{"X":1},"tap":true},"useStack":true,"effects":[{"op":"restrictCombat","restriction":"cant-be-blocked","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1,"powerFilter":{"max":2},"controller":"you"}}],"compiledTriggeredAbilities":[{"id":"underfoot-underdogs-trigger","oracleText":"When this creature enters, create a 1/1 red Goblin creature token.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"createToken","token":{"name":"Goblin","types":["Creature"],"subtypes":["Goblin"],"power":1,"toughness":1,"colors":["R"]},"controller":"controller"}]}]},"botReach":"played"},
 
@@ -44766,7 +44728,7 @@
 
         {"oracleId":"3a9d29ce-e8e2-402f-b0c2-873f70418234","name":"Icatian Priest","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["pump"],"definition":{"name":"Icatian Priest","types":["Creature"],"subtypes":["Human","Cleric"],"manaCost":{"W":1},"power":1,"toughness":1,"oracleText":"{1}{W}{W}: Target creature gets +1/+1 until end of turn.","activatedAbilities":[{"id":"icatian-priest-ability","oracleText":"{1}{W}{W}: Target creature gets +1/+1 until end of turn.","cost":{"mana":{"X":1,"W":2}},"useStack":true,"effects":[{"op":"pump","target":{"target":0},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}],"targetRequirement":{"type":"Creature","count":1}}]},"botReach":"played","retired":{"at":"2026-09-18","issue":4027}},
 
-        {"oracleId":"3aa0cda4-fb2d-4fd4-84f6-482089a85547","name":"Lumen-Class Frigate","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6a151ebee938","add788573fb3"]},
+        {"oracleId":"3aa0cda4-fb2d-4fd4-84f6-482089a85547","name":"Lumen-Class Frigate","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","static","station-symbol"],"opsUsed":["counters"],"definition":{"name":"Lumen-Class Frigate","types":["Artifact"],"subtypes":["Spacecraft"],"manaCost":{"X":1,"W":1},"oracleText":"Station (Tap another creature you control: Put charge counters equal to its power on this Spacecraft. Station only as a sorcery. It's an artifact creature at 12+.)\n2+ | Other creatures you control get +1/+1.\n12+ | Flying, lifelink","stationThresholds":[{"charge":2,"compiledStaticEffects":[{"kind":"pt-buff","filter":{"types":["Creature"],"controllerRelation":"you","excludeSource":true},"power":1,"toughness":1}]},{"charge":12,"creature":{"power":3,"toughness":5},"keywords":["flying","lifelink"]}]},"botReach":"played"},
 
         {"oracleId":"3aa0e73f-ac88-47a5-9cc5-0c941a939eae","name":"Jandor's Saddlebags","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["tapUntap"],"definition":{"name":"Jandor's Saddlebags","types":["Artifact"],"manaCost":{"X":2},"oracleText":"{3}, {T}: Untap target creature.","activatedAbilities":[{"id":"jandor-s-saddlebags-ability","oracleText":"{3}, {T}: Untap target creature.","cost":{"mana":{"X":3},"tap":true},"useStack":true,"effects":[{"op":"tapUntap","action":"untap","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1}}]},"botReach":"played","retired":{"at":"2026-09-18","issue":4027}},
 
@@ -44934,7 +44896,7 @@
 
         {"oracleId":"3b2ce431-7101-4256-827d-a14de9f867fd","name":"Wild Elephant","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Wild Elephant","types":["Creature"],"subtypes":["Elephant"],"manaCost":{"X":3,"G":1},"power":3,"toughness":3,"oracleText":"Trample","staticAbilities":["trample"]},"botReach":"played"},
 
-        {"oracleId":"3b2e3deb-1f21-4311-b8a9-4153089ac5ff","name":"U.S.S. Farragut, Bold Explorer","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["22f5d2ff9a1d","30ffdb5ecf3d"]},
+        {"oracleId":"3b2e3deb-1f21-4311-b8a9-4153089ac5ff","name":"U.S.S. Farragut, Bold Explorer","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["22f5d2ff9a1d"]},
 
         {"oracleId":"3b2f1364-56e7-461a-b03f-0e14d83b0f5e","name":"Evasive Maneuvers","state":"ready","poolIn":["pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["draw","pump"],"definition":{"name":"Evasive Maneuvers","types":["Instant"],"manaCost":{"W":1},"oracleText":"Target blocking creature you control gets +2/+2 until end of turn.\nDraw a card.","effects":[{"op":"pump","target":{"target":0},"power":2,"toughness":2,"duration":{"phase":"end-of-turn"}},{"op":"draw","player":"controller","count":1}],"targetRequirement":{"type":"Creature","count":1,"combatRoleFilter":["blocking"],"controller":"you"}},"botReach":"played"},
 
@@ -47136,7 +47098,7 @@
 
         {"oracleId":"4325ae73-af43-4a7d-a552-9909f0dc77db","name":"Turn Aside","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["22eed70f7e30"]},
 
-        {"oracleId":"4325d4d2-5892-4c20-a994-7396b715e94f","name":"Transwarp Hub","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["a434bd05ac46","de5e6171cd4c"]},
+        {"oracleId":"4325d4d2-5892-4c20-a994-7396b715e94f","name":"Transwarp Hub","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["de5e6171cd4c"]},
 
         {"oracleId":"4327225e-140f-45a4-a56f-dcf472f6c062","name":"Witch's Mist","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9e5ff73e485b"]},
 
@@ -47522,7 +47484,7 @@
 
         {"oracleId":"448037c0-20b5-4ca4-9d8f-2702b4697127","name":"Vampiric Sliver","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["eb86d96665a2"]},
 
-        {"oracleId":"44837c9b-971a-44b6-8e55-301cebc3a361","name":"Queen's Diamond","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["a5f8babd966f","e0584ddff964"]},
+        {"oracleId":"44837c9b-971a-44b6-8e55-301cebc3a361","name":"Queen's Diamond","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["a5f8babd966f"]},
 
         {"oracleId":"448396b8-b691-457a-8569-1282c3fca65a","name":"Infected Vermin","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["dealDamage","forEach"],"definition":{"name":"Infected Vermin","types":["Creature"],"subtypes":["Rat"],"manaCost":{"X":2,"B":1},"power":1,"toughness":1,"oracleText":"{2}{B}: This creature deals 1 damage to each creature and each player.\nThreshold — {3}{B}: This creature deals 3 damage to each creature and each player. Activate only if there are seven or more cards in your graveyard.","activatedAbilities":[{"id":"infected-vermin-ability","oracleText":"{2}{B}: This creature deals 1 damage to each creature and each player.","cost":{"mana":{"X":2,"B":1}},"useStack":true,"effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"type":"Creature"}},"effects":[{"op":"dealDamage","amount":1,"to":{"ref":"$each"}}]},{"op":"forEach","select":{"set":"players"},"effects":[{"op":"dealDamage","amount":1,"to":{"player":{"ref":"$each"}}}]}]},{"id":"infected-vermin-ability-2","oracleText":"Threshold — {3}{B}: This creature deals 3 damage to each creature and each player. Activate only if there are seven or more cards in your graveyard.","cost":{"mana":{"X":3,"B":1}},"useStack":true,"effects":[{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"type":"Creature"}},"effects":[{"op":"dealDamage","amount":3,"to":{"ref":"$each"}}]},{"op":"forEach","select":{"set":"players"},"effects":[{"op":"dealDamage","amount":3,"to":{"player":{"ref":"$each"}}}]}],"activationCondition":{"left":{"count":{"zone":"graveyard","controller":"controller"}},"op":"ge","right":7}}]},"botReach":"played"},
 
@@ -48258,7 +48220,7 @@
 
         {"oracleId":"472d9a18-19a0-46c0-a4bf-328ebec7ce41","name":"Mutagen Man, Living Ooze","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5d31e8dad943"]},
 
-        {"oracleId":"472eac8f-2b82-4fa9-a40c-af11ec40f19e","name":"U.S.S. Cerritos, Following Up","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e21642264b90","f50f981802ce"]},
+        {"oracleId":"472eac8f-2b82-4fa9-a40c-af11ec40f19e","name":"U.S.S. Cerritos, Following Up","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f50f981802ce"]},
 
         {"oracleId":"472efb69-47c8-4c93-b60a-f6dba4364b8c","name":"Exquisite Archangel","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2178b1ad4a07"]},
 
@@ -49828,7 +49790,7 @@
 
         {"oracleId":"4ccc1ac5-db90-4fc9-9795-7afaf7466c3e","name":"Acidic Soil","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["9ecdf33e0912"]},
 
-        {"oracleId":"4ccc91f2-4d6e-4d64-b438-3d8b4361040a","name":"Class-F Shuttlecraft","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["7f1a3a21fc64"]},
+        {"oracleId":"4ccc91f2-4d6e-4d64-b438-3d8b4361040a","name":"Class-F Shuttlecraft","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","mana-ability","station-symbol"],"opsUsed":["counters"],"definition":{"name":"Class-F Shuttlecraft","types":["Artifact"],"subtypes":["Spacecraft"],"manaCost":{"X":3},"oracleText":"{T}: Add one mana of any color.\nStation (Tap another creature you control: Put charge counters equal to its power on this Spacecraft. Station only as a sorcery. It's an artifact creature at 6+.)\n6+ | Flying, vigilance","activatedAbilities":[{"id":"class-f-shuttlecraft-mana","oracleText":"{T}: Add one mana of any color.","cost":{"tap":true},"useStack":false,"manaChoices":[{"W":1},{"U":1},{"B":1},{"R":1},{"G":1}]}],"stationThresholds":[{"charge":6,"creature":{"power":2,"toughness":4},"keywords":["flying","vigilance"]}]},"botReach":"played"},
 
         {"oracleId":"4cd096ac-dd67-4208-a3ad-8e6061b442c6","name":"Plague Mare","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ea1dff5d6c66"]},
 
@@ -49878,7 +49840,7 @@
 
         {"oracleId":"4cfaa5cf-cc3d-49a7-9544-38a8bb7e9ec1","name":"Frontier Siege","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["cb9d54335d1b"]},
 
-        {"oracleId":"4cfb6f06-137c-4b41-97ef-6710e899473b","name":"Borg Scout Sphere","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["841f6003b6fb","decaa317b167"]},
+        {"oracleId":"4cfb6f06-137c-4b41-97ef-6710e899473b","name":"Borg Scout Sphere","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["841f6003b6fb","e1cf01bdabeb"]},
 
         {"oracleId":"4cfd04b3-57bd-4860-8b47-57a0fd0a23fa","name":"Raging Minotaur","state":"ready","poolIn":["pauper","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Raging Minotaur","types":["Creature"],"subtypes":["Minotaur","Berserker"],"manaCost":{"X":2,"R":2},"power":3,"toughness":3,"oracleText":"Haste","staticAbilities":["haste"]},"botReach":"played"},
 
@@ -50586,7 +50548,7 @@
 
         {"oracleId":"4fa46972-d953-4328-9c31-96e134234133","name":"Bouncing Beebles","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["dae52a7014e4"]},
 
-        {"oracleId":"4fa826ca-d361-4391-ad0d-989ebcfa4a91","name":"Kavaron, Memorial World","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["71680ab9a051"]},
+        {"oracleId":"4fa826ca-d361-4391-ad0d-989ebcfa4a91","name":"Kavaron, Memorial World","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["70704e54493e"]},
 
         {"oracleId":"4fa99dc1-c2d2-4b21-8511-e3d86626609d","name":"Scrapper Champion","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ee8b065621fb"]},
 
@@ -50932,7 +50894,7 @@
 
         {"oracleId":"50d33663-5d83-4e3c-9ed7-074fe29a9fc8","name":"Cartographer","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["if","mayPay","moveZone"],"definition":{"name":"Cartographer","types":["Creature"],"subtypes":["Human"],"manaCost":{"X":2,"G":1},"power":2,"toughness":2,"oracleText":"When this creature enters, you may return target land card from your graveyard to your hand.","compiledTriggeredAbilities":[{"id":"cartographer-trigger","oracleText":"When this creature enters, you may return target land card from your graveyard to your hand.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Land","count":1,"zone":"graveyard","controller":"you"},"effects":[{"op":"mayPay","player":"controller","prompt":"Return target land card from your graveyard to your hand?","bind":"$may1"},{"op":"if","predicate":{"binding":"$may1"},"then":[{"op":"moveZone","target":{"target":0},"to":"hand"}]}]}]},"botReach":"played"},
 
-        {"oracleId":"50d6cadc-07e4-479e-90f4-e3a20f769bab","name":"Susur Secundi, Void Altar","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c916ab50e89a"]},
+        {"oracleId":"50d6cadc-07e4-479e-90f4-e3a20f769bab","name":"Susur Secundi, Void Altar","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["86305679f841"]},
 
         {"oracleId":"50d6fd91-23d3-4d32-804f-6233e4386904","name":"Ouroboroid","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4a4abd27ec54"]},
 
@@ -51462,7 +51424,7 @@
 
         {"oracleId":"52c53132-146a-4912-8e0f-1d4d9937fff3","name":"Staff of Zegon","state":"ready","poolIn":["pauper","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["pump"],"definition":{"name":"Staff of Zegon","types":["Artifact"],"manaCost":{"X":4},"oracleText":"{3}, {T}: Target creature gets -2/-0 until end of turn.","activatedAbilities":[{"id":"staff-of-zegon-ability","oracleText":"{3}, {T}: Target creature gets -2/-0 until end of turn.","cost":{"mana":{"X":3},"tap":true},"useStack":true,"effects":[{"op":"pump","target":{"target":0},"power":-2,"toughness":0,"duration":{"phase":"end-of-turn"}}],"targetRequirement":{"type":"Creature","count":1}}]},"botReach":"played","retired":{"at":"2026-09-18","issue":4027}},
 
-        {"oracleId":"52c6afc6-aff1-46a8-b1ea-b183facec1ae","name":"Atmospheric Greenhouse","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7d3a5a4dc94d","960bf545c45d"]},
+        {"oracleId":"52c6afc6-aff1-46a8-b1ea-b183facec1ae","name":"Atmospheric Greenhouse","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["960bf545c45d"]},
 
         {"oracleId":"52c73c88-3b87-4184-b8e1-cd2b5688800d","name":"Rank Officer","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["ae87243c99dd"]},
 
@@ -51630,7 +51592,7 @@
 
         {"oracleId":"53463d3d-fa97-46fb-a73b-35bb0e0dac72","name":"Lingering Death","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["0a4fc1c503e6"]},
 
-        {"oracleId":"53463e9d-fd32-411c-8233-db4ea29427ff","name":"Monoist Gravliner","state":"unparsed","gaps":["15de5ecbc878","d5d1d321d430"]},
+        {"oracleId":"53463e9d-fd32-411c-8233-db4ea29427ff","name":"Monoist Gravliner","state":"unparsed","gaps":["15de5ecbc878"]},
 
         {"oracleId":"53467cf4-5db2-4b9c-af2b-03b044c558cd","name":"This Is How It Ends","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["e667357d8c28"]},
 
@@ -52144,7 +52106,7 @@
 
         {"oracleId":"554de904-086c-428c-9f32-b0b2498a6fd5","name":"Phyrexian Debaser","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["pump"],"definition":{"name":"Phyrexian Debaser","types":["Creature"],"subtypes":["Phyrexian","Carrier"],"manaCost":{"X":3,"B":1},"power":2,"toughness":2,"oracleText":"Flying\n{T}, Sacrifice this creature: Target creature gets -2/-2 until end of turn.","staticAbilities":["flying"],"activatedAbilities":[{"id":"phyrexian-debaser-ability","oracleText":"{T}, Sacrifice this creature: Target creature gets -2/-2 until end of turn.","cost":{"tap":true,"sacrifice":true},"useStack":true,"effects":[{"op":"pump","target":{"target":0},"power":-2,"toughness":-2,"duration":{"phase":"end-of-turn"}}],"targetRequirement":{"type":"Creature","count":1}}]},"botReach":"played"},
 
-        {"oracleId":"554df866-3dbb-4811-8573-6033481591aa","name":"Inspirit, Flagship Vessel","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["159910550702","4cebdf1b3d45","f9f8b09db39a"]},
+        {"oracleId":"554df866-3dbb-4811-8573-6033481591aa","name":"Inspirit, Flagship Vessel","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["3361edd17121","f9f8b09db39a"]},
 
         {"oracleId":"5552e875-f516-463c-b50f-d2cf54332545","name":"Mana Conference","state":"unparsed","gaps":["3cf92ce8f40b"]},
 
@@ -54294,7 +54256,7 @@
 
         {"oracleId":"5d1d9914-3ef2-45c5-b1cb-cb85d2f7394c","name":"Tolls of War","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5668f226e0b2"]},
 
-        {"oracleId":"5d2016ed-3ea0-4938-b95e-ee582307e475","name":"Suurok-Class Science Vessel","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["6e0606dd185f","841f6003b6fb"]},
+        {"oracleId":"5d2016ed-3ea0-4938-b95e-ee582307e475","name":"Suurok-Class Science Vessel","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["841f6003b6fb"]},
 
         {"oracleId":"5d22ab00-b454-4407-93d7-65b47f56cbaa","name":"Sailors' Bane","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["09db6416388c"]},
 
@@ -54548,7 +54510,7 @@
 
         {"oracleId":"5e277de5-793a-4364-923a-a55b53c0fa85","name":"Istvan, Butcher of Eln","state":"unparsed","poolIn":["commander"],"gaps":["8e0a90ce9e7b"]},
 
-        {"oracleId":"5e2958fd-ede6-4563-babc-4924d3e95754","name":"U.S.S. Enterprise-A, Free Spirit","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["19641f40af8c","cbfb684f004f"]},
+        {"oracleId":"5e2958fd-ede6-4563-babc-4924d3e95754","name":"U.S.S. Enterprise-A, Free Spirit","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["19641f40af8c"]},
 
         {"oracleId":"5e29aea1-06e3-49ef-8a22-e3acff1fb679","name":"Bell Borca, Spectral Sergeant","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["2c83d7da07bb","498875fe1a16","aca1530f4cf2"]},
 
@@ -54614,7 +54576,7 @@
 
         {"oracleId":"5e674793-6586-44a4-b936-a71203c5850a","name":"Sparkshaper Visionary","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["85b9df7fefd3"]},
 
-        {"oracleId":"5e696f9a-425c-470a-870e-10d2ba3bb27d","name":"D-7 Battle Cruiser","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4cebdf1b3d45","898d80b25c49"]},
+        {"oracleId":"5e696f9a-425c-470a-870e-10d2ba3bb27d","name":"D-7 Battle Cruiser","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a64ac92fba83"]},
 
         {"oracleId":"5e6cbe03-6d6a-413e-9f3c-2770d408cc79","name":"Conjurer's Ban","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9a5d75743860"]},
 
@@ -59730,7 +59692,7 @@
 
         {"oracleId":"70d2f5f7-f727-48e1-9532-8d365b1c1ae5","name":"Battlefield Thaumaturge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1731c4c8856a","fdd15c198665"]},
 
-        {"oracleId":"70d35dbd-1d91-4a2a-a643-6870d168f4f5","name":"Adagia, Windswept Bastion","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["be68cc3a9ccd"]},
+        {"oracleId":"70d35dbd-1d91-4a2a-a643-6870d168f4f5","name":"Adagia, Windswept Bastion","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f5da1be4326b"]},
 
         {"oracleId":"70d39ca3-1bbd-47ec-8723-2abe35b6dc51","name":"Pentarch Ward","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["faac929e4c95"]},
 
@@ -61230,7 +61192,7 @@
 
         {"oracleId":"7613c50b-4568-4340-b64a-ab427aaffd51","name":"Rhys the Exiled","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["471c372e87c8","51647d1f5e85"]},
 
-        {"oracleId":"7615157b-af2a-41b9-801e-aca56c485ebd","name":"Land Station","state":"unparsed","gaps":["5f9c3bff69a7","69976fbce4c3","e445180e32c6"]},
+        {"oracleId":"7615157b-af2a-41b9-801e-aca56c485ebd","name":"Land Station","state":"unparsed","gaps":["5f9c3bff69a7","e445180e32c6"]},
 
         {"oracleId":"76164af1-275e-4d68-9df5-9801768512ef","name":"Lingering Phantom","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e48bbe7a9dd9"]},
 
@@ -62706,7 +62668,7 @@
 
         {"oracleId":"7b4c2dcf-86f4-409d-90c3-8fe83966cac0","name":"Wanderlight Spirit","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Wanderlight Spirit","types":["Creature"],"subtypes":["Spirit"],"manaCost":{"X":2,"U":1},"power":2,"toughness":3,"oracleText":"Flying\nThis creature can block only creatures with flying.","staticAbilities":["flying"],"compiledStaticEffects":[{"kind":"block-restriction","id":"wanderlight-spirit-blocks-only-flying","oracleText":"This creature can block only creatures with flying.","onlyAgainst":{"keyword":"flying"}}]},"botReach":"played"},
 
-        {"oracleId":"7b4c37dc-8cb0-4870-929e-11c2a45952a2","name":"Uthros Scanship","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4cebdf1b3d45","e4b1915043a5"]},
+        {"oracleId":"7b4c37dc-8cb0-4870-929e-11c2a45952a2","name":"Uthros Scanship","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e4b1915043a5"]},
 
         {"oracleId":"7b4ff283-ab2d-4eb2-8bd3-7398e4da0e95","name":"Soratami Seer","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["713b050a5cf0"]},
 
@@ -64594,7 +64556,7 @@
 
         {"oracleId":"82841366-dd4d-4c35-a6cd-35c7ba1b4461","name":"Suntail Squadron","state":"unparsed","gaps":["a5e240d19f03"]},
 
-        {"oracleId":"8284c6ae-d86e-4f72-81da-7d3f9861fd12","name":"S.S. Botany Bay","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["4cebdf1b3d45","99c88074ea3c","de1828c4b4bc"]},
+        {"oracleId":"8284c6ae-d86e-4f72-81da-7d3f9861fd12","name":"S.S. Botany Bay","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["99c88074ea3c","de1828c4b4bc"]},
 
         {"oracleId":"8287306b-47d3-4e95-aa39-551f949d687c","name":"Hinterland Hermit // Hinterland Scourge","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["16329ee0c064","3797e04d266b","b9c5dd7c5793"]},
 
@@ -64760,7 +64722,7 @@
 
         {"oracleId":"8315aa34-08b8-403e-a2e6-796a2d6978ad","name":"Stern Lesson","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["addMana","choice","createToken","discard","draw"],"definition":{"name":"Stern Lesson","types":["Instant"],"manaCost":{"X":2,"U":1},"oracleText":"Draw two cards, then discard a card. Create a tapped Powerstone token. (It's an artifact with \"{T}: Add {C}. This mana can't be spent to cast a nonartifact spell.\")","effects":[{"op":"draw","player":"controller","count":2},{"op":"choice","kind":"choose-hand-card","player":"controller","zone":"hand","count":1,"prompt":"Discard a card.","bind":"$discard1"},{"op":"discard","player":"controller","cards":{"ref":"$discard1"}},{"op":"createToken","token":{"name":"Powerstone","types":["Artifact"],"subtypes":["Powerstone"],"activatedAbilities":[{"id":"powerstone-token-mana","oracleText":"{T}: Add {C}. This mana can't be spent to cast a nonartifact spell.","cost":{"tap":true},"useStack":false,"manaProduced":{"C":1},"manaRestriction":"not-nonartifact-spell","effects":[{"op":"addMana","mana":{"C":1}}]}],"imagePrintId":"d45fe4b6-aeaf-4f84-b660-c7b482ed8512","entersTapped":true},"controller":"controller"}]},"botReach":"played"},
 
-        {"oracleId":"83161d59-2520-4741-9328-e2a4a8b5d5bc","name":"Evendo, Waking Haven","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1919949309d8"]},
+        {"oracleId":"83161d59-2520-4741-9328-e2a4a8b5d5bc","name":"Evendo, Waking Haven","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["mana-ability","static","station-symbol"],"opsUsed":["counters"],"definition":{"name":"Evendo, Waking Haven","types":["Land"],"subtypes":["Planet"],"oracleText":"This land enters tapped.\n{T}: Add {G}.\nStation (Tap another creature you control: Put charge counters equal to its power on this Planet. Station only as a sorcery.)\n12+ | {G}, {T}: Add {G} for each creature you control.","activatedAbilities":[{"id":"evendo-waking-haven-mana","oracleText":"{T}: Add {G}.","cost":{"tap":true},"useStack":false,"manaProduced":{"G":1}}],"entersTapped":true,"stationThresholds":[{"charge":12,"activatedAbilities":[{"id":"evendo-waking-haven-mana-station-12","oracleText":"{G}, {T}: Add {G} for each creature you control.","cost":{"mana":{"G":1},"tap":true},"useStack":false,"manaProduced":{"G":1},"manaAmountSource":{"filter":{"types":["Creature"],"controllerRelation":"you"}}}]}]},"botReach":"played"},
 
         {"oracleId":"831623c9-8279-439e-a42b-ac47cacdb058","name":"Tolarian Contempt","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["411b6fa8e920","9c56c4d87376"]},
 
@@ -66172,7 +66134,7 @@
 
         {"oracleId":"87b644f5-904b-4917-bb8c-c2c19aa576aa","name":"The Zabulous Cosplayer","state":"unparsed","gaps":["ec17473fbf90"]},
 
-        {"oracleId":"87b8fef3-f40e-44a9-afd5-31d3917b1d59","name":"U.S.S. Defiant, Tough Little Ship","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["1fb0273f7158"]},
+        {"oracleId":"87b8fef3-f40e-44a9-afd5-31d3917b1d59","name":"U.S.S. Defiant, Tough Little Ship","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["keyword-line","station-symbol","triggered"],"opsUsed":["counters","destroy"],"definition":{"name":"U.S.S. Defiant, Tough Little Ship","types":["Artifact"],"supertypes":["Legendary"],"subtypes":["Spacecraft"],"manaCost":{"X":6},"oracleText":"When U.S.S. Defiant enters, destroy up to one target artifact or enchantment.\nStation (Tap another creature you control: Put charge counters equal to its power on this Spacecraft. Station only as a sorcery. It's an artifact creature at 5+.)\n5+ | Flying, hexproof","compiledTriggeredAbilities":[{"id":"u-s-s-defiant-tough-little-ship-trigger","oracleText":"When U.S.S. Defiant enters, destroy up to one target artifact or enchantment.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":["Artifact","Enchantment"],"count":{"min":0,"max":1}},"effects":[{"op":"destroy","target":{"target":0}}]}],"stationThresholds":[{"charge":5,"creature":{"power":7,"toughness":4},"keywords":["flying","hexproof"]}]},"botReach":"played"},
 
         {"oracleId":"87bafa97-38fd-41a2-8b1d-315e88d9d0bf","name":"Mystic Compass","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["optionChoice","setSubtype"],"definition":{"name":"Mystic Compass","types":["Artifact"],"manaCost":{"X":2},"oracleText":"{1}, {T}: Target land becomes the basic land type of your choice until end of turn.","activatedAbilities":[{"id":"mystic-compass-ability","oracleText":"{1}, {T}: Target land becomes the basic land type of your choice until end of turn.","cost":{"mana":{"X":1},"tap":true},"useStack":true,"effects":[{"op":"optionChoice","prompt":"Choose a basic land type (Mystic Compass).","modes":[{"id":"Plains","label":"Plains","effects":[{"op":"setSubtype","target":{"target":0},"subtypes":["Plains"],"duration":{"phase":"end-of-turn"}}]},{"id":"Island","label":"Island","effects":[{"op":"setSubtype","target":{"target":0},"subtypes":["Island"],"duration":{"phase":"end-of-turn"}}]},{"id":"Swamp","label":"Swamp","effects":[{"op":"setSubtype","target":{"target":0},"subtypes":["Swamp"],"duration":{"phase":"end-of-turn"}}]},{"id":"Mountain","label":"Mountain","effects":[{"op":"setSubtype","target":{"target":0},"subtypes":["Mountain"],"duration":{"phase":"end-of-turn"}}]},{"id":"Forest","label":"Forest","effects":[{"op":"setSubtype","target":{"target":0},"subtypes":["Forest"],"duration":{"phase":"end-of-turn"}}]}]}],"targetRequirement":{"type":"Land","count":1}}]},"botReach":"played"},
 
@@ -66932,7 +66894,7 @@
 
         {"oracleId":"8a83d284-75a0-4901-b7d9-c4b7586ee327","name":"River of Tears","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["dc0e0800c8d1"]},
 
-        {"oracleId":"8a83ecee-092b-456c-803f-a9aaa17c4da9","name":"Exploration Broodship","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["4cebdf1b3d45","7688ce956436","c176c945506c"]},
+        {"oracleId":"8a83ecee-092b-456c-803f-a9aaa17c4da9","name":"Exploration Broodship","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["c176c945506c"]},
 
         {"oracleId":"8a8b032e-90b7-4782-b854-b575f316d641","name":"Alabaster Leech","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["70df79722dce"]},
 
@@ -67738,7 +67700,7 @@
 
         {"oracleId":"8d6e39b0-a190-40a0-a8e1-ee82f477376f","name":"Crumble","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["destroy","gainLife"],"definition":{"name":"Crumble","types":["Instant"],"manaCost":{"G":1},"oracleText":"Destroy target artifact. It can't be regenerated. That artifact's controller gains life equal to its mana value.","effects":[{"op":"destroy","target":{"target":0},"cantBeRegenerated":true,"bind":"$that1"},{"op":"gainLife","player":{"ref":"$that1.controller"},"amount":{"ref":"$that1.manaValue"}}],"targetRequirement":{"type":"Artifact","count":1}},"botReach":"played"},
 
-        {"oracleId":"8d6f82d9-5c5b-4c41-8857-c0936f2d894c","name":"Hearthhull, the Worldseed","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["62c899bbca85","e0584ddff964"]},
+        {"oracleId":"8d6f82d9-5c5b-4c41-8857-c0936f2d894c","name":"Hearthhull, the Worldseed","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["c14dd0a201a5"]},
 
         {"oracleId":"8d708573-10b8-44fb-b61b-9ad65e3eb465","name":"Soulblade Corrupter","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["2a56f5261417","3098425dd5ba"]},
 
@@ -68090,7 +68052,7 @@
 
         {"oracleId":"8ea607cd-c14b-4bb1-aba1-c5cdc397a825","name":"Crater Elemental","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["d29c9bb145fc"]},
 
-        {"oracleId":"8ea8ee52-30e1-415c-af52-66b209f05f0a","name":"K't'inga-Class Battle Cruiser","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["20f93320e94b","4e620bb59848"]},
+        {"oracleId":"8ea8ee52-30e1-415c-af52-66b209f05f0a","name":"K't'inga-Class Battle Cruiser","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["4e620bb59848"]},
 
         {"oracleId":"8ea941aa-ee0c-4830-912a-0c672546aa0c","name":"Soul Kiss","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["79ccd8d3d7d6"]},
 
@@ -68640,7 +68602,7 @@
 
         {"oracleId":"90bccf66-58ec-445d-ac96-c6013054a1b4","name":"Stone Quarry","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["mana-ability","static"],"opsUsed":[],"definition":{"name":"Stone Quarry","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {R} or {W}.","activatedAbilities":[{"id":"stone-quarry-mana","oracleText":"{T}: Add {R} or {W}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"R":1},{"W":1}]}],"entersTapped":true},"botReach":"played"},
 
-        {"oracleId":"90c5ea2b-d004-4219-b60c-d51bc1a5ee6b","name":"Entropic Battlecruiser","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0cf53404aaf6","1db5021cfde3","35637d4c16ef"]},
+        {"oracleId":"90c5ea2b-d004-4219-b60c-d51bc1a5ee6b","name":"Entropic Battlecruiser","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["35637d4c16ef","5f23161fd6f2"]},
 
         {"oracleId":"90c62b27-027a-44a3-8d21-3c62701b18a8","name":"Redemption Choir","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["76961346953f"]},
 
@@ -69760,7 +69722,7 @@
 
         {"oracleId":"94751968-e006-45d0-970b-0ed45d28e6cc","name":"Big Mother Mouser","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["325089cf804b","da9f354a57f7"]},
 
-        {"oracleId":"947729a8-f8b0-4e08-9a87-6602af0e3c0a","name":"Enterprise NX-01","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["7f1a3a21fc64"]},
+        {"oracleId":"947729a8-f8b0-4e08-9a87-6602af0e3c0a","name":"Enterprise NX-01","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","station-symbol","triggered"],"opsUsed":["counters","tapUntap"],"definition":{"name":"Enterprise NX-01","types":["Artifact"],"supertypes":["Legendary"],"subtypes":["Spacecraft"],"manaCost":{"X":3,"U":1},"oracleText":"When Enterprise NX-01 enters, tap target creature an opponent controls and put a stun counter on it. (If a permanent with a stun counter would become untapped, remove one from it instead.)\nStation (Tap another creature you control: Put charge counters equal to its power on this Spacecraft. Station only as a sorcery. It's an artifact creature at 6+.)\n6+ | Flying, vigilance","compiledTriggeredAbilities":[{"id":"enterprise-nx-01-trigger","oracleText":"When Enterprise NX-01 enters, tap target creature an opponent controls and put a stun counter on it.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":1,"controller":"opponent"},"effects":[{"op":"tapUntap","action":"tap","target":{"target":0}},{"op":"counters","action":"add","counter":"stun","target":{"target":0},"count":1}]}],"stationThresholds":[{"charge":6,"creature":{"power":4,"toughness":3},"keywords":["flying","vigilance"]}]},"botReach":"played"},
 
         {"oracleId":"94779ca4-c202-4163-9c77-1036921a34bc","name":"Adrestia","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6512f40b3e22"]},
 
@@ -71634,7 +71596,7 @@
 
         {"oracleId":"9b61f5b1-7688-4336-8fe9-66da37a34df9","name":"Volo, Itinerant Scholar","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["76e69e827564","d0d9670f40a7","da78ae22329b"]},
 
-        {"oracleId":"9b627fa4-af4c-482b-b1cf-2ad15938602c","name":"Starship Enterprise","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["362b759514ed","7be85699dec9","d57d0e63a5b3"]},
+        {"oracleId":"9b627fa4-af4c-482b-b1cf-2ad15938602c","name":"Starship Enterprise","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["362b759514ed","7be85699dec9"]},
 
         {"oracleId":"9b64c0f4-b917-4a0d-b033-30ab71aab807","name":"Shivan Oasis","state":"ready","poolIn":["premodern","modern","legacy","vintage","commander"],"slots":["mana-ability","static"],"opsUsed":[],"definition":{"name":"Shivan Oasis","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {R} or {G}.","activatedAbilities":[{"id":"shivan-oasis-mana","oracleText":"{T}: Add {R} or {G}.","cost":{"tap":true},"useStack":false,"manaChoices":[{"R":1},{"G":1}]}],"entersTapped":true},"botReach":"played","retired":{"at":"2026-11-15","issue":4041}},
 
@@ -71828,7 +71790,7 @@
 
         {"oracleId":"9c13f77a-800c-4fb6-b54a-89a96e12d279","name":"Majestic Auricorn","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0b060742bbc4"]},
 
-        {"oracleId":"9c14e21b-a733-4882-8e09-6dbfc85ac3aa","name":"Class-4 Tactical Cube","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["30ffdb5ecf3d","54fb72390034","dfddad30ec2d"]},
+        {"oracleId":"9c14e21b-a733-4882-8e09-6dbfc85ac3aa","name":"Class-4 Tactical Cube","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["54fb72390034","dfddad30ec2d"]},
 
         {"oracleId":"9c239027-c5cb-43c6-b4f3-93c269a1d853","name":"Incorrigible Youths","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Incorrigible Youths","types":["Creature"],"subtypes":["Vampire"],"manaCost":{"X":3,"R":2},"power":4,"toughness":3,"oracleText":"Haste (This creature can attack and {T} as soon as it comes under your control.)\nMadness {2}{R} (If you discard this card, discard it into exile. When you do, cast it for its madness cost or put it into your graveyard.)","staticAbilities":["haste"],"madness":{"X":2,"R":1}},"botReach":"played"},
 
@@ -72692,7 +72654,7 @@
 
         {"oracleId":"9f48cb32-46be-4c47-b558-2ea359efdd9b","name":"Wrecking Ball Arm","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["3d7a9ed53d2e","abe37d7420cb"]},
 
-        {"oracleId":"9f4ae54b-f77d-43df-87d5-792ac0905058","name":"U.S.S. Excelsior, Cutting Edge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4cebdf1b3d45"]},
+        {"oracleId":"9f4ae54b-f77d-43df-87d5-792ac0905058","name":"U.S.S. Excelsior, Cutting Edge","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","station-symbol","triggered"],"opsUsed":["counters","destroy"],"definition":{"name":"U.S.S. Excelsior, Cutting Edge","types":["Artifact"],"supertypes":["Legendary"],"subtypes":["Spacecraft"],"manaCost":{"X":3,"W":1},"oracleText":"When U.S.S. Excelsior enters, destroy target tapped creature an opponent controls.\nStation (Tap another creature you control: Put charge counters equal to its power on this Spacecraft. Station only as a sorcery. It's an artifact creature at 8+.)\n8+ | Flying","compiledTriggeredAbilities":[{"id":"u-s-s-excelsior-cutting-edge-trigger","oracleText":"When U.S.S. Excelsior enters, destroy target tapped creature an opponent controls.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":1,"tappedFilter":"tapped","controller":"opponent"},"effects":[{"op":"destroy","target":{"target":0}}]}],"stationThresholds":[{"charge":8,"creature":{"power":4,"toughness":4},"keywords":["flying"]}]},"botReach":"played"},
 
         {"oracleId":"9f4cad96-079d-4791-9971-d7ebe43f5e04","name":"Tarelily, Lovestruck Archer","state":"unparsed","gaps":["5df5e8677184","720595dd5620"]},
 
@@ -73790,7 +73752,7 @@
 
         {"oracleId":"a371d035-488e-4b3d-81de-ee7859452c0e","name":"Lorehold Archivist // Restore Relic","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["4d1f89ceed6f","80a369ee9eff"]},
 
-        {"oracleId":"a37314cf-bbbd-4003-b94d-0e6e60edfc15","name":"Synthesizer Labship","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6a817d6b59f2","ab9d52324919"]},
+        {"oracleId":"a37314cf-bbbd-4003-b94d-0e6e60edfc15","name":"Synthesizer Labship","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["39f5ab46f1ee"]},
 
         {"oracleId":"a37387f0-9d57-49ff-aa38-2c6b359e8916","name":"Grab the Prize","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["f8473154119a"]},
 
@@ -74244,7 +74206,7 @@
 
         {"oracleId":"a52ccb40-e950-4cd0-93ab-50daa52b03f3","name":"Juxtapose","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["caa4cf44d9d6"]},
 
-        {"oracleId":"a52d7ab2-a750-4c3a-9f0c-999121aa81af","name":"K'Vort-Class Raider","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["30116226cdf9","e8ca7d2f44f5"]},
+        {"oracleId":"a52d7ab2-a750-4c3a-9f0c-999121aa81af","name":"K'Vort-Class Raider","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["30116226cdf9"]},
 
         {"oracleId":"a52e73bb-47cb-4912-9b81-4ae40641eabb","name":"Daemogoth Titan","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["choice","sacrifice"],"definition":{"name":"Daemogoth Titan","types":["Creature"],"subtypes":["Demon"],"manaCost":{"hybrid":[["B","G"],["B","G"],["B","G"],["B","G"]]},"power":11,"toughness":10,"oracleText":"Whenever this creature attacks or blocks, sacrifice a creature.","compiledTriggeredAbilities":[{"id":"daemogoth-titan-trigger","oracleText":"Whenever this creature attacks or blocks, sacrifice a creature.","head":{"kind":"attacks-or-blocks","scope":"self"},"effects":[{"op":"choice","kind":"sacrifice-permanents","player":"controller","zone":"battlefield","filter":{"type":"Creature"},"count":1,"prompt":"Sacrifice a creature.","bind":"$sacrifice1"},{"op":"sacrifice","permanents":{"ref":"$sacrifice1"}}]}]},"botReach":"played"},
 
@@ -74352,7 +74314,7 @@
 
         {"oracleId":"a59a23f2-158f-4dea-8593-75fe7b31b726","name":"Cursecatcher","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["counter","if","mayPay"],"definition":{"name":"Cursecatcher","types":["Creature"],"subtypes":["Merfolk","Wizard"],"manaCost":{"U":1},"power":1,"toughness":1,"oracleText":"Sacrifice this creature: Counter target instant or sorcery spell unless its controller pays {1}.","activatedAbilities":[{"id":"cursecatcher-ability","oracleText":"Sacrifice this creature: Counter target instant or sorcery spell unless its controller pays {1}.","cost":{"sacrifice":true},"useStack":true,"effects":[{"op":"mayPay","player":{"controllerOf":{"target":0}},"cost":{"X":1},"prompt":"Pay {1} to prevent your spell from being countered?","bind":"$may1"},{"op":"if","predicate":{"not":{"binding":"$may1"}},"then":[{"op":"counter","target":{"target":0}}]}],"targetRequirement":{"type":"spell","count":1,"spellTypeFilter":["Instant","Sorcery"]}}]},"botReach":"played"},
 
-        {"oracleId":"a59b854c-0e04-4581-b9d3-1516263d7ace","name":"Borg Cube","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9dcf7fc71858","c45ea52356cb","ed2b74bea460"]},
+        {"oracleId":"a59b854c-0e04-4581-b9d3-1516263d7ace","name":"Borg Cube","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9dcf7fc71858","e1cf01bdabeb","ed2b74bea460"]},
 
         {"oracleId":"a59bcd65-6b89-4232-b0f8-38c518111891","name":"The Mysterious Sphere","state":"unparsed","gaps":["564345f3de97","a08ab1ca1551"]},
 
@@ -74386,7 +74348,7 @@
 
         {"oracleId":"a5b527fc-ce0d-4324-8d95-6b94fd334030","name":"Trampled Lotus","state":"unparsed","gaps":["eebb3b021c12"]},
 
-        {"oracleId":"a5b72c5d-4c73-49cd-9fc5-855856807ff2","name":"U.S.S. Stargazer, Here and There","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0c6a171774de","e21642264b90"]},
+        {"oracleId":"a5b72c5d-4c73-49cd-9fc5-855856807ff2","name":"U.S.S. Stargazer, Here and There","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0c6a171774de"]},
 
         {"oracleId":"a5ba544f-b223-47c8-a408-b00512772107","name":"Shadows of the Past","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f0692166fde5"]},
 
@@ -74662,7 +74624,7 @@
 
         {"oracleId":"a6b599db-8d45-4a11-9765-ae7eb235b4b2","name":"Whipflare","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f40a000387db"]},
 
-        {"oracleId":"a6bcec1f-f515-4e63-9e84-8eb04cc582ff","name":"The Seriema","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["30ffdb5ecf3d","654d8ed63a82"]},
+        {"oracleId":"a6bcec1f-f515-4e63-9e84-8eb04cc582ff","name":"The Seriema","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["654d8ed63a82"]},
 
         {"oracleId":"a6becd5f-d279-4df8-81d9-deeb1b513c95","name":"Kaya's Guile","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["11a0e00ec8ed","f9eb8444613e"]},
 
@@ -76442,7 +76404,7 @@
 
         {"oracleId":"ad50214c-4d0e-4f95-9098-fd7d64dbf7f4","name":"Broodspinner","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["580c727bca03","c5a8b5fdc160"]},
 
-        {"oracleId":"ad556aee-3dbf-4c8b-9f3a-31947e26c6f5","name":"Pinnacle Kill-Ship","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["30ffdb5ecf3d","c89ce4a85bc3"]},
+        {"oracleId":"ad556aee-3dbf-4c8b-9f3a-31947e26c6f5","name":"Pinnacle Kill-Ship","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["c89ce4a85bc3"]},
 
         {"oracleId":"ad5d27ea-cead-4c95-8561-283855ce952e","name":"Formation","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["delayedTrigger","draw","grantAbility"],"definition":{"name":"Formation","types":["Instant"],"manaCost":{"X":1,"W":1},"oracleText":"Target creature gains banding until end of turn. (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding a player controls are blocking or being blocked by a creature, that player divides that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)\nDraw a card at the beginning of the next turn's upkeep.","effects":[{"op":"grantAbility","target":{"target":0},"ability":"banding","duration":{"phase":"end-of-turn"}},{"op":"delayedTrigger","timing":"next-upkeep","oracleText":"At the beginning of the next turn's upkeep, draw a card.","effects":[{"op":"draw","player":"controller","count":1}]}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
@@ -77128,7 +77090,7 @@
 
         {"oracleId":"afc8df6d-7291-400e-b768-0c0c3e3fdc32","name":"Crook of Condemnation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["c9ef74ebba0c"]},
 
-        {"oracleId":"afc9436b-8cad-4916-929d-ff33a37b42d5","name":"Dawnsire, Sunstar Dreadnought","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6d50d1744526","74cb5b1b84da"]},
+        {"oracleId":"afc9436b-8cad-4916-929d-ff33a37b42d5","name":"Dawnsire, Sunstar Dreadnought","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["94239a056b98"]},
 
         {"oracleId":"afc9e1d3-b012-49e9-8d22-89abbee03c22","name":"Primordial Mist","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["751c6d32f469","ce8021d32fa3"]},
 
@@ -78314,7 +78276,7 @@
 
         {"oracleId":"b3f2265b-dd65-4b74-8b74-35ee0b147617","name":"Managorger Hydra","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["counters"],"definition":{"name":"Managorger Hydra","types":["Creature"],"subtypes":["Hydra"],"manaCost":{"X":2,"G":1},"power":1,"toughness":1,"oracleText":"Trample\nWhenever a player casts a spell, put a +1/+1 counter on this creature.","staticAbilities":["trample"],"compiledTriggeredAbilities":[{"id":"managorger-hydra-trigger","oracleText":"Whenever a player casts a spell, put a +1/+1 counter on this creature.","head":{"kind":"spell-cast","scope":"any"},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
-        {"oracleId":"b3f3d55c-a3f6-441b-a380-60c0734dc514","name":"Larval Scoutlander","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["30ffdb5ecf3d","9f8d4c1baf42"]},
+        {"oracleId":"b3f3d55c-a3f6-441b-a380-60c0734dc514","name":"Larval Scoutlander","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["9f8d4c1baf42"]},
 
         {"oracleId":"b3f609b5-fb4e-4e66-a70a-53bbe0fa2b9a","name":"Regathan Firecat","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":[],"opsUsed":[],"definition":{"name":"Regathan Firecat","types":["Creature"],"subtypes":["Elemental","Cat"],"manaCost":{"X":2,"R":1},"power":4,"toughness":1},"botReach":"played"},
 
@@ -80680,7 +80642,7 @@
 
         {"oracleId":"bccdc42f-9e55-4f8e-a29e-ef39f38add6a","name":"Moorish Cavalry","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Moorish Cavalry","types":["Creature"],"subtypes":["Human","Knight"],"manaCost":{"X":2,"W":2},"power":3,"toughness":3,"oracleText":"Trample","staticAbilities":["trample"]},"botReach":"played","retired":{"at":"2026-11-20","issue":4037}},
 
-        {"oracleId":"bcd086ce-de5c-4b34-92a1-ece22055e479","name":"Sledge-Class Seedship","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["30ffdb5ecf3d","ca7ae1caaf5a"]},
+        {"oracleId":"bcd086ce-de5c-4b34-92a1-ece22055e479","name":"Sledge-Class Seedship","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ca7ae1caaf5a"]},
 
         {"oracleId":"bcd2f70c-36c2-44b2-9d4b-1000e9bb62b6","name":"Platinum Emperion","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2cfb9c09984a"]},
 
@@ -83702,7 +83664,7 @@
 
         {"oracleId":"c7c4c67e-c4db-416b-b2e8-f0e59aa80bba","name":"Skyshroud Condor","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["8b25022592f5"]},
 
-        {"oracleId":"c7c529c4-08eb-480b-a699-0d783215419b","name":"U.S.S. Defiant, Mirror Migrant","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["123a55a2bf1a","4cebdf1b3d45"]},
+        {"oracleId":"c7c529c4-08eb-480b-a699-0d783215419b","name":"U.S.S. Defiant, Mirror Migrant","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["123a55a2bf1a"]},
 
         {"oracleId":"c7c660bd-5f58-464c-bc75-dd244b7ca535","name":"Willow Satyr","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["70f4b5a4d86e","c8c88b41e1ce"]},
 
@@ -84170,7 +84132,7 @@
 
         {"oracleId":"c946be2c-1e8f-46bc-ab75-861926d4aa63","name":"Immortal Servitude","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a31ceeddf02f"]},
 
-        {"oracleId":"c947171b-ed9e-4b83-af45-bd595a8d84ee","name":"Warmaker Gunship","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0933ce22fc75","e21642264b90"]},
+        {"oracleId":"c947171b-ed9e-4b83-af45-bd595a8d84ee","name":"Warmaker Gunship","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["0933ce22fc75"]},
 
         {"oracleId":"c951fca7-f333-4ca3-b5d6-83967d1d093d","name":"Irontread Crusher","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":["animate"],"definition":{"name":"Irontread Crusher","types":["Artifact"],"subtypes":["Vehicle"],"manaCost":{"X":4},"oracleText":"Crew 3 (Tap any number of creatures you control with total power 3 or more: This Vehicle becomes an artifact creature until end of turn.)","staticAbilities":["crew 3"],"activatedAbilities":[{"id":"irontread-crusher-crew","oracleText":"Crew 3 (Tap any number of creatures you control with total power 3 or more: This Vehicle becomes an artifact creature until end of turn.)","cost":{"tapOtherFilter":{"filter":{"types":"Creature","controllerRelation":"you"},"totalPower":3}},"useStack":true,"animatesSelf":true,"effects":[{"op":"animate","target":{"ref":"$source"},"power":6,"toughness":6,"duration":{"phase":"end-of-turn"}}]}],"power":6,"toughness":6},"botReach":"played"},
 
@@ -85150,7 +85112,7 @@
 
         {"oracleId":"cce328b9-6100-417e-9ddf-808bbe3e3bc5","name":"Hushwood Verge","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["dd8cda592bf9"]},
 
-        {"oracleId":"cce3dcc3-57bb-4b95-8b70-337c67bb3c4e","name":"Extinguisher Battleship","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6a5255cf45da","a1048b4ed842"]},
+        {"oracleId":"cce3dcc3-57bb-4b95-8b70-337c67bb3c4e","name":"Extinguisher Battleship","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6a5255cf45da"]},
 
         {"oracleId":"cce643fb-cd88-457c-8f13-c203554df675","name":"Twenty-Toed Toad","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["095dc3863364","1c183b461a05","7dbf009bf2ee"]},
 
@@ -85350,7 +85312,7 @@
 
         {"oracleId":"cda1e3b5-ea80-4e83-b305-88993d307170","name":"Wizards of Thay","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["keyword-line","static"],"opsUsed":[],"definition":{"name":"Wizards of Thay","types":["Creature"],"subtypes":["Human","Wizard"],"manaCost":{"X":3,"U":1},"power":3,"toughness":3,"oracleText":"Myriad (Whenever this creature attacks, for each opponent other than defending player, you may create a token copy that's tapped and attacking that player or a planeswalker they control. Exile the tokens at end of combat.)\nInstant and sorcery spells you cast cost {1} less to cast.\nYou may cast sorcery spells as though they had flash.","staticAbilities":["myriad"],"compiledStaticEffects":[{"kind":"cost-modifier","spells":{"types":["Instant","Sorcery"],"controller":"you"},"reduction":1},{"kind":"cast-permission","grantee":"controller","filter":{"type":["Sorcery"]},"asThoughFlash":true,"oracleText":"You may cast sorcery spells as though they had flash.","id":"controller-sorcery-a98ea814"}]},"botReach":"played"},
 
-        {"oracleId":"cda39514-86c9-483e-8d95-fd08138ce33a","name":"Infinite Guideline Station","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["13f57dc92821","880be5ee490d","aacd066bee91"]},
+        {"oracleId":"cda39514-86c9-483e-8d95-fd08138ce33a","name":"Infinite Guideline Station","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["880be5ee490d","aacd066bee91"]},
 
         {"oracleId":"cda786aa-1259-45e8-a834-21c7ad0259a6","name":"Picard, Steadfast Captain","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["counters"],"definition":{"name":"Picard, Steadfast Captain","types":["Creature"],"supertypes":["Legendary"],"subtypes":["Human","Officer"],"manaCost":{"X":4,"W":2},"power":4,"toughness":4,"oracleText":"Whenever Picard enters or attacks, put two +1/+1 counters on another target creature you control.","compiledTriggeredAbilities":[{"id":"picard-steadfast-captain-trigger","oracleText":"Whenever Picard enters or attacks, put two +1/+1 counters on another target creature you control.","head":{"kind":"enters-or-attacks"},"targetRequirement":{"type":"Creature","count":1,"controller":"you","excludeSource":true},"effects":[{"op":"counters","action":"add","counter":"+1/+1","target":{"target":0},"count":2}]}]},"botReach":"played"},
 
@@ -86544,7 +86506,7 @@
 
         {"oracleId":"d19d69c5-9f11-4ac1-9fc7-1636689f23a0","name":"Disciple of the Old Ways","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["grantAbility"],"definition":{"name":"Disciple of the Old Ways","types":["Creature"],"subtypes":["Human","Warrior"],"manaCost":{"X":1,"G":1},"power":2,"toughness":2,"oracleText":"{R}: This creature gains first strike until end of turn.","activatedAbilities":[{"id":"disciple-of-the-old-ways-ability","oracleText":"{R}: This creature gains first strike until end of turn.","cost":{"mana":{"R":1}},"useStack":true,"effects":[{"op":"grantAbility","target":{"ref":"$source"},"ability":"first strike","duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
-        {"oracleId":"d19ebe9f-c24d-405c-b8e8-a602274076c3","name":"U.S.S. Prometheus, Prototype","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["20f93320e94b","73972ab716cb"]},
+        {"oracleId":"d19ebe9f-c24d-405c-b8e8-a602274076c3","name":"U.S.S. Prometheus, Prototype","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["bc253efd2517"]},
 
         {"oracleId":"d1a26310-8c14-424b-8a7f-36793769c2a7","name":"Bloated Processor","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["f58b0b43db61"]},
 
@@ -88734,7 +88696,7 @@
 
         {"oracleId":"d95aeeb0-b722-4f70-85fc-6866be4854bd","name":"Havoc","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["71087a01789f"]},
 
-        {"oracleId":"d95af032-3efd-40c7-8229-ade9d974934f","name":"U.S.S. Enterprise-D, Galaxy-Class","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["866ddaeec3af","d0405741dae6"]},
+        {"oracleId":"d95af032-3efd-40c7-8229-ade9d974934f","name":"U.S.S. Enterprise-D, Galaxy-Class","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["866ddaeec3af"]},
 
         {"oracleId":"d95cd013-6f32-4a8b-9c46-a28695eea4f1","name":"Elder Arthur Maxson","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["43f44d7db430","b700a52d9afe"]},
 
@@ -89232,7 +89194,7 @@
 
         {"oracleId":"db07a3f9-c6d1-4cae-a899-12b3e8d94018","name":"Inquisitor Eisenhorn","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["5dd691762d5b","902569e9189b"]},
 
-        {"oracleId":"db0894e1-2644-48d4-8de4-8cc43e940bc1","name":"Debris Field Crusher","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4cebdf1b3d45","80c57bc40aa5","ddb8eb51c0e4"]},
+        {"oracleId":"db0894e1-2644-48d4-8de4-8cc43e940bc1","name":"Debris Field Crusher","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["80c57bc40aa5","ddb8eb51c0e4"]},
 
         {"oracleId":"db0b6e35-d7f2-435a-87d7-9e8c36426f4d","name":"Scab-Clan Mauler","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["235f457a4a0d"]},
 
@@ -90248,7 +90210,7 @@
 
         {"oracleId":"df05d9e3-f045-4818-8eae-625e86453741","name":"Subversive Acolyte","state":"unparsed","gaps":["e09bb6c1eebc"]},
 
-        {"oracleId":"df08ac72-010f-42f8-beb3-6d645c638e1e","name":"Uthros, Titanic Godcore","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8484e0eae772"]},
+        {"oracleId":"df08ac72-010f-42f8-beb3-6d645c638e1e","name":"Uthros, Titanic Godcore","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["mana-ability","static","station-symbol"],"opsUsed":["counters"],"definition":{"name":"Uthros, Titanic Godcore","types":["Land"],"subtypes":["Planet"],"oracleText":"This land enters tapped.\n{T}: Add {U}.\nStation (Tap another creature you control: Put charge counters equal to its power on this Planet. Station only as a sorcery.)\n12+ | {U}, {T}: Add {U} for each artifact you control.","activatedAbilities":[{"id":"uthros-titanic-godcore-mana","oracleText":"{T}: Add {U}.","cost":{"tap":true},"useStack":false,"manaProduced":{"U":1}}],"entersTapped":true,"stationThresholds":[{"charge":12,"activatedAbilities":[{"id":"uthros-titanic-godcore-mana-station-12","oracleText":"{U}, {T}: Add {U} for each artifact you control.","cost":{"mana":{"U":1},"tap":true},"useStack":false,"manaProduced":{"U":1},"manaAmountSource":{"filter":{"types":["Artifact"],"controllerRelation":"you"}}}]}]},"botReach":"played"},
 
         {"oracleId":"df09d0f9-80bd-4bd0-9c54-07cb324cc1e2","name":"Evy, Fang Keeper","state":"unparsed","gaps":["7da55b2a6384"]},
 
@@ -90468,7 +90430,7 @@
 
         {"oracleId":"dfe51046-12db-4be8-a4b4-ffa6359cac15","name":"Primal Whisperer","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["c2a8dce62132"]},
 
-        {"oracleId":"dfe8f77a-cc26-438b-92ae-2ca7a91f813b","name":"Galvanizing Sawship","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["5bdf93bacefa"]},
+        {"oracleId":"dfe8f77a-cc26-438b-92ae-2ca7a91f813b","name":"Galvanizing Sawship","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","station-symbol"],"opsUsed":["counters"],"definition":{"name":"Galvanizing Sawship","types":["Artifact"],"subtypes":["Spacecraft"],"manaCost":{"X":5,"R":1},"oracleText":"Station (Tap another creature you control: Put charge counters equal to its power on this Spacecraft. Station only as a sorcery. It's an artifact creature at 3+.)\n3+ | Flying, haste","stationThresholds":[{"charge":3,"creature":{"power":6,"toughness":5},"keywords":["flying","haste"]}]},"botReach":"played"},
 
         {"oracleId":"dfe9e485-c070-4efd-8c35-69d4eb3f58e4","name":"Sonic Assault","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","spell"],"opsUsed":["dealDamage","tapUntap"],"definition":{"name":"Sonic Assault","types":["Instant"],"manaCost":{"X":1,"U":1,"R":1},"oracleText":"Tap target creature. Sonic Assault deals 2 damage to that creature's controller.\nJump-start (You may cast this card from your graveyard by discarding a card in addition to paying its other costs. Then exile this card.)","staticAbilities":["jump-start"],"effects":[{"op":"tapUntap","action":"tap","target":{"target":0}},{"op":"dealDamage","amount":2,"to":{"player":{"controllerOf":{"target":0}}}}],"targetRequirement":{"type":"Creature","count":1}},"botReach":"played"},
 
@@ -91064,7 +91026,7 @@
 
         {"oracleId":"e1c8c6bf-09e2-49de-9de0-17174b3b8a59","name":"Andrios, Roaming Explorer","state":"unparsed","gaps":["42adf45dff8d","7e0631447665"]},
 
-        {"oracleId":"e1c9783a-1d1b-40d7-872e-0ca11b229ce6","name":"Uthros Research Craft","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0d94ee8fca7a","13f57dc92821","6e8c98e2c150"]},
+        {"oracleId":"e1c9783a-1d1b-40d7-872e-0ca11b229ce6","name":"Uthros Research Craft","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["0d94ee8fca7a","41cb6e6f34a9"]},
 
         {"oracleId":"e1ca5c24-bbd8-4eed-bb2b-17163f90e72b","name":"Gryff Rider","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Gryff Rider","types":["Creature"],"subtypes":["Human","Knight"],"manaCost":{"X":2,"W":1},"power":2,"toughness":1,"oracleText":"Flying\nTraining (Whenever this creature attacks with another creature with greater power, put a +1/+1 counter on this creature.)","staticAbilities":["flying","training"]},"botReach":"played"},
 
@@ -92196,7 +92158,7 @@
 
         {"oracleId":"e611a3e0-eb0e-466e-a771-51310eeb34cd","name":"Glorious End","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["1b3659dcef8f","f49173da786b"]},
 
-        {"oracleId":"e614f97b-da8e-4569-9bdd-f76371c66836","name":"Romulan Bird-of-Prey","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4cebdf1b3d45","90fef4985947","f74d9b15d099"]},
+        {"oracleId":"e614f97b-da8e-4569-9bdd-f76371c66836","name":"Romulan Bird-of-Prey","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["90fef4985947","f74d9b15d099"]},
 
         {"oracleId":"e619cb66-8c0d-408a-829c-6f02bf25fd0f","name":"Ellie, Vengeful Hunter","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["41c6591db30c","95868b7b62e0"]},
 
@@ -93546,7 +93508,7 @@
 
         {"oracleId":"eaa2ff39-c3cf-428b-a2f1-a6a99a2c806b","name":"Unlicensed Disintegration","state":"quarantine","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["dealDamage","destroy","if"],"quarantineReasons":[{"kind":"smoke-scenario","detail":"Op \"if\" reads a runtime \"left\" amount — the canned generator does not size it"}],"definition":{"name":"Unlicensed Disintegration","types":["Instant"],"manaCost":{"X":1,"B":1,"R":1},"oracleText":"Destroy target creature. If you control an artifact, Unlicensed Disintegration deals 3 damage to that creature's controller.","effects":[{"op":"destroy","target":{"target":0},"bind":"$that1"},{"op":"if","predicate":{"left":{"count":{"zone":"battlefield","controller":"controller","filter":{"type":["Artifact"]}}},"op":"ge","right":1},"then":[{"op":"dealDamage","amount":3,"to":{"player":{"ref":"$that1.controller"}}}]}],"targetRequirement":{"type":"Creature","count":1}}},
 
-        {"oracleId":"eaa47a9b-79ad-4f42-a98b-dcf76138207c","name":"H.M.S. Bounty, Unlikely Timeship","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["364116340cdb","4cebdf1b3d45"]},
+        {"oracleId":"eaa47a9b-79ad-4f42-a98b-dcf76138207c","name":"H.M.S. Bounty, Unlikely Timeship","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["364116340cdb"]},
 
         {"oracleId":"eaa6b294-ac66-4fe2-b694-97b0a04f7be1","name":"Transdimensional Bovine","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e0197b2b76a7"]},
 
@@ -94408,7 +94370,7 @@
 
         {"oracleId":"eda99a16-6a7c-4f39-8a6b-a284e6afd3fc","name":"Goblin Plate Mail","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["0ae1a6237da6"]},
 
-        {"oracleId":"edaa05ba-8b15-4156-b725-1e0c418a9ae5","name":"U.S.S. Reliant, From Hell's Heart","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["56e065da2f77","69976fbce4c3"]},
+        {"oracleId":"edaa05ba-8b15-4156-b725-1e0c418a9ae5","name":"U.S.S. Reliant, From Hell's Heart","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["56e065da2f77"]},
 
         {"oracleId":"edac6c23-cff5-4ee2-9227-756b1dc6ab0c","name":"Firemind's Research","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated","triggered"],"opsUsed":["counters","dealDamage","draw"],"definition":{"name":"Firemind's Research","types":["Enchantment"],"manaCost":{"U":1,"R":1},"oracleText":"Whenever you cast an instant or sorcery spell, put a charge counter on this enchantment.\n{1}{U}, Remove two charge counters from this enchantment: Draw a card.\n{1}{R}, Remove five charge counters from this enchantment: It deals 5 damage to any target.","activatedAbilities":[{"id":"firemind-s-research-ability","oracleText":"{1}{U}, Remove two charge counters from this enchantment: Draw a card.","cost":{"mana":{"X":1,"U":1},"removeCounter":{"type":"charge","count":2}},"useStack":true,"effects":[{"op":"draw","player":"controller","count":1}]},{"id":"firemind-s-research-ability-2","oracleText":"{1}{R}, Remove five charge counters from this enchantment: It deals 5 damage to any target.","cost":{"mana":{"X":1,"R":1},"removeCounter":{"type":"charge","count":5}},"useStack":true,"effects":[{"op":"dealDamage","amount":5,"to":{"target":0}}],"targetRequirement":{"type":"any","count":1}}],"compiledTriggeredAbilities":[{"id":"firemind-s-research-trigger","oracleText":"Whenever you cast an instant or sorcery spell, put a charge counter on this enchantment.","head":{"kind":"spell-cast","scope":"you","filter":{"types":["Instant","Sorcery"]}},"effects":[{"op":"counters","action":"add","counter":"charge","target":{"ref":"$source"},"count":1}]}]},"botReach":"played"},
 
@@ -95610,7 +95572,7 @@
 
         {"oracleId":"f1d300b6-f9cf-40a9-8520-d78cd7d813cf","name":"Nettletooth Djinn","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["dealDamage"],"definition":{"name":"Nettletooth Djinn","types":["Creature"],"subtypes":["Djinn"],"manaCost":{"X":3,"G":1},"power":4,"toughness":4,"oracleText":"At the beginning of your upkeep, this creature deals 1 damage to you.","compiledTriggeredAbilities":[{"id":"nettletooth-djinn-trigger","oracleText":"At the beginning of your upkeep, this creature deals 1 damage to you.","head":{"kind":"phase","phase":"UPKEEP","scope":"your"},"effects":[{"op":"dealDamage","amount":1,"to":{"player":"controller"}}]}]},"botReach":"played"},
 
-        {"oracleId":"f1d826d1-d2da-46ce-b1db-81393c88d865","name":"Susurian Dirgecraft","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["30ffdb5ecf3d","be13cb8124f1"]},
+        {"oracleId":"f1d826d1-d2da-46ce-b1db-81393c88d865","name":"Susurian Dirgecraft","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["be13cb8124f1"]},
 
         {"oracleId":"f1d8e9a6-1903-4be5-8609-1009a463f393","name":"Anthem of Champions","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["static"],"opsUsed":[],"definition":{"name":"Anthem of Champions","types":["Enchantment"],"manaCost":{"W":1,"G":1},"oracleText":"Creatures you control get +1/+1.","compiledStaticEffects":[{"kind":"pt-buff","filter":{"types":["Creature"],"controllerRelation":"you"},"power":1,"toughness":1}]},"botReach":"played"},
 
@@ -95778,7 +95740,7 @@
 
         {"oracleId":"f275039e-3dba-49b0-92aa-92721b1c7f95","name":"Pact of the Serpent","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["941c331f36dd"]},
 
-        {"oracleId":"f2768bab-a6a4-490a-a676-fbfbfefdd8b8","name":"U.S.S. Enterprise-C, Time-Tossed","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["179af0d6afc9","f6516d18827f"]},
+        {"oracleId":"f2768bab-a6a4-490a-a676-fbfbfefdd8b8","name":"U.S.S. Enterprise-C, Time-Tossed","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["f6516d18827f"]},
 
         {"oracleId":"f277b082-dfc8-45c6-bab5-b63cd218224c","name":"Silverchase Fox","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["exile"],"definition":{"name":"Silverchase Fox","types":["Creature"],"subtypes":["Fox"],"manaCost":{"X":1,"W":1},"power":2,"toughness":2,"oracleText":"{1}{W}, Sacrifice this creature: Exile target enchantment.","activatedAbilities":[{"id":"silverchase-fox-ability","oracleText":"{1}{W}, Sacrifice this creature: Exile target enchantment.","cost":{"mana":{"X":1,"W":1},"sacrifice":true},"useStack":true,"effects":[{"op":"exile","target":{"target":0}}],"targetRequirement":{"type":"Enchantment","count":1}}]},"botReach":"played"},
 
@@ -97948,7 +97910,7 @@
 
         {"oracleId":"fa642294-f654-461a-834e-1d654365cb6c","name":"Stormkeld Curator // Giant Secrets","state":"unparsed","gaps":["96c5dff6aac8","a62e1c9cba47"]},
 
-        {"oracleId":"fa667031-25cf-45c4-97ff-19a73cb30018","name":"U.S.S. Enterprise-E, Sovereign","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["2428eef34ae7","acf8a8996fd2"]},
+        {"oracleId":"fa667031-25cf-45c4-97ff-19a73cb30018","name":"U.S.S. Enterprise-E, Sovereign","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["2428eef34ae7"]},
 
         {"oracleId":"fa66d63b-dfb7-42b8-8249-4d60e89058ac","name":"Dimir Informant","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["c5a8b5fdc160"]},
 
@@ -98234,7 +98196,7 @@
 
         {"oracleId":"fb5a3403-7f0b-406c-8c4f-d693be010ca6","name":"Hinterland Harbor","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["096f8063eca4"]},
 
-        {"oracleId":"fb5e53cf-e12e-469b-b9ea-9debc967e77e","name":"Oberth-Class Starship","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["b453f31e271b","e21642264b90"]},
+        {"oracleId":"fb5e53cf-e12e-469b-b9ea-9debc967e77e","name":"Oberth-Class Starship","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["b453f31e271b"]},
 
         {"oracleId":"fb5e8b8c-bad2-45bb-abb4-2ed454525749","name":"Efreet Flamepainter","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3333e28af808"]},
 
@@ -98286,7 +98248,7 @@
 
         {"oracleId":"fb839b8c-a2b3-42fb-a7a2-8552b7656004","name":"Screamer-Killer","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["e9c79a799a07"]},
 
-        {"oracleId":"fb84b94c-dc8c-4182-9b96-abd092b20981","name":"Specimen Freighter","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3aa7ee732780","97c308b750b5","eadf5c945d1d"]},
+        {"oracleId":"fb84b94c-dc8c-4182-9b96-abd092b20981","name":"Specimen Freighter","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["3aa7ee732780","eadf5c945d1d"]},
 
         {"oracleId":"fb85d8d1-6938-48bf-9a6d-d4616b05b4f6","name":"Halam Djinn","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["2c9604f0c7d7"]},
 
@@ -99340,7 +99302,7 @@
 
         {"oracleId":"ff281103-7a9b-4eb1-b81e-b8cd137b6e98","name":"Triumphant Surge","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["destroy","gainLife"],"definition":{"name":"Triumphant Surge","types":["Instant"],"manaCost":{"X":3,"W":1},"oracleText":"Destroy target creature with power 4 or greater. You gain 3 life.","effects":[{"op":"destroy","target":{"target":0}},{"op":"gainLife","player":"controller","amount":3}],"targetRequirement":{"type":"Creature","count":1,"powerFilter":{"min":4}}},"botReach":"played"},
 
-        {"oracleId":"ff2ab17e-185b-4782-a4e2-e8ace40ef1bb","name":"Type-03 Borg Vessel","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["30ffdb5ecf3d","deaf3a2d58b0"]},
+        {"oracleId":"ff2ab17e-185b-4782-a4e2-e8ace40ef1bb","name":"Type-03 Borg Vessel","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["deaf3a2d58b0"]},
 
         {"oracleId":"ff321c13-03ae-4cb9-b371-1242290f8433","name":"Aggressive Mining","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ac7e8162028c"]},
 

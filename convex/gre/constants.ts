@@ -41,6 +41,7 @@ import { tryGetDefinition } from "../cards";
 // the castability probe exactly like a printed one.
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { exhaustGateOpen } from "./exhaust";
+import { stationChargeGateOpen } from "../cards/abilities/station";
 import { maxSpeedGateOpen } from "./speed";
 import {
     activationRestrictionViolation,
@@ -2753,6 +2754,8 @@ export function getManaTapOptionsDetailed(
             // CR 702.177a — an exhaust mana ability already activated is not a
             // mana source, read off the instance like the counter leg below.
             if (!exhaustGateOpen(ability, card)) continue;
+            // CR 721.2a — a station striation's mana ability below its charge.
+            if (!stationChargeGateOpen(ability, card)) continue;
             // CR 602.1 / 118.3 (issue #3455) — an unpayable FILTERED give-up
             // leg (sacrifice or return-to-hand, `permanentGiveUpCostLegs`) is
             // not a mana source: with no legal victim the activation is
@@ -3789,6 +3792,8 @@ export function getActivatedManaAbility(
                 functionsOnBattlefield(a) &&
                 // CR 702.177a — an exhausted ability is skipped the same way.
                 exhaustGateOpen(a, card) &&
+                // CR 721.2a — likewise a station striation not reached.
+                stationChargeGateOpen(a, card) &&
                 (state === undefined ||
                     maxSpeedGateOpen(a, card, state.players))
         )?.ability ?? null;

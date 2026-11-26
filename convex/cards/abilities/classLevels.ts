@@ -43,16 +43,14 @@ import type {
     CardDefinition,
     ClassLevelBarDefinition,
     EffectOp,
-    GameEvent,
     GateableStaticEffect,
     ManaCost,
     PermanentView,
-    StaticCostModifier,
     StaticEffect,
     TargetRequirement,
     TriggeredAbility,
-    TriggerStateView,
 } from "../types";
+import { gateSectionStatic, gateSectionTrigger } from "./sectionGates";
 
 /** CR 205.3h — the enchantment subtype that makes a permanent a Class. */
 export const CLASS_SUBTYPE = "Class";
@@ -222,47 +220,6 @@ export function isGateableStaticEffect(effect: StaticEffect): boolean {
     );
 }
 
-/** CR 716.2a / 601.2f — the grant for a cost modifier: both `appliesTo*`
- *  predicates, because a modifier may scope spells, abilities or both. An
- *  absent `effectSource` fails closed, since the level cannot be read then. */
-function gateCostModifier(
-    effect: StaticCostModifier,
-    level: number
-): StaticCostModifier {
-    const { appliesToSpell, appliesToAbility } = effect;
-    const atLevel = (effectSource?: PermanentView): boolean =>
-        effectSource !== undefined && classLevelOf(effectSource) >= level;
-    return {
-        ...effect,
-        ...(appliesToSpell
-            ? {
-                  appliesToSpell: (card, ctx, effectSource, announcerId) =>
-                      atLevel(effectSource) &&
-                      appliesToSpell(card, ctx, effectSource, announcerId),
-              }
-            : {}),
-        ...(appliesToAbility
-            ? {
-                  appliesToAbility: (
-                      source,
-                      ctx,
-                      effectSource,
-                      ability,
-                      activatorId
-                  ) =>
-                      atLevel(effectSource) &&
-                      appliesToAbility(
-                          source,
-                          ctx,
-                          effectSource,
-                          ability,
-                          activatorId
-                      ),
-              }
-            : {}),
-    };
-}
-
 /** CR 716.2a — "as long as this Class is level N or greater, it has
  *  [abilities]", applied to a static effect printed in the level-N section.
  *  The gate reads the SOURCE's level (the Class itself), never the target's. */
@@ -270,17 +227,7 @@ function gateStaticEffect(
     effect: GateableStaticEffect,
     level: number
 ): GateableStaticEffect {
-    if (effect.kind === "cost-modifier") return gateCostModifier(effect, level);
-    const applies = effect.applies as (
-        target: PermanentView,
-        source: PermanentView,
-        ctx: unknown
-    ) => boolean;
-    return {
-        ...effect,
-        applies: (target: PermanentView, source: PermanentView, ctx: unknown) =>
-            classLevelOf(source) >= level && applies(target, source, ctx),
-    } as GateableStaticEffect;
+    return gateSectionStatic(effect, (source) => classLevelOf(source) >= level);
 }
 
 /** CR 716.2a — the same grant for a triggered ability printed in the level-N
@@ -290,15 +237,9 @@ function gateTriggeredAbility(
     ability: TriggeredAbility,
     level: number
 ): TriggeredAbility {
-    const matches = ability.matches;
     return {
-        ...ability,
+        ...gateSectionTrigger(ability, (self) => classLevelOf(self) >= level),
         classLevelSection: level,
-        matches: (
-            event: GameEvent,
-            self: PermanentView,
-            state?: TriggerStateView
-        ) => classLevelOf(self) >= level && matches(event, self, state),
     };
 }
 

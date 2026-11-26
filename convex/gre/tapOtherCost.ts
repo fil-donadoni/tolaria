@@ -223,3 +223,17 @@ export function manaCostAfterSubstitution(
     else delete next.X;
     return next;
 }
+
+/** CR 702.184a (issue #10528) — the permanent a tap-other leg tapped when it
+ *  tapped exactly ONE, which is the only case in which an ability can name
+ *  "the tapped creature" (Station's "Tap another untapped creature you
+ *  control: Put … equal to the tapped creature's power"). Recorded on the
+ *  stack item by both STACK commit paths (`activation.ts` and the search's
+ *  `applyActivationCostsForSearch`) and read back as `$costTapped`. The two
+ *  mana-ability paths (`commitNonStackActivation`, `activateManaAbility`) do
+ *  not record it: no mana ability names "the tapped creature". */
+export function singleCostTappedId(
+    tappedIds: readonly string[]
+): string | undefined {
+    return tappedIds.length === 1 ? tappedIds[0] : undefined;
+}

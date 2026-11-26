@@ -214,7 +214,10 @@ export function behaviouralProjection(
         }
         // CR 716.2 — a bar's section holds the same ability arrays a card does,
         // so its ids and display strings fold the same way.
-        if (key === "classLevelBars" && Array.isArray(value)) {
+        if (
+            (key === "classLevelBars" || key === "stationThresholds") &&
+            Array.isArray(value)
+        ) {
             out[key] = value.map((bar) =>
                 behaviouralProjection(bar as CardDefinition)
             );
@@ -412,14 +415,10 @@ export function goldOracleCard(definition: CardDefinition): OracleCard {
         typeLine:
             subtypes.length > 0 ? `${head} — ${subtypes.join(" ")}` : head,
         oracleText: definition.oracleText ?? "",
-        power:
-            definition.power === undefined
-                ? undefined
-                : String(definition.power),
-        toughness:
-            definition.toughness === undefined
-                ? undefined
-                : String(definition.toughness),
+        // CR 721.2b — a station card's printed P/T is its one striation box,
+        // which the compiler moves off the card (CR 721.2c).
+        power: printedPT(definition, "power"),
+        toughness: printedPT(definition, "toughness"),
         loyalty:
             definition.loyalty === undefined
                 ? undefined
@@ -564,6 +563,17 @@ export function goldOracleCard(definition: CardDefinition): OracleCard {
                         { layout: CLASS_LAYOUT }
                       : { layout: "normal" }),
     };
+}
+
+/** The P/T a card PRINTS: its own, or a station card's striation box. */
+function printedPT(
+    definition: CardDefinition,
+    stat: "power" | "toughness"
+): string | undefined {
+    const value =
+        definition[stat] ??
+        definition.stationThresholds?.find((t) => t.creature)?.creature?.[stat];
+    return value === undefined ? undefined : String(value);
 }
 
 /** CR 712.3 / 712.4 — the {@link OracleFace} a modal or meld

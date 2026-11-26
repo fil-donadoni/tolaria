@@ -1221,6 +1221,29 @@ function expandBarTriggers(base: CardDefinition): CardDefinition {
     };
 }
 
+/** CR 721.2a (issue #10528) — a station striation's descriptors, rebuilt in
+ *  place on their threshold so `expandStationThresholds`, which runs after this
+ *  seam, charge-gates them. */
+function expandStationTriggers(base: CardDefinition): CardDefinition {
+    const thresholds = base.stationThresholds;
+    if (thresholds?.some((t) => t.compiledTriggeredAbilities) !== true)
+        return base;
+    return {
+        ...base,
+        stationThresholds: thresholds.map((threshold) => {
+            const { compiledTriggeredAbilities: descriptors, ...rest } =
+                threshold;
+            if (descriptors === undefined) return threshold;
+            return {
+                ...rest,
+                triggeredAbilities: (threshold.triggeredAbilities ?? []).concat(
+                    descriptors.map(resolveCompiledTrigger)
+                ),
+            };
+        }),
+    };
+}
+
 /** CR 712.8e — a compiled back face's descriptors, rebuilt onto the face on the
  *  card that declares it: `registerBackFaceDefinition` and a cold decode of the
  *  face's id (`printedBackFaceTriggers`) both read `backFace.triggeredAbilities`
@@ -1250,7 +1273,9 @@ export function expandBackFaceTriggers(base: CardDefinition): CardDefinition {
  * the harness would report that as a compiler defect on every trigger card.
  */
 export function expandCompiledTriggers(raw: CardDefinition): CardDefinition {
-    const base = expandBackFaceTriggers(expandBarTriggers(raw));
+    const base = expandBackFaceTriggers(
+        expandStationTriggers(expandBarTriggers(raw))
+    );
     const descriptors = base.compiledTriggeredAbilities;
     const grantDescriptors = base.compiledTriggeredGrantTemplates;
     if (
