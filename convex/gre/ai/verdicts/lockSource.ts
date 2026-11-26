@@ -79,6 +79,13 @@ export type VerdictLock = {
      *  its exact bytes. Read off the attestations at promotion: the fit is
      *  re-derivable from this file and the pack, and neither holds those. */
     readings?: Record<string, VerdictReading>;
+    /** The named verdicts held out BY RULE (ADR 0186 Decision 7, issue
+     *  #10851): the exam side the Weight Fit never reads, whatever their
+     *  scenario hashes to (`heldOut.ts`). A subset of `verdictIds`, sorted;
+     *  absent on a lock written before the rule — read as none, never
+     *  rewritten. Both halves of a Minimal Pair are named or neither is
+     *  (`verdictsFromLock` refuses a split unit). */
+    examIds?: string[];
 };
 
 /** One payload as the caller found it: the verdict id it was stored under
@@ -130,6 +137,7 @@ function checkVerdictLock(lock: VerdictLock): void {
     ) {
         bad(VERDICT_LOCK_PATH, `"packHash" must be a sha256 hex digest`);
     }
+    checkExamIds(lock.examIds, seen);
     if (lock.readings === undefined) return;
     if (!isJsonObject(lock.readings)) {
         bad(VERDICT_LOCK_PATH, `"readings" must be an object`);
@@ -150,6 +158,38 @@ function checkVerdictLock(lock: VerdictLock): void {
             bad(VERDICT_LOCK_PATH, `"readings".${id}: ${problem}`);
         }
     }
+}
+
+/** Throws, naming the lock, on an `examIds` no fit may run over: an exam
+ *  id the lock does not name would hold out nothing the corpus carries. */
+function checkExamIds(
+    examIds: VerdictLock["examIds"],
+    named: ReadonlySet<string>
+): void {
+    if (examIds === undefined) return;
+    if (!Array.isArray(examIds)) {
+        bad(VERDICT_LOCK_PATH, `"examIds" must be an array`);
+    }
+    const seen = new Set<string>();
+    examIds.forEach((id, i) => {
+        if (typeof id !== "string" || !named.has(id)) {
+            bad(
+                VERDICT_LOCK_PATH,
+                `"examIds"[${i}] is ${JSON.stringify(id)}, which "verdictIds" does not name`
+            );
+        }
+        if (seen.has(id)) {
+            bad(VERDICT_LOCK_PATH, `"examIds" names ${id} twice`);
+        }
+        seen.add(id);
+    });
+}
+
+/** `examIds` sorted and copied — `undefined` when there are none, so a lock
+ *  written before the rule keeps its exact bytes. */
+function sortedExamIds(examIds: VerdictLock["examIds"]): string[] | undefined {
+    if (examIds === undefined || examIds.length === 0) return undefined;
+    return examIds.slice().sort();
 }
 
 /** `readings` in id order, copied — `undefined` when there are none, so an
@@ -181,13 +221,16 @@ export function parseVerdictLock(contents: string): VerdictLock {
         verdictIds: raw.verdictIds,
         packHash: raw.packHash,
         ...(raw.readings === undefined ? {} : { readings: raw.readings }),
+        ...(raw.examIds === undefined ? {} : { examIds: raw.examIds }),
     } as VerdictLock;
     checkVerdictLock(lock);
     const readings = sortedReadings(lock.readings);
+    const examIds = sortedExamIds(lock.examIds);
     return {
         verdictIds: lock.verdictIds.slice(),
         packHash: lock.packHash,
         ...(readings === undefined ? {} : { readings }),
+        ...(examIds === undefined ? {} : { examIds }),
     };
 }
 
@@ -199,10 +242,12 @@ export function parseVerdictLock(contents: string): VerdictLock {
 export function serializeVerdictLock(lock: VerdictLock): string {
     checkVerdictLock(lock);
     const readings = sortedReadings(lock.readings);
+    const examIds = sortedExamIds(lock.examIds);
     return `${JSON.stringify(
         {
             packHash: lock.packHash,
             ...(readings === undefined ? {} : { readings }),
+            ...(examIds === undefined ? {} : { examIds }),
             verdictIds: lock.verdictIds,
         },
         null,
@@ -348,7 +393,8 @@ export function verdictsFromLock(
         }
         byId.set(verdictId, payload);
     }
-    return lock.verdictIds.map((id) => {
+    const exam = new Set(lock.examIds ?? []);
+    const verdicts = lock.verdictIds.map((id) => {
         if (!byId.has(id)) {
             bad(
                 id,
@@ -357,8 +403,48 @@ export function verdictsFromLock(
         }
         const verdict = verdictFromPayload(id, byId.get(id), schema);
         const reading = lock.readings?.[id];
-        return reading === undefined
-            ? verdict
-            : { ...verdict, reading: copyReading(reading) };
+        return {
+            ...verdict,
+            ...(reading === undefined ? {} : { reading: copyReading(reading) }),
+            ...(exam.has(id) ? { heldOutByRule: true as const } : {}),
+        };
     });
+    checkExamUnits(verdicts, exam);
+    return verdicts;
+}
+
+/**
+ * Throws on a Minimal Pair the exam rule would split (ADR 0148: a unit is one
+ * argument, on one side). A right-hand half is on the exam side exactly when
+ * its anchor is; a half named by rule whose anchor the lock does not name
+ * (a registry anchor, a Test Position) would be fitted through its anchor's
+ * unit, so it is refused too.
+ */
+function checkExamUnits(
+    verdicts: readonly Verdict[],
+    exam: ReadonlySet<string>
+): void {
+    if (exam.size === 0) return;
+    const named = new Set(verdicts.map((v) => v.id));
+    for (let i = 0; i < verdicts.length; i++) {
+        const half = verdicts[i];
+        if (half.pairOf === undefined) continue;
+        const anchorId = half.pairOf.anchorId;
+        const halfExam = exam.has(half.id);
+        if (!named.has(anchorId)) {
+            if (halfExam) {
+                bad(
+                    VERDICT_LOCK_PATH,
+                    `"examIds" names ${half.id}, whose Minimal Pair anchor ${anchorId} the lock does not name — the unit would be fitted through its anchor`
+                );
+            }
+            continue;
+        }
+        if (halfExam !== exam.has(anchorId)) {
+            bad(
+                VERDICT_LOCK_PATH,
+                `"examIds" splits the Minimal Pair of ${anchorId}: its half ${half.id} is ${halfExam ? "named" : "not named"} and its anchor is ${halfExam ? "not" : "named"} — both halves stay on one side (ADR 0148)`
+            );
+        }
+    }
 }

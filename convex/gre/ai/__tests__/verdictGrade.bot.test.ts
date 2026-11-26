@@ -320,6 +320,8 @@ describe("grades in the fit input and in agreement (PRD issue #10083)", () => {
         const text = formatHeldOutPickAgreement(rows, "1 iteration", {
             burned: 0,
             heldOutN: 2,
+            byHash: 2,
+            byRule: 0,
         });
         expect(text).toContain("  all                : 1/1 (100.0%)");
         expect(text).toContain(

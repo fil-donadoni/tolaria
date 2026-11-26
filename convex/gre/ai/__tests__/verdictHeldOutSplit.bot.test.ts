@@ -381,6 +381,8 @@ describe("burned: held-out positions admitted to the registry anyway (issue #398
         expect(burnedCountOf([held], admitted)).toEqual({
             burned: 1,
             heldOutN: 0,
+            byHash: 0,
+            byRule: 0,
         });
     });
 

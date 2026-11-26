@@ -95,6 +95,7 @@ describe("held-out eval agreement (issue #3982)", () => {
             [
                 "== held-out eval agreement (issue #3982) — pairs the Evaluation orders as the player did, held-out side only",
                 "  burned             : 0 held-out positions admitted to the registry anyway (held-out n = 5 remaining)",
+                "  exam               : n = 5 (hash side 5, rule side 0)",
                 "  all                : 3/5 (60.0%)  n = 5, indicative, not a claim",
                 "  excluded           : 1 timing pairs, 1 incomplete units (not agreement evidence)",
                 "  indifferent        : 0 verdicts graded Indifferent (no weight, outside the count)",
@@ -175,12 +176,13 @@ describe("held-out pick agreement (issue #3982)", () => {
                 { ...row("d", "pass", false, 0), error: "no rebuild" },
             ],
             "400 iterations",
-            { burned: 2, heldOutN: 4 }
+            { burned: 2, heldOutN: 4, byHash: 3, byRule: 1 }
         );
         expect(text).toBe(
             [
                 "== held-out pick agreement (issue #3982) — verdicts whose every seed picked an allowed candidate or an accepted alternative, held-out side only, 400 iterations",
                 "  burned             : 2 held-out positions admitted to the registry anyway (held-out n = 4 remaining)",
+                "  exam               : n = 4 (hash side 3, rule side 1)",
                 "  all                : 2/3 (66.7%)  n = 3, indicative, not a claim  [seeds 5/6]",
                 "  timing             : 1/1 (100.0%)  n = 1, indicative, not a claim  [seeds 2/2]",
                 "  everything else    : 1/2 (50.0%)  n = 2, indicative, not a claim  [seeds 3/4]",
