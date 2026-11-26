@@ -1808,6 +1808,11 @@
     ],
     "Yawgmoth's Will": [
         {
+            "label": "graveyard: casts Yawgmoth's Will for the Fireblast it unlocks at lethal",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
             "label": "graveyard: casts Yawgmoth's Will on a full graveyard",
             "tier": "must",
             "needsSetup": false

@@ -43,6 +43,8 @@ import {
     makeState,
 } from "../../cards/__tests__/setup.helper";
 import { lightningBolt, mountain } from "../../cards/sets/lea/index.cards";
+import { getCardByName } from "../../cards";
+import { graveyardCastMechanism } from "../castCost";
 
 describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #1149)", () => {
     describe("permission lookup (convex/gre/rules.ts)", () => {
@@ -600,6 +602,107 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                 (c) => c.id === "gy-mountain"
             )!;
             expect(slim.legalActions).toBeUndefined();
+        });
+    });
+
+    // CR 601.2b: "A player can't apply two alternative methods of casting or
+    // two alternative costs to a single spell." A graveyard play permission
+    // says where the spell is cast from and states no cost, so the card's own
+    // alternative cost is the only one applied and the cast stands on it
+    // (issue #10401: Fireblast under Yawgmoth's Will, two Mountains, no mana).
+    describe("a card's own alternative cost under the permission (CR 601.2b / 118.9)", () => {
+        const fireblast = () => getCardByName("Fireblast");
+        const tappedMountain = (id: string) =>
+            makeInstance(mountain().id, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+                isTapped: true,
+            });
+        const position = (opts: { mountains: number; permission: boolean }) => {
+            const gyFireblast = makeInstance(fireblast().id, {
+                id: "gy-fireblast",
+                zone: "graveyard",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        graveyard: [gyFireblast],
+                        battlefield: Array.from(
+                            { length: opts.mountains },
+                            (_, i) => tappedMountain(`mountain-${i}`)
+                        ),
+                    }),
+                    makePlayer("p2"),
+                ],
+                priorityPlayerId: "p1",
+                ...(opts.permission
+                    ? {
+                          graveyardPlayPermissionThisTurn: [
+                              {
+                                  playerId: "p1",
+                                  sourceId: "yawgmoths-will",
+                                  actions: ["play-land", "cast"] as (
+                                      | "play-land"
+                                      | "cast"
+                                  )[],
+                              },
+                          ],
+                      }
+                    : {}),
+            });
+            return { state, gyFireblast, p1: getPlayer(state, "p1") };
+        };
+
+        it("is castable for the sacrifice with no mana to pay the printed cost", () => {
+            const { state, gyFireblast, p1 } = position({
+                mountains: 2,
+                permission: true,
+            });
+            // Both Mountains are tapped: {4}{R}{R} is out of reach.
+            expect(getLegalActions(state, p1, gyFireblast)).toContain("cast");
+            expect(() =>
+                assertLegalAction(state, p1, gyFireblast, "cast")
+            ).not.toThrow();
+        });
+
+        it("is not castable when the alternative cost cannot be paid either", () => {
+            const { state, gyFireblast, p1 } = position({
+                mountains: 1,
+                permission: true,
+            });
+            expect(getLegalActions(state, p1, gyFireblast)).not.toContain(
+                "cast"
+            );
+        });
+
+        it("offers nothing without the permission, whatever the card could pay", () => {
+            // `getLegalActions`' hand fallback is zone-blind, so the question
+            // is asked where every caller asks it first: no mechanism
+            // licenses the cast, and the projection tags no affordance.
+            const { state, gyFireblast, p1 } = position({
+                mountains: 2,
+                permission: false,
+            });
+            expect(
+                graveyardCastMechanism(state, p1, gyFireblast, "p1")
+            ).toBeUndefined();
+            const slim = projectPublicState(state, 1, "p1").players[0]
+                .graveyard[0];
+            expect(slim.legalActions).toBeUndefined();
+        });
+
+        it("projects the cast affordance to the caster's own graveyard card", () => {
+            const { state } = position({ mountains: 2, permission: true });
+            const projected = projectPublicState(state, 1, "p1");
+            const slim = projected.players[0].graveyard.find(
+                (c) => c.id === "gy-fireblast"
+            )!;
+            expect(slim.legalActions).toContain("cast");
+            expect(slim.castKind).toBe("graveyard-permission");
         });
     });
 });
