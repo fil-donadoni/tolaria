@@ -54,7 +54,11 @@ import { activateAbilityOnState } from "../../activation";
 import { getEffectiveActivatedAbilities } from "../../activatedAbilities";
 import { enumerateMoves } from "../../moves";
 import type { Move } from "../../moves";
-import { applyMoveInSearch } from "../../search";
+import {
+    advanceToDecision,
+    applyMoveInSearch,
+    decidingPlayer,
+} from "../../search";
 import { checkStateBasedActions } from "../../sba";
 import { eligibleZonePickCards } from "../../zonePickEligibility";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
@@ -73,7 +77,12 @@ import {
     applyExtraCombat,
 } from "./combatSetup";
 import { collectTriggers, placeTriggersOnStack } from "../../triggers";
-import { instanceIdsForName, matchesMove, seatPlayerId } from "./matcher";
+import {
+    describeMatcher,
+    instanceIdsForName,
+    matchesMove,
+    seatPlayerId,
+} from "./matcher";
 import type { BladeScenario, BladeSetupStep, BladeSeat } from "./types";
 
 /** Thrown when a setup step finds no purchase in the real engine. A distinct
@@ -319,6 +328,37 @@ function applyDiscard(
     // action; the discard above happened outside a resolution, so replicate it
     // (the same line `madness.test.ts`'s own helper carries).
     processPendingActionTriggers(state);
+}
+
+/** One step of a Line's walk: the deciding seat's first enumerated move the
+ *  matcher accepts, then the forced answers to the next decision — the same
+ *  pair the Line runner plays (`line.ts`). */
+function applyLineMove(
+    state: GameState,
+    label: string,
+    step: Extract<BladeSetupStep, { kind: "move" }>
+): void {
+    const pid = seatPlayerId(state, step.seat);
+    if (decidingPlayer(state) !== pid) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `"${step.seat}" is not the deciding seat.`
+        );
+    }
+    const move = enumerateMoves(state, pid).find((m) =>
+        matchesMove(state, m, step.move)
+    );
+    if (!move) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `no enumerated move of "${step.seat}" matches [${describeMatcher(step.move)}].`
+        );
+    }
+    moveObserver?.(pid, move, state);
+    applyMoveInSearch(state, pid, move);
+    advanceToDecision(state);
 }
 
 function applyPass(
@@ -1289,6 +1329,9 @@ function applyBladeSetupSteps(
                 break;
             case "pass":
                 applyPass(state, scenario.label, step);
+                break;
+            case "move":
+                applyLineMove(state, scenario.label, step);
                 break;
             case "activate":
                 applyActivate(state, scenario.label, step);
