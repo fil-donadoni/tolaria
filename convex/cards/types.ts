@@ -20152,7 +20152,7 @@ export type EffectOp =
      *  printed power and toughness" for a crew ability GRANTED to a permanent
      *  whose stats the granting card cannot know.
      *
-     *  `power`/`toughness` are `EffectValue`s (issue #10555): a literal, or a
+     *  `power`/`toughness` are `EffectValue`s: a literal, or a
      *  value read off the game — "becomes an artifact creature with power and
      *  toughness each equal to its mana value" (Karn, the Great Creator) is
      *  `{ manaValue: { of: { target: 0 } } }`. CR 608.2h — the answer is
