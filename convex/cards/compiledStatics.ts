@@ -353,6 +353,15 @@ export type CompiledStaticEffect =
           readonly kind: "subtype-add";
           readonly subtypes: readonly string[];
       } & CompiledStaticScope)
+    /** CR 305.7 layer 4 — "Enchanted land is an Island": the land's land
+     *  types are REPLACED by `subtypes` (the fixed-output form of
+     *  `StaticSubtypeSet`, Blood Moon's). The rules-text strip CR 305.7 also
+     *  demands is a separate `ability-loss` descriptor beside it, as the
+     *  hand-written catalogue writes it. */
+    | ({
+          readonly kind: "subtype-set";
+          readonly subtypes: readonly string[];
+      } & CompiledStaticScope)
     /** CR 702.151b — the Reconfigure line's "stop being a creature until it
      *  becomes unattached": the permanent removes its own type while attached,
      *  re-read at every layer-4 derivation. */
@@ -987,6 +996,15 @@ export function resolveCompiledStatic(
             const reads = layerFourReads(descriptor);
             return {
                 kind: "subtype-add",
+                applies: scopePredicate(descriptor),
+                subtypes: descriptor.subtypes.slice(),
+                ...(reads.length > 0 ? { reads } : {}),
+            };
+        }
+        case "subtype-set": {
+            const reads = layerFourReads(descriptor);
+            return {
+                kind: "subtype-set",
                 applies: scopePredicate(descriptor),
                 subtypes: descriptor.subtypes.slice(),
                 ...(reads.length > 0 ? { reads } : {}),

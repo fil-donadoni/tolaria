@@ -864,9 +864,10 @@ export const spreadingPlague = defineCard(() => ({
 }));
 
 // Tainted Well — {2}{B} Aura. "Enchant land. When this Aura enters, draw a
-// card. Enchanted land is a Swamp." (CR 603.6a ETB, CR 305.7/611 layer-4
-// subtype ADDITION — Urborg, Tomb of Yawgmoth precedent, plc/colorless.cards.ts:
-// "is a Swamp" ADDS the type, it doesn't replace the land's other types.)
+// card. Enchanted land is a Swamp." (CR 603.6a ETB.) CR 305.7 — "is a Swamp"
+// SETS the land's subtype: it loses its old land types and every ability its
+// rules text generates, keeping the intrinsic {B} (issue #10513). Only "in
+// addition to its other land types" (Urborg) adds.
 export const taintedWell = defineCard(() => ({
     id: "2eec00a1-7e12-42d2-8f46-de8ab7323c2c", // INV 126
     rarity: "common",
@@ -886,8 +887,9 @@ export const taintedWell = defineCard(() => ({
         }),
     ],
     staticEffects: [
+        { kind: "ability-loss", applies: AURA_AFFECTS_HOST },
         {
-            kind: "subtype-add",
+            kind: "subtype-set",
             applies: AURA_AFFECTS_HOST,
             subtypes: ["Swamp"],
         },

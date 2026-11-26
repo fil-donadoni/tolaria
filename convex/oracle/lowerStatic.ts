@@ -1652,6 +1652,21 @@ function lowerHostClause(
             case "control-change":
                 effects.push({ kind: "control-change", appliesTo: "host" });
                 break;
+            case "land-type-set":
+                // CR 305.7 — two effects, the shape Blood Moon is written in:
+                // the layer-6 strip of every ability the land's rules text
+                // generates (CR 613.1f), then the layer-4 replacement of its
+                // land types (CR 613.1d), whose new basic type grants the one
+                // mana ability it keeps (CR 305.6).
+                effects.push(
+                    { kind: "ability-loss", appliesTo: "host" },
+                    {
+                        kind: "subtype-set",
+                        appliesTo: "host",
+                        subtypes: [effect.subtype],
+                    }
+                );
+                break;
             case "attack-restriction":
                 effects.push({
                     kind: "attack-restriction",

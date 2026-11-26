@@ -157,6 +157,7 @@ import type {
     ManaCost,
 } from "../../../cards/types";
 import { readManaCost } from "../../manaCost";
+import { BASIC_LAND_TYPES } from "../../typeLine";
 import type {
     CompiledAttackCondition,
     CompiledSpellFilter,
@@ -710,6 +711,13 @@ export type HostEffectIR =
       }
     /** CR 613.1b layer 2. */
     | { readonly kind: "control-change" }
+    /**
+     * CR 305.7 — "Enchanted land is an Island": the land's land types are SET
+     * to one basic land type (layer 4), and it loses every ability its rules
+     * text generates (layer 6), keeping only the intrinsic mana ability its
+     * new type grants (CR 305.6).
+     */
+    | { readonly kind: "land-type-set"; readonly subtype: string }
     /**
      * CR 508.1c / 509.1b. `sentence` is the restriction ALONE ("Enchanted
      * creature can't block.") — the rejection reason the engine shows, which
@@ -2765,6 +2773,32 @@ const YOU_CONTROL_HOST = new RegExp(
 );
 const HOST_PT = /^gets ([+-]\d+)\/([+-]\d+)(?: and (.+))?$/;
 const QUOTED_GRANT = /^has "([^"]+)"$/;
+const HOST_LAND_TYPE = /^is (an?) (\S+)$/;
+
+/**
+ * CR 305.7 — "Enchanted land is a Swamp" / "… is an Island": the land's land
+ * types are SET to that one basic land type. Read only as the WHOLE predicate
+ * of a land host: CR 305.7 is a rule about lands, and about the five basic
+ * land types (CR 305.6) — "is a Mountain, Forest, and Plains", "is the chosen
+ * type", "is snow" and "is every basic land type in addition to its other
+ * types" are other forms, refused here.
+ */
+function readHostLandType(
+    rest: string,
+    host: HostNoun
+): RuleResult<HostEffectIR> | undefined {
+    const match = rest.match(HOST_LAND_TYPE);
+    if (match === null) return undefined;
+    const article = match[1]!;
+    const subtype = match[2]!;
+    if (host !== "Land")
+        return fail(`a land type set on a ${host} host (CR 305.7)`, rest);
+    if (!BASIC_LAND_TYPES.has(subtype))
+        return fail(`"${subtype}" is not a basic land type (CR 305.6)`, rest);
+    if ((article === "an") !== /^[AEIOU]/.test(subtype))
+        return fail(`"${article} ${subtype}" is not an Oracle article`, rest);
+    return ok({ kind: "land-type-set" as const, subtype });
+}
 
 /**
  * CR 702.16n — the Aura-keeping rider. Anchored at the END of the sentence and only
@@ -3008,6 +3042,12 @@ const enchantedHostRule: Rule<StaticClauseIR> = rule(
         const host = HOST_NOUNS.get(match[1]!)!;
         let rest = match[2]!;
         const effects: HostEffectIR[] = [];
+        const landType = readHostLandType(rest, host);
+        if (landType !== undefined) {
+            if (!landType.ok) return landType;
+            effects.push(landType.value);
+            rest = "";
+        }
         const pt = rest.match(HOST_PT);
         if (pt !== null) {
             effects.push({
