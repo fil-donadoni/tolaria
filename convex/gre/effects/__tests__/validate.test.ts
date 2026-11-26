@@ -8952,6 +8952,27 @@ describe("chosen type / colour as an effect parameter (CR 205.3m / 607.2d / 509.
         ).toBeGreaterThan(0);
     });
 
+    it("CR 611.2b — `whileSourceRemains` is a duration of its own: accepted alone or with a family, refused beside `duration` (issue #10503)", () => {
+        const island = {
+            op: "setSubtype",
+            target: { target: 0 },
+            subtypes: ["Island"],
+            whileSourceRemains: true,
+        };
+        expect(run([island])).toEqual([]);
+        expect(run([{ ...island, family: "land" }])).toEqual([]);
+        expect(
+            run([{ ...island, duration: { phase: "end-of-turn" } }])
+        ).toEqual([
+            expect.stringContaining(
+                'fields "duration" and "whileSourceRemains" are exclusive'
+            ),
+        ]);
+        expect(
+            run([{ ...island, whileSourceRemains: false }]).length
+        ).toBeGreaterThan(0);
+    });
+
     it('CR 205.3i — `chooseLandType` binds a land type that `setSubtype` reads under family "land"; `basic` has only a `true` form', () => {
         const chooseLand = (extra: Record<string, unknown> = {}) => ({
             op: "chooseLandType",

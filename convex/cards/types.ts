@@ -5374,6 +5374,21 @@ export interface SpellContext {
          *  types. Omitted = the pre-existing replace. */
         family?: "creature"
     ) => void;
+    /** Replaces a target permanent's subtypes for as long as the RESOLVING
+     *  permanent remains on the battlefield (CR 611.2b; layer 4, CR 305.7 on a
+     *  land) — "target land becomes an Island for as long as this creature
+     *  remains on the battlefield" (Tide Shaper). A Continuous Effects Registry
+     *  entry with the resolving permanent as its `source` expiry: it stops
+     *  applying the moment that permanent leaves or phases out, and is spliced
+     *  there for good (CR 400.7, 702.26f). No-op when the source has already
+     *  left — the duration never starts (CR 611.2b) — or the target is not a
+     *  battlefield permanent. */
+    setSubtypesWhileSourceRemains: (
+        target: TargetSelection,
+        subtypes: string[],
+        /** CR 205.1a — `"creature"`: replace only the creature types. */
+        family?: "creature"
+    ) => void;
     /** Adds or removes a supertype on a target permanent indefinitely
      *  (CR 205.4a). `present: false` removes the supertype, `present: true`
      *  adds it. Not tied to a source staying in play — the mutation lasts
@@ -20059,6 +20074,11 @@ export type EffectOp =
            *  (which is what `addSubtype` would do). Routes to
            *  `SpellContext.setSubtypes`. */
           duration?: DurationSpec;
+          /** CR 611.2b — the replacement lasts "for as long as this
+           *  [permanent] remains on the battlefield" (Tide Shaper): it ends
+           *  when the RESOLVING permanent leaves or phases out. Exclusive with
+           *  `duration`. Routes to `SpellContext.setSubtypesWhileSourceRemains`. */
+          whileSourceRemains?: true;
       }
     /** CR 208.2 / 611.1 (issue #1317) — turns a permanent into a creature with
      *  the given base P/T, optionally adding a subtype / extra card types /
