@@ -19466,8 +19466,11 @@ export type EffectOp =
      *  relocating it to the front yields the same distribution as shuffling
      *  the remainder and placing it on top), then this Op moves it to the
      *  front. `bind` snapshots the
-     *  permanent that just entered the battlefield — valid only alongside
-     *  `to: "battlefield"` (validator-enforced) — for a follow-up Op to act on
+     *  permanent that just entered the battlefield — or, with `to: "exile"`
+     *  (issue #10557), the card that just landed in exile ("create a token
+     *  that's a copy of the exiled card", Nexus of Becoming), bound only when
+     *  it arrived — valid only alongside `to: "battlefield"` / `"exile"`
+     *  (validator-enforced) — for a follow-up Op to act on
      *  it: a haste grant, a `delayedTrigger` capture ("You may put a creature
      *  card from your hand onto the battlefield. That creature gains haste.
      *  Sacrifice it at the beginning of the next end step.", Sneak Attack /

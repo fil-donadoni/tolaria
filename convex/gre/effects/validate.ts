@@ -5284,12 +5284,18 @@ const OP_SCHEMAS: OpSchemaTable = {
                     errors.push('field "from" is required with "cards"');
                 }
                 // issue #1151 (closing #1120 gap 3) — `bind` snapshots the
-                // permanent that just entered the battlefield, so it only
-                // makes sense alongside `to: "battlefield"` (a library/
-                // graveyard/exile destination has no permanent to snapshot).
-                if ("bind" in entry && entry.to !== "battlefield") {
+                // permanent that just entered the battlefield; issue #10557
+                // widens it to `to: "exile"`, the card that just landed in a
+                // public zone (CR 400.2) — "create a token that's a copy of
+                // the exiled card". A library/hand/graveyard destination has
+                // nothing the snapshot readers locate, so it stays refused.
+                if (
+                    "bind" in entry &&
+                    entry.to !== "battlefield" &&
+                    entry.to !== "exile"
+                ) {
                     errors.push(
-                        'field "bind" is only valid with "cards" and to: "battlefield"'
+                        'field "bind" is only valid with "cards" and to: "battlefield" or "exile"'
                     );
                 }
                 // CR 110.2a — "under your control" names the controller of
