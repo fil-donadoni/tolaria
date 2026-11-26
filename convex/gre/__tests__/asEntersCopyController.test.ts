@@ -105,27 +105,28 @@ describe("CR 614.1c — enter as a copy of a creature YOU control (#10508)", () 
     });
 
     it("a non-cast entry reads the controller it enters under", () => {
-        // CR 614.12a — the choice is raised on every entry path; here p2's
-        // creature is the only one besides p1's, and p1 is the controller.
+        // CR 614.12a — the choice is raised on every entry path. p2 OWNS the
+        // Mimic (its graveyard), p1 puts it onto the battlefield under p1's
+        // control: "you" is the entering controller, never the owner.
         const state = makeState({
             players: [
                 makePlayer("p1", {
-                    graveyard: [
-                        makeInstance(mimic().id, {
-                            id: "subject",
-                            controllerId: "p1",
-                            ownerId: "p1",
-                            zone: "graveyard",
-                        }),
-                    ],
                     battlefield: [permanent(grizzlyBears().id, "bears", "p1")],
                 }),
                 makePlayer("p2", {
+                    graveyard: [
+                        makeInstance(mimic().id, {
+                            id: "subject",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "graveyard",
+                        }),
+                    ],
                     battlefield: [permanent(serraAngel().id, "serra", "p2")],
                 }),
             ],
         });
-        const [card] = state.players[0].graveyard.splice(0, 1);
+        const [card] = state.players[1].graveyard.splice(0, 1);
         putReanimatedSetOnBattlefield(state, [{ card, controllerId: "p1" }]);
 
         expect(head(state).candidateIds).toEqual(["bears"]);
