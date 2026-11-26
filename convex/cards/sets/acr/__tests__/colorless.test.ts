@@ -4,8 +4,8 @@
 // union (`HISTORIC_FILTER`) — the supertype axis of `typeOrSubtypeFilter`
 // over a graveyard CARD target — so the path is walked whole: activation
 // through `game.ts`, the offered set (`getLegalTargets`), the accepted set
-// (`applyOneTargetSelection`), the client mirror over the real wire
-// projection, and resolution.
+// (`applyOneTargetSelection`) and resolution. The client mirror over the
+// real wire projection is `src/lib/__tests__/historic-graveyard-target.test.ts`.
 
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../../index";
@@ -19,13 +19,9 @@ import {
     advanceTargetGroupOrFinalize,
     applyOneTargetSelection,
 } from "../../../../game";
-import { projectPublicState } from "../../../../gameProjections";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState } from "../../../../gre/state";
-import { matchesGraveyardTarget } from "../../../../../src/lib/graveyard-targets";
-import { formatTargetLabel } from "../../../../../src/lib/target-progress";
-import type { CardInstance } from "../../../../../src/types/game";
 import { abstergoEntertainment as abstergoFactory } from "../colorless.cards";
 
 const abstergoEntertainment = abstergoFactory();
@@ -95,29 +91,6 @@ describe("Abstergo Entertainment — historic recursion, then exile all graveyar
             .map((t) => t.id)
             .sort();
         expect(offered).toEqual(["fable", "lutri", "memnite"]);
-    });
-
-    it("the client mirror over the wire projection agrees with the server, and the prompt names the union", () => {
-        const state = board();
-        activate(state);
-        const view = projectPublicState(state, "p1");
-        const pt = view.pendingTarget!;
-        const graveyard = view.players[0]
-            .graveyard as unknown as CardInstance[];
-        const clickable = graveyard
-            .filter((c) => matchesGraveyardTarget(c, "p1", pt, "p1", "p1"))
-            .map((c) => c.id)
-            .sort();
-        expect(clickable).toEqual(["fable", "lutri", "memnite"]);
-        expect(
-            formatTargetLabel(
-                pt.targetType,
-                pt.zone,
-                pt.controller,
-                pt.spellStackKind,
-                pt.typeOrSubtypeFilter
-            )
-        ).toBe("an artifact, a Saga or a legendary card from your graveyard");
     });
 
     it("refuses a non-historic card at the accept gate", () => {
