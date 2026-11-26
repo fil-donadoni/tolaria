@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reduceFace } from "../oracle-corpus";
+import { reduceCard, reduceFace } from "../oracle-corpus";
 
 // Issue #7905 — CR 202.2e / 204.1: a back face has no mana cost, so its colour
 // is its colour indicator; only the corpus can carry it.
@@ -26,5 +26,29 @@ describe("reduceFace colours", () => {
         delete noColors.colors;
         expect(reduceFace(noColors, true)).not.toHaveProperty("colors");
         expect(reduceFace(backFace)).not.toHaveProperty("colors");
+    });
+});
+
+// CR 202.2e / 204.2 — a FRONT face's colour indicator is Scryfall's top-level
+// `color_indicator` (Living End: no mana cost, black).
+describe("reduceCard colour indicator", () => {
+    const row = {
+        oracle_id: "3939fbe0-3be4-41ef-828d-c93f2cb33b4f",
+        name: "Living End",
+        mana_cost: "",
+        type_line: "Sorcery",
+        oracle_text: "",
+        layout: "normal",
+        color_indicator: ["B"],
+    };
+
+    it("keeps the top-level color_indicator", () => {
+        expect(reduceCard(row)?.colorIndicator).toEqual(["B"]);
+    });
+
+    it("omits it on a row without one", () => {
+        const plain: Record<string, unknown> = { ...row };
+        delete plain.color_indicator;
+        expect(reduceCard(plain)).not.toHaveProperty("colorIndicator");
     });
 });

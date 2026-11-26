@@ -26,6 +26,8 @@ export const crimsonKobolds = defineCard(() => ({
     name: "Crimson Kobolds",
     oracleText: "",
     manaCost: {},
+    // CR 202.2e — its red colour indicator makes it red despite the {0} cost.
+    colorIndicator: ["R"],
     types: ["Creature"],
     subtypes: ["Kobold"],
     power: 0,
@@ -39,6 +41,8 @@ export const crookshankKobolds = defineCard(() => ({
     name: "Crookshank Kobolds",
     oracleText: "",
     manaCost: {},
+    // CR 202.2e — its red colour indicator makes it red despite the {0} cost.
+    colorIndicator: ["R"],
     types: ["Creature"],
     subtypes: ["Kobold"],
     power: 0,
@@ -52,6 +56,8 @@ export const koboldsOfKherKeep = defineCard(() => ({
     name: "Kobolds of Kher Keep",
     oracleText: "",
     manaCost: {},
+    // CR 202.2e — its red colour indicator makes it red despite the {0} cost.
+    colorIndicator: ["R"],
     types: ["Creature"],
     subtypes: ["Kobold"],
     power: 0,

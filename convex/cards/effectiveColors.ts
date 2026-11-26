@@ -1,8 +1,8 @@
 // CR 105.2 / 202.2 / 613.1e — the ONE derivation of a permanent's CURRENT
 // colours, layer 5 included.
 //
-// A card's printed colour comes from its mana cost (`getColorsFromCost`,
-// `./colors`), but layer 5 (CR 613.1e) can change it two ways, and both live on
+// A card's printed colour comes from its mana cost and colour indicator
+// (`printedCardColors`, `./colors`), but layer 5 (CR 613.1e) can change it two ways, and both live on
 // the instance rather than the definition:
 //
 //   * a colour SET — `colorSet`, the layer-5 walk's answer (`gre/layers2to5.ts`)
@@ -30,7 +30,7 @@
 // itself imports) reads colours through this module, and the barrel would
 // evaluate the catalogue before the registry it preloads into exists.
 import { getInstanceManaCost, tryGetDefinition } from "./registry";
-import { getColorsFromCost, hasDevoid } from "./colors";
+import { getColorsFromCost, printedCardColors } from "./colors";
 import type { Color, PermanentView } from "./types";
 
 /** The instance-side layer-5 fields. Declared structurally rather than
@@ -95,17 +95,17 @@ export function getEffectiveColors(card: PermanentView): Color[] {
     return [...all];
 }
 
-/** CR 202.2 — the colours the instance's mana cost gives it. Single authority
- *  (`cards/registry.ts`): instance `manaCostOverride` (CR 707.2 "except it has
- *  no mana cost" — an Eternalize token, whose cost therefore contributes NO
- *  colour) → embedded fixture cost → registry definition. A devoid definition
- *  contributes none (CR 702.114a). */
+/** CR 202.2 — the colours the instance's mana cost gives it, plus its
+ *  definition's colour indicator (CR 202.2e). The cost's single authority is
+ *  `getInstanceManaCost` (`cards/registry.ts`): instance `manaCostOverride`
+ *  (CR 707.2 "except it has no mana cost" — an Eternalize token, whose cost
+ *  therefore contributes NO colour) → embedded fixture cost → registry
+ *  definition. A devoid definition contributes none (CR 702.114a). */
 function printedColors(card: PermanentView): Color[] {
     const id = (card.card as { id?: string }).id;
     const def = id ? tryGetDefinition(id) : undefined;
-    return def && hasDevoid(def)
-        ? []
-        : getColorsFromCost(getInstanceManaCost(card));
+    const cost = getInstanceManaCost(card);
+    return def ? printedCardColors(def, cost) : getColorsFromCost(cost);
 }
 
 /** Same colours, any order — the walk de-duplicates the set it copies. */

@@ -188,6 +188,8 @@ export const inevitableBetrayal = defineCard(() => ({
     rarity: "rare",
     oracleText:
         "Suspend 3—{1}{U}{U} (Rather than cast this card from your hand, pay {1}{U}{U} and exile it with three time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)\nSearch target opponent's library for a creature card and put that card onto the battlefield under your control. Then that player shuffles.",
+    // CR 202.2e — no mana cost; its blue colour indicator makes it blue.
+    colorIndicator: ["U"],
     types: ["Sorcery"],
     staticAbilities: ["suspend 3"],
     suspend: { X: 1, U: 2 },

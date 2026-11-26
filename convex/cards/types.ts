@@ -23875,6 +23875,13 @@ export interface CardDefinition {
      *  populations. Reprints are `cardPrints` rows, not this field. */
     setCode?: string;
     manaCost?: ManaCost;
+    /** CR 202.2e / 204.2 — the colours this card's FRONT-face colour
+     *  indicator denotes: the object is each of them, on top of its mana
+     *  cost's. Usually on a nonland card with no mana cost (CR 204.1 — Living
+     *  End, the suspend cycle); a back face's indicator is
+     *  `CardBackFace.colors`. Read by `getCardColors` (`./colors`), so layer 5
+     *  (CR 613.1e) still overrides it like any printed colour. */
+    colorIndicator?: Color[];
     types: CardType[];
     subtypes?: string[];
     supertypes?: CardSupertype[];
