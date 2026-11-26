@@ -75,9 +75,22 @@ export type ActionPriorConfig = {
     fpu: number;
 };
 
+/** EXPERIMENT (issue #9934): where the rollout horizon sits, measured on the
+ *  search ROOT's clock, and whether the tree stops descending at it. */
+export type HorizonVariant = {
+    /** `turn-start`: the bot's next turn starts. `main`: that turn reaches its
+     *  precombat main phase. `turn-end`: that turn is over. `second-turn-start`:
+     *  the bot's turn after that one starts. */
+    boundary: "turn-start" | "main" | "turn-end" | "second-turn-start";
+    clipTree: boolean;
+};
+
 export type SearchVariant = {
     /** Registry name — recorded in ladder JSONL headers and reports. */
     name: string;
+    /** EXPERIMENT (issue #9934). Absent = production: the horizon is measured
+     *  from where each rollout starts. */
+    horizon?: HorizonVariant;
     /** Priors + FPU on the ordinary action space (issue #2684). Absent =
      *  production behaviour, `DEFAULT_ACTION_PRIORS` (issue #8700). `null` turns
      *  them off: flat UCB1 and uniform-random expansion, the A/B control arm. */
@@ -310,6 +323,27 @@ export function noRuleVariant(spec: string): SearchVariant {
  *  The noise floor is what `placebo` below measures. Judge a candidate's win
  *  rate against THAT, never against a null run's tautological 50%. */
 export const LADDER_VARIANTS: Record<string, SearchVariant> = {
+    // EXPERIMENT (issue #9934) — census arms, never landed.
+    "horizon-a": {
+        name: "horizon-a",
+        horizon: { boundary: "turn-start", clipTree: true },
+    },
+    "horizon-c": {
+        name: "horizon-c",
+        horizon: { boundary: "turn-start", clipTree: false },
+    },
+    "horizon-b": {
+        name: "horizon-b",
+        horizon: { boundary: "main", clipTree: true },
+    },
+    "horizon-d-end": {
+        name: "horizon-d-end",
+        horizon: { boundary: "turn-end", clipTree: true },
+    },
+    "horizon-d-second": {
+        name: "horizon-d-second",
+        horizon: { boundary: "second-turn-start", clipTree: true },
+    },
     /** The noise-floor baseline (issue #1929). Same policy, same budget, same
      *  rules — only WHICH determinizations ISMCTS samples differs, so it is
      *  strength-neutral by construction and every point it scores away from

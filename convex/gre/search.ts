@@ -256,6 +256,7 @@ import {
 import {
     EMPTY_DISABLED_RULES,
     getSearchVariant,
+    type HorizonVariant,
     resolveActionPriors,
     resolveDisabledRootRules,
     resolveEvalWeights,
@@ -1788,6 +1789,46 @@ export type RolloutDeadline = {
     cut: boolean;
 };
 
+// EXPERIMENT (issue #9934) — the root-clock horizon of the iteration running
+// now. Module state, set by `iterate` and read by `rollout`: a search is one
+// synchronous call, and this branch is a census instrument, never a landing.
+let horizonRun: {
+    cfg: HorizonVariant;
+    rootTurn: number;
+    /** The first turn after the root's on which the bot is the active player. */
+    firstBotTurn: number | null;
+} | null = null;
+
+const PRECOMBAT_MAIN_STEP = PHASE_ORDER.indexOf("PRECOMBAT_MAIN");
+
+/** Observe `state` (states must be shown in play order) and say whether it
+ *  stands at or past the active horizon boundary. */
+function pastExperimentHorizon(state: GameState, botId: string): boolean {
+    const run = horizonRun!;
+    if (
+        run.firstBotTurn === null &&
+        state.turn > run.rootTurn &&
+        state.activePlayerId === botId
+    ) {
+        run.firstBotTurn = state.turn;
+    }
+    const first = run.firstBotTurn;
+    if (first === null) return false;
+    switch (run.cfg.boundary) {
+        case "turn-start":
+            return true;
+        case "main":
+            return (
+                state.turn > first ||
+                PHASE_ORDER.indexOf(state.phase) >= PRECOMBAT_MAIN_STEP
+            );
+        case "turn-end":
+            return state.turn > first;
+        case "second-turn-start":
+            return state.turn > first && state.activePlayerId === botId;
+    }
+}
+
 export function rollout(
     state: GameState,
     botId: string,
@@ -1826,7 +1867,9 @@ export function rollout(
         // rollout began in). Stop once we've reached enough of them.
         const turnChanged = state.turn !== lastTurn;
         lastTurn = state.turn;
-        if (turnChanged && state.activePlayerId === botId) {
+        if (horizonRun) {
+            if (pastExperimentHorizon(state, botId)) break;
+        } else if (turnChanged && state.activePlayerId === botId) {
             botTurnStarts += 1;
             if (botTurnStarts > ROLLOUT_EXTRA_BOT_TURNS) break;
         }
@@ -4361,10 +4404,28 @@ function iterate(
     const since = gameClockOf(rootState);
     const path: Edge[] = [];
     let node = root;
+    const horizonCfg = getSearchVariant()?.horizon;
+    horizonRun = horizonCfg
+        ? { cfg: horizonCfg, rootTurn: rootState.turn, firstBotTurn: null }
+        : null;
 
     for (let depth = 0; depth < MAX_TREE_DEPTH; depth++) {
+        // EXPERIMENT (issue #9934): always observed, so the tracker sees the
+        // tree's states in order; the tree stops only under `clipTree`.
+        if (
+            horizonRun &&
+            pastExperimentHorizon(world, botId) &&
+            horizonRun.cfg.clipTree
+        )
+            break;
         const pid = advanceToDecision(world);
         if (!pid) break;
+        if (
+            horizonRun &&
+            pastExperimentHorizon(world, botId) &&
+            horizonRun.cfg.clipTree
+        )
+            break;
         let keyed = withoutDominatedTriggerTargets(
             node,
             world,
