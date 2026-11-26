@@ -49,7 +49,12 @@ import {
     type RuleResult,
     subGrammar,
 } from "../../rule";
-import { frameOf, readFrameChain, type FrameChainIR } from "./verbFrames";
+import {
+    frameOf,
+    readFrameChain,
+    type FrameChainIR,
+    type GateConditionIR,
+} from "./verbFrames";
 import {
     foldActedOnControllers,
     readActedOnControllersSentence,
@@ -2539,6 +2544,18 @@ export type ModifierIR =
 
 export type SentenceIR =
     | { readonly role: "effect"; readonly effect: EffectSentenceIR }
+    /**
+     * CR 608.2c — "If you control a Raccoon, you may discard a card." whose
+     * body is the first half of a fold the NEXT sentence closes ("If you do,
+     * draw a card."): the gate covers the fold, so `assembleSentences` folds
+     * the body with its "If you do" first and gates the one effect they make
+     * (`leadingGateSentenceRule`, `verbFrames.ts`).
+     */
+    | {
+          readonly role: "leading-gate";
+          readonly condition: GateConditionIR;
+          readonly body: SentenceIR;
+      }
     /** CR 608.2c — the per-controller tail of a removal (`actedOnControllers.ts`). */
     | ActedOnControllersSearchIR
     | ThosePlayersChainIR
@@ -2961,6 +2978,47 @@ export function assemblyTrace(span: string, sentences: number): FailureTrace {
     return { path: [SENTENCE_ASSEMBLY], span, progress: sentences + 1 };
 }
 
+/**
+ * CR 608.2c — close each `leading-gate` sentence over the fold its body opens:
+ * the body and the "If you do" sentences right after it are assembled on
+ * their own, and the ONE effect they make goes behind the gate's `gate`
+ * frame. A body that assembles to anything but one effect is refused — the
+ * gate would have to say which of them it covers.
+ */
+function foldLeadingGates(
+    sentences: readonly SentenceIR[],
+    opts: Parameters<typeof assembleSentences>[1]
+): SentenceIR[] | string {
+    const out: SentenceIR[] = [];
+    for (let i = 0; i < sentences.length; i++) {
+        const sentence = sentences[i]!;
+        if (sentence.role !== "leading-gate") {
+            out.push(sentence);
+            continue;
+        }
+        const covered: SentenceIR[] = [sentence.body];
+        while (sentences[i + 1]?.role === "if-you-do")
+            covered.push(sentences[++i]!);
+        const inner = assembleSentences(covered, opts);
+        if (!inner.ok) return inner.reason;
+        if (inner.restrictions.length > 0 || inner.effects.length !== 1)
+            return "a leading condition gates exactly one effect";
+        out.push({
+            role: "effect",
+            effect: {
+                frames: [
+                    {
+                        frame: "gate",
+                        condition: sentence.condition,
+                        effect: inner.effects[0]!,
+                    },
+                ],
+            },
+        });
+    }
+    return out;
+}
+
 /** CR 118.12 — the chain's last frame is the controller's own, unridered sacrifice. */
 function endsInOwnSacrifice(chain: FrameChainIR): boolean {
     const last = chain.frames[chain.frames.length - 1];
@@ -3135,7 +3193,14 @@ export function assembleSentences(
     // CR 608.2c — "For each <noun> exiled this way, its controller searches
     // …" waits for the "Those players …" sentence that finishes its chain.
     let actedOnSearch: ActedOnControllersSearchIR | null = null;
-    for (const sentence of sentences) {
+    const gated = foldLeadingGates(sentences, opts);
+    if (typeof gated === "string") return { ok: false, reason: gated };
+    for (const sentence of gated) {
+        if (sentence.role === "leading-gate")
+            return {
+                ok: false,
+                reason: "a leading gate reached assembly unfolded",
+            };
         if (exileUntil !== null) {
             if (sentence.role !== "exile-until-offer")
                 return {
@@ -7451,10 +7516,11 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
 
 /**
  * CR 608.2c — the replacement sentence: "If you control a <A> and a <B>,
- * <body> instead".
+ * <body> instead", or the one-clause "If you control a Bird, <body>
+ * instead".
  *
- * Exactly TWO controls clauses, each read by the shared `controlsRule`: the
- * shape every printed card of this family has, and "and" between two
+ * One or two controls clauses, each read by the shared `controlsRule`: the
+ * shapes the printed cards of this family have, and "and" between two
  * singular "you control a …" clauses is the only conjunction read here.
  */
 /**
@@ -7553,9 +7619,9 @@ export const insteadRule: Rule<SentenceIR> = rule<SentenceIR>(
         const clauses = match[1]!
             .slice("you control ".length)
             .split(/ and (?=an? )/);
-        if (clauses.length !== 2)
+        if (clauses.length > 2)
             return fail(
-                '"instead" reads exactly two "you control" clauses',
+                '"instead" reads one or two "you control" clauses',
                 span
             );
         const conditions: ConditionIR[] = [];
@@ -7704,6 +7770,10 @@ const UPGRADE_PUMP = /^that (\w+) gets ([+-]\d+)\/([+-]\d+) (.+)$/;
 const UPGRADE_DAMAGE = /^(.+) deals (\S+) damage$/;
 const UPGRADE_LIFE = /^(you|that player) (gain|gains|lose|loses) (\S+) life$/;
 const UPGRADE_LOOT = /^draw (\S+) cards?, then discard (\S+) cards?$/;
+/** CR 118.12a — "counter that spell unless its controller pays {4}": the
+ *  base's own announced spell, a larger flat tax. */
+const UPGRADE_COUNTER_TAX =
+    /^counter that spell unless its controller pays \{([1-9]\d*)\}$/;
 
 /**
  * The replacement clause read AGAINST the effect it replaces (CR 608.2c).
@@ -7776,6 +7846,24 @@ function readUpgrade(
             if (draw === null || discard === null)
                 return "a loot needs two counts";
             return { ...base, draw, discard };
+        }
+        case "counter": {
+            // CR 118.12a — the punisher's tax raised: the same announced
+            // spell ("that spell", CR 601.2c — chosen once), a flat tax on
+            // both sides, so only the amount changes.
+            const m = body.match(UPGRADE_COUNTER_TAX);
+            if (m === null) return `"${body}" does not upgrade a counter tax`;
+            if (
+                base.subject.kind !== "target" ||
+                base.unlessPays?.kind !== "flat" ||
+                base.destroysCounteredSource === true ||
+                base.losesAbilitiesOfCounteredSource === true
+            )
+                return "only a flat-taxed counter of an announced spell is upgraded";
+            return {
+                ...base,
+                unlessPays: { kind: "flat", amount: Number(m[1]) },
+            };
         }
         default:
             return `"… instead" cannot replace a ${base.kind}`;

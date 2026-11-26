@@ -75,6 +75,7 @@ import {
     CREATURE_SUBTYPES,
     ENCHANTMENT_SUBTYPES,
     isPermanentSubtype,
+    singularOfPermanentSubtype,
     LAND_SUBTYPES,
 } from "./subtypes";
 import { readSubtypeList } from "./subtypeList";
@@ -897,9 +898,10 @@ function readNoun(
             subtypes.push(part);
             continue;
         }
-        if (part.endsWith("s") && isPermanentSubtype(part.slice(0, -1))) {
+        const singularSubtype = singularOfPermanentSubtype(part);
+        if (singularSubtype !== null) {
             into.plural = true;
-            subtypes.push(part.slice(0, -1));
+            subtypes.push(singularSubtype);
             continue;
         }
         return `"${part}" is not a card type or a CR 205.3 subtype`;
@@ -1205,6 +1207,18 @@ export const targetDescriptorRule: Rule<DescriptorIR> = subGrammar(
  *  place an "and" / "and/or" subtype list names a union (CR 205.3):
  *  `lowerCountedSet` counts it. Every other reader refuses the list. */
 export const countedDescriptorRule: Rule<DescriptorIR> = subGrammar(
+    DESCRIPTOR,
+    descriptorRuleWith({
+        adjective: readAdjective,
+        noun: (tokens, into) => readNoun(tokens, into, { subtypeUnion: true }),
+    })
+);
+
+/** The descriptor rule of a STATIC lord's subject ("Other Rabbits, Bats,
+ *  Birds, and Mice you control", CR 613.4c): the set every object with any of
+ *  the listed subtypes belongs to (CR 205.3), read by
+ *  `staticFilterFromDescriptor` as its OR-matched `subtypes`. */
+export const staticSetDescriptorRule: Rule<DescriptorIR> = subGrammar(
     DESCRIPTOR,
     descriptorRuleWith({
         adjective: readAdjective,
@@ -1619,7 +1633,13 @@ export function boardManaFilterFromDescriptor(
     }
     // CR 205.3 — the AND/OR ambiguity `staticFilterFromDescriptor` refuses for
     // the same reason: `PermanentFilter.subtypes` is OR.
-    if ((descriptor.subtypes?.length ?? 0) > 1)
+    // A printed "and" list ("Rabbits, Bats, Birds, and Mice", CR 205.3) is
+    // marked `subtypeUnion` by the reader that admits it: genuinely OR, the
+    // `.some()` this filter already means.
+    if (
+        (descriptor.subtypes?.length ?? 0) > 1 &&
+        descriptor.subtypeUnion !== true
+    )
         return fail(
             "several subtypes at once: the filter cannot say whether they are AND or OR (CR 205.3)",
             (descriptor.subtypes ?? []).join(" ")
@@ -2425,7 +2445,13 @@ export function staticFilterFromDescriptor(
     // subtypes, so this does. Fixing it properly means teaching `DescriptorIR`
     // to carry the conjunction, which is a change to the target and cost sites
     // too — see docs/findings/2700-descriptor-subtype-conjunction.md.
-    if ((descriptor.subtypes?.length ?? 0) > 1)
+    // A printed "and" list ("Rabbits, Bats, Birds, and Mice", CR 205.3) is
+    // marked `subtypeUnion` by the reader that admits it: genuinely OR, the
+    // `.some()` this filter already means.
+    if (
+        (descriptor.subtypes?.length ?? 0) > 1 &&
+        descriptor.subtypeUnion !== true
+    )
         return fail(
             "several subtypes at once: the filter cannot say whether they are AND or OR (CR 205.3)",
             (descriptor.subtypes ?? []).join(" ")
@@ -2503,6 +2529,7 @@ export type StaticFilterEvaluation = "recomputed" | "materialised";
 const READ_BY_STATIC_FILTER: ReadonlySet<string> = new Set([
     "types",
     "subtypes",
+    "subtypeUnion",
     "supertypes",
     "excludeTypes",
     "excludeSubtypes",

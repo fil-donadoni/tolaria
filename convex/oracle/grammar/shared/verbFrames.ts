@@ -156,6 +156,7 @@ import {
 import { isSelfPhrase } from "./cost";
 import { durationRule, type DurationIR } from "./duration";
 import {
+    capitalise,
     type CoinFlipBranchIR,
     groupSubject,
     hostSubject,
@@ -184,6 +185,8 @@ import {
     zoneChoiceFilterFromDescriptor,
 } from "./targetFilter";
 import { CREATURE_SUBTYPES } from "./subtypes";
+import { readSubtypeList } from "./subtypeList";
+import { controlsRule, type ConditionIR } from "./condition";
 import { keywordVocabulary } from "./keywordVocabulary";
 import { hexproofFromKeywordsRule } from "./hexproofFromKeyword";
 import type { KeywordIR } from "../ir";
@@ -913,10 +916,28 @@ export type FrameName = FrameIR["frame"];
  * has cast a blue or black spell this turn", at least one spell an opponent
  * cast this turn that was one of `colors` as it became cast.
  */
-export type GateConditionIR = {
-    readonly kind: "opponent-cast-spell-this-turn";
-    readonly colors: readonly Color[];
-};
+export type GateConditionIR =
+    | {
+          readonly kind: "opponent-cast-spell-this-turn";
+          readonly colors: readonly Color[];
+      }
+    /**
+     * CR 608.2c + CR 109.5 — "If you control a Rabbit, <effect>": at least
+     * one permanent the controller controls matches, as the spell resolves.
+     * Read by the shared `controlsRule`, so a descriptor one controls site
+     * accepts is never refused here.
+     */
+    | { readonly kind: "you-control"; readonly condition: ConditionIR }
+    /**
+     * CR 608.2c + CR 205.3 — "If that creature is a Bird, Frog, Otter, or
+     * Rat, <effect>": the creature the sentence before put onto the
+     * battlefield has one of `subtypes`, read as it exists after it arrived
+     * (CR 400.7 — the returned permanent is a new object).
+     */
+    | {
+          readonly kind: "that-creature-is";
+          readonly subtypes: readonly string[];
+      };
 
 /** Every keyword spelling the vocabulary reads, longest first so "first
  *  strike" wins over a shorter prefix, as one regex alternation. */
@@ -3095,6 +3116,92 @@ export function trailingGateSentenceRule(
                             kind: "opponent-cast-spell-this-turn" as const,
                             colors,
                         },
+                        effect: parsed.value.effect,
+                    },
+                ],
+            },
+        });
+    });
+}
+
+/** The leading-gate Composition Rule's label (a fixture's `rule`). */
+export const LEADING_GATE = "leading gate";
+
+/** CR 608.2c — "If you control <a descriptor>, <effect>". */
+const IF_YOU_CONTROL = /^If (you control an? [^,]+), (.+)$/;
+
+/** CR 608.2c + CR 205.3 — "If that creature is a <A>, <B>, or <C>, <effect>":
+ *  an or-list of subtypes, the serial comma before its last member. */
+const IF_THAT_CREATURE_IS =
+    /^If that creature is (an?) ((?:[^\s,]+, )+or [^\s,]+), (.+)$/;
+
+/**
+ * CR 608.2c — the leading-gate Composition Rule: "If you control a Rabbit,
+ * scry 2." The condition is checked as the spell resolves, and the sentence
+ * behind it is read by `inner` like any sentence, so the gate is the same
+ * `gate` frame the trailing rule makes around whatever the body reads.
+ *
+ * Two conditions read here: the controls clause (CR 109.5, the shared
+ * `controlsRule`) and the type of the creature the sentence before put onto
+ * the battlefield (CR 205.3). A body that is the first half of a fold ("you
+ * may discard a card", whose "If you do" is the next sentence) comes back as
+ * a `leading-gate` sentence for `assembleSentences` to close over the fold.
+ * Fail-closed: a body ending "instead" is the replacement sentence's
+ * (`insteadRule`), a span matching neither head goes to `inner` whole, and a
+ * head whose condition or body fails fails the span.
+ */
+export function leadingGateSentenceRule(
+    inner: Rule<SentenceIR>
+): Rule<SentenceIR> {
+    return rule(LEADING_GATE, (span, ctx) => {
+        if (span.endsWith(" instead")) return inner.run(span, ctx);
+        const controls = span.match(IF_YOU_CONTROL);
+        const creature =
+            controls === null ? span.match(IF_THAT_CREATURE_IS) : null;
+        if (controls === null && creature === null) return inner.run(span, ctx);
+        let condition: GateConditionIR;
+        let body: string;
+        if (controls !== null) {
+            const read = controlsRule.run(controls[1]!, ctx);
+            if (!read.ok) return read;
+            condition = { kind: "you-control", condition: read.value };
+            body = controls[2]!;
+        } else {
+            const list = readSubtypeList(creature![2]!);
+            if (
+                list === null ||
+                list.conjunction !== "or" ||
+                list.number !== "singular"
+            )
+                return fail(
+                    `"${creature![2]}" is not an or-list of CR 205.3 subtypes`,
+                    span
+                );
+            if ((creature![1] === "an") !== /^[AEIOU]/.test(list.subtypes[0]!))
+                return fail(`"${creature![1]}" does not agree`, span);
+            condition = { kind: "that-creature-is", subtypes: list.subtypes };
+            body = creature![3]!;
+        }
+        const parsed = inner.run(capitalise(body), ctx);
+        if (!parsed.ok) return parsed;
+        if (parsed.value.role === "optional-hand-cost")
+            return ok({
+                role: "leading-gate" as const,
+                condition,
+                body: parsed.value,
+            });
+        if (parsed.value.role !== "effect")
+            return fail(
+                `a condition gates an effect, not a ${parsed.value.role}`,
+                span
+            );
+        return ok({
+            role: "effect" as const,
+            effect: {
+                frames: [
+                    {
+                        frame: "gate" as const,
+                        condition,
                         effect: parsed.value.effect,
                     },
                 ],
