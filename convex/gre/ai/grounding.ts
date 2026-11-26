@@ -19,7 +19,6 @@
 // Kept isomorphic (type-only state import) so it rides in `convex/gre/cardValue`
 // 's client-importable barrel.
 
-import type { GraveyardPlayGrant } from "./graveyardPlayWorth";
 import type {
     EffectCardFilter,
     EffectManaPool,
@@ -161,11 +160,6 @@ export interface LatentLens {
      *  when it trades itself for an effect (`dslSelfConsumingOption`).
      *  Present only on a lens attached to a real board. */
     readonly presenceWeight?: number;
-    /** The latent worth, in points, of the cards a graveyard play permission
-     *  granted to the caster would let it play out of its own graveyard this
-     *  turn on this board (`graveyardPlayUnlockWorth`): zero on an empty
-     *  graveyard. Absent off a board. Marks the lens measured. */
-    graveyardPlayWorth?(grant: GraveyardPlayGrant): number | undefined;
     /** True once `victimUnits` or `sweepUnits` has ANSWERED at least one slot off a REAL
      *  board — i.e. this script's board-affecting worth is MEASURED, not
      *  assumed from a representative victim.

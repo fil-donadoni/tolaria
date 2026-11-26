@@ -28,9 +28,4 @@ import type { RobustnessBaselineRow } from "./robustness";
 // per tree, and a fragile entry flips between ROBUST and NOISE-PINNED as
 // unrelated Bot changes move its root visits. History of each row lives in
 // git and in its owning issue.
-export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [
-    {
-        label: "wide board, one attacker: only the shadow creature attacks, killing the planeswalker, while three ground bodies stay home against a lethal crack-back (issue #10631)",
-        issue: 10715,
-    },
-];
+export const ROBUSTNESS_BASELINE: readonly RobustnessBaselineRow[] = [];

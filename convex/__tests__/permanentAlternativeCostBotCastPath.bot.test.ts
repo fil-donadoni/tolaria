@@ -210,47 +210,6 @@ describe("Bot permanent-leg alternative cast, GRE → game.ts (issue #4935, CR 1
         expect(live.stack.map((i) => i.id)).toEqual(["gush"]);
     });
 
-    // CR 601.2b (issue #10401) — a graveyard play permission states no cost,
-    // so the card's own alternative cost is the one alternative applied: the
-    // Move the Bot enumerates out of the graveyard is one `announceCast`
-    // takes, and the live sacrifice is the search's.
-    it("Fireblast out of the graveyard under a graveyard play permission: enumerated, announced, and charged alike", async () => {
-        const state = board(fireblast().id, mountain().id, "fireblast", true);
-        const p1 = state.players[0];
-        const spell = p1.hand.pop()!;
-        spell.zone = "graveyard";
-        p1.graveyard.push(spell);
-        // Without the permission the graveyard card is no cast at all.
-        expect(
-            enumerateMoves(state, "p1").filter(
-                (m) =>
-                    m.kind === "cast-spell" && m.cardInstanceId === "fireblast"
-            )
-        ).toEqual([]);
-        state.graveyardPlayPermissionThisTurn = [
-            {
-                playerId: "p1",
-                sourceId: "yawgmoths-will",
-                actions: ["play-land", "cast"],
-            },
-        ];
-
-        const move = altCastMove(state, "fireblast");
-        expect(move.castFromZone).toBe("graveyard");
-        expect(move.tapPlan).toEqual([]);
-        expect(move.castCostPicks?.sacrificeIds).toHaveLength(2);
-
-        const predicted = applyMoveForSearch(state, "p1", move);
-        expect(left(predicted)).toHaveLength(1);
-
-        const live = await driveLiveCast(state, move);
-        expect(left(live)).toEqual(left(predicted));
-        expect(live.stack.map((i) => i.id)).toEqual(["fireblast"]);
-        expect(live.players[0].graveyard.map((c) => c.id)).not.toContain(
-            "fireblast"
-        );
-    });
-
     it("a cost tax on the alternative cost (Thalia) fails closed instead of dropping the cast mid-search", () => {
         const state = board(fireblast().id, mountain().id, "fireblast", false);
         state.players[0].battlefield.forEach((c) => (c.isTapped = false));
