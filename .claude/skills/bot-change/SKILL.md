@@ -54,26 +54,15 @@ game: _"it cast Damnation on an empty board"_, _"it chump-blocked for no
 reason"_, _"it never uses the sac outlet"_. Do NOT jump to a fix. Five steps,
 in order, and the first is the one people skip.
 
-**Where a blunder ENDS UP has changed** (ADR 0124 §5, issue #3399). It used to
-end up as a fourteenth hand-written rule at the root; twelve of them
-accumulated that way, each correct on the one position it was written for and
-unfalsifiable everywhere else. The order now is **Verdicts → fit → report**:
-the position becomes a Verdict ("which move here?"), the evaluation weights are
-re-fitted from the verdict corpus, and what the fit cannot satisfy is REPORTED
-as a missing term rather than patched at the root. `RootDecisionMechanism` is
-FROZEN behind `ROOT_RULE_ALLOWLIST` (`convex/gre/ai/decisionTelemetry.ts`) — a
-new member does not compile and does not pass its guard test.
-
-**The freeze is wider while ADR 0186's gates are read** (owner ruling
-2026-11-26, § Decision 8). Until its Prototype gate is read, write NO new
-hand-written weight or preference: no root rule, no rollout priority, no
-dominance prune, no hand-picked constant. A report that the Bot preferred the
-wrong LEGAL move becomes an example — a Verdict, a Minimal Pair or a Line —
-and stops there. What still gets code: a bug, a card the Bot never plays (a
-Bot Gap), a forced loss in the `must` tier, a missing QUANTITY the Evaluation
-cannot read (the quantity is code, its weight is not), the rollout horizon
-(PRD issue #10815). And run no `verdicts:promote`: every player Verdict
-outside the Verdict Lock is the exam.
+**A blunder ends up as an example, never as code** (ADR 0124 §5, ADR 0186
+§8). The order is **Verdicts → fit → report**: what the fit cannot satisfy is
+REPORTED as a missing term. `RootDecisionMechanism` is FROZEN behind
+`ROOT_RULE_ALLOWLIST` (`convex/gre/ai/decisionTelemetry.ts`). Until ADR 0186's
+Prototype gate is read the freeze covers every hand-written weight or
+preference (root rule, rollout priority, dominance prune, hand-picked
+constant); a bug, a Bot Gap, a `must` forced loss and a missing QUANTITY still
+get code. Run no `verdicts:promote`: player Verdicts outside the lock are the
+exam.
 
 **1. Capture the position — do not reconstruct it from memory.** A symptom you
 cannot re-run is an anecdote, and a board rebuilt from recollection is a
