@@ -100,7 +100,7 @@ export function getPipCountsFromCost(
 /** CR 105.2 / 202.2 — the card's actual printed COLOUR(s): the colours of its
  *  mana cost plus those its colour indicator denotes (CR 202.2e,
  *  `CardDefinition.colorIndicator` — Living End is black with no mana cost). A
- *  card with neither is COLOURLESS (CR 105.2a) even when it TAPS for coloured
+ *  card with neither is COLOURLESS (CR 105.2c) even when it TAPS for coloured
  *  mana — a basic Island is colourless, an artifact with a generic cost is
  *  colourless, a devoid card is colourless whatever it costs ({@link
  *  hasDevoid}). This is the gameplay authority for every "a <colour> card"
