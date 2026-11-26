@@ -132,7 +132,9 @@ import {
     type ScenarioTriggerEvent,
     type ScenarioZoneObjectRef,
     type ScenarioKeywordTrigger,
+    type ScenarioCastModeFlag,
     KEYWORD_TRIGGER_SUBJECT_ZONE,
+    SCENARIO_CAST_MODE_FLAGS,
 } from "../debugScenarioSpec";
 import {
     lowerResolutionCheckpoint,
@@ -2453,6 +2455,18 @@ function seedDeclaredStack(
     const base = state.stack.length;
     items.forEach((entry, index) => {
         const casterId = seatPlayer(entry.controller).id;
+        // CR 601.2a / 601.2b — an ability or a trigger is not CAST, so it has
+        // no Cast Provenance and no cast mode; no branch below would stamp
+        // either, and dropping it silently rebuilds a different position.
+        if (
+            entry.kind !== "spell" &&
+            (entry.castFromZone !== undefined ||
+                SCENARIO_CAST_MODE_FLAGS.some((f) => entry[f] !== undefined))
+        ) {
+            throw new Error(
+                `buildStateFromScenario: stack index ${index} is a "${entry.kind}" declaring a cast fact (castFromZone or a cast-mode flag) — only a spell is cast.`
+            );
+        }
         const targets: TargetSelection[] | undefined = entry.targets?.map(
             (target) => resolveTarget(target, index)
         );
@@ -2633,6 +2647,10 @@ function seedDeclaredStack(
             // CR 601.2a — stamped as every cast commit stamps it; the spec
             // omits the ordinary hand case.
             castFromZone: entry.castFromZone ?? "hand",
+            // CR 601.2b (issue #10405) — the flag-shaped cast-mode markers,
+            // stamped as `commitCast` stamps them, so the resolution reads the
+            // same cast mode the live game did.
+            ...castModeFlagsOf(entry),
         };
         // CR 113.6c (issue #3278) — a card that declares off-battlefield
         // characteristics IS them everywhere except the battlefield, the stack
@@ -4245,7 +4263,9 @@ export const STACK_DROPPED_PREFIX = "stack:";
  *  3. announcement — the four facts the spec lowers (`castById` → `controller`,
  *     `targets`, `chosenX` → `x`, `abilityId`) plus `castOffSorceryTiming`,
  *     which is lowered for the reason its own spec field documents. A spell's
- *     `castFromZone` is lowered too, spell-only (`STACK_SPELL_ALLOWLIST`).
+ *     `castFromZone` and its flag-shaped cast-mode markers
+ *     (`SCENARIO_CAST_MODE_FLAGS`) are lowered too, spell-only
+ *     (`STACK_SPELL_ALLOWLIST`).
  *
  * NOT here, deliberately, and each one a refusal: `triggeredAbilityId` /
  * `triggerSourceId` / `triggerEvent` (a trigger is a later slice — and since
@@ -4379,10 +4399,29 @@ export function keywordTriggerOf(
     return present.length === 1 ? present[0] : undefined;
 }
 
-/** CR 601.2a — the key only a SPELL item may carry and the `spell` entry
- *  lowers: its Cast Provenance (`castFromZone`, hand omitted). An ability or a
- *  trigger is not cast, so on either one it stays residue. */
-const STACK_SPELL_ALLOWLIST = new Set<string>(["castFromZone"]);
+/** CR 601.2b (issue #10405) — the flag-shaped cast-mode markers set on
+ *  `from`, a stack item or a `spell` entry alike, as `{ flag: true }` pairs:
+ *  the shape both the lowering and the rebuild write. */
+function castModeFlagsOf(
+    from: Partial<Record<ScenarioCastModeFlag, unknown>>
+): Partial<Record<ScenarioCastModeFlag, true>> {
+    const flags: Partial<Record<ScenarioCastModeFlag, true>> = {};
+    for (let i = 0; i < SCENARIO_CAST_MODE_FLAGS.length; i++) {
+        const flag = SCENARIO_CAST_MODE_FLAGS[i];
+        if (from[flag] === true) flags[flag] = true;
+    }
+    return flags;
+}
+
+/** CR 601.2a / 601.2b — the keys only a SPELL item may carry and the `spell`
+ *  entry lowers: its Cast Provenance (`castFromZone`, hand omitted) and the
+ *  flag-shaped cast-mode markers its cast commit stamped (issue #10405 —
+ *  `impended`, `evoked`, …, derived from `CastModeMarkers` exhaustively). An
+ *  ability or a trigger is not cast, so on either one they stay residue. */
+const STACK_SPELL_ALLOWLIST = new Set<string>([
+    "castFromZone",
+    ...SCENARIO_CAST_MODE_FLAGS,
+]);
 
 /**
  * The CLONE keys an `ability` item may additionally carry, because its item is
@@ -5127,6 +5166,10 @@ function lowerStack(
             item.castFromZone !== "hand"
                 ? { castFromZone: item.castFromZone }
                 : {}),
+            // CR 601.2b (issue #10405) — the announced cast mode, read at
+            // resolution (CR 702.176a: an impended permanent enters with
+            // time counters and is not a creature).
+            ...(!isClone && !keyword ? castModeFlagsOf(item) : {}),
         });
     });
 

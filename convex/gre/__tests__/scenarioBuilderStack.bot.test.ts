@@ -25,8 +25,16 @@ import {
 import { counterspell } from "../../cards/sets/lea/blue.cards";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { lightningBolt } from "../../cards/sets/lea/red.cards";
-import { getDefinition } from "../../cards";
+import { getCardByName, getDefinition } from "../../cards";
 import { gristTheHungerTide } from "../../cards/sets/mh2/multicolor.cards";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup.helper";
+import { tryAutoCommitPendingCast } from "../../game";
+import { resolveTopOfStack } from "../state";
+import { SCENARIO_CAST_MODE_FLAGS } from "../../debugScenarioSpec";
 
 const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
 import type { BladeSetupStep } from "../ai/blade/types";
@@ -808,5 +816,216 @@ describe("a spell's Cast Provenance (CR 601.2a)", () => {
             dropped.filter((d) => d.startsWith(STACK_DROPPED_PREFIX))
         ).toEqual([]);
         expect(lowered.stack?.[0]).not.toHaveProperty("castFromZone");
+    });
+});
+
+describe("a spell's flag-shaped cast mode (CR 601.2b, issue #10405)", () => {
+    const OVERLORD = getCardByName("Overlord of the Balemurk").id;
+
+    /** p1 casts Overlord of the Balemurk for its impending cost through the
+     *  REAL cast commit (`tryAutoCommitPendingCast`), which stamps
+     *  `impended` on the stack item — the live position the verdict quiz
+     *  refused as `stack-not-lowerable`. */
+    function impendedOverlordOnStack(): GameState {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(OVERLORD, {
+                            id: "overlord",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+        });
+        state.turn = 3;
+        state.players[0].manaPool.B = 2;
+        state.pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "overlord",
+            manaCost: { X: 1, B: 1 },
+            tappedLandIds: [],
+            impended: true,
+        };
+        expect(tryAutoCommitPendingCast(state, "p1")).not.toBeNull();
+        expect(state.stack.map((s) => s.impended)).toEqual([true]);
+        return state;
+    }
+
+    it("lowers an impended Overlord, and the rebuild resolves it with time counters as a non-creature (CR 702.176a)", () => {
+        const live = impendedOverlordOnStack();
+        const { spec: lowered, dropped } = specFromState(live, {
+            mySeatId: "p1",
+        });
+        expect(
+            dropped.filter((d) => d.startsWith(STACK_DROPPED_PREFIX))
+        ).toEqual([]);
+        expect(lowered.stack).toEqual([
+            {
+                kind: "spell",
+                name: "Overlord of the Balemurk",
+                controller: "me",
+                impended: true,
+            },
+        ]);
+
+        const rebuilt = buildStateFromScenario(buildBladeBaseState(), lowered);
+        expect(rebuilt.stack.map((s) => s.impended)).toEqual([true]);
+        resolveTopOfStack(rebuilt);
+        const overlord = rebuilt.players[0].battlefield.find(
+            (c) => (c.card as { id?: string }).id === OVERLORD
+        );
+        expect(overlord?.counters?.time).toBe(5);
+        expect(overlord?.types).toEqual(["Enchantment"]);
+    });
+
+    // One shipped card per remaining flag, each cast for the mode the flag
+    // names: Endurance (evoke), Ragavan (dash), Quantum Riddler (warp), Damn
+    // (overload).
+    it.each([
+        ["evoked", "Endurance"],
+        ["dashed", "Ragavan, Nimble Pilferer"],
+        ["warped", "Quantum Riddler"],
+        ["overloaded", "Damn"],
+    ] as const)(
+        "round-trips `%s` on a %s spell through rebuild → lower",
+        (flag, card) => {
+            const spec: ScenarioSpec = {
+                ...OPP_TURN,
+                cards: OPP_TURN.cards.filter((c) => c.zone !== "hand"),
+                stack: [
+                    {
+                        kind: "spell",
+                        name: card,
+                        controller: "opp",
+                        [flag]: true,
+                    },
+                ],
+            };
+            const rebuilt = buildStateFromScenario(buildBladeBaseState(), spec);
+            expect(rebuilt.stack[0][flag]).toBe(true);
+            const { spec: lowered, dropped } = specFromState(rebuilt, {
+                mySeatId: rebuilt.players[0].id,
+            });
+            expect(
+                dropped.filter((d) => d.startsWith(STACK_DROPPED_PREFIX))
+            ).toEqual([]);
+            expect(lowered.stack).toEqual(spec.stack);
+        }
+    );
+
+    it("lowers no flag for a spell cast without a mode", () => {
+        const { lowered } = roundTrip(
+            OPP_TURN,
+            [
+                {
+                    kind: "cast",
+                    card: lightningBolt().name,
+                    by: "opp",
+                    target: grizzlyBears().name,
+                },
+            ],
+            0
+        );
+        for (const flag of SCENARIO_CAST_MODE_FLAGS) {
+            expect(lowered.stack?.[0]).not.toHaveProperty(flag);
+        }
+    });
+
+    it("still REFUSES a cast-mode flag on an ability item — an ability is not cast", () => {
+        const live = buildBladeState({
+            label: "ability cast-mode residue",
+            spec: BOARD,
+            setup: [
+                {
+                    kind: "activate",
+                    card: prodigalSorcerer.name,
+                    controller: "me",
+                    target: "opp",
+                },
+            ],
+            bot: "me",
+            budget: { iterations: 1 },
+            tier: "must",
+            expect: { moves: [] },
+        });
+        expect(live.stack[0].abilityId).toBeDefined();
+        live.stack[0].impended = true;
+
+        const { spec: lowered, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+        expect(lowered.stack).toBeUndefined();
+        const notes = dropped.filter((d) => d.startsWith(STACK_DROPPED_PREFIX));
+        expect(notes.join(" ")).toContain(
+            'the spec has no field for "impended"'
+        );
+    });
+
+    it("still REFUSES a cast-mode flag on a trigger item — a trigger is not cast", () => {
+        const live = buildBladeState({
+            label: "trigger cast-mode residue",
+            spec: OPP_TURN,
+            setup: [
+                {
+                    kind: "cast",
+                    card: lightningBolt().name,
+                    by: "opp",
+                    target: grizzlyBears().name,
+                },
+            ],
+            bot: "me",
+            budget: { iterations: 1 },
+            tier: "must",
+            expect: { moves: [] },
+        });
+        live.stack[0].triggeredAbilityId = "some-trigger";
+        live.stack[0].triggerEvent = {
+            type: "SPELL_CAST",
+        } as StackItem["triggerEvent"];
+        live.stack[0].evoked = true;
+
+        const { spec: lowered, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+        expect(lowered.stack).toBeUndefined();
+        const notes = dropped.filter((d) => d.startsWith(STACK_DROPPED_PREFIX));
+        expect(notes.join(" ")).toContain('the spec has no field for "evoked"');
+    });
+
+    it("the builder refuses an ability or trigger ENTRY declaring a cast-mode flag", () => {
+        for (const entry of [
+            {
+                kind: "ability" as const,
+                name: prodigalSorcerer.name,
+                controller: "me" as const,
+                abilityId: "x",
+                dashed: true,
+            },
+            {
+                kind: "trigger" as const,
+                name: prodigalSorcerer.name,
+                controller: "me" as const,
+                abilityId: "x",
+                event: { type: "SPELL_CAST" },
+                overloaded: true,
+            },
+        ]) {
+            expect(() =>
+                buildStateFromScenario(buildBladeBaseState(), {
+                    ...BOARD,
+                    stack: [
+                        entry as NonNullable<ScenarioSpec["stack"]>[number],
+                    ],
+                })
+            ).toThrow(/only a spell is cast/);
+        }
     });
 });

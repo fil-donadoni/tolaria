@@ -9,6 +9,7 @@ import type {
 } from "./cards/types";
 import { colors as ALL_COLORS, PERMANENT_TYPES } from "./cards/types";
 import type { Duration } from "./gre/state";
+import type { CastModeMarkers } from "./gre/castCommit";
 import type {
     ContinuousEffectInlinePayload,
     ContinuousEffectKeywordParameter,
@@ -668,6 +669,18 @@ export const scenarioStackItemValidator = v.object({
             v.literal("outsideGame")
         )
     ),
+    /** `kind: "spell"` only — CR 601.2b, the FLAG-SHAPED cast-mode markers
+     *  the cast commit stamps on the item (`SCENARIO_CAST_MODE_FLAGS`, issue
+     *  #10405), each read at resolution: CR 702.74a evoke's sacrifice,
+     *  CR 702.109a dash's haste and return, CR 702.185a warp's exile,
+     *  CR 702.176a impending's time counters and "not a creature", CR 702.96a
+     *  overload's text change. Absent means the mode was not announced; only
+     *  `true` is ever lowered. */
+    evoked: v.optional(v.boolean()),
+    dashed: v.optional(v.boolean()),
+    warped: v.optional(v.boolean()),
+    impended: v.optional(v.boolean()),
+    overloaded: v.optional(v.boolean()),
     /** `nth` for the ability's SOURCE permanent, read exactly as a target's is:
      *  the 0-based position among same-named permanents on `sourceSeat`'s
      *  battlefield. Omitted means 0. */
@@ -1377,7 +1390,50 @@ export type ScenarioStackItem = {
     castFromZone?: "exile" | "graveyard" | "library" | "outsideGame";
     sourceNth?: number;
     resolution?: ScenarioResolutionCheckpoint;
-};
+} & { [K in ScenarioCastModeFlag]?: boolean };
+
+/**
+ * CR 601.2b (issue #10405) — how the declared stack treats each marker of
+ * `CastModeMarkers`, the cast commit's own list of what an announced cast
+ * mode makes of the item. Exhaustive (`satisfies Record<…>`), so a marker
+ * added there reds `tsc` here until it is decided:
+ *
+ *  - `flag` — stamped on the stack item as a bare boolean and read at
+ *    resolution. A `spell` entry declares it under the same name, the lowering
+ *    carries it, the rebuild stamps it back.
+ *  - `characteristic` — the mode rewrites the item's characteristics
+ *    (CR 702.103b bestow, 702.37c morph, 715.3b adventure, 709.3b split half,
+ *    712.8f modal back face). Not a field: each is its own lowering question,
+ *    and until one is answered its residue still refuses the stack.
+ */
+const CAST_MODE_MARKER_LOWERING = {
+    evoked: "flag",
+    dashed: "flag",
+    warped: "flag",
+    impended: "flag",
+    overloaded: "flag",
+    bestowed: "characteristic",
+    morphed: "characteristic",
+    castAsAdventure: "characteristic",
+    castAsSplitHalf: "characteristic",
+    castAsModalBack: "characteristic",
+} as const satisfies Record<keyof CastModeMarkers, "flag" | "characteristic">;
+
+/** A flag-shaped cast-mode marker a `spell` stack entry can declare. */
+export type ScenarioCastModeFlag = {
+    [K in keyof typeof CAST_MODE_MARKER_LOWERING]: (typeof CAST_MODE_MARKER_LOWERING)[K] extends "flag"
+        ? K
+        : never;
+}[keyof typeof CAST_MODE_MARKER_LOWERING];
+
+/** Every {@link ScenarioCastModeFlag}, derived from the exhaustive table —
+ *  the one list the lowering, the rebuild and the normalizer iterate. */
+export const SCENARIO_CAST_MODE_FLAGS: readonly ScenarioCastModeFlag[] = (
+    Object.keys(CAST_MODE_MARKER_LOWERING) as (keyof CastModeMarkers)[]
+).filter(
+    (marker): marker is ScenarioCastModeFlag =>
+        CAST_MODE_MARKER_LOWERING[marker] === "flag"
+);
 
 export type ScenarioSpec = {
     cards: ScenarioCard[];
@@ -2354,8 +2410,36 @@ function normalizeStackItem(raw: unknown): ScenarioStackItem | undefined {
     set(item, "targets", targets);
     set(item, "x", pickNumber(raw.x));
     set(item, "castOffSorceryTiming", pickBoolean(raw.castOffSorceryTiming));
+    // CR 601.2a / 601.2b — the cast facts only a SPELL carries (issue
+    // #10405): an ability or a trigger is not cast, and the builder refuses
+    // one declaring either, so the row is dropped here rather than at load.
+    const castFromZone = pickCastFromZone(raw.castFromZone);
+    const castModeFlags = SCENARIO_CAST_MODE_FLAGS.filter(
+        (flag) => raw[flag] === true
+    );
+    if (
+        kind !== "spell" &&
+        (castFromZone !== undefined || castModeFlags.length > 0)
+    ) {
+        return undefined;
+    }
+    set(item, "castFromZone", castFromZone);
+    for (const flag of castModeFlags) item[flag] = true;
     set(item, "resolution", resolution);
     return item;
+}
+
+/** CR 601.2a — a stored Cast Provenance zone, or `undefined` (hand, the
+ *  omitted ordinary case, or an unknown value). */
+function pickCastFromZone(
+    raw: unknown
+): ScenarioStackItem["castFromZone"] | undefined {
+    return raw === "exile" ||
+        raw === "graveyard" ||
+        raw === "library" ||
+        raw === "outsideGame"
+        ? raw
+        : undefined;
 }
 
 /**
