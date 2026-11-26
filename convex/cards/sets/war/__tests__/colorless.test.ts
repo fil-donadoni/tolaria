@@ -17,10 +17,14 @@ import {
 } from "../../../__tests__/setup.helper";
 import { getCardByName } from "../../..";
 import { activateAbilityOnState } from "../../../../gre/activation";
+import { applyOneTargetSelection } from "../../../../game";
+import { projectPublicState } from "../../../../gameProjections";
+import { compactState, expandState } from "../../../../gre/serialize";
 import { getManaTapOptionsDetailed } from "../../../../gre/constants";
 import { getEffectivePT } from "../../../../gre/layers";
 import { advancePhase } from "../../../../gre/phases";
 import { checkStateBasedActions } from "../../../../gre/sba";
+import { resolveTopOfStack } from "../../../../gre/state";
 import type {
     CardInstanceState,
     GameState,
@@ -264,5 +268,39 @@ describe("Karn, the Great Creator — −2 (CR 400.11b, CR 406.3a)", () => {
         submitChoice(state, []);
         expect(handIds(state)).toEqual([]);
         expect(state.players[0].exile).toHaveLength(3);
+    });
+});
+
+describe("Karn, the Great Creator — full path (activation → resolution → save/load → wire)", () => {
+    it("the +1 announced through the activation mutation's body survives a save and reaches the client as an artifact creature with its locked base P/T", () => {
+        const live = board({
+            theirs: [perm("Seat of the Synod", "seat", "p2")],
+            mine: [perm("Jayemdae Tome", "tome", "p1")],
+        });
+        activateAbilityOnState(live, {
+            playerId: "p1",
+            cardInstanceId: "karn-p1",
+            abilityId: PLUS1,
+        });
+        applyOneTargetSelection(live, "p1", {
+            targetType: "permanent",
+            targetId: "tome",
+        });
+        // CR 606.4 — the +1 is paid as the cost.
+        expect(karnOf(live).counters?.loyalty).toBe(6);
+        resolveTopOfStack(live);
+        const state = expandState(compactState(live));
+        const slim = projectPublicState(
+            state,
+            1,
+            "p1"
+        ).players[0].battlefield.find((c) => c.id === "tome")!;
+        expect([...slim.types].sort()).toEqual(["Artifact", "Creature"]);
+        expect(
+            getEffectivePT(state, onBattlefield(state, "tome")!)
+        ).toMatchObject({
+            power: 4,
+            toughness: 4,
+        });
     });
 });

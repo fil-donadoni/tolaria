@@ -235,3 +235,33 @@ belongs to the ADR 0082 / PRD #2064 migration, where "the characteristics an
 object would have as it enters" gets one authority. What the fix DOES guarantee
 in the meantime is that the redirected card carries nothing away with it — the
 stamp is discarded on every abort branch (`discardEntryTypeLine`).
+
+## Amendment 3: the timed set ships after all (issue #10555)
+
+Amendment 1 recorded that `setCardTypes` shipped with **no `duration`**,
+because "becomes an artifact creature until end of turn" was `animate`'s
+template. That holds only where the Oracle line keeps the object's other types.
+`animate`'s type half is ADDITIVE — the "that's still a land" form of CR 205.1b
+— while a "becomes an artifact creature" with no retention clause is a CR
+205.1a SET: the new card types replace the old. On a plain noncreature artifact
+the two agree; on an artifact land or an artifact enchantment they do not.
+Karn, the Great Creator's +1 ("until your next turn, up to one target
+noncreature artifact becomes an artifact creature with power and toughness each
+equal to its mana value") reaches both in Modern, so the timed set the original
+decision designed is now needed.
+
+**`setCardTypes` takes an optional `duration`.** With one, the primitive writes
+a Continuous Effects Registry entry — layer 4, `affected: instances`,
+`type-change { set }`, `expiry: duration` — instead of the indefinite
+`typeLineHolds` ledger row, so the registry's own boundary tick ends it and the
+printed line returns. Nothing new is stored: the registry is already persisted,
+ticked and purged on a zone change (CR 400.7), and its layer-4 walk already
+derives the correlated-subtype removal from the suppressed types. Omitted, the
+Op is the indefinite set it always was.
+
+The card composes it with `animate`, which keeps the base P/T half (now an
+`EffectValue`, read once at resolution, CR 608.2h). `animate` still does not
+fold into this Op; that remains the ADR 0082 migration's call. The vocabulary
+asymmetry predicted in the decision now holds as predicted: `setSubtype`,
+`animate` and `setCardTypes` each accept both a stated and an indefinite
+duration.
