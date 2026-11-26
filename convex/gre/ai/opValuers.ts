@@ -183,7 +183,8 @@ const WHOLE_HAND_DISCARD_VALUE = 110; // representative whole-hand discard (~3 c
 const CARD_SELECTION_VALUE = 30; // lookDistribute/digMatchingToHand — an impulse-drawn card
 const SCRY_PER_CARD_VALUE = 10; // one card of scry-style selection
 const MILL_PER_CARD_VALUE = 6; // one milled card — a small library-resource shift
-const GRANT_GRAVEYARD_PLAY_VALUE = 80; // broad graveyard-replay permission (board-scaling)
+const GRANT_GRAVEYARD_PLAY_VALUE = 80; // broad graveyard-replay permission, read off no board
+const GRANT_GRAVEYARD_PLAY_FLOOR = 40; // the same permission on a board whose graveyard unlocks nothing yet — under one drawn card
 const RESTRICT_CASTING_VALUE = 20; // a turn-scoped "can't cast" denial
 const RESTRICT_LAND_PLAY_VALUE = 15; // a turn-scoped "can't play lands" denial
 const EXTRA_LAND_DROP_VALUE = 15; // one more land play this turn — the mirror of the denial above (a land in hand is not checked: the hand is the planner's, not the valuer's)
@@ -2932,10 +2933,26 @@ const becomePrepared: Valuer<"becomePrepared"> = grantCastPermission;
 
 const grantFlashback: Valuer<"grantFlashback"> = grantCastPermission;
 
-const grantGraveyardPlay: Valuer<"grantGraveyardPlay"> = () => ({
-    points: GRANT_GRAVEYARD_PLAY_VALUE,
-    tags: tagScaling(true, "cardAdvantage"),
-});
+// CR 601.3 (issue #10401) — a turn-scoped permission to play out of the
+// caster's own graveyard is worth what that graveyard holds: on a board, the
+// latent worth of the cards it could play this turn with the mana the
+// permission leaves (`graveyardPlayUnlockWorth`) — several cards on a stocked
+// graveyard, and on one that unlocks nothing yet the floor: the card still
+// waits for a graveyard worth replaying, so it is never free to throw away.
+// With no board to read, or granted to another player, the flat
+// representative grant.
+const grantGraveyardPlay: Valuer<"grantGraveyardPlay"> = (op, ctx) => {
+    const unlocked = ctx.isSelf(op.player, "self")
+        ? ctx.latent.graveyardPlayWorth?.(op)
+        : undefined;
+    return {
+        points:
+            unlocked === undefined
+                ? GRANT_GRAVEYARD_PLAY_VALUE
+                : Math.max(unlocked, GRANT_GRAVEYARD_PLAY_FLOOR),
+        tags: tagScaling(true, "cardAdvantage"),
+    };
+};
 
 const libraryLook: Valuer<"libraryLook"> = () => ZERO_OP_VALUE;
 

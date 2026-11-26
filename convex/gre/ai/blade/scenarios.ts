@@ -27669,6 +27669,88 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #8271 — nothing to replay.",
     },
     {
+        label: "graveyard: casts Yawgmoth's Will for the Fireblast it unlocks at lethal",
+        classification: {
+            kind: "absolute",
+        },
+        spec: {
+            phase: "PRECOMBAT_MAIN",
+            turn: 21,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 1, opp: 2 },
+            cards: [
+                {
+                    name: "Yawgmoth's Will",
+                    owner: "me",
+                    zone: "hand",
+                },
+                {
+                    name: "Swamp",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Blood Crypt",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Fireblast",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Toxic Deluge",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Walking Ballista",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Fabled Passage",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Wooded Foothills",
+                    owner: "me",
+                    zone: "graveyard",
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+        },
+        bot: "me",
+        budget: {
+            iterations: 400,
+        },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Yawgmoth's Will",
+                },
+            ],
+        },
+        note: "Issue #10401, CR 601.2b / 118.9. At 1 life against 2, the kill is two steps: Yawgmoth's Will, then Fireblast out of the graveyard for its alternative cost (the tapped Mountain and Blood Crypt, a Mountain too), 4 damage. The permission states no cost, so the alternative one stands (`permissionCastByAlternativeCostLegal`); the sacrifice cast is one the root move unlocks, so it stays in that subtree (`rootUnlockedSacrificeCasts`). Without either, the Will reads as a card spent for nothing and `pass` ties it.",
+    },
+    {
         label: "escape: casts Underworld Breach with a burn spell to escape at lethal",
         classification: {
             kind: "absolute",
