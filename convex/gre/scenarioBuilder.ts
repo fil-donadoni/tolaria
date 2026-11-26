@@ -108,6 +108,7 @@ function placedCard(
 import { ensureLayer6Base, INDEFINITE_SOURCE_ID, syncLayer6 } from "./layer6";
 import { basicLandsForColors, getColorsFromCost } from "../cards/colors";
 import { findTokenSpec, listTokenCatalogue } from "../cards/tokenCatalogue";
+import { currentAbilityId } from "../cards/retiredAbilityIds";
 import type {
     AnimateSpec,
     AnimateSpecWithPT,
@@ -2490,7 +2491,9 @@ function seedDeclaredStack(
             state.stack.push({
                 ...buildActivatedAbilityStackItem(source, {
                     castById: casterId,
-                    abilityId: entry.abilityId,
+                    // ADR 0114 — a stored spec keeps the id it was written
+                    // with; a retirement may since have renamed it.
+                    abilityId: currentAbilityId(entry.abilityId),
                     ...(targets !== undefined ? { targets } : {}),
                     ...(entry.x !== undefined ? { chosenX: entry.x } : {}),
                 }),
@@ -2529,7 +2532,12 @@ function seedDeclaredStack(
             // stamp all come from `buildTriggerItem` rather than a literal
             // here that drifts from it.
             state.stack.push({
-                ...buildTriggerItem(state, source, entry.abilityId, [event]),
+                ...buildTriggerItem(
+                    state,
+                    source,
+                    currentAbilityId(entry.abilityId),
+                    [event]
+                ),
                 // CR 603.3a — the ability's controller. Equal to the source's
                 // controller in every shipped case, and declared rather than
                 // re-derived for the same reason a spell's `controller` is.
