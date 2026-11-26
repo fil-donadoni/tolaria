@@ -42,6 +42,8 @@ import {
     COUNT_ZONES,
     MANA_SYMBOLS,
     MANA_UNIT_KINDS,
+    NEED_MEASURES,
+    NEED_SIDES,
     READ_ZONES,
     SIDES,
     countOf,
@@ -296,6 +298,7 @@ describe("generated vector — a column names a class, never a card (ADR 0186, D
         "cards",
         "hidden",
         "step",
+        "need",
         "total",
         // engine vocabularies
         ...SIDES,
@@ -310,6 +313,11 @@ describe("generated vector — a column names a class, never a card (ADR 0186, D
         "MULLIGAN",
         ...PHASE_ORDER,
     ]);
+
+    /** The `need` family's measures: this module's own closed list, so it
+     *  may only ADMIT a segment — never excuse one that spells a card's
+     *  name, which the catalogue-wide test below still refuses. */
+    const ownVocabulary = new Set<string>([...NEED_MEASURES, ...NEED_SIDES]);
 
     const segments = new Set<string>();
     for (const name of generatedColumns()) {
@@ -327,10 +335,12 @@ describe("generated vector — a column names a class, never a card (ADR 0186, D
         // shape: one camelCase identifier, never a name with spaces or a
         // card id.
         for (const leg of costLegs) expect(leg).toMatch(/^[a-z][A-Za-z]*$/);
+        for (const m of ownVocabulary) expect(m).toMatch(/^[a-z][A-Za-z0-9]*$/);
         const foreign = [...segments].filter(
             (segment) =>
                 !mechanicNames.has(segment) &&
                 !structural.has(segment) &&
+                !ownVocabulary.has(segment) &&
                 !costLegs.has(segment)
         );
         expect(foreign).toEqual([]);

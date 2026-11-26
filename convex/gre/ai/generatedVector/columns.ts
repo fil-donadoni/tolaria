@@ -84,6 +84,32 @@ export const MANA_SYMBOLS = [...colors, "generic", "X"] as const;
  *  colour (a dual land's unit counts under both). */
 export const MANA_UNIT_KINDS = ["total", ...colors] as const;
 
+/** The deck-relative distance measures (`deckNeeds.ts`): how many of the
+ *  requirements the seat's own cards state are met, how far the rest are, and
+ *  what the seat's searches can fetch. Read for the seat only — its own list
+ *  and its own hand. */
+export const NEED_MEASURES = [
+    "requirements",
+    "met",
+    "distanceMin",
+    "distance1",
+    "distance2",
+    "distance3",
+    "distanceFar",
+    "unreachable",
+    "fetchable",
+    "fetchableNow",
+    "searches",
+    "searchesPayable",
+    "findsPiece",
+    "findsSearch",
+    "findsManaValueMax",
+] as const;
+export type NeedMeasure = (typeof NEED_MEASURES)[number];
+
+/** The one side the `need` family is read for. */
+export const NEED_SIDES = ["self"] as const;
+
 /** Every leg an activation cost can have, as a value. A
  *  `Record<keyof cost, true>` so `tsc` reds when the cost type gains a leg
  *  with no row here — the column list follows the type, not a hand count. */
@@ -189,6 +215,7 @@ const FAMILY_ORDER = [
     "cards",
     "hidden",
     "step",
+    "need",
 ] as const;
 export type FamilyKey = (typeof FAMILY_ORDER)[number];
 
@@ -231,6 +258,10 @@ function buildFamilies(): Record<FamilyKey, ColumnFamily> {
         hidden: { tag: "hidden", axes: [READ_ZONES, SIDES] },
         // The current step, and whose turn it is: exactly one of these is 1.
         step: { tag: "step", axes: [Object.keys(PHASE_PRESENCE), SIDES] },
+        // How far the seat's list is from what its cards require, and what
+        // its searches can fetch (`deckNeeds.ts`). Zero without Deck
+        // Knowledge.
+        need: { tag: "need", axes: [NEED_MEASURES, NEED_SIDES] },
     };
 }
 
