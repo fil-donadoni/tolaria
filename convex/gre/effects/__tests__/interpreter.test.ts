@@ -30091,6 +30091,160 @@ describe("Effect Script Op: setCardTypes (CR 205.1a layer 4)", () => {
     });
 });
 
+describe("Effect Script Op: addCardType (CR 205.1b / 613.1d layer 4)", () => {
+    /** p2 controls one 2/5 creature as the announced target. */
+    function oneBear(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "typedBear",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    function bear(state: GameState): CardInstanceState {
+        return state.players[1].battlefield.find((c) => c.id === "typedBear")!;
+    }
+
+    it("ADDS the card type, keeping the creature's own type and P/T (CR 205.1b)", () => {
+        const id = registerScript("test-op-addcardtype-add", [
+            { op: "addCardType", target: { target: 0 }, cardType: "Artifact" },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "typedBear" }]);
+        resolveTopOfStack(state);
+        const after = bear(state);
+        expect(after.types).toContain("Artifact");
+        expect(after.types).toContain("Creature");
+        expect(getEffectivePower(state, after)).toBe(2);
+        expect(getEffectiveToughness(state, after)).toBe(5);
+    });
+
+    it("no duration is indefinite (CR 611.2a) — it survives CLEANUP, independent of its source (CR 611.2c)", () => {
+        const id = registerScript("test-op-addcardtype-indef", [
+            { op: "addCardType", target: { target: 0 }, cardType: "Artifact" },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "typedBear" }]);
+        resolveTopOfStack(state);
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(bear(state).types).toContain("Artifact");
+    });
+
+    it("an end-of-turn duration ends at CLEANUP (CR 611.2a)", () => {
+        const id = registerScript("test-op-addcardtype-eot", [
+            {
+                op: "addCardType",
+                target: { target: 0 },
+                cardType: "Artifact",
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "typedBear" }]);
+        resolveTopOfStack(state);
+        expect(bear(state).types).toContain("Artifact");
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(bear(state).types).toEqual(["Creature"]);
+    });
+
+    it("orders against a card-type SET by timestamp (CR 613.7): the later effect wins", () => {
+        const addThenSet = registerScript("test-op-addcardtype-then-set", [
+            { op: "addCardType", target: { target: 0 }, cardType: "Artifact" },
+            { op: "setCardTypes", target: { target: 0 }, types: ["Creature"] },
+        ]);
+        const first = oneBear();
+        pushSpell(first, addThenSet, "p1", [
+            { type: "permanent", id: "typedBear" },
+        ]);
+        resolveTopOfStack(first);
+        expect(bear(first).types).toEqual(["Creature"]);
+
+        const setThenAdd = registerScript("test-op-set-then-addcardtype", [
+            { op: "setCardTypes", target: { target: 0 }, types: ["Creature"] },
+            { op: "addCardType", target: { target: 0 }, cardType: "Artifact" },
+        ]);
+        const second = oneBear();
+        pushSpell(second, setThenAdd, "p1", [
+            { type: "permanent", id: "typedBear" },
+        ]);
+        resolveTopOfStack(second);
+        expect(bear(second).types).toContain("Artifact");
+        expect(bear(second).types).toContain("Creature");
+    });
+
+    it("composes inside forEach over the announced targets", () => {
+        const id = registerScript("test-op-addcardtype-foreach", [
+            {
+                op: "forEach",
+                select: { set: "targets" },
+                effects: [
+                    {
+                        op: "addCardType",
+                        target: { ref: "$each" },
+                        cardType: "Artifact",
+                    },
+                ],
+            },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "typedBear" }]);
+        resolveTopOfStack(state);
+        expect(bear(state).types).toContain("Artifact");
+    });
+
+    it("drops the added type when the permanent leaves the battlefield (CR 400.7)", () => {
+        const id = registerScript("test-op-addcardtype-bounce", [
+            { op: "addCardType", target: { target: 0 }, cardType: "Artifact" },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "typedBear" }]);
+        resolveTopOfStack(state);
+        removePermanentTo(state, "typedBear", "hand");
+        const bounced = state.players[1].hand.find(
+            (c) => c.id === "typedBear"
+        )!;
+        expect(bounced.types).toEqual(["Creature"]);
+        expect(state.continuousEffects ?? []).toEqual([]);
+    });
+
+    it("is a no-op when the targeted permanent is gone (CR 608.2b) and still resolves", () => {
+        const id = registerScript("test-op-addcardtype-gone", [
+            { op: "addCardType", target: { target: 0 }, cardType: "Artifact" },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(bear(state).types).toEqual(["Creature"]);
+        expect(state.continuousEffects ?? []).toEqual([]);
+    });
+
+    it("the added type survives projection (wire format)", () => {
+        const id = registerScript("test-op-addcardtype-wire", [
+            { op: "addCardType", target: { target: 0 }, cardType: "Artifact" },
+        ]);
+        const state = oneBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "typedBear" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "typedBear"
+        )!;
+        expect(slim.types).toContain("Artifact");
+        expect(slim.types).toContain("Creature");
+        expect(getEffectivePower(projected, slim)).toBe(2);
+    });
+});
+
 describe("Effect Script Op: skipNextUntap (CR 302.6 / 502.1)", () => {
     /** p2 controls one bear as the announced "doesn't untap" target. */
     function oneBear(): GameState {

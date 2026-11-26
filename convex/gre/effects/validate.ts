@@ -6315,6 +6315,17 @@ const OP_SCHEMAS: OpSchemaTable = {
             duration: isDurationSpec,
         },
     },
+    // CR 205.1b / 613.1d layer 4 (issue #3725) — ADD one card type "in
+    // addition to its other types" (Ashnod's Transmogrant, Liquimetal
+    // Coating). `target` is an object selector; `cardType` is ONE card type
+    // (CR 205.2a); `duration` is optional (CR 611.2a — omitted is indefinite).
+    addCardType: {
+        required: {
+            target: isObjectSelector,
+            cardType: (v) => typeof v === "string" && TOKEN_CARD_TYPES.has(v),
+        },
+        optional: { duration: isDurationSpec },
+    },
     // CR 613.1f layer 6 (issue #2361) — a permanent LOSES ALL ABILITIES,
     // indefinitely (Oko, Thief of Crowns' "+1: Target artifact or creature
     // loses all abilities …"). `target` is an object selector; deliberately no

@@ -1,4 +1,8 @@
 {
+    "addCardType": {
+        "code": "op-own-tests",
+        "reason": "Op \"addCardType\" adds a card type to a permanent (CR 205.1b) — covered by the Op's own interpreter + wire-format tests"
+    },
     "addMana": "runs",
     "addPlayerCounter": "runs",
     "addSubtype": "runs",

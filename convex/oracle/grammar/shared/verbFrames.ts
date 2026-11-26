@@ -653,6 +653,21 @@ export type FrameIR =
       }
     | {
           /**
+           * CR 205.1b + CR 613.1d (issue #3725) — "<object> becomes an
+           * artifact in addition to its other types[ <duration>]": one card
+           * type added to one object, keeping its own (layer 4). No printed
+           * duration lasts until the end of the game (CR 611.2a). Artifact
+           * only: the corpus's other card-type adds are "perpetually"
+           * (digital-only) forms, and "becomes a creature" owes P/T
+           * (`animate`'s).
+           */
+          readonly frame: "addCardType";
+          readonly subject: SubjectIR;
+          readonly cardType: "Artifact";
+          readonly duration?: DurationIR;
+      }
+    | {
+          /**
            * CR 701.27a — "Transform <this permanent>": the permanent the
            * ability is printed on turns over to its other face. Self only —
            * a transform aimed at another object ("transform it", "transform
@@ -1031,6 +1046,13 @@ export const VERB_FRAMES: readonly {
     { name: "transform", opens: /^transform \S/i },
     { name: "tapOrUntap", opens: /^you may tap or untap /i },
     { name: "airbend", opens: /^airbend \S/i },
+    // Listed BEFORE `addSubtype`, whose opener also matches the timeless
+    // "becomes an artifact in addition to its other types" (`frameOf` takes
+    // the first opener that matches).
+    {
+        name: "addCardType",
+        opens: /^.+? becomes an artifact in addition to its other types(?: until .+)?$/i,
+    },
     {
         name: "addSubtype",
         opens: /^(?:.+? (?:becomes|is)|it's) an? \S+ in addition to its other types$/i,
@@ -2199,6 +2221,48 @@ export function readSearchFrame(
     };
 }
 
+/** CR 205.1b — "<object> becomes an artifact in addition to its other
+ *  types[ <duration>]" (issue #3725). */
+const ADD_CARD_TYPE =
+    /^(.+?) becomes an artifact in addition to its other types(?: (until .+))?$/i;
+
+/**
+ * CR 205.1b + CR 611.2a (issue #3725) — the `addCardType` frame: ONE object
+ * (an announced target, the source, an anaphor), read exactly as the subtype
+ * add's subject is, and an optional printed duration.
+ */
+function readAddCardTypeFrame(
+    lower: string,
+    ctx: unknown
+):
+    | Extract<FrameIR, { frame: "addCardType" }>
+    | { readonly refused: string; readonly failure?: RuleResult<never> } {
+    const [, named, until] = lower.match(ADD_CARD_TYPE)!;
+    const subject =
+        named === "it"
+            ? ok({ kind: "that-creature" } as SubjectIR)
+            : subjectRule.run(named!, ctx);
+    if (!subject.ok) return { refused: subject.reason, failure: subject };
+    if (subject.value.kind === "mass")
+        return {
+            refused: `"${named}" — a group's card-type add is not read`,
+        };
+    if (until === undefined)
+        return {
+            frame: "addCardType",
+            subject: subject.value,
+            cardType: "Artifact",
+        };
+    const duration = durationRule.run(until, ctx);
+    if (!duration.ok) return { refused: duration.reason, failure: duration };
+    return {
+        frame: "addCardType",
+        subject: subject.value,
+        cardType: "Artifact",
+        duration: duration.value,
+    };
+}
+
 const ADD_SUBTYPE =
     /^(?:(.+?) (becomes|is)|(it)'s) an? (\S+) in addition to its other types$/i;
 
@@ -2758,6 +2822,10 @@ function readMember(
                 refused: `"${member}" — only the card itself becomes prepared`,
             };
         return { frames: [{ frame: "becomePrepared" }], referent };
+    }
+    if (opensFrame("addCardType", lower)) {
+        const read = readAddCardTypeFrame(lower, ctx);
+        return "refused" in read ? read : { frames: [read], referent };
     }
     if (opensFrame("addSubtype", lower)) {
         const read = readAddSubtypeFrame(lower, ctx);
