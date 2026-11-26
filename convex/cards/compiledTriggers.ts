@@ -60,6 +60,7 @@ import { attacksTrigger } from "./abilities/triggers/attacksTrigger";
 import { attacksOrBlocksTrigger } from "./abilities/triggers/attacksOrBlocksTrigger";
 import { blocksTrigger } from "./abilities/triggers/blocksTrigger";
 import { entersOrAttacksTrigger } from "./abilities/triggers/entersOrAttacksTrigger";
+import { entersOrUpkeepTrigger } from "./abilities/triggers/entersOrUpkeepTrigger";
 import { damageDealtTrigger } from "./abilities/triggers/damageDealtTrigger";
 import { damageTakenTrigger } from "./abilities/triggers/damageTakenTrigger";
 import { diedTrigger } from "./abilities/triggers/diedTrigger";
@@ -444,6 +445,12 @@ export type CompiledTriggerHead =
      * attacks": ONE Oracle line over the source's own entry and attack.
      */
     | { readonly kind: "enters-or-attacks" }
+    /**
+     * CR 603.2 / 603.6a / 603.2b — "when this permanent enters and at the
+     * beginning of your upkeep": ONE Oracle line over the source's own entry
+     * and its controller's upkeep.
+     */
+    | { readonly kind: "enters-or-upkeep" }
     /** CR 119.3 / 510.1 — "whenever this creature deals combat damage to a player". */
     | { readonly kind: "combat-damage-to-player" }
     /**
@@ -981,6 +988,8 @@ function resolveCompiledTriggerHead(
             return blocksTrigger(common);
         case "enters-or-attacks":
             return entersOrAttacksTrigger(common);
+        case "enters-or-upkeep":
+            return entersOrUpkeepTrigger(common);
         case "combat-damage-to-player":
             // CR 510.1 — combat damage only, dealt BY this permanent, to a
             // player. `relation: "any"` because "a player" is symmetric: in a

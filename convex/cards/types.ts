@@ -17920,7 +17920,18 @@ export type EffectForEachSelector =
           /** Optional card filter (AND, CR 205). Omitted = all cards. */
           filter?: EffectCardFilter;
       }
-    | { set: "bound"; ref: string }
+    | {
+          set: "bound";
+          ref: string;
+          /** CR 110.4a + CR 608.2c — "put all PERMANENT cards exiled this way
+           *  onto the battlefield" (Deep Space 9): narrows a frozen list of
+           *  EXILED cards (an `exileTopOfLibrary` `bindAll`) by card filter
+           *  at construct entry. Valid only with `simultaneous: true` and the
+           *  exile-return body — the one shape whose members are exile cards
+           *  a card filter can read; a member no longer in exile is dropped
+           *  (CR 400.7). Absent = the list unfiltered. */
+          filter?: EffectCardFilter;
+      }
     /** Iterate the CURRENTLY-RESOLVING spell/ability's announced targets
      *  (issue #1083) — the variable-N companion to a fixed-slot `target: N`
      *  `EffectObjectSelector`. Closes the "X-multi-target" gap: a

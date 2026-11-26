@@ -136,6 +136,7 @@ import * as ogw from "./sets/ogw/index.cards";
 import * as znr from "./sets/znr/index.cards";
 import * as woe from "./sets/woe/index.cards";
 import * as eoe from "./sets/eoe/index.cards";
+import * as trk from "./sets/trk/index.cards";
 import * as tla from "./sets/tla/index.cards";
 import * as tmt from "./sets/tmt/index.cards";
 import * as hob from "./sets/hob/index.cards";
@@ -297,6 +298,7 @@ const setModules: { code: string; exports: SetModuleExports }[] = [
     { code: "znr", exports: znr },
     { code: "woe", exports: woe },
     { code: "eoe", exports: eoe },
+    { code: "trk", exports: trk },
     { code: "tla", exports: tla },
     { code: "tmt", exports: tmt },
     { code: "hob", exports: hob },

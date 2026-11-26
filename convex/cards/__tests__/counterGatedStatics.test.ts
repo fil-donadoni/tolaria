@@ -320,6 +320,13 @@ describe("counter-gated materialized statics must declare dependsOnCounters (CR 
         const stray: string[] = [];
 
         for (const card of getAllCards()) {
+            // CR 721.2a — a striation's static is in force only "as long as
+            // this permanent has N or more charge counters on it": the gate
+            // `expandStationThresholds` wraps it in reads the source's charge
+            // counters by construction, behind a helper this source scan
+            // cannot see into (`gateSectionStatic`), so its declaration is
+            // honest by construction (issue #10552, Deep Space 9).
+            if ((card.stationThresholds?.length ?? 0) > 0) continue;
             for (const effect of staticEffectsOf(card)) {
                 if (effect.dependsOnCounters !== true) continue;
                 const sources = predicateSources(effect);
