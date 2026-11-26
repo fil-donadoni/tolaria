@@ -12616,7 +12616,7 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
             break;
         }
         case "copy": {
-            const candidateIds = asEntersCopyCandidates(state, card, choice);
+            const candidateIds = asEntersCopyCandidates(state, entry, choice);
             if (choice.fromGraveyard) {
                 // CR 707.2 — the graveyard twin of the battlefield pick below,
                 // on the shipped `choose-graveyard-card` shape; optional for
@@ -12895,9 +12895,10 @@ function asEntersAttackTargetOptions(
  *  derivation, so the offer and the auto-answer can never disagree. */
 function asEntersCopyCandidates(
     state: GameState,
-    card: CardInstanceState,
+    entry: Pick<StagedEntry, "card" | "controllerId">,
     choice: Extract<AsEntersChoice, { kind: "copy" }>
 ): string[] {
+    const card = entry.card;
     const fromGraveyard = choice.fromGraveyard;
     if (fromGraveyard) {
         // CR 113.6b — matched as a GRAVEYARD card, in every player's graveyard.
@@ -12915,6 +12916,10 @@ function asEntersCopyCandidates(
     const pList = state.players;
     for (let i = 0; i < pList.length; i++) {
         const p = pList[i];
+        // "a creature you control" — the player the permanent enters under.
+        if (choice.controller === "you" && p.id !== entry.controllerId) {
+            continue;
+        }
         const cList = p.battlefield;
         for (let j = 0; j < cList.length; j++) {
             const c = cList[j];
@@ -12969,7 +12974,7 @@ function forcedAsEntersAnswer(
     choice: AsEntersChoice | undefined
 ): string[] | undefined {
     if (choice?.kind === "copy") {
-        return asEntersCopyCandidates(state, entry.card, choice).length === 0
+        return asEntersCopyCandidates(state, entry, choice).length === 0
             ? []
             : undefined;
     }
@@ -13218,7 +13223,7 @@ function applyAsEntersAnswer(
             const source = !sourceId
                 ? undefined
                 : choice.fromGraveyard
-                  ? asEntersCopyCandidates(state, card, choice).includes(
+                  ? asEntersCopyCandidates(state, entry, choice).includes(
                         sourceId
                     )
                       ? state.players

@@ -1352,6 +1352,7 @@ describe("copy-on-ETB class — declarative copySourceFilter (issue #938)", () =
                 "Clone",
                 "Copy Artifact",
                 "Dance of Many",
+                "Glasspool Mimic",
                 "Phantasmal Image",
                 "Phyrexian Metamorph",
                 "Vesuvan Doppelganger",
