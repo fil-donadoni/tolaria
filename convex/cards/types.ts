@@ -768,11 +768,27 @@ export type Rarity = "common" | "uncommon" | "rare" | "mythic";
  *  object qualifies through EITHER axis. Not expressible as `type` plus
  *  `subtypeFilter`, which every consumer conjoins: a Vehicle that is not crewed
  *  is an artifact and no creature (CR 301.7). The single predicate is
- *  `matchesTypeOrSubtype` (`convex/gre/targetFilters.ts`). */
+ *  `matchesTypeOrSubtype` (`convex/gre/targetFilters.ts`).
+ *
+ *  `supertypes` widens the same or-list to a third axis — CR 700.6 "historic"
+ *  is "legendary, artifact, or Saga" (`HISTORIC_FILTER`,
+ *  below), read against the LIVE supertype status. */
 export interface TypeOrSubtypeFilter {
     types: CardType[];
     subtypes: string[];
+    supertypes?: CardSupertype[];
 }
+
+/** CR 700.6 — "The term historic refers to an object that has the legendary
+ *  supertype, the artifact card type, or the Saga subtype." The one spelling
+ *  of the union every "historic" target reads. Lives here, beside its type,
+ *  so a `cards/sets/**` file can import it without the `gre/constants` cycle
+ *  (see `LANDWALK_KEYWORD_BY_BASIC_TYPE`). */
+export const HISTORIC_FILTER: TypeOrSubtypeFilter = {
+    types: ["Artifact"],
+    subtypes: ["Saga"],
+    supertypes: ["Legendary"],
+};
 
 export interface EnchantRestriction {
     /** Card types, ANY of which a PERMANENT host must have (CR 702.5a — "The

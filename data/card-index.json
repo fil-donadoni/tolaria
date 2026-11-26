@@ -272,6 +272,14 @@
         "firstPrintSet": "msh"
     },
     {
+        "name": "Abstergo Entertainment",
+        "scryfallId": "4d197866-7633-493c-80dd-ec3a09165934",
+        "oracleId": "d06a8026-1657-4404-8dff-64e44f1a14f8",
+        "firstSet": "acr",
+        "firstPrintId": "4d197866-7633-493c-80dd-ec3a09165934",
+        "firstPrintSet": "acr"
+    },
+    {
         "name": "Abu Ja'far",
         "scryfallId": "0e9ad288-d164-44a6-96ec-4185a1587f1a",
         "oracleId": "a2404d88-0621-49ae-9908-052c23a96ac6",
