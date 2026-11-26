@@ -1683,18 +1683,29 @@ const entersTappedUnlessPayLife: Rule<StaticClauseIR> = pattern(
     }
 );
 
-const ENTERS_TAPPED_UNLESS_CONTROLS =
-    /^(.+) enters tapped unless you control (a basic land|\S+ or fewer other lands)$/;
+/** CR 305.6 — "a Plains", "an Island", …: one basic land type, with the
+ *  article English gives it. Built from the grammar's own five-type list, so
+ *  no other subtype ("an Equipment", "a Dimension") and no article mismatch
+ *  ("an Plains") reads as this object. */
+const A_BASIC_LAND_TYPE = BASIC_LAND_SUBTYPE_ORDER.map(
+    (type) => `${/^[AEIOU]/.test(type) ? "an" : "a"} ${type}`
+).join("|");
+
+const ENTERS_TAPPED_UNLESS_CONTROLS = new RegExp(
+    `^(.+) enters tapped unless you control (a basic land|${A_BASIC_LAND_TYPE}|\\S+ or fewer other lands)$`
+);
 
 /**
- * CR 614.1d — "<self> enters tapped unless you control a basic land" and
- * "… unless you control two or fewer other lands" (the fast lands). The
- * object is read through the shared controls-clause readers, with live
- * supertypes (CR 205.4c: "basic" is the supertype, never a basic land type),
- * but the pattern names the two objects this rule has fixtures for: "a
- * Forest", "two or more basic lands", "two or fewer lands" and every other
- * tail is a different form and refuses. The entering land is not on the
- * battlefield while the replacement is checked (CR 614.12); "other" is kept
+ * CR 614.1d — "<self> enters tapped unless you control a basic land", "…
+ * unless you control a Forest" (one basic land type, CR 305.6: the Eldraine
+ * castles) and "… unless you control two or fewer other lands" (the fast
+ * lands). The object is read through the shared controls-clause readers, with
+ * live supertypes (CR 205.4c: "basic" is the supertype, never a basic land
+ * type), but the pattern names only the three objects this rule has fixtures
+ * for. Every other tail is a different form and refuses — "a Plains or an
+ * Island", "an Equipment", "two or more basic lands", "two or fewer lands".
+ * The entering land is not on the battlefield while the replacement is
+ * checked (CR 614.12); "other" is kept
  * as the filter's `excludeSource` all the same, so the data says what the
  * card prints.
  */

@@ -13422,6 +13422,26 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Castle Ardenvale",
+        "scryfallId": "7f910495-8bd7-4134-a281-c16fd666d5cc",
+        "oracleId": "f8f4fc60-725d-46d8-8e8f-e68e00d20589",
+        "firstSet": "eld",
+        "firstPrintId": "7f910495-8bd7-4134-a281-c16fd666d5cc",
+        "firstPrintSet": "eld",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Castle Embereth",
+        "scryfallId": "8bb8512e-6913-4be6-8828-24cfcbec042e",
+        "oracleId": "91fbb25b-8521-483f-88b0-77778d25f7fd",
+        "firstSet": "eld",
+        "firstPrintId": "8bb8512e-6913-4be6-8828-24cfcbec042e",
+        "firstPrintSet": "eld",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Castle Sengir",
         "scryfallId": "16bfba30-4075-4bd6-9e4b-3a37641d43ce",
         "oracleId": "c7f0251a-9341-4ff2-8b15-31c06eb4f2e7",
@@ -13429,6 +13449,16 @@
         "firstPrintId": "16bfba30-4075-4bd6-9e4b-3a37641d43ce",
         "firstPrintSet": "hml",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Castle Vantress",
+        "scryfallId": "0a8b9d37-e89c-44ad-bd1b-51cb06ec3e0b",
+        "oracleId": "cdf41cf4-4e77-453d-be5b-0abbbd358934",
+        "firstSet": "eld",
+        "firstPrintId": "0a8b9d37-e89c-44ad-bd1b-51cb06ec3e0b",
+        "firstPrintSet": "eld",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
