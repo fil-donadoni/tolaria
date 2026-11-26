@@ -16,7 +16,9 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    resolveActivated,
 } from "../../../__tests__/setup.helper";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import {
     dealDamageFromPermanentToPlayer,
     flushPendingEvents,
@@ -177,5 +179,88 @@ describe("Enduring Curiosity — whenever a creature you control deals combat da
         // Flip only the combat flag on the SAME emitted event and it fires —
         // isolating the gate from the source-description fields.
         expect(fires(state, self, { ...emitted, isCombat: true })).toBe(true);
+    });
+});
+
+// Floodpits Drowner (issue #10504) — the entry trigger is the compiled
+// tap-and-stun clause on exercised Ops (covered by its golden). What only this
+// card exercises is the activated ability: the `hasCounter` target filter
+// (CR 122.1) and the move of TWO objects into their OWNERS' libraries
+// (CR 108.3, CR 701.24a), gated on the Drowner still being the same object
+// (CR 400.7).
+describe("Floodpits Drowner — shuffle itself and a stunned creature away", () => {
+    const drowner = getDefinition("a6a62aa3-8edb-4000-8ebd-15ec4b00eed7");
+    const SHUFFLE = drowner.activatedAbilities!.find(
+        (a) => a.id === "floodpits-drowner-shuffle"
+    )!;
+
+    function drownerBoard(stun: number) {
+        const self = makeInstance(drowner.id, {
+            id: "drowner",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [self] }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(grizzlyBears.id, {
+                            id: "stunned",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            ...(stun > 0 ? { counters: { stun } } : {}),
+                        }),
+                        makeInstance(grizzlyBears.id, {
+                            id: "plain",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        return { state, self };
+    }
+
+    it("offers only a creature with a stun counter as the target (CR 122.1)", () => {
+        const { state } = drownerBoard(1);
+        const ids = getLegalTargets(
+            state,
+            SHUFFLE.targetRequirement!,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
+        expect(ids).toEqual(["stunned"]);
+    });
+
+    it("puts both objects into their owners' libraries", () => {
+        const { state, self } = drownerBoard(1);
+        resolveActivated(state, self, SHUFFLE.id, [
+            { type: "permanent", id: "stunned" },
+        ]);
+        const [p1, p2] = state.players;
+        expect(p1!.battlefield.map((c) => c.id)).toEqual([]);
+        expect(p2!.battlefield.map((c) => c.id)).toEqual(["plain"]);
+        expect(p1!.library.map((c) => c.card.id)).toEqual([drowner.id]);
+        expect(p2!.library.map((c) => c.card.id)).toEqual([grizzlyBears.id]);
+        // CR 701.24a — each owner shuffled: the public insert's placement
+        // knowledge (ADR 0026) is ended by the shuffle, in BOTH libraries.
+        for (const card of [p1!.library[0]!, p2!.library[0]!])
+            expect(card.libraryPositionKnownTo).toBeUndefined();
+    });
+
+    it("leaves a Drowner that already left the battlefield where it is (CR 400.7)", () => {
+        const { state, self } = drownerBoard(1);
+        state.players[0]!.battlefield = [];
+        state.players[0]!.graveyard = [{ ...self, zone: "graveyard" }];
+        resolveActivated(state, self, SHUFFLE.id, [
+            { type: "permanent", id: "stunned" },
+        ]);
+        const [p1, p2] = state.players;
+        expect(p1!.graveyard.map((c) => c.id)).toEqual(["drowner"]);
+        expect(p1!.library).toEqual([]);
+        expect(p2!.library.map((c) => c.card.id)).toEqual([grizzlyBears.id]);
+        expect(p2!.library[0]!.libraryPositionKnownTo).toBeUndefined();
     });
 });

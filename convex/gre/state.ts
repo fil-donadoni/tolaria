@@ -1509,6 +1509,7 @@ export const PENDING_TARGET_FILTER_KEYS = {
     zoneOwnerId: true,
     putIntoGraveyardThisTurn: true,
     isToken: true,
+    hasCounter: true,
     controlledSinceTurnStart: true,
     attachedToFilter: true,
     playerAttackedThisTurn: true,

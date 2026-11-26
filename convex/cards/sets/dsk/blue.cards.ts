@@ -7,6 +7,7 @@ import { defineCard } from "../../types";
 import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Enduring Curiosity — {2}{U}{U} Enchantment Creature — Cat Glimmer, 4/3
 // (issue #2085, the DSK "Enduring" cycle; the shared dies-trigger and its
@@ -116,5 +117,112 @@ export const abhorrentOculus = defineCard(() => ({
             scope: "opponents",
             effects: [{ op: "manifestDread", player: "controller" }],
         }),
+    ],
+}));
+
+// Floodpits Drowner — {1}{U} Creature — Merfolk, 2/1 (issue #10504).
+//
+// "Flash" / "Vigilance" — CR 702.8a / 702.20a, `staticAbilities` keywords.
+//
+// "When this creature enters, tap target creature an opponent controls and
+// put a stun counter on it." — CR 603.6a entry trigger: a CR 701.26a tap,
+// then a CR 122.1d stun counter on the same announced target. The compiler
+// reads this line (the tap-and-stun clause); written here because the card
+// as a whole is Hand Tail.
+//
+// "{1}{U}, {T}: Shuffle this creature and target creature with a stun
+// counter on it into their owners' libraries." — the target is a creature
+// carrying at least one stun counter (`hasCounter`, CR 122.1). Each object
+// goes to its OWNER's library (CR 108.3), then each owner shuffles (CR
+// 701.24a):
+//  - "this creature" is the permanent only: a Drowner that left the
+//    battlefield in response is a new object (CR 400.7), so its move is
+//    gated on it still being there, and `$source.owner` resolves only while
+//    it is (an absent owner skips that shuffle, CR 608.2b).
+//  - the target's owner is read off the moved object's snapshot, since the
+//    battlefield-scoped `ownerOf` reads nothing once it has left.
+//  - one player owning both objects shuffles twice — outcome-identical to
+//    one shuffle (a random order either way).
+// hand-tail: {1}{U}, {T}: Shuffle this creature and target creature with a stun counter on it into their owners' libraries. (#10504)
+export const floodpitsDrowner = defineCard(() => ({
+    id: "a6a62aa3-8edb-4000-8ebd-15ec4b00eed7",
+    name: "Floodpits Drowner",
+    rarity: "uncommon",
+    manaCost: { X: 1, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Merfolk"],
+    power: 2,
+    toughness: 1,
+    oracleText:
+        "Flash\nVigilance\nWhen this creature enters, tap target creature an opponent controls and put a stun counter on it.\n{1}{U}, {T}: Shuffle this creature and target creature with a stun counter on it into their owners' libraries.",
+    staticAbilities: ["flash", "vigilance"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "floodpits-drowner-etb",
+            oracleText:
+                "When this creature enters, tap target creature an opponent controls and put a stun counter on it.",
+            scope: "self",
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "opponent",
+            },
+            effects: [
+                { op: "tapUntap", action: "tap", target: { target: 0 } },
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "stun",
+                    target: { target: 0 },
+                    count: 1,
+                },
+            ],
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "floodpits-drowner-shuffle",
+            oracleText:
+                "{1}{U}, {T}: Shuffle this creature and target creature with a stun counter on it into their owners' libraries.",
+            cost: { mana: { X: 1, U: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                hasCounter: { type: "stun" },
+            },
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        objectMatchesFilter: { ref: "$source" },
+                        filter: {},
+                    },
+                    then: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            to: "library",
+                        },
+                    ],
+                },
+                {
+                    op: "moveZone",
+                    target: { target: 0 },
+                    to: "library",
+                    bind: "$shuffled",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: { ref: "$source.owner" },
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: { ref: "$shuffled.owner" },
+                },
+            ],
+        },
     ],
 }));
