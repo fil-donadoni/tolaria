@@ -1701,10 +1701,11 @@ const ENTERS_TAPPED_UNLESS_CONTROLS = new RegExp(
  * castles) and "… unless you control two or fewer other lands" (the fast
  * lands). The object is read through the shared controls-clause readers, with
  * live supertypes (CR 205.4c: "basic" is the supertype, never a basic land
- * type), but the pattern names the three objects this rule has fixtures for:
- * "a Plains or an Island", "an Equipment", "two or more basic lands", "two or
- * fewer lands" and every other tail is a different form and refuses. The entering land is not on the
- * battlefield while the replacement is checked (CR 614.12); "other" is kept
+ * type), but the pattern names only the three objects this rule has fixtures
+ * for. Every other tail is a different form and refuses — "a Plains or an
+ * Island", "an Equipment", "two or more basic lands", "two or fewer lands".
+ * The entering land is not on the battlefield while the replacement is
+ * checked (CR 614.12); "other" is kept
  * as the filter's `excludeSource` all the same, so the data says what the
  * card prints.
  */
