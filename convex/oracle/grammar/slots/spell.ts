@@ -85,7 +85,10 @@ import {
     sentenceRule,
     type SentenceIR,
 } from "../shared/effectClause";
-import { trailingGateSentenceRule } from "../shared/verbFrames";
+import {
+    leadingGateSentenceRule,
+    trailingGateSentenceRule,
+} from "../shared/verbFrames";
 import { BULLET, GROUP_SEPARATOR } from "../lineGroups";
 import type { FlashbackCostIR, SlotIR, SpellModeIR } from "../ir";
 
@@ -118,12 +121,15 @@ function readSentences(
  * has, and the kicker a gate reads is lowered from the card's own kicker line
  * (`lower.ts`), which no ability site sees. The trailing cast gate ("Draw a
  * card if an opponent has cast a blue spell this turn.") sits inside it: the
- * corpus prints it on spells alone. The gift clauses (CR 702.174k) are the
+ * corpus prints it on spells alone, and so does the leading gate ("If you
+ * control a Rabbit, scry 2."). The gift clauses (CR 702.174k) are the
  * spell's own promise, read off its gift line in the same way.
  */
 const spellSentence: Rule<SentenceIR> = giftSentenceRule(
     kickedSentenceRule(
-        comparativeSentenceRule(trailingGateSentenceRule(sentenceRule))
+        leadingGateSentenceRule(
+            comparativeSentenceRule(trailingGateSentenceRule(sentenceRule))
+        )
     )
 );
 

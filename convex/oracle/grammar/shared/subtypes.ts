@@ -137,3 +137,26 @@ export function isPermanentSubtype(token: string): boolean {
         ARTIFACT_SUBTYPES.has(token)
     );
 }
+
+/**
+ * The plural nouns of CR 205.3 subtypes that are not the singular plus "s",
+ * plural → singular. Only a spelling a cluster has a golden fixture for is
+ * listed: an irregular noun changes how every card printing it reads, so
+ * "Elves", "Dwarves" or "Allies" each wait for the cluster that measures
+ * them.
+ */
+const IRREGULAR_SUBTYPE_PLURALS: ReadonlyMap<string, string> = new Map([
+    ["Mice", "Mouse"],
+]);
+
+/**
+ * The singular of a plural permanent-subtype noun ("Rats" → "Rat", "Mice" →
+ * "Mouse"), or `null` when the word is no such plural.
+ */
+export function singularOfPermanentSubtype(word: string): string | null {
+    const irregular = IRREGULAR_SUBTYPE_PLURALS.get(word);
+    if (irregular !== undefined) return irregular;
+    if (!word.endsWith("s")) return null;
+    const singular = word.slice(0, -1);
+    return isPermanentSubtype(singular) ? singular : null;
+}

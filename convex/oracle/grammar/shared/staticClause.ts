@@ -138,6 +138,7 @@ import {
 import {
     COLOR_WORDS,
     descriptorRule,
+    staticSetDescriptorRule,
     staticFilterFromDescriptor,
     type DescriptorIR,
     type StaticFilterEvaluation,
@@ -741,6 +742,13 @@ function isInvariantPluralSubject(value: DescriptorIR): boolean {
 }
 
 /**
+ * Whether a subject may be a printed subtype list ("Rabbits, Bats, Birds, and
+ * Mice", CR 205.3). Only the lord P/T frame has a fixture for one; every other
+ * frame keeps refusing the list.
+ */
+type SubtypeUnion = "admitted" | "refused";
+
+/**
  * Read the subject of an anthem or a lord sentence.
  *
  * PLURAL is required, not incidental: "Creatures you control" describes a SET,
@@ -757,11 +765,14 @@ function isInvariantPluralSubject(value: DescriptorIR): boolean {
  */
 function readSubject(
     span: string,
-    evaluation: StaticFilterEvaluation
+    evaluation: StaticFilterEvaluation,
+    subtypeUnion: SubtypeUnion = "refused"
 ): RuleResult<PermanentFilter> {
     const head = span.startsWith("All ") ? span.slice("All ".length) : span;
     if (head.length === 0) return fail("empty static subject", span);
-    const descriptor = descriptorRule.run(head, undefined);
+    const descriptor = (
+        subtypeUnion === "admitted" ? staticSetDescriptorRule : descriptorRule
+    ).run(head, undefined);
     if (!descriptor.ok) return descriptor;
     const value: DescriptorIR = descriptor.value;
     if (value.plural !== true && !isInvariantPluralSubject(value))
@@ -810,12 +821,14 @@ const OTHER_PREFIX = "Other ";
  */
 function readOtherSubject(
     span: string,
-    evaluation: StaticFilterEvaluation
+    evaluation: StaticFilterEvaluation,
+    subtypeUnion: SubtypeUnion = "refused"
 ): RuleResult<PermanentFilter> {
     const other = span.startsWith(OTHER_PREFIX);
     const filter = readSubject(
         other ? span.slice(OTHER_PREFIX.length) : span,
-        evaluation
+        evaluation,
+        subtypeUnion
     );
     if (!filter.ok || !other) return filter;
     return ok({ ...filter.value, excludeSource: true });
@@ -887,8 +900,10 @@ export const anthemRule: Rule<StaticClauseIR> = rule(
             // without the source itself (`excludeSource`), read by the helper
             // the keyword-grant frame shares; every other subject may name
             // either side's battlefield.
+            // A printed subtype list is read on the lord's own side only:
+            // "Other Rabbits, Bats, Birds, and Mice you control" (CR 205.3).
             const filter = subject.startsWith(OTHER_PREFIX)
-                ? readOtherSubject(subject, "recomputed")
+                ? readOtherSubject(subject, "recomputed", "admitted")
                 : readSubjectOfEitherSide(subject, "recomputed");
             if (!filter.ok) return filter;
             return ok({
