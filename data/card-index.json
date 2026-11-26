@@ -54643,6 +54643,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Master of the Pearl Trident",
+        "scryfallId": "e7decbd3-c754-451c-8d63-4f31f81412d2",
+        "oracleId": "9f6ea9fe-eee5-4dca-a34e-c66d3e218716",
+        "firstSet": "m13",
+        "firstPrintId": "e7decbd3-c754-451c-8d63-4f31f81412d2",
+        "firstPrintSet": "m13"
+    },
+    {
         "name": "Master Splicer",
         "scryfallId": "859d2b91-63af-4700-8ca5-b1756aa6639b",
         "oracleId": "9e0c5919-aed6-4d98-85c8-2658be78bdf0",
