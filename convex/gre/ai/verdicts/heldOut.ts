@@ -26,7 +26,7 @@
 // keyed on the registry's ENTRIES, not on the Verdicts they lower to, so an
 // entry the lowering refuses (a `gap`) still claims its scenario.
 //
-// THE EXAM SIDE BY RULE (ADR 0186 Decision 7, issue #10851). A Verdict the
+// THE EXAM SIDE BY RULE (ADR 0186 Decision 7). A Verdict the
 // lock names in `examIds` (`heldOutByRule`, set by `verdictsFromLock`) is
 // held out whatever its scenario hashes to: player Verdicts are the exam
 // until the Prototype gate is read. The Test Position override still wins —
