@@ -86,7 +86,14 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
                                 : {}),
                         },
                     }
-                  : { kind: "entered", scope: head.scope };
+                  : head.permanentType !== undefined
+                    ? // CR 205.2a — a card-type narrowing ("a land enters").
+                      {
+                          kind: "entered",
+                          scope: head.scope,
+                          filter: { types: [head.permanentType] },
+                      }
+                    : { kind: "entered", scope: head.scope };
         case "dies":
             // CR 603.6 — the event IS `CREATURE_DIED`, so the head carries no
             // type filter: a second authority on the same fact is a second
@@ -302,8 +309,19 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
             : {}),
         // CR 303.4b — "its controller" behind a host-tapped head is
         // the tapped land's controller, not the Aura's.
-        ...(head.kind === "tapped-for-mana"
-            ? { tappedController: { ref: "$event.controllerId" } }
+        ...(head.kind === "tapped-for-mana" && head.scope === "host"
+            ? { landController: { ref: "$event.controllerId" } }
+            : {}),
+        // CR 603.6a + CR 110.2 — "its controller" / "that land's controller"
+        // behind "whenever a land enters" is the entering land's controller
+        // (`PERMANENT_ENTERED.controllerId`), not the source's.
+        ...(head.kind === "enters" && head.permanentType === "Land"
+            ? { landController: { ref: "$event.controllerId" } }
+            : {}),
+        // CR 106.12 + CR 602.2 — "whenever a player taps a land for mana"
+        // names the player who tapped it, the land's controller.
+        ...(head.kind === "tapped-for-mana" && head.scope === "any"
+            ? { player: { ref: "$event.controllerId" } }
             : {}),
         ...(damagedOpponent !== null
             ? { player: damagedOpponent, opponent: damagedOpponent }
@@ -674,6 +692,9 @@ export function lowerTriggeredAbility(input: {
             : {}),
     };
     delete (laterAntecedents as { object?: unknown }).object;
+    // CR 608.2h — "its controller" after the first sentence may mean an
+    // object that sentence acted on, so the head's land is withheld there too.
+    delete (laterAntecedents as { landController?: unknown }).landController;
     // CR 608.2b — "This ability still resolves if its target becomes
     // illegal" is the ability's, whichever sentence carries it. Only an
     // entered head's factory forwards it.

@@ -18787,4 +18787,177 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 603.6a + CR 110.2 — "Whenever a land enters, … deals 2 damage to
+    // that land's controller": the recipient is the entering land's
+    // controller (`$event.controllerId`), whom the canned smoke scenario
+    // cannot stage. The same form is Manabarbs' "whenever a player taps a land
+    // for mana, … deals 1 damage to that player" (CR 106.12).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "63c1eda1-3e6f-4e9c-adf3-a43164df98bb",
+            name: "Ankh of Mishra",
+            manaCost: "{2}",
+            typeLine: "Artifact",
+            oracleText:
+                "Whenever a land enters, this artifact deals 2 damage to that land's controller.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Ankh of Mishra",
+            types: ["Artifact"],
+            manaCost: { X: 2 },
+            oracleText:
+                "Whenever a land enters, this artifact deals 2 damage to that land's controller.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "ankh-of-mishra-trigger",
+                    oracleText:
+                        "Whenever a land enters, this artifact deals 2 damage to that land's controller.",
+                    head: {
+                        kind: "entered",
+                        scope: "any",
+                        filter: { types: ["Land"] },
+                    },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: 2,
+                            to: { player: { ref: "$event.controllerId" } },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.26a + CR 110.2 — "Whenever a land enters, tap all lands its
+    // controller controls": a sweep over the entering land's controller's
+    // battlefield (`$event.controllerId`), a runtime-selected set the canned
+    // smoke scenario cannot stage.
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "0e68ee36-9649-490a-8483-fc8bdc23f161",
+            name: "Tectonic Instability",
+            manaCost: "{2}{R}",
+            typeLine: "Enchantment",
+            oracleText:
+                "Whenever a land enters, tap all lands its controller controls.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Tectonic Instability",
+            types: ["Enchantment"],
+            manaCost: { X: 2, R: 1 },
+            oracleText:
+                "Whenever a land enters, tap all lands its controller controls.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "tectonic-instability-trigger",
+                    oracleText:
+                        "Whenever a land enters, tap all lands its controller controls.",
+                    head: {
+                        kind: "entered",
+                        scope: "any",
+                        filter: { types: ["Land"] },
+                    },
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { type: "Land" },
+                                controller: { ref: "$event.controllerId" },
+                            },
+                            effects: [
+                                {
+                                    op: "tapUntap",
+                                    action: "tap",
+                                    target: { ref: "$each" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 603.2b + CR 701.21a — "At the beginning of each opponent's upkeep,
+    // that player sacrifices a creature of their choice": the sacrificing
+    // player is whoever's upkeep it is (`$event.activePlayerId`), a runtime
+    // binding the canned smoke scenario cannot stage.
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "9218b56d-aaec-482f-99e9-d95d227bfe25",
+            name: "Sheoldred, Whispering One",
+            manaCost: "{5}{B}{B}",
+            typeLine: "Legendary Creature — Phyrexian Praetor",
+            oracleText:
+                "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)\nAt the beginning of your upkeep, return target creature card from your graveyard to the battlefield.\nAt the beginning of each opponent's upkeep, that player sacrifices a creature of their choice.",
+            power: "6",
+            toughness: "6",
+            layout: "normal",
+        },
+        expected: {
+            name: "Sheoldred, Whispering One",
+            types: ["Creature"],
+            supertypes: ["Legendary"],
+            subtypes: ["Phyrexian", "Praetor"],
+            manaCost: { X: 5, B: 2 },
+            power: 6,
+            toughness: 6,
+            oracleText:
+                "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)\nAt the beginning of your upkeep, return target creature card from your graveyard to the battlefield.\nAt the beginning of each opponent's upkeep, that player sacrifices a creature of their choice.",
+            staticAbilities: ["swampwalk"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "sheoldred-whispering-one-trigger",
+                    oracleText:
+                        "At the beginning of your upkeep, return target creature card from your graveyard to the battlefield.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "your" },
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                        zone: "graveyard",
+                        controller: "you",
+                    },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { target: 0 },
+                            to: "battlefield",
+                        },
+                    ],
+                },
+                {
+                    id: "sheoldred-whispering-one-trigger-2",
+                    oracleText:
+                        "At the beginning of each opponent's upkeep, that player sacrifices a creature of their choice.",
+                    head: {
+                        kind: "phase",
+                        phase: "UPKEEP",
+                        scope: "opponents",
+                    },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "sacrifice-permanents",
+                            player: { ref: "$event.activePlayerId" },
+                            zone: "battlefield",
+                            filter: { type: "Creature" },
+                            count: 1,
+                            prompt: "Sacrifice a creature.",
+                            bind: "$sacrifice1",
+                        },
+                        {
+                            op: "sacrifice",
+                            permanents: { ref: "$sacrifice1" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

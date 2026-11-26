@@ -100,6 +100,13 @@ export interface MassSubjectIR {
      * allocation as {@link targetPlayerControls}, narrowed to an opponent.
      */
     readonly targetOpponentControls?: true;
+    /**
+     * CR 110.2 — "lands ITS CONTROLLER controls": the swept battlefield is
+     * that of the land the trigger head named; the LOWERING writes the
+     * site's land controller as the selector's `controller`. Set only by the
+     * tap sweep that reads the phrase (`effectClause.ts`).
+     */
+    readonly landControllerControls?: true;
 }
 
 /** " with mana value X or less" — the bound announced with the spell. */
