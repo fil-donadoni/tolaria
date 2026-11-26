@@ -1850,6 +1850,16 @@
         "source": "compiled"
     },
     {
+        "name": "Alchemax Slayer-Bots",
+        "scryfallId": "0c28edfe-8b30-41b6-889b-c42d5eca778b",
+        "oracleId": "cdc7356c-9621-4420-9fda-c8b91df0ec7c",
+        "firstSet": "spe",
+        "firstPrintId": "0c28edfe-8b30-41b6-889b-c42d5eca778b",
+        "firstPrintSet": "spe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Alchemist's Apprentice",
         "scryfallId": "31abba67-1241-4fb3-88b5-4c4668ec5f25",
         "oracleId": "de085c51-2555-450e-a479-ddbb3bea9e8c",
@@ -16354,6 +16364,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Collector's Case",
+        "scryfallId": "3449300f-c09d-48b7-8aec-08dd518ddc26",
+        "oracleId": "a347123d-191a-4758-aab1-9cc7769eac66",
+        "firstSet": "msc",
+        "firstPrintId": "3449300f-c09d-48b7-8aec-08dd518ddc26",
+        "firstPrintSet": "msc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Collector's Vault",
         "scryfallId": "967a4f27-8cd6-437d-8c05-8aedbc7ddc4b",
         "oracleId": "f460ff80-8175-43f7-9810-540cf3817085",
@@ -17099,6 +17119,16 @@
         "firstPrintId": "1a110be3-93ec-40ef-94a6-e4c43f1ce211",
         "firstPrintSet": "con",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Constrictor Sage",
+        "scryfallId": "b2f160d7-c832-4b83-8f2e-aaeb190add3f",
+        "oracleId": "abfb7234-c5cc-4e0b-9a67-d66473f918fc",
+        "firstSet": "tdm",
+        "firstPrintId": "b2f160d7-c832-4b83-8f2e-aaeb190add3f",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -18812,6 +18842,26 @@
         "firstSet": "eoe",
         "firstPrintId": "7bfb33b6-e2bf-498f-8c58-ae21a840cf75",
         "firstPrintSet": "eoe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Cryogenic Stasis",
+        "scryfallId": "e453d221-41b6-4e95-83b3-b16695e81c75",
+        "oracleId": "846ba66c-a4eb-4d00-a0f1-d9f9524b9695",
+        "firstSet": "trc",
+        "firstPrintId": "e453d221-41b6-4e95-83b3-b16695e81c75",
+        "firstPrintSet": "trc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Cryotheory Adept",
+        "scryfallId": "9ba1f7ce-3404-4932-9795-22967707f762",
+        "oracleId": "a9b3ee21-1af1-4e7e-8e48-d7c90d056f5c",
+        "firstSet": "fra",
+        "firstPrintId": "9ba1f7ce-3404-4932-9795-22967707f762",
+        "firstPrintSet": "fra",
         "rarity": "common",
         "source": "compiled"
     },
@@ -33614,6 +33664,16 @@
         "source": "compiled"
     },
     {
+        "name": "Freeze in Place",
+        "scryfallId": "1a8bb9c7-2c4b-48a1-806e-742addb72b4b",
+        "oracleId": "8bf90bb0-f9c1-49c8-905e-32747e921e92",
+        "firstSet": "woe",
+        "firstPrintId": "1a8bb9c7-2c4b-48a1-806e-742addb72b4b",
+        "firstPrintSet": "woe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Frenetic Ogre",
         "scryfallId": "0dc939cc-826a-4208-ba5b-a11e1cd47aa2",
         "oracleId": "6eb4b649-c578-4b29-8da1-7c757412bec0",
@@ -33919,6 +33979,16 @@
         "firstPrintId": "ba5a68d3-6bc9-4de8-bc06-e1106cf9b3d4",
         "firstPrintSet": "rtr",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Frostfist Strider",
+        "scryfallId": "40141353-c0d6-4529-b26a-34dfccbcf231",
+        "oracleId": "4e4a21a8-9332-4aeb-8519-949feb211294",
+        "firstSet": "dmu",
+        "firstPrintId": "40141353-c0d6-4529-b26a-34dfccbcf231",
+        "firstPrintSet": "dmu",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -44264,6 +44334,16 @@
         "firstSet": "rna",
         "firstPrintId": "2bd746e3-8934-4c86-894e-2cb1738b1d58",
         "firstPrintSet": "rna",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Impede Momentum",
+        "scryfallId": "259c04f7-86f2-4584-97fb-8278dca9a213",
+        "oracleId": "c0239ff1-6ae6-431a-806e-7321d8272a1d",
+        "firstSet": "dmu",
+        "firstPrintId": "259c04f7-86f2-4584-97fb-8278dca9a213",
+        "firstPrintSet": "dmu",
         "rarity": "common",
         "source": "compiled"
     },
@@ -54995,6 +55075,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mechanozoa",
+        "scryfallId": "0cb8d8ce-329a-4a97-b3d8-796703ebcb37",
+        "oracleId": "1aeb43f7-4d8a-4648-9c13-fd101081b448",
+        "firstSet": "eoe",
+        "firstPrintId": "0cb8d8ce-329a-4a97-b3d8-796703ebcb37",
+        "firstPrintSet": "eoe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Meddling Mage",
         "scryfallId": "176f84c6-aa5e-449c-bd2b-cc91a898f0c7",
         "oracleId": "a5d02339-9f6d-486e-87d8-5ec2274cf680",
@@ -64515,6 +64605,16 @@
         "source": "compiled"
     },
     {
+        "name": "Petrifying Meddler",
+        "scryfallId": "f0f2bdfd-1cbc-456e-aba7-4e0b6485cf8a",
+        "oracleId": "bd9b3009-f389-4831-b250-80c4bb8f25e5",
+        "firstSet": "mh3",
+        "firstPrintId": "f0f2bdfd-1cbc-456e-aba7-4e0b6485cf8a",
+        "firstPrintSet": "mh3",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Pewter Golem",
         "scryfallId": "28aa6682-bf11-4959-9d07-423a55f35199",
         "oracleId": "c9d2c69e-6a4a-45b0-aff1-c19bcbe3b490",
@@ -70719,6 +70819,16 @@
         "source": "compiled"
     },
     {
+        "name": "Referee Squad",
+        "scryfallId": "434515bf-de57-4c00-b0b4-c9579cc1b84c",
+        "oracleId": "e14532e9-ecc2-4028-b99e-3629533962bc",
+        "firstSet": "mom",
+        "firstPrintId": "434515bf-de57-4c00-b0b4-c9579cc1b84c",
+        "firstPrintSet": "mom",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Reflecting Mirror",
         "scryfallId": "d551ff93-d8da-4c21-bc3c-6451c0dde07e",
         "oracleId": "2fb505c6-3d28-4b83-9820-4b9db64c8304",
@@ -73503,6 +73613,16 @@
         "firstSet": "por",
         "firstPrintId": "852a0956-8558-4754-ab57-6f1cc4de740e",
         "firstPrintSet": "por",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rowdy Snowballers",
+        "scryfallId": "17d71522-b133-4003-b787-0c742a2fd70e",
+        "oracleId": "74224cce-c2ce-4456-8a97-3abbbb199385",
+        "firstSet": "tla",
+        "firstPrintId": "17d71522-b133-4003-b787-0c742a2fd70e",
+        "firstPrintSet": "tla",
         "rarity": "common",
         "source": "compiled"
     },
@@ -79238,6 +79358,16 @@
         "firstPrintId": "59d38ef7-5017-4ea3-b97f-a8fe12d03e98",
         "firstPrintSet": "m21",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Shipwreck Patrol",
+        "scryfallId": "9d9d1ed2-49fa-4974-b88f-c996c1b7de5b",
+        "oracleId": "9851f207-9f75-4ceb-8024-8f9bf21f90ad",
+        "firstSet": "msc",
+        "firstPrintId": "9d9d1ed2-49fa-4974-b88f-c996c1b7de5b",
+        "firstPrintSet": "msc",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -85027,6 +85157,16 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Splash Lasher",
+        "scryfallId": "362ee125-35a0-46cd-a201-e6797d12d33a",
+        "oracleId": "0d0c4c91-683a-4563-a0b0-39f3c04f6307",
+        "firstSet": "blb",
+        "firstPrintId": "362ee125-35a0-46cd-a201-e6797d12d33a",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Splash Portal",
         "scryfallId": "adbaa356-28ba-487f-930a-a957d9960ab0",
         "oracleId": "29b537f5-4d9f-40ed-b38b-e8faa2b5af7d",
@@ -89533,6 +89673,16 @@
         "firstSet": "eld",
         "firstPrintId": "4cddb2d2-d813-4b83-a592-380ba4edf54f",
         "firstPrintSet": "eld",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "T'Pol, Vulcan Representative",
+        "scryfallId": "686a0be0-9374-4454-8bc6-a1bcec95df40",
+        "oracleId": "e8a548e8-057e-4023-ac20-bac973dbce09",
+        "firstSet": "trc",
+        "firstPrintId": "686a0be0-9374-4454-8bc6-a1bcec95df40",
+        "firstPrintSet": "trc",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -94619,6 +94769,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Tranquilize",
+        "scryfallId": "60ad4bd6-c6a5-420f-8491-7696f9850a05",
+        "oracleId": "1133633a-b717-42cb-b477-4e18584d876f",
+        "firstSet": "acr",
+        "firstPrintId": "60ad4bd6-c6a5-420f-8491-7696f9850a05",
+        "firstPrintSet": "acr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Transcendent Message",
         "scryfallId": "3261c7e6-45be-44d1-8855-026359ba0ae7",
         "oracleId": "1f7f7765-aeb9-4e47-a6b9-ce823bb29e33",
@@ -95988,6 +96148,16 @@
         "firstPrintId": "2cc5760e-8b27-4d37-9772-c9eda90b1d95",
         "firstPrintSet": "m19",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Type-2 Phaser",
+        "scryfallId": "c704af22-7c42-45c7-b3a4-b414c4dd8e05",
+        "oracleId": "9d4d3682-e904-412d-b8ae-734962865dfb",
+        "firstSet": "trk",
+        "firstPrintId": "c704af22-7c42-45c7-b3a4-b414c4dd8e05",
+        "firstPrintSet": "trk",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -97491,6 +97661,16 @@
         "firstSet": "plc",
         "firstPrintId": "d97f2ddb-3111-45a2-8334-a526bc885415",
         "firstPrintSet": "plc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Utrom Scientists",
+        "scryfallId": "6da89625-5278-49d4-813b-a1a631f114f5",
+        "oracleId": "89793c8c-98a3-4621-ad3d-cfc5949c65da",
+        "firstSet": "tmt",
+        "firstPrintId": "6da89625-5278-49d4-813b-a1a631f114f5",
+        "firstPrintSet": "tmt",
         "rarity": "common",
         "source": "compiled"
     },
@@ -102005,6 +102185,16 @@
         "firstSet": "inv",
         "firstPrintId": "57e45de5-0e8b-41d3-979b-ec5a29cac682",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Waylaying Pirates",
+        "scryfallId": "ded2bb06-7163-47fe-bede-9c192c9b8952",
+        "oracleId": "5453e4fa-49ea-43fc-8de5-6873d29ef627",
+        "firstSet": "lci",
+        "firstPrintId": "ded2bb06-7163-47fe-bede-9c192c9b8952",
+        "firstPrintSet": "lci",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Wayspeaker Bodyguard",
