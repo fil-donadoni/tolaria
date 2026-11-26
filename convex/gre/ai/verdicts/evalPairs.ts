@@ -130,6 +130,30 @@ export type VerdictPairs = {
     error?: string;
 };
 
+/** The settled 1-ply probe of one candidate: the board every reading of that
+ *  candidate is taken from. One function, so a second reader of the same
+ *  board (the generated vector, ADR 0186) cannot probe it differently from
+ *  {@link candidateFeatures}. */
+export function candidateSettledState(
+    state: GameState,
+    botId: string,
+    move: Move,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): GameState {
+    const probe = cloneGameState(state);
+    applyMoveInSearch(probe, botId, move);
+    // `moverId` is the bot itself: a verdict is always about the seat that
+    // owed the decision, so the settle may answer the choices that seat owns.
+    return policyProbeState(
+        probe,
+        move,
+        weights,
+        botId,
+        passEndsStep(state, botId),
+        answeredTriggerId(state, botId, move)
+    );
+}
+
 /** The settled 1-ply probe of one candidate, and its features. Exported so a
  *  test can assert on one candidate without building the pairs. */
 export function candidateFeatures(
@@ -138,19 +162,11 @@ export function candidateFeatures(
     move: Move,
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): FeatureVector {
-    const probe = cloneGameState(state);
-    applyMoveInSearch(probe, botId, move);
-    // `moverId` is the bot itself: a verdict is always about the seat that
-    // owed the decision, so the settle may answer the choices that seat owns.
-    const settled = policyProbeState(
-        probe,
-        move,
-        weights,
+    return featuresOfSettled(
+        candidateSettledState(state, botId, move, weights),
         botId,
-        passEndsStep(state, botId),
-        answeredTriggerId(state, botId, move)
+        weights
     );
-    return featuresOfSettled(settled, botId, weights);
 }
 
 /**
