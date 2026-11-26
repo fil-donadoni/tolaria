@@ -3,7 +3,14 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import { defineCard, AURA_AFFECTS_HOST } from "../../types";
+import {
+    defineCard,
+    AURA_AFFECTS_HOST,
+    type EffectOp,
+    type GameEvent,
+    type PermanentView,
+} from "../../types";
+import { LAND_SUBTYPE_MANA } from "../../../gre/constants";
 import {
     leftTrigger,
     wasAttachedToLeaver,
@@ -191,3 +198,80 @@ export const aetherVial = defineCard(() => ({
         },
     ],
 }));
+
+// Sundering Titan — {8} Artifact Creature — Golem, 7/10. "When this creature
+// enters or leaves the battlefield, choose a land of each basic land type,
+// then destroy those lands."
+//
+// ONE Oracle line = ONE triggered ability on both events (CR 603.2): the
+// self-entering half (CR 603.6a) and the self-leaving half (CR 603.6c, a
+// look-back trigger, CR 603.10a — it fires from whatever zone the Titan went
+// to). The mixed event list makes it NOT an ETB Ability (issue #4758): the
+// leaving half is still to come while the Titan sits on the battlefield.
+//
+// "Choose" is not "target" (CR 115.10a): no targets, so hexproof and shroud
+// do not stop it, and the choices are made on resolution by the ability's
+// controller (CR 608.2c). One `choice` per basic land type (CR 205.3i), over
+// EVERY player's battlefield — the Titan's controller's own lands included,
+// which is what makes the card a symmetrical land wipe. Each pick is an exact
+// count of one, so a type with a land on the battlefield MUST be answered,
+// and a type with none is skipped (no candidate raises no choice, the
+// binding stays uncaptured and its `destroy` skips). The five choices are
+// independent, so a land with
+// several basic land types (Watery Grave, Tropical Island) may be chosen for
+// each of them — the printed ruling — and is destroyed once: the later
+// `destroy` finds it gone. Every choice is made before any land is destroyed
+// ("then"), each destruction through the replacement layer (CR 701.8a).
+//
+// hand-tail: When this creature enters or leaves the battlefield, choose a land of each basic land type, then destroy those lands. (#10559)
+export const sunderingTitan = defineCard(() => ({
+    id: "3e4bd552-e629-41a4-868f-d656187317b7", // DST 146
+    name: "Sundering Titan",
+    rarity: "rare",
+    oracleText:
+        "When this creature enters or leaves the battlefield, choose a land of each basic land type, then destroy those lands.",
+    manaCost: { X: 8 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Golem"],
+    power: 7,
+    toughness: 10,
+    triggeredAbilities: [
+        {
+            id: "sundering-titan-destroy-basic-types",
+            oracleText:
+                "When this creature enters or leaves the battlefield, choose a land of each basic land type, then destroy those lands.",
+            event: ["PERMANENT_ENTERED", "PERMANENT_LEFT"],
+            etbAbility: false, // issue #4758 — the leaving half stays realized
+            matches: (event: GameEvent, self: PermanentView): boolean =>
+                (event.type === "PERMANENT_ENTERED" ||
+                    event.type === "PERMANENT_LEFT") &&
+                event.instanceId === self.id,
+            effects: chooseLandOfEachBasicTypeThenDestroy(),
+        },
+    ],
+}));
+
+// CR 205.3i — one exact-count-one `choice` per basic land type, every player's
+// lands eligible, then one `destroy` per binding (Sundering Titan, above).
+function chooseLandOfEachBasicTypeThenDestroy(): EffectOp[] {
+    const basicLandTypes = Object.keys(LAND_SUBTYPE_MANA);
+    const choices: EffectOp[] = basicLandTypes.map((subtype) => ({
+        op: "choice",
+        kind: "choose-permanents",
+        player: "controller",
+        zone: "battlefield",
+        allControllers: true,
+        filter: { type: "Land", subtype },
+        count: 1,
+        prompt: `Sundering Titan: choose a land with the basic land type ${subtype} to destroy.`,
+        bind: `$${subtype.toLowerCase()}`,
+    }));
+    // A `choice` binds PICKS, not an object snapshot: `forEach` over the
+    // bound picks hands `destroy` each pick as `$each`.
+    const destroys: EffectOp[] = basicLandTypes.map((subtype) => ({
+        op: "forEach",
+        select: { set: "bound", ref: `$${subtype.toLowerCase()}` },
+        effects: [{ op: "destroy", target: { ref: "$each" } }],
+    }));
+    return [...choices, ...destroys];
+}

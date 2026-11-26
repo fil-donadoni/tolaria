@@ -942,7 +942,9 @@ function resolveValue(
         const parsed = parseRef(value.ref);
         if (!parsed) return undefined;
         const snap = readBinding(ctx, parsed.binding);
-        if (!snap) return undefined;
+        // An EMPTY capture (a forEach member that already left, an empty pick)
+        // has no characteristics to read: skip, never NaN.
+        if (!snap || snap.length === 0) return undefined;
         if (parsed.property === "power") return Number(snap[SNAP_POWER]);
         if (parsed.property === "toughness") {
             return Number(snap[SNAP_TOUGHNESS]);
@@ -9673,8 +9675,20 @@ function execForEach(
                     id: members[k],
                 });
             }
-            // else: the frozen-set member already left its zone — leave `$each`
-            // uncaptured; body Ops reading it skip (CR 608.2b).
+            // The frozen-set member already left its zone: `$each` is EMPTY for
+            // this iteration, and body Ops reading it skip. Written as an
+            // explicit empty capture, never left absent: an absent `$each`
+            // falls through `readBinding` to `readIteratedPicks`, which hands
+            // back the union of an EARLIER completed forEach's `$each`
+            // snapshots, so the body would act on (or crash reading) a member
+            // of another construct (Sundering Titan: a dual land picked for two
+            // basic land types, gone by the second forEach).
+            if (
+                op.select.set !== "times" &&
+                ctx.recallChoice(eachId) === undefined
+            ) {
+                ctx.noteChoice(eachId, []);
+            }
         }
         const outcome = runOpList(inner, op.effects, cursor);
         if (outcome === "suspend") return "suspend";
