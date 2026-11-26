@@ -42962,6 +42962,14 @@
         "source": "compiled"
     },
     {
+        "name": "Horn of the Mark",
+        "scryfallId": "dd86b71f-d736-426f-bf15-013bc8da1a08",
+        "oracleId": "9b836c32-84f0-41ae-b7d9-67b92c743c60",
+        "firstSet": "ltr",
+        "firstPrintId": "dd86b71f-d736-426f-bf15-013bc8da1a08",
+        "firstPrintSet": "ltr"
+    },
+    {
         "name": "Horned Cheetah",
         "scryfallId": "a28ad983-ce91-40b6-a1ce-fe36ec7fbce8",
         "oracleId": "a552edbe-bd5d-4281-8d9f-d03f4b10815d",
