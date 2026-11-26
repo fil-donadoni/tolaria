@@ -27,8 +27,14 @@
 //     the mana pool, which empties between steps (CR 500.5), is read empty.
 //     Any other timing fails open — a land drop or an untap could fall
 //     between now and the trigger;
-//   * with the payer the ACTIVE player and a land in hand, the land drop
-//     still open this turn could add a source: it fails open;
+//   * with the payer the ACTIVE player it fails open: before their next
+//     upkeep they still have this turn's land drop and every sorcery-speed
+//     window, and a land, a mana rock, a creature that taps for mana or a
+//     ramp spell can add the source the cost is short of — the very card a
+//     tutor just put in hand. Only on the opponent's turn is the payer's
+//     board, untapped, the board that pays;
+//   * a creature that is summoning sick now is not at the upkeep: the payer
+//     has controlled it continuously since their turn began (CR 302.6);
 //   * only a mana-only cost — a life or permanent leg is not read here;
 //   * a source that would not untap (an untap lock) is still read untapped,
 //     which only ever makes the cost look MORE payable.
@@ -40,7 +46,6 @@
 
 import type { EffectOp, MayPayCost } from "../../cards/types";
 import { tryGetDefinition } from "../../cards";
-import { isLand } from "../constants";
 import { planManaPayment } from "../moves";
 import {
     normalizeManaCost,
@@ -85,8 +90,8 @@ function lossObligationManaCost(
     return undefined;
 }
 
-/** `player` at their next upkeep: every permanent untapped (CR 502.3), the
- *  pool empty (CR 500.5). */
+/** `player` at their next upkeep: every permanent untapped (CR 502.3) and
+ *  no longer summoning sick (CR 302.6), the pool empty (CR 500.5). */
 function atOwnUpkeep(
     state: GameState,
     player: PlayerState
@@ -96,7 +101,9 @@ function atOwnUpkeep(
         manaPool: {},
         restrictedMana: undefined,
         battlefield: player.battlefield.map((c) =>
-            c.isTapped ? { ...c, isTapped: false } : c
+            c.isTapped || c.isSummoningSick
+                ? { ...c, isTapped: false, isSummoningSick: false }
+                : c
         ),
     };
     return {
@@ -129,9 +136,7 @@ export function holdsUnpayableLossObligation(
     if (!triggers || triggers.length === 0) return false;
     const player = state.players.find((p) => p.id === playerId);
     if (!player) return false;
-    if (state.activePlayerId === playerId && player.hand.some(isLand)) {
-        return false;
-    }
+    if (state.activePlayerId === playerId) return false;
     let owed: Record<string, number> | undefined;
     for (let i = 0; i < triggers.length; i++) {
         const t = triggers[i];

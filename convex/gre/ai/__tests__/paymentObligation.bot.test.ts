@@ -20,7 +20,7 @@ import {
 } from "../../../cards/__tests__/setup.helper";
 import type { GameState, DelayedTriggerInstance } from "../../state";
 import { forest } from "../../../cards/sets/lea/index.cards";
-import { registerTokenDefinition } from "../../../cards";
+import { getCardByName, registerTokenDefinition } from "../../../cards";
 import type { CardDefinition, EffectOp } from "../../../cards/types";
 import { cloneGameState } from "../../clone";
 import { applyMoveInSearch, policyValue } from "../../search";
@@ -198,10 +198,19 @@ describe("holdsUnpayableLossObligation", () => {
         ).toBe(true);
     });
 
-    it("fails open with the land drop still open on the payer's own turn", () => {
+    it("fails open on the payer's own turn: a land drop or a ramp spell can still add the source", () => {
         const state = owing(3, [obligation()], { activePlayerId: ME });
-        state.players[0].hand.push(
-            makeInstance(forest().id, { controllerId: ME, ownerId: ME })
+        expect(holdsUnpayableLossObligation(state, ME)).toBe(false);
+    });
+
+    it("reads a summoning-sick mana creature as a source: by the upkeep it can tap (CR 302.6)", () => {
+        const state = owing(3, [obligation()]);
+        state.players[0].battlefield.push(
+            makeInstance(getCardByName("Llanowar Elves").id, {
+                controllerId: ME,
+                ownerId: ME,
+                isSummoningSick: true,
+            })
         );
         expect(holdsUnpayableLossObligation(state, ME)).toBe(false);
     });
