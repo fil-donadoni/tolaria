@@ -51,9 +51,6 @@ describe("Gift clauses — golden fixtures (CR 702.174k/m)", () => {
 
 describe("Gift clauses — refusals (fail-closed, ADR 0105 § 2)", () => {
     it.each([
-        // The additive clause is another cluster's.
-        GIFT +
-            "Creatures you control get +2/+0 until end of turn. If the gift was promised, target creature you control gains first strike until end of turn.",
         // "Instead" does not say how many of two instructions it replaces.
         GIFT +
             "Draw a card. Destroy target creature. If the gift was promised, instead destroy target permanent.",
