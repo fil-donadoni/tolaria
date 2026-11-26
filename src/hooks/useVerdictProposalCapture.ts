@@ -25,6 +25,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useConvex } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { publicStateArgs } from "~/lib/public-state-args";
 import type { Id } from "@convex/_generated/dataModel";
 import type { DefinitionManifestEntry } from "@convex/definitionManifestEntry";
 import { useResilientQuery } from "./useResilientQuery";
@@ -139,7 +140,7 @@ export function useVerdictProposalCapture(
     // That seat's own projection — the board holds the same subscription.
     const owingState = useResilientQuery(
         api.game.getPublicState,
-        owing ? { gameId, playerId: owing } : "skip"
+        owing ? publicStateArgs(gameId, owing) : "skip"
     ).data;
     const firstDeck = useSeatDeckIds(gameId, active ? firstSeat : null);
     const secondDeck = useSeatDeckIds(gameId, active ? secondSeat : null);

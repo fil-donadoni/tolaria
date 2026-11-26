@@ -12,6 +12,7 @@ import CatalogueLoadError from "~/components/ui/catalogue-load-error";
 import BoardCardsLoadingOverlay from "~/components/board/board-cards-loading-overlay";
 import { usePauseMenuHotkey } from "~/hooks/usePauseMenuHotkey";
 import { api } from "@convex/_generated/api";
+import { publicStateArgs } from "~/lib/public-state-args";
 import type { Id } from "@convex/_generated/dataModel";
 import { nonManaActivationLockedPlayers } from "@convex/cards/abilities/splitSecond";
 import type { Player } from "~/types/game";
@@ -171,7 +172,7 @@ export default function Board({
     const publicState = useResilientQuery(
         api.game.getPublicState,
         pageVisible && !showAllCards
-            ? { gameId, playerId, debugAllActions }
+            ? publicStateArgs(gameId, playerId, debugAllActions)
             : "skip"
     );
     const fullState = useResilientQuery(
