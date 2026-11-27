@@ -17,9 +17,11 @@
 //   While the page STAYS hidden, every new owed version is reported too.
 //
 // A hidden driver that still acts moves the game past the reported version,
-// and an exit at an older version says nothing to the deadline. Known limit:
+// and an exit at an older version says nothing to the deadline. Known limits:
 // a player who comes back to the SAME version and finds the driver dead gets
-// the advance unreported.
+// the advance unreported; and with the same game open in two tabs, the hidden
+// one reports every owed version, so a driver dying in the VISIBLE tab is
+// advanced unreported too. Both lose a report, never a move.
 
 import { useEffect, useRef } from "react";
 import { useMutation } from "convex/react";
