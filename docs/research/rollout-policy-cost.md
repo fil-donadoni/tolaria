@@ -68,7 +68,9 @@ in time and lose in decisions?
    where the field Bot is slowest and does not reach 400 there by itself: at
    V8's rates on the four boards, 36–173 iterations per 8.3 s become about
    70–270. The owner ruled for it on 2026-11-22 (§ 6); the implementation
-   slice is issue #10473.
+   slice is issue #10473. The field reading after release (§ 7,
+   2026-11-27) neither confirms nor refutes the cut: the window before it
+   holds three Chromium games and no other family.
 
 ## Method
 
@@ -573,6 +575,101 @@ probe is the strongest creature attacking alone. ADR 0184 has the census of
 the alternatives. The bench's `shipped` policy runs
 it, and every policy above keeps probing every candidate.
 
+## 7. The field reading after release (issue #10612)
+
+> **Dated:** 2026-11-27, read at base tip `b9549cbb4f` from Sentry's log
+> explorer (`message:"bot search"`, org `filippo-donadoni`), every row of the
+> last eight days read one by one. Times are Rome local (CET).
+
+**Verdict up front.** The field cannot make this reading. The release window
+before the cut holds three games, all Chromium; Gecko has none before, WebKit
+and the iPhone have none in either window. On the face of the Chromium
+numbers all three expectations fail: probes per iteration rose, the time per
+probe rose by more than a quarter, iterations per search fell. That release
+also carried 52 other commits on the Bot's paths. Three games, one board mix,
+and a bundled release cannot attribute any of it to ADR 0184. The lab reading
+of § 2 and § 3 stands as the evidence for the cut. Waiting does not help
+either: the window before is closed and will gain no more games.
+
+**The windows** (GitHub Production deployments):
+
+- **Before:** `b1e76567e8`, Production from 2026-11-22 18:27 to 2026-11-26
+  18:22. It is the first release carrying the two keys (PR #10452): no
+  earlier report has them, so no earlier release can widen this window. It
+  is also the last release without ADR 0184 (`ae09bfe927` is not its
+  ancestor).
+- **After:** `b42b609be5`, the first release carrying ADR 0184 (PR #10613),
+  Production from 2026-11-26 18:22 to 2026-11-27 19:59, when `3a8a8e465c`
+  replaced it. That is 25.6 hours, not the few days the issue asked for.
+- **One game straddles the deploy.** Game `jh725ad4` flushed a report 10 s
+  after the deploy (8 searches, 20.6 probes per iteration, 0.487 ms per probe)
+  and a second one 3 minutes later (9 searches, 16.6, 0.845). The first comes
+  from a page loaded before the deploy, so from the old bundle; it is left
+  out of both windows. The second is counted after. Counting the first before
+  moves Chromium's p50 before from 6.1 to 13.4 probes per iteration and does
+  not change the direction of any row.
+
+**The reading.** Each cell is the median over a window's games of the
+per-game `p50`, then the range. Iterations per search is
+`iterations.completed ÷ searches` per game. `iterations.requested` is 1320 per
+search in every game of both windows, so the request did not move.
+
+| family (desktop) | window   | games | searches | `probesPerIteration.p50` | `msPerProbe.p50`    | iterations per search |
+| ---------------- | -------- | ----- | -------- | ------------------------ | ------------------- | --------------------- |
+| Chromium         | `b1e765` | 3     | 75       | 6.1 (6.1–79.9)           | 0.589 (0.453–0.651) | 1232 (464–1273)       |
+| Chromium         | `b42b60` | 11    | 270      | 16.6 (6.7–23.2)          | 0.767 (0.523–1.383) | 743 (539–1109)        |
+| Gecko            | `b1e765` | 0     | —        | —                        | —                   | —                     |
+| Gecko            | `b42b60` | 3     | 63       | 7.7 (6.9–8.1)            | 0.990 (0.819–1.002) | 934 (862–948)         |
+| WebKit           | both     | 0     | —        | —                        | —                   | —                     |
+| iPhone           | both     | 0     | —        | —                        | —                   | —                     |
+
+Every game in both windows reported `device.mobile: false`. Chromium is
+macOS in every game except two Windows games after.
+
+**Did the expectation hold, family by family?**
+
+- **Chromium: not on its face, and not readable.** Probes per iteration
+  were expected to fall by a fifth to three fifths. They rose 2.7× (6.1 →
+  16.6). The time per probe was expected to rise by up to a quarter. It rose
+  30% (0.589 → 0.767). Iterations per search were expected to rise. They fell
+  40% (1232 → 743). With three games before, one of them at 79.9 probes per
+  iteration, the median before is a single game, and probes per iteration
+  depend first on how wide the boards a game reached are (§ 1). The release
+  after also shipped tree reuse (ADR 0185, PR #10622), pondering (ADR 0185
+  Amendment I, PR #10660), the Verdict judge on client Workers of its own
+  (PR #10768) and the rollout's stop at the search's cap (PR #10446). All
+  four touch what a search completes and what its time is divided by; the
+  Verdict Workers also compete for the cores the search runs on. That is
+  four of the 52 commits on the Bot's paths between the two shas.
+- **Gecko: no reading.** There are no Gecko games before. Three games after
+  read 6.9–8.1 probes per iteration and 862–948 iterations per search. The
+  premise that Gecko is the starved family (94 iterations per search under
+  the 3300 ms cap, `field-reading-after-engine-changes.md`) is not what these
+  three games show. Five Gecko reports (three games) of 2026-11-20 → 21, on
+  earlier releases without the keys, read 39–185 iterations per search, so something between
+  those releases and `b42b609be5` moved Gecko's rate by about an order of
+  magnitude. This note does not say what.
+- **WebKit, iPhone: no reading.** No game in either window.
+
+**The pooled share of probe-heavy searches: not readable from these keys.**
+A per-game `p50` bounds the share from one side only: a game whose median
+search reads below a threshold has fewer than half its searches above it. The
+four late field boards of § 1 read 44–99 probes per rollout before the cut.
+In 16 of the 17 games of both windows the median search reads 23.2 or less,
+so in those games fewer than half the searches were late-board-heavy by that
+measure. The one exception is game `jh72xn9k` before the cut, at 79.9. After
+the cut the same boards would read about 16–45, so a `p50` of 16.6–23.2 (6 of
+the 11 Chromium games after) no longer separates a probe-heavy search from an
+ordinary one. Reading the share needs a per-search distribution in the
+report: a `p90`, or the count of searches above a threshold (Not measured).
+
+**Method notes.** Sentry's aggregate queries filtered on `timestamp`
+disagreed with the rows for the window before (8 reports from 1 game against
+3 rows from 3 games), so every number here comes from the rows, read one by
+one. The 8-day row count, 48, matches the unfiltered aggregate. Numeric
+attributes are queried typed (`tags[probesPerIteration.p50,number]`); a bare
+name fails as an unknown attribute.
+
 ## Appendix: the first pass (Huawei runner, 2026-11-19)
 
 An unattended pass measured the split and the speed on two other field
@@ -610,8 +707,10 @@ In browsers on `jh7bkzta` at 10 iterations (two measured rounds), wall clock
 - **The pooled field effect.** The field rate (28 iterations per second in
   Gecko) is an average over a game's boards. `topk` buys nothing on an early
   board and about 2× on a late one, so the pooled gain lies between and needs
-  the share of a game's searches that are probe-heavy. A per-consult probe
-  count in the field telemetry (issue #10321) would read it.
+  the share of a game's searches that are probe-heavy. The per-game `p50`
+  keys of issue #10321 bound that share from one side only (§ 7); reading it
+  needs a per-search distribution in the report (a `p90`, or a count above a
+  threshold), and a window with games in every family.
 - **Quality on field-sized boards.** No Verdict exists for the four
   production boards, and the root move cannot stand in for one: at 60
   iterations `base` picks the same move as its own `reseed` on 2 of the 4
