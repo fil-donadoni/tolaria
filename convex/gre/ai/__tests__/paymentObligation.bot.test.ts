@@ -510,4 +510,26 @@ describe("holdsUnpayableLossObligation", () => {
         );
         expect(holdsUnpayableLossObligation(withOwnSpell, ME)).toBe(false);
     });
+
+    it("reads a fired obligation off its source's template when the stack item carries no inline body", () => {
+        const fired = (n: number): GameState => {
+            const state = owing(n, [], {
+                activePlayerId: ME,
+                priorityPlayerId: ME,
+                phase: "UPKEEP",
+            });
+            state.stack = [
+                makeInstance(TEMPLATE_OWER, {
+                    id: "fired-template-1",
+                    controllerId: ME,
+                    ownerId: ME,
+                    zone: "stack",
+                    delayedTriggerId: "owe",
+                }),
+            ];
+            return state;
+        };
+        expect(holdsUnpayableLossObligation(fired(3), ME)).toBe(true);
+        expect(holdsUnpayableLossObligation(fired(4), ME)).toBe(false);
+    });
 });
