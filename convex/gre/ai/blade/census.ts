@@ -112,8 +112,9 @@ export type CensusLineReading = {
     /** The first decision the seed left the Line at; null when followed to
      *  the end. */
     failedAt: number | null;
-    /** Every decision the seed reached, the failing one last. A decision
-     *  with no trace (one legal move) is not recorded. */
+    /** Every decision the Brain was consulted at, in order: the failing one
+     *  last when the seed left the Line by its own move, absent when the game
+     *  ended first. A consult with no trace (one legal move) is not recorded. */
     decisions: CensusLineDecision[];
 };
 
