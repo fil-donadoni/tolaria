@@ -1985,15 +1985,10 @@ export function rollout(
         // stream must not notice which of the two paths took the ply.
         if (onlyPassIsLegal(state, pid)) {
             rng();
+            // The forced guide only walks its cursor here: a lone pass is
+            // played whatever the guide says, so nothing is forced or recorded.
             if (line?.cursor) {
                 const at = lineMoveIndexAt(line, state, pid, [FORCED_PASS]);
-                if (at >= 0 && pid === botId) {
-                    lineGuideRecorder?.(
-                        "rollout",
-                        line.cursor.step,
-                        FORCED_PASS
-                    );
-                }
                 stepLineTrack(line, pid, botId, at >= 0, at >= 0, FORCED_PASS);
             }
             applyMoveInSearch(state, pid, FORCED_PASS, true);

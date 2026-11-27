@@ -19,6 +19,7 @@ import {
     resolveForcedGuide,
     setSearchVariant,
     stepLineCursor,
+    type LineGuide,
     type SearchVariant,
 } from "../../searchVariant";
 import { ROOT_DECISION_MECHANISMS } from "../../decisionTelemetry";
@@ -153,8 +154,6 @@ describe("forced guide — the Line's move takes the prior at the Line's decisio
             events.filter((e) => e.where === "tree").map((e) => e.step)
         );
         expect([...treeSteps].sort()).toEqual(LINE.steps.map((_, i) => i));
-        // The rollouts play the Line's move too, past where the tree stops.
-        expect(events.some((e) => e.where === "rollout")).toBe(true);
         for (const e of events) {
             expect(e.step).toBeLessThan(LINE.steps.length);
             expect(e.move.kind).toBe(LINE.steps[e.step].expect[0].kind);
@@ -226,6 +225,38 @@ describe("forced guide — the Line's move takes the prior at the Line's decisio
             step: 1,
             replied: 1,
         });
+    });
+});
+
+describe("forced guide — the rollouts play the Line's move", () => {
+    it("a rollout ply at a Bot decision of the Line plays the Line's move", () => {
+        const state = buildLineState(LINE);
+        const botId = seatPlayerId(state, LINE.bot);
+        // A Line that passes at every Bot decision, the opponent never
+        // replying: deep enough that the rollouts, not only the tree, stand
+        // at decisions of it with more than one move offered.
+        const passing: LineGuide = {
+            start: { step: 0, replied: 0 },
+            lineMoveIndex: (_s, pid, _cursor, moves) =>
+                pid === botId ? moves.findIndex((m) => m.kind === "pass") : -1,
+        };
+        const variant: SearchVariant = {
+            ...LADDER_VARIANTS["forced-guide"],
+            forcedGuide: { probes: true, line: passing },
+        };
+        const { events } = recording(() =>
+            under(variant, () =>
+                searchWithTrace(
+                    state,
+                    botId,
+                    { iterations: 100 },
+                    DEFAULT_BLADE_SEED
+                )
+            )
+        );
+        const played = events.filter((e) => e.where === "rollout");
+        expect(played.length).toBeGreaterThan(0);
+        for (const e of played) expect(e.move.kind).toBe("pass");
     });
 });
 
