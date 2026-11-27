@@ -601,7 +601,10 @@ function isCardFilter(
         if (k === "manaValueAtMost") {
             return (
                 (typeof v === "number" && Number.isInteger(v) && v >= 0) ||
-                isXValue(v)
+                isXValue(v) ||
+                // CR 608.2h — "X is 2 plus the sacrificed creature's mana
+                // value": the cost-sacrifice snapshot, read at resolution.
+                isSacrificedValue(v)
             );
         }
         // issue #1083 — exact mana-value match, `manaValueAtMost`'s sibling.
