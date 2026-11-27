@@ -80,6 +80,7 @@ import { copyExceptName } from "../cards/cardNames";
 import { matchesPermanentFilter, matchesSpellFilter } from "../cards/filters";
 import { getEffectiveColors } from "../cards/effectiveColors";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
+import { declaresGraveyardCastGrant } from "../cards/registry";
 import { extraLandDropsOf } from "../cards/abilities/classLevels";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import type { CastFromZone } from "./castCost";
@@ -284,6 +285,11 @@ export function getGraveyardPlayPermissions(
     const cardList = player.battlefield;
     for (let i = 0; i < cardList.length; i++) {
         const card = cardList[i];
+        // Registry precheck (issue #10755): a permanent whose definition
+        // declares no graveyard-cast grant is passed over without a
+        // definition lookup.
+        const cardId = (card.card as { id?: string } | undefined)?.id;
+        if (!cardId || !declaresGraveyardCastGrant(cardId)) continue;
         // CR 613.1f — a source that lost its abilities permits nothing.
         const permission = liveStaticDefinition(card)?.graveyardPlayPermission;
         if (!permission) continue;

@@ -135,6 +135,7 @@ import {
     libraryTopReplacementDeclinable,
     getLegalTargets,
     getProducibleManaSourceView,
+    type ProducibleManaSourceView,
     maxAffordableX,
     maxAffordableXOverCost,
     maxAffordableDistinctColorX,
@@ -1263,6 +1264,63 @@ function planOptionRank(source: PlanSource, color: Color): number {
     return via === "mana-cost" || via === "costed-tap" ? 1 : 0;
 }
 
+/** The mana-source views ONE enumeration of ONE position has already derived
+ *  (issue #10755), keyed by the permanent and by `admitHandDiscard`.
+ *
+ *  `planManaPaymentPass` derives every untapped permanent's view to price one
+ *  cost, and `enumerateMoves` prices one cost per activated ability, per
+ *  announceable X of each, per cast and per alternative cost: on a board of
+ *  twenty permanents holding a dozen standing abilities that is the same
+ *  twelve views derived some forty times, each a walk of both battlefields
+ *  (an activation restriction, a land-mana substitution, a board-counted
+ *  amount). A view reads the position and nothing else, so within one
+ *  enumeration the second derivation is the first one again.
+ *
+ *  Valid only while `state` is not mutated, like a `ManaCensusMemo`: the
+ *  scope is opened by `enumerateMoves` for the state it was handed, lives for
+ *  that one synchronous call, and a plan for ANY other state object (the
+ *  declined-route copy `declinedExileRouteMoves` builds) reads past it. */
+type PlanSourceViewScope = {
+    state: GameState;
+    views: Map<CardInstanceState, (ProducibleManaSourceView | undefined)[]>;
+};
+let planSourceViewScope: PlanSourceViewScope | null = null;
+
+/** `getProducibleManaSourceView` for one source of a payment plan, read
+ *  through the enumeration's scope when `state` is the one it was opened
+ *  for. A view is never mutated by the planner, so sharing one is safe. */
+function planSourceView(
+    state: GameState,
+    perm: CardInstanceState,
+    controllerId: string,
+    boardBattlefields: ReturnType<typeof manaGateBattlefields>,
+    handDiscardFree: boolean
+): ProducibleManaSourceView {
+    const scope = planSourceViewScope;
+    if (scope === null || scope.state !== state) {
+        return getProducibleManaSourceView(
+            perm,
+            controllerId,
+            boardBattlefields,
+            state,
+            handDiscardFree
+        );
+    }
+    let slots = scope.views.get(perm);
+    if (slots === undefined) {
+        slots = [undefined, undefined];
+        scope.views.set(perm, slots);
+    }
+    const at = handDiscardFree ? 1 : 0;
+    return (slots[at] ??= getProducibleManaSourceView(
+        perm,
+        controllerId,
+        boardBattlefields,
+        state,
+        handDiscardFree
+    ));
+}
+
 /** Greedy tap plan covering a normalized mana cost (CR 601.2f). Returns the
  *  ordered land taps to perform, or `null` when the cost cannot be paid.
  *  Mirrors `canPotentiallyPayCost` (rules.ts) — same one-source-one-mana
@@ -1574,11 +1632,11 @@ function planManaPaymentPass(
         // recovering which ABILITY backs a colour costs no second scan
         // (review round 3, finding 3 — the second scan measured 55-65% on the
         // hot `enumerateCastMoves` path).
-        const view = getProducibleManaSourceView(
+        const view = planSourceView(
+            state,
             perm,
             player.id,
             boardBattlefields,
-            state,
             handDiscardFree
         );
         // CR 302.1 / 302.6 (issue #2420) — summoning sickness restricts only
@@ -6657,8 +6715,28 @@ function declinedExileCastMoves(
 }
 
 /** The complete set of legal macro-moves for `playerId` at the current decision
- *  point. Empty when the player owes no action right now. Pure. */
+ *  point. Empty when the player owes no action right now. Pure: the
+ *  `PlanSourceViewScope` it opens is closed before it returns. */
 export function enumerateMoves(
+    state: GameState,
+    playerId: string,
+    options?: EnumerateMovesOptions
+): Move[] {
+    // A nested enumeration of the same position shares the outer scope; one
+    // of another position opens its own and restores the outer on the way out.
+    const outer = planSourceViewScope;
+    if (outer !== null && outer.state === state) {
+        return enumerateMovesInScope(state, playerId, options);
+    }
+    planSourceViewScope = { state, views: new Map() };
+    try {
+        return enumerateMovesInScope(state, playerId, options);
+    } finally {
+        planSourceViewScope = outer;
+    }
+}
+
+function enumerateMovesInScope(
     state: GameState,
     playerId: string,
     options?: EnumerateMovesOptions

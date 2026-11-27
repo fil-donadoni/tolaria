@@ -13,7 +13,8 @@
 // `runField` searches a FIELD position instead (issue #10122): a production
 // game's stored row, as `field-position.mjs` pulls it, expanded here by the
 // engine's own `expandState` — the board a real late game reached, not a
-// hand-built blade one.
+// hand-built blade one. A fixture holding a `spec` instead of a stored row is
+// built from it (`positions/`, issue #10755).
 
 import { bladeScenariosForTier } from "../../../../convex/gre/ai/blade/registry";
 import {
@@ -154,8 +155,15 @@ function fieldDeckKnowledge(state) {
  * @param {Parameters<typeof run>[1]} options
  */
 function runField(fixture, options = {}) {
-    const state = fieldState(fixture);
-    const botId = decidingPlayer(state);
+    // A SPEC fixture (issue #10755): a position written as a scenario spec,
+    // cards by name, built the way a blade entry is — a board a Verdict
+    // holds, which no stored row does any more.
+    const state = fixture.spec
+        ? buildBladeState({ label: fixture.label, spec: fixture.spec })
+        : fieldState(fixture);
+    const botId = fixture.spec
+        ? seatPlayerId(state, fixture.bot)
+        : decidingPlayer(state);
     return {
         index: fixture.label,
         label: fixture.label,

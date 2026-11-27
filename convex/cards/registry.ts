@@ -167,6 +167,12 @@ const fullTextIds = new Set<string>();
  *  `declaresLandPlayLock`. */
 const landPlayLockIds = new Set<string>();
 
+/** Ids whose definition declares a GRAVEYARD-CAST GRANT a battlefield sweep
+ *  reads: `graveyardPlayPermission` (ADR 0093), `grantsRetraceToOwnGraveyard`
+ *  or `grantsEscapeToOwnGraveyard`. Derived by `setRegistryEntry`; see
+ *  `declaresGraveyardCastGrant`. */
+const graveyardCastGrantIds = new Set<string>();
+
 /** The ONLY writer of `registry`. Keeps `zoneConditionalIds` in step. */
 const setRegistryEntry = (key: string, def: CardDefinition): void => {
     registry.set(key, def);
@@ -186,6 +192,13 @@ const setRegistryEntry = (key: string, def: CardDefinition): void => {
     if (declaresGraveyardStatic(def)) graveyardStaticIds.add(key);
     if (def.fullText) fullTextIds.add(key);
     if (def.preventsLandPlayAndETB) landPlayLockIds.add(key);
+    if (
+        def.graveyardPlayPermission ||
+        def.grantsRetraceToOwnGraveyard ||
+        def.grantsEscapeToOwnGraveyard
+    ) {
+        graveyardCastGrantIds.add(key);
+    }
 };
 
 /** CR 613.1b-e — the `StaticEffect` kinds the layers-2-to-5 derivation owns.
@@ -411,6 +424,22 @@ export const declaresFullTextEffect = (cardId: string): boolean =>
  *  as its twins: a stale TRUE costs one lookup, a stale FALSE is impossible. */
 export const declaresLandPlayLock = (cardId: string): boolean =>
     declaresIndexedStatic(cardId, landPlayLockIds);
+
+/** Does `cardId`'s definition declare a graveyard-cast grant — a graveyard
+ *  play permission (ADR 0093), or retrace or escape granted to its
+ *  controller's graveyard? The precheck the three battlefield
+ *  sweeps behind `graveyardCastMechanism` ask of every permanent
+ *  (`getGraveyardPlayPermissions`, `collectRetraceGrants`, `getGrantedEscape`):
+ *  each is asked once per graveyard card, by the move enumerator and twice by
+ *  the leaf evaluation, so on a board of thirty permanents and two dozen
+ *  graveyard cards they were most of the definition lookups a search made
+ *  (issue #10755). All three fields are written on the raw entry — by a
+ *  hand-written definition or by the compiler's lowering, never by an
+ *  expander — so the raw entry `setRegistryEntry` indexes answers exactly.
+ *  Same derived-membership discipline and fail-slow trade as its twins: a
+ *  stale TRUE costs one lookup, a stale FALSE is impossible. */
+export const declaresGraveyardCastGrant = (cardId: string): boolean =>
+    declaresIndexedStatic(cardId, graveyardCastGrantIds);
 
 /** CR 113.6c (issue #2391) — does `cardId`'s definition declare
  *  zone-conditional characteristics? A cheap precheck for the readers in
