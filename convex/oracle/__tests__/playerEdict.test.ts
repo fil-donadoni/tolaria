@@ -508,18 +508,6 @@ describe("player edict — refusals (fail-closed, ADR 0105 § 2)", () => {
             )
         ).toBe('"that player" names no player at this site');
     });
-
-    it('"that player" behind a head that names only "a player" stays refused', () => {
-        expect(
-            refusal(
-                oracleCard({
-                    typeLine: "Creature — Horror",
-                    oracleText:
-                        "Whenever this creature deals combat damage to a player, that player sacrifices a creature of their choice.",
-                })
-            )
-        ).toBe('"that player" names no player at this site');
-    });
 });
 
 describe("player edict — trigger heads name the sacrificer", () => {

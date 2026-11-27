@@ -77,6 +77,7 @@ import type { ParseContext } from "../../types";
 import { controlsRule } from "../shared/condition";
 import { activationCostRule, type CostAtomIR } from "../shared/cost";
 import {
+    announcedTargetPronounRule,
     assembleSentences,
     assemblyTrace,
     comparativeSentenceRule,
@@ -128,7 +129,11 @@ function readSentences(
 const spellSentence: Rule<SentenceIR> = giftSentenceRule(
     kickedSentenceRule(
         leadingGateSentenceRule(
-            comparativeSentenceRule(trailingGateSentenceRule(sentenceRule))
+            comparativeSentenceRule(
+                trailingGateSentenceRule(
+                    announcedTargetPronounRule(sentenceRule)
+                )
+            )
         )
     )
 );
@@ -219,7 +224,11 @@ export function readModeBullets(
         const body = bullet.slice(`${BULLET} `.length);
         const parsed = terminated(
             ".",
-            listOf("effect sentences", ". ", sentenceRule)
+            listOf(
+                "effect sentences",
+                ". ",
+                announcedTargetPronounRule(sentenceRule)
+            )
         ).run(body, ctx);
         if (!parsed.ok) return parsed;
         const read = readSentences(parsed.value);

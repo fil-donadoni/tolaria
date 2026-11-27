@@ -11279,6 +11279,273 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Creature", count: 1 },
         },
     },
+    // CR 109.4 + CR 608.2h — "Destroy target nonblack creature. Its controller
+    // loses 2 life": the loser is the controller read off the snapshot the
+    // destroy took, a player parameter that is a `ref` the canned smoke
+    // scenario cannot size — the loss twin of Swords to Plowshares' gain.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "f1eafb69-e7c0-4a22-9e73-6bc32168a7c5",
+            name: "Hideous End",
+            manaCost: "{1}{B}{B}",
+            typeLine: "Instant",
+            oracleText:
+                "Destroy target nonblack creature. Its controller loses 2 life.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Hideous End",
+            types: ["Instant"],
+            manaCost: { X: 1, B: 2 },
+            oracleText:
+                "Destroy target nonblack creature. Its controller loses 2 life.",
+            effects: [
+                { op: "destroy", target: { target: 0 }, bind: "$that1" },
+                {
+                    op: "loseLife",
+                    player: { ref: "$that1.controller" },
+                    amount: 2,
+                },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                excludeColors: ["B"],
+            },
+        },
+    },
+    // CR 101.4 + CR 119.3 — "When this creature enters, each player loses 1
+    // life": a `forEach` over the players whose loss names the member,
+    // `$each` — a player parameter that is a `ref` the canned smoke scenario
+    // cannot size.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "e4ad4b81-3685-4f95-84c0-755263b9d3b1",
+            name: "Maggot Carrier",
+            manaCost: "{B}",
+            typeLine: "Creature — Zombie",
+            oracleText: "When this creature enters, each player loses 1 life.",
+            power: "1",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Maggot Carrier",
+            types: ["Creature"],
+            subtypes: ["Zombie"],
+            manaCost: { B: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText: "When this creature enters, each player loses 1 life.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "maggot-carrier-trigger",
+                    oracleText:
+                        "When this creature enters, each player loses 1 life.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: { set: "players" },
+                            effects: [
+                                {
+                                    op: "loseLife",
+                                    player: { ref: "$each" },
+                                    amount: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 101.4 + CR 121.1 — "Each player draws two cards": the draw fanned
+    // out over the players, its player the iterated `$each`.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "6d42dff5-97ec-4768-b112-84a3584d0b87",
+            name: "Vision Skeins",
+            manaCost: "{1}{U}",
+            typeLine: "Instant",
+            oracleText: "Each player draws two cards.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Vision Skeins",
+            types: ["Instant"],
+            manaCost: { X: 1, U: 1 },
+            oracleText: "Each player draws two cards.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        { op: "draw", player: { ref: "$each" }, count: 2 },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 101.4 + CR 701.9a — "each player discards a card": every player
+    // chooses in APNAP order, then the discards happen together
+    // (`simultaneous`), each by the iterated `$each`.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "4880c976-b417-48e4-98a2-9e5a8da0d758",
+            name: "Sibsig Icebreakers",
+            manaCost: "{2}{B}",
+            typeLine: "Creature — Zombie",
+            oracleText:
+                "When this creature enters, each player discards a card.",
+            power: "2",
+            toughness: "3",
+            layout: "normal",
+        },
+        expected: {
+            name: "Sibsig Icebreakers",
+            types: ["Creature"],
+            subtypes: ["Zombie"],
+            manaCost: { X: 2, B: 1 },
+            power: 2,
+            toughness: 3,
+            oracleText:
+                "When this creature enters, each player discards a card.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "sibsig-icebreakers-trigger",
+                    oracleText:
+                        "When this creature enters, each player discards a card.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: { set: "players" },
+                            simultaneous: true,
+                            effects: [
+                                {
+                                    op: "choice",
+                                    kind: "discard-hand",
+                                    player: { ref: "$each" },
+                                    zone: "hand",
+                                    count: 1,
+                                    prompt: "Discard a card.",
+                                    bind: "$discard1",
+                                },
+                                {
+                                    op: "discard",
+                                    player: { ref: "$each" },
+                                    cards: { ref: "$discard1" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 101.4 + CR 701.17a — "each player mills three cards": the mill fanned
+    // out over the players, its player the iterated `$each`.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "11776f73-f504-4f19-b5b6-2f58279f8b15",
+            name: "Sibsig Host",
+            manaCost: "{4}{B}",
+            typeLine: "Creature — Zombie",
+            oracleText:
+                "When this creature enters, each player mills three cards.",
+            power: "2",
+            toughness: "6",
+            layout: "normal",
+        },
+        expected: {
+            name: "Sibsig Host",
+            types: ["Creature"],
+            subtypes: ["Zombie"],
+            manaCost: { X: 4, B: 1 },
+            power: 2,
+            toughness: 6,
+            oracleText:
+                "When this creature enters, each player mills three cards.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "sibsig-host-trigger",
+                    oracleText:
+                        "When this creature enters, each player mills three cards.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: { set: "players" },
+                            effects: [
+                                {
+                                    op: "mill",
+                                    player: { ref: "$each" },
+                                    count: 3,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 510.1 + CR 701.21a — "Whenever this creature deals combat damage to a
+    // player, that player sacrifices a creature of their choice": "that
+    // player" is the damaged player, `DAMAGE_DEALT.damagedPlayer`, the same
+    // referent the "deals damage to a player" head names. Exhibits a
+    // sacrifice choice by an `$event` player.
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "2e55fc03-779c-4a71-beb7-aa0ade738c24",
+            name: "Demon of Loathing",
+            manaCost: "{5}{B}{B}",
+            typeLine: "Creature — Demon",
+            oracleText:
+                "Flying, trample\nWhenever this creature deals combat damage to a player, that player sacrifices a creature of their choice.",
+            power: "7",
+            toughness: "7",
+            layout: "normal",
+        },
+        expected: {
+            name: "Demon of Loathing",
+            types: ["Creature"],
+            subtypes: ["Demon"],
+            manaCost: { X: 5, B: 2 },
+            power: 7,
+            toughness: 7,
+            oracleText:
+                "Flying, trample\nWhenever this creature deals combat damage to a player, that player sacrifices a creature of their choice.",
+            staticAbilities: ["flying", "trample"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "demon-of-loathing-trigger",
+                    oracleText:
+                        "Whenever this creature deals combat damage to a player, that player sacrifices a creature of their choice.",
+                    head: { kind: "combat-damage-to-player" },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "sacrifice-permanents",
+                            player: { ref: "$event.damagedPlayer" },
+                            zone: "battlefield",
+                            filter: { type: "Creature" },
+                            count: 1,
+                            prompt: "Sacrifice a creature.",
+                            bind: "$sacrifice1",
+                        },
+                        { op: "sacrifice", permanents: { ref: "$sacrifice1" } },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 201.2 + CR 404.1 — "Draw a card, then draw cards equal to the number
     // of cards named {self} in all graveyards": a count over every player's
     // graveyard filtered by an exact name, neither of which the canned smoke
