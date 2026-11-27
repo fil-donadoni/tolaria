@@ -385,11 +385,6 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
         head.scope === "host"
             ? { creature: { ref: "$host" } }
             : {}),
-        // CR 603.2 + CR 608.2h — "that creature" behind "whenever a creature
-        // you control becomes the target of …" is the creature targeted.
-        ...(head.kind === "becomes-target" && head.scope === "yours"
-            ? { creature: { ref: "$event.targetPermanent" } }
-            : {}),
         // CR 120.3 + CR 608.2h — "that creature" behind "deals damage to a
         // creature" is the creature the event dealt damage to.
         ...(head.kind === "damage-dealt" && head.recipient === "creature"

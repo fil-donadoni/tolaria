@@ -266,6 +266,14 @@ describe("becomes-target refusals — printed neighbours (ADR 0105 § 2)", () =>
             "Whenever a creature or planeswalker you control becomes the target of a spell or ability an opponent controls, draw a card.",
         ],
         [
+            '"that creature" behind the opponent form (no antecedent read)',
+            "Whenever a creature you control becomes the target of a spell or ability an opponent controls, that creature gets +1/+1 until end of turn.",
+        ],
+        [
+            '"it" behind the opponent form (the head names no one object)',
+            "Whenever a creature you control becomes the target of a spell or ability an opponent controls, it gets +1/+1 until end of turn.",
+        ],
+        [
             "a first-time head beside a printed per-turn limit",
             "Whenever this creature becomes the target of a spell or ability you control for the first time each turn, draw a card. This ability triggers only once each turn.",
         ],
