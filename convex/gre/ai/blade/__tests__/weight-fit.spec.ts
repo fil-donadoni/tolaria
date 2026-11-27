@@ -94,6 +94,7 @@ describe("weight fit report formatting (issue #3401)", () => {
                 energy: 0,
                 graveyard: 0,
                 graveyardReach: 0,
+                generated: 0,
             },
             basis,
             fittableDelta: 13,

@@ -215,6 +215,15 @@ export const EVAL_TERM_LABELS: Record<keyof EvalTerms, EvalTermLabel> = {
         gain: "gains a card it can bring back",
         loss: "loses a card it can bring back",
     },
+    generated: {
+        short: "Gv",
+        name: "Generated vector (what the fitted table prices on the generated columns)",
+        // The term is a sum over columns and has no unit of its own; one
+        // point of life is the smallest difference any other row words.
+        floor: W.lifeWeight,
+        gain: "reads better on the generated columns",
+        loss: "reads worse on the generated columns",
+    },
 };
 
 /** The keys of `EVAL_TERM_LABELS` in declaration order — what both consumers

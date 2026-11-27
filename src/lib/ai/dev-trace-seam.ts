@@ -72,6 +72,7 @@ const ZERO_TERMS: EvalTerms = {
     energy: 0,
     graveyard: 0,
     graveyardReach: 0,
+    generated: 0,
 };
 
 /** One candidate. `move` is never rendered — `AiDecisionSummary` and

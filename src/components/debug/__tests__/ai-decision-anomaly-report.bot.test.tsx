@@ -63,6 +63,7 @@ const ZERO_TERMS: EvalTerms = {
     energy: 0,
     graveyard: 0,
     graveyardReach: 0,
+    generated: 0,
 };
 
 function candidate(label: string, visits: number): CandidateTrace {

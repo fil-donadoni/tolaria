@@ -46,6 +46,7 @@ const ZERO_TERMS: EvalTerms = {
     energy: 0,
     graveyard: 0,
     graveyardReach: 0,
+    generated: 0,
 };
 
 /** A breakdown whose named terms carry the given values and whose every other

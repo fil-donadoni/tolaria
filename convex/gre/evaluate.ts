@@ -176,6 +176,10 @@ import {
     type LatentWeights,
 } from "./ai/evalWeights";
 import { libraryTerm } from "./ai/decking";
+import {
+    generatedCorrection,
+    type GeneratedCorrection,
+} from "./ai/generatedVector/correction";
 import { isLandDropOpen } from "./ai/asEntersDiscard";
 import { exileGrantLapsesAtCleanup } from "./phases";
 import { activatedDamageReach } from "./ai/activatedDamageReach";
@@ -625,6 +629,12 @@ export type EvalTerms = {
      *  reachable payoff, which is every ordinary one. See
      *  `graveyardReachTerm` and `ai/graveyardReach.ts`. */
     graveyardReach: number;
+    /** ADR 0186, Decision 1 (issue #10862) — what the generated vector's
+     *  columns counted on this player's side are worth under the weight table
+     *  the evaluation was handed (`EvalWeights.generatedWeights`). Exactly
+     *  zero with no table, which is every evaluation outside a search variant
+     *  that supplies one. See `generatedCorrectionFor`. */
+    generated: number;
 };
 
 /** The colour units `player` can pay with RIGHT NOW — their floating pool plus
@@ -2485,7 +2495,8 @@ function playerTerms(
     weights: EvalWeights,
     seat: SeatView,
     pass: Layer7Pass,
-    memo: ManaCensusMemo
+    memo: ManaCensusMemo,
+    generated: number
 ): EvalTerms {
     const terms: EvalTerms = {
         finiteManaUses: 0,
@@ -2548,6 +2559,7 @@ function playerTerms(
         energy: energyTerm(player, weights),
         graveyard: graveyardEngineTerm(player, weights),
         graveyardReach: graveyardReachTerm(state, player, weights),
+        generated,
     };
 
     // The face-down creatures read below, with their realized bodies: their
@@ -2704,9 +2716,36 @@ function sumTerms(t: EvalTerms): number {
         t.poison +
         t.energy +
         t.graveyard +
-        t.graveyardReach
+        t.graveyardReach +
+        t.generated
     );
 }
+
+/** The generated vector's correction to one evaluation (ADR 0186, Decision 1;
+ *  issue #10862): what the weight table in `weights` prices on `state`, read
+ *  for the seat the evaluation is asked for, split by the side each column
+ *  counts for. Each half is that side's `generated` term.
+ *
+ *  With no table — the committed vector, and so the Bot players face — the
+ *  generated vector is not read and both halves are zero: one property read
+ *  per evaluation. A table arrives only through a search variant
+ *  (`SearchVariant.evalWeights`). */
+function generatedCorrectionFor(
+    state: GameState,
+    playerId: string,
+    weights: EvalWeights,
+    memo: ManaCensusMemo
+): GeneratedCorrection {
+    const table = weights.generatedWeights;
+    return table
+        ? generatedCorrection(state, playerId, table, memo)
+        : NO_GENERATED_CORRECTION;
+}
+
+const NO_GENERATED_CORRECTION: GeneratedCorrection = Object.freeze({
+    self: 0,
+    opp: 0,
+});
 
 /** Material score of one player's resources, from their own perspective. */
 function playerScore(
@@ -2715,9 +2754,12 @@ function playerScore(
     weights: EvalWeights,
     seat: SeatView,
     pass: Layer7Pass,
-    memo: ManaCensusMemo
+    memo: ManaCensusMemo,
+    generated: number
 ): number {
-    return sumTerms(playerTerms(state, player, weights, seat, pass, memo));
+    return sumTerms(
+        playerTerms(state, player, weights, seat, pass, memo, generated)
+    );
 }
 
 /** Score `state` from `playerId`'s perspective. Higher = better for the player.
@@ -2764,9 +2806,10 @@ export function evaluateWithMargin(
     // seat (issue #4461): the material terms take it first, the combat terms'
     // castable-interaction reads find it in `memo`.
     const pass = beginLayer7Pass(state);
+    const generated = generatedCorrectionFor(state, playerId, weights, memo);
     const margin =
-        playerScore(state, me, weights, "own", pass, memo) -
-        playerScore(state, opp, weights, "observed", pass, memo);
+        playerScore(state, me, weights, "own", pass, memo, generated.self) -
+        playerScore(state, opp, weights, "observed", pass, memo, generated.opp);
     return {
         value: valueFromMargin(state, me, opp, margin, weights, pass, memo),
         margin,
@@ -3839,9 +3882,10 @@ export function materialMargin(
     if (!me || !opp) return 0;
     const pass = beginLayer7Pass(state);
     const memo = newManaCensusMemo();
+    const generated = generatedCorrectionFor(state, playerId, weights, memo);
     return (
-        playerScore(state, me, weights, "own", pass, memo) -
-        playerScore(state, opp, weights, "observed", pass, memo)
+        playerScore(state, me, weights, "own", pass, memo, generated.self) -
+        playerScore(state, opp, weights, "observed", pass, memo, generated.opp)
     );
 }
 
@@ -3888,14 +3932,32 @@ export function evaluateBreakdown(
         energy: 0,
         graveyard: 0,
         graveyardReach: 0,
+        generated: 0,
     };
     if (!me || !opp) {
         return { self: empty, opp: empty, margin: 0, danger: 0, total: 0 };
     }
     const pass = beginLayer7Pass(state);
     const memo = newManaCensusMemo();
-    const self = playerTerms(state, me, weights, "own", pass, memo);
-    const oppTerms = playerTerms(state, opp, weights, "observed", pass, memo);
+    const generated = generatedCorrectionFor(state, playerId, weights, memo);
+    const self = playerTerms(
+        state,
+        me,
+        weights,
+        "own",
+        pass,
+        memo,
+        generated.self
+    );
+    const oppTerms = playerTerms(
+        state,
+        opp,
+        weights,
+        "observed",
+        pass,
+        memo,
+        generated.opp
+    );
     const margin = sumTerms(self) - sumTerms(oppTerms);
     return {
         self,

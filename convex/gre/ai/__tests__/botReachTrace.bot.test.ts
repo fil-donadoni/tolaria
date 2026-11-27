@@ -36,6 +36,7 @@ const TERM_KEYS = Object.keys({
     energy: true,
     graveyard: true,
     graveyardReach: true,
+    generated: true,
 } satisfies Record<keyof EvalTerms, true>) as (keyof EvalTerms)[];
 
 function terms(v: number): EvalTerms {
