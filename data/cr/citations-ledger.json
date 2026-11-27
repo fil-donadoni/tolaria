@@ -47384,6 +47384,7 @@
         {"id":"605.1a","line":"// Tap the planned lands and add their mana (CR 605.1a), mirroring","sites":1,"status":"baseline"},
         {"id":"611.2a","line":"// for `duration` or INDEFINITELY when `duration` is omitted (CR 611.2a —","sites":1,"status":"confirmed","ruleHash":"6aa732bca1e81d1c"},
         {"id":"400.2","line":"describe(\"Deep-Cavern Bat (LCI — private look + optional linked exile, returned on leave; CR 400.2 / 607 / 400.7)\", () => {","sites":1,"status":"baseline"},
+        {"id":"601.2f","line":"too, out of the coming turn's mana (CR 601.2f). The relief is already booked","sites":1,"status":"confirmed","ruleHash":"0e5bab9baa20723d"},
         {"id":"603.10","line":"it(\"a compiled head keyed on the source's OWN departure says it is gone (CR 603.10)\", () => {","sites":1,"status":"confirmed","ruleHash":"fef9f8dba4f8cdd2"},
         {"id":"400.7","line":"it(\"offers only the active player's continuously-held non-Wall creature (CR 102.1 / 302.6 / 400.7)\", () => {","sites":1,"status":"baseline"},
         {"id":"107.1b","line":"// number-pick nomination (CR 107.1b / 107.3f, issue #1701)","sites":1,"status":"baseline"},
