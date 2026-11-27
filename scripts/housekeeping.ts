@@ -366,7 +366,8 @@ export const PRUNE_REGRESSIONS_STEP: Step = {
  *  deadline (`GIT_NET_TIMEOUT_MS`) — the common run. A tip with Bot-verdict
  *  misses plays them first (the drift sweep, ADR 0158 § 2b, issue #6687):
  *  `derive:sync` gives the refit 25 min, the compile the replay's 120-min
- *  sweep wall and `oracle:index` 30, and kills its own children by SIGTERM so
+ *  sweep wall (a carry, the sweep's no-miss alternative, 20 min — issue
+ *  #10865) and `oracle:index` 30, and kills its own children by SIGTERM so
  *  the heavy gate reaps a sweep — this SIGKILL must never reach it first, so
  *  the ceiling sits above the refit's wall plus the sweep's (145 min). A
  *  sweep is minutes on a tip a PR played (a few misses, the merge's own), a
