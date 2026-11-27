@@ -7011,6 +7011,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"fight\" names a $each/bound combatant — covered by the card's own per-card test",
+            "issue": 10951
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"grantAbility\" targets $source/$each — covered by the card's own per-card test",
             "issue": 4387
         },
