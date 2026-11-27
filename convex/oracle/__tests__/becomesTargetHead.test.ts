@@ -222,7 +222,7 @@ describe("a compiled becomes-target head fires in the engine (CR 603.2)", () => 
         expect(target(state, "watcher", "p2")).toBe(0);
         expect(target(state, "myBear", "p1")).toBe(0);
         expect(target(state, "watcher", "p1")).toBe(1);
-        expect(state.stack.at(-1)?.triggeredAbilityId).toBe(
+        expect(state.stack[state.stack.length - 1]?.triggeredAbilityId).toBe(
             "nettle-guard-trigger"
         );
         expect(target(state, "watcher", "p1")).toBe(0);
@@ -235,7 +235,7 @@ describe("a compiled becomes-target head fires in the engine (CR 603.2)", () => 
         // The Sanctuary itself is a permanent you control, not a creature.
         expect(target(state, "watcher", "p2")).toBe(0);
         expect(target(state, "myBear", "p2")).toBe(1);
-        expect(state.stack.at(-1)?.triggeredAbilityId).toBe(
+        expect(state.stack[state.stack.length - 1]?.triggeredAbilityId).toBe(
             "shapers-sanctuary-trigger"
         );
         // No per-turn cap on this form: a second targeting fires again.
