@@ -1316,7 +1316,7 @@
     ],
     "Shatter": [
         {
-            "label": "removal: Shatter takes the artifact whose ability script outranks its floor (issue #5145)",
+            "label": "removal: Shatter takes the tapped board wipe before it can untap",
             "tier": "must",
             "needsSetup": false
         }

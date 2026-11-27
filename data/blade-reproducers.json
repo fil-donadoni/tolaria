@@ -5540,7 +5540,7 @@
         "landCount": 0,
         "libraryCount": 20
     },
-    "removal: Shatter takes the artifact whose ability script outranks its floor (issue #5145)": {
+    "removal: Shatter takes the tapped board wipe before it can untap": {
         "cards": [
             {
                 "name": "Mountain",
@@ -5555,9 +5555,31 @@
                 "tapped": false
             },
             {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
                 "name": "Shatter",
                 "owner": "me",
                 "zone": "hand"
+            },
+            {
+                "name": "Swamp",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Swamp",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
             },
             {
                 "name": "Weakstone",
@@ -5567,7 +5589,8 @@
             {
                 "name": "Nevinyrral's Disk",
                 "owner": "opp",
-                "zone": "battlefield"
+                "zone": "battlefield",
+                "tapped": true
             }
         ],
         "phase": "PRECOMBAT_MAIN",
