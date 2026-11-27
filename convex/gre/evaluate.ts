@@ -159,6 +159,7 @@ import {
 // Issue #5363 — a standing spell cost modifier priced as mana economy.
 import {
     costModifierStandingWorth,
+    costModifierTaxOnHolder,
     declaresSpellCostModifier,
 } from "./ai/costModifierPricing";
 // Issue #2937 — the single authority on which granted keywords are PROTECTIVE
@@ -507,8 +508,17 @@ function latentBoardFor(
             card,
             def,
             weights,
+            // A HELD answer does not relieve a tax on its holder's own spells
+            // (CR 601.2f): the tax stands until the answer resolves, and
+            // casting the answer pays it too, out of the coming turn's mana.
+            // The relief is booked on the board of the line that casts it
+            // (the source's `permanents` credit gone), so the hand face of
+            // the answer prices the victim WITHOUT that part — otherwise the
+            // held answer cancels the tax it leaves standing, and a line
+            // that keeps the tax reads as good as one that removes it.
             realisedLoss: (perm) =>
-                permanentRealisedValue(state, perm, weights, pass),
+                permanentRealisedValue(state, perm, weights, pass) -
+                costModifierTaxOnHolder(state, perm, player.id, weights),
             returnedWorth: (perm) =>
                 cardValue(
                     state,

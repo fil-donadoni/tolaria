@@ -26,6 +26,9 @@ const BOLT = getCardByName("Lightning Bolt").id; // {R}
 const BEARS = getCardByName("Grizzly Bears").id; // {1}{G}
 const DRAGON = getCardByName("Shivan Dragon").id; // {4}{R}{R}
 const MOUNTAIN = getCardByName("Mountain").id;
+const DISENCHANT = getCardByName("Disenchant").id; // {1}{W}
+const LIONS = getCardByName("Savannah Lions").id; // {W}
+const THALIA = getCardByName("Thalia, Guardian of Thraben").id; // noncreature {1} more
 const W = DEFAULT_EVAL_WEIGHTS;
 
 function inst(
@@ -186,5 +189,62 @@ describe("cost-modifier pricing — mana economy (issue #5363)", () => {
         expect(entered).toBeCloseTo(3 * W.costTaxWeight, 6);
         expect(boardTerm - W.permanentWeight).toBeCloseTo(entered, 6);
         expect(handTerm).toBeCloseTo(entered, 6);
+    });
+});
+
+describe("cost-modifier pricing — the deck, the held answer, a creature source (issue #10820)", () => {
+    function withLibrary(state: GameState, owner: string, cardIds: string[]) {
+        const player = state.players.find((p) => p.id === owner)!;
+        player.library = cardIds.map((cardId, i) =>
+            inst(cardId, owner, `${owner}-l${i}`, { zone: "library" })
+        );
+        return state;
+    }
+
+    it("CR 504.1: the library reads as the expected tax on the next draw, lands included in the mean", () => {
+        const tri = inst(TRINISPHERE, "p1", "tri");
+        // Bolt 1 → 3 (+2), Mountain untaxed: a mean of one mana a draw.
+        const mixed = withLibrary(board([tri], []), "p2", [
+            BOLT,
+            BOLT,
+            MOUNTAIN,
+            MOUNTAIN,
+        ]);
+        const lands = withLibrary(board([tri], []), "p2", [MOUNTAIN, MOUNTAIN]);
+        expect(worthOf(mixed, tri)).toBeCloseTo(W.costTaxLibraryWeight, 6);
+        expect(worthOf(lands, tri)).toBeCloseTo(0, 6);
+    });
+
+    it("CR 601.2f: a held answer does not relieve the tax on its holder's own spells", () => {
+        // The opponent's Trinisphere taxes the bot's hand. The held
+        // Disenchant's worth is the hand term with it minus without it; it
+        // must not grow with the tax the Trinisphere lays on the rest of
+        // that hand (two Lions, +2 each) against a hand it does not tax.
+        const heldAnswer = (rest: string[]) => {
+            const tri = () => inst(TRINISPHERE, "p2", "tri");
+            const withIt = board([], [tri()], { p1: [DISENCHANT, ...rest] });
+            const without = board([], [tri()], { p1: rest });
+            return (
+                evaluateBreakdown(withIt, "p1").self.hand -
+                evaluateBreakdown(without, "p1").self.hand
+            );
+        };
+        expect(heldAnswer([LIONS, LIONS])).toBeCloseTo(
+            heldAnswer([DRAGON, DRAGON]),
+            6
+        );
+    });
+
+    it("CR 601.2f: a creature source's tax rides the board face beside its body", () => {
+        const thalia = inst(THALIA, "p2", "thalia");
+        const spells = board([], [thalia], { p1: [BOLT, BOLT] });
+        const creatures = board([], [thalia], { p1: [BEARS, BEARS] });
+        // Noncreature Bolts {R} → {1}{R}; Bears untouched.
+        expect(worthOf(spells, thalia)).toBeCloseTo(2 * W.costTaxWeight, 6);
+        expect(worthOf(creatures, thalia)).toBeCloseTo(0, 6);
+        expect(
+            evaluateBreakdown(spells, "p1").opp.permanents -
+                evaluateBreakdown(creatures, "p1").opp.permanents
+        ).toBeCloseTo(2 * W.costTaxWeight, 6);
     });
 });

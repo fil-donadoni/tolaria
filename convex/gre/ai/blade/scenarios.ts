@@ -12449,13 +12449,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             { kind: "resolve-top" },
         ],
         bot: "me",
-        budget: { iterations: 200 },
+        budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
             moves: [{ kind: "resolution-choice", second: [] }],
         },
-        note: "Issue #9973, the KEEP half. Teferi, Hero of Dominaria revealed with seven lands in play: castable next turn, no recursion in the deck. Cause: a planeswalker's loyalty abilities were read nowhere — `carriesStandingAbilityWorth` excludes walkers and the loyalty ratio (ADR 0107) only scales the `base + MV` floor — so Teferi read 58 in hand against a Grizzly Bears' 105 and the rollouts drew a random card over him. A walker now adds its best survivable loyalty ability (`dslLoyaltyAbilityValue`, CR 606.3: one per turn). Proof of failure: with `dslLoyaltyAbilityValue` returning `undefined` every seed bins Teferi (`material-tiebreak`).",
+        note: "Issue #9973, the KEEP half. Teferi, Hero of Dominaria revealed with seven lands in play: castable next turn, no recursion in the deck. Cause: a planeswalker's loyalty abilities were read nowhere — `carriesStandingAbilityWorth` excludes walkers and the loyalty ratio (ADR 0107) only scales the `base + MV` floor — so Teferi read 58 in hand against a Grizzly Bears' 105 and the rollouts drew a random card over him. A walker now adds its best survivable loyalty ability (`dslLoyaltyAbilityValue`, CR 606.3: one per turn). Proof of failure: with `dslLoyaltyAbilityValue` returning `undefined` every seed bins Teferi (`material-tiebreak`). BUDGET 400, both halves: at 200 the keep is settled by `material-tiebreak` on every run, and one ±1% jitter vector of the robustness audit bins Teferi on one wide seed once a new fittable weight re-draws the jitter signs (issue #10820). At 400 the audit is robust on both halves and the break above still bins on 5/5 seeds.",
     },
     {
         label: "surveil: bins a dead land off the same board",
@@ -12497,7 +12497,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             { kind: "resolve-top" },
         ],
         bot: "me",
-        budget: { iterations: 200 },
+        budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
@@ -18105,12 +18105,21 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // Tawnos's Weaponry (a 2-MV artifact the Op vocabulary reads at its
         // floor). The bot's hand holds three
         // one-drops: the tax takes two mana from each.
+        //
+        // ONE point, no near-tie: the bot's whole deck is one-drops and it
+        // draws no land, so its mana stays at three. Removing the Trinisphere
+        // first deploys three Lions next turn; a Lion now leaves the
+        // Disenchant for next turn and the Lions for the turn after, a full
+        // turn behind. With filler basics in the library the land drop let
+        // "Lion now, Disenchant + Lion next turn" tie the removal line (issue
+        // #10820), so the library is explicit and land-free; the opponent's
+        // holds basics only so neither seat decks out inside the search.
         label: "cost-modifier pricing: Disenchant takes the Trinisphere taxing the bot's hand of one-drops, not the 2-MV artifact (issue #5363)",
         classification: {
             kind: "conditional",
             discriminant: {
                 kind: "card",
-                detail: "The bot's hand holds three one-drops, each taxed from one mana to three.",
+                detail: "The bot's hand and land-free library are one-drops, each taxed from one mana to three, on a mana base that stays at three.",
             },
         },
         spec: {
@@ -18133,11 +18142,18 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     owner: "opp",
                     zone: "battlefield",
                 },
+                {
+                    name: "Savannah Lions",
+                    owner: "me",
+                    zone: "library",
+                    count: 20,
+                },
+                { name: "Plains", owner: "opp", zone: "library", count: 20 },
             ],
             phase: "PRECOMBAT_MAIN",
             turn: 8,
             landCount: 0,
-            libraryCount: 20,
+            libraryCount: 0,
         },
         bot: "me",
         budget: { iterations: 400 },
@@ -18210,6 +18226,72 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         note: "Issue #5363. The discriminating twin of the entry above: hand-relative, the same Trinisphere reads zero when every known spell already costs three or more.",
+    },
+    {
+        // COST-MODIFIER PRICING on a CREATURE source (CR 601.2f, issue
+        // #10820). Thalia, Guardian of Thraben ("noncreature spells cost {1}
+        // more") beside a Youthful Knight: the SAME 2/1 first-strike body at
+        // the same mana value, so the one difference between the two Bolt
+        // targets is the tax. The bot's hand and land-free library are Lava
+        // Spikes on two Mountains: with Thalia gone it casts two a turn, with
+        // her standing one. Bolting the Knight kills an identical body and
+        // leaves the tax; the tax is the point, nothing else separates them.
+        label: "cost-modifier pricing: Lightning Bolt takes Thalia taxing the bot's deck of noncreature one-drops, not the identical Youthful Knight (issue #10820)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "The bot's hand and land-free library are noncreature one-drops, each taxed from one mana to two, on a mana base that stays at two.",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Mountain",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Lava Spike",
+                    owner: "me" as const,
+                    zone: "hand" as const,
+                })),
+                { name: "Lava Spike", owner: "me", zone: "library", count: 20 },
+                {
+                    name: "Thalia, Guardian of Thraben",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Youthful Knight",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "opp", zone: "library", count: 20 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 0,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Lightning Bolt",
+                    target: "Thalia, Guardian of Thraben",
+                },
+            ],
+        },
+        note: "Issue #10820. Guards `costModifierStandingWorth` on a creature source: Thalia's tax on the bot's noncreature hand and deck rides `permanents` beside her body, so the identical Youthful Knight is the worse Bolt.",
     },
     {
         // Issue #5163 (ADR 0151) — a SYMMETRIC lock read by Differential

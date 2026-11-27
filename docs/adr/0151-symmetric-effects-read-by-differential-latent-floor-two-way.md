@@ -90,3 +90,30 @@ a liability the other way round.
 → refit`).
 - Out of scope here: cost modifiers as a mana-economy term, replacement
   effects, non-linear life (tracker issue #5156).
+
+## Amendment I — a held answer does not relieve a tax on its holder (issue #10820)
+
+Decision 4 keeps the source's faces one number, and that still holds: a
+standing spell cost modifier's board face, its removal reading
+(`permanentRealisedValue`) and its hand face read the same
+`costModifierStandingWorth`. What changes is the HELD ANSWER's price. The
+latent lens of a removal spell in hand (`latentBoardFor.realisedLoss`) now
+prices an opposing cost modifier WITHOUT the tax it lays on the holder's own
+spells (`costModifierTaxOnHolder`).
+
+Why: the tax stands until the answer resolves, and casting the answer pays it
+too, out of the coming turn's mana (CR 601.2f). The relief is already booked
+on the board of the line that casts the answer, because the source's
+`permanents` credit is gone there. Crediting it to the held answer as well
+cancelled about 91% of the tax in every line that left the tax standing, so
+"hold the answer, cast into the tax" read as good as "remove the tax first",
+whatever `costTaxWeight` was.
+
+Two readings ride on the same change:
+
+- **The deck face.** The worth adds the expected tax on the next draw: the
+  library's mean added mana, at the fitted `costTaxLibraryWeight`.
+- **A creature source.** A creature that is a cost modifier (Thalia, Guardian
+  of Thraben) is read on the board face under `permanents`, beside its body,
+  as a creature restriction source is (issue #5154). Its hand face keeps the
+  body only, the same limit `declaresStandingLock` has.
