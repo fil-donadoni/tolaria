@@ -548,7 +548,7 @@ export async function saveSeats(
     // The full seat array is in hand, so the membership index is brought in
     // step here too — a no-write read of the event's few rows when no User
     // joined or left, which is every pick.
-    await syncEventMembers(ctx, eventId, seats);
+    await syncEventMembers(ctx, eventId, seats, extraPatch.status);
 }
 
 /** Does this event row still carry its payload inline (written before the

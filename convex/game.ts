@@ -1,3 +1,4 @@
+import { concludeEventMembers } from "./limitedEventMemberStore";
 import { ConvexError, v, type GenericId, type Infer } from "convex/values";
 import { findOutsideGamePlayable } from "./gre/outsideGame";
 import type { GenericMutationCtx } from "convex/server";
@@ -941,6 +942,9 @@ async function recordLimitedPairingResult(
         ...(advance.kind === "eventFinished" ? { status: "finished" } : {}),
         updatedAt: now,
     });
+    if (advance.kind === "eventFinished") {
+        await concludeEventMembers(ctx, event._id);
+    }
 
     // Issue #1647: a round this cascade just opened needs the SAME deadline
     // schedule `openPlayPhaseIfReady` arms for round 1 — otherwise a table
