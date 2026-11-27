@@ -16,7 +16,7 @@ generated vector give different vectors to?
 vector gives different vectors to at least half of the blind pairs that are
 not vacuous (two copies of one card, read by the interchangeability keyer).
 
-**Verdict up front: FAIL, 13 of 29, one short of 15.** No blind pair is
+**Verdict up front: FAIL, 13 of 29, two short of 15.** No blind pair is
 vacuous, so the denominator is all 29. 16 stay blind, and 11 of those are one
 shape: a choice written onto an object still on the stack — a target or a
 mode — which the settled 1-ply probe leaves unresolved and which no column of
