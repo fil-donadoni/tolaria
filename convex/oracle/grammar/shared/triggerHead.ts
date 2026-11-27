@@ -291,8 +291,26 @@ export type TriggerHeadIR =
      * its controller's or not (Ward's opponent narrowing is CR 702.21a's own).
      * `scope: "host"` (CR 303.4b) — "when enchanted creature becomes the
      * target of a spell or ability": the Aura's host is the one targeted.
+     * `scope: "yours"` — "whenever a creature you control becomes the target
+     * of …": any creature the source's controller controls, the source
+     * included.
+     *
+     * `by` (CR 109.4 — a spell or ability on the stack has a controller)
+     * narrows WHOSE spell or ability did the targeting: "… you control" or
+     * "… an opponent controls". Absent, any spell or ability's.
+     *
+     * `firstTimeEachTurn` (CR 603.2) — "… for the first time each turn": the
+     * ability triggers on the first such event each turn and never again
+     * that turn, read as a once-per-turn cap on the ability counted on its
+     * source object (`TriggeredAbility.maxTriggersPerTurn: 1`). The two agree
+     * because every event the cap counts is one the head names.
      */
-    | { readonly kind: "becomes-target"; readonly scope?: "host" }
+    | {
+          readonly kind: "becomes-target";
+          readonly scope?: "host" | "yours";
+          readonly by?: "you" | "opponent";
+          readonly firstTimeEachTurn?: true;
+      }
     /**
      * CR 605.1b + CR 303.4b — "whenever enchanted land is tapped for mana":
      * the Aura's host tapped for a mana ability's cost. The tapped land's
@@ -561,6 +579,12 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     [
         "when enchanted creature becomes the target of a spell or ability",
         { kind: "becomes-target", scope: "host" },
+    ],
+    // CR 603.2 + CR 109.4 — any creature the source's controller controls
+    // becoming the target of a spell or ability an opponent controls.
+    [
+        "whenever a creature you control becomes the target of a spell or ability an opponent controls",
+        { kind: "becomes-target", scope: "yours", by: "opponent" },
     ],
     // CR 120.3 / 303.4b — the Aura host dealing or being dealt damage. Only the
     // forms the corpus prints: "…deals damage to an opponent" on an Aura is a
@@ -964,6 +988,14 @@ export const SELF_HEADS: readonly {
         tail: " becomes the target of a spell or ability",
         ir: { kind: "becomes-target" },
     },
+    // CR 603.2 + CR 109.4 — the source becoming the target of a spell or
+    // ability its own controller controls, the first time each turn (the
+    // Valiant ability word, CR 207.2c, is dropped by the triggered slot).
+    {
+        opener: "whenever ",
+        tail: " becomes the target of a spell or ability you control for the first time each turn",
+        ir: { kind: "becomes-target", by: "you", firstTimeEachTurn: true },
+    },
     // CR 702.29c — "when you cycle this card" (the subject is "you cycle X").
     {
         opener: "when you cycle ",
@@ -1111,8 +1143,13 @@ export function headPronounReferent(
             return head.scope === "host" ? "host" : "source";
         // CR 603.2 — the targeted permanent: the source itself, or the
         // Aura's host (CR 303.4b).
+        // `yours` names a creature the event picks, which "it" never does.
         case "becomes-target":
-            return head.scope === "host" ? "host" : "source";
+            return head.scope === "host"
+                ? "host"
+                : head.scope === "yours"
+                  ? null
+                  : "source";
         // CR 303.4b — "its controller" names the host's, not the Aura's.
         case "tapped-for-mana":
             return null;
