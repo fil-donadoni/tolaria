@@ -111,6 +111,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature [flying] › delayedTrigger+exile+moveZone",
+            "issue": 10929
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature [flying] › destroy",
             "issue": 4887
         },
