@@ -487,8 +487,15 @@ export type CompiledTriggerHead =
     | { readonly kind: "tapped-for-mana"; readonly scope: "host" | "any" }
     /** CR 603.2 — "whenever this creature becomes the target of a spell or
      *  ability" (any spell or ability); `scope: "host"` (CR 303.4b) — "when
-     *  enchanted creature becomes the target of a spell or ability". */
-    | { readonly kind: "became-target"; readonly scope?: "host" }
+     *  enchanted creature becomes the target of a spell or ability";
+     *  `scope: "yours"` — "whenever a creature you control becomes …". `by`
+     *  (CR 109.4) — the targeting spell or ability's controller: "you
+     *  control" / "an opponent controls". */
+    | {
+          readonly kind: "became-target";
+          readonly scope?: "host" | "yours";
+          readonly by?: "you" | "opponent";
+      }
     /** CR 702.29c — "when you cycle this card". */
     | { readonly kind: "cycled" }
     /** CR 603.8 — "when this creature's power is N or greater" (state trigger). */
@@ -1087,7 +1094,8 @@ function resolveCompiledTriggerHead(
         case "became-target":
             return becameTargetTrigger({
                 ...common,
-                ...(head.scope === "host" ? { scope: "host" as const } : {}),
+                ...(head.scope !== undefined ? { scope: head.scope } : {}),
+                ...(head.by !== undefined ? { by: head.by } : {}),
                 ...(descriptor.maxTriggersPerTurn !== undefined
                     ? { maxTriggersPerTurn: descriptor.maxTriggersPerTurn }
                     : {}),
