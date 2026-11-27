@@ -18105,12 +18105,21 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // Tawnos's Weaponry (a 2-MV artifact the Op vocabulary reads at its
         // floor). The bot's hand holds three
         // one-drops: the tax takes two mana from each.
+        //
+        // ONE point, no near-tie: the bot's whole deck is one-drops and it
+        // draws no land, so its mana stays at three. Removing the Trinisphere
+        // first deploys three Lions next turn; a Lion now leaves the
+        // Disenchant for next turn and the Lions for the turn after, a full
+        // turn behind. With filler basics in the library the land drop let
+        // "Lion now, Disenchant + Lion next turn" tie the removal line (issue
+        // #10820), so the library is explicit and land-free; the opponent's
+        // holds basics only so neither seat decks out inside the search.
         label: "cost-modifier pricing: Disenchant takes the Trinisphere taxing the bot's hand of one-drops, not the 2-MV artifact (issue #5363)",
         classification: {
             kind: "conditional",
             discriminant: {
                 kind: "card",
-                detail: "The bot's hand holds three one-drops, each taxed from one mana to three.",
+                detail: "The bot's hand and land-free library are one-drops, each taxed from one mana to three, on a mana base that stays at three.",
             },
         },
         spec: {
@@ -18133,11 +18142,18 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     owner: "opp",
                     zone: "battlefield",
                 },
+                {
+                    name: "Savannah Lions",
+                    owner: "me",
+                    zone: "library",
+                    count: 20,
+                },
+                { name: "Plains", owner: "opp", zone: "library", count: 20 },
             ],
             phase: "PRECOMBAT_MAIN",
             turn: 8,
             landCount: 0,
-            libraryCount: 20,
+            libraryCount: 0,
         },
         bot: "me",
         budget: { iterations: 400 },

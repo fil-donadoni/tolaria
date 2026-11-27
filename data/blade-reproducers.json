@@ -1058,12 +1058,24 @@
                 "name": "Tawnos's Weaponry",
                 "owner": "opp",
                 "zone": "battlefield"
+            },
+            {
+                "name": "Savannah Lions",
+                "owner": "me",
+                "zone": "library",
+                "count": 20
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library",
+                "count": 20
             }
         ],
         "phase": "PRECOMBAT_MAIN",
         "turn": 8,
         "landCount": 0,
-        "libraryCount": 20
+        "libraryCount": 0
     },
     "cost-modifier pricing: with a hand of five-drops Trinisphere does not tax, Disenchant takes the 2-MV artifact (issue #5363)": {
         "cards": [
