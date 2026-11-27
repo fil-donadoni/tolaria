@@ -16455,7 +16455,11 @@ export interface EffectCountSpec {
  *  (Spellseeker's "mana value 2 or less", Brightglass Gearhulk's "mana value 1
  *  or less") OR a DYNAMIC `{ X: true }` (Green Sun's Zenith's
  *  "mana value X or less" — the caster's chosen {X}, read at resolution via
- *  `ctx.getX()`, same as every other `EffectXValue` site). Deliberately small:
+ *  `ctx.getX()`, same as every other `EffectXValue` site) OR the cost-sacrifice
+ *  snapshot `{ sacrificed: { read, plus? } }` (Eldritch Evolution's "mana
+ *  value X or less, where X is 2 plus the sacrificed creature's mana value" —
+ *  CR 608.2h, the victim's last known information off the stack item). An
+ *  unresolvable dynamic ceiling (no snapshot, no X) fails closed. Deliberately small:
  *  it answers "how many X" / "search for an X card", not arbitrary predicates. `isToken` restricts a
  *  `zone: "battlefield"` pick to tokens (`true`, Sheoldred's Edict's "a
  *  creature TOKEN") or nontoken permanents (`false`, Sheoldred's Edict's "a
@@ -16622,7 +16626,7 @@ export interface EffectCardFilter {
      *  hidden-zone matcher fails it closed. A positive integer literal; the
      *  upper bound and a dynamic form wait for a card that needs them. */
     powerAtLeast?: number;
-    manaValueAtMost?: number | EffectXValue;
+    manaValueAtMost?: number | EffectXValue | EffectSacrificedValue;
     /** Exact mana-value match (CR 202.3, issue #1083) — a card matches only if
      *  its mana value equals `manaValueEquals` precisely, not merely "at
      *  most". Mirrors `manaValueAtMost`'s two shapes exactly (ADR 0045

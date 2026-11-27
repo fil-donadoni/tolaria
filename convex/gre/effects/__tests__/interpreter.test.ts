@@ -7047,6 +7047,94 @@ describe("Effect Script Op: moveZone — cards/player shape (CR 400.7, issue #67
         expect(state.players[0].hand.length).toBe(0);
     });
 
+    // `filter.manaValueAtMost: { sacrificed: { read: "manaValue", plus } }` —
+    // Eldritch Evolution's "a creature card with mana value X or less, where X
+    // is 2 plus the sacrificed creature's mana value". CR 608.2h: the victim
+    // left as a cost, so X reads its last known mana value off the stack
+    // item's cost-sacrifice snapshot.
+    describe("a mana-value ceiling read off the cost-sacrifice snapshot (CR 608.2h)", () => {
+        const AT_CEILING_ID = "test-effects-sac-ceiling-at";
+        const ABOVE_CEILING_ID = "test-effects-sac-ceiling-above";
+        const SCRIPT = [
+            {
+                op: "choice" as const,
+                kind: "search-library" as const,
+                player: "controller" as const,
+                zone: "library" as const,
+                filter: {
+                    type: "Creature" as const,
+                    manaValueAtMost: {
+                        sacrificed: { read: "manaValue" as const, plus: 2 },
+                    },
+                },
+                count: { min: 0, max: 1 },
+                prompt: "Search your library for a creature card with mana value X or less.",
+                bind: "$picked",
+            },
+        ];
+
+        function candidates(snapshotMv: number | undefined): string[] {
+            registerTokenDefinition({
+                id: AT_CEILING_ID,
+                name: AT_CEILING_ID,
+                rarity: "common",
+                manaCost: { X: 3 },
+                types: ["Creature"],
+                power: 1,
+                toughness: 1,
+            });
+            registerTokenDefinition({
+                id: ABOVE_CEILING_ID,
+                name: ABOVE_CEILING_ID,
+                rarity: "common",
+                manaCost: { X: 4 },
+                types: ["Creature"],
+                power: 1,
+                toughness: 1,
+            });
+            const id = registerScript(
+                "test-op-choice-manavalue-sacrificed",
+                SCRIPT
+            );
+            const lib = [
+                ...libraryOf("p1", ["sacAt1"], AT_CEILING_ID),
+                ...libraryOf("p1", ["sacAbove1"], ABOVE_CEILING_ID),
+            ];
+            const state = makeState({
+                players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+            });
+            const item = pushSpell(state, id, "p1");
+            if (snapshotMv !== undefined) {
+                item.additionalSacrificeSnapshot = {
+                    cardInstanceId: "victim",
+                    mv: snapshotMv,
+                };
+            }
+            resolveTopOfStack(state);
+            // An unresolvable ceiling matches nothing (CR 608.2b): either an
+            // empty-allow-list look or no pick raised at all.
+            return state.pendingChoices?.[0]?.candidateIds ?? [];
+        }
+
+        it("admits a card at 2 plus the sacrificed mana value and refuses one above it", () => {
+            expect(candidates(1)).toEqual(["sacAt1"]);
+        });
+
+        it("fails closed when nothing was sacrificed (no snapshot on the stack item)", () => {
+            expect(candidates(undefined)).toEqual([]);
+        });
+
+        it("validates as an Effect Script", () => {
+            expect(
+                validateEffectScript({
+                    id: "test-op-choice-manavalue-sacrificed",
+                    name: "Test",
+                    effects: SCRIPT,
+                } as never)
+            ).toEqual([]);
+        });
+    });
+
     // `filter.any` (issue #897) — OR ACROSS filter dimensions, distinct from
     // the OR-WITHIN-a-field arrays `type`/`subtype`/`color` already support
     // (issue #677). Magda, Brazen Outlaw's "an artifact or Dragon card":
