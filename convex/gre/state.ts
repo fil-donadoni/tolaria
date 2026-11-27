@@ -17496,6 +17496,27 @@ export function buildSpellContext(
         // rather than the caller.
         putCardsOnBottomInRandomOrder(playerId, cardInstanceIds, from) {
             const player = getPlayer(state, playerId);
+            if (from === "library") {
+                // CR 401.4 (issue #10561) — "put the rest on the bottom of
+                // your library in a random order" after a reveal: the cards
+                // never leave the library, so this is a reorder, not a zone
+                // change (no library-entry event). Same seeded shuffle, same
+                // knowledge clear: the reveal ends where the order is
+                // unwitnessed (ADR 0026).
+                const wanted = new Set(cardInstanceIds);
+                const lifted = player.library.filter((c) => wanted.has(c.id));
+                if (lifted.length === 0) return;
+                seededShuffle(state, lifted);
+                const kept = player.library.filter((c) => !wanted.has(c.id));
+                player.library.splice(
+                    0,
+                    player.library.length,
+                    ...kept,
+                    ...lifted
+                );
+                clearKnowledge(lifted, null);
+                return;
+            }
             const fromField = ZONE_TO_FIELD[from];
             const present = new Set(
                 (player[fromField] as CardInstanceState[]).map((c) => c.id)

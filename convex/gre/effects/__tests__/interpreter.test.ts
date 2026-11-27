@@ -33556,6 +33556,126 @@ describe("Effect Script Op: revealUntilMatch rest shuffleIntoLibrary (CR 701.24a
     });
 });
 
+// --- revealUntilMatch `matchCount` / `tapped` / `rest: "libraryBottomRandom"`
+// (issue #10561) — U.S.S. Voyager, Lone Wanderer: "reveal cards from the top
+// of your library until you reveal two land cards. Put those land cards onto
+// the battlefield tapped and the rest on the bottom of your library in a
+// random order." CR 701.20a reveal; CR 110.5b an authored tapped entry; CR
+// 609.3 a library holding fewer lands is revealed whole.
+
+describe("Effect Script Op: revealUntilMatch matchCount + tapped + libraryBottomRandom (CR 701.20a, CR 110.5b, CR 609.3)", () => {
+    const libOf = (entries: [string, string][]) =>
+        entries.map(([cid, defId]) =>
+            makeInstance(defId, {
+                id: cid,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+
+    const TWO_LANDS_SCRIPT: EffectOp[] = [
+        {
+            op: "revealUntilMatch",
+            player: "controller",
+            filter: { type: "Land" },
+            matchCount: 2,
+            match: "battlefield",
+            tapped: true,
+            rest: "libraryBottomRandom",
+        },
+    ];
+
+    it("stops at the SECOND land: both enter tapped, the rest goes under the unrevealed cards, reveal knowledge cleared", () => {
+        const id = registerScript("test-op-rum-two-lands", TWO_LANDS_SCRIPT);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf([
+                        ["b1", BEAR_ID],
+                        ["land1", LAND_ID],
+                        ["b2", BEAR_ID],
+                        ["land2", LAND_ID],
+                        ["below1", LAND_ID],
+                        ["below2", BEAR_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const rngBefore = state.rngCounter ?? 0;
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const p1 = state.players[0];
+        expect(p1.battlefield.map((c) => c.id)).toEqual(["land1", "land2"]);
+        for (const land of p1.battlefield) {
+            expect(land.isTapped, `${land.id} tapped`).toBe(true);
+        }
+        const library = p1.library.map((c) => c.id);
+        // The unrevealed cards stay on top, in order; the revealed non-lands
+        // are under them (CR 401.4 — the effect fixes the order: random).
+        expect(library.slice(0, 2)).toEqual(["below1", "below2"]);
+        expect(library.slice(2).sort()).toEqual(["b1", "b2"]);
+        expect(p1.graveyard.map((c) => c.id)).not.toContain("b1");
+        for (const card of p1.library) {
+            expect(card.knownTo ?? [], `knowledge of ${card.id}`).toEqual([]);
+        }
+        expect(state.rngCounter ?? 0).toBeGreaterThan(rngBefore);
+    });
+
+    it("FEWER lands than asked: the whole library is revealed, the one land enters tapped, the rest goes to the bottom (CR 609.3)", () => {
+        const id = registerScript("test-op-rum-one-land", TWO_LANDS_SCRIPT);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf([
+                        ["b1", BEAR_ID],
+                        ["land1", LAND_ID],
+                        ["b2", BEAR_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const p1 = state.players[0];
+        expect(p1.battlefield.map((c) => c.id)).toEqual(["land1"]);
+        expect(p1.battlefield[0].isTapped).toBe(true);
+        expect(p1.library.map((c) => c.id).sort()).toEqual(["b1", "b2"]);
+    });
+
+    it("WIRE FORMAT — the bottomed cards are face down to the opponent", () => {
+        const id = registerScript(
+            "test-op-rum-two-lands-wire",
+            TWO_LANDS_SCRIPT
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf([
+                        ["b1", BEAR_ID],
+                        ["land1", LAND_ID],
+                        ["land2", LAND_ID],
+                    ]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const oppView = projectPublicState(state, 1, "p2");
+        expect(oppView.players[0].library.count).toBe(1);
+        expect(oppView.players[0].library.known).toEqual([]);
+        expect(
+            oppView.players[0].battlefield.map((c) => [c.id, c.isTapped])
+        ).toEqual([
+            ["land1", true],
+            ["land2", true],
+        ]);
+    });
+});
+
 // --- explore Op: the CR 701.44 keyword action -------------------------------
 // Reveal the top card of the EXPLORING PERMANENT's controller's library; a
 // land goes to their hand; anything else puts a +1/+1 counter on the exploring

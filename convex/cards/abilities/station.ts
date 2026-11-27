@@ -154,13 +154,26 @@ function thresholdStatics(
     threshold: StationThresholdDefinition
 ): StaticEffect[] {
     const inForce = atCharge(threshold.charge);
+    const charge = threshold.charge;
+    // The charge read is written out rather than routed through `inForce`:
+    // `counterGatedStatics.test.ts` reads this predicate's SOURCE to check
+    // that a `dependsOnCounters` declaration is backed by a counter read
+    // (issue #10561, the first shipped station card).
     const onSelf = (target: PermanentView, source: PermanentView): boolean =>
-        target.id === source.id && inForce(source);
+        target.id === source.id &&
+        (source.counters?.[CHARGE_COUNTER] ?? 0) >= charge;
     const out: StaticEffect[] = [];
     if (threshold.creature) {
         // CR 721.2b — "is a creature … in addition to its other types": layer
         // 4 (CR 613.1d), recomputed at every read.
-        out.push({ kind: "type-add", applies: onSelf, types: ["Creature"] });
+        out.push({
+            kind: "type-add",
+            // CR 613.5 (issue #1711) — materialized, and the predicate reads
+            // counters: re-evaluated on every charge counter change.
+            dependsOnCounters: true,
+            applies: onSelf,
+            types: ["Creature"],
+        });
         // CR 721.2b — "with base power and toughness [P/T]": layer 7b
         // (CR 613.4b).
         out.push({
