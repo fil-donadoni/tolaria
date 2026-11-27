@@ -12,7 +12,7 @@
 // rebuilds an exam-side Verdict.
 import { describe, expect, it } from "vitest";
 import { BLADE_SCENARIOS } from "../blade/registry";
-import { DEFAULT_EVAL_WEIGHTS, FIT_BASE_EVAL_WEIGHTS } from "../evalWeights";
+import { FIT_BASE_EVAL_WEIGHTS } from "../evalWeights";
 import {
     CARD_RESIDUAL_CAP,
     collectVerdictReport,
@@ -187,11 +187,12 @@ describeLockedCorpus(
             expect(a.joint.generated!.columns.length).toBeGreaterThan(0);
         }, 300_000);
 
-        it("under a very strong pull the table is empty and the weights are the committed ones", async () => {
+        // The plain fit IS the committed weights' fit: `weightFit.bot.test.ts`
+        // (the reproducibility guard) pins it equal to `DEFAULT_EVAL_WEIGHTS`.
+        // This test reads the weights through that fit rather than through
+        // their literals, so a refit moving the last digit does not red it.
+        it("under a very strong pull the table is empty and the weights are the committed fit's", async () => {
             const { run } = await first;
-            expect(
-                fittableWeightsEqual(run.plain.weights, DEFAULT_EVAL_WEIGHTS)
-            ).toBe(true);
             const silenced = fitWeights(
                 run.pairs,
                 FIT_BASE_EVAL_WEIGHTS,
@@ -203,7 +204,7 @@ describeLockedCorpus(
             );
             expect(silenced.generated!.table).toEqual({});
             expect(
-                fittableWeightsEqual(silenced.weights, DEFAULT_EVAL_WEIGHTS)
+                fittableWeightsEqual(silenced.weights, run.plain.weights)
             ).toBe(true);
         }, 300_000);
 
