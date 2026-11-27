@@ -521,7 +521,13 @@ JSON: correctness (red entries and rows), performance (the distributions of
 search ms and ms per iteration, rows over `--threshold-ms`, default
 `BRAIN_CONSULT_TIMEOUT_MS`) and saturation (rows green but over the threshold,
 red under it), plus the arm's [rollout width](#rollout-width) when its rows
-measured one. Timing only reports — budgets stay iterations-only — and its ms
+measured one. The entries are the tier's test positions and its
+Lines (`GLOSSARY.md` § Line): a Line's job plays it at one seed, green when the seed follows
+it to its end, and its row records each decision's search (the Line's move and
+the pick among the root candidates, with visits and mean reward), so the arm
+prints a `lines` block: per Line and budget, the seeds that play the first
+move, those that reach the end, and the iterations per second of search.
+Timing only reports — budgets stay iterations-only — and its ms
 are a lab proxy for the trend, never a field figure. Off the owner's machines: the
 [`blade-census`](github-pipeline.md#blade-census) workflow runs the same arm
 on sixteen GitHub-hosted slices. Code: `scripts/blade-census.ts`,
