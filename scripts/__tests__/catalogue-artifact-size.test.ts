@@ -63,13 +63,25 @@ interface ServedAsset {
 }
 
 const SERVED: readonly ServedAsset[] = [
+    /**
+     * Crossed and re-measured by issue #10351 at 9,313 compiled rows (sha
+     * e1a56e1ed): 2,387,109 B raw / 1,516,659 B Brotli against the 929,316 B
+     * / 573,005 B the first ceilings were set from. Since issue #5616 (ADR
+     * 0113 Amendment VI) no client fetches this file whole: `vite build` cuts
+     * it into per-Set shards and a game fetches its Manifest's (the Manifest
+     * budget is `check:game-download`'s); the file is the server's bundled
+     * corpus and the shards' one source. `measure:client-heap` at the same
+     * sha: 5.3 MiB of catalogue per game context at 9,313 rows, 13.5 MiB at
+     * 35,000, under its 15 MiB budget. The ceilings keep the original ~2.6x
+     * disclosure factor over the new measurement.
+     */
     {
         path: PACKED_CORPUS_PATH,
-        who: "every game, page and Bot worker",
-        // ~2.7x today's 929,316 B.
-        rawBudgetBytes: 2_500_000,
-        // ~2.6x today's 573,005 B.
-        brotliBudgetBytes: 1_500_000,
+        who: "the server's bundled corpus, source of every client shard",
+        // ~2.6x the 2,387,109 B measured above.
+        rawBudgetBytes: 6_200_000,
+        // ~2.6x the 1,516,659 B measured above.
+        brotliBudgetBytes: 3_900_000,
     },
     {
         path: SEARCH_INDEX_PATH,
