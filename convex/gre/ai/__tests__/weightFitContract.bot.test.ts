@@ -35,6 +35,7 @@ const ZERO_TERMS: Record<keyof EvalTerms, number> = {
     energy: 0,
     graveyard: 0,
     graveyardReach: 0,
+    generated: 0,
 };
 
 /** A pair that loads exactly the named weights, by one unit each, and whose

@@ -476,8 +476,16 @@ shows: an opponent's hidden hand is a count. One family, `need.*.self`, is read
 against the seat's own decklist (its Deck Knowledge): how many steps the
 position is from what the deck's cards require of each other (the Urza lands
 waiting for the other two), and whether a search in hand or in play can fetch
-a missing piece and be paid for now. With no Deck Knowledge it is zero. Nothing
-reads the vector yet — no weight, no fit. Code:
+a missing piece and be paid for now. With no Deck Knowledge it is zero. The
+evaluation reads the vector as a **correction**, the `generated` term of its
+breakdown: a weight table (column name → weight) times the counts, each
+column's weight being what one unit is worth to the side it is counted on. The
+Bot players face carries no table and never reads the vector. A table arrives
+only through the `generated-vector` [search variant](#search-variant), which
+hands the evaluation the committed table
+(`generatedVector/committedWeights.ts`); that table ships empty, so under the
+variant the term is computed and worth zero. The evaluation is handed no Deck
+Knowledge, so at a leaf the `need` family reads zero. Code:
 `convex/gre/ai/generatedVector/`.
 
 <a id="danger-clock"></a>**Danger clock** — each player's estimated turns to

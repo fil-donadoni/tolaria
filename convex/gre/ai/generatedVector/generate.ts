@@ -140,15 +140,36 @@ function keywordPosition(declared: string, layout: ColumnLayout): number {
     return position;
 }
 
-/** One generation's working state. */
+/** A weight table laid out over this build's columns, and the two sums a
+ *  pricing walk adds into (`pricedGeneratedVector`). */
+export type ColumnPricing = {
+    /** Weight of each column, by column index. */
+    readonly weights: Float64Array;
+    /** 0 where the column counts for `self`, 1 for `opp`, by column index. */
+    readonly side: Uint8Array;
+};
+
+/** One generation's working state. A walk either COLLECTS the counts (the
+ *  vector) or PRICES them as it meets them (`pricing` set): the same walk,
+ *  the same counts, with no vector built in between. */
 type Run = {
     readonly layout: ColumnLayout;
     readonly counts: Map<number, number>;
     readonly memo: ManaCensusMemo | undefined;
+    readonly pricing: ColumnPricing | undefined;
+    self: number;
+    opp: number;
 };
 
 function add(run: Run, column: number, by: number): void {
     if (by === 0) return;
+    const pricing = run.pricing;
+    if (pricing) {
+        const worth = pricing.weights[column] * by;
+        if (pricing.side[column] === 0) run.self += worth;
+        else run.opp += worth;
+        return;
+    }
     run.counts.set(column, (run.counts.get(column) ?? 0) + by);
 }
 
@@ -399,8 +420,61 @@ export function generatedVector(
     memo?: ManaCensusMemo,
     deckKnowledge?: DeckKnowledgeBySeat
 ): GeneratedVector {
-    const layout = columnLayout();
-    const run: Run = { layout, counts: new Map(), memo };
+    const run: Run = {
+        layout: columnLayout(),
+        counts: new Map(),
+        memo,
+        pricing: undefined,
+        self: 0,
+        opp: 0,
+    };
+    walk(run, state, seatId, deckKnowledge);
+    return vectorOf(run.counts);
+}
+
+/** No pricing walk collects a count. */
+const NO_COUNTS: Map<number, number> = new Map();
+
+/**
+ * The generated vector of `state` for `seatId`, PRICED: the sum of
+ * weight × count over the columns counted for `self`, and over those counted
+ * for `opp` — `generatedVector` and a dot product, without the vector.
+ *
+ * It is what an evaluation calls at every leaf, so it allocates nothing per
+ * column: each count is multiplied and added as the walk meets it. The sums
+ * therefore run in the walk's order, not in column order; the walk is a pure
+ * function of the position, so the result is too. With whole-number weights
+ * it equals the vector's dot product exactly; with fractional ones the two
+ * may differ in the last bits, and this sum is the Evaluation's. Arguments
+ * as `generatedVector`'s.
+ */
+export function pricedGeneratedVector(
+    state: GameState,
+    seatId: string,
+    pricing: ColumnPricing,
+    memo?: ManaCensusMemo,
+    deckKnowledge?: DeckKnowledgeBySeat
+): { self: number; opp: number } {
+    const run: Run = {
+        layout: columnLayout(),
+        counts: NO_COUNTS,
+        memo,
+        pricing,
+        self: 0,
+        opp: 0,
+    };
+    walk(run, state, seatId, deckKnowledge);
+    return { self: run.self, opp: run.opp };
+}
+
+/** Every count of `state` read for `seatId`, handed to `add`. */
+function walk(
+    run: Run,
+    state: GameState,
+    seatId: string,
+    deckKnowledge: DeckKnowledgeBySeat | undefined
+): void {
+    const { layout } = run;
 
     for (let i = 0; i < state.players.length; i++) {
         const player = state.players[i];
@@ -437,6 +511,4 @@ export function generatedVector(
             1
         );
     }
-
-    return vectorOf(run.counts);
 }

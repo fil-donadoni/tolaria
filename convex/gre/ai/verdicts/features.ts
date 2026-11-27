@@ -122,6 +122,7 @@ const EVAL_TERM_PRESENCE: Record<keyof EvalTerms, true> = {
     energy: true,
     graveyard: true,
     graveyardReach: true,
+    generated: true,
 };
 
 export const EVAL_TERM_KEYS = Object.keys(
