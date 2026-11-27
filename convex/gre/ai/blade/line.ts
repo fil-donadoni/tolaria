@@ -19,6 +19,11 @@
 // transition (`applyMoveInSearch`, `advanceToDecision`). At each decision the
 // opponent owes, it plays the step's next reply when an enumerated move
 // matches it, and passes otherwise (`BladeLineStep.replies`).
+//
+// Under a forced-guide arm (`SearchVariant.forcedGuide`, ADR 0186's Ceiling
+// gate) the test binds the Line to the variant at each decision
+// (`lineGuideFor`), so the search gives the Line's moves the whole prior from
+// that decision on, by the same rules this walk plays it by.
 
 import type { Move } from "../../moves";
 import { enumerateMoves } from "../../moves";
@@ -29,6 +34,12 @@ import {
     decidingPlayer,
 } from "../../search";
 import type { TreeKeeper } from "../brainRequest";
+import {
+    getSearchVariant,
+    setSearchVariant,
+    type LineGuide,
+    type SearchVariant,
+} from "../searchVariant";
 import type { ConsultPathStep } from "../treeReuse";
 import { buildPositionFromSpec } from "./build";
 import {
@@ -187,6 +198,75 @@ export function walkLine(
     return null;
 }
 
+/** `matchesMove`'s refusal of a name with no instance (`matcher.ts`). */
+const UNDEALT_NAME = /but no instance of it exists in/;
+
+/** `matchesMove` on a world the search imagined: a name with no instance in
+ *  it (an opponent's card the determinization did not deal) matches nothing.
+ *  On the built position the same name is an authoring error, and the walk
+ *  still throws on it (`matchesMove`). */
+function matchesOnWorld(
+    state: GameState,
+    move: Move,
+    matcher: MoveMatcher
+): boolean {
+    try {
+        return matchesMove(state, move, matcher);
+    } catch (error) {
+        if (error instanceof Error && UNDEALT_NAME.test(error.message)) {
+            return false;
+        }
+        throw error;
+    }
+}
+
+/** `line` as the forced guide reads it from its decision `step` on
+ *  (`LineGuide`): the Bot's expected moves, the opponent's replies between
+ *  them, matched by name on whatever world the search stands in. */
+export function lineGuideFor(
+    line: BladeLine,
+    step: number,
+    botId: string
+): LineGuide {
+    const repliesBefore = (s: number): MoveMatcher[] =>
+        (s > 0 ? line.steps[s - 1].replies : undefined) ?? [];
+    return {
+        start: { step, replied: repliesBefore(step).length },
+        lineMoveIndex(state, pid, cursor, moves) {
+            const replies = repliesBefore(cursor.step);
+            if (pid === botId) {
+                if (cursor.step >= line.steps.length) return -1;
+                if (cursor.replied < replies.length) return -1;
+                const expect = line.steps[cursor.step].expect;
+                return moves.findIndex((m) =>
+                    expect.some((x) => matchesOnWorld(state, m, x))
+                );
+            }
+            if (cursor.replied >= replies.length) return -1;
+            const reply = replies[cursor.replied];
+            return moves.findIndex((m) => matchesOnWorld(state, m, reply));
+        },
+    };
+}
+
+/** `variant` with `line` bound from decision `step` on, when it is a
+ *  forced-guide arm; else `variant` itself. */
+function boundVariant(
+    variant: SearchVariant | null,
+    line: BladeLine,
+    step: number,
+    botId: string
+): SearchVariant | null {
+    if (!variant?.forcedGuide) return variant;
+    return {
+        ...variant,
+        forcedGuide: {
+            ...variant.forcedGuide,
+            line: lineGuideFor(line, step, botId),
+        },
+    };
+}
+
 /** Build a Line's starting position. */
 export function buildLineState(line: BladeLine): GameState {
     return buildPositionFromSpec(line.spec, line.setup, line.label);
@@ -200,7 +280,11 @@ export type BladeLineSeedResult = {
     reason: string;
 };
 
-function runSeed(line: BladeLine, seed: number): BladeLineSeedResult {
+function runSeed(
+    line: BladeLine,
+    seed: number,
+    variant: SearchVariant | null
+): BladeLineSeedResult {
     const state = buildLineState(line);
     const botId = seatPlayerId(state, line.bot);
     const keeper: TreeKeeper = { kept: null, catalogue: () => "blade" };
@@ -208,16 +292,21 @@ function runSeed(line: BladeLine, seed: number): BladeLineSeedResult {
     let path: ConsultPathStep[] = [];
     const stop = walkLine(line, state, {
         decide: (s, index) => {
-            const res = consultBrain(
-                s,
-                seq,
-                line,
-                botId,
-                seed,
-                keeper,
-                path,
-                GAME
-            );
+            const consult = () =>
+                consultBrain(s, seq, line, botId, seed, keeper, path, GAME);
+            const bound = boundVariant(variant, line, index, botId);
+            let res: ReturnType<typeof consult>;
+            if (!bound) {
+                res = consult();
+            } else {
+                const previous = getSearchVariant();
+                setSearchVariant(bound);
+                try {
+                    res = consult();
+                } finally {
+                    setSearchVariant(previous);
+                }
+            }
             path = [];
             const expected = line.steps[index].expect;
             if (res.error) {
@@ -245,15 +334,19 @@ function runSeed(line: BladeLine, seed: number): BladeLineSeedResult {
     };
 }
 
-/** Run one Line at every declared seed. Never throws on a decision the Bot
- *  got wrong; throws on a malformed Line. */
-export function runBladeLine(line: BladeLine): {
+/** Run one Line at every declared seed, under `variant` when one is given
+ *  (a forced-guide arm binds the Line to it). Never throws on a decision the
+ *  Bot got wrong; throws on a malformed Line. */
+export function runBladeLine(
+    line: BladeLine,
+    variant: SearchVariant | null = null
+): {
     ok: boolean;
     seeds: BladeLineSeedResult[];
     failureMessage: string;
 } {
     const seeds = (line.seeds ?? [DEFAULT_BLADE_SEED]).map((seed) =>
-        runSeed(line, seed)
+        runSeed(line, seed, variant)
     );
     const failures = seeds.filter((s) => !s.ok);
     return {

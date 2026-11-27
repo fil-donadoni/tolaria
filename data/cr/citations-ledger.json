@@ -19943,6 +19943,7 @@
         {"id":"603.4","line":"it(\"deals no damage when it attacked this turn (CR 603.4 intervening-if)\", () => {","sites":1,"status":"baseline"},
         {"id":"702.142a","line":"// the same trap Boast hit (CR 702.142a, issue #2375), solved the same way:","sites":1,"status":"baseline"},
         {"id":"702.94a","line":"// CR 702.94a — the miracle reveal: one policy candidate (see the","sites":1,"status":"confirmed","ruleHash":"a60572195b3a47a2"},
+        {"id":"704.5g","line":"// Grizzly Bears (2 damage kills a 2/2, CR 704.5g) instead of the","sites":1,"status":"confirmed","ruleHash":"540e8e18f0d07b6a"},
         {"id":"715.4","line":"return `\"${name}\" is the ${INSET_SPELL_KINDS[inset.kind].insetLabel} of \"${parentName}\", not a card that can be placed in a zone (CR 715.4 / 722.4) — name \"${parentName}\"`;","sites":1,"status":"confirmed","ruleHash":"780c3450a20cbc08"},
         {"id":"702.12","line":"describe(\"Consecrate Land (Aura — enchanted land is indestructible, CR 702.12)\", () => {","sites":1,"status":"baseline"},
         {"id":"702.170d","line":"// CR 702.170d / 118.9 — \"without paying its mana cost\", an alternative","sites":1,"status":"confirmed","ruleHash":"24ab406104454134"},

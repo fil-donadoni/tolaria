@@ -2,21 +2,24 @@
  * Blade LINES (ADR 0186 Decision 9) — `line.ts`. Each Line is played forward
  * through the live Brain request path, one consult per Bot decision, at its
  * declared iterations and seeds. `must` Lines gate; a `stretch` run reports
- * the others and never fails.
+ * the others and never fails. `BLADE_VARIANT=<name>` runs them under a
+ * search variant; a forced-guide arm binds each Line to it (`line.ts`).
  */
 
 import { describe, expect, it } from "vitest";
 import { lineEntryProblems, runBladeLine } from "../line";
 import { BLADE_LINES } from "../lines";
 import type { BladeLine } from "../types";
+import { resolveBladeVariant } from "../variant";
 
 const tier = process.env.BLADE_TIER ?? "must";
+const variant = resolveBladeVariant(process.env.BLADE_VARIANT);
 
 describe("blade lines", () => {
     for (const line of BLADE_LINES.filter((l) => l.tier === tier)) {
         it(line.label, () => {
             expect(lineEntryProblems(line)).toEqual([]);
-            const result = runBladeLine(line);
+            const result = runBladeLine(line, variant);
             if (tier === "stretch") {
                 console.log(
                     `[stretch line] ${line.label}: ${result.ok ? "followed" : result.failureMessage} — cause: ${line.cause}`
