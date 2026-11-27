@@ -12449,13 +12449,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             { kind: "resolve-top" },
         ],
         bot: "me",
-        budget: { iterations: 200 },
+        budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
             moves: [{ kind: "resolution-choice", second: [] }],
         },
-        note: "Issue #9973, the KEEP half. Teferi, Hero of Dominaria revealed with seven lands in play: castable next turn, no recursion in the deck. Cause: a planeswalker's loyalty abilities were read nowhere — `carriesStandingAbilityWorth` excludes walkers and the loyalty ratio (ADR 0107) only scales the `base + MV` floor — so Teferi read 58 in hand against a Grizzly Bears' 105 and the rollouts drew a random card over him. A walker now adds its best survivable loyalty ability (`dslLoyaltyAbilityValue`, CR 606.3: one per turn). Proof of failure: with `dslLoyaltyAbilityValue` returning `undefined` every seed bins Teferi (`material-tiebreak`).",
+        note: "Issue #9973, the KEEP half. Teferi, Hero of Dominaria revealed with seven lands in play: castable next turn, no recursion in the deck. Cause: a planeswalker's loyalty abilities were read nowhere — `carriesStandingAbilityWorth` excludes walkers and the loyalty ratio (ADR 0107) only scales the `base + MV` floor — so Teferi read 58 in hand against a Grizzly Bears' 105 and the rollouts drew a random card over him. A walker now adds its best survivable loyalty ability (`dslLoyaltyAbilityValue`, CR 606.3: one per turn). Proof of failure: with `dslLoyaltyAbilityValue` returning `undefined` every seed bins Teferi (`material-tiebreak`). BUDGET 400, both halves: at 200 the keep is settled by `material-tiebreak` on every run, and one ±1% jitter vector of the robustness audit bins Teferi on one wide seed once a new fittable weight re-draws the jitter signs (issue #10820). At 400 the audit is robust on both halves and the break above still bins on 5/5 seeds.",
     },
     {
         label: "surveil: bins a dead land off the same board",
@@ -12497,7 +12497,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             { kind: "resolve-top" },
         ],
         bot: "me",
-        budget: { iterations: 200 },
+        budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
