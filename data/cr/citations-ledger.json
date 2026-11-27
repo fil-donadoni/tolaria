@@ -10169,6 +10169,7 @@
         {"id":"611.1","line":"it(\"CR 611.1 — not offered on a Vehicle that is already crewed\", () => {","sites":1,"status":"confirmed","ruleHash":"f6bcaa26eac4c606"},
         {"id":"702.34","line":"// Flashback {4}{R} (CR 702.34 — cast from the graveyard for the flashback cost,","sites":1,"status":"baseline"},
         {"id":"709.4c","line":"it(\"carries every card type on either half (CR 709.4c)\", () => {","sites":1,"status":"baseline"},
+        {"id":"115.5","line":"it(\"offers no choice when its own trigger is the only ability on the stack — CR 115.5\", () => {","sites":1,"status":"confirmed","ruleHash":"91f45c3822f647d4"},
         {"id":"603.10","line":"2. Last-known-information fields (CR 603.10) are **explicit on the payload**","sites":1,"status":"baseline"},
         {"id":"120.3","line":"// triggered abilities (CR 120.3 / 603.4). Card authors describe the source","sites":1,"status":"baseline"},
         {"id":"116.2c","line":"CR 116.2c — never after the card. Its fields: a mana `cost`, an inline","sites":1,"status":"confirmed","ruleHash":"a36df032a1a1b1a0"},
