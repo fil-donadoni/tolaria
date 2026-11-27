@@ -22,7 +22,6 @@ import { collectTriggers } from "../triggers";
 import { getLegalTargets, pendingTargetingSource } from "../rules";
 import { raiseTriggerTargetSelection } from "../rules";
 import { applyOneTargetSelection } from "../../game";
-import { matchesSpellPendingTarget } from "../../../src/lib/card-utils";
 import type { GameEvent } from "../../cards/types";
 
 const TIDEBINDER_ID = "907b3d1d-8c85-4707-80b5-c4d832df9846";
@@ -155,14 +154,7 @@ describe("CR 115.5 — a spell or ability on the stack is an illegal target for 
         const pt = state.pendingTarget!;
         expect(pt.cardInstanceId).toBe(trigger.id);
 
-        // Client highlighting: the trigger's own stack item is not selectable.
-        const ctx = {
-            playerId: "p2",
-            activePlayerId: state.activePlayerId,
-            players: state.players,
-        };
-        expect(matchesSpellPendingTarget(trigger, pt, ctx)).toBe(false);
-        expect(matchesSpellPendingTarget(state.stack[1]!, pt, ctx)).toBe(true);
+        // Client highlighting: `src/lib/__tests__/stack-self-target-highlight.test.ts`.
 
         // Accepted set (`selectTarget`'s body): submitting itself is refused.
         expect(() =>
