@@ -2578,11 +2578,12 @@ const LEAVE_WATCH_TIMINGS: ReadonlySet<string> = new Set([
 
 /** Whether `op` waits for its watched object to leave the battlefield and
  *  does nothing but return that same object there ("when it dies or is
- *  exiled, return it to the battlefield tapped", earthbend's return). CR
- *  603.7a: it fires only if the object leaves, and its effect puts back the
- *  board the evaluation already scores as standing. Priced as a gain, each
- *  branch read one `recursion` unit as if both were certain, which made an
- *  animated land's insurance worth more than the creature that animated it. */
+ *  exiled, return it to the battlefield tapped", earthbend's return). It
+ *  triggers only the next time its event occurs (CR 603.7b), so only if the
+ *  object leaves, and its effect puts back the board the evaluation already
+ *  scores as standing. Priced as a gain, each branch read one `recursion`
+ *  unit as if both were certain, which made an animated land's insurance
+ *  worth more than the creature that animated it. */
 function restoresWatchedObject(
     op: Extract<EffectOp, { op: "delayedTrigger" }>
 ): boolean {
