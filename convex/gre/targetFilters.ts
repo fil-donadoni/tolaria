@@ -415,6 +415,11 @@ export interface TargetFilterCtx {
      *  registry's per-candidate `checks.permanent` has no access to
      *  `selected`/`alreadySelected`, only this ctx. */
     siblingControllerId?: string;
+    /** CR 115.5 — the id of the stack item whose targets are being chosen,
+     *  when that item is already on the stack (`pendingTargetSelfStackItemId`,
+     *  `gre/constants.ts`). `checkSpellTargetFilters` refuses that candidate:
+     *  "A spell or ability on the stack is an illegal target for itself." */
+    targetingStackItemId?: string;
 }
 
 /** One filter's full contract: `lower` resolves the requirement field to its
@@ -2003,6 +2008,13 @@ export function checkSpellTargetFilters(
     candidate: StackItem,
     values: SpellFilterValues
 ): string | null {
+    // CR 115.5 — never a legal target for itself, whatever the filters say.
+    if (
+        ctx.targetingStackItemId !== undefined &&
+        candidate.id === ctx.targetingStackItemId
+    ) {
+        return "A spell or ability can't target itself";
+    }
     for (let i = 0; i < SPELL_FILTER_KEYS.length; i++) {
         const key = SPELL_FILTER_KEYS[i];
         const value = values[key];
