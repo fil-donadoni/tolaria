@@ -107,9 +107,10 @@ and the OS family tells the machines behind the engines apart.
 one candidate move the rollout cloned, applied and evaluated; on a late board
 the probes are most of an iteration. Many probes per iteration
 (`probesPerIteration.p50`) with an ordinary time per probe is a game that
-reached costly boards; the `.p90` reads its probe-heavy tail (issue #10993). A high `msPerProbe.p50` is a slow or busy machine.
-The time per probe is the search's whole time over its probes: it carries
-the tree's own work too, so it reads high on a search of few iterations
+reached costly boards; the `.p90` reads its probe-heavy tail (issue #10993).
+A high `msPerProbe.p50` is a slow or busy machine. The time per probe is the
+search's whole time over its probes: it carries the tree's own work too, so
+it reads high on a search of few iterations
 (compare searches of similar `iterations.completed`). `idleMs` is read only
 between two consults the Worker itself answered: after a timeout, a failure
 or an in-thread consult the next one has none.
