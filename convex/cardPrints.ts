@@ -212,6 +212,71 @@ export const recordSync = internalMutation({
     },
 });
 
+export const printsBucketTableValidator = v.union(
+    v.literal("cardPrints"),
+    v.literal("definitionTokenPrints")
+);
+
+const bucketDigestValidator = v.object({
+    bucket: v.number(),
+    digest: v.string(),
+});
+
+/** Upper bound on stored bucket digests per table — the sync uses 256
+ *  (`PRINTS_SYNC_BUCKET_COUNT`); the bound only keeps the read bounded. */
+const MAX_BUCKETS = 4096;
+
+/**
+ * The bucket digests the last sync recorded for one table (issue #10901):
+ * `prints:sync` compares them with the digests of the rows it just built and
+ * upserts only the buckets that differ. A few hundred tiny rows.
+ */
+export const bucketDigests = internalQuery({
+    args: { table: printsBucketTableValidator },
+    returns: v.array(bucketDigestValidator),
+    handler: async (ctx, { table }) => {
+        const rows = await ctx.db
+            .query("printsSyncBuckets")
+            .withIndex("by_table_bucket", (q) => q.eq("table", table))
+            .take(MAX_BUCKETS);
+        return rows.map((r) => ({ bucket: r.bucket, digest: r.digest }));
+    },
+});
+
+/**
+ * Record the digests of buckets whose rows just landed (issue #10901) —
+ * called by `prints:sync` after each upsert batch succeeded, never before,
+ * so an interrupted run leaves the missing buckets stale and the next run
+ * resumes them. One row per (table, bucket), patched in place.
+ */
+export const recordBucketDigests = internalMutation({
+    args: {
+        table: printsBucketTableValidator,
+        buckets: v.array(bucketDigestValidator),
+    },
+    returns: v.null(),
+    handler: async (ctx, { table, buckets }) => {
+        for (const { bucket, digest } of buckets) {
+            const existing = await ctx.db
+                .query("printsSyncBuckets")
+                .withIndex("by_table_bucket", (q) =>
+                    q.eq("table", table).eq("bucket", bucket)
+                )
+                .unique();
+            if (!existing) {
+                await ctx.db.insert("printsSyncBuckets", {
+                    table,
+                    bucket,
+                    digest,
+                });
+            } else if (existing.digest !== digest) {
+                await ctx.db.patch(existing._id, { digest });
+            }
+        }
+        return null;
+    },
+});
+
 /**
  * The deck builder's edition selector (issue #4117, ADR 0140): every
  * printing of ONE Card ID, paginated (a basic land has on the order of a
