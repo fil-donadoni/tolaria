@@ -664,6 +664,17 @@ the search that the ladder can A/B (`SearchVariant`, registered in
 
 - one registry entry. Code: `convex/gre/ai/searchVariant.ts`.
 
+<a id="forced-guide"></a>**Forced guide** — the Ceiling gate's instrument
+(ADR 0186): a [search variant](#search-variant) that, along a bound **Line**,
+gives the Line's move the whole prior at every Bot decision of the Line, in
+the tree and in the rollouts. The root pick stays the search's own. Two arms:
+`forced-guide` (off the Line the rollouts keep their probing policy) and
+`forced-guide-no-probes` (off the Line a rollout ply draws a move with no
+1-ply probe). The blade's Line runner binds the Line at each decision
+(`runBladeLine(line, variant)`, `BLADE_VARIANT=<arm>`). On any position that is
+not a Line both arms run the production search unchanged. An experiment arm,
+never shipped on.
+
 <a id="pairing-registry"></a>**Pairing registry** — the curated deck pairs the
 ladder plays, each tagged with the gameplay **dynamics** it exercises
 (direct-damage, go-wide, discard, combo, …) — the coverage ledger. A change
