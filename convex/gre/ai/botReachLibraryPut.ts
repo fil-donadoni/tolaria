@@ -138,13 +138,45 @@ function castableFrom(
     );
 }
 
+/** The mana-value ceiling a search reads off the creature its additional
+ *  cost sacrifices ("mana value X or less, where X is 2 plus the sacrificed
+ *  creature's mana value", CR 608.2h), posed against the most expensive body
+ *  the holder can spend: the trade a player makes is their biggest body for
+ *  something bigger. Undefined when the ceiling is not that shape, or when
+ *  the holder has no creature to spend (the cost can't be paid, CR 118.3). */
+function sacrificedCeiling(
+    filter: EffectCardFilter | undefined,
+    creatures: readonly string[]
+): number | undefined {
+    const ceiling = filter?.manaValueAtMost;
+    if (
+        typeof ceiling !== "object" ||
+        !("sacrificed" in ceiling) ||
+        ceiling.sacrificed.read !== "manaValue"
+    )
+        return undefined;
+    let best: number | undefined;
+    for (let i = 0; i < creatures.length; i++) {
+        const body = tryGetCardByName(creatures[i]);
+        if (!body) continue;
+        const mv = manaValue(body.manaCost);
+        if (best === undefined || mv > best) best = mv;
+    }
+    return best === undefined
+        ? undefined
+        : best + (ceiling.sacrificed.plus ?? 0);
+}
+
 /** The library card the position hands a spell that puts a searched card onto
  *  the battlefield, into the hand or on top of the library, or none. `lands`
  *  are the holder's lands in the position: a card searched into the hand is
- *  posed only if they can cast it once the spell is paid for. */
+ *  posed only if they can cast it once the spell is paid for. `creatures` are
+ *  the holder's creatures: a ceiling read off the sacrificed one is posed
+ *  against the biggest of them ({@link sacrificedCeiling}). */
 export function libraryPutPose(
     def: CardDefinition,
-    lands: readonly string[] = []
+    lands: readonly string[] = [],
+    creatures: readonly string[] = []
 ): ScenarioCard[] {
     if (!def.types.some((t) => t === "Instant" || t === "Sorcery")) return [];
     const search = libraryPutSearch(def.effects ?? []);
@@ -171,12 +203,15 @@ export function libraryPutPose(
         payment === undefined ? 0 : manaValue(payment)
     );
     const candidates = toHand ? HAND_CANDIDATES : LIBRARY_CANDIDATES;
+    const ceiling = sacrificedCeiling(filter, creatures);
     for (let i = 0; i < candidates.length; i++) {
         const name = candidates[i];
         const candidate = tryGetCardByName(name);
         if (
             !candidate ||
             (filter && !handCardMatchesFilter({ card: candidate }, filter)) ||
+            (ceiling !== undefined &&
+                manaValue(candidate.manaCost) > ceiling) ||
             (toHand && !castableFrom(candidate, lands, spent))
         )
             continue;
