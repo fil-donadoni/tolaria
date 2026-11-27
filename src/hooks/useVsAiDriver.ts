@@ -96,6 +96,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { useResilientQuery } from "~/hooks/useResilientQuery";
 import { useEscalationRecovery } from "~/hooks/useEscalationRecovery";
+import { useBotDriverExitReport } from "~/hooks/useBotDriverExitReport";
 import { api } from "@convex/_generated/api";
 import { publicStateArgs } from "~/lib/public-state-args";
 import type { Id } from "@convex/_generated/dataModel";
@@ -696,35 +697,16 @@ export function useVsAiDriver(
     useEffect(() => {
         reportConsultFailureRef.current = reportConsultFailure;
     }, [reportConsultFailure]);
-    // Issue #10006 — the player LEAVING the game while the Bot is owed. The
-    // server deadline advances that window a minute later either way; told
-    // the player left that exact version, it files no Bot fault. The owed
-    // version is the tick's (`null` when the Bot is not owed, or no tick row
-    // yet), synced every commit and read by the cleanup on the way out —
-    // navigation away, or a swap to another game on this hook instance. A
-    // closed tab runs no cleanup: that stays a reported fault.
-    const reportDriverExit = useMutation(api.botLiveness.reportDriverExit);
-    const reportDriverExitRef = useRef(reportDriverExit);
-    const botOwedSeqRef = useRef<number | null>(null);
-    useEffect(() => {
-        reportDriverExitRef.current = reportDriverExit;
-        botOwedSeqRef.current = botOwesInput && tick ? tick.seq : null;
-    });
-    useEffect(() => {
-        if (!botId) return;
-        return () => {
-            const seq = botOwedSeqRef.current;
-            botOwedSeqRef.current = null;
-            if (seq === null) return;
-            try {
-                void reportDriverExitRef
-                    .current({ gameId, seq })
-                    .catch(() => {});
-            } catch {
-                // A lost exit costs one noisy report, never a move.
-            }
-        };
-    }, [gameId, botId]);
+    // The player LEAVING the board while the Bot is owed — navigation, a game
+    // swap, a closed or hidden tab: the server deadline advances that window
+    // either way, and files no Bot fault for a version the player left
+    // (`useBotDriverExitReport`). The owed version is the tick's (`null` when
+    // the Bot is not owed, or no tick row yet).
+    useBotDriverExitReport(
+        gameId,
+        botId,
+        botOwesInput && tick ? tick.seq : null
+    );
 
     const directMutations: DirectMutations = {
         setDamageAssignment,
