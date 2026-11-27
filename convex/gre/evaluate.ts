@@ -1484,8 +1484,8 @@ function flatBonusOf(keywords: readonly string[], power: number): number {
  *  returns to 17 — the mana it produces has nothing to cast, so it is worth
  *  less than the cards that would use it.
  *
- *  DEMAND IS THE CURVE, NOT THE HAND (issue #2927). The demand proxy shipped
- *  by #2686 was the SUM of every hand card's mana value, and a sum binds at
+ *  DEMAND IS THE CURVE, NOT THE HAND. The first demand proxy was the SUM of
+ *  every hand card's mana value, and a sum binds at
  *  land counts a game never reaches: a 7-card hand of average MV 3 asks for 21
  *  lands, so `min(lands, handNeed)` selected `lands` in virtually every real
  *  position, the flooded branch never fired, and the term degenerated to a flat
@@ -1496,7 +1496,7 @@ function flatBonusOf(keywords: readonly string[], power: number): number {
  *  8 lands), it moves only when the TOP of the curve moves, and its ceiling is
  *  the curve's own top end, so no magic constant is needed.
  *
- *  CASTING IS NOT A DEVELOPMENT CHANGE (issue #2928). Demand is read off the
+ *  CASTING IS NOT A DEVELOPMENT CHANGE. Demand is read off the
  *  hand AND the non-land permanents already on the battlefield, so a card that
  *  moves hand → battlefield simply changes which half it is counted in and the
  *  term does not move. Read off the hand alone, it did: with six lands and a
@@ -1514,7 +1514,7 @@ function flatBonusOf(keywords: readonly string[], power: number): number {
  *  Three consequences follow, and each is a limit, not an accident:
  *
  *  - It covers PERMANENT spells only. A sorcery or instant goes hand →
- *    graveyard; issue #4931 keeps a CAST one counting from there
+ *    graveyard; a CAST one keeps counting from there
  *    (`castSpellInGraveyard`, stamped as it leaves the stack), so Wrath of
  *    God (MV 4) on six lands no longer drops the term by 12 x 4 = 48. The
  *    same stamp covers a permanent spell that never reached the
@@ -1549,7 +1549,7 @@ function flatBonusOf(keywords: readonly string[], power: number): number {
  *  lowers demand by the same rule, and there it is simply correct: the mana
  *  that would have cast it is no longer wanted by anything — EXCEPT a card
  *  castable from there on its own (escape, flashback, retrace, an intrinsic
- *  permission), which the graveyard loop below keeps counting (issue #4898).
+ *  permission), which the graveyard loop below keeps counting.
  *
  *  WHAT THIS PROXY DELIBERATELY DOES NOT SEE, and why each is left standing:
  *
@@ -1567,10 +1567,10 @@ function flatBonusOf(keywords: readonly string[], power: number): number {
  *    gain's 16 — the same 1-point tie the CALIBRATION paragraph above calls
  *    rollout noise, now reachable whenever the curve's top end sits at or below
  *    the land count. That is the intended shape (a surplus land SHOULD price
- *    near a small life swing), and the tie-break that settles it is #2939's
+ *    near a small life swing), and the tie-break that settles it is the
  *    activation-timing rule, not this weight.
  *
- *  DEMAND IS COLOUR-AWARE (issue #3531). A hand card raises the curve only
+ *  DEMAND IS COLOUR-AWARE. A hand card raises the curve only
  *  when the player's mana BASE can supply the COLOURS its cost demands: five
  *  Mountains develop nothing toward a held {B}{B}, and the term used to say
  *  they covered it. The question is asked of `manaUnitsFor(..., {
