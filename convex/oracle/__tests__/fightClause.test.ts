@@ -122,4 +122,150 @@ describe("fight clause (CR 701.14a)", () => {
         if (outcome.state !== "unparsed") return;
         expect(outcome.gaps[0]!.reason).toMatch(/single creature target/);
     });
+
+    // CR 608.2c — a later sentence's "It" names the ONE creature target the
+    // sentence before announced: that slot is the instructed combatant.
+    it('golden — Savage Smash: "It" names the pumped target as the fighter', () => {
+        const oracleText =
+            "Target creature you control gets +2/+2 until end of turn. It fights target creature you don't control. (Each deals damage equal to its power to the other.)";
+        const outcome = compileCard(
+            oracleCard({
+                oracleId: "676c0315-1cb3-4d80-b136-16d88fd612cb",
+                name: "Savage Smash",
+                manaCost: "{1}{R}{G}",
+                typeLine: "Sorcery",
+                oracleText,
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        expect(outcome.state).not.toBe("unparsed");
+        if (outcome.state === "unparsed") return;
+        expect(sortKeys(outcome.definition)).toEqual(
+            sortKeys({
+                name: "Savage Smash",
+                types: ["Sorcery"],
+                manaCost: { X: 1, R: 1, G: 1 },
+                oracleText,
+                effects: [
+                    {
+                        op: "pump",
+                        target: { target: 0 },
+                        power: 2,
+                        toughness: 2,
+                        duration: { phase: "end-of-turn" },
+                    },
+                    {
+                        op: "fight",
+                        creature: { target: 0 },
+                        other: { target: 1 },
+                    },
+                ],
+                targetRequirement: {
+                    type: "Creature",
+                    count: 1,
+                    controller: "you",
+                },
+                additionalTargetRequirements: [
+                    { type: "Creature", count: 1, controller: "opponent" },
+                ],
+            })
+        );
+    });
+
+    it('golden — Kapow!: "It" names the countered target as the fighter', () => {
+        const oracleText =
+            "Put a +1/+1 counter on target creature you control. It fights target creature an opponent controls. (Each deals damage equal to its power to the other.)";
+        const outcome = compileCard(
+            oracleCard({
+                oracleId: "d6eabbff-cc0c-4000-8feb-4826e1b6bc66",
+                name: "Kapow!",
+                manaCost: "{2}{G}",
+                typeLine: "Sorcery",
+                oracleText,
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        expect(outcome.state).not.toBe("unparsed");
+        if (outcome.state === "unparsed") return;
+        expect(sortKeys(outcome.definition)).toEqual(
+            sortKeys({
+                name: "Kapow!",
+                types: ["Sorcery"],
+                manaCost: { X: 2, G: 1 },
+                oracleText,
+                effects: [
+                    {
+                        op: "counters",
+                        action: "add",
+                        counter: "+1/+1",
+                        target: { target: 0 },
+                        count: 1,
+                    },
+                    {
+                        op: "fight",
+                        creature: { target: 0 },
+                        other: { target: 1 },
+                    },
+                ],
+                targetRequirement: {
+                    type: "Creature",
+                    count: 1,
+                    controller: "you",
+                },
+                additionalTargetRequirements: [
+                    { type: "Creature", count: 1, controller: "opponent" },
+                ],
+            })
+        );
+    });
+
+    // CR 701.14b — the other side may be "up to one": nothing chosen, no fight.
+    it('reads "It fights up to one target creature" (Bridgeworks Battle)', () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Bridgeworks Battle",
+                manaCost: "{2}{G}",
+                typeLine: "Sorcery",
+                oracleText:
+                    "Target creature you control gets +2/+2 until end of turn. It fights up to one target creature you don't control. (Each deals damage equal to its power to the other.)",
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        expect(outcome.state).not.toBe("unparsed");
+        if (outcome.state === "unparsed") return;
+        expect(outcome.definition.effects?.[1]).toEqual({
+            op: "fight",
+            creature: { target: 0 },
+            other: { target: 1 },
+        });
+        expect(outcome.definition.additionalTargetRequirements).toEqual([
+            {
+                type: "Creature",
+                count: { min: 0, max: 1 },
+                controller: "opponent",
+            },
+        ]);
+    });
+
+    // CR 701.14a — a fight is between creatures: "It" naming an announced
+    // non-creature permanent is no combatant.
+    it('refuses "It fights" when the announced target is not a creature', () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Test Clash",
+                manaCost: "{1}{G}",
+                typeLine: "Sorcery",
+                oracleText:
+                    "Untap target artifact you control. It fights target creature you don't control.",
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+        if (outcome.state !== "unparsed") return;
+        expect(outcome.gaps[0]!.reason).toMatch(/single creature target/);
+    });
 });
