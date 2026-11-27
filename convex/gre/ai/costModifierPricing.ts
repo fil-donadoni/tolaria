@@ -57,7 +57,7 @@
 // a creature's hand face does not read a standing worth (`declaresStandingLock`'s
 // same limit). The BOARD face also reads a creature source (Thalia, Guardian of
 // Thraben — `declaresStandingSpellCostModifier`), under `permanents` beside its
-// body, as a creature restriction source is read (issue #5154): what her tax
+// body, as a creature restriction source is read (`restrictionSourceWorth`): what her tax
 // does to the rest of the board is a presence fact, and a removal choosing
 // between her and an identical body must see it. Its hand face keeps the body.
 // PURE: no mutation of `state`, no randomness.
