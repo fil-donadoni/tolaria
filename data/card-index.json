@@ -11750,6 +11750,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bridgeworks Battle // Tanglespan Bridgeworks",
+        "scryfallId": "ebef3db0-2b58-4581-a79c-fbca9a059e63",
+        "oracleId": "9d581188-ce80-494e-bd38-f411e1f4efb5",
+        "firstSet": "mh3",
+        "firstPrintId": "ebef3db0-2b58-4581-a79c-fbca9a059e63",
+        "firstPrintSet": "mh3",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Bridled Bighorn",
         "scryfallId": "fa7bf089-fa9b-4ffc-bf84-45cd51c76463",
         "oracleId": "6a1ad848-6fda-46dd-aad8-2f6a5c71a696",
@@ -29066,6 +29076,16 @@
         "source": "compiled"
     },
     {
+        "name": "Epic Confrontation",
+        "scryfallId": "f587436e-51ff-4c9c-a6ce-e2768844a71a",
+        "oracleId": "31123cb5-2dd5-4f2b-a2fd-8f87095972c6",
+        "firstSet": "dtk",
+        "firstPrintId": "f587436e-51ff-4c9c-a6ce-e2768844a71a",
+        "firstPrintSet": "dtk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Epic Downfall",
         "scryfallId": "63da83fe-fa59-40cb-a42e-e1b14b650bc8",
         "oracleId": "ed5d6aba-0b8d-48b3-a84c-618f45fb67b1",
@@ -45214,6 +45234,16 @@
         "source": "compiled"
     },
     {
+        "name": "Hunt the Hunter",
+        "scryfallId": "61d4899f-11a4-4a2c-a499-3a447b792f86",
+        "oracleId": "00afc724-be09-4e92-a50c-88011bd10ccd",
+        "firstSet": "ths",
+        "firstPrintId": "61d4899f-11a4-4a2c-a499-3a447b792f86",
+        "firstPrintSet": "ths",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Hunted Witness",
         "scryfallId": "8c31b8e5-2349-4119-9dc2-3e41c5364a78",
         "oracleId": "1fde570c-aa96-45ca-a6be-f59c8e4f4b6a",
@@ -49330,6 +49360,16 @@
         "firstSet": "chk",
         "firstPrintId": "8aaf1b2f-933f-4ad3-a816-2797d96ff37f",
         "firstPrintSet": "chk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Kapow!",
+        "scryfallId": "cec575f6-43c9-41c6-a996-bb806bf82185",
+        "oracleId": "d6eabbff-cc0c-4000-8feb-4826e1b6bc66",
+        "firstSet": "spm",
+        "firstPrintId": "cec575f6-43c9-41c6-a996-bb806bf82185",
+        "firstPrintSet": "spm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -77033,6 +77073,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ruthless Predation",
+        "scryfallId": "123f0c76-1fde-439e-a76d-eccf96f8d941",
+        "oracleId": "478e59b8-03ad-4f8e-8c18-6ab5ad77a6f8",
+        "firstSet": "one",
+        "firstPrintId": "123f0c76-1fde-439e-a76d-eccf96f8d941",
+        "firstPrintSet": "one",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Rydia's Return",
         "scryfallId": "40a06165-2835-4610-86a1-7f684992fcf2",
         "oracleId": "0d007479-c5e8-4aa1-b53e-fa962783deee",
@@ -78443,6 +78493,16 @@
         "firstSet": "zen",
         "firstPrintId": "8b8547e0-2928-4edc-a15a-a613cb4d1eac",
         "firstPrintSet": "zen",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Savage Smash",
+        "scryfallId": "4ca942d7-a3a3-429f-a159-fc2363d9bca6",
+        "oracleId": "676c0315-1cb3-4d80-b136-16d88fd612cb",
+        "firstSet": "rna",
+        "firstPrintId": "4ca942d7-a3a3-429f-a159-fc2363d9bca6",
+        "firstPrintSet": "rna",
         "rarity": "common",
         "source": "compiled"
     },
@@ -92682,6 +92742,16 @@
         "firstPrintId": "10affb59-7c57-4b72-892b-d813f385f4a9",
         "firstPrintSet": "ala",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Swift Kick",
+        "scryfallId": "2dc3120c-7e04-4c4a-af16-da264593a1d1",
+        "oracleId": "8c54fd75-e89f-490e-90dd-788f22b6e316",
+        "firstSet": "ktk",
+        "firstPrintId": "2dc3120c-7e04-4c4a-af16-da264593a1d1",
+        "firstPrintSet": "ktk",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -107147,6 +107217,16 @@
         "firstSet": "dka",
         "firstPrintId": "a564e8d4-4111-4d8e-897d-523bc4cfef94",
         "firstPrintSet": "dka",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Wild Instincts",
+        "scryfallId": "58fafd9d-777f-4d88-ad93-63af6d7ef274",
+        "oracleId": "99d9d928-a426-431a-85ee-cdec86a283cd",
+        "firstSet": "ori",
+        "firstPrintId": "58fafd9d-777f-4d88-ad93-63af6d7ef274",
+        "firstPrintSet": "ori",
         "rarity": "common",
         "source": "compiled"
     },

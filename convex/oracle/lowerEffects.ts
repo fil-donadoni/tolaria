@@ -3250,8 +3250,25 @@ function lowerSentenceBody(
                 (sentence.creature.kind === "pronoun" &&
                     pronounIsSource(site) &&
                     site.pronounNamesAnnouncedTarget !== true);
+            // CR 608.2c — "Target creature you control gets +2/+2 until end
+            // of turn. It fights …": a later sentence's "It" names the ONE
+            // target an earlier sentence announced, and that target is the
+            // instructed side only when it was announced as a single creature
+            // on the battlefield.
+            const announced = slots.requirements();
+            const announcedCreatureSide =
+                sentence.creature.kind === "announced-pronoun" &&
+                announced.length === 1 &&
+                announced[0]!.type === "Creature" &&
+                (announced[0]!.zone === undefined ||
+                    announced[0]!.zone === "battlefield") &&
+                namesAtMostOneObject(announced[0]!.count);
             if (
-                !(sourceSide || oneCreatureTarget(sentence.creature)) ||
+                !(
+                    sourceSide ||
+                    announcedCreatureSide ||
+                    oneCreatureTarget(sentence.creature)
+                ) ||
                 !oneCreatureTarget(sentence.other)
             )
                 return unlowerable(
