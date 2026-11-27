@@ -179,11 +179,11 @@ function mentionsSource(node: unknown): boolean {
  *  still shows nowhere in the state the evaluation reads: one anchored to the
  *  source itself (Dash's return, a cleanup-step sacrifice of `$source`), or
  *  to no object at all (a draw at the next upkeep). One whose `watch` and
- *  `capture` name only OTHER objects is not: what it waits on is visible on
- *  those objects (the land an earthbend animated, a card a flicker exiled,
- *  read by `pendingBattlefieldReturns`), so the ETB that scheduled it is
- *  spent like any other, and counting it on the source too would price it
- *  twice. */
+ *  `capture` name only OTHER objects is not: what it did and waits on stands
+ *  on those objects (the land an earthbend animated, on the board; a card a
+ *  flicker exiled, priced by `pendingBattlefieldReturns`), so the ETB that
+ *  scheduled it is spent like any other, and counting it on the source too
+ *  would price it twice. */
 function schedulesSourcePendingDelayedTrigger(
     args: EnteredTriggerArgs
 ): boolean {
