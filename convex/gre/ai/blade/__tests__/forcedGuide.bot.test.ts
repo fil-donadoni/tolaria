@@ -153,6 +153,8 @@ describe("forced guide — the Line's move takes the prior at the Line's decisio
             events.filter((e) => e.where === "tree").map((e) => e.step)
         );
         expect([...treeSteps].sort()).toEqual(LINE.steps.map((_, i) => i));
+        // The rollouts play the Line's move too, past where the tree stops.
+        expect(events.some((e) => e.where === "rollout")).toBe(true);
         for (const e of events) {
             expect(e.step).toBeLessThan(LINE.steps.length);
             expect(e.move.kind).toBe(LINE.steps[e.step].expect[0].kind);
