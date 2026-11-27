@@ -103,11 +103,15 @@ const read = (judgements: VerdictJudgement[], examIds?: string[]) =>
     verdictsFromLock(lockOf(judgements, examIds), judgements.map(payloadOf));
 
 describe("the lock format carries the exam side (issue #10851)", () => {
-    it("reads the committed lock, which names no exam side, and writes it back to the byte", () => {
+    it("reads the committed lock and writes it back to the byte, with or without its exam side", () => {
         const text = readFileSync(join(ROOT, VERDICT_LOCK_PATH), "utf8");
         const lock = parseVerdictLock(text);
-        expect(lock).not.toHaveProperty("examIds");
         expect(serializeVerdictLock(lock)).toBe(text);
+        // The committed lock carries an exam side since issue #10855; the
+        // same lock without it still reads as having none and keeps its bytes.
+        const bare = serializeVerdictLock({ ...lock, examIds: undefined });
+        expect(parseVerdictLock(bare)).not.toHaveProperty("examIds");
+        expect(serializeVerdictLock(parseVerdictLock(bare))).toBe(bare);
     });
 
     it("writes examIds sorted, before verdictIds, and reads them back", () => {
