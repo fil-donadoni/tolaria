@@ -3,6 +3,11 @@
 //
 //   node docs/research/scripts/brain-bench/compare.mjs <base-ref> [<head-ref>]
 //        [--rounds 3] [--iterations 400] [--out <result.json>]
+//        [--position <fixture.json>]...
+//
+// `--position` (issue #10755) searches the named fixtures INSTEAD of the
+// blade positions: a field fixture (`field-position.mjs`) or a spec one
+// (`positions/`), each through `entry.mjs`'s `runField`. Repeatable.
 //
 // With no <head-ref> the head is the working tree as it stands. Both sides
 // are bundled from their own `convex/` and `data/catalogue/` (a ref through
@@ -28,6 +33,7 @@ import {
     copyFileSync,
     existsSync,
     mkdirSync,
+    readFileSync,
     renameSync,
     rmSync,
     writeFileSync,
@@ -53,13 +59,14 @@ const { values: flags, positionals } = parseArgs({
         rounds: { type: "string", default: "3" },
         iterations: { type: "string" },
         out: { type: "string" },
+        position: { type: "string", multiple: true },
     },
 });
 const [baseRef, headRef] = positionals;
 const rounds = Number(flags.rounds);
 if (!baseRef || positionals.length > 2 || !(rounds >= 1)) {
     console.error(
-        "usage: compare.mjs <base-ref> [<head-ref>] [--rounds N] [--iterations N] [--out file.json]"
+        "usage: compare.mjs <base-ref> [<head-ref>] [--rounds N] [--iterations N] [--out file.json] [--position fixture.json]..."
     );
     process.exit(2);
 }
@@ -147,6 +154,21 @@ const load = () => Number(loadavg()[0].toFixed(2));
 
 const base = await buildSide("base", baseRef);
 const head = await buildSide("head", headRef);
+// `--position`: the fixtures stand in for the blade positions on both sides.
+const fixtures = (flags.position ?? []).map((file) =>
+    JSON.parse(readFileSync(file, "utf8"))
+);
+if (fixtures.length > 0) {
+    for (const side of [base, head]) {
+        side.bench = {
+            ...side.bench,
+            count: fixtures.length,
+            labels: fixtures.map((f) => f.label),
+            run: (index, options) =>
+                side.bench.runField(fixtures[index], options),
+        };
+    }
+}
 // Positions pair by index: both sides must hold the same set, in order.
 if (base.bench.labels.join("\n") !== head.bench.labels.join("\n")) {
     console.error(

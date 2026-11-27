@@ -24,6 +24,7 @@
 // resolves: it moves graveyard → stack → its normal destination.
 import type { EscapeCost, ManaCost } from "../cards/types";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
+import { declaresGraveyardCastGrant } from "../cards/registry";
 import { isLand, liveStaticDefinition } from "./constants";
 import type {
     CardInstanceState,
@@ -56,6 +57,9 @@ export function getGrantedEscape(
     const permList = owner.battlefield;
     for (let i = 0; i < permList.length; i++) {
         const perm = permList[i];
+        // Registry precheck (issue #10755) — see `collectRetraceGrants`.
+        const cardId = (perm.card as { id?: string } | undefined)?.id;
+        if (!cardId || !declaresGraveyardCastGrant(cardId)) continue;
         // CR 613.1f — a granter that lost its abilities grants nothing.
         const grant = liveStaticDefinition(perm)?.grantsEscapeToOwnGraveyard;
         if (grant) {
