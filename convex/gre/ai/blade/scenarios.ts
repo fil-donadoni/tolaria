@@ -17606,25 +17606,21 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         // STANDING ABILITY OF A NON-CREATURE PERMANENT (issue #5145) — the
-        // opponent's two artifacts are the same mana value, and one is
-        // Nevinyrral's Disk (a board wipe on a stick), the other a Weakstone.
-        // A Shatter in hand is plainly better spent on the Disk.
+        // opponent's two artifacts are the same mana value: Nevinyrral's Disk
+        // (a board wipe on a stick) and a Weakstone. Neither can hurt the Bot
+        // here — it has no creatures and the opponent no mana — so holding
+        // the instant Shatter is a correct play (issue #10925). What the entry
+        // pins is the TARGET: if the Shatter is spent, it is never spent on
+        // the Weakstone.
         //
         // WHY IT WAS WRONG. `latentValue` read a non-creature's SPELL script
         // and dropped its activated/triggered ability scripts, so both
         // artifacts stood at the same blind `base + MV` floor — and the
         // removal lens (`permanentRealisedValue`) priced destroying either at
-        // the same number. The pick was the Weakstone on every seed.
-        //
-        // WHY THIS PAIR AND NOT THE #4141 SLICE. When this entry landed,
-        // Black Vise, Ivory Tower, Stasis and the rest of that slice read
-        // BELOW their `base + MV` floor (a context-free value of a symmetric
-        // tax or lock is small or negative; an upkeep trigger was priced as
-        // firing once), and for such a script the floor is uplift-only — so
-        // the ability reading never moved them. The Disk was the first
-        // artifact whose ability script outran the floor. The recurrence
-        // multiplier (issue #5151) since lifted Black Vise above it: the next
-        // entry is the slice's own.
+        // the same number. The pick was the Weakstone on every seed. The
+        // board being inert is what makes this entry read the PRICE: no wipe
+        // in the rollout touches the Bot's board, so only the latent value
+        // separates the two targets (the live-threat twin is the next entry).
         label: "removal: Shatter takes the artifact whose ability script outranks its floor (issue #5145)",
         classification: { kind: "absolute" },
         spec: {
@@ -17653,6 +17649,71 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3],
         tier: "must",
         expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Shatter",
+                    target: "Weakstone",
+                },
+            ],
+        },
+        note: "Measured with `bun run blade:probe` at 200/400/800 iterations over 20 seeds (issue #10925): never the Weakstone, 20/20 on every leg (ROBUST) and 20/20 under `horizon-b`, where `material-tiebreak` may pass. Proof of failure: removing the standing-ability reading from the non-creature branch of `latentValue` (`cardValue.ts`) picks the Weakstone on every seed (0/20 at every budget, 4/20 under `horizon-b`). The old `moves: [Disk]` expectation was red under `horizon-b`, which holds the instant against a board that cannot act before the Bot's next window — a correct play, so the entry forbids the wrong target instead of demanding the cast.",
+    },
+    {
+        // A BOARD WIPE THAT UNTAPS NEXT TURN — the live-threat twin of the
+        // entry above (issue #10925). Nevinyrral's Disk is tapped (it enters
+        // tapped), the opponent has the mana to activate it once it untaps,
+        // and the Bot has two creatures it would destroy. This turn is the
+        // last window in which Shatter removes the Disk before its
+        // controller can answer by activating it: it untaps in the untap step
+        // (no priority, CR 502.4) and its controller acts first in upkeep (CR
+        // 503.1), and a Shatter in response no longer stops the wipe already
+        // on the stack. So the Bot spends the Shatter now and on the Disk,
+        // not on the Weakstone.
+        //
+        // Unlike the entry above, this one does not read the latent price:
+        // the rollout plays the opponent's wipe, so the search separates the
+        // targets by what the Disk does to the Bot's board.
+        label: "removal: Shatter takes the tapped board wipe before it can untap",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Mountain",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Grizzly Bears",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                })),
+                { name: "Shatter", owner: "me", zone: "hand" },
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Swamp",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Weakstone", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Nevinyrral's Disk",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
             moves: [
                 {
                     kind: "cast-spell",
@@ -17661,7 +17722,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #5145. Measured at 400 iterations over 20 seeds with the two artifacts in either listing order: Weakstone 20/20 before the change, the Disk 20/20 after. Proof of failure: removing the standing-ability reading from the non-creature branch of `latentValue` (`cardValue.ts`) turns this entry red on every seed.",
+        note: "Issue #10925. Measured with `bun run blade:probe` at 200/400/800 iterations over 20 seeds: the Disk 20/20 on every leg, ROBUST, decided by `mean-reward`; 20/20 under `horizon-b`. The entry stays green with the standing-ability reading of `latentValue` removed (the rollout sees the wipe), so it guards the search's reading of a live threat, not the price the entry above pins.",
     },
     {
         // RECURRING STANDING TRIGGER (issue #5151) — the opponent's two
