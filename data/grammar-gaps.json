@@ -601,6 +601,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery › choice+discard",
+            "issue": 10958
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery › choice+forEach+moveZone",
             "issue": 4824
         },
@@ -633,6 +638,11 @@
             "kind": "bot",
             "key": "never-chosen › Sorcery › chooseNumber+coinFlipSeries+draw+if",
             "issue": 4470
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery › coinFlip+dealDamage+draw+forEach",
+            "issue": 10959
         },
         {
             "kind": "bot",
@@ -6981,6 +6991,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"choice\" reads ref \"$event.damagedPlayer\" — depends on a runtime binding",
+            "issue": 10955
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"counters\" targets $source/$each — covered by the card's own per-card test",
             "issue": 4023
         },
@@ -7051,8 +7066,18 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"lookHand\" reads ref \"$event.damagedPlayer\" — depends on a runtime binding",
+            "issue": 10956
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"loseAbility\" acts on $source — covered by the card's own per-card test",
             "issue": 9637
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"mill\" acts on $each — covered by the card's own per-card test",
+            "issue": 10957
         },
         {
             "kind": "scenario",
