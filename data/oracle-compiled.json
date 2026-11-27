@@ -4,7 +4,7 @@
         "grammarVersion": "v0",
         "compilerHash": "sha256:954186a678390e7fe0ebd2965246f9e9b5f57f3fac4594bc74c6ae3a6db20d4d",
         "registryHash": "sha256:10d5e21e41d455a2a6f83e81a4f53f7373f5678f9c7fc7ea28603a616c7779f0",
-        "botHash": "sha256:d660922e803fedf56d12f6ab4133c0fb7f88177d85269f74d1be167057a59f28",
+        "botHash": "sha256:566bf9d05dddcf92aefdb4dc7cf57240612b54c0f53450087794fd047e8cf45e",
         "poolHash": "sha256:f6350777e0393ad0fff861eecd3e960186413c4362c97812182e3c045f52ab5c",
         "corpus": {
             "source": "https://api.scryfall.com/bulk-data/oracle-cards",
@@ -28624,6 +28624,7 @@
         {"key":"never-chosen › Creature › if+mayPay+moveZone+reflexiveTrigger","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › if+mayPay+pump+sacrifice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › if+mayPay+sacrifice","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Creature › pump+skipNextTurn","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature › regenerate","outcome":"ignored","cards":1},
         {"key":"never-chosen › Enchantment target:Creature › regenerate","outcome":"ignored","cards":1},
         {"key":"never-chosen › Enchantment › (no Ops)","outcome":"ignored","cards":1},
@@ -80188,7 +80189,7 @@
 
         {"oracleId":"bb2fca84-fc19-4c04-b146-1059aa975535","name":"Weaver of Lies","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["b729700565db"]},
 
-        {"oracleId":"bb300e38-32d7-4152-9a82-88d43af99f19","name":"Chronatog","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["pump","skipNextTurn"],"definition":{"name":"Chronatog","types":["Creature"],"subtypes":["Atog"],"manaCost":{"X":1,"U":1},"power":1,"toughness":2,"oracleText":"{0}: This creature gets +3/+3 until end of turn. You skip your next turn. Activate only once each turn.","activatedAbilities":[{"id":"chronatog-ability","oracleText":"{0}: This creature gets +3/+3 until end of turn. You skip your next turn. Activate only once each turn.","cost":{"mana":{}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":3,"toughness":3,"duration":{"phase":"end-of-turn"}},{"op":"skipNextTurn","player":"controller"}],"oncePerTurn":true}]},"botReach":"played"},
+        {"oracleId":"bb300e38-32d7-4152-9a82-88d43af99f19","name":"Chronatog","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["pump","skipNextTurn"],"definition":{"name":"Chronatog","types":["Creature"],"subtypes":["Atog"],"manaCost":{"X":1,"U":1},"power":1,"toughness":2,"oracleText":"{0}: This creature gets +3/+3 until end of turn. You skip your next turn. Activate only once each turn.","activatedAbilities":[{"id":"chronatog-ability","oracleText":"{0}: This creature gets +3/+3 until end of turn. You skip your next turn. Activate only once each turn.","cost":{"mana":{}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":3,"toughness":3,"duration":{"phase":"end-of-turn"}},{"op":"skipNextTurn","player":"controller"}],"oncePerTurn":true}]},"botReach":"ignored","botGap":"never-chosen › Creature › pump+skipNextTurn"},
 
         {"oracleId":"bb329a5c-b9f9-4973-a53f-090024146325","name":"Red Elemental Blast","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["counter","destroy"],"definition":{"name":"Red Elemental Blast","types":["Instant"],"manaCost":{"R":1},"oracleText":"Choose one —\n• Counter target blue spell.\n• Destroy target blue permanent.","modes":[{"id":"red-elemental-blast-mode-1","label":"Counter target blue spell","oracleText":"Counter target blue spell.","effects":[{"op":"counter","target":{"target":0}}],"targetRequirement":{"type":"spell","count":1,"colorFilter":"U"}},{"id":"red-elemental-blast-mode-2","label":"Destroy target blue permanent","oracleText":"Destroy target blue permanent.","effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":["Artifact","Battle","Creature","Enchantment","Land","Planeswalker"],"count":1,"colorFilter":"U"}}]},"botReach":"played"},
 
