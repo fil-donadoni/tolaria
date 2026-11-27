@@ -915,8 +915,6 @@ describe("subtype lists — refused neighbours", () => {
         "Put a +1/+1 counter on each creature you control.",
         // A different history: whose control it entered under.
         "Put a +1/+1 counter on each creature that entered the battlefield under your control this turn.",
-        // A printed-number loss for each opponent is another family.
-        "Each opponent loses 2 life and you gain 2 life.",
         // Parameterised keyword (Jodah's Avenger's list).
         "Target creature gains your choice of double strike, protection from red, or vigilance until end of turn.",
         // Pump beside the choice (Alchemist's Gift).

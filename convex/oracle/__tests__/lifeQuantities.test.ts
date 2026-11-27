@@ -333,13 +333,6 @@ describe("life quantities — refusals stay fail-closed (issue #4136)", () => {
         RegExp,
         { path: string[]; span: string }?,
     ][] = [
-        // A drain whose loser is not one announced target: the lowering has no
-        // single player to point at for "each opponent" (CR 101.4).
-        [
-            "Each opponent loses 2 life and you gain 2 life.",
-            "each opponent's drain",
-            /"each player" is not in grammar v0/,
-        ],
         // A second half other than "you gain N life".
         [
             "Target player loses 2 life and that player's controller gains 2 life.",

@@ -420,6 +420,16 @@ export type SubjectIR =
      */
     | { readonly kind: "pronoun" }
     /**
+     * CR 608.2c + CR 608.2h — "It" opening a LATER sentence of a spell's text:
+     * the one target an earlier sentence announced ("Untap target creature.
+     * It gets +3/+3 until end of turn."). A kind of its own rather than a
+     * flag on `pronoun`, so no verb that reads the site's pronoun reads this
+     * one: only the announced-slot selector resolves it, and every other
+     * verb refuses it. Written as {@link ANNOUNCED_PRONOUN_MARKER} by
+     * {@link announcedTargetPronounRule}, never by a card.
+     */
+    | { readonly kind: "announced-pronoun" }
+    /**
      * CR 110.1 — every permanent a descriptor matches, without announcing a
      * target ("all enchantments"). Read only by the verbs whose lowering fans
      * out over a sweep (destroy, tap, untap); every other verb keeps reading
@@ -5018,6 +5028,8 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
         // not read.
         if (probe === PRONOUN_MARKER || OBJECT_PRONOUNS.has(span))
             return ok({ kind: "pronoun" as const });
+        if (probe === ANNOUNCED_PRONOUN_MARKER)
+            return ok({ kind: "announced-pronoun" as const });
         // CR 115.3 — "Another target creature …" is an ordinary target phrase
         // under an EXCLUSION the sentence alone cannot resolve (see
         // `SubjectIR`), so the head is peeled off here and the rest is read by
@@ -5805,6 +5817,15 @@ function leadingSubjectPronoun(probe: string): string | null {
 export const PRONOUN_MARKER = "{it}";
 
 /**
+ * The marker a later spell sentence's leading "It" is rewritten to when its
+ * referent is the target announced before it (`announced-pronoun`). Distinct
+ * from {@link PRONOUN_MARKER} for the reason that marker is distinct from a
+ * printed phrase: each names a different referent, and one word for both
+ * would let a reader of either claim the other.
+ */
+export const ANNOUNCED_PRONOUN_MARKER = "{it:announced}";
+
+/**
  * A leading "It" rewritten to {@link PRONOUN_MARKER}, and whether it was.
  *
  * The site-referent twin of {@link bindSourcePronoun}: same rewrite, same
@@ -5841,6 +5862,41 @@ export function objectPronounListRule<T>(
         return parsed.ok
             ? ok({ value: parsed.value, boundPronoun: bound.bound })
             : parsed;
+    });
+}
+
+/**
+ * Wrap a SENTENCE rule of a spell's text so a sentence opening on "It" is
+ * read as acting on the target an earlier sentence announced (CR 608.2c,
+ * CR 608.2h: "Untap target creature. It gets +3/+3 until end of turn.").
+ *
+ * A sentence the inner rule already reads with its own "It" (the
+ * regeneration modifier) keeps that reading. Otherwise the leading pronoun is
+ * rewritten to {@link ANNOUNCED_PRONOUN_MARKER}, and the lowering owns the
+ * antecedent check — so an "It" with no announced target before it, after
+ * two, or after the target was moved, stays refused there rather than here.
+ * Only an effect sentence is read: a gate or a fold opening on "It" names no
+ * fixture.
+ */
+export function announcedTargetPronounRule(
+    inner: Rule<SentenceIR>
+): Rule<SentenceIR> {
+    return rule(`announced-target pronoun ${inner.label}`, (span, ctx) => {
+        const plain = inner.run(span, ctx);
+        if (plain.ok || !span.startsWith("It ")) return plain;
+        const parsed = inner.run(
+            `${ANNOUNCED_PRONOUN_MARKER} ${span.slice("It ".length)}`,
+            ctx
+        );
+        // An unread bound sentence keeps the printed one's failure, so the
+        // backlog still names it by its "It".
+        if (!parsed.ok) return plain;
+        if (parsed.value.role !== "effect")
+            return fail(
+                '"It" names an announced target only in an effect sentence',
+                span
+            );
+        return parsed;
     });
 }
 
@@ -6140,6 +6196,8 @@ const LIFE_EQUAL_SPEED = new RegExp(
  *  characteristic is `readActedOnCharacteristic`'s. */
 /** CR 109.4 — "Its controller" / "That artifact's controller", a life recipient. */
 const ACTED_ON_CONTROLLER = /^(?:Its|That (artifact)'s) controller$/;
+/** CR 109.4 — the pronoun spelling of {@link ACTED_ON_CONTROLLER}. */
+const ITS_CONTROLLER = "Its controller";
 const LIFE_EQUAL_ACTED_ON = new RegExp(
     `^(.+) (gain|gains|lose|loses) life equal to ${actedOnNounGroup(["it", "card", "permanent"])} ${actedOnCharacteristicGroup(["manaValue", "power", "toughness"])}$`
 );
@@ -10299,7 +10357,16 @@ function effectSentence(
     // ── life (CR 119.3) ────────────────────────────────────────────────────
     const life = span.match(LIFE);
     if (life !== null) {
-        const player = playerSubject(life[1]!, ctx);
+        // CR 109.4 + CR 608.2h — "Its controller loses 2 life": the controller
+        // of the one target the sentence before acted on, read off the snapshot
+        // its removal took (the lowering checks that antecedent). Only the
+        // printed loss is fixtured (Death Bomb, Vapor Snag).
+        const actedOnController = life[1] === ITS_CONTROLLER;
+        if (actedOnController && !life[2]!.startsWith("lose"))
+            return fail('"its controller" is read only as losing life', span);
+        const player: PlayerRefIR | null = actedOnController
+            ? { kind: "acted-on-controller" as const, noun: "it" }
+            : playerSubject(life[1]!, ctx);
         if (player === null) return fail(`"${life[1]}" is not a player`, span);
         const amount = readAmount(life[3]!);
         if (amount === null) return fail(`"${life[3]}" is not an amount`, span);

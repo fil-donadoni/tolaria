@@ -247,6 +247,14 @@ export interface SiteOptions {
      * asking for it is refused rather than lowered into a fizzle.
      */
     readonly resolvesIfTargetsIllegal?: true;
+    /**
+     * CR 101.4 + CR 102.2 — the sentence is lowered as the body of a fan-out
+     * over players (`lowerPlayerFanOut`): "each player" names the member being
+     * iterated (`$each`), and "each opponent" the one opponent of the
+     * two-player engine. Absent = both phrases stay refused, so a verb whose
+     * fan-out has no fixture never folds a symmetrical effect onto one player.
+     */
+    readonly playerFanOut?: true;
 }
 
 /** The referents a site's anaphora may name (see `SiteOptions.antecedents`). */
@@ -1676,6 +1684,25 @@ function selectorsFor(
         return unlowerable(
             "each opponent and their creatures is two recipient sets, not one object (CR 120.3)"
         );
+    // CR 608.2c + CR 608.2h — a later spell sentence's "It" names the ONE
+    // single-object target announced before it; `lowerSentence` has already
+    // refused the walks where that slot no longer names the object.
+    if (subject.kind === "announced-pronoun") {
+        const announced = slots.requirements();
+        const only = announced.length === 1 ? announced[0]! : null;
+        // CR 110.1 — the pronoun names a PERMANENT on the battlefield; a
+        // player, a spell or a card in another zone is not that object.
+        return only !== null &&
+            namesAtMostOneObject(only.count) &&
+            (only.zone === undefined || only.zone === "battlefield") &&
+            announcedTypes(only).every((type) =>
+                ACTED_ON_PERMANENT_TYPES.has(type)
+            )
+            ? lowered([{ target: 0 }])
+            : unlowerable(
+                  '"it" names the one permanent target announced before it, and there is not exactly one (CR 608.2h)'
+              );
+    }
     if (subject.requirement.type === "player")
         return unlowerable("a player is not an object (CR 109.1)");
     // CR 112.1 / CR 110.1 — a SPELL is a card on the STACK; a permanent is a
@@ -2034,8 +2061,13 @@ function playerRef(
         // player set, and folding it into a single ref would silently make a
         // symmetrical effect one-sided. Refused until the construct is needed.
         case "each-player":
+            return site.playerFanOut === true
+                ? lowered({ ref: "$each" })
+                : unlowerable('"each player" is not in grammar v0');
         case "each-opponent":
-            return unlowerable('"each player" is not in grammar v0');
+            return site.playerFanOut === true
+                ? lowered("opponent")
+                : unlowerable('"each player" is not in grammar v0');
         // Resolved by the damage lowering, which owns the walk it reads.
         case "that-creature-controller":
             return unlowerable(
@@ -2092,6 +2124,8 @@ export function lowerSentence(
     walk: SentenceWalk,
     site: SiteOptions
 ): Lowered<EffectOp[]> {
+    const stale = staleAnnouncedPronoun(sentence, walk);
+    if (stale !== null) return unlowerable(stale);
     const announced = walk.targets.requirements().length;
     const actedOn = walk.actedOn;
     const introduced = walk.introduced;
@@ -2143,6 +2177,35 @@ export function lowerSentence(
     )
         walk.distributed = null;
     return out;
+}
+
+/**
+ * CR 608.2h + CR 400.7 — why a sentence reading the `announced-pronoun` ("…
+ * target creature. It gets +3/+3 …") cannot name the announced slot on this
+ * walk, or `null` when it can (or reads no such pronoun). The slot stops
+ * being the referent when an earlier sentence destroyed, exiled or moved the
+ * target (the object it became is a new one the slot does not point at), put
+ * another object onto the battlefield (the nearer antecedent), or removed the
+ * target behind a gate that may not have opened.
+ */
+function staleAnnouncedPronoun(
+    sentence: EffectSentenceIR,
+    walk: SentenceWalk
+): string | null {
+    if (!mentionsAnnouncedPronoun(sentence)) return null;
+    if (walk.actedOn !== null)
+        return '"it" follows a sentence that moved the announced target, so the slot no longer names it (CR 400.7)';
+    if (walk.introduced !== null)
+        return '"it" follows an object put onto the battlefield, a nearer antecedent than the announced target (CR 608.2h)';
+    if (walk.gatedRemoval)
+        return '"it" follows a gated removal of the announced target (CR 608.2h)';
+    return null;
+}
+
+function mentionsAnnouncedPronoun(node: unknown): boolean {
+    if (typeof node !== "object" || node === null) return false;
+    if ((node as { kind?: unknown }).kind === "announced-pronoun") return true;
+    return Object.values(node).some(mentionsAnnouncedPronoun);
 }
 
 /** The sentences that name `SentenceWalk.introduced` and so keep it alive. */
@@ -2361,6 +2424,51 @@ function headNamesAnObject(site: SiteOptions): boolean {
     );
 }
 
+/** The verbs whose "each player" / "each opponent" subject fans out (CR 101.4). */
+const PLAYER_FAN_OUT_KINDS: ReadonlySet<EffectSentenceIR["kind"]> = new Set([
+    "draw",
+    "mill",
+    "discard",
+    "life",
+]);
+
+/**
+ * CR 101.4 — "Each player draws a card" / "each opponent loses 2 life": one
+ * player verb performed by every player of a set. "each player" is a
+ * `forEach` over the players in APNAP order with the member as the verb's
+ * player (`$each`); a discard is `simultaneous`, so every player chooses
+ * before any card is discarded and none sees another's pick first (CR 101.4a,
+ * as Marsh Crocodile encodes it). "each opponent" is the ONE opponent of the
+ * two-player engine (CR 102.2), so it lowers as that player with no loop.
+ * `null` for every other sentence, which keeps its own lowering.
+ */
+function lowerPlayerFanOut(
+    sentence: Exclude<EffectSentenceIR, { kind: undefined }>,
+    walk: SentenceWalk,
+    site: SiteOptions
+): Lowered<EffectOp[]> | null {
+    if (site.playerFanOut === true || !PLAYER_FAN_OUT_KINDS.has(sentence.kind))
+        return null;
+    const player = (sentence as { readonly player?: PlayerRefIR }).player;
+    if (player?.kind !== "each-player" && player?.kind !== "each-opponent")
+        return null;
+    const body = lowerSentenceBody(sentence, walk, {
+        ...site,
+        playerFanOut: true,
+    });
+    if (!body.ok || player.kind === "each-opponent") return body;
+    return lowered([
+        {
+            op: "forEach",
+            select: { set: "players" },
+            ...(sentence.kind === "discard"
+                ? { simultaneous: true as const }
+                : {}),
+            effects: body.value,
+        },
+    ]);
+}
+
 /** True when a `that-creature` subject sits anywhere in the sentence's IR. */
 function mentionsThatCreature(node: unknown): boolean {
     if (typeof node !== "object" || node === null) return false;
@@ -2378,6 +2486,8 @@ function lowerSentenceBody(
     // carries no kind and lowers frame by frame, one Op each.
     if (sentence.kind === undefined)
         return lowerFrameChain(sentence, walk, site);
+    const fanOut = lowerPlayerFanOut(sentence, walk, site);
+    if (fanOut !== null) return fanOut;
     switch (sentence.kind) {
         case "pump": {
             if (sentence.perOtherAttacking !== undefined) {
