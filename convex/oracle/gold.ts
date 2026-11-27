@@ -357,6 +357,7 @@ const SPELL_BUCKET_KEYS: ReadonlySet<string> = new Set([
     "additionalCosts",
     "alternativeCosts",
     "flashback",
+    "castPhaseRestriction",
 ]);
 
 /** Which v0 shape a hand-written card is, judged from the HAND-WRITTEN side. */

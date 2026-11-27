@@ -273,16 +273,14 @@ export const chaoticStrike = defineCard(() => ({
         "END_OF_COMBAT",
     ],
     targetRequirement: { type: "Creature", count: 1 },
-    // The draw is unconditional (CR 705 coin flip only gates the pump), so
-    // it rides in BOTH branches — `isCoinFlipBranch` requires a non-empty
-    // `effects` list (ADR 0045), and there is no card-shaped no-op Op to pad
-    // an otherwise-empty loss branch with.
+    // The draw is unconditional (CR 705 coin flip only gates the pump), so it
+    // follows the flip rather than riding in either branch; the loss branch
+    // is empty (`isCoinFlipBranch` accepts an empty `effects` list).
     effects: [
         {
             op: "coinFlip",
             win: {
-                consequence:
-                    "Target creature gets +1/+1 until end of turn. Draw a card.",
+                consequence: "Target creature gets +1/+1 until end of turn.",
                 effects: [
                     {
                         op: "pump",
@@ -291,14 +289,14 @@ export const chaoticStrike = defineCard(() => ({
                         toughness: 1,
                         duration: { phase: "end-of-turn" },
                     },
-                    { op: "draw", player: "controller", count: 1 },
                 ],
             },
             loss: {
-                consequence: "Draw a card.",
-                effects: [{ op: "draw", player: "controller", count: 1 }],
+                consequence: "Nothing happens.",
+                effects: [],
             },
         },
+        { op: "draw", player: "controller", count: 1 },
     ],
 }));
 

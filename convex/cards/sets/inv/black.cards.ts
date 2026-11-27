@@ -645,13 +645,10 @@ export const maraudingKnight = defineCard(() => ({
 
 // Phyrexian Battleflies — {B} 0/1. "Flying. {B}: This creature gets +1/+0
 // until end of turn. Activate no more than twice each turn." (CR 702.9
-// flying, CR 602.5 activation cap.) The "twice" cap has no `oncePerTurn`-
-// style boolean field (that caps at exactly 1) — `canActivate` reads the
-// generic per-source `activationsThisTurn` tally the engine already tracks
-// for EVERY activated ability (game.ts `recordActivation`), the same
-// extension point Clockwork Beast-style conditional abilities use. The Bot's
-// enumerator evaluates the closure through the same predicate the server reads
-// (`activationPreconditionViolation`, issue #3441).
+// flying, CR 602.5b activation cap.) The "twice" cap is the declarative
+// `maxActivationsPerTurn: 2`, read off the per-source `activationsThisTurn`
+// tally by `activationPreconditionViolation` — the one authority the server,
+// the Bot and the client affordance share.
 export const phyrexianBattleflies = defineCard(() => ({
     id: "da27c489-c541-4b0d-a844-71aa65e55ceb", // INV 114
     rarity: "common",
@@ -671,9 +668,7 @@ export const phyrexianBattleflies = defineCard(() => ({
                 "{B}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn.",
             cost: { mana: { B: 1 } },
             useStack: true,
-            canActivate: (source) =>
-                (source.activationsThisTurn?.["phyrexian-battleflies-pump"] ??
-                    0) < 2,
+            maxActivationsPerTurn: 2,
             effects: [
                 {
                     op: "pump",

@@ -4000,12 +4000,10 @@
         {"key":"cb147b03aae4","text":"Cast this spell only during an opponent's turn, before attackers are declared.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Cast this spell only during an opponent's turn, before attackers are declared"}},
         {"key":"4e011ca403a8","text":"Cast this spell only during an opponent's turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Cast this spell only during an opponent's turn"}},
         {"key":"11f8a4a4a5d3","text":"Cast this spell only during an opponent's upkeep.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Cast this spell only during an opponent's upkeep"}},
-        {"key":"61592ad7e2f4","text":"Cast this spell only during combat after blockers are declared.","reason":"no slot consumed the line","cards":4,"attribution":{"slot":"spell","path":["effect clause"],"span":"Cast this spell only during combat after blockers are declared"}},
         {"key":"b1843a96987d","text":"Cast this spell only during combat before blockers are declared.","reason":"no slot consumed the line","cards":5,"attribution":{"slot":"spell","path":["effect clause"],"span":"Cast this spell only during combat before blockers are declared"}},
         {"key":"c4ccdf001a48","text":"Cast this spell only during combat on an opponent's turn.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"spell","path":["effect clause"],"span":"Cast this spell only during combat on an opponent's turn"}},
         {"key":"c164eee4426a","text":"Cast this spell only during combat on your turn before blockers are declared.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Cast this spell only during combat on your turn before blockers are declared"}},
         {"key":"fc207b0c544a","text":"Cast this spell only during combat on your turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Cast this spell only during combat on your turn"}},
-        {"key":"cbfb661320ac","text":"Cast this spell only during combat.","reason":"no slot consumed the line","cards":5,"attribution":{"slot":"spell","path":["effect clause"],"span":"Cast this spell only during combat"}},
         {"key":"c970c537fa86","text":"Cast this spell only during the declare attackers step and only if you've been attacked this step.","reason":"no slot consumed the line","cards":14,"attribution":{"slot":"spell","path":["effect clause"],"span":"Cast this spell only during the declare attackers step and only if you've been attacked this step"}},
         {"key":"ae666279d5af","text":"Cast this spell only during the declare attackers step.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"spell","path":["effect clause"],"span":"Cast this spell only during the declare attackers step"}},
         {"key":"61f2c0db170f","text":"Cast this spell only during the declare blockers step on an opponent's turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"spell","path":["effect clause"],"span":"Cast this spell only during the declare blockers step on an opponent's turn"}},
@@ -23723,7 +23721,6 @@
         {"key":"e1631c80701e","text":"You can spend mana of any type to cast creature spells.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"You can spend mana of any type to cast creature spells"}},
         {"key":"497d78462955","text":"You can't cast Keeper of the Yellow Hat during your first seven turns of the game.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"You can't cast Keeper of the Yellow Hat during your first seven turns of the game"}},
         {"key":"32d729a63f80","text":"You can't cast creature spells.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"You can't cast creature spells"}},
-        {"key":"498d29900370","text":"You can't cast more than one spell each turn.","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"static","path":["static clause"],"span":"You can't cast more than one spell each turn"}},
         {"key":"42265d3d296e","text":"You can't cast noncreature spells.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"static","path":["static clause"],"span":"You can't cast noncreature spells"}},
         {"key":"64e0aa6cb30b","text":"You can't cast permanent spells.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"You can't cast permanent spells"}},
         {"key":"e902d6aa2617","text":"You can't cast spells.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"static","path":["static clause"],"span":"You can't cast spells"}},
@@ -25180,7 +25177,6 @@
         {"key":"75796cee96d4","text":"{2}: This creature deals 1 damage to each creature with flying and each player. Any player may activate this ability.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"each creature with flying and each player"}},
         {"key":"d2df5b0aaad6","text":"{2}: This creature fights another target creature you control. When this creature dies this turn, return it to the battlefield transformed under your control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"When this creature dies this turn, return it to the battlefield transformed under your control"}},
         {"key":"fcbd49f5029f","text":"{2}: This creature gains your choice of banding, bushido 1, double strike, fear, flying, first strike, haste, landwalk of your choice, protection from a color of your choice, provoke, rampage 1, shadow, or trample until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"This creature gains your choice of banding, bushido 1, double strike, fear, flying, first strike, haste, landwalk of your choice, protection from a color of your choice, provoke, rampage 1, shadow, or trample until end of turn"}},
-        {"key":"34cdc58cd645","text":"{2}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Activate no more than twice each turn"}},
         {"key":"0b19955bd16e","text":"{2}: This creature gets +2/-2 or -2/+2 until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","duration"],"span":"or -2/+2 until end of turn"}},
         {"key":"f20679d975fe","text":"{2}: This creature loses all abilities until end of turn. Any player may activate this ability.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"This creature loses all abilities until end of turn"}},
         {"key":"d0d00d3b5565","text":"{2}: This creature's art becomes by the artist of your choice until end of turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"This creature's art becomes by the artist of your choice until end of turn"}},
@@ -26241,7 +26237,6 @@
         {"key":"f2385d7bb518","text":"{B}: Target player dealt damage by this creature this turn loses 1 life.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Target player dealt damage by this creature this turn loses 1 life"}},
         {"key":"c01f587707e3","text":"{B}: This creature becomes a Human Cleric with base power and toughness 2/2.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"This creature becomes a Human Cleric with base power and toughness 2/2"}},
         {"key":"b073d65f912a","text":"{B}: This creature gains swampwalk until end of turn and deals 1 damage to you.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","duration"],"span":"until end of turn and deals 1 damage to you"}},
-        {"key":"5ed8318f061a","text":"{B}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn.","reason":"no slot consumed the line","cards":3,"attribution":{"slot":"activated","path":["effect clause"],"span":"Activate no more than twice each turn"}},
         {"key":"9fbb1b48ac83","text":"{B}: This creature gets +1/+1 until end of turn unless any player pays {2}.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","duration"],"span":"until end of turn unless any player pays {2}"}},
         {"key":"ea8666a8cd2b","text":"{B}: This enchantment deals 1 damage to each creature and each player. Activate no more times each turn than the number of snow Swamps you control.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Activate no more times each turn than the number of snow Swamps you control"}},
         {"key":"8503fbb04009","text":"{B}: Transform this creature. Activate only if you control five or more Vampires.","reason":"a \"subtypes\" clause has no resolution-time count here","cards":1},
@@ -26437,7 +26432,6 @@
         {"key":"9986c868c520","text":"{R}: This creature deals 1 damage to target creature defending player controls. Activate only if this creature is attacking.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause","target filter","object descriptor"],"span":"creature defending player controls"}},
         {"key":"e31f46349db7","text":"{R}: This creature gains flying until end of turn. Activate only if you control a creature with flying.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Activate only if you control a creature with flying"}},
         {"key":"34009432f7af","text":"{R}: This creature gains protection from red until end of turn.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"activated","path":["effect clause"],"span":"This creature gains protection from red until end of turn"}},
-        {"key":"04e34c85ddb7","text":"{R}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Activate no more than twice each turn"}},
         {"key":"bb1edbb7ad5e","text":"{R}: This creature gets +1/+0 until end of turn. Activate only if this creature is blocked.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"Activate only if this creature is blocked"}},
         {"key":"e315b7f040a1","text":"{R}: This creature gets +1/+0 until end of turn. If it's an Aura, enchanted creature gets +1/+0 until end of turn instead.","reason":"no slot consumed the line","cards":1,"attribution":{"slot":"activated","path":["effect clause"],"span":"If it's an Aura, enchanted creature"}},
         {"key":"bdd45a74fa85","text":"{R}: This creature gets +1/+0 until end of turn. If this ability has been activated four or more times this turn, sacrifice this creature at the beginning of the next end step.","reason":"no slot consumed the line","cards":2,"attribution":{"slot":"activated","path":["effect clause"],"span":"If this ability has been activated four or more times this turn, sacrifice this creature at the beginning of the next end step"}},
@@ -28351,6 +28345,7 @@
         {"key":"never-chosen › Sorcery target:player › choice+libraryLook+moveZone","outcome":"ignored","cards":2},
         {"key":"position-unmodelled › Enchantment target:Land","outcome":"ignored","cards":2},
         {"key":"position-unmodelled › Instant target:Artifact","outcome":"ignored","cards":2},
+        {"key":"position-unmodelled › Instant target:Creature","outcome":"ignored","cards":2},
         {"key":"never-chosen › Artifact [trample] › if+mayPay+sacrifice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature [fear] › choice+sacrifice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Creature [flying,haste] › delayedTrigger+exile+exileOnLeave+grantAbility+moveZone+sacrifice","outcome":"ignored","cards":1},
@@ -37033,7 +37028,7 @@
 
         {"oracleId":"1f097c91-6c2e-410f-8c8f-c021f39491af","name":"Henchbots","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["triggered"],"opsUsed":["exileWithAttachments","returnExiledForSource"],"definition":{"name":"Henchbots","types":["Artifact","Creature"],"subtypes":["Robot"],"manaCost":{"X":4},"power":2,"toughness":3,"oracleText":"When this creature enters, exile target tapped creature an opponent controls until this creature leaves the battlefield.","compiledTriggeredAbilities":[{"id":"henchbots-trigger","oracleText":"When this creature enters, exile target tapped creature an opponent controls until this creature leaves the battlefield.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"Creature","count":1,"tappedFilter":"tapped","controller":"opponent"},"effects":[{"op":"exileWithAttachments","target":{"target":0}}]},{"id":"henchbots-trigger-2","oracleText":"When Henchbots leaves the battlefield, return the exiled card to the battlefield under its owner's control.","head":{"kind":"left","scope":"self"},"condition":{"kind":"holds-exile-bundle"},"effects":[{"op":"returnExiledForSource"}]}]},"botReach":"played"},
 
-        {"oracleId":"1f0b3549-2d24-49e8-85bc-55e3a5e5f6b8","name":"Chaotic Strike","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["61592ad7e2f4"]},
+        {"oracleId":"1f0b3549-2d24-49e8-85bc-55e3a5e5f6b8","name":"Chaotic Strike","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["coinFlip","draw","pump"],"definition":{"name":"Chaotic Strike","types":["Instant"],"manaCost":{"X":1,"R":1},"oracleText":"Cast this spell only during combat after blockers are declared.\nFlip a coin. If you win the flip, target creature gets +1/+1 until end of turn.\nDraw a card.","effects":[{"op":"coinFlip","win":{"consequence":"Target creature gets +1/+1 until end of turn.","effects":[{"op":"pump","target":{"target":0},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}]},"loss":{"consequence":"Nothing happens.","effects":[]}},{"op":"draw","player":"controller","count":1}],"targetRequirement":{"type":"Creature","count":1},"castPhaseRestriction":["DECLARE_BLOCKERS","FIRST_STRIKE_DAMAGE","COMBAT_DAMAGE","END_OF_COMBAT"]},"botReach":"ignored","botGap":"position-unmodelled › Instant target:Creature"},
 
         {"oracleId":"1f0bb053-4967-4289-b2b1-f6309f2eca7d","name":"Encroaching Mycosynth","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["4cbe6a8061f5"]},
 
@@ -43445,7 +43440,7 @@
 
         {"oracleId":"3715e8b8-31df-499b-8a91-1bcd1199d6eb","name":"Experimental Frenzy","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["65084aa02ec8"]},
 
-        {"oracleId":"37162c6e-ac31-4386-9d1e-76aa66070b35","name":"Angelic Favor","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["cbfb661320ac","f6161efe9111"]},
+        {"oracleId":"37162c6e-ac31-4386-9d1e-76aa66070b35","name":"Angelic Favor","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["f6161efe9111"]},
 
         {"oracleId":"37165859-87bc-4d44-95a2-39051ab20a14","name":"Blind-Spot Giant","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["a0f61137edaa"]},
 
@@ -45441,7 +45436,7 @@
 
         {"oracleId":"3debfa0d-9945-4a85-a714-7c3d3d74de4e","name":"Waterveil Cavern","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["a5f35e54c67d"]},
 
-        {"oracleId":"3decbc45-3e79-455f-9d62-878ee31b458d","name":"Pit Imp","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["5ed8318f061a"]},
+        {"oracleId":"3decbc45-3e79-455f-9d62-878ee31b458d","name":"Pit Imp","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["pump"],"definition":{"name":"Pit Imp","types":["Creature"],"subtypes":["Imp"],"manaCost":{"B":1},"power":0,"toughness":1,"oracleText":"Flying\n{B}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn.","staticAbilities":["flying"],"activatedAbilities":[{"id":"pit-imp-ability","oracleText":"{B}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn.","cost":{"mana":{"B":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":0,"duration":{"phase":"end-of-turn"}}],"maxActivationsPerTurn":2}]},"botReach":"played"},
 
         {"oracleId":"3ded0c0c-40ce-4d14-a9a6-b023bc19ee0e","name":"Triumph of the Hordes","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["6f47736b4c6d"]},
 
@@ -49579,7 +49574,7 @@
 
         {"oracleId":"4cf10cb6-b082-4c0d-89e9-43cd39716201","name":"Daxos of Meletis","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8a1898e07100","f7c8e649b875"]},
 
-        {"oracleId":"4cf3fb65-9107-428a-8853-029ec97112b5","name":"Spinal Embrace","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["c797913c943f","cbfb661320ac"]},
+        {"oracleId":"4cf3fb65-9107-428a-8853-029ec97112b5","name":"Spinal Embrace","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["c797913c943f"]},
 
         {"oracleId":"4cfaa5cf-cc3d-49a7-9544-38a8bb7e9ec1","name":"Frontier Siege","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["cb9d54335d1b"]},
 
@@ -52551,7 +52546,7 @@
 
         {"oracleId":"57f90b30-bcb0-447e-8788-5c5ded187207","name":"Natural Selection","state":"ready","poolIn":["legacy","vintage","commander"],"slots":["spell"],"opsUsed":["if","libraryLook","mayPay","scryReorder"],"definition":{"name":"Natural Selection","types":["Instant"],"manaCost":{"G":1},"oracleText":"Look at the top three cards of target player's library, then put them back in any order. You may have that player shuffle.","effects":[{"op":"scryReorder","player":{"target":0},"chooser":"controller","count":3,"destination":"none"},{"op":"mayPay","player":"controller","prompt":"Have that player shuffle?","bind":"$may1"},{"op":"if","predicate":{"binding":"$may1"},"then":[{"op":"libraryLook","action":"shuffle","player":{"target":0}}]}],"targetRequirement":{"type":"player","count":1}},"botReach":"played"},
 
-        {"oracleId":"57f94fcb-a224-410b-a38e-3ed8cca7d0c7","name":"Moderation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["498d29900370"]},
+        {"oracleId":"57f94fcb-a224-410b-a38e-3ed8cca7d0c7","name":"Moderation","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["static","triggered"],"opsUsed":["draw"],"definition":{"name":"Moderation","types":["Enchantment"],"manaCost":{"X":1,"W":1,"U":1},"oracleText":"You can't cast more than one spell each turn.\nWhenever you cast a spell, draw a card.","compiledTriggeredAbilities":[{"id":"moderation-trigger","oracleText":"Whenever you cast a spell, draw a card.","head":{"kind":"spell-cast","scope":"you"},"effects":[{"op":"draw","player":"controller","count":1}]}],"compiledStaticEffects":[{"kind":"cast-restriction","id":"moderation-spell-cap","oracleText":"You can't cast more than one spell each turn.","maxSpellsEachTurn":1,"controllerOnly":true}]},"botReach":"played"},
 
         {"oracleId":"57fb51a2-9702-4d49-9fd7-ac59319607dd","name":"Consumed by History","state":"unparsed","gaps":["aece73652f46"]},
 
@@ -52841,7 +52836,7 @@
 
         {"oracleId":"58ebaaba-7e35-4588-9679-23b22e39789b","name":"Tegwyll's Scouring","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["d77cda560a80"]},
 
-        {"oracleId":"58ed1294-ba7d-43a1-b988-8d78d9fa0e3e","name":"Phyrexian Battleflies","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["5ed8318f061a"]},
+        {"oracleId":"58ed1294-ba7d-43a1-b988-8d78d9fa0e3e","name":"Phyrexian Battleflies","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["pump"],"definition":{"name":"Phyrexian Battleflies","types":["Creature"],"subtypes":["Phyrexian","Insect"],"manaCost":{"B":1},"power":0,"toughness":1,"oracleText":"Flying\n{B}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn.","staticAbilities":["flying"],"activatedAbilities":[{"id":"phyrexian-battleflies-ability","oracleText":"{B}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn.","cost":{"mana":{"B":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":0,"duration":{"phase":"end-of-turn"}}],"maxActivationsPerTurn":2}]},"botReach":"played"},
 
         {"oracleId":"58edb282-a124-47bc-b123-1c34b6804f48","name":"Ember Beast","state":"unparsed","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"gaps":["46816f9520a7"]},
 
@@ -55225,7 +55220,7 @@
 
         {"oracleId":"619ef7e1-33cd-4470-a1d4-83c5f1f5c31e","name":"Forget","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["19b049bdc4a8"]},
 
-        {"oracleId":"61a1748c-e772-4338-9edd-720cd5d2fc12","name":"Surprise Deployment","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["cbfb661320ac","fea8faa38fdc"]},
+        {"oracleId":"61a1748c-e772-4338-9edd-720cd5d2fc12","name":"Surprise Deployment","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["fea8faa38fdc"]},
 
         {"oracleId":"61a23402-3244-4b5e-9134-98e1f82eda65","name":"Abstruse Appropriation","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["e10ad90ee549"]},
 
@@ -56349,7 +56344,7 @@
 
         {"oracleId":"65c0d59b-3a94-49af-94cd-2ab4820a51f3","name":"Mantle of Leadership","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["8e5a18410b1b"]},
 
-        {"oracleId":"65c1cac7-87d1-4687-86ba-f7c63c4f8549","name":"Fire-Belly Changeling","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["04e34c85ddb7"]},
+        {"oracleId":"65c1cac7-87d1-4687-86ba-f7c63c4f8549","name":"Fire-Belly Changeling","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["pump"],"definition":{"name":"Fire-Belly Changeling","types":["Creature"],"subtypes":["Shapeshifter"],"manaCost":{"X":1,"R":1},"power":1,"toughness":1,"oracleText":"Changeling (This card is every creature type.)\n{R}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn.","staticAbilities":["changeling"],"activatedAbilities":[{"id":"fire-belly-changeling-ability","oracleText":"{R}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn.","cost":{"mana":{"R":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":0,"duration":{"phase":"end-of-turn"}}],"maxActivationsPerTurn":2}]},"botReach":"played"},
 
         {"oracleId":"65c32889-3d70-449f-af76-05385c78c5a9","name":"Evercoat Ursine","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["7cab77a55749","d375abde41c3"]},
 
@@ -57563,7 +57558,7 @@
 
         {"oracleId":"69c674c7-48a5-49c8-b0be-3f2b5c6a548c","name":"Sauron, Lord of the Rings","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["1184a117059c","39c14ba72a9a"]},
 
-        {"oracleId":"69c69d69-3565-4d9c-82c0-a96d0fb80513","name":"Roterothopter","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["34cdc58cd645"]},
+        {"oracleId":"69c69d69-3565-4d9c-82c0-a96d0fb80513","name":"Roterothopter","state":"ready","poolIn":["premodern","pauper","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["pump"],"definition":{"name":"Roterothopter","types":["Artifact","Creature"],"subtypes":["Thopter"],"manaCost":{"X":1},"power":0,"toughness":2,"oracleText":"Flying\n{2}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn.","staticAbilities":["flying"],"activatedAbilities":[{"id":"roterothopter-ability","oracleText":"{2}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn.","cost":{"mana":{"X":2}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":0,"duration":{"phase":"end-of-turn"}}],"maxActivationsPerTurn":2}]},"botReach":"played"},
 
         {"oracleId":"69c8e690-c0a2-4c4e-910d-123c9c5b922f","name":"Metamorphic Blast","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2d53ecd9e555","57c221430263"]},
 
@@ -59827,7 +59822,7 @@
 
         {"oracleId":"7216f974-3c84-40ef-b904-82019900c204","name":"Hedron Crab","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["60621a4205c5"]},
 
-        {"oracleId":"72177c93-ed1f-47bd-99a6-ad229a292d46","name":"Yawgmoth's Agenda","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["498d29900370","76da44fa1473","9c77c4100437"]},
+        {"oracleId":"72177c93-ed1f-47bd-99a6-ad229a292d46","name":"Yawgmoth's Agenda","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["76da44fa1473","9c77c4100437"]},
 
         {"oracleId":"7217ea53-3685-48d6-9df1-58a551f8c979","name":"Rescue from the Underworld","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["b73fbf409365"]},
 
@@ -76195,7 +76190,7 @@
 
         {"oracleId":"ad779760-1197-4248-8e21-7a048122640f","name":"Flowstone Slide","state":"unparsed","poolIn":["premodern","modern","legacy","vintage","commander"],"gaps":["be414527c27f"]},
 
-        {"oracleId":"ad786230-4045-46af-bc89-078d45891e5b","name":"Colfenor's Plans","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2c7180f1f6d3","498d29900370","d3567f8e1892"]},
+        {"oracleId":"ad786230-4045-46af-bc89-078d45891e5b","name":"Colfenor's Plans","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["2c7180f1f6d3","d3567f8e1892"]},
 
         {"oracleId":"ad7b610c-e276-4c71-9b53-1ccb6d2dafd2","name":"Ruins of Trokair","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["mana-ability","static"],"opsUsed":[],"definition":{"name":"Ruins of Trokair","types":["Land"],"oracleText":"This land enters tapped.\n{T}: Add {W}.\n{T}, Sacrifice this land: Add {W}{W}.","activatedAbilities":[{"id":"ruins-of-trokair-mana","oracleText":"{T}: Add {W}.","cost":{"tap":true},"useStack":false,"manaProduced":{"W":1}},{"id":"ruins-of-trokair-mana-2","oracleText":"{T}, Sacrifice this land: Add {W}{W}.","cost":{"tap":true,"sacrifice":true},"useStack":false,"manaProduced":{"W":2}}],"entersTapped":true},"botReach":"played","retired":{"at":"2026-11-15","issue":4041}},
 
@@ -82127,7 +82122,7 @@
 
         {"oracleId":"c30491b5-08fe-4694-9ac8-53be7b4b92ce","name":"Portal of Sanctuary","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["84c51de15b86"]},
 
-        {"oracleId":"c309ec42-34a0-4083-a36c-7814643d7960","name":"Mandate of Peace","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["b1412967c893","cbfb661320ac"]},
+        {"oracleId":"c309ec42-34a0-4083-a36c-7814643d7960","name":"Mandate of Peace","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["b1412967c893"]},
 
         {"oracleId":"c30c5fa9-6d90-4a51-aef3-003c357401ac","name":"Chronicler of Worship","state":"unparsed","gaps":["ac8e77343e47"]},
 
@@ -87767,7 +87762,7 @@
 
         {"oracleId":"d6eef6a7-0cf4-4ee8-90e0-727a283c3be9","name":"Flame-Chain Mauler","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["grantAbility","pump"],"definition":{"name":"Flame-Chain Mauler","types":["Creature"],"subtypes":["Elemental","Warrior"],"manaCost":{"X":1,"R":1},"power":2,"toughness":2,"oracleText":"{1}{R}: This creature gets +1/+0 and gains menace until end of turn. (It can't be blocked except by two or more creatures.)","activatedAbilities":[{"id":"flame-chain-mauler-ability","oracleText":"{1}{R}: This creature gets +1/+0 and gains menace until end of turn.","cost":{"mana":{"X":1,"R":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":0,"duration":{"phase":"end-of-turn"}},{"op":"grantAbility","target":{"ref":"$source"},"ability":"menace","duration":{"phase":"end-of-turn"}}]}]},"botReach":"played"},
 
-        {"oracleId":"d6efbbf9-1449-45ce-b187-30041eb36d93","name":"Curtain of Light","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["61592ad7e2f4","944169742011"]},
+        {"oracleId":"d6efbbf9-1449-45ce-b187-30041eb36d93","name":"Curtain of Light","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["944169742011"]},
 
         {"oracleId":"d6efff61-2087-4f48-a8a8-6c465190dad9","name":"Awesome Presence","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["ac8a5e71c321"]},
 
@@ -88745,7 +88740,7 @@
 
         {"oracleId":"da4bf807-93f3-41b7-8bfd-aa63a551754e","name":"Galadhrim Brigade","state":"unparsed","poolIn":["legacy","vintage","commander"],"gaps":["674bcbef2d5a","be3284771bbd"]},
 
-        {"oracleId":"da4cab2d-0068-440f-ba7c-f2d4e5fa976e","name":"Aleatory","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["61592ad7e2f4"]},
+        {"oracleId":"da4cab2d-0068-440f-ba7c-f2d4e5fa976e","name":"Aleatory","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["coinFlip","delayedTrigger","draw","pump"],"definition":{"name":"Aleatory","types":["Instant"],"manaCost":{"X":1,"R":1},"oracleText":"Cast this spell only during combat after blockers are declared.\nFlip a coin. If you win the flip, target creature gets +1/+1 until end of turn.\nDraw a card at the beginning of the next turn's upkeep.","effects":[{"op":"coinFlip","win":{"consequence":"Target creature gets +1/+1 until end of turn.","effects":[{"op":"pump","target":{"target":0},"power":1,"toughness":1,"duration":{"phase":"end-of-turn"}}]},"loss":{"consequence":"Nothing happens.","effects":[]}},{"op":"delayedTrigger","timing":"next-upkeep","oracleText":"At the beginning of the next turn's upkeep, draw a card.","effects":[{"op":"draw","player":"controller","count":1}]}],"targetRequirement":{"type":"Creature","count":1},"castPhaseRestriction":["DECLARE_BLOCKERS","FIRST_STRIKE_DAMAGE","COMBAT_DAMAGE","END_OF_COMBAT"]},"botReach":"ignored","botGap":"position-unmodelled › Instant target:Creature"},
 
         {"oracleId":"da4ed552-a85a-47e1-ab67-5c93a9a20048","name":"Grizzled Wolverine","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["26bc55cce07e"]},
 
@@ -88765,7 +88760,7 @@
 
         {"oracleId":"da5ee877-143e-4f53-ad20-1bc527a8fff8","name":"Molten Vortex","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["dealDamage"],"definition":{"name":"Molten Vortex","types":["Enchantment"],"manaCost":{"R":1},"oracleText":"{R}, Discard a land card: This enchantment deals 2 damage to any target.","activatedAbilities":[{"id":"molten-vortex-ability","oracleText":"{R}, Discard a land card: This enchantment deals 2 damage to any target.","cost":{"mana":{"R":1},"discardFilter":{"filter":{"type":"Land"},"count":1}},"useStack":true,"effects":[{"op":"dealDamage","amount":2,"to":{"target":0}}],"targetRequirement":{"type":"any","count":1}}]},"botReach":"played"},
 
-        {"oracleId":"da66f1db-0fde-4112-ae8e-0e63fc686835","name":"Vampire Bats","state":"unparsed","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"gaps":["5ed8318f061a"]},
+        {"oracleId":"da66f1db-0fde-4112-ae8e-0e63fc686835","name":"Vampire Bats","state":"ready","poolIn":["premodern","pauper","modern","legacy","vintage","commander"],"slots":["activated","keyword-line"],"opsUsed":["pump"],"definition":{"name":"Vampire Bats","types":["Creature"],"subtypes":["Bat"],"manaCost":{"B":1},"power":0,"toughness":1,"oracleText":"Flying (This creature can't be blocked except by creatures with flying or reach.)\n{B}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn.","staticAbilities":["flying"],"activatedAbilities":[{"id":"vampire-bats-ability","oracleText":"{B}: This creature gets +1/+0 until end of turn. Activate no more than twice each turn.","cost":{"mana":{"B":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":1,"toughness":0,"duration":{"phase":"end-of-turn"}}],"maxActivationsPerTurn":2}]},"botReach":"played"},
 
         {"oracleId":"da67c329-ca12-45fc-a9cd-8fb6f27501a9","name":"Demon's Jester","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["3b6105ecd856"]},
 
@@ -92905,7 +92900,7 @@
 
         {"oracleId":"e9774695-b2f1-4014-8504-04b2339be568","name":"Molten Rain","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["0098ffd45394"]},
 
-        {"oracleId":"e9784eb4-96f2-409e-a7b5-eb6478644943","name":"Cauldron Dance","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["7c497e8853b7","c05a947d3df1","cbfb661320ac"]},
+        {"oracleId":"e9784eb4-96f2-409e-a7b5-eb6478644943","name":"Cauldron Dance","state":"unparsed","poolIn":["premodern","legacy","vintage","commander"],"gaps":["7c497e8853b7","c05a947d3df1"]},
 
         {"oracleId":"e97870a3-855a-4701-8344-91a90095f70a","name":"Vagrant Plowbeasts","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["regenerate"],"definition":{"name":"Vagrant Plowbeasts","types":["Creature"],"subtypes":["Beast"],"manaCost":{"X":5,"W":1,"G":1},"power":6,"toughness":6,"oracleText":"{1}: Regenerate target creature with power 5 or greater.","activatedAbilities":[{"id":"vagrant-plowbeasts-ability","oracleText":"{1}: Regenerate target creature with power 5 or greater.","cost":{"mana":{"X":1}},"useStack":true,"effects":[{"op":"regenerate","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1,"powerFilter":{"min":5}}}]},"botReach":"played"},
 
@@ -94375,7 +94370,7 @@
 
         {"oracleId":"ee771e66-72f8-480f-9920-92c68ab93c3b","name":"Ravenous Baloth","state":"ready","poolIn":["premodern","legacy","vintage","commander"],"slots":["activated"],"opsUsed":["gainLife"],"definition":{"name":"Ravenous Baloth","types":["Creature"],"subtypes":["Beast"],"manaCost":{"X":2,"G":2},"power":4,"toughness":4,"oracleText":"Sacrifice a Beast: You gain 4 life.","activatedAbilities":[{"id":"ravenous-baloth-ability","oracleText":"Sacrifice a Beast: You gain 4 life.","cost":{"sacrificeFilter":{"subtypes":["Beast"]}},"useStack":true,"effects":[{"op":"gainLife","player":"controller","amount":4}]}]},"botReach":"played"},
 
-        {"oracleId":"ee79b00d-9b2a-454d-a20c-edb073ef69cf","name":"Flash Foliage","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["61592ad7e2f4","ac5f12140343"]},
+        {"oracleId":"ee79b00d-9b2a-454d-a20c-edb073ef69cf","name":"Flash Foliage","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["ac5f12140343"]},
 
         {"oracleId":"ee7b3fc0-6128-4bf6-b3e7-7371e6f93c4b","name":"Sultai Devotee","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line","mana-ability"],"opsUsed":[],"definition":{"name":"Sultai Devotee","types":["Creature"],"subtypes":["Zombie","Snake","Druid"],"manaCost":{"X":1,"G":1},"power":2,"toughness":1,"oracleText":"Deathtouch\n{1}: Add {B}, {G}, or {U}. Activate only once each turn.","staticAbilities":["deathtouch"],"activatedAbilities":[{"id":"sultai-devotee-mana","oracleText":"{1}: Add {B}, {G}, or {U}. Activate only once each turn.","cost":{"mana":{"X":1}},"useStack":false,"manaChoices":[{"B":1},{"G":1},{"U":1}],"oncePerTurn":true}]},"botReach":"played"},
 
