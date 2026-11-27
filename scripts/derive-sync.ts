@@ -214,12 +214,14 @@ const GENERATOR_WALL_MS = 5 * 60_000;
  *  ten `housekeeping.log` runs, each on a machine whose refit pins step —
  *  ~11 s on a quiet one — took 137–682 s beside it: a 12–62× slowdown, and
  *  a compile holding ~1 GB resident slows worse under memory pressure.
- *  20 min is ~160× the measured compile. The carry and the drift sweep's
- *  play are one or the other (`runDriftSweep`), and the play's wall is
- *  `SWEEP_WALL_MS`, so `housekeeping`'s `DERIVE_SYNC_TIMEOUT_MS` still sits
- *  above every path. Each generator's elapsed seconds are logged
- *  (`generate`), so the next wall is read off the log, not guessed. */
-const CARRY_WALL_MS = 20 * 60_000;
+ *  10 min is ~80× the measured compile, above the worst slowdown seen. Not
+ *  more: the carry is the drift sweep's no-miss path AND the fallback of a
+ *  play that failed or hit its wall (`runDriftSweep`), so the longest
+ *  write path is refit + sweep + carry (25 + 120 + 10 = 155 min), which
+ *  `housekeeping`'s `DERIVE_SYNC_TIMEOUT_MS` (160) must sit above. Each
+ *  generator's elapsed seconds are logged (`generate`), so the next wall is
+ *  read off the log, not guessed. */
+const CARRY_WALL_MS = 10 * 60_000;
 
 /** The compile that carries the committed Bot verdicts, never playing. */
 function carryCompile(): boolean {
