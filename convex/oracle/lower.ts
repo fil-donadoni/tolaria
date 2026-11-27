@@ -673,6 +673,7 @@ function lowerLine(
                 id,
                 oracleText: parsed.line,
                 cardName: card.name,
+                castX: hasVariableX(card.manaCost),
                 head: ir.head,
                 ...(ir.condition !== undefined
                     ? { condition: ir.condition }
@@ -703,6 +704,7 @@ function lowerLine(
                 id,
                 oracleText: parsed.line,
                 cardName: card.name,
+                castX: hasVariableX(card.manaCost),
                 head: ir.head,
                 effects: [],
                 ...linkedCostKickers(acc),
@@ -715,6 +717,7 @@ function lowerLine(
                     id,
                     oracleText: parsed.line,
                     cardName: card.name,
+                    castX: hasVariableX(card.manaCost),
                     head: ir.head,
                     effects: mode.effects,
                     ...linkedCostKickers(acc),

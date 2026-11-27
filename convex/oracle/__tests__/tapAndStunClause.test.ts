@@ -158,10 +158,6 @@ describe("tap and stun clause (CR 701.26a, CR 122.1d, CR 608.2c)", () => {
             "an untap instead of a tap",
             "Untap target creature and put a stun counter on it.",
         ],
-        [
-            "the pronoun split into its own sentence",
-            "Tap target creature an opponent controls. Put a stun counter on it.",
-        ],
     ])("refuses %s", (_what, text) => {
         expect(
             compileCard(
@@ -175,6 +171,35 @@ describe("tap and stun clause (CR 701.26a, CR 122.1d, CR 608.2c)", () => {
                 })
             ).state
         ).toBe("unparsed");
+    });
+
+    // CR 608.2c — split into its own sentence, "it" still names the ONE
+    // target the sentence before announced (`announcedPronounSite`, issue
+    // #10351): the same two Ops on the same slot, no conjunction needed.
+    it("reads the pronoun split into its own sentence as the announced target", () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Probe",
+                manaCost: "{1}{U}",
+                typeLine: "Sorcery",
+                oracleText:
+                    "Tap target creature an opponent controls. Put a stun counter on it.",
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        expect(outcome.state).not.toBe("unparsed");
+        if (outcome.state === "unparsed") return;
+        expect(outcome.definition.effects).toEqual([
+            { op: "tapUntap", action: "tap", target: { target: 0 } },
+            {
+                op: "counters",
+                action: "add",
+                counter: "stun",
+                count: 1,
+                target: { target: 0 },
+            },
+        ]);
     });
 
     it("runs through the interpreter: taps the target and stuns it, and the client sees both", () => {

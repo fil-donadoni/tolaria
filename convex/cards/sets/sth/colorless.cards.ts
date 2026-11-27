@@ -22,8 +22,6 @@ import { readEffectivePT } from "../../effectivePT";
 // a one-card-a-turn engine into a card you never see again. The interpreter
 // follows the move with a reorder that brings the card to the top, leaving it a
 // public placement, here as one declarative Op.
-//
-// compiler-gap: {1}{B}, {T}: Put target creature card from your graveyard on top of your library. (#10351)
 export const volrathsStronghold = defineCard(() => ({
     id: "43bf015b-152e-4d67-b773-e75fb2487a32", // STH 143
     rarity: "rare",
