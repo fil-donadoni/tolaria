@@ -1520,7 +1520,11 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *  next draw. Without an answer the walk stopped mid-resolution, and the line
  *  was scored there, off the clock every other candidate is scored on. */
 function isOwnHandLibraryTopPut(choice: PendingChoice): boolean {
+    // Only the `putBack` Op's fixed-count pick: Sylvan Library's
+    // `rangedTopdeck` put-back (`ranged-topdeck`) prices each kept card in
+    // life, and the shed order's `min` would pay for every card kept.
     return (
+        choice.choiceId === "put-back" &&
         choice.putOnTop === true &&
         (choice.zoneOwnerId ?? choice.playerId) === choice.playerId
     );

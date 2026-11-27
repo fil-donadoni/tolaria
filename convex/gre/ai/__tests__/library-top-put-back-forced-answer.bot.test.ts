@@ -62,6 +62,12 @@ describe("forcedChoiceAnswer — an own-hand library-top put-back (issue #10882)
         expect(answer?.kind).toBe("resolution-choice");
     });
 
+    it("a life-priced put-back (Sylvan Library's `ranged-topdeck`) stays unanswered", () => {
+        const mid = midBrainstorm();
+        const head = { ...mid.pendingChoices![0]!, choiceId: "ranged-topdeck" };
+        expect(forcedChoiceAnswer(mid, head)).toBeNull();
+    });
+
     it("the walk finishes the resolution: the answered cards go on top", () => {
         const mid = midBrainstorm();
         const me = mid.activePlayerId;
