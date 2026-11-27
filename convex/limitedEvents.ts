@@ -46,7 +46,13 @@ import {
     seatRowNeedsInterning,
 } from "./limitedSeatStore";
 import { loadPrintIdsInSet, loadPrintRows } from "./cardPrintRows";
-import { loadMemberEvents, syncEventMembers } from "./limitedEventMemberStore";
+import {
+    backfillMemberActiveStep,
+    concludeEventMembers,
+    loadActiveMemberEvents,
+    loadMemberEvents,
+    syncEventMembers,
+} from "./limitedEventMemberStore";
 import { resolveSheetCardMeta } from "./limitedCardMeta";
 import {
     makeResolveCardFromRows,
@@ -1492,6 +1498,9 @@ export async function openPlayPhaseIfReady(
         rounds: asDbRounds(rounds),
         updatedAt: now,
     });
+    if (advance.kind === "eventFinished") {
+        await concludeEventMembers(ctx, eventId);
+    }
     // Issue #1647: the tail of `rounds` is the one round that can still be
     // undecided (every round `advanceRoundIfComplete` cascades THROUGH is, by
     // construction, already complete) — a no-op when the event has no
@@ -1808,11 +1817,9 @@ export const myCurrentLimitedEvents = query({
     handler: async (ctx) => {
         const user = await getCurrentUser(ctx);
         const userId = user._id;
-        const events = await loadMemberEvents(ctx, userId);
+        const events = await loadActiveMemberEvents(ctx, userId);
         return Promise.all(
-            events
-                .filter((event) => !isEventConcluded(event.status))
-                .map((event) => projectEventSummary(ctx, event, userId))
+            events.map((event) => projectEventSummary(ctx, event, userId))
         );
     },
 });
@@ -2033,7 +2040,7 @@ export const createLimitedEvent = mutation({
             createdAt: now,
             updatedAt: now,
         });
-        await syncEventMembers(ctx, eventId, seats);
+        await syncEventMembers(ctx, eventId, seats, "open");
         return eventId;
     },
 });
@@ -2054,7 +2061,7 @@ export const joinLimitedEvent = mutation({
             seats: asDbSeats(seats),
             updatedAt: Date.now(),
         });
-        await syncEventMembers(ctx, args.eventId, seats);
+        await syncEventMembers(ctx, args.eventId, seats, event.status);
         return null;
     },
 });
@@ -2086,7 +2093,7 @@ export const leaveLimitedEvent = mutation({
                 seats: asDbSeats(seats),
                 updatedAt: Date.now(),
             });
-            await syncEventMembers(ctx, args.eventId, seats);
+            await syncEventMembers(ctx, args.eventId, seats, event.status);
             return null;
         }
         const seat = event.seats.find((s) => s.userId === user._id);
@@ -2234,6 +2241,9 @@ async function concedeDroppedPairingsInPlay(
         ...(advance.kind === "eventFinished" ? { status: "finished" } : {}),
         updatedAt: now,
     });
+    if (advance.kind === "eventFinished") {
+        await concludeEventMembers(ctx, event._id);
+    }
     if (advance.kind === "roundOpened") {
         await scheduleRoundDeadline(
             ctx,
@@ -2304,6 +2314,7 @@ export const cancelLimitedEvent = mutation({
             status: "finished",
             updatedAt: Date.now(),
         });
+        await concludeEventMembers(ctx, args.eventId);
         return null;
     },
 });
@@ -3074,7 +3085,7 @@ export const migrateEventMembers = internalMutation({
             numItems: args.limit ?? 100,
         });
         for (const event of page.page) {
-            await syncEventMembers(ctx, event._id, event.seats);
+            await syncEventMembers(ctx, event._id, event.seats, event.status);
         }
         return {
             synced: page.page.length,
@@ -3082,6 +3093,24 @@ export const migrateEventMembers = internalMutation({
             isDone: page.isDone,
         };
     },
+});
+
+/** One-shot backfill of `limitedEventMembers.active` (`convex/schema.ts`):
+ *  flags every membership row written before the field from its event's
+ *  status, so `myCurrentLimitedEvents` stops reading the User's concluded
+ *  events. Not required for correctness — an unflagged row is read and its
+ *  event's status re-checked — only for cost. Run once per deployment after
+ *  deploying, again while `remaining` is above zero:
+ *
+ *      bunx convex run --prod limitedEvents:backfillEventMemberActive '{}'
+ *
+ *  Idempotent: a row already flagged is never rewritten. `limit` bounds one
+ *  invocation's writes. */
+export const backfillEventMemberActive = internalMutation({
+    args: { limit: v.optional(v.number()) },
+    returns: v.object({ flagged: v.number(), remaining: v.number() }),
+    handler: async (ctx, args) =>
+        backfillMemberActiveStep(ctx, args.limit ?? 200),
 });
 
 /** Auto-Pick timeout (issue #1114, PRD #1107 stories 5, 14, 16, 27): fires
@@ -3405,6 +3434,9 @@ export const expireRoundDeadline = internalMutation({
             ...(advance.kind === "eventFinished" ? { status: "finished" } : {}),
             updatedAt: now,
         });
+        if (advance.kind === "eventFinished") {
+            await concludeEventMembers(ctx, args.eventId);
+        }
 
         if (advance.kind === "roundOpened") {
             try {
@@ -3484,6 +3516,9 @@ export const nudgeEventRounds = mutation({
             ...(advance.kind === "eventFinished" ? { status: "finished" } : {}),
             updatedAt: now,
         });
+        if (advance.kind === "eventFinished") {
+            await concludeEventMembers(ctx, args.eventId);
+        }
         if (advance.kind === "roundOpened") {
             await scheduleRoundDeadline(
                 ctx,

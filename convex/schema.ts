@@ -1287,8 +1287,14 @@ export default defineSchema({
     limitedEventMembers: defineTable({
         userId: v.id("users"),
         eventId: v.id("limitedEvents"),
+        // False once the event has concluded (`limitedEventMemberStore`'s
+        // `concludeEventMembers`), so "this User's live events" is an index
+        // read that never touches a concluded event. Absent on rows written
+        // before the field: read as unknown until `backfillEventMemberActive`.
+        active: v.optional(v.boolean()),
     })
         .index("by_user", ["userId"])
+        .index("by_user_active", ["userId", "active"])
         .index("by_event", ["eventId"]),
     // An auto-driven Seat's Auto-Built deck, DECIDED once (issue #8896): when
     // the seat's Pool is final, or when a seat with no submitted deck drops

@@ -11,6 +11,8 @@ import { describe, it, expect } from "vitest";
 import type { MutationCtx } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
 import {
+    backfillEventMemberActive,
+    cancelLimitedEvent,
     createLimitedEvent,
     joinLimitedEvent,
     leaveLimitedEvent,
@@ -39,6 +41,13 @@ const listAll = handler<Record<string, never>, { _id: string }[]>(
 const listCurrent = handler<Record<string, never>, { _id: string }[]>(
     myCurrentLimitedEvents
 );
+const cancel = handler<{ eventId: Id<"limitedEvents"> }, null>(
+    cancelLimitedEvent
+);
+const backfillActive = handler<
+    { limit?: number },
+    { flagged: number; remaining: number }
+>(backfillEventMemberActive);
 const backfill = handler<
     { cursor?: string | null; limit?: number },
     { synced: number; cursor: string; isDone: boolean }
@@ -89,9 +98,16 @@ describe("myLimitedEvents / myCurrentLimitedEvents read only the viewer's own ev
         const row = db.tables.limitedEvents.find((r) => r._id === finished)!;
         row.status = "finished";
 
-        for (const [query, expected] of [
-            [listAll, [mine, finished].sort()],
-            [listCurrent, [mine]],
+        for (const [query, expected, memberKeys] of [
+            [listAll, [mine, finished].sort(), [["alice"]]],
+            [
+                listCurrent,
+                [mine],
+                [
+                    ["alice", true],
+                    ["alice", undefined],
+                ],
+            ],
         ] as const) {
             db.reads.length = 0;
             db.gets.length = 0;
@@ -104,7 +120,9 @@ describe("myLimitedEvents / myCurrentLimitedEvents read only the viewer's own ev
             );
             expect(
                 db.reads.filter((r) => r.table === "limitedEventMembers")
-            ).toEqual([{ table: "limitedEventMembers", key: ["alice"] }]);
+            ).toEqual(
+                memberKeys.map((key) => ({ table: "limitedEventMembers", key }))
+            );
         }
     });
 
@@ -196,5 +214,100 @@ describe("limitedEventMembers follows who holds a Seat (issue #6076)", () => {
                 ["bob", b],
             ].sort() as [string, string][]
         );
+    });
+});
+
+/** Puts `eventId` past seating, as `startLimitedEvent` would, so a creator's
+ *  close force-finishes it instead of deleting it. */
+function markStarted(db: InMemoryDb, eventId: string) {
+    db.tables.limitedEvents.find((r) => r._id === eventId)!.status = "started";
+}
+
+/** The `limitedEvents` rows among `db.gets`, in read order. */
+function eventGets(db: InMemoryDb): string[] {
+    const ids = new Set(db.tables.limitedEvents.map((r) => r._id));
+    return db.gets.filter((id) => ids.has(id));
+}
+
+describe("myCurrentLimitedEvents never reads a concluded event (issue #10903)", () => {
+    it("with one live and three concluded events, reads exactly the live event row", async () => {
+        const db = makeInMemoryDb({ users: USERS });
+        const live = await newEvent(db, "alice");
+        for (let i = 0; i < 3; i++) {
+            const done = await newEvent(db, "alice");
+            markStarted(db, done);
+            await cancel(as(db, "alice"), { eventId: done });
+        }
+
+        db.gets.length = 0;
+        const result = await listCurrent(as(db, "alice"), {});
+
+        expect(result.map((e) => e._id)).toEqual([live]);
+        expect(eventGets(db)).toEqual([live]);
+    });
+
+    it("concluding an event flags its members inactive and drops it from the result; deleting an open one drops it too", async () => {
+        const db = makeInMemoryDb({ users: USERS });
+        const started = await newEvent(db, "alice");
+        await join(as(db, "bob"), { eventId: started });
+        const open = await newEvent(db, "alice");
+        markStarted(db, started);
+        expect(
+            (await listCurrent(as(db, "alice"), {})).map((e) => e._id).sort()
+        ).toEqual([started, open].sort());
+
+        await cancel(as(db, "alice"), { eventId: started });
+        expect(
+            db.tables.limitedEventMembers
+                .filter((r) => r.eventId === started)
+                .map((r) => r.active)
+        ).toEqual([false, false]);
+        expect(
+            (await listCurrent(as(db, "alice"), {})).map((e) => e._id)
+        ).toEqual([open]);
+        expect(await listCurrent(as(db, "bob"), {})).toEqual([]);
+
+        await cancel(as(db, "alice"), { eventId: open });
+        expect(await listCurrent(as(db, "alice"), {})).toEqual([]);
+    });
+
+    it("rows written before the flag are read as unknown, and the backfill flags them idempotently", async () => {
+        const db = makeInMemoryDb({ users: USERS });
+        const live = await newEvent(db, "alice");
+        const done = await newEvent(db, "alice");
+        markStarted(db, done);
+        await cancel(as(db, "alice"), { eventId: done });
+        for (const row of db.tables.limitedEventMembers) delete row.active;
+
+        // Before the backfill: both rows unknown, both read, same answer.
+        expect(
+            (await listCurrent(as(db, "alice"), {})).map((e) => e._id)
+        ).toEqual([live]);
+
+        expect(await backfillActive(db.ctx, { limit: 1 })).toEqual({
+            flagged: 1,
+            remaining: 1,
+        });
+        expect(await backfillActive(db.ctx, {})).toEqual({
+            flagged: 1,
+            remaining: 0,
+        });
+        db.writes.length = 0;
+        expect(await backfillActive(db.ctx, {})).toEqual({
+            flagged: 0,
+            remaining: 0,
+        });
+        expect(db.writes).toEqual([]);
+
+        const flags = Object.fromEntries(
+            db.tables.limitedEventMembers.map((r) => [r.eventId, r.active])
+        );
+        expect(flags).toEqual({ [live]: true, [done]: false });
+
+        db.gets.length = 0;
+        expect(
+            (await listCurrent(as(db, "alice"), {})).map((e) => e._id)
+        ).toEqual([live]);
+        expect(eventGets(db)).toEqual([live]);
     });
 });
