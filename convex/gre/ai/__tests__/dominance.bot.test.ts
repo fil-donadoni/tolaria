@@ -20,6 +20,8 @@ import {
     applyProbeCast,
 } from "../dominance";
 import { getCardByName, tryGetDefinition } from "../../../cards";
+import { withTemporaryDefinition } from "../../../cards/registry";
+import type { CardDefinition } from "../../../cards/types";
 import { searchWithTrace } from "../../search";
 import {
     makeInstance,
@@ -1152,6 +1154,154 @@ describe("isDominatedNoOpMove — self-sacrifice activations (CR 608.2b, issue #
         expect(isDominatedNoOpMove(state, me(state), atSelf as Move)).toBe(
             false
         );
+    });
+});
+
+describe("isDominatedNoOpMove — a mana source the tap plan SACRIFICES is spent cost (CR 605.3a, issue #10830)", () => {
+    // The Bot activated Sneak Attack ("{R}: You may put a creature card from
+    // your hand onto the battlefield…") with no creature card in hand, paying
+    // the {R} with Black Lotus — its only untapped red source. Nothing
+    // entered and the Lotus was gone. The same activation paid by a tapped
+    // land was already pruned; the sacrificed source's trip to the graveyard
+    // read as a lasting difference, so the sacrifice-paid one was not.
+    function sneakAttackBoard(
+        source: { name: string; token?: true },
+        hand: string[]
+    ): GameState {
+        return build({
+            cards: [
+                {
+                    name: "Sneak Attack",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                },
+                {
+                    ...source,
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                },
+                ...[0, 1, 2, 3].map(() => ({
+                    name: "Mountain",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: true,
+                })),
+                ...hand.map((name) => ({
+                    name,
+                    owner: "me" as const,
+                    zone: "hand" as const,
+                })),
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        });
+    }
+
+    /** The Sneak Attack activation, and the source its tap plan names. */
+    function sneakAttack(state: GameState): Move & {
+        kind: "activate-ability";
+    } {
+        const moves = activationsOf(state, "Sneak Attack", false);
+        expect(moves).toHaveLength(1);
+        return moves[0] as Move & { kind: "activate-ability" };
+    }
+
+    it("proves the Black-Lotus-paid activation with no creature in hand dominated by pass", () => {
+        const state = sneakAttackBoard({ name: "Black Lotus" }, ["Duress"]);
+        const move = sneakAttack(state);
+        expect(
+            move.tapPlan?.map((t) => cardName(state, t.cardInstanceId))
+        ).toEqual(["Black Lotus"]);
+        expect(isDominatedNoOpMove(state, me(state), move)).toBe(true);
+        expect(activationsOf(state, "Sneak Attack", true)).toHaveLength(0);
+    });
+
+    it("NEGATIVE CONTROL: a creature card in hand makes the Lotus-paid activation real", () => {
+        const state = sneakAttackBoard({ name: "Black Lotus" }, [
+            "Duress",
+            "Grizzly Bears",
+        ]);
+        expect(isDominatedNoOpMove(state, me(state), sneakAttack(state))).toBe(
+            false
+        );
+        expect(activationsOf(state, "Sneak Attack", true)).toHaveLength(1);
+    });
+
+    it("is the class, not the card: Lotus Petal and a Treasure token paying the no-op are pruned too", () => {
+        for (const source of [
+            { name: "Lotus Petal" },
+            { name: "Treasure", token: true as const },
+        ]) {
+            const state = sneakAttackBoard(source, ["Duress"]);
+            const move = sneakAttack(state);
+            expect(
+                move.tapPlan?.map((t) => cardName(state, t.cardInstanceId))
+            ).toEqual([source.name]);
+            expect(isDominatedNoOpMove(state, me(state), move)).toBe(true);
+        }
+    });
+
+    it("NEGATIVE CONTROL: a source whose mana ability carries a rider the probe does not pay is never forgiven", () => {
+        // The same Lotus with a rider on its mana ability (a damage-on-tap
+        // leg). The search's coarse payment does not model riders, so the
+        // probe cannot say what the activation really cost or bought: the
+        // plain-shape gate refuses to forgive the source, and the move stays
+        // searchable. Fail-closed, whatever the rider.
+        const lotus = getCardByName("Black Lotus");
+        const variant: CardDefinition = {
+            ...lotus,
+            activatedAbilities: (lotus.activatedAbilities ?? []).map((a) => ({
+                ...a,
+                dealsDamageToControllerOnTap: 1,
+            })),
+        };
+        withTemporaryDefinition(variant, () => {
+            const state = sneakAttackBoard({ name: "Black Lotus" }, ["Duress"]);
+            const move = sneakAttack(state);
+            expect(
+                move.tapPlan?.map((t) => cardName(state, t.cardInstanceId))
+            ).toEqual(["Black Lotus"]);
+            expect(isDominatedNoOpMove(state, me(state), move)).toBe(false);
+        });
+    });
+
+    it("NEGATIVE CONTROL: a payoff the SACRIFICE triggers keeps the move — the payment is not a pure loss", () => {
+        // Tablet of Epityr — "Whenever an artifact you control is put into a
+        // graveyard from the battlefield, you may pay {1}. If you do, you gain
+        // 1 life." The activation still resolves to nothing, but paying with
+        // the Lotus now triggers the Tablet: the departure is a payoff, not
+        // only a cost.
+        const state = build({
+            cards: [
+                {
+                    name: "Sneak Attack",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                },
+                {
+                    name: "Black Lotus",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                },
+                {
+                    name: "Tablet of Epityr",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                },
+                { name: "Duress", owner: "me" as const, zone: "hand" as const },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        });
+        const move = sneakAttack(state);
+        expect(
+            move.tapPlan?.map((t) => cardName(state, t.cardInstanceId))
+        ).toEqual(["Black Lotus"]);
+        expect(isDominatedNoOpMove(state, me(state), move)).toBe(false);
     });
 });
 
