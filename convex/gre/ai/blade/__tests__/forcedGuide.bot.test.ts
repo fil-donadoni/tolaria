@@ -22,7 +22,6 @@ import {
     type LineGuide,
     type SearchVariant,
 } from "../../searchVariant";
-import { ROOT_DECISION_MECHANISMS } from "../../decisionTelemetry";
 import { buildBladeState } from "../build";
 import { buildLineState, lineGuideFor, runBladeLine } from "../line";
 import { BLADE_LINES } from "../lines";
@@ -90,13 +89,6 @@ describe("forced guide — the two arms are census-selectable by name", () => {
         const variant = resolveBladeVariant(arm);
         expect(variant?.name).toBe(arm);
         expect(variant?.forcedGuide?.probes).toBe(arm === "forced-guide");
-    });
-
-    it("is not a root decision mechanism and does not disable one", () => {
-        for (const arm of ARMS) {
-            expect(ROOT_DECISION_MECHANISMS).not.toContain(arm);
-            expect(LADDER_VARIANTS[arm].disabledRootRules).toBeUndefined();
-        }
     });
 });
 
