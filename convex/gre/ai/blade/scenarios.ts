@@ -11620,6 +11620,43 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #8854, half 2. With no payable accept the decline is not pruned (it is the only legal answer), the next upkeep loses the game, and passing keeps the card. The pair proves the prune keys on the payment being in reach, not on the card.",
     },
     {
+        // CR 603.7a / 104.3e (issue #10947). The Bot's own precombat main,
+        // three Forests and the land drop spent: nothing in hand or on the
+        // board can add the fourth source before its next upkeep, so the
+        // Pact's {2}{G}{G} cannot be paid and casting it loses the game.
+        label: "tutor Pact: holds Summoner's Pact in its own main phase when nothing can add the upkeep's fourth source",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a mana source the Bot can still add before its upkeep",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Summoner's Pact", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield", count: 3 },
+                { name: "Grizzly Bears", owner: "me", zone: "library" },
+                { name: "Plains", owner: "me", zone: "library", count: 20 },
+                { name: "Plains", owner: "opp", zone: "library", count: 20 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 0,
+            activePlayer: "me",
+            priority: "me",
+            landsPlayed: { me: 1 },
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 100 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "pass" }] },
+        note: "Issue #10947. `holdsUnpayableLossObligation` (`gre/ai/paymentObligation.ts`) failed open whenever the payer was the active player, so the one-ply probe read the cast as a free tutor under the production horizon. It now fails open only when the payer can still add a source before the upkeep (a land with the drop open, a castable mana permanent or ramp spell, a hand mana ability, a fetchland); here none exists, so the cast reads as the loss it is.",
+    },
+    {
         // DISCRIMINATING PAIR, HALF 1 of 2 (issue #3282).
         // Hand-bound land search: the land leg of `libraryTargetWorth` prices a
         // fetched land by its source quality and by whether it supplies a
