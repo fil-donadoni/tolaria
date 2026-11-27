@@ -7111,7 +7111,7 @@ describe("Effect Script Op: moveZone — cards/player shape (CR 400.7, issue #67
                 };
             }
             resolveTopOfStack(state);
-            // An unresolvable ceiling matches nothing (CR 608.2b): either an
+            // An unresolvable ceiling matches nothing: either an
             // empty-allow-list look or no pick raised at all.
             return state.pendingChoices?.[0]?.candidateIds ?? [];
         }
