@@ -1679,6 +1679,61 @@ describe("manaDevelopment term — a cast instant/sorcery keeps the curve (issue
     });
 });
 
+describe("manaDevelopment term — a countered permanent spell keeps its caster's curve (CR 701.6a)", () => {
+    // Grizzly Bears ({1}{G}, MV 2) is the caster's only card; four Forests.
+    // Resolved, the Bears raise the curve from the battlefield. Countered,
+    // they reach the graveyard off the stack, paid for exactly like a cast
+    // instant, so the term reads the same. Before, the countered creature
+    // card carried no cast stamp and the term fell to 0: countering a 2-drop
+    // read as also stripping two lands' worth of its caster's development,
+    // which is what tied a held counterspell against a 1-drop it should let
+    // resolve.
+    const FOREST = getCardByName("Forest").id;
+    const COUNTERSPELL = getCardByName("Counterspell").id;
+    const forests = () =>
+        Array.from({ length: 4 }, (_, i) =>
+            makeInstance(FOREST, {
+                controllerId: "p1",
+                ownerId: "p1",
+                id: `f${i}`,
+            })
+        );
+    const devTerm = (state: GameState) =>
+        evaluateBreakdown(state, "p1").self.manaDevelopment;
+    const castBears = () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: forests() }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = pushSpell(state, BEARS, "p1");
+        return { state, spell };
+    };
+
+    it("reads the same whether the creature spell resolves or is countered", () => {
+        const resolved = castBears().state;
+        resolveTopOfStack(resolved);
+        expect(resolved.players[0].battlefield).toHaveLength(5);
+
+        const { state: countered, spell } = castBears();
+        pushSpell(countered, COUNTERSPELL, "p2", [
+            { type: "spell", id: spell.id },
+        ]);
+        resolveTopOfStack(countered);
+        expect(countered.stack).toHaveLength(0);
+        expect(countered.players[0].graveyard.map((c) => c.id)).toEqual([
+            spell.id,
+        ]);
+
+        expect(devTerm(resolved)).toBeCloseTo(
+            2 * DEFAULT_EVAL_WEIGHTS.manaDevWeight,
+            6
+        );
+        expect(devTerm(countered)).toBe(devTerm(resolved));
+    });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Lifted from the AI-diagnosis harness when its ladder episodes left the gate
 // (issue #2436). Both were LEAF claims the harness happened to assert next to a

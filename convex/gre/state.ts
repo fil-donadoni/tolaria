@@ -4302,19 +4302,13 @@ export function sendStackItemToGraveyard(
     item.zone = destination;
     resetStackTransientState(item);
     if (destination === "graveyard") noteGraveyardArrival(item);
-    // Issue #4931 — a CAST instant/sorcery in the graveyard keeps its mana
-    // value on the curve (evaluate.ts `manaDevelopmentTerm`); a permanent card
-    // is read off the battlefield instead.
-    if (
-        destination === "graveyard" &&
-        !item.types.some((t) =>
-            CASTABLE_PERMANENT_TYPES.includes(
-                t as (typeof CASTABLE_PERMANENT_TYPES)[number]
-            )
-        )
-    ) {
-        item.castSpellInGraveyard = true;
-    }
+    // A CAST spell in the graveyard keeps its mana value on its caster's
+    // curve (evaluate.ts `manaDevelopmentTerm`, issue #4931): the base paid
+    // for it once. A permanent spell that resolves is read off the
+    // battlefield instead, so the one reaching this line was countered or
+    // fizzled (CR 701.6a, CR 608.2b) — paid for exactly like an instant, and
+    // stamped like one.
+    if (destination === "graveyard") item.castSpellInGraveyard = true;
     (owner[destination] as CardInstanceState[]).push(item);
     if (destination === "library") {
         // issue #3242 — a CR 614 redirect put the spell card into a library.
