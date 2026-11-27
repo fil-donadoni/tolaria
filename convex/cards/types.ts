@@ -2723,6 +2723,13 @@ export interface ActivatedAbility {
      *  `CardInstanceState.activationsThisTurn[abilityId]` and resets at
      *  turn start. Used by Instill Energy. */
     oncePerTurn?: boolean;
+    /** CR 602.5b — "Activate no more than twice each turn": a per-turn cap of
+     *  N activations per source instance, read off the same
+     *  `CardInstanceState.activationsThisTurn[abilityId]` tally `oncePerTurn`
+     *  reads. A DECLARATIVE gate checked by the one authority,
+     *  `activationPreconditionViolation`, so the mutations, the Bot and the
+     *  client affordance all honour it. A cap of 1 is `oncePerTurn`. */
+    maxActivationsPerTurn?: number;
     /** CR 702.177a — this is an EXHAUST ability: "Activate only once", for as
      *  long as its source is the same object (CR 400.7). Gated and spent
      *  through `gre/exhaust.ts`. */

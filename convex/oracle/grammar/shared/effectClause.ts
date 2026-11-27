@@ -2481,6 +2481,9 @@ export type RestrictionIR =
     | { readonly kind: "sorcery-only" }
     /** CR 602.5b — "Activate only once each turn." */
     | { readonly kind: "once-per-turn" }
+    /** CR 602.5b — "Activate no more than twice each turn." (a per-turn cap
+     *  of `count` activations, `ActivatedAbility.maxActivationsPerTurn`). */
+    | { readonly kind: "max-per-turn"; readonly count: number }
     /** CR 602.5 — "Activate only during your turn." */
     | { readonly kind: "your-turn-only" }
     /** CR 602.5 — "Activate only during your upkeep." */
@@ -6918,6 +6921,10 @@ const RESTRICTIONS: ReadonlyMap<string, RestrictionIR> = new Map<
     ["activate this ability only as a sorcery", { kind: "sorcery-only" }],
     ["activate only once each turn", { kind: "once-per-turn" }],
     ["activate this ability only once each turn", { kind: "once-per-turn" }],
+    [
+        "activate no more than twice each turn",
+        { kind: "max-per-turn", count: 2 },
+    ],
     ["activate only during your turn", { kind: "your-turn-only" }],
     ["activate this ability only during your turn", { kind: "your-turn-only" }],
     ["activate only during your upkeep", { kind: "phase", phase: "UPKEEP" }],

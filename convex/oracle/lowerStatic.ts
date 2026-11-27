@@ -911,6 +911,24 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        // CR 601.3 + CR 109.5 — the same gate, on the source's controller
+        // alone.
+        case "you-one-spell-per-turn":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "cast-restriction",
+                            id: nextId("spell-cap"),
+                            oracleText:
+                                "You can't cast more than one spell each turn.",
+                            maxSpellsEachTurn: 1,
+                            controllerOnly: true,
+                        },
+                    ],
+                },
+            };
         // CR 601.3 + CR 307.1 — the read-time timing gate on every opponent
         // of the source's controller.
         case "opponents-sorcery-timing-lock":

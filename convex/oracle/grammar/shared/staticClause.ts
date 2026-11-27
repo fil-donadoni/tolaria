@@ -418,6 +418,9 @@ export type StaticClauseIR =
      *  each turn": a cast prohibition on every player who has already cast a
      *  spell this turn. */
     | { readonly kind: "each-player-one-spell-per-turn" }
+    /** CR 601.3 + CR 101.2 — "You can't cast more than one spell each
+     *  turn": the same cap, on the source's controller alone. */
+    | { readonly kind: "you-one-spell-per-turn" }
     /** CR 601.3 + CR 307.1 — "Each opponent can cast spells only any time
      *  they could cast a sorcery": every opponent of the source's controller
      *  held to sorcery timing for every spell. */
@@ -3451,12 +3454,21 @@ const opponentsCantCastDuringYourTurnRule: Rule<StaticClauseIR> = rule(
 const EACH_PLAYER_ONE_SPELL_PER_TURN =
     "Each player can't cast more than one spell each turn";
 
+/**
+ * "You can't cast more than one spell each turn." (Moderation, Yawgmoth's
+ * Agenda, Colfenor's Plans.) The same CR 601.3 prohibition, on the source's
+ * controller alone ("you", CR 109.5); its opponents cast freely.
+ */
+const YOU_ONE_SPELL_PER_TURN = "You can't cast more than one spell each turn";
+
 const eachPlayerOneSpellPerTurnRule: Rule<StaticClauseIR> = rule(
     "per-turn spell cap",
     (span): RuleResult<StaticClauseIR> =>
         span === EACH_PLAYER_ONE_SPELL_PER_TURN
             ? ok({ kind: "each-player-one-spell-per-turn" as const })
-            : fail("not the per-turn spell cap template", span)
+            : span === YOU_ONE_SPELL_PER_TURN
+              ? ok({ kind: "you-one-spell-per-turn" as const })
+              : fail("not the per-turn spell cap template", span)
 );
 
 // ── Frame: the opponent sorcery-timing lock (CR 601.3) ─────────────────────

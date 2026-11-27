@@ -5,6 +5,7 @@
 
 import { describe, it, expect } from "vitest";
 import { resolveTrigger } from "./set.helper";
+import { activationPreconditionViolation } from "../../../../gre/activationPrecondition";
 import {
     makeInstance,
     makePlayer,
@@ -137,7 +138,7 @@ describe("Infernal Medusa (two lines, each on its own direction, CR 509.1h / 603
     });
 });
 
-describe("Vampire Bats (activate no more than twice each turn, CR 602.5)", () => {
+describe("Vampire Bats (activate no more than twice each turn, CR 602.5b)", () => {
     it("refuses the third activation", () => {
         const ability = vampireBats.activatedAbilities![0];
         const at = (n: number) =>
@@ -146,8 +147,14 @@ describe("Vampire Bats (activate no more than twice each turn, CR 602.5)", () =>
                 controllerId: "p1",
                 activationsThisTurn: { "vampire-bats-pump": n },
             });
-        expect(ability.canActivate!(at(1) as never, {} as never)).toBe(true);
-        expect(ability.canActivate!(at(2) as never, {} as never)).toBe(false);
+        const gate = (n: number) =>
+            activationPreconditionViolation(
+                { players: [] },
+                at(n) as never,
+                ability
+            );
+        expect(gate(1)).toBeNull();
+        expect(gate(2)).toBe("Activate no more than 2 times each turn");
     });
 });
 

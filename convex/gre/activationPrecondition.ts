@@ -54,6 +54,7 @@ export function activationPreconditionViolation(
         | "activationCondition"
         | "activatableOnlyWhileAttached"
         | "requiresMaxSpeed"
+        | "maxActivationsPerTurn"
         | "id"
         | "exhaust"
         | "functionsAtStationCharge"
@@ -87,6 +88,15 @@ export function activationPreconditionViolation(
     // "your" speed is 4 (`maxSpeedGateOpen`).
     if (!maxSpeedGateOpen(ability, source, state.players)) {
         return "Ability cannot be activated right now";
+    }
+    // CR 602.5b — "Activate no more than twice each turn": the source's own
+    // per-turn tally of THIS ability, read before the activation records it.
+    if (
+        ability.maxActivationsPerTurn !== undefined &&
+        (source.activationsThisTurn?.[ability.id] ?? 0) >=
+            ability.maxActivationsPerTurn
+    ) {
+        return `Activate no more than ${ability.maxActivationsPerTurn} times each turn`;
     }
     // CR 702.177a — an exhaust ability is activated only once.
     if (!exhaustGateOpen(ability, source)) {

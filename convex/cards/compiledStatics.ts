@@ -469,7 +469,8 @@ export type CompiledStaticEffect =
      * CR 601.3 — `maxSpellsEachTurn` replaces it with "Each player can't cast
      * more than N spells each turn": every caster whose
      * `PlayerState.spellsCastThisTurn` already reached N, whoever controls the
-     * source.
+     * source. `controllerOnly` narrows that cap to the source's controller
+     * ("You can't cast more than one spell each turn", CR 109.5).
      */
     | {
           readonly kind: "cast-restriction";
@@ -477,6 +478,7 @@ export type CompiledStaticEffect =
           readonly oracleText: string;
           readonly opponentsDuringControllersTurn?: true;
           readonly maxSpellsEachTurn?: number;
+          readonly controllerOnly?: true;
       }
     /**
      * CR 601.3 + CR 307.1 — "Each opponent can cast spells only any time they
@@ -1102,14 +1104,17 @@ export function resolveCompiledStatic(
                 };
             if (descriptor.maxSpellsEachTurn !== undefined) {
                 const cap = descriptor.maxSpellsEachTurn;
+                const controllerOnly = descriptor.controllerOnly === true;
                 return {
                     kind: "cast-restriction",
                     id: descriptor.id,
                     oracleText: descriptor.oracleText,
                     // CR 601.3 — the count is the caster's own tally this turn
                     // (read pre-increment at the cast gate), so a spell cast
-                    // before the source entered still counts.
-                    forbids: (caster, _spell, _source, state) =>
+                    // before the source entered still counts. CR 109.5 —
+                    // "you" is the source's controller.
+                    forbids: (caster, _spell, source, state) =>
+                        (!controllerOnly || caster === source.controllerId) &&
                         (state.players.find((p) => p.id === caster)
                             ?.spellsCastThisTurn ?? 0) >= cap,
                 };
