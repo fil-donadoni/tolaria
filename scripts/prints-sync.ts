@@ -39,7 +39,8 @@
  *                 login (`seed:preset --prod`'s target) — the by-hand repair.
  *   --warn-only   a failure prints loudly and exits 0, for chains a red exit
  *                 would block for an unrelated reason (`dev`, a deploy).
- *   --full        upsert every bucket, ignoring the stored bucket digests.
+ *   --full        upsert every bucket, ignoring the stored bucket digests
+ *                 (and the `--if-stale` skip).
  *
  * Incremental (issue #10901): a write cuts each table's rows into stable
  * buckets (`bucketRows`), reads the per-bucket digests the deployment last
@@ -258,7 +259,7 @@ async function sync(
     const plan = target.cwd ? (target as Required<SeedTargetPlan>) : null;
     if (!args.dryRun) {
         if (!plan) throw new Error(target.error ?? "no deployment selected");
-        if (args.ifStale) {
+        if (args.ifStale && !args.full) {
             const populated = readPopulated(plan);
             if (deploymentPredatesSyncState(populated)) {
                 console.warn(
