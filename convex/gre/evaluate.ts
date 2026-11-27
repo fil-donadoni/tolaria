@@ -1516,10 +1516,15 @@ function flatBonusOf(keywords: readonly string[], power: number): number {
  *  - It covers PERMANENT spells only. A sorcery or instant goes hand →
  *    graveyard; issue #4931 keeps a CAST one counting from there
  *    (`castSpellInGraveyard`, stamped as it leaves the stack), so Wrath of
- *    God (MV 4) on six lands no longer drops the term by 12 x 4 = 48. A
+ *    God (MV 4) on six lands no longer drops the term by 12 x 4 = 48. The
+ *    same stamp covers a permanent spell that never reached the
+ *    battlefield — countered or fizzled (CR 701.6a): its caster paid for it
+ *    exactly as for an instant, so countering a 1-drop does not also strip
+ *    a land's worth of its caster's development, nor a 6-drop six. A
  *    discarded or milled card carries no stamp and still lowers demand. The
  *    stamp is not cleared on a graveyard exit other than a recast, so a cast
- *    spell returned to hand and then discarded still counts.
+ *    spell returned to hand and then discarded still counts, and so does a
+ *    countered creature card reanimated and then killed.
  *  - It runs between two ENDPOINTS. A spell on the stack is in neither half, so
  *    the term reads 0 mid-cast; `applyMoveInSearch` really does produce those
  *    nodes. `policyValue` settles the top of the stack before scoring a cast,
@@ -1540,7 +1545,7 @@ function flatBonusOf(keywords: readonly string[], power: number): number {
  *  zone (symmetric across the cast, so the invariant holds, but an X-fatty
  *  never raises the curve).
  *
- *  A card leaving the hand for the GRAVEYARD (discarded, countered, milled)
+ *  A card leaving the hand for the GRAVEYARD (discarded, milled)
  *  lowers demand by the same rule, and there it is simply correct: the mana
  *  that would have cast it is no longer wanted by anything — EXCEPT a card
  *  castable from there on its own (escape, flashback, retrace, an intrinsic
