@@ -45,6 +45,7 @@ import { cardValueById, creatureValueRaw } from "../../cardValue";
 import { EVOKE_SACRIFICE_TRIGGER_ID } from "../../../cards/abilities/evoke";
 import { manaValue } from "../../constants";
 import { latentGraveyardValue } from "../graveyardReach";
+import { withTemporaryDefinition } from "../../../cards/registry";
 import {
     makeInstance,
     makePlayer,
@@ -417,6 +418,56 @@ describe("value model — latent vs realized faces (issue #4758)", () => {
             );
         expect(dslAbilityScriptValue(archon)).toBeGreaterThan(300);
         expect(cardValueById(archon.id)).toBeCloseTo(body + 300);
+    });
+});
+
+describe("a self ETB whose delayed trigger waits on another object is spent (issue #10821)", () => {
+    // CR 603.7a — earthbend's "when it dies or is exiled, return it" watches
+    // the LAND the ETB animated, not the creature that entered: what it did,
+    // and what it still waits on, stand on that land. Counted on the creature
+    // too, a bounce of it read as removal of the land's insurance twice over.
+    const cubDef = () => getCardByName("Badgermole Cub");
+
+    function boardCub(): {
+        s: GameState;
+        cub: GameState["players"][number]["battlefield"][number];
+    } {
+        const s = position([
+            onBoard("Badgermole Cub", "opp"),
+            onBoard("Forest", "opp"),
+        ]);
+        const id = cubDef().id;
+        const cub = s.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => (c.card as { id?: string }).id === id);
+        if (!cub) throw new Error("no Badgermole Cub on the battlefield");
+        return { s, cub };
+    }
+
+    it("Badgermole Cub on the battlefield is worth its body alone: its earthbend is spent", () => {
+        const { s, cub } = boardCub();
+        const def = cubDef();
+        const bodyOnly = {
+            ...def,
+            triggeredAbilities: (def.triggeredAbilities ?? []).filter(
+                (t) => t.event !== "PERMANENT_ENTERED"
+            ),
+        };
+        const withEtb = permanentRealisedValue(s, cub);
+        const body = withTemporaryDefinition(bodyOnly, () =>
+            permanentRealisedValue(s, cub)
+        );
+        expect(withEtb).toBeCloseTo(body);
+    });
+
+    it("Eval Pair: Badgermole Cub cast with a land to earthbend beats holding it", () => {
+        // The other half of the same reading: the latent earthbend is priced
+        // at what it does now (the animated land), never at the return it
+        // would make if that land left, or casting would read as a loss.
+        const s = position([inHand("Badgermole Cub")]);
+        expect(policyOf(s, castOf(s, "Badgermole Cub"))).toBeGreaterThan(
+            policyOf(s, isPass)
+        );
     });
 });
 
