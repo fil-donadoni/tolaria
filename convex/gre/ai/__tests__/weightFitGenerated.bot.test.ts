@@ -172,10 +172,14 @@ describeLockedCorpus(
                 }),
             };
         };
-        const first = runOnce();
+        // Lazy: a skipped `describe` still runs its body at collection, so an
+        // eager call would read the locked corpus where `CORPUS_EXCLUDED` holds
+        // (no reader key) and surface as an unhandled rejection.
+        let memo: ReturnType<typeof runOnce> | undefined;
+        const first = () => (memo ??= runOnce());
 
         it("reproduces its own table and weights to the bit", async () => {
-            const { run: a } = await first;
+            const { run: a } = await first();
             const { run: b } = await runOnce();
             expect(JSON.stringify(b.joint.generated)).toBe(
                 JSON.stringify(a.joint.generated)
@@ -192,7 +196,7 @@ describeLockedCorpus(
         // This test reads the weights through that fit rather than through
         // their literals, so a refit moving the last digit does not red it.
         it("under a very strong pull the table is empty and the weights are the committed fit's", async () => {
-            const { run } = await first;
+            const { run } = await first();
             const silenced = fitWeights(
                 run.pairs,
                 FIT_BASE_EVAL_WEIGHTS,
@@ -211,7 +215,7 @@ describeLockedCorpus(
         it("the basis is the Evaluation's own reading of a generated table", async () => {
             // Price the fitted table through the Evaluation and re-derive one
             // pair: its gap moves by exactly `Σ g_c · x_c` of the basis.
-            const { run } = await first;
+            const { run } = await first();
             const table = run.joint.generated!.table;
             const p = run.pairs.findIndex(
                 (pair, i) =>
@@ -237,7 +241,7 @@ describeLockedCorpus(
         }, 300_000);
 
         it("never rebuilds an exam-side Verdict", async () => {
-            const { verdicts, run } = await first;
+            const { verdicts, run } = await first();
             const sides = verdictSidesOf(verdicts, testPositions);
             const exam = new Set(
                 verdicts
@@ -256,7 +260,7 @@ describeLockedCorpus(
         }, 300_000);
 
         it("prints the report: zero count, largest weights, pairs newly satisfied and broken, Minimal Pairs as units", async () => {
-            const { run } = await first;
+            const { run } = await first();
             const text = formatGeneratedWeightFitReport(run);
             expect(text).toContain("left at zero");
             expect(text).toContain("largest generated weights");
