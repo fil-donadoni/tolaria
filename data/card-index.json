@@ -2050,6 +2050,14 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Allosaurus Rider",
+        "scryfallId": "e0f3ba39-5b4d-4a7c-9215-7e349aecbeb3",
+        "oracleId": "176508ba-c107-4694-8dd7-ea34fca3b299",
+        "firstSet": "csp",
+        "firstPrintId": "e0f3ba39-5b4d-4a7c-9215-7e349aecbeb3",
+        "firstPrintSet": "csp"
+    },
+    {
         "name": "Alloy Golem",
         "scryfallId": "1fb6d6a1-9d71-405b-9c93-1a7f06c67abd",
         "oracleId": "410b7faf-365c-4b73-a64d-bddbe49cfded",
