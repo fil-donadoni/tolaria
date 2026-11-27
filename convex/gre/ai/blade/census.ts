@@ -72,7 +72,56 @@ export type CensusRow = CensusJob & {
     /** The search's rollout width (issue #10631): absent on a skipped row
      *  and on rows written before it. A measurement, never a verdict. */
     width?: RolloutWidth;
+    /** Present on a Line's row (`line.ts`): how far the seed followed it,
+     *  decision by decision. `ok` is then "followed to its end". */
+    line?: CensusLineReading;
 };
+
+/** One root candidate as a Line row records it: its tree statistics, from
+ *  the Bot's perspective (`CandidateTrace`). */
+export type CensusCandidate = {
+    label: string;
+    visits: number;
+    meanReward: number;
+    score: number;
+};
+
+/** One Bot decision of a Line, as the seed's search saw it. */
+export type CensusLineDecision = {
+    /** 0-based decision index in the Line. */
+    step: number;
+    /** The Bot's move matched one of the decision's expected moves. */
+    followed: boolean;
+    /** The Line's move among the root candidates (the first the decision's
+     *  matchers accept); null when the root did not weigh it. */
+    expected: CensusCandidate | null;
+    /** The candidate the search picked. */
+    chosen: CensusCandidate | null;
+    /** Root candidates weighed. */
+    candidates: number;
+    iterations: number;
+    /** The search loop's own wall time (`DecisionTrace.elapsedMs`). */
+    ms: number;
+    rolloutProbes: number;
+};
+
+/** How far one seed carried a Line. */
+export type CensusLineReading = {
+    /** The Line's Bot decisions. */
+    steps: number;
+    /** The first decision the seed left the Line at; null when followed to
+     *  the end. */
+    failedAt: number | null;
+    /** Every decision the seed reached, the failing one last. A decision
+     *  with no trace (one legal move) is not recorded. */
+    decisions: CensusLineDecision[];
+};
+
+/** The iterations a row ran: a Line row sums its decisions. */
+export function rowIterations(r: CensusRow): number {
+    if (!r.line) return r.iterations;
+    return r.line.decisions.reduce((n, d) => n + d.iterations, 0);
+}
 
 export type CensusMeta = {
     tier: string;
@@ -294,7 +343,8 @@ export type CensusReadings = {
     performance: {
         /** Search wall time per row. */
         ms: CensusDistribution;
-        /** Wall time over the row's iteration budget. */
+        /** Wall time over the row's iteration budget (a Line row: over the
+         *  iterations its decisions ran). */
         msPerIteration: CensusDistribution;
         overThreshold: number;
     };
@@ -354,7 +404,9 @@ export function censusReadings(
         },
         performance: {
             ms: distribution(ran.map((r) => r.ms)),
-            msPerIteration: distribution(ran.map((r) => r.ms / r.iterations)),
+            msPerIteration: distribution(
+                ran.map((r) => r.ms / Math.max(1, rowIterations(r)))
+            ),
             overThreshold: count(over),
         },
         saturation: {
@@ -513,7 +565,69 @@ export function formatCensusSummary(result: CensusResult): string {
         const v = red[i];
         lines.push(`  RED ${v.label} @${v.iterations} — ${v.moves.join("; ")}`);
     }
-    return lines.join("\n");
+    return lines.concat(formatLineCensus(result.rows)).join("\n");
+}
+
+/** One Line at one budget, read over its seeds. */
+export type CensusLineSummary = {
+    label: string;
+    iterations: number;
+    seeds: number;
+    /** Seeds whose first decision followed the Line. */
+    firstMove: number;
+    /** Seeds that followed it to its end. */
+    end: number;
+    /** Per seed, the decision it left the Line at (1-based), or "end". */
+    stops: string[];
+    /** Iterations per second of search loop, over every decision run. */
+    iterationsPerSecond: number;
+};
+
+/** The Line rows of an arm, one summary per (Line, budget). */
+export function lineCensusSummaries(
+    rows: readonly CensusRow[]
+): CensusLineSummary[] {
+    const by = new Map<string, CensusRow[]>();
+    const ordered = rows.slice().sort((a, b) => a.id - b.id);
+    for (let i = 0; i < ordered.length; i++) {
+        const r = ordered[i];
+        if (!r.line) continue;
+        const key = `${r.label}\u0000${r.iterations}`;
+        const list = by.get(key) ?? [];
+        list.push(r);
+        by.set(key, list);
+    }
+    const out: CensusLineSummary[] = [];
+    by.forEach((list) => {
+        const decisions = list.flatMap((r) => r.line!.decisions);
+        const its = decisions.reduce((n, d) => n + d.iterations, 0);
+        const ms = decisions.reduce((n, d) => n + d.ms, 0);
+        out.push({
+            label: list[0].label,
+            iterations: list[0].iterations,
+            seeds: list.length,
+            firstMove: list.filter((r) => r.line!.failedAt !== 0).length,
+            end: list.filter((r) => r.line!.failedAt === null).length,
+            stops: list.map(
+                (r) =>
+                    `seed ${r.seed}: ${r.line!.failedAt === null ? "end" : `decision ${r.line!.failedAt + 1}`}`
+            ),
+            iterationsPerSecond: ms > 0 ? (its * 1000) / ms : 0,
+        });
+    });
+    return out;
+}
+
+/** The Line block of an arm's summary; empty when it ran no Line. */
+export function formatLineCensus(rows: readonly CensusRow[]): string[] {
+    const summaries = lineCensusSummaries(rows);
+    if (summaries.length === 0) return [];
+    return ["lines (first move / end, of seeds):"].concat(
+        summaries.map(
+            (s) =>
+                `  ${s.label} @${s.iterations} — first ${s.firstMove}/${s.seeds}, end ${s.end}/${s.seeds}, ${s.iterationsPerSecond.toFixed(0)} it/s — ${s.stops.join("; ")}`
+        )
+    );
 }
 
 /** The human rendering of a diff, new reds first. */

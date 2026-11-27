@@ -6,12 +6,14 @@ import {
     censusVerdicts,
     diffCensus,
     formatCensusSummary,
+    lineCensusSummaries,
     mergeCensusResults,
     parseSlice,
     selectCensusEntries,
     sliceCensusJobs,
     withCensusReadings,
     type CensusEntry,
+    type CensusLineDecision,
     type CensusMeta,
     type CensusResult,
     type CensusRow,
@@ -335,5 +337,73 @@ describe("blade census — correctness, performance, saturation", () => {
         );
         const merged = withCensusReadings(mergeCensusResults([a, b]), 5000);
         expect(merged.readings).toEqual(censusReadings(ROWS, 5000));
+    });
+});
+
+describe("blade census — Line rows", () => {
+    const decision = (
+        step: number,
+        followed: boolean,
+        iterations: number,
+        ms: number
+    ): CensusLineDecision => ({
+        step,
+        followed,
+        expected: null,
+        chosen: null,
+        candidates: 2,
+        iterations,
+        ms,
+        rolloutProbes: 0,
+    });
+    const lineRow = (
+        id: number,
+        seed: number,
+        failedAt: number | null,
+        decisions: CensusLineDecision[]
+    ): CensusRow =>
+        row(id, "line: l", seed, failedAt === null, {
+            line: { steps: 3, failedAt, decisions },
+        });
+
+    it("counts the seeds that play the first move and those that reach the end", () => {
+        const rows = [
+            lineRow(0, 1, null, [
+                decision(0, true, 400, 100),
+                decision(1, true, 400, 100),
+                decision(2, true, 400, 100),
+            ]),
+            lineRow(1, 2, 1, [
+                decision(0, true, 400, 100),
+                decision(1, false, 400, 100),
+            ]),
+            lineRow(2, 3, 0, [decision(0, false, 400, 100)]),
+            row(3, "scenario", 1, true),
+        ];
+        const [s] = lineCensusSummaries(rows);
+        expect(lineCensusSummaries(rows)).toHaveLength(1);
+        expect(s).toMatchObject({
+            label: "line: l",
+            seeds: 3,
+            firstMove: 2,
+            end: 1,
+            stops: ["seed 1: end", "seed 2: decision 2", "seed 3: decision 1"],
+        });
+        // 2400 iterations over 600 ms of search loop.
+        expect(s.iterationsPerSecond).toBe(4000);
+        expect(
+            formatCensusSummary(
+                withCensusReadings({ meta: meta(), rows }, 5000)
+            )
+        ).toContain("line: l @400 — first 2/3, end 1/3, 4000 it/s");
+    });
+
+    it("reads a Line row's ms per iteration over every decision it ran", () => {
+        const r = lineRow(0, 1, null, [
+            decision(0, true, 400, 100),
+            decision(1, true, 400, 100),
+        ]);
+        const readings = censusReadings([{ ...r, ms: 800 }], 5000);
+        expect(readings.performance.msPerIteration.max).toBe(1);
     });
 });

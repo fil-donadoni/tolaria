@@ -33,7 +33,8 @@ import {
     applyMoveInSearch,
     decidingPlayer,
 } from "../../search";
-import type { TreeKeeper } from "../brainRequest";
+import type { BrainResponse, TreeKeeper } from "../brainRequest";
+import type { CandidateTrace } from "../../search";
 import {
     getSearchVariant,
     setSearchVariant,
@@ -42,6 +43,7 @@ import {
 } from "../searchVariant";
 import type { ConsultPathStep } from "../treeReuse";
 import { buildPositionFromSpec } from "./build";
+import type { CensusCandidate, CensusLineDecision } from "./census";
 import {
     describeChosenMove,
     describeMatcher,
@@ -280,10 +282,59 @@ export type BladeLineSeedResult = {
     reason: string;
 };
 
+function censusCandidate(c: CandidateTrace): CensusCandidate {
+    return {
+        label: c.label,
+        visits: c.visits,
+        meanReward: c.meanReward,
+        score: c.score,
+    };
+}
+
+/** What one Bot decision's search weighed, as the census records it: the
+ *  Line's move and the pick among the root candidates. Null when the consult
+ *  carried no trace (one legal move, or a throw). */
+export function lineDecisionReading(
+    state: GameState,
+    step: number,
+    res: BrainResponse,
+    expected: MoveMatcher[],
+    followed: boolean
+): CensusLineDecision | null {
+    const trace = res.trace;
+    if (!trace) return null;
+    const lineCandidate = trace.candidates.find((c) =>
+        expected.some((m) => matchesOnWorld(state, c.move, m))
+    );
+    const chosen =
+        trace.candidates.find((c) => c.label === trace.chosen) ??
+        trace.candidates[0];
+    return {
+        step,
+        followed,
+        expected: lineCandidate ? censusCandidate(lineCandidate) : null,
+        chosen: chosen ? censusCandidate(chosen) : null,
+        candidates: trace.candidates.length,
+        iterations: trace.iterationsCompleted,
+        ms: trace.elapsedMs,
+        rolloutProbes: trace.rolloutProbes ?? 0,
+    };
+}
+
+/** Called at every Bot decision of a seed with the consult's response,
+ *  before the walk moves on (the census's per-decision reading). */
+export type LineDecisionObserver = (
+    state: GameState,
+    step: number,
+    res: BrainResponse,
+    followed: boolean
+) => void;
+
 function runSeed(
     line: BladeLine,
     seed: number,
-    variant: SearchVariant | null
+    variant: SearchVariant | null,
+    observe?: LineDecisionObserver
 ): BladeLineSeedResult {
     const state = buildLineState(line);
     const botId = seatPlayerId(state, line.bot);
@@ -310,9 +361,11 @@ function runSeed(
             path = [];
             const expected = line.steps[index].expect;
             if (res.error) {
+                observe?.(s, index, res, false);
                 return { stop: `the Brain threw: ${res.error.message}` };
             }
             const matcher = expected.find((m) => matchesMove(s, res.move, m));
+            observe?.(s, index, res, Boolean(res.move && matcher));
             if (!res.move || !matcher) {
                 return {
                     stop: `expected [${expected.map(describeMatcher).join(" | ")}], chose [${describeChosenMove(s, res.move)}]`,
@@ -335,18 +388,20 @@ function runSeed(
 }
 
 /** Run one Line at every declared seed, under `variant` when one is given
- *  (a forced-guide arm binds the Line to it). Never throws on a decision the
- *  Bot got wrong; throws on a malformed Line. */
+ *  (a forced-guide arm binds the Line to it). `observe` sees every Bot
+ *  decision's consult. Never throws on a decision the Bot got wrong; throws
+ *  on a malformed Line. */
 export function runBladeLine(
     line: BladeLine,
-    variant: SearchVariant | null = null
+    variant: SearchVariant | null = null,
+    observe?: LineDecisionObserver
 ): {
     ok: boolean;
     seeds: BladeLineSeedResult[];
     failureMessage: string;
 } {
     const seeds = (line.seeds ?? [DEFAULT_BLADE_SEED]).map((seed) =>
-        runSeed(line, seed, variant)
+        runSeed(line, seed, variant, observe)
     );
     const failures = seeds.filter((s) => !s.ok);
     return {
