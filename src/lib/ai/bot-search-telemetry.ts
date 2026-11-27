@@ -396,6 +396,11 @@ function usableSearch(search: SearchStats | undefined): SearchStats | null {
         : null;
 }
 
+/** The root visits a search kept from the previous consult's tree (issue
+ *  #10470); none when unknown, never negative. */
+const keptVisits = (search: SearchStats): number =>
+    finite(search.iterationsKept) ? Math.max(0, search.iterationsKept) : 0;
+
 /** Fold a game's consults into its report. Pure. A statistic with no sample
  *  behind it is LEFT OUT rather than reported as zero: "no search had a trace"
  *  and "every search took 0 ms" must not read the same. A number that is not
@@ -485,9 +490,7 @@ export function summarizeBotSearch(
     // Issue #10470 — the root visits the game's searches started from: a
     // kept subtree's. `completed + kept` is what the roots held.
     raw["iterations.kept"] = searches.reduce(
-        (sum, s) =>
-            sum +
-            (finite(s.iterationsKept) ? Math.max(0, s.iterationsKept) : 0),
+        (sum, s) => sum + keptVisits(s),
         0
     );
     if (requested > 0)
@@ -496,24 +499,12 @@ export function summarizeBotSearch(
     // of a consult, and the root visits it held against the budget (fresh
     // plus kept, issue #10470). The totals above are means; the owner's
     // ruling (issue #10027) is about every search.
-    raw["iterations.p10"] = round(
-        percentile(
-            searches.map((s) => s.iterationsCompleted),
-            10
-        )!
+    const freshIterations = searches.map((s) => s.iterationsCompleted);
+    const rootVisits = searches.map(
+        (s) => s.iterationsCompleted + keptVisits(s)
     );
-    raw["rootVisits.p10"] = round(
-        percentile(
-            searches.map(
-                (s) =>
-                    s.iterationsCompleted +
-                    (finite(s.iterationsKept)
-                        ? Math.max(0, s.iterationsKept)
-                        : 0)
-            ),
-            10
-        )!
-    );
+    raw["iterations.p10"] = round(percentile(freshIterations, 10)!);
+    raw["rootVisits.p10"] = round(percentile(rootVisits, 10)!);
 
     // Issue #10472 — pondering: the game's iterations grown while the human
     // decided, the root visits they grew at the Bot's next decisions, and the
