@@ -343,6 +343,9 @@ describe("summarizeBotSearch", () => {
             // Issue #10470 — the one search that continued a kept subtree.
             "iterations.kept": 120,
             "iterations.ratio": 0.467,
+            // Issue #10993 — the low tail: 200 fresh; 1320, 330 + 120, 200 held.
+            "iterations.p10": 200,
+            "rootVisits.p10": 200,
             // Issue #10472 — the one search a ponder fed.
             "ponder.iterations": 600,
             "ponder.kept": 80,
@@ -363,6 +366,7 @@ describe("summarizeBotSearch", () => {
             "msPerIteration.first": 0.76,
             // 1000 probes each: 1000/1320 = 0.8, 1000/330 = 3, 1000/200 = 5
             "probesPerIteration.p50": 3,
+            "probesPerIteration.p90": 5,
             // 1000/1000 = 1, 3300/1000 = 3.3, 100/1000 = 0.1
             "msPerProbe.p50": 1,
             "device.engine": "gecko",
@@ -547,6 +551,34 @@ describe("what a slow game was (issue #10321)", () => {
         expect(report["msPerProbe.p50"]).toBe(2);
     });
 
+    it("reads the per-search tails: the probe-heavy p90, the fresh-iteration p10 and the root-visit p10 (issue #10993)", () => {
+        const noProbes = searched({ completed: 150, kept: 0 });
+        delete noProbes.search!.rolloutProbes;
+        const report = summarizeBotSearch(
+            "game1",
+            [
+                // The fewest fresh iterations, but a kept subtree lifts its
+                // root to 400 visits; 44 probes an iteration, a late board.
+                searched({ completed: 100, kept: 300, probes: 4400 }),
+                searched({ completed: 400, probes: 1600 }),
+                // The fewest root visits: 150 fresh and nothing kept. No
+                // probe count, so out of the probe ratios.
+                noProbes,
+                searched({ completed: 200, kept: 250, probes: 2000 }),
+                // Probed nothing: out of the probe ratios too.
+                searched({ completed: 300, probes: 0 }),
+            ],
+            DEVICE
+        );
+        // Probe ratios 44, 4 and 10: the median and the tail part ways.
+        expect(report["probesPerIteration.p50"]).toBe(10);
+        expect(report["probesPerIteration.p90"]).toBe(44);
+        // Fresh iterations 100, 400, 150, 200, 300.
+        expect(report["iterations.p10"]).toBe(100);
+        // Root visits 400, 400, 150, 450, 300.
+        expect(report["rootVisits.p10"]).toBe(150);
+    });
+
     it("leaves both out when no search counted a probe", () => {
         const unprobed = searched();
         delete unprobed.search!.rolloutProbes;
@@ -556,6 +588,7 @@ describe("what a slow game was (issue #10321)", () => {
             DEVICE
         );
         expect(report).not.toHaveProperty("probesPerIteration.p50");
+        expect(report).not.toHaveProperty("probesPerIteration.p90");
         expect(report).not.toHaveProperty("msPerProbe.p50");
     });
 

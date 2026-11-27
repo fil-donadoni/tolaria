@@ -82,12 +82,13 @@ message:"bot search" gameId:<gameId>
 | ------------------------------------------------------------------ | ---------------------------------------------------------------- |
 | `iterations.ratio`                                                 | completed / requested over the game's searches: 1 = as tested    |
 | `iterations.kept`                                                  | root visits the searches started from, kept from the last tree   |
+| `iterations.p10` / `rootVisits.p10`                                | a search's low tail: fresh iterations, and fresh plus kept       |
 | `ponder.iterations` / `ponder.kept`                                | iterations pondered while the human decided, visits they grew    |
 | `ponderMs.p50`                                                     | pondering time before a consult that followed one                |
 | `stopped.time` / `.iterations` / `.settled`                        | how many searches the clock ended, against the other two stops   |
 | `msPerIteration.p50` / `.p90`                                      | the device's speed over every board the game reached             |
 | `msPerIteration.first`                                             | the device's speed at the game's first search: an early board    |
-| `probesPerIteration.p50`                                           | what the boards cost: candidates the rollout tried per iteration |
+| `probesPerIteration.p50` / `.p90`                                  | what the boards cost: candidates the rollout tried per iteration |
 | `msPerProbe.p50`                                                   | what the machine made of them: time per candidate tried          |
 | `idleMs.p50`                                                       | the time between two consults (the Worker ponders through it)    |
 | `calibration.first` / `.last` / `.min` (+ `...Units`)              | the machine itself: fixed work on a fixed board, ms per unit     |
@@ -106,7 +107,7 @@ and the OS family tells the machines behind the engines apart.
 one candidate move the rollout cloned, applied and evaluated; on a late board
 the probes are most of an iteration. Many probes per iteration
 (`probesPerIteration.p50`) with an ordinary time per probe is a game that
-reached costly boards. A high `msPerProbe.p50` is a slow or busy machine.
+reached costly boards; the `.p90` reads its probe-heavy tail (issue #10993). A high `msPerProbe.p50` is a slow or busy machine.
 The time per probe is the search's whole time over its probes: it carries
 the tree's own work too, so it reads high on a search of few iterations
 (compare searches of similar `iterations.completed`). `idleMs` is read only

@@ -708,9 +708,13 @@ In browsers on `jh7bkzta` at 10 iterations (two measured rounds), wall clock
   Gecko) is an average over a game's boards. `topk` buys nothing on an early
   board and about 2× on a late one, so the pooled gain lies between and needs
   the share of a game's searches that are probe-heavy. The per-game `p50`
-  keys of issue #10321 bound that share from one side only (§ 7); reading it
-  needs a per-search distribution in the report (a `p90`, or a count above a
-  threshold), and a window with games in every family.
+  keys of issue #10321 bound that share from one side only (§ 7). Issue
+  #10993 adds the per-search tails that read it: `probesPerIteration.p90`
+  (whether a game's searches reach the late-board level),
+  `iterations.p10` and `rootVisits.p10` (the fresh iterations and the root
+  visits of a game's leanest searches, against the owner's 400 per search,
+  issue #10027). Still owed: a window with those keys and games in every
+  family.
 - **Quality on field-sized boards.** No Verdict exists for the four
   production boards, and the root move cannot stand in for one: at 60
   iterations `base` picks the same move as its own `reseed` on 2 of the 4
