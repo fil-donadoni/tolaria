@@ -38,6 +38,7 @@
 // additional cost live here.
 import type { CardDefinition, CostLegs, RetraceGrant } from "../cards/types";
 import { tryGetDefinition } from "../cards";
+import { declaresGraveyardCastGrant } from "../cards/registry";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { canPayHandCost } from "./alternativeCost";
 import { isLand, liveStaticDefinition } from "./constants";
@@ -120,6 +121,11 @@ function collectRetraceGrants(
     const permList = owner?.battlefield ?? [];
     for (let i = 0; i < permList.length; i++) {
         const perm = permList[i];
+        // Registry precheck (issue #10755): a permanent whose definition
+        // declares no graveyard-cast grant is passed over without a
+        // definition lookup.
+        const cardId = (perm.card as { id?: string } | undefined)?.id;
+        if (!cardId || !declaresGraveyardCastGrant(cardId)) continue;
         // CR 613.1f — a granter that lost its abilities grants nothing.
         const grant = liveStaticDefinition(perm)?.grantsRetraceToOwnGraveyard;
         if (grant) grants.push(grant);

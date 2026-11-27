@@ -1597,12 +1597,38 @@ function boardPermanentsMatching(
         selfControllerId: controllerId,
         supertypesOf: liveSupertypesOf,
     };
+    // The filter's type and controller conjuncts read fields the layer-aware
+    // view below copies unchanged off the permanent, and every field of a
+    // `PermanentFilter` is ANDed: a permanent either one refuses is refused by
+    // the whole filter, and is passed over before its view is built (issue
+    // #10755 — the view is a copy of the permanent, and "for each artifact
+    // you control" built thirty of them to count six). Asked of the same
+    // matcher, so the two readings cannot drift.
+    const narrowing: PermanentFilter = {
+        ...(filter.types !== undefined ? { types: filter.types } : {}),
+        ...(filter.controllerRelation !== undefined
+            ? { controllerRelation: filter.controllerRelation }
+            : {}),
+    };
+    const narrows =
+        narrowing.types !== undefined ||
+        narrowing.controllerRelation !== undefined;
     const matched: CardInstanceState[] = [];
     for (let i = 0; i < battlefields.length; i++) {
         const { battlefield } = battlefields[i];
         const permanentList = battlefield;
         for (let j = 0; j < permanentList.length; j++) {
             const permanent = permanentList[j];
+            if (
+                narrows &&
+                !matchesPermanentFilter(
+                    permanent as unknown as MatchablePermanent,
+                    narrowing,
+                    ctx
+                )
+            ) {
+                continue;
+            }
             let liveColors: readonly Color[] | undefined;
             let pt: PermanentView | undefined;
             const view: MatchablePermanent = {
