@@ -204,9 +204,33 @@ import { poolOracleIds } from "./oracle-compile";
  *  `registryHash()` reads the registry this file is imported with. */
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 
-/** A generator's wall: the compile is seconds with the cache; a cold
- *  worktree pays its module graph once. */
+/** A generator's wall (`catalogue:pack`, `worktree:init`): seconds with
+ *  the cache; a cold worktree pays its module graph once. The carry compile
+ *  has its own, `CARRY_WALL_MS`. */
 const GENERATOR_WALL_MS = 5 * 60_000;
+
+/** `oracle:compile --carry-bot`'s wall (issue #10865): 7.3 s at load 13.8
+ *  (2026-11-27, `654a09d86`), but it ran past the 5-min generator wall in
+ *  ten `housekeeping.log` runs, each on a machine whose refit pins step —
+ *  ~11 s on a quiet one — took 137–682 s beside it: a 12–62× slowdown, and
+ *  a compile holding ~1 GB resident slows worse under memory pressure.
+ *  10 min is ~80× the measured compile, above the worst slowdown seen. Not
+ *  more: the carry is the drift sweep's no-miss path AND the fallback of a
+ *  play that failed or hit its wall (`runDriftSweep`), so the longest
+ *  write path is refit + sweep + carry (25 + 120 + 10 = 155 min), which
+ *  `housekeeping`'s `DERIVE_SYNC_TIMEOUT_MS` (160) must sit above. Each
+ *  generator's elapsed seconds are logged (`generate`), so the next wall is
+ *  read off the log, not guessed. */
+const CARRY_WALL_MS = 10 * 60_000;
+
+/** The compile that carries the committed Bot verdicts, never playing. */
+function carryCompile(): boolean {
+    return generate(
+        "oracle:compile --carry-bot",
+        ["scripts/oracle-compile.ts", "--carry-bot"],
+        CARRY_WALL_MS
+    );
+}
 
 /** `maxBuffer` well over the ~20 MB lockfile: the 1 MB default made
  *  `git show <tip>:<lockfile>` ENOBUFS mid-blob, and the truncated text
@@ -633,11 +657,17 @@ export function generate(
     wallMs: number = GENERATOR_WALL_MS,
     signal: NodeJS.Signals = "SIGKILL"
 ): boolean {
+    const startedAt = Date.now();
+    const elapsed = () => `${Math.round((Date.now() - startedAt) / 1000)}s`;
+    const answered = (): true => {
+        say(`${label} answered in ${elapsed()}`);
+        return true;
+    };
     const failure = (exit: number | string | null): boolean => {
         complain(
             exit === "wall"
                 ? `${label} gave no answer within ${wallMs / 1000}s`
-                : `${label} failed (exit ${exit ?? "?"})`
+                : `${label} failed (exit ${exit ?? "?"}) after ${elapsed()}`
         );
         return false;
     };
@@ -647,7 +677,9 @@ export function generate(
             stdio: "inherit",
             timeoutMs: wallMs,
         });
-        return r.status === 0 || failure(r.timedOut ? "wall" : r.status);
+        return r.status === 0
+            ? answered()
+            : failure(r.timedOut ? "wall" : r.status);
     }
     const r = spawnSync("bun", argv, {
         cwd: ROOT,
@@ -655,7 +687,7 @@ export function generate(
         timeout: wallMs,
         killSignal: signal,
     });
-    if (r.status === 0) return true;
+    if (r.status === 0) return answered();
     return failure(
         (r.error as { code?: string } | undefined)?.code === "ETIMEDOUT"
             ? "wall"
@@ -722,11 +754,7 @@ function driftSweep(head: string): DriftSweepResult {
                 );
             return ids;
         },
-        carry: () =>
-            generate("oracle:compile --carry-bot", [
-                "scripts/oracle-compile.ts",
-                "--carry-bot",
-            ]),
+        carry: carryCompile,
         // `--play-misses`: carries every current verdict, plays exactly the
         // misses — a bare run would carry the drift ones (issue #6688) —
         // keeps the header's Bot hash (the replay alone moves it).
@@ -1306,13 +1334,7 @@ function replayBot(dryRun: boolean): number {
     // committed rows: a tip whose derive commit has not landed yet may owe
     // state changes to the compiler or the registry, and those are not the
     // Bot's regression (review of this PR, finding 7).
-    if (
-        !generate("oracle:compile --carry-bot", [
-            "scripts/oracle-compile.ts",
-            "--carry-bot",
-        ])
-    )
-        return 1;
+    if (!carryCompile()) return 1;
     const before = readLockfile();
     if (!dryRun)
         writeReplayAttempt({ botHash: treeBotHash, startedAtMs: Date.now() });

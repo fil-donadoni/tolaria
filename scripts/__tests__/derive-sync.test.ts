@@ -491,7 +491,7 @@ describe("the drift sweep — derive:sync plays the tip's Bot-verdict misses (AD
         const replay = body("replayBot");
         const firstPack = replay.indexOf("packCatalogue()");
         expect(firstPack).toBeGreaterThan(-1);
-        expect(firstPack).toBeLessThan(replay.indexOf('"--carry-bot",'));
+        expect(firstPack).toBeLessThan(replay.indexOf("carryCompile()"));
         expect(firstPack).toBeLessThan(replay.indexOf("`--replay-journal="));
         const move = body("moveToTip");
         const movedPack = move.indexOf("packCatalogue()");
