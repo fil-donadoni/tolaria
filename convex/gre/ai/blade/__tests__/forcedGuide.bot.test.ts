@@ -300,4 +300,30 @@ describe("forced guide — the prior is forced, the pick is still the search's",
             expect(seed.reason).not.toMatch(/chose \[[^\]]*Grizzly/);
         }
     });
+
+    it("the forced prior moves the visits toward the Line's move, not the pick", () => {
+        const state = buildLineState(losing);
+        const botId = seatPlayerId(state, losing.bot);
+        const visitsOnLosing = (variant: SearchVariant | null) => {
+            const result = under(variant, () =>
+                searchWithTrace(
+                    state,
+                    botId,
+                    { iterations: losing.budget.iterations },
+                    DEFAULT_BLADE_SEED
+                )
+            );
+            const hit = (result.trace?.candidates ?? []).find(
+                (c) =>
+                    c.move.kind === "cast-spell" && c.label.includes("Grizzly")
+            );
+            return hit?.visits ?? 0;
+        };
+        // The base search barely opens the self-Shock; the forced prior
+        // spends visits on it (PUCT's exploration term scales with the
+        // prior) and the search still picks something else (above).
+        expect(
+            visitsOnLosing(bound("forced-guide", losing, 0, botId))
+        ).toBeGreaterThan(visitsOnLosing(null));
+    });
 });
