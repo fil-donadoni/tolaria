@@ -1,6 +1,7 @@
 // Per-turn spell cap — "Each player can't cast more than one spell each turn"
-// (CR 601.3, CR 101.2), emitted by the static clause as a compiled
-// `cast-restriction` carrying `maxSpellsEachTurn: 1`.
+// and its controller-only twin "You can't cast more than one spell each turn"
+// (CR 601.3, CR 101.2, CR 109.5), emitted by the static clause as a compiled
+// `cast-restriction` carrying `maxSpellsEachTurn: 1` (+ `controllerOnly`).
 //
 //  1. GOLDEN fixture — a real corpus card compiled whole.
 //  2. REFUSALS — the neighbours this rule does not read (state "unparsed").
@@ -72,12 +73,56 @@ describe("per-turn spell cap — golden fixture (CR 601.3)", () => {
     });
 });
 
+const YOU_CAP_TEXT = "You can't cast more than one spell each turn.";
+const MODERATION_TEXT = `${YOU_CAP_TEXT}\nWhenever you cast a spell, draw a card.`;
+
+const MODERATION = {
+    oracleId: "57f94fcb-a224-410b-a38e-3ed8cca7d0c7",
+    name: "Moderation",
+    manaCost: "{1}{W}{U}",
+    typeLine: "Enchantment",
+    oracleText: MODERATION_TEXT,
+    power: undefined,
+    toughness: undefined,
+};
+
+describe("per-turn spell cap — controller-only golden fixture (CR 601.3, 109.5)", () => {
+    it("Moderation", () => {
+        expect(sortKeys(compiled(MODERATION))).toEqual(
+            sortKeys({
+                name: "Moderation",
+                types: ["Enchantment"],
+                manaCost: { X: 1, W: 1, U: 1 },
+                oracleText: MODERATION_TEXT,
+                compiledTriggeredAbilities: [
+                    {
+                        id: "moderation-trigger",
+                        oracleText: "Whenever you cast a spell, draw a card.",
+                        head: { kind: "spell-cast", scope: "you" },
+                        effects: [
+                            { op: "draw", player: "controller", count: 1 },
+                        ],
+                    },
+                ],
+                compiledStaticEffects: [
+                    {
+                        kind: "cast-restriction",
+                        id: "moderation-spell-cap",
+                        oracleText: YOU_CAP_TEXT,
+                        maxSpellsEachTurn: 1,
+                        controllerOnly: true,
+                    },
+                ],
+            })
+        );
+    });
+});
+
 describe("per-turn spell cap — refusals (fail-closed)", () => {
     it.each([
         // a class of spell (Deafening Silence's shape)
         "Each player can't cast more than one noncreature spell each turn.",
         // another caster
-        "You can't cast more than one spell each turn.",
         "Your opponents can't cast more than one spell each turn.",
         // another count or window
         "Each player can't cast more than two spells each turn.",
@@ -91,15 +136,19 @@ describe("per-turn spell cap — the cast gate (CR 601.3, 101.2)", () => {
     const CAP_ID = "8582aaaa-1111-4111-8111-111111111111";
     // Built per call, not at collection: a refused line then reds the test
     // that reads it rather than the whole file.
-    const cap = (): CardDefinition =>
+    const cap = (card: Parameters<typeof oracleCard>[0]): CardDefinition =>
         expandDefinition({
-            ...compiled(RULE_OF_LAW),
+            ...compiled(card),
             id: CAP_ID,
             rarity: "uncommon",
         });
 
-    function gate(casterId: string, castSoFar: number) {
-        return withTemporaryDefinition(cap(), () => {
+    function gate(
+        casterId: string,
+        castSoFar: number,
+        card: Parameters<typeof oracleCard>[0] = RULE_OF_LAW
+    ) {
+        return withTemporaryDefinition(cap(card), () => {
             const state = makeState({
                 players: [
                     makePlayer("p1", {
@@ -138,5 +187,12 @@ describe("per-turn spell cap — the cast gate (CR 601.3, 101.2)", () => {
     });
     it("forbids the controller's second spell too", () => {
         expect(gate("p1", 1)).toBe(CAP_TEXT);
+    });
+    it("the controller-only cap forbids its controller's second spell", () => {
+        expect(gate("p1", 0, MODERATION)).toBeUndefined();
+        expect(gate("p1", 1, MODERATION)).toBe(YOU_CAP_TEXT);
+    });
+    it("…and leaves an opponent's second spell free", () => {
+        expect(gate("p2", 1, MODERATION)).toBeUndefined();
     });
 });
