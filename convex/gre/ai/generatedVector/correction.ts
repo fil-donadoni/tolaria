@@ -50,7 +50,9 @@ function sideOfColumns(): Uint8Array {
 }
 
 /** Compiled tables, by table object: a table is static data, read at every
- *  evaluation of a search, and compiled the first time it is seen. */
+ *  evaluation of a search, and compiled the first time it is seen. So a table
+ *  is read ONCE: changing a weight in an object already handed to an
+ *  evaluation changes nothing — a different table is a different object. */
 const compiledTables = new WeakMap<GeneratedWeights, ColumnPricing>();
 
 /** `table` over this build's columns. Throws on a name that is no column and

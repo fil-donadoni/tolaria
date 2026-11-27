@@ -443,8 +443,10 @@ const NO_COUNTS: Map<number, number> = new Map();
  * It is what an evaluation calls at every leaf, so it allocates nothing per
  * column: each count is multiplied and added as the walk meets it. The sums
  * therefore run in the walk's order, not in column order; the walk is a pure
- * function of the position, so the result is too. Arguments as
- * `generatedVector`'s.
+ * function of the position, so the result is too. With whole-number weights
+ * it equals the vector's dot product exactly; with fractional ones the two
+ * may differ in the last bits, and this sum is the Evaluation's. Arguments
+ * as `generatedVector`'s.
  */
 export function pricedGeneratedVector(
     state: GameState,
