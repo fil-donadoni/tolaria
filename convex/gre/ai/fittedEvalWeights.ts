@@ -29,6 +29,7 @@ export const FITTED_EVAL_WEIGHTS = Object.freeze({
     cannotAttackShare: 0.75,
     cannotBlockShare: 0.762197,
     costTaxWeight: 5.958856,
+    costTaxLibraryWeight: 6,
     latent: Object.freeze({
         damage: 22.224376,
         cardAdvantage: 45.161623,
