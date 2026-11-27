@@ -1,0 +1,439 @@
+{
+    "label": "wide board, issue #10755 (Verdict v1-e698f074 at turn 21)",
+    "bot": "me",
+    "spec": {
+        "activePlayer": "me",
+        "artifactDamageToPlayerThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "cards": [
+            {
+                "name": "Swamp",
+                "owner": "me"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "tapped": true
+            },
+            {
+                "name": "Swamp",
+                "owner": "me"
+            },
+            {
+                "name": "Creeping Tar Pit",
+                "owner": "me"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me"
+            },
+            {
+                "name": "Blackcleave Cliffs",
+                "owner": "me"
+            },
+            {
+                "name": "Blood Crypt",
+                "owner": "me"
+            },
+            {
+                "name": "Grief",
+                "owner": "me",
+                "startedTurnUntapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Island",
+                "owner": "opp",
+                "tapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Mountain",
+                "owner": "opp",
+                "tapped": true
+            },
+            {
+                "name": "Skullclamp",
+                "owner": "opp",
+                "startedTurnUntapped": true
+            },
+            {
+                "name": "Breeding Pool",
+                "owner": "opp"
+            },
+            {
+                "manaCommitted": true,
+                "name": "Mountain",
+                "owner": "opp",
+                "tapped": true
+            },
+            {
+                "attackedLastTurn": true,
+                "counters": {
+                    "+1/+1": 8
+                },
+                "manaCommitted": true,
+                "name": "Vivi Ornitier",
+                "owner": "opp",
+                "startedTurnUntapped": true,
+                "tapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Island",
+                "owner": "opp",
+                "tapped": true
+            },
+            {
+                "name": "Fastbond",
+                "owner": "opp",
+                "startedTurnUntapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Island",
+                "owner": "opp",
+                "tapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Island",
+                "owner": "opp",
+                "tapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Thundering Falls",
+                "owner": "opp",
+                "tapped": true
+            },
+            {
+                "name": "Astrologian's Planisphere",
+                "owner": "opp",
+                "startedTurnUntapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Tropical Island",
+                "owner": "opp",
+                "tapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Retrofitter Foundry",
+                "owner": "opp",
+                "tapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Spirebluff Canal",
+                "owner": "opp",
+                "summoningSick": true,
+                "tapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Candelabra of Tawnos",
+                "owner": "opp",
+                "summoningSick": true,
+                "tapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Tolarian Academy",
+                "owner": "opp",
+                "summoningSick": true
+            },
+            {
+                "counters": {
+                    "loyalty": 3
+                },
+                "name": "Karn, Scion of Urza",
+                "owner": "opp",
+                "summoningSick": true
+            },
+            {
+                "name": "token:Construct|Artifact,Creature|Construct||0|0|||c5eafa38-5333-4ef2-9661-08074c580a32|pt-cda-artifacts-you-control||||||",
+                "owner": "opp",
+                "summoningSick": true,
+                "token": true
+            },
+            {
+                "name": "Servo",
+                "owner": "opp",
+                "summoningSick": true,
+                "token": true
+            },
+            {
+                "name": "Fabled Passage",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "activations": {
+                    "walking-ballista-shoot": 1
+                },
+                "name": "Walking Ballista",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Pompous Battlemage",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Fireblast",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Archon of Cruelty",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Seasoned Pyromancer",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Wooded Foothills",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Stingcaster Mage",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Metamorphosis Fanatic",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Toxic Deluge",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Emperor of Bones",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "activations": {
+                    "pyrite-spellbomb-ability": 1
+                },
+                "name": "Pyrite Spellbomb",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Time Spiral",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Chain Lightning",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Wheel of Fortune",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Ragavan, Nimble Pilferer",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Headliner Scarlett",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Hullbreacher",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Abrade",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Chromatic Star",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "activations": {
+                    "mishras-bauble-look": 1
+                },
+                "name": "Mishra's Bauble",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Ivora, Insatiable Heir",
+                "owner": "me",
+                "zone": "exile"
+            },
+            {
+                "name": "Collective Brutality",
+                "owner": "me",
+                "zone": "exile"
+            },
+            {
+                "name": "Forensic Gadgeteer",
+                "owner": "opp",
+                "zone": "exile"
+            },
+            {
+                "activations": {
+                    "aether-spellbomb-bounce": 1
+                },
+                "name": "Aether Spellbomb",
+                "owner": "opp",
+                "zone": "exile"
+            },
+            {
+                "name": "Flame Slash",
+                "owner": "opp",
+                "zone": "exile"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me"
+            },
+            {
+                "name": "Slickshot Show-Off",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Swamp",
+                "owner": "me"
+            },
+            {
+                "name": "Yawgmoth's Will",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "creatureAttackedThisTurn": false,
+        "damageDealtToPlayerThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "deathsThisTurn": 0,
+        "hiddenHand": {
+            "opp": 2
+        },
+        "life": {
+            "me": 1,
+            "opp": 2
+        },
+        "lifeGainedThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "markLastDrawn": true,
+        "outsideGame": [
+            {
+                "name": "Boseiju, Who Endures",
+                "owner": "me"
+            },
+            {
+                "name": "City of Traitors",
+                "owner": "me"
+            },
+            {
+                "name": "Phelia, Exuberant Shepherd",
+                "owner": "me"
+            },
+            {
+                "name": "Legion Extruder",
+                "owner": "me"
+            },
+            {
+                "name": "Tamiyo's Safekeeping",
+                "owner": "me"
+            },
+            {
+                "name": "Zuran Orb",
+                "owner": "me"
+            },
+            {
+                "name": "Pillage the Bog",
+                "owner": "me"
+            },
+            {
+                "name": "Doomsday",
+                "owner": "me"
+            },
+            {
+                "name": "Sear",
+                "owner": "me"
+            },
+            {
+                "name": "Grindstone",
+                "owner": "me"
+            },
+            {
+                "name": "Cloak and Dagger, Entwined",
+                "owner": "me"
+            },
+            {
+                "name": "Phlage, Titan of Fire's Fury",
+                "owner": "me"
+            },
+            {
+                "name": "Crabomination",
+                "owner": "me"
+            },
+            {
+                "name": "Troll of Khazad-dûm",
+                "owner": "me"
+            },
+            {
+                "name": "Brain Freeze",
+                "owner": "me"
+            }
+        ],
+        "passCount": 0,
+        "permanentsToGraveyardThisTurn": 0,
+        "phase": "PRECOMBAT_MAIN",
+        "priority": "me",
+        "qualifyingActionLastTurn": {
+            "me": true,
+            "opp": true
+        },
+        "rngSeed": 1847293353,
+        "spellsCastThisGame": {
+            "me": 9,
+            "opp": 20
+        },
+        "spellsCastThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "stormCount": 0,
+        "turn": 21,
+        "turnsTaken": {
+            "me": 11,
+            "opp": 10
+        }
+    }
+}
