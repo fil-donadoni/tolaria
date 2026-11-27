@@ -41,10 +41,10 @@
 // searches reached late boards. `iterations.p10` (a search's fresh
 // iterations) and `rootVisits.p10` (fresh plus kept: what the root held
 // against the budget) read the low tail per search, where
-// `iterations.completed` over `searches` is a mean (issue #10993). They are
-// counters and durations like the rest. The owner consented on 2026-11-22 to
-// telemetry keys of this kind being added without asking per key; the
-// boundary above is unchanged. Each consult also records a span of its own
+// `iterations.completed` over `searches` is a mean. They are counters and
+// durations like the rest. The owner consented on 2026-11-22 to telemetry
+// keys of this kind being added without asking per key; the boundary above
+// is unchanged. Each consult also records a span of its own
 // (`./bot-consult-span`), under the same boundary.
 //
 // WHAT THE MACHINE WAS WORTH. Every reading above moves with the board the
@@ -497,8 +497,8 @@ export function summarizeBotSearch(
         raw["iterations.ratio"] = round(completed / requested, 3);
     // Issue #10993 — the game's LOW tail, per search: the fresh iterations
     // of a consult, and the root visits it held against the budget (fresh
-    // plus kept, issue #10470). The totals above are means; the owner's
-    // ruling (issue #10027) is about every search.
+    // plus kept). The totals above are means; the owner's ruling that
+    // `expert` reaches its budget is about every search.
     const freshIterations = searches.map((s) => s.iterationsCompleted);
     const rootVisits = searches.map(
         (s) => s.iterationsCompleted + keptVisits(s)
