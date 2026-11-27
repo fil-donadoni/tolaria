@@ -52,6 +52,9 @@ lands;
 twelve cards in the Bot's graveyard and eleven in the opponent's. Everything
 else is the Verdict's: which of the opponent's lands are tapped is turn 19's.
 
+This base does not hold PR #10767, issue #10401's fix (reverted by PR #10798):
+the readings are of the board's cost, whichever casts the graveyard offers.
+
 `entry.mjs`'s `runField` builds a fixture holding a `spec` the way a blade
 entry is built, so the profilers and `compare.mjs` take it as they take a
 field fixture.
