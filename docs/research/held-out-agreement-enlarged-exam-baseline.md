@@ -26,7 +26,8 @@ player's move on every seed in 51 of them (45.9%). The Evaluation alone orders
 367 of 449 exam pairs as the player did (81.7%).** The hash side alone reads
 15/24, one more than the last reading (14/24, 2026-10-11). The rule side, 87
 verdicts the Weight Fit has never read, is harder: 36/87 = 41.4%. Only the two
-totals clear n = 100, plus the `pass` class on eval agreement. Every
+totals clear n = 100, plus the rule side (404 pairs) and the `pass` class
+(145 pairs) on eval agreement. Every
 per-class pick number is still indicative.
 
 ## How the exam was filled
