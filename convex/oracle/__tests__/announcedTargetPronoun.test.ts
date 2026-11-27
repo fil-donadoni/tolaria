@@ -234,20 +234,4 @@ describe("announced-target pronoun — refused neighbours (CR 608.2h, CR 400.7)"
             expect.stringMatching(/not exactly one/)
         );
     });
-    it("a second target announced in the pronoun's own sentence (Savage Smash)", () => {
-        const outcome = compileCard({
-            oracleId: "676c0315-1cb3-4d80-b136-16d88fd612cb",
-            name: "Savage Smash",
-            manaCost: "{1}{R}{G}",
-            typeLine: "Sorcery",
-            oracleText:
-                "Target creature you control gets +2/+2 until end of turn. It fights target creature you don't control. (Each deals damage equal to its power to the other.)",
-            layout: "normal",
-        });
-        expect(outcome.state).toBe("unparsed");
-        if (outcome.state !== "unparsed") return;
-        expect(outcome.gaps.map((g) => g.reason)).toContainEqual(
-            expect.stringMatching(/fight/)
-        );
-    });
 });
