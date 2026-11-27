@@ -96,6 +96,20 @@ with every base figure about half again as slow, read per-iteration ratios of
 of 0.93 to 1.08, median 1.01. The effect is smaller than what the machine's
 other work does to a run.
 
+### The whole `must` tier, both arms (hosted census)
+
+`blade-census.yml` on GitHub-hosted runners at `e77891c79`, once with no
+variant (run 45967149687) and once under `generated-vector` (run 45967143401):
+3,248 searches each, every `must` entry at each of its seeds and its declared
+budget.
+
+- **Picks.** The same move in all 3,248, the same root mechanism, the same
+  rollout width counters. No red in either arm
+  (`bun run blade:census --diff`: new reds 0, fixed 0, still red 0).
+- **Cost.** 9,246 s of CPU for the base arm, 9,268 s under the variant:
+  +0.24%. The two arms ran on different hosted machines, so this is a size,
+  not a paired measurement; it agrees with the table above.
+
 ### Building the vector, then the dot product (the first implementation)
 
 The same commit with `generatedCorrection` calling `generatedVector` and
