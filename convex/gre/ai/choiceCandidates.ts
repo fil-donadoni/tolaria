@@ -1512,6 +1512,20 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
     return out;
 };
 
+/** A pick out of the chooser's OWN hand onto the top of its library, in
+ *  chosen order (CR 401.4: Brainstorm's put-back, the `putBack` Op). Mandatory,
+ *  it is no search node (`handPickCandidates` scopes to optional picks), so
+ *  `forcedChoiceAnswer` answers it with the shed order: the least valuable
+ *  cards go back, the more valuable of them submitted last and so on top, the
+ *  next draw. Without an answer the walk stopped mid-resolution, and the line
+ *  was scored there, off the clock every other candidate is scored on. */
+function isOwnHandLibraryTopPut(choice: PendingChoice): boolean {
+    return (
+        choice.putOnTop === true &&
+        (choice.zoneOwnerId ?? choice.playerId) === choice.playerId
+    );
+}
+
 /** Issue #4896 — the ONE answer the search gives a choice it does not branch
  *  on, or `null` when it has none and must stop there as before. An as-enters
  *  `name-card` head is answered by `nameCardAnswer`; the rest of
@@ -1570,7 +1584,8 @@ export function forcedChoiceAnswer(
         (choice.kind !== "discard-hand" &&
             !(
                 choice.kind === "choose-hand-card" &&
-                choicePicksADiscard(state, choice)
+                (choicePicksADiscard(state, choice) ||
+                    isOwnHandLibraryTopPut(choice))
             )) ||
         choice.asEntersKind
     ) {
