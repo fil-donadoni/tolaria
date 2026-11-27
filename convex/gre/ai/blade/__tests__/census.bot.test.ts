@@ -351,6 +351,7 @@ describe("blade census — Line rows", () => {
         followed,
         expected: null,
         chosen: null,
+        mechanism: "mean-reward",
         candidates: 2,
         iterations,
         ms,

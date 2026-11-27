@@ -97,6 +97,9 @@ export type CensusLineDecision = {
     expected: CensusCandidate | null;
     /** The candidate the search picked. */
     chosen: CensusCandidate | null;
+    /** Which root rule settled the pick (`DecisionTrace.mechanism`):
+     *  `mean-reward` / `material-tiebreak` are the search's own argmax. */
+    mechanism: string;
     /** Root candidates weighed. */
     candidates: number;
     iterations: number;

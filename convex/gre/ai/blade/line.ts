@@ -314,6 +314,7 @@ export function lineDecisionReading(
         followed,
         expected: lineCandidate ? censusCandidate(lineCandidate) : null,
         chosen: chosen ? censusCandidate(chosen) : null,
+        mechanism: trace.mechanism,
         candidates: trace.candidates.length,
         iterations: trace.iterationsCompleted,
         ms: trace.elapsedMs,
