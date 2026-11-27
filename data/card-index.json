@@ -23412,6 +23412,14 @@
         "source": "compiled"
     },
     {
+        "name": "Disciple of Freyalise",
+        "scryfallId": "a8e9ea5a-5e10-4b77-baef-0352ff035483",
+        "oracleId": "2699005b-a471-429f-a9d8-fbf2077ee2fd",
+        "firstSet": "mh3",
+        "firstPrintId": "a8e9ea5a-5e10-4b77-baef-0352ff035483",
+        "firstPrintSet": "mh3"
+    },
+    {
         "name": "Disciple of Grace",
         "scryfallId": "83fa36d2-0a60-40a5-a182-a63e1e65b2bd",
         "oracleId": "7f4ceca9-0f55-4fa6-8e64-befbc4303d4e",

@@ -13,6 +13,7 @@ import { adaptAbility } from "../../abilities/adapt";
 import { counterAddedTrigger } from "../../abilities/triggers/counterAddedTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 /** CR 111 — Fanatic of Rhonas's own printed eternalize token (tmh3 #15, a 4/4
  *  black Token Creature — Zombie Snake Druid). Pinned by hand: an eternalize token
@@ -453,4 +454,91 @@ export const six = defineCard(() => ({
             ],
         }),
     ],
+}));
+
+// Disciple of Freyalise // Garden of Freyalise — {3}{G}{G}{G} Creature — Elf
+// Druid 3/3 // Land (MH3 250, modal double-faced). "When this creature
+// enters, you may sacrifice another creature. If you do, you gain X life and
+// draw X cards, where X is that creature's power." // "As this land enters,
+// you may pay 3 life. If you don't, it enters tapped.\n{T}: Add {G}."
+//   - CR 603.6a — an enters-the-battlefield trigger; the sacrifice is an
+//     EFFECT on resolution (CR 701.21a), "you may" = a `{ min: 0, max: 1 }`
+//     pick among the controller's creatures other than the source.
+//   - CR 608.2h — X reads the sacrificed creature's last known information:
+//     `sacrifice`'s `bind` snapshots it before it leaves the battlefield, so a
+//     token (gone entirely) still has a power to read.
+//   - CR 712.12 — the back face is a land only ever played (`kind: "modal"`,
+//     no manaCost); CR 614.1c — "As this land enters, you may pay 3 life" is
+//     `CardBackFace.entersTappedUnlessPay`, the shock-land replacement.
+//
+// hand-tail: When this creature enters, you may sacrifice another creature. If you do, you gain X life and draw X cards, where X is that creature's power. (#10535)
+export const discipleOfFreyaliseGardenOfFreyalise = defineCard(() => ({
+    id: "a8e9ea5a-5e10-4b77-baef-0352ff035483", // MH3 250
+    name: "Disciple of Freyalise",
+    rarity: "uncommon",
+    oracleText:
+        "When this creature enters, you may sacrifice another creature. If you do, you gain X life and draw X cards, where X is that creature's power.",
+    manaCost: { X: 3, G: 3 },
+    types: ["Creature"],
+    subtypes: ["Elf", "Druid"],
+    power: 3,
+    toughness: 3,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "disciple-of-freyalise-etb-sacrifice",
+            oracleText:
+                "When this creature enters, you may sacrifice another creature. If you do, you gain X life and draw X cards, where X is that creature's power.",
+            scope: "self",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "sacrifice-permanents",
+                    player: "controller",
+                    zone: "battlefield",
+                    filter: { type: "Creature", excludeSource: true },
+                    count: { min: 0, max: 1 },
+                    prompt: "Sacrifice another creature (Disciple of Freyalise)?",
+                    bind: "$sacPick",
+                },
+                {
+                    op: "sacrifice",
+                    permanents: { ref: "$sacPick" },
+                    bind: "$sacked",
+                },
+                {
+                    op: "if",
+                    predicate: { picksNonEmpty: { ref: "$sacPick" } },
+                    then: [
+                        {
+                            op: "gainLife",
+                            player: "controller",
+                            amount: { ref: "$sacked.power" },
+                        },
+                        {
+                            op: "draw",
+                            player: "controller",
+                            count: { ref: "$sacked.power" },
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+    backFace: {
+        kind: "modal",
+        name: "Garden of Freyalise",
+        types: ["Land"],
+        activatedAbilities: [
+            {
+                id: "garden-of-freyalise-mana",
+                oracleText: "{T}: Add {G}.",
+                cost: { tap: true },
+                useStack: false,
+                manaProduced: { G: 1 },
+            },
+        ],
+        entersTappedUnlessPay: { life: 3 },
+        oracleText:
+            "As this land enters, you may pay 3 life. If you don't, it enters tapped.\n{T}: Add {G}.",
+    },
 }));
