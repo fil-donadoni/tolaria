@@ -93,6 +93,7 @@ import {
     isSpellStackItem,
     isTapOtherTapManaAbilityCost,
     normalizedHybridPips,
+    pendingTargetSelfStackItemId,
     type ManaBattlefield,
 } from "@convex/gre/constants";
 import type {
@@ -1911,6 +1912,8 @@ export function matchesSpellPendingTarget(
         sourceSubtypes: [],
         chooserId: ctx.playerId,
         activePlayerId: ctx.activePlayerId,
+        // CR 115.5 — the trigger choosing targets never lights its own item.
+        targetingStackItemId: pendingTargetSelfStackItemId(pendingTarget),
     };
     // `types`/`targets` are non-optional on the engine's `StackItem` (the
     // checks index them directly) but optional on the wire shape callers hand
