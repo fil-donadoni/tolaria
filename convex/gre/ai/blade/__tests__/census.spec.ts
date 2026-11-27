@@ -10,11 +10,19 @@
 //     coordinator — writing one row per job under `rows/`. A red verdict is
 //     DATA here, never a failed test: the census reports it.
 //
+// The entries are the scenario registry's and the Lines' (`lines.ts`): a
+// Line's job plays it forward at one seed (`runBladeLine`), green when the
+// seed follows it to its end, and its row records each decision's search
+// (`CensusLineReading`), so a forced-guide arm is read where it acts.
+//
 // It lives HERE for the reason `audit-census.spec.ts` gives: importing the
 // registry pulls `convex/game.ts` and with it `lib.dom`, which reds an
 // unrelated script in the `scripts` project.
 import { describe, expect, it } from "vitest";
 import { BLADE_SCENARIOS } from "../registry";
+import { BLADE_LINES } from "../lines";
+import { lineDecisionReading, runBladeLine } from "../line";
+import type { BladeLine } from "../types";
 import { DEFAULT_BLADE_SEED, runBladeScenario } from "../runner";
 import {
     DEFAULT_CENSUS_SEED,
@@ -22,6 +30,7 @@ import {
     selectCensusEntries,
     sliceCensusJobs,
     type CensusConfig,
+    type CensusLineDecision,
     type CensusRow,
 } from "../census";
 import { resolveBladeVariant } from "../variant";
@@ -32,6 +41,10 @@ const ENV: Record<string, string | undefined> =
     (globalThis as { process?: { env?: Record<string, string | undefined> } })
         .process?.env ?? {};
 
+/** Every entry a census can select: the scenarios, then the Lines. */
+const CENSUS_ENTRIES = [...BLADE_SCENARIOS, ...BLADE_LINES];
+const LINE_LABELS = new Set(BLADE_LINES.map((l) => l.label));
+
 describe("blade census — job list", () => {
     it("runs the blade runner's default seed for an entry that declares none", () => {
         expect(DEFAULT_CENSUS_SEED).toBe(DEFAULT_BLADE_SEED);
@@ -39,7 +52,7 @@ describe("blade census — job list", () => {
 
     it("covers every (entry, seed) pair of the must tier exactly once", () => {
         const config: CensusConfig = { tier: "must" };
-        const entries = selectCensusEntries(BLADE_SCENARIOS, config);
+        const entries = selectCensusEntries(CENSUS_ENTRIES, config);
         const jobs = buildCensusJobs(entries, config);
         const expected = entries.reduce(
             (n, e) => n + (e.seeds?.length ?? 1),
@@ -50,7 +63,57 @@ describe("blade census — job list", () => {
             expected
         );
     });
+
+    it("selects the Lines beside the scenarios, under labels no scenario shares", () => {
+        const scenarioLabels = new Set(BLADE_SCENARIOS.map((s) => s.label));
+        expect(BLADE_LINES.filter((l) => scenarioLabels.has(l.label))).toEqual(
+            []
+        );
+        const lines = selectCensusEntries(CENSUS_ENTRIES, {
+            tier: "stretch",
+            match: "^line: ",
+        });
+        expect(lines.map((l) => l.label)).toEqual(
+            BLADE_LINES.filter((l) => l.tier === "stretch").map((l) => l.label)
+        );
+    });
 });
+
+/** One seed of a Line at the job's budget, read decision by decision. */
+function runLineJob(
+    line: BladeLine,
+    seed: number,
+    iterations: number,
+    variant: ReturnType<typeof resolveBladeVariant>
+): Pick<CensusRow, "ok" | "move" | "reason" | "mechanism" | "line"> {
+    const decisions: CensusLineDecision[] = [];
+    const result = runBladeLine(
+        { ...line, seeds: [seed], budget: { iterations } },
+        variant,
+        (state, step, res, followed) => {
+            const reading = lineDecisionReading(
+                state,
+                step,
+                res,
+                line.steps[step].expect,
+                followed
+            );
+            if (reading) decisions.push(reading);
+        }
+    );
+    const s = result.seeds[0];
+    return {
+        ok: s.ok,
+        move: s.ok ? "" : s.reason,
+        reason: s.reason,
+        mechanism: null,
+        line: {
+            steps: line.steps.length,
+            failedAt: s.ok ? null : (s.failedAt ?? 0),
+            decisions,
+        },
+    };
+}
 
 const DIR = ENV.BLADE_CENSUS_DIR;
 
@@ -76,7 +139,7 @@ describe.runIf(DIR !== undefined && DIR !== "")("blade census (worker)", () => {
                 fs.readFileSync(`${DIR}/config.json`, "utf8")
             ) as CensusConfig;
             const variant = resolveBladeVariant(config.variant);
-            const entries = selectCensusEntries(BLADE_SCENARIOS, config);
+            const entries = selectCensusEntries(CENSUS_ENTRIES, config);
             const byLabel = new Map(entries.map((e) => [e.label, e]));
             const jobs = sliceCensusJobs(
                 buildCensusJobs(entries, config),
@@ -109,8 +172,23 @@ describe.runIf(DIR !== undefined && DIR !== "")("blade census (worker)", () => {
                         mechanism: null,
                         ms: 0,
                     };
+                } else if (LINE_LABELS.has(job.label)) {
+                    const line = byLabel.get(job.label) as BladeLine;
+                    const started = Date.now();
+                    const { value, width } = withRolloutWidth(() =>
+                        runLineJob(line, job.seed, job.iterations, variant)
+                    );
+                    row = {
+                        ...job,
+                        ...value,
+                        ms: Date.now() - started,
+                        width,
+                    };
+                    if (!row.ok) claim(fs, redMarker);
                 } else {
-                    const scenario = byLabel.get(job.label)!;
+                    const scenario = byLabel.get(
+                        job.label
+                    ) as (typeof BLADE_SCENARIOS)[number];
                     const started = Date.now();
                     const { value: result, width } = withRolloutWidth(() =>
                         runBladeScenario(
