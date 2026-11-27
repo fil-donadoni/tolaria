@@ -37,6 +37,7 @@ import {
     type EvalWeights,
     type LatentWeights,
 } from "./evalWeights";
+import { GENERATED_COLUMN_WEIGHTS } from "./generatedVector/committedWeights";
 import type { Move } from "../moves";
 import type { GameState } from "../state";
 import {
@@ -668,5 +669,18 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
     "forced-guide-no-probes": {
         name: "forced-guide-no-probes",
         forcedGuide: { probes: false },
+    },
+    /** The GENERATED VECTOR's correction (ADR 0186, Decision 1; issue
+     *  #10862): the Evaluation reads the generated vector at every position
+     *  and adds the committed weight table's pricing of it, the `generated`
+     *  term. The committed table ships empty, so under this variant the term
+     *  is computed and worth exactly zero: every Evaluation, and so every
+     *  pick, is the base's, and the only difference is what a leaf costs —
+     *  which is what `BLADE_VARIANT=generated-vector bun run test:blade` and
+     *  the iteration-cost bench read. A fitted table reaches the Bot through
+     *  this arm and no other; the base carries no table. */
+    "generated-vector": {
+        name: "generated-vector",
+        evalWeights: { generatedWeights: GENERATED_COLUMN_WEIGHTS },
     },
 };

@@ -41,6 +41,7 @@ const ZERO_TERMS: EvalTerms = {
     energy: 0,
     graveyard: 0,
     graveyardReach: 0,
+    generated: 0,
 };
 
 const PASS_MOVE: Move = { kind: "pass" };

@@ -26,6 +26,7 @@
 // choice).
 import type { Feature } from "./featureBasis";
 import { FITTED_EVAL_WEIGHTS } from "./fittedEvalWeights";
+import type { GeneratedWeights } from "./generatedVector/committedWeights";
 
 /** The two fitted creature-in-hand discounts of ONE weight vector (issue
  *  #5012) — `EvalWeights.latentCreatureDiscount` and
@@ -434,6 +435,22 @@ export type EvalWeights = {
      *  pool's dilution, and a const the ladder cannot move makes that question
      *  unfalsifiable. */
     blockWorldSamples: number;
+
+    // --- generatedVector/: the generated columns' correction (ADR 0186) ----
+    /** The weight table of the generated vector's columns (ADR 0186,
+     *  Decision 1; issue #10862), column name → weight. PRESENT: the
+     *  Evaluation reads the generated vector of the position and adds, to
+     *  each side's total, the weighted sum of the columns counted on that
+     *  side — the `generated` term (`generatedVector/correction.ts`). ABSENT:
+     *  the vector is not read at all.
+     *
+     *  Absent from the committed vector, by construction: neither
+     *  `FIT_BASE_EVAL_WEIGHTS` nor the fitted file names it, so the Bot
+     *  players face never reads a generated column. A table reaches the
+     *  Evaluation only through `SearchVariant.evalWeights` — the
+     *  `generated-vector` variant hands it the committed table
+     *  (`generatedVector/committedWeights.ts`), which ships empty. */
+    generatedWeights?: GeneratedWeights;
 };
 
 /**
