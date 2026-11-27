@@ -36,10 +36,16 @@
 // spends 67–78% of its time), and the idle time between two consults
 // (`idleMs.p50`). The time per probe divides a search's whole time by its
 // probes, so it also carries the tree's own work and reads high on a search
-// of few iterations. They are counters and durations like the rest. The owner
-// consented on 2026-11-22 to telemetry keys of this kind being added without
-// asking per key; the boundary above is unchanged. Each consult also records
-// a span of its own (`./bot-consult-span`), under the same boundary.
+// of few iterations. A median bounds the probe-heavy searches from one side
+// only, so `probesPerIteration.p90` reads the game's tail: whether its
+// searches reached late boards. `iterations.p10` (a search's fresh
+// iterations) and `rootVisits.p10` (fresh plus kept: what the root held
+// against the budget) read the low tail per search, where
+// `iterations.completed` over `searches` is a mean. They are counters and
+// durations like the rest. The owner consented on 2026-11-22 to telemetry
+// keys of this kind being added without asking per key; the boundary above
+// is unchanged. Each consult also records a span of its own
+// (`./bot-consult-span`), under the same boundary.
 //
 // WHAT THE MACHINE WAS WORTH. Every reading above moves with the board the
 // game reached. The calibration reading does not: the Worker times units of
@@ -176,6 +182,8 @@ export const REPORT_KEYS = [
     "iterations.completed",
     "iterations.kept",
     "iterations.ratio",
+    "iterations.p10",
+    "rootVisits.p10",
     "ponder.iterations",
     "ponder.kept",
     "ponderMs.p50",
@@ -192,6 +200,7 @@ export const REPORT_KEYS = [
     "msPerIteration.p90",
     "msPerIteration.first",
     "probesPerIteration.p50",
+    "probesPerIteration.p90",
     "msPerProbe.p50",
     "idleMs.p50",
     "calibration.first",
@@ -387,6 +396,11 @@ function usableSearch(search: SearchStats | undefined): SearchStats | null {
         : null;
 }
 
+/** The root visits a search kept from the previous consult's tree (issue
+ *  #10470); none when unknown, never negative. */
+const keptVisits = (search: SearchStats): number =>
+    finite(search.iterationsKept) ? Math.max(0, search.iterationsKept) : 0;
+
 /** Fold a game's consults into its report. Pure. A statistic with no sample
  *  behind it is LEFT OUT rather than reported as zero: "no search had a trace"
  *  and "every search took 0 ms" must not read the same. A number that is not
@@ -476,13 +490,21 @@ export function summarizeBotSearch(
     // Issue #10470 — the root visits the game's searches started from: a
     // kept subtree's. `completed + kept` is what the roots held.
     raw["iterations.kept"] = searches.reduce(
-        (sum, s) =>
-            sum +
-            (finite(s.iterationsKept) ? Math.max(0, s.iterationsKept) : 0),
+        (sum, s) => sum + keptVisits(s),
         0
     );
     if (requested > 0)
         raw["iterations.ratio"] = round(completed / requested, 3);
+    // Issue #10993 — the game's LOW tail, per search: the fresh iterations
+    // of a consult, and the root visits it held against the budget (fresh
+    // plus kept). The totals above are means; the owner's ruling that
+    // `expert` reaches its budget is about every search.
+    const freshIterations = searches.map((s) => s.iterationsCompleted);
+    const rootVisits = searches.map(
+        (s) => s.iterationsCompleted + keptVisits(s)
+    );
+    raw["iterations.p10"] = round(percentile(freshIterations, 10)!);
+    raw["rootVisits.p10"] = round(percentile(rootVisits, 10)!);
 
     // Issue #10472 — pondering: the game's iterations grown while the human
     // decided, the root visits they grew at the Bot's next decisions, and the
@@ -546,18 +568,21 @@ export function summarizeBotSearch(
     const probed = searches.filter(
         (s) => finite(s.rolloutProbes) && s.rolloutProbes > 0
     );
-    const probesPerIteration = percentile(
-        probed
-            .filter((s) => s.iterationsCompleted > 0)
-            .map((s) => s.rolloutProbes! / s.iterationsCompleted),
-        50
-    );
+    const probeRatios = probed
+        .filter((s) => s.iterationsCompleted > 0)
+        .map((s) => s.rolloutProbes! / s.iterationsCompleted);
+    const probesPerIteration = percentile(probeRatios, 50);
+    // Issue #10993 — the probe-heavy tail: does the game reach late boards?
+    const probesPerIterationP90 = percentile(probeRatios, 90);
     const msPerProbe = percentile(
         probed.map((s) => s.elapsedMs / s.rolloutProbes!),
         50
     );
     if (probesPerIteration !== undefined) {
         raw["probesPerIteration.p50"] = round(probesPerIteration, 1);
+    }
+    if (probesPerIterationP90 !== undefined) {
+        raw["probesPerIteration.p90"] = round(probesPerIterationP90, 1);
     }
     if (msPerProbe !== undefined) {
         raw["msPerProbe.p50"] = round(msPerProbe, 3);
