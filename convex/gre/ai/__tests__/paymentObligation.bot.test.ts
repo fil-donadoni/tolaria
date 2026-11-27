@@ -18,7 +18,7 @@ import {
     makePlayer,
     makeState,
 } from "../../../cards/__tests__/setup.helper";
-import type { GameState, DelayedTriggerInstance } from "../../state";
+import type { GameState, DelayedTriggerInstance, StackItem } from "../../state";
 import { forest } from "../../../cards/sets/lea/index.cards";
 import { getCardByName, registerTokenDefinition } from "../../../cards";
 import type { CardDefinition, EffectOp } from "../../../cards/types";
@@ -161,6 +161,20 @@ const library = (owner: string) =>
 
 /** The opponent's postcombat main, the Bot holding the instant with priority
  *  and `n` Forests. */
+/** A stack item of `defId`'s, cast or triggered by its controller. */
+function onStack(defId: string, overrides: Partial<StackItem>): StackItem {
+    const controller = overrides.controllerId ?? ME;
+    return {
+        ...makeInstance(defId, {
+            controllerId: controller,
+            ownerId: controller,
+            zone: "stack",
+        }),
+        castById: controller,
+        ...overrides,
+    };
+}
+
 function position(n: number): GameState {
     return makeState({
         turn: 4,
@@ -480,7 +494,7 @@ describe("holdsUnpayableLossObligation", () => {
             });
             state.players[0].battlefield = forests(n, tapped);
             state.stack = [
-                makeInstance(DRAW_THEN_OWE, {
+                onStack(DRAW_THEN_OWE, {
                     id: "fired-1",
                     controllerId: ME,
                     ownerId: ME,
@@ -501,7 +515,7 @@ describe("holdsUnpayableLossObligation", () => {
         // Another item of the payer's above it may add a source first.
         const withOwnSpell = fired(3);
         withOwnSpell.stack.push(
-            makeInstance(RAMP, {
+            onStack(RAMP, {
                 id: "ramp-1",
                 controllerId: ME,
                 ownerId: ME,
@@ -519,7 +533,7 @@ describe("holdsUnpayableLossObligation", () => {
                 phase: "UPKEEP",
             });
             state.stack = [
-                makeInstance(TEMPLATE_OWER, {
+                onStack(TEMPLATE_OWER, {
                     id: "fired-template-1",
                     controllerId: ME,
                     ownerId: ME,
