@@ -2834,9 +2834,14 @@ function isRevealRouteDestination(value: unknown): boolean {
 /** Where a `revealUntilMatch` Op may send the revealed cards other than the
  *  match (`RevealUntilRestDestination`): a `RevealRouteDestination`, or
  *  `"shuffleIntoLibrary"` — they stay in the library, shuffled once (CR
- *  701.24a). */
+ *  701.24a) — or `"libraryBottomRandom"` — they go to its bottom in a random
+ *  order (CR 401.4, issue #10561). */
 function isRevealUntilRestDestination(value: unknown): boolean {
-    return value === "shuffleIntoLibrary" || isRevealRouteDestination(value);
+    return (
+        value === "shuffleIntoLibrary" ||
+        value === "libraryBottomRandom" ||
+        isRevealRouteDestination(value)
+    );
 }
 
 /** The ordered `routes` list of a `revealTopAndRoute` Op: a non-empty list of
@@ -6469,7 +6474,17 @@ const OP_SCHEMAS: OpSchemaTable = {
         // Issue #2608 — the matching card's id, a PICKS binding whatever
         // `match` is (an id names the card in any zone; a snapshot's kind
         // would vary with the destination).
-        optional: { bind: bindingDeclaration("picks") },
+        // Issue #10561 — `matchCount` ("until you reveal TWO land cards") and
+        // `tapped` ("put those land cards onto the battlefield tapped").
+        optional: {
+            bind: bindingDeclaration("picks"),
+            matchCount: isPositiveInt,
+            tapped: isBoolean,
+        },
+        check: (entry) =>
+            "tapped" in entry && entry.match !== "battlefield"
+                ? ['field "tapped" is only valid with match: "battlefield"']
+                : [],
     },
     // CR 701.44 (issue #2376) — the Explore keyword action. ONE field: the
     // exploring permanent (`target`), an object selector like `counters`'
