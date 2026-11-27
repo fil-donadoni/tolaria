@@ -1,13 +1,13 @@
-// Issue #10972 — a blocker clicked into the awaiting set (issue #10373, CR
-// 509.1a: blockers are declared together) must wear its ring at once, and the
-// attacker click that follows must declare the block.
+// A blocker clicked into the awaiting set (CR 509.1a: the defending player
+// chooses the blockers, and for each one the attacker it blocks) must wear its
+// ring at once, and the attacker click that follows must declare the block
+// (issue #10972).
 //
 // The awaiting set is client-only state (`useAttackSequenceState`), so it never
-// changes `player.battlefield`. `BoardBattlefield` used to cache its card nodes
-// in a `useMemo` keyed on server state: the nodes kept the previous render's
-// ring AND click handler, so the ring never showed and the attacker click ran
-// a handler that saw no awaiting blocker — a no-op. In production nobody could
-// block (issue #10972, issue #10977).
+// changes `player.battlefield`. A card node cached on server state keeps the
+// previous render's ring AND click handler: the ring never shows and the
+// attacker click runs a handler that sees no awaiting blocker — a no-op, and
+// nobody can block.
 //
 // Unlike `board-combat.test.tsx`, this mounts the REAL sequence provider the
 // way `Board` does, so the awaiting set lives in React state and a click has to
@@ -239,7 +239,7 @@ describe("awaiting blockers re-render the battlefield (issue #10972, CR 509.1a)"
         expect(hasAwaitingRing(container, "blk1")).toBe(false);
     });
 
-    it("one blocker click then one attacker click declares the block (CR 509.1b)", async () => {
+    it("one blocker click then one attacker click declares the block (CR 509.1a)", async () => {
         const { container } = render(<BlockWindow />);
 
         fireEvent.click(slot(container, "blk1"));
