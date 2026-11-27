@@ -30028,10 +30028,27 @@ describe("Effect Script Op: loseAllAbilitiesWhileSourceRemains (CR 613.1f layer 
     });
 
     it("is a no-op (still resolves) when 'up to one' is declined — CR 608.2b", () => {
-        const { state, host } = makeScenario();
+        const { state, target, host } = makeScenario();
+        counteredAbilityOnStack(state, target.id);
         hostEtbOnStack(state, host);
         chooseHostTarget(state, null);
         expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(
+            state.players[1].battlefield.find(
+                (c) => c.id === "loseWhileTarget"
+            )!.staticAbilities
+        ).toContain("flying");
+    });
+
+    it("offers no choice when its own trigger is the only ability on the stack — CR 115.5", () => {
+        const { state, host } = makeScenario();
+        hostEtbOnStack(state, host);
+        const trigger = state.stack[state.stack.length - 1]!;
+        expect(raiseTriggerTargetSelection(state)).toBe(false);
+        expect(state.pendingTarget).toBeUndefined();
+        expect(trigger.targets).toEqual([]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.stack).toHaveLength(0);
         expect(
             state.players[1].battlefield.find(
                 (c) => c.id === "loseWhileTarget"

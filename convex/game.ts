@@ -549,6 +549,7 @@ import {
     manaGateBattlefields,
     manaGateStateView,
     resolvePendingTargetKind,
+    pendingTargetSelfStackItemId,
 } from "./gre/constants";
 import type { ManaTapPlanContext } from "./gre/constants";
 import {
@@ -11138,6 +11139,8 @@ function assertNewTargetLegal(
             sourceSubtypes: [],
             chooserId: playerId,
             activePlayerId: state.activePlayerId,
+            // CR 115.5 — the same self-exclusion the offered set applies.
+            targetingStackItemId: pendingTargetSelfStackItemId(pt),
         };
         const spellFilterViolation = checkSpellTargetFilters(
             spellFilterCtx,
