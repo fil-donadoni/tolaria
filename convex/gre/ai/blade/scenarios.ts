@@ -26007,9 +26007,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     card: "Jace, the Mind Sculptor",
                     ability: "jace-the-mind-sculptor-zero",
                 },
+                {
+                    kind: "activate-ability",
+                    card: "Jace, the Mind Sculptor",
+                    ability: "jace-the-mind-sculptor-plus2",
+                },
             ],
         },
-        note: "Issue #8271 — nothing to bounce.",
+        note: "Issue #8271 — nothing to bounce. Issue #10882 (owner verdict 2026-11-27): on an unthreatened board the 0 and the +2 are both acceptable; once the Brainstorm line is scored on the root clock the +2 wins by a hair.",
     },
     {
         label: "loyalty: Oko elks the opposing Craw Wurm",
