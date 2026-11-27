@@ -221,7 +221,8 @@ describe("fight clause (CR 701.14a)", () => {
         );
     });
 
-    // CR 701.14b — the other side may be "up to one": nothing chosen, no fight.
+    // CR 701.14b — the other side may be "up to one": with no second
+    // creature, neither fights or deals damage.
     it('reads "It fights up to one target creature" (Bridgeworks Battle)', () => {
         const outcome = compileCard(
             oracleCard({
