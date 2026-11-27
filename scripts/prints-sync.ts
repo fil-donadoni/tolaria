@@ -39,6 +39,15 @@
  *                 login (`seed:preset --prod`'s target) — the by-hand repair.
  *   --warn-only   a failure prints loudly and exits 0, for chains a red exit
  *                 would block for an unrelated reason (`dev`, a deploy).
+ *   --full        upsert every bucket, ignoring the stored bucket digests
+ *                 (and the `--if-stale` skip).
+ *
+ * Incremental (issue #10901): a write cuts each table's rows into stable
+ * buckets (`bucketRows`), reads the per-bucket digests the deployment last
+ * recorded (`cardPrints:bucketDigests`) and upserts only the buckets that
+ * differ, recording each bucket's digest after its batch landed. An empty
+ * table, no stored digests, an edited rarity override or `--full` owe every
+ * bucket.
  */
 
 import { readFileSync } from "node:fs";
@@ -46,12 +55,18 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import {
+    batchBuckets,
+    bucketRows,
     definitionSetDigest,
+    owedBuckets,
     deploymentPredatesSyncState,
     parsePrintsSyncArgs,
     printsSyncTarget,
     syncOwed,
+    type PrintsBucket,
+    type PrintsBucketTable,
     type PrintsPopulated,
+    type StoredBucketDigest,
 } from "./lib/prints-sync-run";
 import type { SeedTargetPlan } from "./lib/seed-preset-run";
 import { convexRunErrorMessage } from "./lib/convex-run-error";
@@ -121,13 +136,27 @@ function runWrite(
     plan: Required<SeedTargetPlan>,
     rows: readonly CardPrintRow[],
     definitionTokens: readonly DefinitionTokenRow[],
-    digest: string
+    digest: string,
+    salt: unknown,
+    full: boolean
 ): void {
-    upsertAll(plan, "cardPrints:upsertBatch", rows, "matched rows");
-    upsertAll(
+    const populated = readPopulated(plan);
+    upsertOwedBuckets(
         plan,
+        "cardPrints",
+        "cardPrints:upsertBatch",
+        bucketRows(rows, (r) => r.printId, salt),
+        populated.cardPrints,
+        full,
+        "matched rows"
+    );
+    upsertOwedBuckets(
+        plan,
+        "definitionTokenPrints",
         "cardPrints:upsertDefinitionTokensBatch",
-        definitionTokens,
+        bucketRows(definitionTokens, (r) => r.cardId, salt),
+        populated.definitionTokenPrints,
+        full,
         "definition token rows"
     );
     // Recorded only after BOTH upserts succeeded (each throws on a failed
@@ -164,49 +193,53 @@ function readPopulated(plan: Required<SeedTargetPlan>): PrintsPopulated {
     ) as PrintsPopulated;
 }
 
-function upsertAll(
+function upsertOwedBuckets<Row>(
     plan: Required<SeedTargetPlan>,
+    table: PrintsBucketTable,
     fn: string,
-    rows: readonly unknown[],
+    local: readonly PrintsBucket<Row>[],
+    tablePopulated: boolean,
+    full: boolean,
     what: string
 ): void {
-    const { cwd, flags } = plan;
+    const stored = JSON.parse(
+        convexRun(plan, "cardPrints:bucketDigests", { table })
+    ) as StoredBucketDigest[];
+    const owed = owedBuckets(local, stored, tablePopulated, full);
+    const total = local.reduce((n, b) => n + b.rows.length, 0);
+    let sent = 0;
     let inserted = 0;
     let patched = 0;
     let unchanged = 0;
-    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-        const batch = rows.slice(i, i + BATCH_SIZE);
-        const result = spawnSync(
-            "npx",
-            ["convex", "run", ...flags, fn, JSON.stringify({ rows: batch })],
-            { cwd, encoding: "utf8", timeout: 120_000 }
-        );
-        if (result.error || result.status !== 0) {
-            // `result.error` is a spawn-level failure (ENOENT, ETIMEDOUT on
-            // the 120s cap) with no stdout/stderr to parse — prefer its own
-            // message over `convexRunErrorMessage`'s generic fallback, same
-            // as `scripts/lib/seed-preset-run.ts`'s `seedPreset`.
-            const message = result.error
-                ? result.error.message
-                : convexRunErrorMessage(
-                      `${result.stderr ?? ""}${result.stdout ?? ""}`
-                  );
+    for (const batch of batchBuckets(owed, BATCH_SIZE)) {
+        const batchRows = batch.flatMap((b) => b.rows);
+        let parsed: { inserted: number; patched: number; unchanged: number };
+        try {
+            parsed = JSON.parse(
+                convexRun(plan, fn, { rows: batchRows })
+            ) as typeof parsed;
+        } catch (err) {
             throw new Error(
-                `prints-sync: batch at offset ${i} failed — ${message}`
+                `prints-sync: ${table} batch at row ${sent} failed — ${
+                    (err as Error).message
+                }`
             );
         }
-        const parsed = JSON.parse((result.stdout ?? "").trim()) as {
-            inserted: number;
-            patched: number;
-            unchanged: number;
-        };
+        // Only after the batch landed: an interrupted run leaves the rest of
+        // the owed buckets stale, and the next run resumes them.
+        convexRun(plan, "cardPrints:recordBucketDigests", {
+            table,
+            buckets: batch.map((b) => ({ bucket: b.bucket, digest: b.digest })),
+        });
+        sent += batchRows.length;
         inserted += parsed.inserted;
         patched += parsed.patched;
         unchanged += parsed.unchanged;
     }
     console.log(
-        `SYNC — inserted ${inserted}, patched ${patched}, unchanged ${unchanged} ` +
-            `(of ${rows.length} ${what}).`
+        `SYNC — ${table}: ${owed.length} of ${local.length} bucket(s) owed, ` +
+            `sent ${sent} of ${total} ${what}; inserted ${inserted}, ` +
+            `patched ${patched}, unchanged ${unchanged}.`
     );
 }
 
@@ -226,7 +259,7 @@ async function sync(
     const plan = target.cwd ? (target as Required<SeedTargetPlan>) : null;
     if (!args.dryRun) {
         if (!plan) throw new Error(target.error ?? "no deployment selected");
-        if (args.ifStale) {
+        if (args.ifStale && !args.full) {
             const populated = readPopulated(plan);
             if (deploymentPredatesSyncState(populated)) {
                 console.warn(
@@ -255,7 +288,14 @@ async function sync(
     );
 
     if (args.dryRun) return runDryRun(rows, definitionTokens);
-    return runWrite(plan!, rows, definitionTokens, digest);
+    return runWrite(
+        plan!,
+        rows,
+        definitionTokens,
+        digest,
+        overrides,
+        args.full
+    );
 }
 
 async function main(): Promise<void> {

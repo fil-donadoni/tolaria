@@ -1885,4 +1885,19 @@ export default defineSchema({
         definitionSetDigest: v.string(),
         syncedAt: v.number(),
     }),
+
+    // Per-bucket content digests of the last sync (issue #10901): the sync
+    // cuts each table's rows into stable buckets (a hash of `printId`, or of
+    // `cardId` for `definitionTokenPrints`) and upserts only the buckets
+    // whose digest differs from the one stored here, so a one-card change
+    // reads ~1/N of `cardPrints`. A few hundred tiny rows; written by
+    // `cardPrints:recordBucketDigests` only, after the bucket's upsert landed.
+    printsSyncBuckets: defineTable({
+        table: v.union(
+            v.literal("cardPrints"),
+            v.literal("definitionTokenPrints")
+        ),
+        bucket: v.number(),
+        digest: v.string(),
+    }).index("by_table_bucket", ["table", "bucket"]),
 });

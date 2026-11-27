@@ -235,7 +235,13 @@ only when both tables have rows AND the `printsSyncState` row holds the digest
 of the CURRENT definition set (`data/card-index.json` Card IDs + rarity
 overrides). A landed card changes the digest, so the next run syncs. (Before
 issue #7690 the flag was `--if-empty`, which skipped once the tables held any
-row: 64 definitions had lost their Token Prints.) Four places run it, all
+row: 64 definitions had lost their Token Prints.) A run that does sync is
+incremental (issue #10901): it cuts each table's rows into 256 buckets by a
+hash of `printId` (`cardId` for `definitionTokenPrints`), compares each
+bucket's content digest with the one stored in `printsSyncBuckets`, and
+upserts only the buckets that differ, recording a bucket's digest after its
+batch lands (an interrupted run resumes the rest). An empty table, no stored
+digests or an edited rarity override owe every bucket. Four places run it, all
 through `bun scripts/prints-sync.ts`:
 
 - **Local deployment, at start**: `bun run dev` runs `bun run prints:ensure`
@@ -254,8 +260,9 @@ through `bun scripts/prints-sync.ts`:
   write. Failure is loud in the build log but does not red the deploy.
 - **By hand**: `bun run prints:sync` (local) or
   `bun scripts/prints-sync.ts --prod` (production through your Convex CLI
-  login; refuses when a deploy key is in the shell). Both sync
-  unconditionally and record the digest.
+  login; refuses when a deploy key is in the shell). Both skip the
+  `--if-stale` check, sync the owed buckets and record the digest; `--full`
+  also ignores the stored bucket digests and upserts every row.
 - `--dry-run` builds the rows and writes nothing.
 
 ### The RED path: the fix loop
