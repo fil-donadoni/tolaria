@@ -163,16 +163,50 @@ export interface EnteredTriggerArgs {
     aiEffects?: EffectOp[];
 }
 
+/** Whether a JSON-shaped node mentions the `$source` binding anywhere. */
+function mentionsSource(node: unknown): boolean {
+    if (node === "$source") return true;
+    if (Array.isArray(node)) return node.some(mentionsSource);
+    if (node === null || typeof node !== "object") return false;
+    return Object.values(node).some(mentionsSource);
+}
+
 /** Does any body of this trigger — its script, its shadow script or a mode's
- *  script — carry a `delayedTrigger` Op, at any nesting depth (issue #4758)? */
-function schedulesDelayedTrigger(args: EnteredTriggerArgs): boolean {
+ *  script — schedule, at any nesting depth, a delayed trigger (CR 603.7a)
+ *  whose pending consequence belongs to the entering permanent (issue #4758)?
+ *
+ *  Such a delayed trigger keeps its ETB realized, because what it will do
+ *  still shows nowhere in the state the evaluation reads: one anchored to the
+ *  source itself (Dash's return, a cleanup-step sacrifice of `$source`), or
+ *  to no object at all (a draw at the next upkeep). One whose `watch` and
+ *  `capture` name only OTHER objects is not: what it did and waits on stands
+ *  on those objects (the land an earthbend animated, on the board; a card a
+ *  flicker exiled, priced by `pendingBattlefieldReturns`), so the ETB that
+ *  scheduled it is spent like any other, and counting it on the source too
+ *  would price it twice. */
+function schedulesSourcePendingDelayedTrigger(
+    args: EnteredTriggerArgs
+): boolean {
     const bodies: unknown[] = [args.effects, args.aiEffects].concat(
         (args.modes ?? []).map((m) => m.effects)
     );
     const walk = (node: unknown): boolean => {
         if (Array.isArray(node)) return node.some(walk);
         if (node === null || typeof node !== "object") return false;
-        if ((node as { op?: unknown }).op === "delayedTrigger") return true;
+        const op = node as {
+            op?: unknown;
+            watch?: unknown;
+            capture?: Record<string, unknown>;
+        };
+        if (op.op === "delayedTrigger") {
+            const anchors = [
+                op.watch,
+                ...Object.values(op.capture ?? {}),
+            ].filter((a) => a !== undefined);
+            if (anchors.length === 0 || anchors.some(mentionsSource)) {
+                return true;
+            }
+        }
         return Object.values(node).some(walk);
     };
     return walk(bodies);
@@ -203,10 +237,12 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
         // ability on the entering event alone is an ETB Ability, spent on
         // entering. Every other scope fires on another permanent and stays
         // realized — and so does a self ETB that SCHEDULES a delayed trigger
-        // (CR 603.7a, Dash's return), whose consequence is still pending
-        // after it resolves and shows nowhere in the state the evaluation
-        // reads.
-        etbAbility: args.scope === "self" && !schedulesDelayedTrigger(args),
+        // (CR 603.7a, Dash's return) on its own source or on no object, whose
+        // consequence is still pending after it resolves and shows nowhere in
+        // the state the evaluation reads.
+        etbAbility:
+            args.scope === "self" &&
+            !schedulesSourcePendingDelayedTrigger(args),
         matches: (event, self, state) => {
             if (event.type !== "PERMANENT_ENTERED") return false;
             const identity = {
