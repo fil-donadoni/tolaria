@@ -49,8 +49,10 @@
 //     hand: add mana); a permanent whose activated ability puts a card onto
 //     the battlefield (a fetchland: moving a card out of the library makes
 //     it no mana ability, CR 605.1a, but it nets an untapped land before the
-//     payment). Nothing else adds a source: the draw step comes AFTER the
-//     upkeep (CR 501.1), so no card reaches the hand first;
+//     payment). The draw step comes AFTER the upkeep (CR 501.1), so no
+//     card reaches the hand first. Read from DATA only: a `resolve()`-only
+//     fetch or ramp, an untapper, and (fired) mana already floating in the
+//     pool are not seen — no catalogue card hits these today;
 //   * a creature that is summoning sick now is not at the upkeep: the payer
 //     has controlled it continuously since their turn began (CR 302.6);
 //   * only a mana-only cost — a life or permanent leg is not read here —

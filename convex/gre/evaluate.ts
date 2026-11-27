@@ -2853,7 +2853,8 @@ function valueFromMargin(
     // the engine records it (`holdsUnpayableLossObligation`). Read here, in
     // the shared leaf, so the rollout policy's one-ply probe (which resolves
     // the cast that queues it) and a leaf cut before the upkeep both see it.
-    // Exactly zero with no delayed trigger queued.
+    // Exactly zero with no delayed trigger queued and none fired onto the
+    // stack.
     const oppBound = holdsUnpayableLossObligation(state, opp.id);
     const meBound = holdsUnpayableLossObligation(state, me.id);
     if (oppBound && !meBound) return weights.winScore + margin;
