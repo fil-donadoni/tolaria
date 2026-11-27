@@ -3,7 +3,6 @@ import { useMemo } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useBattlefieldInteractionHook } from "~/hooks/useBattlefieldInteractionContext";
-import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { isCreature, isLand } from "~/lib/card-utils";
 import {
@@ -247,14 +246,6 @@ export default function BoardBattlefield({
         }
         return onBattlefield.size > 0 ? onBattlefield : undefined;
     }, [recentArrivals, player.battlefield]);
-    // The client-side choice buffer (a `choose-permanents` selection) is local
-    // React state — it does NOT mutate `player.battlefield`, unlike combat /
-    // targeting which change server state and thus the card references. So a
-    // buffer toggle alone would not invalidate the `orderedItems` memo below,
-    // and the cached card nodes (with their baked-in `getVisualState` result)
-    // would keep the stale pre-selection ring. Depend on the buffer so a pick
-    // recomputes the nodes and the emerald selection ring appears.
-    const { buffer: choiceBuffer } = usePendingChoiceBuffer();
 
     // Every permanent on either battlefield, by id — the "does this attachment's
     // host still exist?" oracle. An attachment whose host exists folds into that
@@ -492,15 +483,26 @@ export default function BoardBattlefield({
     // layout closure below can place each row. The back row is ordered lands
     // first, then other noncreature permanents — lands cluster left, others
     // right (a two-block split row).
+    //
+    // No hand-written memo here (issue #10972): the React Compiler memoizes
+    // the grouping on what it actually reads. The card nodes below bake in
+    // `getVisualState` and the click handler, which read client-only state
+    // (the choice buffer, the awaiting-blocker and awaiting-attack-target sets)
+    // that never changes `player.battlefield`. A `useMemo` keyed on server
+    // state cached those nodes, so a blocker clicked into the awaiting set
+    // showed no ring and the attacker click that should have assigned it ran
+    // the previous render's handler, which saw no awaiting blocker: a no-op.
     const {
-        orderedItems,
-        creatureCount,
-        landCount,
-        otherCount,
+        creatureGroups,
+        landGroups,
+        otherGroups,
+        phasedCreatures,
+        phasedLands,
+        phasedOthers,
         creatureWidths,
         landWidths,
         otherWidths,
-    } = useMemo(() => {
+    } = (() => {
         const creatures: CardInstance[] = [];
         const lands: CardInstance[] = [];
         const others: CardInstance[] = [];
@@ -568,29 +570,13 @@ export default function BoardBattlefield({
         }
         const singleWidths = (cards: CardInstance[]) =>
             cards.map(() => stackFootprintWidth(1, compact?.cardWidth));
-        const creatureItems = [
-            ...creatureGroups.map(groupToItem),
-            ...phasedCreatures.map(renderPhasedCard),
-        ];
-        const landItems = [
-            ...landGroups.map(groupToItem),
-            ...phasedLands.map(renderPhasedCard),
-        ];
-        const otherItems = [
-            ...otherGroups.map(groupToItem),
-            ...phasedOthers.map(renderPhasedCard),
-        ];
-        // Order: creatures, then back row = lands (left block) then others (right).
-        const ordered: SpatialItem[] = [
-            ...creatureItems,
-            ...landItems,
-            ...otherItems,
-        ];
         return {
-            orderedItems: ordered,
-            creatureCount: creatureItems.length,
-            landCount: landItems.length,
-            otherCount: otherItems.length,
+            creatureGroups,
+            landGroups,
+            otherGroups,
+            phasedCreatures,
+            phasedLands,
+            phasedOthers,
             creatureWidths: [
                 ...widthsOf(creatureGroups),
                 ...singleWidths(phasedCreatures),
@@ -601,22 +587,29 @@ export default function BoardBattlefield({
                 ...singleWidths(phasedOthers),
             ],
         };
-        // `groupToItem`/`renderCard` close over the per-render interaction
-        // handlers; they are intentionally recomputed each render (cheap) —
-        // the heavy grouping deps are the battlefield and host set.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [
-        player.battlefield,
-        attackKeyOf,
-        hostExistsAnywhere,
-        attachedAurasByHost,
-        stackingDisabled,
-        choiceBuffer,
-        myPhasedCards,
-        arrivalDeferIds,
-        compact?.cardWidth,
-        rowClassifier,
-    ]);
+    })();
+
+    // Order: creatures, then back row = lands (left block) then others (right).
+    const creatureItems = [
+        ...creatureGroups.map(groupToItem),
+        ...phasedCreatures.map(renderPhasedCard),
+    ];
+    const landItems = [
+        ...landGroups.map(groupToItem),
+        ...phasedLands.map(renderPhasedCard),
+    ];
+    const otherItems = [
+        ...otherGroups.map(groupToItem),
+        ...phasedOthers.map(renderPhasedCard),
+    ];
+    const orderedItems: SpatialItem[] = [
+        ...creatureItems,
+        ...landItems,
+        ...otherItems,
+    ];
+    const creatureCount = creatureItems.length;
+    const landCount = landItems.length;
+    const otherCount = otherItems.length;
 
     // One full-height zone; the layout stacks the creature row (centered) over
     // the back row (lands flush-left, other noncreatures flush-right) so nothing
