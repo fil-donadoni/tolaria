@@ -18228,6 +18228,72 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #5363. The discriminating twin of the entry above: hand-relative, the same Trinisphere reads zero when every known spell already costs three or more.",
     },
     {
+        // COST-MODIFIER PRICING on a CREATURE source (CR 601.2f, issue
+        // #10820). Thalia, Guardian of Thraben ("noncreature spells cost {1}
+        // more") beside a Youthful Knight: the SAME 2/1 first-strike body at
+        // the same mana value, so the one difference between the two Bolt
+        // targets is the tax. The bot's hand and land-free library are Lava
+        // Spikes on two Mountains: with Thalia gone it casts two a turn, with
+        // her standing one. Bolting the Knight kills an identical body and
+        // leaves the tax; the tax is the point, nothing else separates them.
+        label: "cost-modifier pricing: Lightning Bolt takes Thalia taxing the bot's deck of noncreature one-drops, not the identical Youthful Knight (issue #10820)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "The bot's hand and land-free library are noncreature one-drops, each taxed from one mana to two, on a mana base that stays at two.",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Mountain",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Lava Spike",
+                    owner: "me" as const,
+                    zone: "hand" as const,
+                })),
+                { name: "Lava Spike", owner: "me", zone: "library", count: 20 },
+                {
+                    name: "Thalia, Guardian of Thraben",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Youthful Knight",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "opp", zone: "library", count: 20 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 0,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Lightning Bolt",
+                    target: "Thalia, Guardian of Thraben",
+                },
+            ],
+        },
+        note: "Issue #10820. Guards `costModifierStandingWorth` on a creature source: Thalia's tax on the bot's noncreature hand and deck rides `permanents` beside her body, so the identical Youthful Knight is the worse Bolt.",
+    },
+    {
         // Issue #5163 (ADR 0151) — a SYMMETRIC lock read by Differential
         // Reading. The bot holds Disenchant with five Plains against two
         // Mountains, a Winter Orb and a Tawnos's Weaponry (a 2-MV artifact

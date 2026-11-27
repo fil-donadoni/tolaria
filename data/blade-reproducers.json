@@ -1077,6 +1077,70 @@
         "landCount": 0,
         "libraryCount": 0
     },
+    "cost-modifier pricing: Lightning Bolt takes Thalia taxing the bot's deck of noncreature one-drops, not the identical Youthful Knight (issue #10820)": {
+        "cards": [
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Lava Spike",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Lava Spike",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Lava Spike",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Lava Spike",
+                "owner": "me",
+                "zone": "library",
+                "count": 20
+            },
+            {
+                "name": "Thalia, Guardian of Thraben",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Youthful Knight",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "library",
+                "count": 20
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 8,
+        "landCount": 0,
+        "libraryCount": 0
+    },
     "cost-modifier pricing: with a hand of five-drops Trinisphere does not tax, Disenchant takes the 2-MV artifact (issue #5363)": {
         "cards": [
             {
