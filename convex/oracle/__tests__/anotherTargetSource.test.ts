@@ -602,14 +602,22 @@ describe('"another target" on a trigger — refusals (CR 603.3d)', () => {
         );
     });
 
-    it('refuses "it" returned behind a head naming the source (CR 608.2h)', () => {
-        // "that card" cannot be the permanent the head named; "it" can.
-        expect(
-            refusalReasons(
-                "Pronoun Probe",
-                "When this creature enters, exile another target permanent. Return it to the battlefield under its owner's control at the beginning of the next end step."
-            )
-        ).toMatch(/names no single object announced/);
+    it('reads "it" returned TO THE BATTLEFIELD behind a head naming the source as the exiled card (CR 608.2c)', () => {
+        // The head's permanent is already on the battlefield, so the only
+        // object "Return it to the battlefield" can name is the card the
+        // exile made of the target — the delayed return captures its bind.
+        const effects = compiled(
+            oracleCard({
+                name: "Pronoun Probe",
+                oracleText:
+                    "When this creature enters, exile another target permanent. Return it to the battlefield under its owner's control at the beginning of the next end step.",
+            })
+        ).compiledTriggeredAbilities?.[0]?.effects;
+        expect(effects?.[0]).toMatchObject({ op: "exile", bind: "$that1" });
+        expect(effects?.[1]).toMatchObject({
+            op: "delayedTrigger",
+            capture: { $c: { ref: "$that1" } },
+        });
     });
 
     it('refuses "that card" returned to a hand behind the same head (CR 608.2h)', () => {

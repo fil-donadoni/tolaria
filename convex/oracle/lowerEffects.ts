@@ -13,6 +13,7 @@
  * What is here is exactly what both have.
  */
 
+import { SOURCE_CHOSEN_X_ON_CAST_REF } from "../gre/effects/targetRef";
 import {
     lowerUnlessPayment,
     unlessPaymentPrompt,
@@ -139,6 +140,13 @@ export function unlowerable<T>(reason: string): Lowered<T> {
 export interface SiteOptions {
     /** CR 107.3 — the source announces a value for {X} (it has an `{X}` pip). */
     readonly allowX: boolean;
+    /**
+     * CR 107.3m — the site is its card's OWN enters-the-battlefield trigger
+     * and the card's mana cost prints {X}: an X in an amount is the X the
+     * spell that became the source was cast with, read off the source
+     * permanent (`$source.chosenXOnCast`), never an X this ability announces.
+     */
+    readonly sourceCastX?: true;
     /** CR 113.6b — the ability being lowered functions from the graveyard. */
     readonly functionsFromGraveyard?: boolean;
     /**
@@ -396,6 +404,8 @@ function lowerAmount(
             `a ${amount.kind} amount is read only at a life-change site`
         );
     if (site.paidBind !== undefined) return lowered({ ref: site.paidBind });
+    if (site.sourceCastX === true)
+        return lowered({ ref: SOURCE_CHOSEN_X_ON_CAST_REF });
     return site.allowX
         ? lowered({ X: true })
         : unlowerable(
@@ -648,6 +658,20 @@ function lowerCounterAmount(
 
 /** CR 110.4a — the card types "that permanent" can name. */
 const ACTED_ON_PERMANENT_TYPES: ReadonlySet<string> = new Set(PERMANENT_TYPES);
+
+/**
+ * CR 110.4 — "permanent card": the list naming EVERY permanent card type, and
+ * only those. A shorter list is ambiguous here — "artifact creature card" and
+ * "artifact or enchantment card" announce the same shape — but no card stacks
+ * all six types as adjectives, so the full list is the "permanent" noun's OR
+ * and each card it admits can enter the battlefield.
+ */
+function namesEveryPermanentType(types: readonly string[]): boolean {
+    return (
+        types.length === ACTED_ON_PERMANENT_TYPES.size &&
+        types.every((type) => ACTED_ON_PERMANENT_TYPES.has(type))
+    );
+}
 
 /** The phrase a noun was printed as, for a refusal a reader can find. */
 const ACTED_ON_PHRASE: Readonly<Record<ActedOnNounIR, string>> = {
@@ -2048,6 +2072,18 @@ function damageTarget(
         const player = playerRef(subject.player, slots, site);
         return player.ok ? lowered({ player: player.value }) : player;
     }
+    // CR 115.1 + CR 120.1 — "deals N damage to target player / opponent":
+    // the recipient is a PLAYER announced as a target, which no object
+    // selector names (CR 109.1). The slot is the player slot the "target
+    // player" player reference announces, read as `{ player: { target } }`.
+    if (
+        subject.kind === "target" &&
+        subject.requirement.type === "player" &&
+        subject.requirement.count === 1
+    ) {
+        const index = slots.allocate(subject.requirement);
+        return index.ok ? lowered({ player: { target: index.value } }) : index;
+    }
     return objectSelector(subject, slots, site, "damage");
 }
 
@@ -2069,7 +2105,11 @@ export function lowerSentence(
             announcedCreatureSite(
                 sentence,
                 walk,
-                introducedCreatureSite(sentence, walk, site)
+                announcedPronounSite(
+                    sentence,
+                    walk,
+                    introducedCreatureSite(sentence, walk, site)
+                )
             )
         )
     );
@@ -2191,6 +2231,63 @@ function announcedCreatureSite(
             creatureAfterSlots: 1,
         },
     };
+}
+
+/**
+ * CR 608.2c — a sentence reading "it" after an EARLIER sentence announced ONE
+ * permanent target names THAT target ("Target creature gets +1/+3 until end
+ * of turn. Untap it."): read with the rules of English, the target is the
+ * nearer antecedent than anything the site's head named. Rebound for that
+ * sentence only, and only while the target is the sole candidate and still
+ * where its slot points: a creature an earlier sentence put onto the
+ * battlefield is nearer (`introduced`), a destroy, exile or move of the
+ * target made it a new object or none (CR 400.7, `actedOn`), a removal behind
+ * a gate left its fate unknown, and a player, spell or card slot is no
+ * permanent for "it" to act on (CR 109.1, CR 110.1). Each of those leaves the
+ * site as it was, so the pronoun stays refused rather than bound to a guess.
+ */
+function announcedPronounSite(
+    sentence: EffectSentenceIR,
+    walk: SentenceWalk,
+    site: SiteOptions
+): SiteOptions {
+    if (
+        walk.introduced !== null ||
+        walk.actedOn !== null ||
+        walk.gatedRemoval ||
+        !mentionsPronoun(sentence) ||
+        soleAnnouncedPermanent(walk) === null
+    )
+        return site;
+    return { ...site, pronounNamesAnnouncedTarget: true };
+}
+
+/**
+ * CR 608.2c — the ONE permanent target the script has announced (exactly one,
+ * or "up to one"): the referent of a later sentence's "it". Null when the
+ * walk announced anything else.
+ */
+function soleAnnouncedPermanent(walk: SentenceWalk): TargetRequirement | null {
+    const announced = walk.targets.requirements();
+    const only = announced.length === 1 ? announced[0]! : null;
+    if (
+        only === null ||
+        !namesAtMostOneObject(only.count) ||
+        only.announcedOnlyIfKicked === true ||
+        announcedTypes(only).some(
+            (type) => type === "spell" || type === "spell-or-permanent"
+        ) ||
+        slotReachRefusal(only, "battlefield") !== null
+    )
+        return null;
+    return only;
+}
+
+/** True when a pronoun (`it`) subject sits anywhere in the sentence's IR. */
+function mentionsPronoun(node: unknown): boolean {
+    if (typeof node !== "object" || node === null) return false;
+    if ((node as { kind?: unknown }).kind === "pronoun") return true;
+    return Object.values(node).some(mentionsPronoun);
 }
 
 /**
@@ -3026,19 +3123,30 @@ function lowerSentenceBody(
                     duration: durationSpec(sentence.duration),
                 },
             ]);
-        // CR 701.14a — two creatures fight. Each side is a single creature
-        // target; the ability's own source ("this creature fights …") is a
-        // form with no fixture yet, and a mass or player side is no fight.
+        // CR 701.14a — two creatures fight. Each side is ONE creature: a
+        // creature target ("up to one" included — CR 701.14b, a side never
+        // chosen is no creature, so neither fights), or, on the instructed
+        // side, the ability's own source ("This creature fights …", and the
+        // "it" a head names as the source). A mass or player side is no fight.
         case "fight": {
-            for (const side of [sentence.creature, sentence.other])
-                if (
-                    side.kind !== "target" ||
-                    side.requirement.type !== "Creature" ||
-                    side.requirement.count !== 1
-                )
-                    return unlowerable(
-                        "a fight is read between a single creature target on each side (CR 701.14a)"
-                    );
+            const oneCreatureTarget = (side: SubjectIR): boolean =>
+                side.kind === "target" &&
+                side.requirement.type === "Creature" &&
+                namesAtMostOneObject(side.requirement.count);
+            const sourceSide =
+                sentence.creature.kind === "self" ||
+                // …unless "it" names an announced target instead, which no
+                // check here has proven a creature.
+                (sentence.creature.kind === "pronoun" &&
+                    pronounIsSource(site) &&
+                    site.pronounNamesAnnouncedTarget !== true);
+            if (
+                !(sourceSide || oneCreatureTarget(sentence.creature)) ||
+                !oneCreatureTarget(sentence.other)
+            )
+                return unlowerable(
+                    "a fight is read between a single creature target on each side (CR 701.14a)"
+                );
             const creature = objectSelector(sentence.creature, slots, site);
             if (!creature.ok) return creature;
             const other = objectSelector(sentence.other, slots, site);
@@ -4641,12 +4749,11 @@ function lowerSentenceBody(
                 // CR 608.2h — "it" / "that card" is the ONE announced object.
                 const announced = slots.requirements();
                 const actedOn = walk.actedOn;
-                // "that card" returned to the battlefield is the card the
-                // exile below made of the target, never the permanent a head
-                // named, so only "it" is ambiguous behind such a head.
-                const namesExiledCard =
-                    sentence.printedThatCard === true &&
-                    sentence.destination === "battlefield";
+                // Returned TO THE BATTLEFIELD, the referent is a card the
+                // exile below made of the target ("that card", or "it"),
+                // never a permanent a head named — that one is already on
+                // the battlefield, so a head's object is no candidate there.
+                const namesExiledCard = sentence.destination === "battlefield";
                 if (
                     announced.length !== 1 ||
                     walk.gatedRemoval ||
@@ -8444,8 +8551,9 @@ function lowerMoveZone(
         subject.requirement.zone === "graveyard" &&
         subject.requirement.controller === "you" &&
         subject.requirement.count === 1 &&
-        typeof subject.requirement.type === "string" &&
-        ACTED_ON_PERMANENT_TYPES.has(subject.requirement.type);
+        (typeof subject.requirement.type === "string"
+            ? ACTED_ON_PERMANENT_TYPES.has(subject.requirement.type)
+            : namesEveryPermanentType(subject.requirement.type));
     const each = (
         to: "hand" | "graveyard" | "exile" | "battlefield"
     ): Lowered<EffectOp[]> =>
@@ -8468,8 +8576,11 @@ function lowerMoveZone(
     // is the 1-based `position: 1` that `moveZone` ships (Teferi, Oust). One
     // announced object only: N objects put on top at once need the owner's
     // chosen order, which a sequence of single Ops does not give.
+    // CR 601.2c — "up to one" is still one object: a slot left unfilled was
+    // never a target, so its op finds nothing and does nothing.
     const oneObject =
-        (subject.kind === "target" && subject.requirement.count === 1) ||
+        (subject.kind === "target" &&
+            namesAtMostOneObject(subject.requirement.count)) ||
         subject.kind === "self" ||
         subject.kind === "pronoun" ||
         subject.kind === "that-creature";
@@ -8484,12 +8595,18 @@ function lowerMoveZone(
             subject.requirement.zone === "graveyard") ||
         ((subject.kind === "self" || subject.kind === "pronoun") &&
             site.antecedents?.card !== undefined);
-    if (
+    // CR 400.3 — "on top of / on the bottom of YOUR library" is its owner's
+    // library exactly when the card is yours: a card in YOUR graveyard is
+    // (CR 404.1, the `yourHand` argument above), so the pair reads as the
+    // owner's library there and nowhere else.
+    const ownersLibrary =
         zone.zone === "library" &&
-        zone.owner === "its-owner" &&
-        zone.position === "top" &&
-        oneObject
-    )
+        (zone.owner === "its-owner" ||
+            (zone.owner === "you" &&
+                subject.kind === "target" &&
+                subject.requirement.zone === "graveyard" &&
+                subject.requirement.controller === "you"));
+    if (ownersLibrary && zone.position === "top" && oneObject)
         return lowered(
             targets.value.map((target) =>
                 maybeInGraveyard
@@ -8500,12 +8617,7 @@ function lowerMoveZone(
     // CR 401.2 — "on the bottom of its owner's library": `"bottom"` is the
     // position the battlefield leg takes; a graveyard-sourced card is pushed,
     // which bottoms it, so the position is written only for a permanent.
-    if (
-        zone.zone === "library" &&
-        zone.owner === "its-owner" &&
-        zone.position === "bottom" &&
-        oneObject
-    )
+    if (ownersLibrary && zone.position === "bottom" && oneObject)
         return lowered(
             targets.value.map((target) =>
                 subject.kind === "target" &&

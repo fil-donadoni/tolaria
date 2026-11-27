@@ -84,9 +84,10 @@ describe("fight clause (CR 701.14a)", () => {
         expect(outcome.gaps[0]!.reason).toMatch(/single creature target/);
     });
 
-    // No graduated card prints the source as a combatant, so the form has no
-    // fixture and stays refused (ADR 0105 § 2) until one does.
-    it('refuses "this creature fights" — the source as a combatant has no fixture', () => {
+    // CR 701.14a — the ability's own source is the instructed side ("This
+    // creature fights …", issue #10351): `$source`, which the fight Op and its
+    // CR 701.14b battlefield check already read.
+    it('reads "this creature fights" — the source as the instructed combatant', () => {
         const outcome = compileCard(
             oracleCard({
                 name: "Test Brawler",
@@ -95,9 +96,15 @@ describe("fight clause (CR 701.14a)", () => {
                 oracleText: "{1}{G}: This creature fights target creature.",
             })
         );
-        expect(outcome.state).toBe("unparsed");
-        if (outcome.state !== "unparsed") return;
-        expect(outcome.gaps[0]!.reason).toMatch(/single creature target/);
+        expect(outcome.state).not.toBe("unparsed");
+        if (outcome.state === "unparsed") return;
+        expect(outcome.definition.activatedAbilities?.[0]?.effects).toEqual([
+            {
+                op: "fight",
+                creature: { ref: "$source" },
+                other: { target: 0 },
+            },
+        ]);
     });
 
     it("refuses a player combatant — a fight is between creatures", () => {

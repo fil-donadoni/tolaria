@@ -19398,4 +19398,245 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Creature", count: 1 },
         },
     },
+    // CR 400.3 — "Put target card from your graveyard on top of your library": a card in YOUR graveyard is yours (CR 404.1), so "your library" is its owner's, and the graveyard card goes on top through `to: "library-top"` (a `moveZone` on an announced graveyard slot the canned generator does not model).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "797155cd-faf4-4321-8629-c8c352392748",
+            name: "Reclaim",
+            manaCost: "{G}",
+            typeLine: "Instant",
+            oracleText:
+                "Put target card from your graveyard on top of your library.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Reclaim",
+            types: ["Instant"],
+            manaCost: { G: 1 },
+            oracleText:
+                "Put target card from your graveyard on top of your library.",
+            effects: [
+                { op: "moveZone", target: { target: 0 }, to: "library-top" },
+            ],
+            targetRequirement: {
+                type: "card",
+                count: 1,
+                zone: "graveyard",
+                controller: "you",
+            },
+        },
+    },
+    // CR 107.3m — the same cast-X read, as a draw count.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "c7530ecd-e22f-41e7-a76b-de32809901c8",
+            name: "Gadwick, the Wizened",
+            manaCost: "{X}{U}{U}{U}",
+            typeLine: "Legendary Creature — Human Wizard",
+            oracleText:
+                "When Gadwick enters, draw X cards.\nWhenever you cast a blue spell, tap target nonland permanent an opponent controls.",
+            power: "3",
+            toughness: "3",
+            layout: "normal",
+        },
+        expected: {
+            name: "Gadwick, the Wizened",
+            types: ["Creature"],
+            supertypes: ["Legendary"],
+            subtypes: ["Human", "Wizard"],
+            manaCost: { X: "X", U: 3 },
+            power: 3,
+            toughness: 3,
+            oracleText:
+                "When Gadwick enters, draw X cards.\nWhenever you cast a blue spell, tap target nonland permanent an opponent controls.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "gadwick-the-wizened-trigger",
+                    oracleText: "When Gadwick enters, draw X cards.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "draw",
+                            player: "controller",
+                            count: { ref: "$source.chosenXOnCast" },
+                        },
+                    ],
+                },
+                {
+                    id: "gadwick-the-wizened-trigger-2",
+                    oracleText:
+                        "Whenever you cast a blue spell, tap target nonland permanent an opponent controls.",
+                    head: {
+                        kind: "spell-cast",
+                        scope: "you",
+                        filter: { colors: ["U"] },
+                    },
+                    targetRequirement: {
+                        type: [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker",
+                        ],
+                        count: 1,
+                        excludeTypes: ["Land"],
+                        controller: "opponent",
+                    },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: { target: 0 },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 107.3m — the same cast-X read, as a damage amount to an announced target.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "4a37f4a0-2869-4f81-b51b-4c3e7e0e0671",
+            name: "Ajani's Anguish",
+            manaCost: "{X}{R}",
+            typeLine: "Enchantment",
+            oracleText:
+                "When this enchantment enters, it deals X damage to any target.\nCreatures you control have trample.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Ajani's Anguish",
+            types: ["Enchantment"],
+            manaCost: { X: "X", R: 1 },
+            oracleText:
+                "When this enchantment enters, it deals X damage to any target.\nCreatures you control have trample.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "ajani-s-anguish-trigger",
+                    oracleText:
+                        "When this enchantment enters, it deals X damage to any target.",
+                    head: { kind: "entered", scope: "self" },
+                    targetRequirement: { type: "any", count: 1 },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: { ref: "$source.chosenXOnCast" },
+                            to: { target: 0 },
+                        },
+                    ],
+                },
+            ],
+            compiledStaticEffects: [
+                {
+                    kind: "keyword-grant",
+                    filter: { types: ["Creature"], controllerRelation: "you" },
+                    keyword: "trample",
+                },
+            ],
+        },
+    },
+    // CR 107.3m — the card's own enters trigger reads the X its spell was cast with off the source (`$source.chosenXOnCast`), an amount the canned run cannot know. The exile-top form.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "3c5c227a-335b-4995-9821-d4269a0a233a",
+            name: "Hugs, Grisly Guardian",
+            manaCost: "{X}{R}{R}{G}{G}",
+            typeLine: "Legendary Creature — Badger Warrior",
+            oracleText:
+                "Trample\nWhen Hugs enters, exile the top X cards of your library. Until the end of your next turn, you may play those cards.\nYou may play an additional land on each of your turns.",
+            power: "5",
+            toughness: "5",
+            layout: "normal",
+        },
+        expected: {
+            name: "Hugs, Grisly Guardian",
+            types: ["Creature"],
+            supertypes: ["Legendary"],
+            subtypes: ["Badger", "Warrior"],
+            manaCost: { X: "X", R: 2, G: 2 },
+            power: 5,
+            toughness: 5,
+            oracleText:
+                "Trample\nWhen Hugs enters, exile the top X cards of your library. Until the end of your next turn, you may play those cards.\nYou may play an additional land on each of your turns.",
+            staticAbilities: ["trample"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "hugs-grisly-guardian-trigger",
+                    oracleText:
+                        "When Hugs enters, exile the top X cards of your library. Until the end of your next turn, you may play those cards.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "exileTopOfLibrary",
+                            player: "controller",
+                            count: { ref: "$source.chosenXOnCast" },
+                            bindAll: "$exiled1",
+                        },
+                        {
+                            op: "grantCastFromExile",
+                            card: { ref: "$exiled1" },
+                            player: "controller",
+                            window: "until-end-of-your-next-turn",
+                            includesLand: true,
+                        },
+                    ],
+                },
+            ],
+            extraLandDrops: 1,
+        },
+    },
+    // CR 107.3m — the same cast-X read, as damage to a target PLAYER (CR 115.1, a `{ player: { target } }` recipient).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "273ad15c-366a-4691-978b-d6028b57005a",
+            name: "Morlun, Devourer of Spiders",
+            manaCost: "{X}{B}{B}",
+            typeLine: "Legendary Creature — Vampire Villain",
+            oracleText:
+                "Lifelink\nMorlun enters with X +1/+1 counters on him.\nWhen Morlun enters, he deals X damage to target opponent.",
+            power: "2",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Morlun, Devourer of Spiders",
+            types: ["Creature"],
+            supertypes: ["Legendary"],
+            subtypes: ["Vampire", "Villain"],
+            manaCost: { X: "X", B: 2 },
+            power: 2,
+            toughness: 1,
+            oracleText:
+                "Lifelink\nMorlun enters with X +1/+1 counters on him.\nWhen Morlun enters, he deals X damage to target opponent.",
+            staticAbilities: ["lifelink"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "morlun-devourer-of-spiders-trigger",
+                    oracleText:
+                        "When Morlun enters, he deals X damage to target opponent.",
+                    head: { kind: "entered", scope: "self" },
+                    targetRequirement: {
+                        type: "player",
+                        count: 1,
+                        controller: "opponent",
+                    },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: { ref: "$source.chosenXOnCast" },
+                            to: { player: { target: 0 } },
+                        },
+                    ],
+                },
+            ],
+            entersWith: { counters: [{ type: "+1/+1", count: "X" }] },
+        },
+    },
 ]);
