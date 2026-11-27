@@ -48,6 +48,9 @@ const EXPECTED_CEILING: Record<string, number> = {
     "Garruk, Curse Breaker": 6,
     // start 3, spends 2/5
     "Grist, the Hunger Tide": 6,
+    // start 3, spends 1/10; compiled `ready` once the each-player fan-out
+    // read its +2 (issue #4587)
+    "Jace Beleren": 11,
     // start 3, spends 1/12
     "Jace, the Mind Sculptor": 13,
     // start 4, spends 8 (issue #3231)

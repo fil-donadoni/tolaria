@@ -303,13 +303,10 @@ export const darkSuspicions = defineCard(() => ({
 // regenerated. Its controller loses 2 life." (CR 601.2b/118.8 additional
 // sacrifice cost via `additionalCosts.sacrificeFilter`, CR 701.8 destroy / 701.19c regeneration
 // suppression, CR 202.2 "nonblack" via `excludeColors`.)
-// The life-loss reads the target's controller BEFORE the `destroy` Op runs
-// — `{ controllerOf: { target: 0 } }` (`inv/multicolor.cards.ts`'s precedent)
-// resolves through `ctx.getController`, which throws once the permanent has
-// actually left the battlefield; ordering the read first keeps the object
-// live for it. Safe because the spell has exactly one target: CR 608.2b
-// fizzles the whole spell if that single target is illegal at resolution,
-// so by the time either Op runs the creature is guaranteed still in play.
+// The life-loss reads the destroyed creature's controller off the snapshot
+// the `destroy` binds (CR 608.2h last known information), so the two Ops run
+// in the order printed (CR 608.2c) — the encoding the compiler emits for
+// "Its controller loses N life" after a removal.
 export const deathBomb = defineCard(() => ({
     id: "f8a84715-c5dc-4a19-af6a-796c6ee912c2", // PLS 41
     name: "Death Bomb",
@@ -326,11 +323,12 @@ export const deathBomb = defineCard(() => ({
     },
     effects: [
         {
-            op: "loseLife",
-            player: { controllerOf: { target: 0 } },
-            amount: 2,
+            op: "destroy",
+            target: { target: 0 },
+            cantBeRegenerated: true,
+            bind: "$that1",
         },
-        { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
+        { op: "loseLife", player: { ref: "$that1.controller" }, amount: 2 },
     ],
 }));
 

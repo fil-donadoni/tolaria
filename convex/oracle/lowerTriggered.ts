@@ -281,9 +281,12 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
             : null;
     // CR 102.1 — "deals damage to A PLAYER" names the damaged player too, but
     // not as an opponent: either player can be the one dealt damage, so "that
-    // opponent" stays unbound behind this head.
+    // opponent" stays unbound behind this head. CR 510.1 — "deals combat
+    // damage to a player" is the same head narrowed to combat damage, built
+    // on the same `DAMAGE_DEALT` trigger, so it names the same player.
     const damagedPlayer =
-        head.kind === "damage-dealt" && head.recipient === "player"
+        (head.kind === "damage-dealt" && head.recipient === "player") ||
+        head.kind === "combat-damage-to-player"
             ? { ref: "$event.damagedPlayer" }
             : null;
     // CR 603.2 — "whenever a player / an opponent casts a spell"

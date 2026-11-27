@@ -356,10 +356,6 @@ describe("library-zone verbs — golden fixtures", () => {
 });
 
 describe("library-zone verbs — refused neighbours", () => {
-    it("refuses a symmetric mill (Whetstone: each player mills two cards)", () => {
-        expectUnparsed("{3}: Each player mills two cards.", "Artifact");
-    });
-
     it("refuses a mill whose count is a derived quantity (Dreamborn Muse)", () => {
         expectUnparsed(
             "At the beginning of each player's upkeep, that player mills X cards, where X is the number of cards in their hand.",
