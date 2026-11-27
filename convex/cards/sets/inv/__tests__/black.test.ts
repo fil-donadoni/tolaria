@@ -25,6 +25,7 @@
 // authored them and import the definition from its home module.
 
 import { describe, it, expect } from "vitest";
+import { activationPreconditionViolation } from "../../../../gre/activationPrecondition";
 import {
     makeInstance,
     makePlayer,
@@ -1913,27 +1914,37 @@ describe("Phyrexian Battleflies ({B}: +1/+0 EOT, activate no more than twice eac
         expect(getEffectivePower(projected, slim)).toBe(2);
     });
 
-    it("canActivate rejects a third activation this turn (CR 602.5 activation cap), through the real server gate", () => {
+    it("rejects a third activation this turn (CR 602.5b activation cap), through the shared activation gate", () => {
         const ability = phyrexianBattleflies.activatedAbilities!.find(
             (a) => a.id === "phyrexian-battleflies-pump"
         )!;
-        // Mirrors the production gate in game.ts:
-        // `if (ability.canActivate && !ability.canActivate(card, state)) throw`.
+        // `activationPreconditionViolation` is the gate game.ts, the Bot and
+        // the client affordance all read.
         const cappedOut = makeInstance(phyrexianBattleflies.id, {
             id: "bug-capped",
             controllerId: "p1",
             activationsThisTurn: { "phyrexian-battleflies-pump": 2 },
         });
-        expect(ability.canActivate!(cappedOut as never, {} as never)).toBe(
-            false
-        );
+        expect(
+            activationPreconditionViolation(
+                { players: [] },
+                cappedOut as never,
+                ability
+            )
+        ).toBe("Activate no more than 2 times each turn");
 
         const oneUsed = makeInstance(phyrexianBattleflies.id, {
             id: "bug-one-used",
             controllerId: "p1",
             activationsThisTurn: { "phyrexian-battleflies-pump": 1 },
         });
-        expect(ability.canActivate!(oneUsed as never, {} as never)).toBe(true);
+        expect(
+            activationPreconditionViolation(
+                { players: [] },
+                oneUsed as never,
+                ability
+            )
+        ).toBeNull();
     });
 });
 

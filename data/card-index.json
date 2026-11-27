@@ -1976,6 +1976,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Aleatory",
+        "scryfallId": "7380af0a-8a8f-44fd-9456-14a68a2830d3",
+        "oracleId": "da4cab2d-0068-440f-ba7c-f2d4e5fa976e",
+        "firstSet": "mir",
+        "firstPrintId": "7380af0a-8a8f-44fd-9456-14a68a2830d3",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Alert Shu Infantry",
         "scryfallId": "c94a92a9-060e-42d3-a8d1-49425defc08a",
         "oracleId": "0f019387-4684-493f-80c4-de6023096306",
@@ -32652,6 +32662,16 @@
         "source": "compiled"
     },
     {
+        "name": "Fire-Belly Changeling",
+        "scryfallId": "d4732342-71a4-4079-b549-f4454945273a",
+        "oracleId": "65c1cac7-87d1-4687-86ba-f7c63c4f8549",
+        "firstSet": "lrw",
+        "firstPrintId": "d4732342-71a4-4079-b549-f4454945273a",
+        "firstPrintSet": "lrw",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Fire-Field Ogre",
         "scryfallId": "70db6085-9707-4902-966d-b13bb6a0f62f",
         "oracleId": "343a258e-ea46-4acb-8543-9f869e43bc59",
@@ -59639,6 +59659,16 @@
         "source": "compiled"
     },
     {
+        "name": "Moderation",
+        "scryfallId": "c41b3d7a-f8e1-46b8-a689-6125dcd9cb17",
+        "oracleId": "57f94fcb-a224-410b-a38e-3ed8cca7d0c7",
+        "firstSet": "mh2",
+        "firstPrintId": "c41b3d7a-f8e1-46b8-a689-6125dcd9cb17",
+        "firstPrintSet": "mh2",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Mogg Alarm",
         "scryfallId": "f246e128-0a43-478a-a232-51020fab76d5",
         "oracleId": "1c2117d5-4600-489c-be5b-dc0ed69b30ca",
@@ -68167,6 +68197,16 @@
         "source": "compiled"
     },
     {
+        "name": "Pit Imp",
+        "scryfallId": "24c7acfe-b5b2-426f-a5a1-1ff8ef7ebf72",
+        "oracleId": "3decbc45-3e79-455f-9d62-878ee31b458d",
+        "firstSet": "tmp",
+        "firstPrintId": "24c7acfe-b5b2-426f-a5a1-1ff8ef7ebf72",
+        "firstPrintSet": "tmp",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Pit Raptor",
         "scryfallId": "e37cd150-1064-43b7-919b-8922d8a18f21",
         "oracleId": "92cdcafc-ffeb-436d-b2bd-d6ad895d0e08",
@@ -76219,6 +76259,16 @@
         "firstSet": "avr",
         "firstPrintId": "f13b5ba6-0de1-4f5c-867b-57e2c10bde8e",
         "firstPrintSet": "avr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Roterothopter",
+        "scryfallId": "22148a1a-2172-4718-8ee4-08770eafed9f",
+        "oracleId": "69c69d69-3565-4d9c-82c0-a96d0fb80513",
+        "firstSet": "hml",
+        "firstPrintId": "22148a1a-2172-4718-8ee4-08770eafed9f",
+        "firstPrintSet": "hml",
         "rarity": "common",
         "source": "compiled"
     },
