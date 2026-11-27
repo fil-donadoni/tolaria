@@ -734,6 +734,33 @@ export function pendingSourceIsSpell(kind: PendingTarget["kind"]): boolean {
     return resolved !== "ability" && resolved !== "trigger";
 }
 
+/** Is the source of a pending target selection an item ALREADY ON THE STACK?
+ *  A triggered ability chooses its targets after it is put on the stack (CR
+ *  603.3d), and a (copy-)retarget changes the targets of a spell already
+ *  there; a cast (CR 601.2c) or an activation (CR 602.2b) chooses them while
+ *  its source is still in hand / on the battlefield. */
+export function pendingSourceIsOnStack(kind: PendingTarget["kind"]): boolean {
+    const resolved = resolvePendingTargetKind(kind);
+    return (
+        resolved === "trigger" ||
+        resolved === "copy-retarget" ||
+        resolved === "retarget"
+    );
+}
+
+/** CR 115.5 — "A spell or ability on the stack is an illegal target for
+ *  itself." The id of the stack item whose targets are being chosen, when it
+ *  is on the stack (`pendingSourceIsOnStack`), else `undefined`. THE single
+ *  derivation the offered set (`pendingTargetingSource` → `getLegalTargets`),
+ *  the accepted set (`selectTarget`) and the client's stack highlighting
+ *  (`matchesSpellPendingTarget`) hand to `checkSpellTargetFilters`. */
+export function pendingTargetSelfStackItemId(pt: {
+    kind?: PendingTarget["kind"];
+    cardInstanceId: string;
+}): string | undefined {
+    return pendingSourceIsOnStack(pt.kind) ? pt.cardInstanceId : undefined;
+}
+
 /** CR 613.1f — true while the permanent has lost all abilities (Titania's
  *  Song, Blood Moon). Its PRINTED activated mana abilities don't function while
  *  suppressed. Note this does NOT suppress intrinsic basic-land subtype mana

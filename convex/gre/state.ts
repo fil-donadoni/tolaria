@@ -214,6 +214,7 @@ import {
     passesCastPhaseRestriction,
     raiseTriggerTargetSelection,
     targetingSourceFromCard,
+    targetingSourceFromStackItem,
     protectionSourceFromTargeting,
     guardSourceFromTargeting,
 } from "./rules";
@@ -3027,6 +3028,24 @@ function resolveChosenModes(
     return resolutionSuspendedOnChoice(state, "checkpointed");
 }
 
+/** CR 608.2n — "As the final part of an ability's resolution, the ability is
+ *  removed from the stack and ceases to exist"; a spell likewise leaves the
+ *  stack as its resolution ends. Removes the RESOLVING item by identity, never
+ *  "whatever is on top now": resolution is peek-then-remove, and an effect may
+ *  take the resolving item off the stack itself (an ability that counters its
+ *  own stack item) or reorder what sits above it. When the item is already
+ *  gone, nothing else is removed — a blind `pop()` here once took the spell
+ *  BENEATH a self-countering trigger, which then vanished from every zone
+ *  (issue #10991). */
+function removeResolvingItem(state: GameState, item: StackItem): void {
+    for (let i = state.stack.length - 1; i >= 0; i--) {
+        if (state.stack[i].id === item.id) {
+            state.stack.splice(i, 1);
+            return;
+        }
+    }
+}
+
 function resolveTopOfStackInner(state: GameState): StackItem | null {
     if (state.stack.length === 0) throw new Error("Stack is empty");
 
@@ -3062,7 +3081,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         if (card && card.madnessExiled) {
             openMadnessCastWindow(state, card, top.ownerId);
         }
-        state.stack.pop();
+        removeResolvingItem(state, top);
         return top;
     }
 
@@ -3079,7 +3098,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         if (card && card.reboundExiled) {
             openReboundCastWindow(state, card, top.ownerId);
         }
-        state.stack.pop();
+        removeResolvingItem(state, top);
         return top;
     }
 
@@ -3092,7 +3111,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     // left and returned as a NEW object — and does nothing in either case.
     if (top.warpTrigger) {
         applyWarpExile(state, top.warpTrigger);
-        state.stack.pop();
+        removeResolvingItem(state, top);
         return top;
     }
 
@@ -3140,7 +3159,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             delete top.illegalTargetSlots;
         } else if (legality === "fizzle") {
             delete top.collectedChoices;
-            state.stack.pop();
+            removeResolvingItem(state, top);
             // CR 608.2b — a countered SPELL is put into its owner's graveyard;
             // a countered ability ceases to exist. `isSpell` distinguishes the
             // two. Aura/permanent spells route through finalizeSpellResolution
@@ -3215,7 +3234,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         // All steps completed — pop and finalize
         delete top.resolutionStep;
         delete top.collectedChoices;
-        state.stack.pop();
+        removeResolvingItem(state, top);
         finalizeSpellResolution(state, top);
         return top;
     }
@@ -3268,7 +3287,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         );
         if (resolutionSuspendedOnChoice(state, "checkpointed")) return null;
         delete top.collectedChoices;
-        state.stack.pop();
+        removeResolvingItem(state, top);
         return top;
     }
 
@@ -3319,7 +3338,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             }
         }
         delete top.collectedChoices;
-        state.stack.pop();
+        removeResolvingItem(state, top);
         return top;
     }
 
@@ -3355,7 +3374,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             }
         }
         delete top.collectedChoices;
-        state.stack.pop();
+        removeResolvingItem(state, top);
         return top;
     }
 
@@ -3435,7 +3454,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                         fizzleEvent,
                     ]);
                     delete top.collectedChoices;
-                    state.stack.pop();
+                    removeResolvingItem(state, top);
                     return top;
                 }
             }
@@ -3513,7 +3532,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             queueCreatureMentored(state, top, ability);
         }
         delete top.collectedChoices;
-        state.stack.pop();
+        removeResolvingItem(state, top);
         return top;
     }
 
@@ -3584,7 +3603,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             }
         }
         delete top.collectedChoices;
-        state.stack.pop();
+        removeResolvingItem(state, top);
         return top;
     }
 
@@ -3635,7 +3654,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         }
     }
     delete top.collectedChoices;
-    state.stack.pop();
+    removeResolvingItem(state, top);
     finalizeSpellResolution(state, top);
     return top;
 }
@@ -14442,8 +14461,9 @@ export function offerRetargetUnlessForced(
         return getLegalTargets(
             state,
             group,
-            // A spell copy, still on the stack (CR 109.5) — a spell (CR 113.3).
-            targetingSourceFromCard(copy, true),
+            // A spell copy, still on the stack (CR 109.5) — a spell (CR 113.3)
+            // that is never a target for itself (CR 115.5).
+            targetingSourceFromStackItem(copy, true),
             copy.controllerId,
             copy.chosenX
         ).some((t) => !ownKeys.has(`${t.type}:${t.id}`));
@@ -14506,7 +14526,7 @@ function resolveCastCopyTrigger(
     delete top.castCopySnapshot;
     delete top.castCopiesRemaining;
     delete top.collectedChoices;
-    state.stack.pop();
+    removeResolvingItem(state, top);
     return top;
 }
 

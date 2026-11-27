@@ -37,6 +37,7 @@ import {
     manaValue,
     normalizedHybridPips,
     pendingSourceIsSpell,
+    pendingTargetSelfStackItemId,
     restrictedXCostKey,
     restrictedXPipCount,
     takeGenericPoints,
@@ -3974,6 +3975,14 @@ export interface TargetingSource {
      *  asserts "not a spell", because `spells only` guards read the three-way
      *  distinction). */
     isSpell: boolean | undefined;
+    /** CR 115.5 — the source's own stack-item id when the source IS an item
+     *  on the stack choosing targets (a triggered ability, CR 603.3d; a
+     *  (copy-)retargeted spell), else `undefined`. "A spell or ability on the
+     *  stack is an illegal target for itself": `getLegalTargets` hands it to
+     *  `checkSpellTargetFilters`, which refuses that candidate. Set only by
+     *  `pendingTargetingSource` (from `pendingTargetSelfStackItemId`) and
+     *  `targetingSourceFromStackItem`. */
+    stackItemId: string | undefined;
 }
 
 /** The explicit "no source characteristics are known or relevant" bundle.
@@ -3987,6 +3996,7 @@ export const NO_TARGETING_SOURCE: TargetingSource = Object.freeze({
     subtypes: Object.freeze([]) as readonly string[],
     supertypes: Object.freeze([]) as readonly CardSupertype[],
     isSpell: undefined,
+    stackItemId: undefined,
 });
 
 /** The TOTAL projection of a card object (hand card being cast, battlefield
@@ -4005,7 +4015,18 @@ export function targetingSourceFromCard(
         subtypes: card.subtypes,
         supertypes: characteristics.supertypes,
         isSpell,
+        stackItemId: undefined,
     };
+}
+
+/** `targetingSourceFromCard` for a source that is an item ON THE STACK (a spell
+ *  copy whose targets may change, CR 707.10c): the same characteristics, plus
+ *  its own id so CR 115.5 keeps it from targeting itself. */
+export function targetingSourceFromStackItem(
+    item: StackItem,
+    isSpell: boolean | undefined
+): TargetingSource {
+    return { ...targetingSourceFromCard(item, isSpell), stackItemId: item.id };
 }
 
 /** CR 702.16 — the ONE projection from a `TargetingSource` into the protection
@@ -4081,9 +4102,14 @@ export function pendingTargetingSource(
             : state.players
                   .flatMap((p) => (kind === "ability" ? p.battlefield : p.hand))
                   .find((x) => x.id === cardInstanceId);
-    return source
-        ? targetingSourceFromCard(source, isSpell)
-        : NO_TARGETING_SOURCE;
+    if (!source) return NO_TARGETING_SOURCE;
+    return {
+        ...targetingSourceFromCard(source, isSpell),
+        stackItemId: pendingTargetSelfStackItemId({
+            kind: rawKind,
+            cardInstanceId,
+        }),
+    };
 }
 
 export function getLegalTargets(
@@ -4433,7 +4459,9 @@ export function getLegalTargets(
     }
 
     // CR 114.1: any spell or ability currently on the stack is a legal target
-    // (The casting spell itself isn't on the stack yet during target selection.)
+    // — except the item choosing targets itself, when it is already on the
+    // stack (CR 115.5: a triggered ability chooses after it is put there, CR
+    // 603.3d). `source.stackItemId` carries it into the shared check.
     // CR 113 / 114.1 / 202.2 / 202.3 / 208.2 / 601.2c / 701.8 / 702 — every
     // spell-kind filter (spellStackKind, controller, stackSourceTypeFilter,
     // spellTargetsInstanceIds, colorFilter, mvFilter, spellTypeFilter,
@@ -4454,6 +4482,7 @@ export function getLegalTargets(
             chooserId: casterId,
             activePlayerId: state.activePlayerId,
             sourceIsSpell,
+            targetingStackItemId: source.stackItemId,
         };
         const itemList = state.stack;
         for (let k = 0; k < itemList.length; k++) {
