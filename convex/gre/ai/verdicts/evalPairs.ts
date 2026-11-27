@@ -63,8 +63,12 @@ import { isDeferrableAction, isLastDeferralWindow } from "../deferral";
 import { makeInterchangeableKeyer } from "../interchangeable";
 import { seatPlayerId } from "../blade/matcher";
 import {
+    cardResidualBasisOfSettled,
     featuresOfSettled,
+    generatedBasisOfSettled,
     scoreBasis,
+    subtractNamedBasis,
+    type NamedBasis,
     subtractBasis,
     subtractTerms,
     type FeatureVector,
@@ -628,4 +632,87 @@ export function sequencingPairClassifier(
             offered.keys.has(offered.keyOf(moves[otherIndex]))
         );
     };
+}
+
+/** What the generated columns and the Card Residuals read of one Eval Pair:
+ *  `∂ delta / ∂ g` over each, `right` minus `other` (`features.ts`). */
+export type PairGeneratedBasis = {
+    /** Over the generated columns, read through the engine. */
+    generated: NamedBasis;
+    /** Over the Card Residual units; empty unless they were asked for. */
+    cards: NamedBasis;
+};
+
+/**
+ * The generated basis of every pair in `pairs` (ADR 0186, Decision 1), and
+ * its Card Residual counts when `cards` is set, keyed by the pair object.
+ * Each verdict's position is rebuilt ONCE and each candidate probed once, on
+ * the board the pair's fitted basis was read off (`candidateSettledState`),
+ * so the two halves of one constraint are one board read two ways.
+ *
+ * Throws on a pair whose verdict is not in `verdicts` or no longer rebuilds:
+ * a pair exists only because its verdict did, so a miss is a corpus handed in
+ * wrong, never a pair to skip. `verdicts` bounds what is rebuilt — a caller
+ * fitting one side of the held-out split hands in that side alone.
+ */
+export function pairGeneratedBases(
+    verdicts: readonly Verdict[],
+    pairs: readonly EvalPair[],
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    options: { cards?: boolean } = {}
+): Map<EvalPair, PairGeneratedBasis> {
+    const byId = new Map(verdicts.map((v) => [v.id, v]));
+    const pairsOf = new Map<string, EvalPair[]>();
+    for (let i = 0; i < pairs.length; i++) {
+        const pair = pairs[i];
+        const list = pairsOf.get(pair.verdictId);
+        if (list) list.push(pair);
+        else pairsOf.set(pair.verdictId, [pair]);
+    }
+
+    const out = new Map<EvalPair, PairGeneratedBasis>();
+    pairsOf.forEach((verdictPairs, verdictId) => {
+        const verdict = byId.get(verdictId);
+        if (!verdict) {
+            throw new Error(`generated basis: no verdict ${verdictId}`);
+        }
+        const state = buildVerdictState(verdict);
+        const botId = seatPlayerId(state, verdict.seat);
+        const resolved = resolveVerdictMoves(verdict, state, botId);
+        if ("error" in resolved) {
+            throw new Error(
+                `generated basis of ${verdictId}: ${resolved.error}`
+            );
+        }
+        const { moves } = resolved;
+        const read = new Map<number, PairGeneratedBasis>();
+        const readAt = (index: number): PairGeneratedBasis => {
+            const cached = read.get(index);
+            if (cached) return cached;
+            const settled = candidateSettledState(
+                state,
+                botId,
+                moves[index],
+                weights
+            );
+            const reading: PairGeneratedBasis = {
+                generated: generatedBasisOfSettled(settled, botId, weights),
+                cards: options.cards
+                    ? cardResidualBasisOfSettled(settled, botId)
+                    : [],
+            };
+            read.set(index, reading);
+            return reading;
+        };
+        for (let i = 0; i < verdictPairs.length; i++) {
+            const pair = verdictPairs[i];
+            const right = readAt(pair.rightIndex);
+            const other = readAt(pair.otherIndex);
+            out.set(pair, {
+                generated: subtractNamedBasis(right.generated, other.generated),
+                cards: subtractNamedBasis(right.cards, other.cards),
+            });
+        }
+    });
+    return out;
 }

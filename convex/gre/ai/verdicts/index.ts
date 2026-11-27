@@ -28,3 +28,4 @@ export * from "./testerQuality";
 export * from "./grade";
 export * from "./promotionStreak";
 export * from "./admission";
+export * from "./generatedFit";
