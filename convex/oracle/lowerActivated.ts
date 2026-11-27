@@ -60,6 +60,11 @@ function applyRestrictions(
             case "once-per-turn":
                 ability.oncePerTurn = true;
                 break;
+            // CR 602.5b — the per-turn cap, gated by
+            // `activationPreconditionViolation` on the same tally.
+            case "max-per-turn":
+                ability.maxActivationsPerTurn = restriction.count;
+                break;
             case "your-turn-only":
                 ability.controllerTurnOnly = true;
                 break;

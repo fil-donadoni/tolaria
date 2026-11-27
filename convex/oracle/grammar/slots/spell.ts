@@ -74,6 +74,7 @@ import {
 } from "../../rule";
 import { readManaCost } from "../../manaCost";
 import type { ParseContext } from "../../types";
+import type { Phase } from "../../../gre/types";
 import { controlsRule } from "../shared/condition";
 import { activationCostRule, type CostAtomIR } from "../shared/cost";
 import {
@@ -410,6 +411,53 @@ const flashbackLine: Rule<SlotIR> = rule<SlotIR>("flashback", (span, ctx) => {
     });
 });
 
+// ── 5. The casting window (CR 601.3) ───────────────────────────────────────
+
+/**
+ * CR 506.1 — the combat phase's steps, in order. A second combat damage step
+ * (first strike, CR 510.4) is still a step of combat.
+ */
+const COMBAT_STEPS: readonly Phase[] = [
+    "BEGINNING_OF_COMBAT",
+    "DECLARE_ATTACKERS",
+    "DECLARE_BLOCKERS",
+    "FIRST_STRIKE_DAMAGE",
+    "COMBAT_DAMAGE",
+    "END_OF_COMBAT",
+];
+
+/**
+ * CR 509.1 / 509.2 — blockers are declared as the declare blockers step
+ * begins, before any player gets priority, so every priority window from that
+ * step to the end of combat is "after blockers are declared".
+ */
+const AFTER_BLOCKERS_STEPS: readonly Phase[] = COMBAT_STEPS.slice(
+    COMBAT_STEPS.indexOf("DECLARE_BLOCKERS")
+);
+
+/** Exact casting-window sentences, with the steps each one admits. */
+const CAST_WINDOWS: ReadonlyMap<string, readonly Phase[]> = new Map([
+    ["Cast this spell only during combat.", COMBAT_STEPS],
+    [
+        "Cast this spell only during combat after blockers are declared.",
+        AFTER_BLOCKERS_STEPS,
+    ],
+]);
+
+/**
+ * CR 601.3 — "Cast this spell only during combat [after blockers are
+ * declared]." A prohibition on beginning to cast the spell outside the
+ * window, never an instruction it carries out on resolution. Anchored on the
+ * whole line: "… before blockers are declared", "… on your turn" and every
+ * other window stay refused under their own keys.
+ */
+const castWindowLine: Rule<SlotIR> = rule<SlotIR>("cast window", (span) => {
+    const phases = CAST_WINDOWS.get(span);
+    return phases === undefined
+        ? fail("not a casting-window line", span)
+        : ok({ kind: "cast-window" as const, phases: [...phases] });
+});
+
 // ── The slot ───────────────────────────────────────────────────────────────
 
 const PERMANENT_TYPE_SET = new Set<string>(PERMANENT_TYPES);
@@ -419,6 +467,7 @@ const spellBody: Rule<SlotIR> = oneOf("spell line", [
     modalSpell,
     additionalCostLine,
     flashbackLine,
+    castWindowLine,
 ]);
 
 /**

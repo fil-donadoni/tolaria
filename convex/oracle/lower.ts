@@ -65,6 +65,7 @@ import { sortKeys } from "./gates";
 import { readManaCost } from "./manaCost";
 import { manaValue } from "../gre/constants";
 import { spliceCardIsSupported } from "../gre/splice";
+import type { Phase } from "../gre/types";
 import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
 import { readTypeLine } from "./typeLine";
 import type { KeywordIR, LineParse, SlotIR } from "./grammar/ir";
@@ -240,6 +241,8 @@ interface Accumulator {
     spellModeSelection?: ModeSelection;
     additionalCosts?: NonNullable<CardDefinition["additionalCosts"]>;
     flashback?: NonNullable<CardDefinition["flashback"]>;
+    /** CR 601.3 — the steps the spell may be cast in. */
+    castPhaseRestriction?: Phase[];
     /** CR 118.9 — the card's alternative costs, one per printed line. */
     alternativeCosts?: AlternativeCost[];
     /** CR 702.35a — the cost to cast the card when it is discarded. */
@@ -1084,6 +1087,15 @@ function lowerLine(
                     return "a card declares an additional cost twice (CR 601.2f)";
                 acc.additionalCosts = { flashbackExileFromGraveyard: exile };
             }
+            return null;
+        }
+        case "cast-window": {
+            // CR 601.3 — two windows on one spell would each prohibit casting
+            // outside itself; one allow-list cannot hold their intersection
+            // without a reading no card prints.
+            if (acc.castPhaseRestriction !== undefined)
+                return "a card declares its casting window twice (CR 601.3)";
+            acc.castPhaseRestriction = [...ir.phases];
             return null;
         }
         case "cycling": {
@@ -2117,6 +2129,8 @@ export function lowerCard(
     if (acc.additionalCosts !== undefined)
         definition.additionalCosts = acc.additionalCosts;
     if (acc.flashback !== undefined) definition.flashback = acc.flashback;
+    if (acc.castPhaseRestriction !== undefined)
+        definition.castPhaseRestriction = acc.castPhaseRestriction;
     if (acc.alternativeCosts !== undefined)
         definition.alternativeCosts = acc.alternativeCosts;
     if (acc.madness !== undefined) definition.madness = acc.madness;

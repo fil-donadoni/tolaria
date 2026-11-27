@@ -20,6 +20,7 @@ import type {
     TargetRequirement,
 } from "../../cards/types";
 import type { GiftKind } from "../../cards/abilities/gift";
+import type { Phase } from "../../gre/types";
 import type { ActivationCostIR } from "./shared/cost";
 import type { TriggerConditionIR } from "./shared/condition";
 import type { EffectSentenceIR, RestrictionIR } from "./shared/effectClause";
@@ -338,6 +339,13 @@ export type SlotIR =
     | { readonly kind: "additional-cost"; readonly cost: ActivationCostIR }
     /** CR 702.34a — a "Flashback [cost]" line (a graveyard-cast permission). */
     | { readonly kind: "flashback"; readonly cost: FlashbackCostIR }
+    /**
+     * CR 601.3 + CR 506.1 — "Cast this spell only during combat [after
+     * blockers are declared]." The spell's own casting window, a cast-time
+     * prohibition (not an effect), lowered onto
+     * `CardDefinition.castPhaseRestriction`: the steps it may be cast in.
+     */
+    | { readonly kind: "cast-window"; readonly phases: readonly Phase[] }
     /**
      * CR 702.29a — a "Cycling [cost]" line: an activated ability usable from
      * the hand, lowered through the `cyclingAbility` factory the catalogue
