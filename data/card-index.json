@@ -28160,6 +28160,16 @@
         "source": "compiled"
     },
     {
+        "name": "Emberheart Challenger",
+        "scryfallId": "0035082e-bb86-4f95-be48-ffc87fe5286d",
+        "oracleId": "5b4b21ed-c24e-4038-83fb-bd7f3c3426cd",
+        "firstSet": "blb",
+        "firstPrintId": "0035082e-bb86-4f95-be48-ffc87fe5286d",
+        "firstPrintSet": "blb",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Embermage Goblin",
         "scryfallId": "0ee5aa80-32cc-486e-bbb2-5386eadaf4ca",
         "oracleId": "f6e75db5-b119-4401-942c-bbaeeb694761",
@@ -33780,6 +33790,16 @@
         "firstSet": "grn",
         "firstPrintId": "feb4b39f-d309-49ba-b427-240b7fdc1099",
         "firstPrintSet": "grn",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Flowerfoot Swordmaster",
+        "scryfallId": "97ff118f-9c3c-43a2-8085-980c7fe7d227",
+        "oracleId": "523d075d-b577-4f24-8c14-9a76761a2eaf",
+        "firstSet": "blb",
+        "firstPrintId": "97ff118f-9c3c-43a2-8085-980c7fe7d227",
+        "firstPrintSet": "blb",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -60819,6 +60839,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mouse Trapper",
+        "scryfallId": "8ba1bc5a-03e7-44ec-893e-44042cbc02ef",
+        "oracleId": "5b0a4530-6e19-41a2-9ea6-e4c8cf85b6c4",
+        "firstSet": "blb",
+        "firstPrintId": "8ba1bc5a-03e7-44ec-893e-44042cbc02ef",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Mouser Attack!",
         "scryfallId": "058490f4-0ada-45e6-b4f0-e433537f52d6",
         "oracleId": "bae5dc68-1fd1-428d-bee7-c238e07b21ea",
@@ -62473,6 +62503,16 @@
         "firstSet": "mh3",
         "firstPrintId": "3ee3945e-5089-4751-b7b3-5961c39d2a33",
         "firstPrintSet": "mh3"
+    },
+    {
+        "name": "Nettle Guard",
+        "scryfallId": "8c9c3cc3-2aa2-453e-a17c-2baeeaabe0a9",
+        "oracleId": "9ac2dcb6-dacc-4fcb-b820-9fc6744ec503",
+        "firstSet": "blb",
+        "firstPrintId": "8c9c3cc3-2aa2-453e-a17c-2baeeaabe0a9",
+        "firstPrintSet": "blb",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Nettle Sentinel",
@@ -80221,6 +80261,16 @@
         "source": "compiled"
     },
     {
+        "name": "Seedglaive Mentor",
+        "scryfallId": "d21c3e41-0636-49a3-8c9c-384c5e5c9c3e",
+        "oracleId": "f50bbe5e-a839-40e1-ba79-1e96f91bd218",
+        "firstSet": "blb",
+        "firstPrintId": "d21c3e41-0636-49a3-8c9c-384c5e5c9c3e",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Seedguide Ash",
         "scryfallId": "eca605c0-6270-4238-bb77-0bbfd7568807",
         "oracleId": "7ff007cb-c994-4643-a6d4-c58e030514e1",
@@ -81642,6 +81692,16 @@
         "firstPrintId": "4a9304e1-f403-404d-9fe9-169da75e0d62",
         "firstPrintSet": "mir",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Shapers' Sanctuary",
+        "scryfallId": "930240dc-9c8c-4857-b6ce-85f1689c60e5",
+        "oracleId": "15bd8fa1-0858-4029-9973-e24c86e45af3",
+        "firstSet": "xln",
+        "firstPrintId": "930240dc-9c8c-4857-b6ce-85f1689c60e5",
+        "firstPrintSet": "xln",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -102679,6 +102739,16 @@
         "source": "compiled"
     },
     {
+        "name": "Veteran Guardmouse",
+        "scryfallId": "3db43c46-b616-4ef8-80ed-0fab345ab3d0",
+        "oracleId": "2313a3f9-3eac-4684-a25e-6a6ae445a723",
+        "firstSet": "blb",
+        "firstPrintId": "3db43c46-b616-4ef8-80ed-0fab345ab3d0",
+        "firstPrintSet": "blb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Veteran of the Depths",
         "scryfallId": "c36fe821-e9b1-453d-8e44-f8dce111a6de",
         "oracleId": "70bcec56-1485-4e4e-8fff-940d7b133c5d",
@@ -106850,6 +106920,16 @@
         "firstPrintId": "56a25eb1-bdb8-4f86-8d9a-3055ad1b2a13",
         "firstPrintSet": "tdm",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Whiskerquill Scribe",
+        "scryfallId": "da653996-9bd4-40bd-afb4-48c7e070a269",
+        "oracleId": "cb1e1acc-3805-418b-bed1-65838ddb1d62",
+        "firstSet": "blb",
+        "firstPrintId": "da653996-9bd4-40bd-afb4-48c7e070a269",
+        "firstPrintSet": "blb",
+        "rarity": "common",
         "source": "compiled"
     },
     {
