@@ -24,6 +24,7 @@ import type { CardDefinition, EffectOp } from "../../cards/types";
 import { projectPublicState } from "../../gameProjections";
 import type { CardInstanceState, GameState } from "../state";
 import { checkStateBasedActions } from "../sba";
+import { validateAbilityEffectScript } from "../effects/validate";
 
 const SOURCE_ID = "fight-op-test-source";
 const ABILITY_ID = "fight-op-test-ability";
@@ -122,6 +123,14 @@ describe("fight Op (CR 701.14)", () => {
         const effects: EffectOp[] = [
             { op: "fight", creature: { ref: "$source" }, other: { target: 1 } },
         ];
+        // The static sweep reads a combatant as an OBJECT position, never a
+        // bare numeric one — an ability script the validator refuses never
+        // ships.
+        const ability = fightSource(effects, ["Creature"])
+            .activatedAbilities![0]!;
+        expect(
+            validateAbilityEffectScript(ability, "Fight Op Test Source")
+        ).toEqual([]);
         withTemporaryDefinition(fightSource(effects, ["Creature"]), () => {
             const { state, source } = board();
             resolveActivated(state, source, ABILITY_ID, TARGETS);

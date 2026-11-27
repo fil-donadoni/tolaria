@@ -619,6 +619,8 @@ export function lowerTriggeredAbility(input: {
     readonly effects: readonly EffectSentenceIR[];
     /** CR 702.33e — the card's kicker costs, for a sentence that reads them. */
     readonly kickers?: readonly KickerCost[];
+    /** CR 107.3m — the card's printed mana cost has an {X} pip. */
+    readonly castX?: boolean;
 }): LowerTriggerResult {
     // CR 113.6b — "if this card is in your graveyard" is the ability's zone.
     // Only a phase head or another-permanent "enters" head has a factory that
@@ -751,15 +753,22 @@ export function lowerTriggeredAbility(input: {
         input.head.phase === "DRAW" &&
         input.head.scope === "your" &&
         input.head.phases === undefined;
+    const sourceCastX =
+        input.castX === true &&
+        input.head.kind === "enters" &&
+        input.head.scope === "self";
     const walk = new SentenceWalk(
         new TargetSlots(anotherExcludesSource(input.head))
     );
     const ops: EffectOp[] = [];
     for (const [index, sentence] of input.effects.entries()) {
         // CR 107.3 — a triggered ability has no cost and announces nothing,
-        // so an X in its body has no value to read.
+        // so an X in its body has no value to read — except, CR 107.3m, the
+        // card's own enters trigger, whose X is the one its spell was cast
+        // with.
         const result = lowerSentence(sentence, walk, {
             allowX: false,
+            ...(sourceCastX ? { sourceCastX: true as const } : {}),
             functionsFromGraveyard: fromGraveyard,
             ...(ownDrawStep ? { ownDrawStep: true as const } : {}),
             ...(resolvesIfTargetsIllegal

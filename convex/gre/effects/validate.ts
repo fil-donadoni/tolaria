@@ -8144,6 +8144,12 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                                 // #3244) — names the ATTACKING CREATURE, an
                                 // `EffectObjectSelector` exactly like `target`.
                                 keyHint === "attackTargetOf" ||
+                                // `fight`'s two combatants (CR 701.14a) — each an
+                                // `EffectObjectSelector` exactly like `target`
+                                // (`{ ref: "$source" }` for "this creature
+                                // fights"). No other Op field is named either.
+                                keyHint === "creature" ||
+                                keyHint === "other" ||
                                 // `choice`'s `candidates[]` (Barrin's Spite) — the
                                 // already-known battlefield objects the pick is
                                 // narrowed to, each an `EffectObjectSelector`
