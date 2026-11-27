@@ -17618,9 +17618,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // artifacts stood at the same blind `base + MV` floor — and the
         // removal lens (`permanentRealisedValue`) priced destroying either at
         // the same number. The pick was the Weakstone on every seed. The
-        // board being inert is what makes this entry read the PRICE: the
-        // rollout sees no wipe coming, so only the latent value separates
-        // the two targets (the live-threat twin is the next entry).
+        // board being inert is what makes this entry read the PRICE: no wipe
+        // in the rollout touches the Bot's board, so only the latent value
+        // separates the two targets (the live-threat twin is the next entry).
         label: "removal: Shatter takes the artifact whose ability script outranks its floor (issue #5145)",
         classification: { kind: "absolute" },
         spec: {
@@ -17665,8 +17665,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // tapped), the opponent has the mana to activate it once it untaps,
         // and the Bot has two creatures it would destroy. This turn is the
         // last window in which Shatter removes the Disk before its
-        // controller can answer by activating it, so the Bot spends the
-        // Shatter now and on the Disk, not on the Weakstone.
+        // controller can answer by activating it: it untaps in the untap step
+        // (no priority, CR 502.4) and its controller acts first in upkeep (CR
+        // 503.1), and a Shatter in response no longer stops the wipe already
+        // on the stack. So the Bot spends the Shatter now and on the Disk,
+        // not on the Weakstone.
         //
         // Unlike the entry above, this one does not read the latent price:
         // the rollout plays the opponent's wipe, so the search separates the
