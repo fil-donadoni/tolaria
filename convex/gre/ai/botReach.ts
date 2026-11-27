@@ -1089,14 +1089,6 @@ export function botReachSpec(
             ? Array<string>(c.count ?? 1).fill(c.name)
             : []
     );
-    // The holder's creatures so far — the bodies a sacrifice cost can spend.
-    const holderCreatures = cards.flatMap((c) =>
-        c.owner === "me" &&
-        c.zone === "battlefield" &&
-        (tryGetCardByName(c.name)?.types.includes("Creature") ?? false)
-            ? Array<string>(c.count ?? 1).fill(c.name)
-            : []
-    );
     cards.push(
         ...target.cards,
         ...(blocked?.cards ?? []),
@@ -1116,7 +1108,7 @@ export function botReachSpec(
         ...graveyardPlayPose(def),
         ...blinkPose(def),
         ...creatureSweepPose(def),
-        ...libraryPutPose(def, holderLands, holderCreatures),
+        ...libraryPutPose(def, holderLands),
         ...costAlternativesPose(def)
     );
     const stack = needsStackTarget(def)
