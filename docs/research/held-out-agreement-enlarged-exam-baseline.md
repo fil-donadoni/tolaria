@@ -8,6 +8,13 @@
 > `bun run verdicts:pick-agreement` (400 iterations × 5 seeds per verdict).
 > Every later gate of PRD issue #10849 is read against these numbers. Re-run
 > before quoting them against a later Bot.
+>
+> **The base moved while the run was in flight.** A blade entry (`bcc3f919d`)
+> refitted `FITTED_EVAL_WEIGHTS`, and the `derive:sync` commit `0213c6de1`
+> moved them by about 1e-4. The numbers below were read on the weights of
+> `b9549cbb4`. Rebased onto `147633772`, the same lock still reproduces the
+> base's weights byte for byte (`derive:regenerate` leaves the tree clean),
+> because the fit does not read the exam side.
 
 **Question.** ADR 0186 Decision 7 makes the player Verdicts the exam until the
 Prototype gate is read. The held-out side had 24 verdicts, too few to tell one
