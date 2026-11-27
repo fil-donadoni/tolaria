@@ -199,9 +199,11 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
         case "tapped-for-mana":
             return { kind: "tapped-for-mana", scope: head.scope };
         case "becomes-target":
-            return head.scope === "host"
-                ? { kind: "became-target", scope: "host" }
-                : { kind: "became-target" };
+            return {
+                kind: "became-target",
+                ...(head.scope !== undefined ? { scope: head.scope } : {}),
+                ...(head.by !== undefined ? { by: head.by } : {}),
+            };
         case "cycled":
             return { kind: "cycled" };
         case "phase":
@@ -382,6 +384,11 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
             head.kind === "becomes-target") &&
         head.scope === "host"
             ? { creature: { ref: "$host" } }
+            : {}),
+        // CR 603.2 + CR 608.2h — "that creature" behind "whenever a creature
+        // you control becomes the target of …" is the creature targeted.
+        ...(head.kind === "becomes-target" && head.scope === "yours"
+            ? { creature: { ref: "$event.targetPermanent" } }
             : {}),
         // CR 120.3 + CR 608.2h — "that creature" behind "deals damage to a
         // creature" is the creature the event dealt damage to.
@@ -670,6 +677,20 @@ export function lowerTriggeredAbility(input: {
             ok: false,
             reason: '"if you haven\'t added mana with this ability this turn" needs an "at the beginning of" head',
         };
+    // CR 603.2 — "for the first time each turn" is the ability's own cap of
+    // one; a printed limit sentence beside it would be a second count the
+    // one `maxTriggersPerTurn` cannot hold, so the pair is refused.
+    const firstTimeEachTurn =
+        input.head.kind === "becomes-target" &&
+        input.head.firstTimeEachTurn === true;
+    if (
+        firstTimeEachTurn &&
+        (input.maxTriggersPerTurn !== undefined || onceEachTurn)
+    )
+        return {
+            ok: false,
+            reason: '"for the first time each turn" beside a second per-turn limit is not read',
+        };
     // CR 603.2 — only a head whose factory counts triggerings per source can
     // carry the cap; any other refuses rather than drop it. The graveyard scan
     // does not count them either, so the cap would be lost there.
@@ -817,7 +838,9 @@ export function lowerTriggeredAbility(input: {
             oracleText: input.oracleText,
             head: lowerHead(input.head),
             ...(condition !== undefined ? { condition } : {}),
-            ...(onceEachTurn ? { maxTriggersPerTurn: 1 } : {}),
+            ...(onceEachTurn || firstTimeEachTurn
+                ? { maxTriggersPerTurn: 1 }
+                : {}),
             ...(input.maxTriggersPerTurn !== undefined
                 ? { maxTriggersPerTurn: input.maxTriggersPerTurn }
                 : {}),
