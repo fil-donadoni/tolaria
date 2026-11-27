@@ -203,6 +203,8 @@ const FITTABLE_TERM_WEIGHTS = [
     "cannotBlockShare",
     // Issue #5363 — the cost-modifier mana-economy unit.
     "costTaxWeight",
+    // The tax's deck face: the expected tax on the next draw.
+    "costTaxLibraryWeight",
 ] as const;
 
 export type FittableTermWeight = (typeof FITTABLE_TERM_WEIGHTS)[number];

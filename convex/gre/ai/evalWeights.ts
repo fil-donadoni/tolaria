@@ -425,6 +425,11 @@ export type EvalWeights = {
      *  `ai/costModifierPricing.ts`; the source's board term, its removal
      *  lens and its hand face all carry the same number. */
     costTaxWeight: number;
+    /** The margin points one mana of the EXPECTED tax on the next draw is
+     *  worth: the library's mean mana a standing cost modifier adds to its
+     *  cards (CR 601.2f, CR 504.1). The deck face of the same reading, read
+     *  by `ai/costModifierPricing.ts`. */
+    costTaxLibraryWeight: number;
     latent: LatentWeights;
 
     /** How many determinized worlds the block-quality root tie-break averages
@@ -587,6 +592,10 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     // floor it replaces, so the slice moves decisions where the hand says so
     // without pinning the reward band.
     costTaxWeight: 6,
+    // The deck face of the tax: one expected draw priced like one card in
+    // hand, so a library of the hand's own cards adds exactly one more card
+    // of tax. The refit moves it from there.
+    costTaxLibraryWeight: 6,
     // Issue #3398 — chosen so today's per-Op numbers are reproduced where a
     // representative victim exists: `boardRemoval` 160 against one 2/2-worth
     // victim IS the old `DESTROY_VALUE`, `damage` 22 IS `DAMAGE_PER_POINT`,
