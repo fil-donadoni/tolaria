@@ -7,13 +7,15 @@
 // not a fault — the deadline's force advance is the whole remedy, and a
 // GitHub issue for it is noise in the P0 band.
 //
-// The driver says which, when it can: its game effect's cleanup (the player
-// navigated away, or swapped to another game on the same board) reports the
-// state version it last saw with the Bot owed. The deadline then reads this
-// row: an exit recorded at the SAME seq it is enforcing means the player left
-// that position, so the window is advanced without a system report. A closed
-// tab runs no cleanup and records nothing — it stays a reported fault, as the
-// PRD (issue #8998, story 22) accepts.
+// The driver says which, when it can (`src/hooks/useBotDriverExitReport.ts`):
+// the player navigated away or swapped games (the effect's cleanup), closed
+// the tab (`pagehide`) or hid it (`visibilitychange` → hidden, where the
+// browser throttles or freezes the page and a phone OS suspends it) — each
+// reports the state version it last saw with the Bot owed. The deadline then
+// reads this row: an exit recorded at the SAME seq it is enforcing means the
+// player was not at that position, so the window is advanced without a
+// system report. A page that dies with no event at all (a crash, a killed
+// process) records nothing and stays a reported fault.
 //
 // ONE row per game, patched in place; no consent-gated payload (the seq and a
 // timestamp, both the server's own coordinates). Deleted with its game by

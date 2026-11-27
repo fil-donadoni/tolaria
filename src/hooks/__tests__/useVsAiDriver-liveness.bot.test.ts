@@ -1793,6 +1793,81 @@ describe("a player who LEAVES the game is not a Bot fault (issue #10006)", () =>
         ]);
     });
 
+    /** The page's visibility, as the browser sets it before the event. */
+    function setVisibility(state: "visible" | "hidden") {
+        Object.defineProperty(document, "visibilityState", {
+            configurable: true,
+            get: () => state,
+        });
+        document.dispatchEvent(new Event("visibilitychange"));
+    }
+
+    it("a CLOSED tab reports the owed version on pagehide — no React cleanup runs then (issue #10874)", async () => {
+        // CR 117 — the Bot holds priority at seq 82 when the tab is closed.
+        publish(priorityBoard(), 82);
+        deferConsult = true;
+        const { unmount } = renderHook(() => useVsAiDriver(GAME, BOT));
+        await advance(50);
+        expect(exits()).toHaveLength(0);
+
+        window.dispatchEvent(new Event("pagehide"));
+        expect(exits()).toEqual([
+            { ref: "reportDriverExit", args: { gameId: GAME, seq: 82 } },
+        ]);
+        // The same version is never reported twice.
+        unmount();
+        expect(exits()).toHaveLength(1);
+    });
+
+    it("a HIDDEN page reports the owed version, and each new one while it stays hidden (issue #10874)", async () => {
+        try {
+            publish(priorityBoard(), 82);
+            deferConsult = true;
+            const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
+            await advance(50);
+
+            setVisibility("hidden");
+            expect(exits()).toEqual([
+                { ref: "reportDriverExit", args: { gameId: GAME, seq: 82 } },
+            ]);
+
+            // A throttled driver still moved the game: the Bot owes seq 83.
+            publish(priorityBoard(), 83);
+            rerender();
+            await advance(50);
+            expect(exits()).toEqual([
+                { ref: "reportDriverExit", args: { gameId: GAME, seq: 82 } },
+                { ref: "reportDriverExit", args: { gameId: GAME, seq: 83 } },
+            ]);
+
+            // Back on the page: a new owed version is not an exit.
+            setVisibility("visible");
+            publish(priorityBoard(), 84);
+            rerender();
+            await advance(50);
+            expect(exits()).toHaveLength(2);
+        } finally {
+            setVisibility("visible");
+        }
+    });
+
+    it("a page hidden while the Bot is NOT owed reports nothing", async () => {
+        try {
+            // CR 117 — the human holds priority: nothing for the deadline to read.
+            const board = priorityBoard();
+            board.priorityPlayerId = HUMAN;
+            publish(board, 9);
+            renderHook(() => useVsAiDriver(GAME, BOT));
+            await advance(50);
+
+            setVisibility("hidden");
+            window.dispatchEvent(new Event("pagehide"));
+            expect(exits()).toHaveLength(0);
+        } finally {
+            setVisibility("visible");
+        }
+    });
+
     it("reports no exit when the player leaves while the Bot is NOT owed", async () => {
         // CR 117 — the human holds priority: nothing for the deadline to read.
         const board = priorityBoard();

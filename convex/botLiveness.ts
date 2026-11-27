@@ -10,9 +10,9 @@
 // - `checkDeadline` — the server deadline: the one scheduled
 //   check per game `saveGameState` arms while the Bot is owed
 //   (`convex/botDeadline.ts`). It holds when no client acts at all. When the
-//   player's driver reported LEAVING that exact position (`reportDriverExit`,
-//   `botDriverExitStore.ts`) it still advances, but files nothing: a player
-//   who left is not a Bot fault.
+//   player's driver reported LEAVING that exact position — navigation, a
+//   closed or hidden tab (`reportDriverExit`, `botDriverExitStore.ts`) — it
+//   still advances, but files nothing: a player who left is not a Bot fault.
 //
 // Beside them, OBSERVATION only (issue #9502): `reportConsultFailure` records
 // a Brain consult that gave no answer (`search-error` / `worker-error` /
@@ -419,9 +419,9 @@ export const reportConsultFailure = mutation({
 });
 
 /**
- * The human's vs-AI driver LEFT the game (issue #10006): its game effect's
- * cleanup ran — the player navigated away or swapped games — while the Bot was
- * owed at state version `seq`. Records nothing else and advances nothing; the
+ * The human's vs-AI driver LEFT the game (issue #10006): the player navigated
+ * away, swapped games, closed or hid the tab (`useBotDriverExitReport`) while
+ * the Bot was owed at state version `seq`. Records nothing else and advances nothing; the
  * server deadline reads it to file no fault for a player who left
  * (`botDriverExitStore.ts`). Same authorization as `reportConsultFailure`: the
  * caller is the human of this vs-AI game. Sent fire-and-forget.
