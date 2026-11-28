@@ -74,6 +74,7 @@ import {
 import { entersOrLeavesTrigger } from "./abilities/triggers/entersOrLeavesTrigger";
 import { librarySearchedTrigger } from "./abilities/triggers/librarySearchedTrigger";
 import { giftGivenTrigger } from "./abilities/triggers/giftGivenTrigger";
+import { expendTrigger } from "./abilities/triggers/expendTrigger";
 import {
     type LifeChangeDirection,
     lifeChangedTrigger,
@@ -394,6 +395,12 @@ export type CompiledTriggerHead =
     | { readonly kind: "library-searched"; readonly scope: "opponents" }
     /** CR 702.174c — "whenever you give a gift" (`giftGivenTrigger`). */
     | { readonly kind: "gift-given"; readonly scope: "you" }
+    /** CR 700.14 — "whenever you expend N" (`expendTrigger`). */
+    | {
+          readonly kind: "expend";
+          readonly scope: "you";
+          readonly amount: number;
+      }
     /** CR 119.9 — "whenever you gain life" (`lifeChangedTrigger`). */
     | { readonly kind: "life-gained"; readonly scope: "you" }
     /** CR 119.3 + CR 603.2 — "whenever you gain or lose life during your
@@ -951,6 +958,8 @@ function resolveCompiledTriggerHead(
             return librarySearchedTrigger({ ...common, scope: head.scope });
         case "gift-given":
             return giftGivenTrigger({ ...common, scope: head.scope });
+        case "expend":
+            return expendTrigger({ ...common, amount: head.amount });
         case "life-gained":
             return lifeChangedTrigger({
                 ...common,

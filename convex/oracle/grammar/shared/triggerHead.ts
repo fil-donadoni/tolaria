@@ -156,6 +156,13 @@ export type TriggerHeadIR =
     | { readonly kind: "library-searched"; readonly scope: "opponents" }
     /** CR 702.174c — "whenever you give a gift". */
     | { readonly kind: "gift-given"; readonly scope: "you" }
+    /** CR 700.14 — "whenever you expend N": the mana the controller spent to
+     *  cast spells this turn reaching N with a cost paid. */
+    | {
+          readonly kind: "expend";
+          readonly scope: "you";
+          readonly amount: number;
+      }
     /** CR 119.9 — "whenever you gain life": one life-gain event of the
      *  ability's controller (a gain of 0 is no event). */
     | { readonly kind: "life-gained"; readonly scope: "you" }
@@ -1201,6 +1208,7 @@ export function headPronounReferent(
         case "sacrificed":
         case "library-searched":
         case "gift-given":
+        case "expend":
         case "life-gained":
         case "life-gained-or-lost":
             return null;
@@ -1215,6 +1223,11 @@ export function headPronounReferent(
 export function headNamesOpponent(head: TriggerHeadIR): boolean {
     return head.kind === "phase" && head.scope === "opponents";
 }
+
+/** CR 700.14 — "whenever you expend N": the numeral is the threshold. Only
+ *  "you" is printed; the leading-zero and multi-digit-zero forms are no
+ *  printed N and stay refused. */
+const YOU_EXPEND = /^whenever you expend ([1-9]\d*)$/;
 
 /** CR 603.6a + 202.3 — an entering creature gated on a mana-value floor. */
 const ENTERS_MANA_VALUE_FLOOR =
@@ -1408,6 +1421,15 @@ export const triggerHeadRule: Rule<TriggerHeadIR> = subGrammar(
                 scope: "any",
                 creaturesOnly: true,
                 manaValueAtLeast: Number(floor[1]),
+            });
+        // CR 700.14 — "whenever you expend N": the numeral is read, not
+        // enumerated.
+        const expend = YOU_EXPEND.exec(span.toLowerCase());
+        if (expend !== null)
+            return ok({
+                kind: "expend",
+                scope: "you",
+                amount: Number(expend[1]),
             });
         // CR 201.5 + CR 109.2 — "<self> or another <noun> you control …".
         const selfOrAnother = matchSelfOrAnotherHead(span);

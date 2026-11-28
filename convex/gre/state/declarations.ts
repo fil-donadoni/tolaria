@@ -2249,6 +2249,15 @@ export type PlayerState = {
      *  only observable at the cast: once the spell has resolved there is
      *  nothing on the board that records which cost paid for it. */
     spellsWarpedThisTurn?: number;
+    /** CR 700.14 — the total mana THIS PLAYER has spent to cast spells during
+     *  the current turn: the tally "whenever you expend N" compares against.
+     *  Advanced at the cast choke point (`emitSpellCastEvent`) by the mana the
+     *  Cast Commit paid (`SpellCastEvent.manaSpentToCast`), which also emits
+     *  `MANA_EXPENDED` with the value before and after; reset to 0 at the
+     *  start of each turn (`advanceTurn`, alongside `spellsCastThisTurn`). A
+     *  spell copy is never cast (CR 707.10) and pays no cost, so it never
+     *  counts. */
+    manaSpentOnSpellsThisTurn?: number;
     /** CR 601.2i / 202.2 — the colours of each spell THIS PLAYER has cast
      *  during the current turn, one entry per spell, in cast order: the
      *  spell's colours as it became cast (layer 5 included), `[]` for a

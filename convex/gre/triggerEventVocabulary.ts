@@ -413,6 +413,12 @@ export const EVENT_FIELD_KINDS: {
     LIBRARY_SEARCHED: { playerId: "player", libraryOwnerId: "player" },
     // CR 702.174c — the player who gave the gift.
     GIFT_GIVEN: { playerId: "player" },
+    // CR 700.14 — the caster and the mana tally before and after the cost.
+    MANA_EXPENDED: {
+        playerId: "player",
+        priorTotal: "scalar",
+        total: "scalar",
+    },
 };
 
 /** What the lowering needs from its caller to name the ids in an event: the

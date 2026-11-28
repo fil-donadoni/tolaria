@@ -3950,6 +3950,9 @@ function advanceTurn(state: GameState): void {
     for (let j = 0; j < pList5.length; j++) {
         const p = pList5[j];
         p.spellsWarpedThisTurn = 0;
+        // CR 700.14 — "the amount of mana that player spent THIS TURN to cast
+        // spells": the expend tally starts each turn from zero.
+        p.manaSpentOnSpellsThisTurn = 0;
     }
     // "The last card you drew this turn" (Jandor's Ring) is turn-scoped —
     // clear the tracker so a draw on a prior turn can't pay this turn's cost.
