@@ -1,6 +1,7 @@
 import { FastForward, Hand } from "lucide-react";
 import { HotkeyTooltip } from "~/components/ui/hotkey-tooltip";
 import { HOTKEYS } from "~/lib/hotkeys";
+import { usePrimaryClickGuard } from "~/hooks/usePrimaryClickGuard";
 import type { ControllerCommandSlots } from "~/lib/controller-action-slots";
 import {
     CONTROLLER_PRIMARY_TONE,
@@ -56,6 +57,9 @@ export default function ControllerCommandRow({
     slots: ControllerCommandSlots;
 }) {
     const { primary, statusPill, secondary, passTurn, passUntilAction } = slots;
+    // A click landing just as the centre slot morphs is dropped (issue
+    // #10973) — keyed on whatever the slot shows, status pill included.
+    const guardClick = usePrimaryClickGuard((primary ?? statusPill)?.key);
 
     return (
         <div
@@ -98,7 +102,7 @@ export default function ControllerCommandRow({
                     <button
                         type="button"
                         data-controller-primary="status"
-                        onClick={statusPill.onClick}
+                        onClick={guardClick(statusPill.onClick)}
                         disabled={statusPill.disabled}
                         className={`${CENTRE_SLOT} ${EDGE_PILL} flex items-center justify-center truncate text-display text-sm text-text-muted shadow-lg disabled:opacity-70`}
                     >
@@ -108,7 +112,7 @@ export default function ControllerCommandRow({
                     <button
                         type="button"
                         data-controller-primary="action"
-                        onClick={primary?.onClick}
+                        onClick={guardClick(primary?.onClick)}
                         disabled={!primary || primary.disabled}
                         className={`${CENTRE_SLOT} truncate text-display text-sm shadow-[0_4px_18px_rgba(0,0,0,0.45)] transition-all disabled:opacity-40 disabled:shadow-none ${
                             CONTROLLER_PRIMARY_TONE[primary?.tone ?? "primary"]

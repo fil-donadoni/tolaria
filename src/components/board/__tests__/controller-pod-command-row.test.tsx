@@ -118,6 +118,22 @@ const CASES: Case[] = [
         passes: { turn: false, until: false },
     },
     {
+        // Issue #10973: nothing declared — Attack with all leads (its click
+        // opens the confirmation), Skip Attack drops to a shelf chip.
+        state: "declaring attackers, nothing declared yet",
+        actions: [
+            action("attack-with-all", "Attack with all (3)", {
+                shortcut: HOTKEYS.passPriority,
+            }),
+            action("confirm-attackers", "Skip Attack"),
+            { ...PASS_TURN, key: "pass-turn-attackers" },
+            UNTIL,
+        ],
+        pill: { mark: "action", text: "Attack with all (3)", enabled: true },
+        chips: ["confirm-attackers"],
+        passes: { turn: true, until: true },
+    },
+    {
         state: "declaring attackers with four actions",
         actions: [
             action("confirm-attackers", "Confirm Attackers (12)", {

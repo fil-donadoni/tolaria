@@ -1,4 +1,5 @@
 import { FastForward, Hand } from "lucide-react";
+import { usePrimaryClickGuard } from "~/hooks/usePrimaryClickGuard";
 import type { ControllerCommandSlots } from "~/lib/controller-action-slots";
 import {
     CONTROLLER_PRIMARY_TONE,
@@ -39,6 +40,9 @@ export default function ControllerStripCommandStack({
     slots: ControllerCommandSlots;
 }) {
     const { primary, statusPill, secondary, passTurn, passUntilAction } = slots;
+    // A click landing just as the centre slot morphs is dropped (issue
+    // #10973) — keyed on whatever the slot shows, status pill included.
+    const guardClick = usePrimaryClickGuard((primary ?? statusPill)?.key);
 
     return (
         <div
@@ -72,7 +76,7 @@ export default function ControllerStripCommandStack({
                 <button
                     type="button"
                     data-controller-primary="status"
-                    onClick={statusPill.onClick}
+                    onClick={guardClick(statusPill.onClick)}
                     disabled={statusPill.disabled}
                     className={`${PRIMARY_SLOT} truncate border border-border-strong bg-surface-base/85 text-display text-xs text-text-muted shadow-lg backdrop-blur-md disabled:opacity-70`}
                 >
@@ -82,7 +86,7 @@ export default function ControllerStripCommandStack({
                 <button
                     type="button"
                     data-controller-primary="action"
-                    onClick={primary?.onClick}
+                    onClick={guardClick(primary?.onClick)}
                     disabled={!primary || primary.disabled}
                     className={`${PRIMARY_SLOT} truncate text-display text-xs shadow-[0_4px_18px_rgba(0,0,0,0.45)] transition-all disabled:opacity-40 disabled:shadow-none ${
                         CONTROLLER_PRIMARY_TONE[primary?.tone ?? "primary"]
