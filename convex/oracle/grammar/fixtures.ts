@@ -19821,6 +19821,99 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 702.33e + CR 701.23a — "If this spell was kicked, instead search your
+    // library for up to two basic land cards, put them onto the battlefield,
+    // then shuffle": the kicked search replaces the base search whole (`if` …
+    // `else`, each branch its own find), which the canned smoke scenario —
+    // cast unkicked — never runs. The kicker is a sacrifice (CR 702.33a).
+    {
+        rule: "kicked instead",
+        card: {
+            oracleId: "3cbdf37b-7fe3-4791-b33c-8591158b0ce5",
+            name: "Primal Growth",
+            manaCost: "{2}{G}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Kicker—Sacrifice a creature. (You may sacrifice a creature in addition to any other costs as you cast this spell.)\nSearch your library for a basic land card, put that card onto the battlefield, then shuffle. If this spell was kicked, instead search your library for up to two basic land cards, put them onto the battlefield, then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Primal Growth",
+            types: ["Sorcery"],
+            manaCost: { X: 2, G: 1 },
+            oracleText:
+                "Kicker—Sacrifice a creature. (You may sacrifice a creature in addition to any other costs as you cast this spell.)\nSearch your library for a basic land card, put that card onto the battlefield, then shuffle. If this spell was kicked, instead search your library for up to two basic land cards, put them onto the battlefield, then shuffle.",
+            kickers: [
+                {
+                    id: "kicker",
+                    description: "Kicker—Sacrifice a creature",
+                    permanent: {
+                        action: "sacrifice",
+                        filter: { types: ["Creature"] },
+                        count: 1,
+                    },
+                },
+            ],
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerCount: true },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: { type: "Land", supertype: "Basic" },
+                            count: { min: 0, max: 2 },
+                            prompt: "Search your library for up to two basic land cards.",
+                            bind: "$found2",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$found2" },
+                            player: "controller",
+                            from: "library",
+                            to: "battlefield",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                    ],
+                    else: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: { type: "Land", supertype: "Basic" },
+                            count: { min: 0, max: 1 },
+                            prompt: "Search your library for a basic land card.",
+                            bind: "$found1",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$found1" },
+                            player: "controller",
+                            from: "library",
+                            to: "battlefield",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 702.33g + CR 601.2d — "If this spell was kicked, prevent the next 6
     // damage this way instead": the kicked budget is swapped into the
     // announcement (`kickedTargetRequirement`) and the shield's `total`

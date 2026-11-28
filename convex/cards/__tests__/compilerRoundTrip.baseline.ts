@@ -700,7 +700,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Preacher",
     "Priest of Yawgmoth",
     "Primal Clay",
-    "Primal Growth",
     "Primordial Ooze",
     "Prismatic Ward",
     "Prison Barricade",

@@ -41832,6 +41832,16 @@
         "source": "compiled"
     },
     {
+        "name": "Grow from the Ashes",
+        "scryfallId": "51d4d1c2-671c-498c-a232-7d076e3dc3bb",
+        "oracleId": "645ab3c7-ee1d-4dd0-811f-2dc7f7c7e792",
+        "firstSet": "dom",
+        "firstPrintId": "51d4d1c2-671c-498c-a232-7d076e3dc3bb",
+        "firstPrintSet": "dom",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Growing Rites of Itlimoc // Itlimoc, Cradle of the Sun",
         "scryfallId": "b3b87bfc-f97f-4734-94f6-e3e2f335fc4d",
         "oracleId": "ea9c459a-6047-43aa-968f-a582be4000e8",
