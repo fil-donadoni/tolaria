@@ -83,7 +83,7 @@ function board(): GameState {
 function cast(
     state: GameState,
     id: string,
-    manaCost: CardDefinition["manaCost"],
+    manaCost: Record<string, number>,
     playerId = "p1"
 ): void {
     const player = state.players.find((p) => p.id === playerId)!;
@@ -101,7 +101,7 @@ function cast(
     state.pendingCast = {
         playerId,
         cardInstanceId: id,
-        manaCost: manaCost!,
+        manaCost,
         tappedLandIds: [],
     };
     const committed = tryAutoCommitPendingCast(state, playerId);
