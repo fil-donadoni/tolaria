@@ -7971,10 +7971,10 @@ function foldKickedInstead(
         replacement.kind === "destroy" &&
         previous.subject.kind === "mass" &&
         replacement.subject.kind === "mass";
-    // CR 701.23a + CR 702.33e — a search of the controller's own library
-    // replaced by a larger one put into the SAME zone the same way (Grow from
-    // the Ashes): a search announces nothing, so neither branch has an object
-    // the other must keep.
+    // CR 702.33e — Kicker: a search of the controller's own library replaced
+    // by a larger one put into the SAME zone the same way (Grow from the
+    // Ashes). CR 701.23a — a Search announces nothing, so neither branch has
+    // an object the other must keep.
     const librarySearches =
         isOwnLibrarySearchChain(previous) &&
         isOwnLibrarySearchChain(replacement) &&
