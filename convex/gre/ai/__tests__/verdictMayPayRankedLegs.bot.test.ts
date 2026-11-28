@@ -75,16 +75,10 @@ describe("resolveVerdictMoves — a may-pay graveyard set the refit re-ranked (i
     const offered = candidateMoves(state, "p1");
     const accept = offered.find((m) => m.kind === "may-pay" && m.accept);
 
-    it("is a position offering exactly one two-card accept", () => {
-        expect(accept).toBeDefined();
-        expect(
-            accept?.kind === "may-pay" ? accept.graveyardIds : undefined
-        ).toHaveLength(2);
-    });
-
     it("resolves an accept naming another two-card set onto the offered one", () => {
         const chosen =
             accept?.kind === "may-pay" ? (accept.graveyardIds ?? []) : [];
+        expect(chosen).toHaveLength(2);
         const other = ["g-forest", "g-island", "g-nonbasic"].filter(
             (id) => !chosen.includes(id)
         );
@@ -160,11 +154,8 @@ describe("resolveVerdictMoves — a may-pay discard set the refit re-ranked (iss
     const accept = offered.find((m) => m.kind === "may-pay" && m.accept);
     const chosen = accept?.kind === "may-pay" ? (accept.discardIds ?? []) : [];
 
-    it("is a position offering exactly one one-card discard accept", () => {
-        expect(chosen).toHaveLength(1);
-    });
-
     it("resolves an accept naming the other hand card onto the offered one", () => {
+        expect(chosen).toHaveLength(1);
         const other = ["hand-0", "hand-1"].filter((id) => !chosen.includes(id));
         const stale = JSON.stringify({
             kind: "may-pay",
