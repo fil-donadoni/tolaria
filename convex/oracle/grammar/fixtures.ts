@@ -5122,6 +5122,67 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Creature", count: 1 },
         },
     },
+    // CR 107.3 + CR 207.2c — "deals X damage to any target, where X is the number of basic land types among lands you control": the damage amount is the controller's Domain, which the canned smoke scenario cannot size (it seeds no basic lands).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Tribal Flames",
+            manaCost: "{1}{R}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Domain — Tribal Flames deals X damage to any target, where X is the number of basic land types among lands you control.",
+            oracleId: "c82eda61-d195-49c9-8ff0-a78dfa650689",
+            layout: "normal",
+        },
+        expected: {
+            name: "Tribal Flames",
+            types: ["Sorcery"],
+            manaCost: { X: 1, R: 1 },
+            oracleText:
+                "Domain — Tribal Flames deals X damage to any target, where X is the number of basic land types among lands you control.",
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: { domain: { of: "controller" } },
+                    to: { target: 0 },
+                },
+            ],
+            targetRequirement: { type: "any", count: 1 },
+        },
+    },
+    // CR 107.3 + CR 207.2c — "Target player loses X life and you gain X life, where X is the number of basic land types among lands you control": one Domain amount bound into both halves of a life drain, which the canned smoke scenario cannot size.
+    {
+        rule: "effect clause",
+        card: {
+            name: "Exotic Disease",
+            manaCost: "{4}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Domain — Target player loses X life and you gain X life, where X is the number of basic land types among lands you control.",
+            oracleId: "9480e142-289a-439d-b6a5-2666fb0e5be3",
+            layout: "normal",
+        },
+        expected: {
+            name: "Exotic Disease",
+            types: ["Sorcery"],
+            manaCost: { X: 4, B: 1 },
+            oracleText:
+                "Domain — Target player loses X life and you gain X life, where X is the number of basic land types among lands you control.",
+            effects: [
+                {
+                    op: "loseLife",
+                    player: { target: 0 },
+                    amount: { domain: { of: "controller" } },
+                },
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: { domain: { of: "controller" } },
+                },
+            ],
+            targetRequirement: { type: "player", count: 1 },
+        },
+    },
     // CR 205.1b + CR 611.2c — "All lands become 2/2 creatures until end of turn. They're still lands.": a sweep that animates the set as it is when the spell resolves, KEEPING each land's types (the rider). Exhibits `animate` acting on a runtime-selected land, which the canned smoke scenario cannot stage; Life // Death prints the same clause for the controller's lands (issue #4132).
     {
         rule: "effect clause",
