@@ -851,6 +851,11 @@ export interface EnchantRestriction {
  *  (`cards/__tests__/triggerVariableTargetCount.test.ts`) keeps it there. */
 export type TargetCountQuantity = EffectCount | EffectKickerCountValue;
 
+/** The budget a divide-as-you-choose effect splits (CR 601.2d): a fixed
+ *  amount, the announced {X}, X+1, or a text-defined quantity read at
+ *  announcement (`TargetRequirement.divideAsChosen.total`). */
+export type DivideTotal = number | "X" | "X+1" | TargetCountQuantity;
+
 /** A live combat role a target filter can name (CR 508.1 attacking, CR 509.1
  *  blocking, CR 509.1h blocked). */
 export type CombatRole = "attacking" | "blocking" | "blocked";
@@ -1262,9 +1267,13 @@ export interface TargetRequirement {
      *  to say "Prevent damage" instead of the default "Deal damage" (QA — the
      *  banner hard-coded "Deal damage" for every divide spell regardless).
      *  `"counters"` — the budget is counters distributed by a
-     *  `distributeCountersAsChosen` Op (CR 601.2d). */
+     *  `distributeCountersAsChosen` Op (CR 601.2d).
+     *  `total` may also be a {@link TargetCountQuantity} — a budget DEFINED BY
+     *  THE TEXT ("X damage divided as you choose …, where X is the number of
+     *  lands you control"), read off the board when the division is announced
+     *  (CR 601.2d) through the same reader a text-defined target bound uses. */
     divideAsChosen?: {
-        total: number | "X" | "X+1";
+        total: DivideTotal;
         kind?: "deal" | "prevent" | "counters";
     };
     /** Restricts legal SPELL targets (`type: "spell"`) to spells that WOULD
@@ -18318,8 +18327,10 @@ export type EffectOp =
      *  amount, the announced {X} (`getX()`, Fire Covenant's pay-X-life), or X+1
      *  (Meteor Shower's "X plus 1 damage"). Must MIRROR the card's
      *  `divideAsChosen.total` — the two are the announcement/resolution halves of
-     *  the same value. No-op if there are no targets or the total is ≤0. */
-    | { op: "dealDamageDividedAsChosen"; total: number | "X" | "X+1" }
+     *  the same value. A {@link TargetCountQuantity} total is re-read at
+     *  resolution only as the fallback cap — the announced split stands.
+     *  No-op if there are no targets or the total is ≤0. */
+    | { op: "dealDamageDividedAsChosen"; total: DivideTotal }
     /** CR 601.2d / 122.1 — put `total` counters of `counter` kind DISTRIBUTED
      *  AS YOU CHOOSE among the spell/ability's announced targets ("Distribute
      *  three +1/+1 counters among one, two, or three target creatures"). The

@@ -2739,7 +2739,13 @@ export function activateAbilityOnState(
         const abilityDivideTotal = effectiveTargetReq.divideAsChosen
             ? resolveDivideTotal(
                   effectiveTargetReq.divideAsChosen.total,
-                  targetChosenX
+                  targetChosenX,
+                  {
+                      state,
+                      controllerId: args.playerId,
+                      sourceInstanceId: card.id,
+                      priorTargets: [],
+                  }
               )
             : undefined;
         if (

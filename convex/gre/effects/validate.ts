@@ -271,6 +271,15 @@ function isDivideTotal(value: unknown): boolean {
     return isPositiveInt(value) || value === "X" || value === "X+1";
 }
 
+/** A `dealDamageDividedAsChosen` total: the divide vocabulary above, or a
+ *  text-defined quantity (`TargetCountQuantity` — a `count` or `kickerCount`
+ *  value) read at announcement (CR 601.2d). */
+function isDamageDivideTotal(value: unknown): boolean {
+    return (
+        isDivideTotal(value) || isCountValue(value) || isKickerCountValue(value)
+    );
+}
+
 /** A base P/T value for the `animate` Op (issue #1317) — unlike CR 107.1's
  *  positive-int-literal rule for `EffectValue` AMOUNTS, a creature's base
  *  power/toughness is a plain characteristic and 0 is legal (Earthbend N's
@@ -4666,7 +4675,7 @@ const OP_SCHEMAS: OpSchemaTable = {
     // CR 601.2d / 120.4 — divide-as-you-choose damage over the announced target
     // group (Arc Lightning, Fiery Justice, Meteor Shower). `total` mirrors the
     // card's `divideAsChosen.total`.
-    dealDamageDividedAsChosen: { required: { total: isDivideTotal } },
+    dealDamageDividedAsChosen: { required: { total: isDamageDivideTotal } },
     // CR 601.2d / 122.1 — the counters twin: `total` mirrors the card's
     // `divideAsChosen.total`; `bind` is a PICKS list, one entry per counter
     // put on a creature this way.
