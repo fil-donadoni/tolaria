@@ -7784,6 +7784,8 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         }
         const { result: whole, frameOpened } = wholeSentence(span, ctx);
         if (whole.ok) return whole;
+        const continued = readThenSentence(span, ctx);
+        if (continued !== null) return continued;
         // CR 608.2c — ", then" opens after ANY head, a frame chain included
         // ("Return a creature you control to its owner's hand, then destroy
         // all creatures", issue #6631): the head is re-read whole by the
@@ -7798,6 +7800,37 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         return frameOpened ? whole : deeperFailure(whole, chained);
     })
 );
+
+const THEN_SENTENCE = "Then ";
+
+/**
+ * CR 608.2c — a sentence-initial "Then" ("Destroy target noncreature
+ * permanent. Then this Spacecraft deals 4 damage to each creature."): the
+ * instructions are followed in the order written, so the word adds nothing a
+ * full stop does not already say, and the sentence after it is read by the
+ * same grammar as one printed without it. Asked only AFTER the whole sentence
+ * failed, so an exact shape that spells its own "Then" ("Then that player
+ * shuffles", "Then shuffle") keeps its reader; the frame chain strips the
+ * word itself (`readFrameChain`).
+ *
+ * Fail-closed: only a plain EFFECT is accepted. Every other role (a
+ * restriction, a modifier, a fold marker like "If you do" or "Choose a
+ * color") is a sentence `assembleSentences` binds to its neighbour, and a
+ * "Then" in front of one is a reading the grammar has not earned. `null`
+ * when the word is absent or the rest does not read — the whole sentence's
+ * own refusal then stands, so the gap key a card carried does not move.
+ */
+function readThenSentence(
+    span: string,
+    ctx: unknown
+): RuleResult<SentenceIR> | null {
+    if (!span.startsWith(THEN_SENTENCE)) return null;
+    const rest = sentenceRule.run(
+        capitalise(span.slice(THEN_SENTENCE.length)),
+        ctx
+    );
+    return rest.ok && rest.value.role === "effect" ? rest : null;
+}
 
 /**
  * CR 608.2c — the replacement sentence: "If you control a <A> and a <B>,
