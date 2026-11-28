@@ -109,7 +109,10 @@ export const lionSash = defineCard(() => ({
 //   CR 611.2a first-strike grant land on the same target, or on nothing.
 //   −1 — a 2/2 white Samurai token with vigilance (NEO token print, resolved
 //   off the creator's print, ADR 0140).
-//   −2 — "target tapped creature" (any controller's), then 2 life.
+//   −2 — "target tapped creature" (any controller's), exiled through the
+//   `exile` Op (CR 701.13a), then 2 life. Never `moveZone`: its permanent
+//   branch moves a battlefield target only to hand or library, so an exile
+//   there was a silent no-op (issue #10978).
 // compiler-gap: "As long as {self} entered this turn, you may activate her loyalty abilities any time you could cast an instant" (#8493)
 export const theWanderingEmperor = defineCard(() => ({
     id: "fab2d8a9-ab4c-4225-a570-22636293c17d",
@@ -182,7 +185,7 @@ export const theWanderingEmperor = defineCard(() => ({
                 tappedFilter: "tapped",
             },
             effects: [
-                { op: "moveZone", target: { target: 0 }, to: "exile" },
+                { op: "exile", target: { target: 0 } },
                 { op: "gainLife", player: "controller", amount: 2 },
             ],
         },

@@ -93,7 +93,16 @@ export type EffectScriptHost = Pick<
     Partial<Pick<CardDefinition, "overload">> &
     // Issue #7211 — read ONLY by the `colorsSpentToCast` gate below: the
     // value reads a record the engine takes only for a card that opts in.
-    Partial<Pick<CardDefinition, "noteManaSpent">>;
+    Partial<Pick<CardDefinition, "noteManaSpent">> &
+    // Issue #10978 — read ONLY by the battlefield `moveZone` gate
+    // (`battlefieldMoveZoneSkipErrors`): the announced groups' zones decide
+    // which destinations the executor can take a slot to.
+    Partial<
+        Pick<
+            CardDefinition,
+            "targetRequirement" | "additionalTargetRequirements"
+        >
+    >;
 
 /** Field schema for one Op: required fields (each must be present and valid)
  *  plus optional fields (validated only when present). Any field NOT listed
@@ -10728,6 +10737,96 @@ const SELF_REDIRECT_OPS: ReadonlySet<string> = new Set([
     "shuffleSelfIntoLibrary",
 ]);
 
+/** The destinations `moveZone`'s announced-target executor CAN take a
+ *  battlefield permanent to (`interpreter.ts`, the `target.type ===
+ *  "permanent"` branch): the bounce to hand (CR 400.7) and the library insert
+ *  (issue #1726). Every other destination from the battlefield is skipped
+ *  there on purpose — exile and the graveyard have their own LTB-aware Ops
+ *  (`exile`, CR 701.13a; `destroy` / `sacrifice`). */
+const BATTLEFIELD_MOVE_ZONE_DESTINATIONS: ReadonlySet<string> = new Set([
+    "hand",
+    "library",
+    "library-top",
+]);
+
+/** The requirement announced slot `slot` is chosen against (CR 601.2c): the
+ *  primary group, then each `additionalTargetRequirements` entry, the picks
+ *  concatenated in that order. With no additional group every slot is the
+ *  primary's; across groups a slot maps only while each earlier group has a
+ *  FIXED count (an integer, or `{ min, max }` with min = max) — a variable
+ *  count shifts every later slot, so the mapping fails open (undefined). */
+function requirementForSlot(
+    primary: unknown,
+    additional: unknown,
+    slot: number
+): unknown {
+    if (!Array.isArray(additional) || additional.length === 0) return primary;
+    const groups: unknown[] = [primary, ...additional].filter(
+        (g) => g !== undefined
+    );
+    let start = 0;
+    for (let i = 0; i < groups.length; i++) {
+        const count = (groups[i] as { count?: unknown } | null)?.count;
+        const range = count as { min?: unknown; max?: unknown } | null;
+        const fixed =
+            typeof count === "number"
+                ? count
+                : typeof range === "object" &&
+                    range !== null &&
+                    typeof range.max === "number" &&
+                    range.min === range.max
+                  ? range.max
+                  : undefined;
+        if (fixed === undefined) return undefined;
+        if (slot < start + fixed) return groups[i];
+        start += fixed;
+    }
+    return undefined;
+}
+
+/** Issue #10978 — a `moveZone { target: { target: n }, to }` whose slot is
+ *  announced against a BATTLEFIELD requirement (no `zone: "graveyard"`, not a
+ *  stack-spell target) and whose `to` is outside
+ *  `BATTLEFIELD_MOVE_ZONE_DESTINATIONS` resolves to nothing: the executor's
+ *  permanent branch skips it, so the rest of the script still runs and the
+ *  card looks half-working (The Wandering Emperor's −2 gained 2 life and
+ *  exiled nothing). An explicit `from` is the departed-object path and is not
+ *  this shape. Fails open on an absent or unmappable requirement. */
+function battlefieldMoveZoneSkipErrors(
+    effects: unknown,
+    host: {
+        targetRequirement?: unknown;
+        additionalTargetRequirements?: unknown;
+    },
+    label: string,
+    errors: string[]
+): void {
+    const hits: Record<string, unknown>[] = [];
+    findOpsWithNames(effects, new Set(["moveZone"]), hits);
+    for (let i = 0; i < hits.length; i++) {
+        const hit = hits[i];
+        const target = hit.target as { target?: unknown } | null | undefined;
+        const slot = target?.target;
+        if (typeof slot !== "number" || "from" in hit) continue;
+        if (BATTLEFIELD_MOVE_ZONE_DESTINATIONS.has(String(hit.to))) continue;
+        const requirement = requirementForSlot(
+            host.targetRequirement,
+            host.additionalTargetRequirements,
+            slot
+        );
+        if (requirement === null || typeof requirement !== "object") continue;
+        const req = requirement as { zone?: unknown; type?: unknown };
+        if (req.zone === "graveyard") continue;
+        const types = Array.isArray(req.type) ? req.type : [req.type];
+        if (types.some((t) => t === "spell" || t === "spell-or-permanent")) {
+            continue;
+        }
+        errors.push(
+            `${label}: moveZone { target: { target: ${slot} }, to: "${String(hit.to)}" } on a battlefield target is skipped by the executor (it moves a permanent only to hand or library) — use the exile / destroy / sacrifice Op instead`
+        );
+    }
+}
+
 function validateEffectOpList(
     effects: unknown,
     label: string,
@@ -10927,6 +11026,7 @@ export function validateEffectScript(def: EffectScriptHost): string[] {
     // A spell's source is the stack item, not a permanent — no `$source`; and a
     // spell has no firing event, so `$event` is illegal (ADR 0049).
     validateEffectOpList(def.effects, label, EMPTY_BINDINGS, errors, undefined);
+    battlefieldMoveZoneSkipErrors(def.effects, def, label, errors);
 
     // CR 105.1 / 207.2c (issue #7211) — `{ colorsSpentToCast: true }` reads
     // `StackItem.notedManaSpent`, which the cast-payment seam records ONLY for
@@ -11162,6 +11262,10 @@ export type AbilityEffectScriptHost = {
     /** Read only by the `manaAbilityEffects` gate: the tap-for-mana paths
      *  that run that script are reached by a `{T}` or sacrifice cost leg. */
     cost?: unknown;
+    /** Issue #10978 — read only by the battlefield `moveZone` gate
+     *  (`battlefieldMoveZoneSkipErrors`): the announced groups' zones. */
+    targetRequirement?: unknown;
+    additionalTargetRequirements?: unknown;
 };
 
 /** Validates an ABILITY-SITE Effect Script (activated / triggered, issue
@@ -11250,6 +11354,7 @@ export function validateAbilityEffectScript(
         errors,
         eventTypeList(triggerEventType)
     );
+    battlefieldMoveZoneSkipErrors(ability.effects, ability, label, errors);
     // CR 601.2 / 602.1a (issue #7211) — only a SPELL is cast; an ability is
     // activated or triggered, so "the number of colors of mana spent to cast
     // this spell" has no referent here; the record an activation notes is ITS
