@@ -6158,6 +6158,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bakersbane Duo",
+        "scryfallId": "5309354f-1ff4-4fa9-9141-01ea2f7588ab",
+        "oracleId": "ecd9a0a4-1dfa-4d91-8339-062e2be4e5d9",
+        "firstSet": "blb",
+        "firstPrintId": "5309354f-1ff4-4fa9-9141-01ea2f7588ab",
+        "firstPrintSet": "blb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Bala Ged Recovery // Bala Ged Sanctuary",
         "scryfallId": "c5cb3052-358d-44a7-8cfd-cd31b236494a",
         "oracleId": "d2075f58-b0e9-4e85-b7e6-0523a27a1d5b",
@@ -6689,6 +6699,16 @@
         "firstPrintId": "52a54ebc-008a-4180-a023-2e1d5318780c",
         "firstPrintSet": "grn",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Bark-Knuckle Boxer",
+        "scryfallId": "582637a9-6aa0-4824-bed7-d5fc91bda35e",
+        "oracleId": "08e173e3-4c28-49d2-bb57-ccf533f20daf",
+        "firstSet": "blb",
+        "firstPrintId": "582637a9-6aa0-4824-bed7-d5fc91bda35e",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -49636,6 +49656,16 @@
         "source": "compiled"
     },
     {
+        "name": "Junkblade Bruiser",
+        "scryfallId": "918fd89b-5ab7-4ae2-920c-faca5e9da7b9",
+        "oracleId": "0a2fbdd3-4940-4bbf-ae19-f6d00d7ff294",
+        "firstSet": "blb",
+        "firstPrintId": "918fd89b-5ab7-4ae2-920c-faca5e9da7b9",
+        "firstPrintSet": "blb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Junktown",
         "scryfallId": "5e24c687-f070-469d-a09d-acf4ac6ed374",
         "oracleId": "c470a802-931f-4b63-92fd-ef9cf2e796dd",
@@ -77235,6 +77265,16 @@
         "source": "compiled"
     },
     {
+        "name": "Roughshod Duo",
+        "scryfallId": "78cdcfb9-a247-4c2d-a098-5b57570f8cd5",
+        "oracleId": "0cc89c15-5a48-4998-b6df-21791b6ed9a3",
+        "firstSet": "blb",
+        "firstPrintId": "78cdcfb9-a247-4c2d-a098-5b57570f8cd5",
+        "firstPrintSet": "blb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Roughshod Mentor",
         "scryfallId": "abe77862-516f-4eb2-9a41-0c6401d02843",
         "oracleId": "ec43fb64-122d-4fc5-9fe0-b7913373f7a4",
@@ -95131,6 +95171,16 @@
         "source": "compiled"
     },
     {
+        "name": "Teapot Slinger",
+        "scryfallId": "30506844-349f-4b68-8cc1-d028c1611cc7",
+        "oracleId": "5ba19dbe-9dbb-4cc9-81a3-18c26f27bd0f",
+        "firstSet": "blb",
+        "firstPrintId": "30506844-349f-4b68-8cc1-d028c1611cc7",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Tear Asunder",
         "scryfallId": "629aa907-9533-4681-9bf2-9e56450a4cc2",
         "oracleId": "610af0f7-b5e3-43fb-9d02-7c59bd99034c",
@@ -99436,6 +99486,16 @@
         "firstPrintId": "a53088da-25b5-4c7e-9a11-456fbc814dfc",
         "firstPrintSet": "mom",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Trailtracker Scout",
+        "scryfallId": "36ee967a-3cac-4fff-b616-ec2557c676f2",
+        "oracleId": "d38646dc-d1ea-473c-aaf1-df8ba327459f",
+        "firstSet": "blc",
+        "firstPrintId": "36ee967a-3cac-4fff-b616-ec2557c676f2",
+        "firstPrintSet": "blc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -106581,6 +106641,16 @@
         "firstSet": "lea",
         "firstPrintId": "220a03ca-8c9b-4acb-821d-f6577fbb20fb",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Wandertale Mentor",
+        "scryfallId": "8c399a55-d02e-41ed-b827-8784b738c118",
+        "oracleId": "9d14c7bd-7802-401c-b02b-c7f3c51b007f",
+        "firstSet": "blb",
+        "firstPrintId": "8c399a55-d02e-41ed-b827-8784b738c118",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Wanderwine Distracter",
