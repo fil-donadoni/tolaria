@@ -762,6 +762,20 @@ describe("a one-card keep-or-graveyard hides nothing (CR 701.44a / 701.25a)", ()
         });
     });
 
+    it("Surveil 1 shows the chooser a card only the opponent saw placed", () => {
+        withTemporaryDefinition(lookSpell(1, "graveyard"), () => {
+            const state = withBear(["top", "u1"]);
+            // A fateseal-style keep: p2 alone witnessed the card put on top.
+            state.players[0].library[0].knownTo = ["p2"];
+            state.players[0].library[0].libraryPositionKnownTo = ["p2"];
+            pushSpell(state, IMPULSE, "p1");
+            resolveTopOfStack(state);
+            answer(state, ["top"], []);
+            expect(seen(state, "p1")).toEqual([[0, "top"]]);
+            expect(seen(state, "p2")).toEqual([[0, "top"]]);
+        });
+    });
+
     it.each([
         ["Surveil 2", "graveyard"],
         ["Scry 2", "library-bottom"],
