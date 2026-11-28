@@ -614,7 +614,10 @@ function isCardFilter(
                 isXValue(v) ||
                 // CR 122.1 (issue #10505) — "equal to the number of <kind>
                 // counters on this artifact".
-                isCountersValue(v)
+                isCountersValue(v) ||
+                // CR 608.2h — "equal to 1 plus the sacrificed creature's mana
+                // value": the cost-sacrifice snapshot, read at resolution.
+                isSacrificedValue(v)
             );
         }
         // issue #1881 (ADR 0078 decision 8) — exact structural MANA-COST
@@ -5260,9 +5263,10 @@ const OP_SCHEMAS: OpSchemaTable = {
             // ("return it to the battlefield. It's an enchantment."), valid
             // only on the `target` shape with `to: "battlefield"`.
             entersAs: isEntryTypeLine,
-            // issue #1372 — counters the returning permanent is given AS it
+            // issue #1372 — counters the entering permanent is given AS it
             // enters ("with a -1/-1 counter on it", Persist, CR 122.6), valid
-            // only on the `target` shape with `to: "battlefield"`.
+            // only with `to: "battlefield"` on the `target` shape or on the
+            // `cards` shape from a zone other than hand.
             entersWithCounters: isCountersMap,
             // CR 303.4f — the host a returning Aura enters attached to, valid
             // only on the `target` shape with `to: "battlefield"`.
@@ -5511,15 +5515,18 @@ const OP_SCHEMAS: OpSchemaTable = {
                     'field "entersAs" is only valid with "target" and to: "battlefield" (issue #2993)'
                 );
             }
-            // issue #1372 — `entersWithCounters` rides the same reanimation
-            // branch (`returnToBattlefield`'s `entryCounters`) and nothing else
-            // consumes it.
+            // issue #1372 — `entersWithCounters` rides the entry funnel's
+            // `entryCounters` slot, reached by the `target` shape's
+            // reanimation branch and by the `cards` shape's library /
+            // graveyard / exile entries; the hand entry does not carry it.
             if (
                 "entersWithCounters" in entry &&
-                (!hasTarget || entry.to !== "battlefield")
+                (!(hasTarget || hasCards) ||
+                    entry.to !== "battlefield" ||
+                    (hasCards && entry.from === "hand"))
             ) {
                 errors.push(
-                    'field "entersWithCounters" is only valid with "target" and to: "battlefield" (issue #1372)'
+                    'field "entersWithCounters" is only valid with to: "battlefield" on "target", or on "cards" from a zone other than "hand" (issue #1372)'
                 );
             }
             // CR 303.4f — `attachTo` rides the same reanimation branch as

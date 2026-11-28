@@ -5736,6 +5736,8 @@ export interface SpellContext {
              *  when the effect names one other than the library's owner;
              *  omitted = `playerId`. */
             controllerId?: string;
+            /** CR 122.6 — see `returnToBattlefield`'s `entryCounters`. */
+            entryCounters?: Readonly<Record<string, number>>;
         }
     ) => boolean;
     /** Puts a card from `playerId`'s HAND onto their battlefield (CR 400.7 — a
@@ -16650,7 +16652,11 @@ export interface EffectCardFilter {
      *  `manaValueAtMost` already uses). A third shape is a counter tally
      *  (`{ counters: { of: { ref: "$source" }, type } }`, CR 122.1, issue
      *  #10505) — "with mana value equal to the number of charge counters on
-     *  this artifact", read as the filter is applied. Metathran Aerostat's "a creature card
+     *  this artifact", read as the filter is applied. A fourth is the
+     *  cost-sacrifice snapshot (`{ sacrificed: { read: "manaValue", plus } }`,
+     *  CR 608.2h) — "a creature card with mana value equal to 1 plus the
+     *  sacrificed creature's mana value", `manaValueAtMost`'s own shape.
+     *  Metathran Aerostat's "a creature card
      *  with mana value X from your hand" is `manaValueEquals: { X: true }`
      *  paired with `type: "Creature"` on a `choice(zone: "hand")` Op. An
      *  unresolvable dynamic value fails the filter closed (CR 608.2b),
@@ -16658,7 +16664,11 @@ export interface EffectCardFilter {
      *  every other field, including `manaValueAtMost` itself (an unlikely but
      *  not-forbidden combination — the two are independent ceiling/exact
      *  constraints). */
-    manaValueEquals?: number | EffectXValue | EffectCountersValue;
+    manaValueEquals?:
+        | number
+        | EffectXValue
+        | EffectCountersValue
+        | EffectSacrificedValue;
     /** Exact structural MANA-COST match (CR 202, issue #1881, ADR 0078
      *  decision 8) — distinct from `manaValueEquals`, which folds a cost down
      *  to one number. Urza's Saga III reads "an artifact card with **mana
@@ -19635,6 +19645,14 @@ export type EffectOp =
            *  happen. A spell resolving as its own source never counts as gone
            *  (`sourceAlreadyLeftBattlefield`). */
           untilSourceLeaves?: boolean;
+          /** CR 122.6 / 614.1c — counters each picked card is given AS it
+           *  enters ("put that card onto the battlefield with an additional
+           *  +1/+1 counter on it"), keyed like the permanent's `counters` map.
+           *  The `target` shape's `entersWithCounters`, threaded to the same
+           *  `entryCounters` entry-funnel slot, so the PERMANENT_ENTERED event
+           *  already sees them. Valid only with `to: "battlefield"` and a
+           *  `from` other than `"hand"` (validator-enforced). */
+          entersWithCounters?: Readonly<Record<string, number>>;
       }
     /** CR 400.7 — the THIRD `moveZone` shape: a bulk WHOLE-ZONE
      *  move. Every card currently in `from` moves to `to` — no announced

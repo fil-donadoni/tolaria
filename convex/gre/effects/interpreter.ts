@@ -4731,6 +4731,18 @@ export const OP_EXECUTORS: {
                     const authoredEntry = op.tapped
                         ? { entersTapped: true }
                         : undefined;
+                    // CR 122.6 / 614.1c — "with an additional +1/+1 counter on
+                    // it": placed inside the entry funnel, before the
+                    // PERMANENT_ENTERED notification. The validator keeps it
+                    // off `from: "hand"`.
+                    const entryCounters = op.entersWithCounters;
+                    const reanimateOpts =
+                        authoredEntry || entryCounters
+                            ? {
+                                  ...(authoredEntry ? { authoredEntry } : {}),
+                                  ...(entryCounters ? { entryCounters } : {}),
+                              }
+                            : undefined;
                     const entered =
                         op.from === "hand"
                             ? ctx.putFromHandOntoBattlefield(
@@ -4738,40 +4750,26 @@ export const OP_EXECUTORS: {
                                   id,
                                   authoredEntry
                               )
-                            : op.from === "graveyard"
+                            : op.from === "graveyard" || op.from === "exile"
                               ? ctx.returnToBattlefield(
                                     playerId,
                                     id,
-                                    "graveyard",
+                                    op.from,
                                     controllerId,
-                                    authoredEntry
-                                        ? { authoredEntry }
-                                        : undefined
+                                    reanimateOpts
                                 )
-                              : op.from === "exile"
-                                ? ctx.returnToBattlefield(
-                                      playerId,
-                                      id,
-                                      "exile",
-                                      controllerId,
-                                      authoredEntry
-                                          ? { authoredEntry }
-                                          : undefined
-                                  )
-                                : ctx.putFromLibraryOntoBattlefield(
-                                      playerId,
-                                      id,
-                                      authoredEntry || controllerId
-                                          ? {
-                                                ...(authoredEntry
-                                                    ? { authoredEntry }
-                                                    : {}),
-                                                ...(controllerId
-                                                    ? { controllerId }
-                                                    : {}),
-                                            }
-                                          : undefined
-                                  );
+                              : ctx.putFromLibraryOntoBattlefield(
+                                    playerId,
+                                    id,
+                                    reanimateOpts || controllerId
+                                        ? {
+                                              ...reanimateOpts,
+                                              ...(controllerId
+                                                  ? { controllerId }
+                                                  : {}),
+                                          }
+                                        : undefined
+                                );
                     // issue #1151 (closing #1120 gap 3) — snapshot the
                     // permanent that just entered so a follow-up Op (a haste
                     // grant, a `delayedTrigger` capture) can act on it. The
