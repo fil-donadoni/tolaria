@@ -3,11 +3,13 @@
 // public fact and every zone COUNT is preserved, and the result is pure and
 // reproducible given the RNG stream. See `convex/gre/determinize.ts`.
 import { describe, expect, it } from "vitest";
-import { getCardByName } from "../../cards";
+import { getCardByName, getDefinition } from "../../cards";
+import { withTemporaryDefinition } from "../../cards/registry";
 import { PLACEHOLDER_CARD_ID } from "../constants";
 import { unseenRemainder } from "../deckKnowledge";
 import { determinize } from "../determinize";
-import { buildSpellContext, type GameState } from "../state";
+import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
+import { buildSpellContext, resolveTopOfStack, type GameState } from "../state";
 import { projectPublicState } from "../../gameProjections";
 import { makeRng } from "../rng";
 import { LADDER_VARIANTS, resolveOpponentModel } from "../ai/searchVariant";
@@ -17,6 +19,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
 } from "../../cards/__tests__/setup.helper";
 
 const BEARS = getCardByName("Grizzly Bears").id;
@@ -1066,6 +1069,55 @@ describe("determinize — known library runs are pinned (issue #1524)", () => {
         const b = determinize(state, "p1", makeRng(5));
         expect(JSON.stringify(a)).toEqual(JSON.stringify(b));
         expect(JSON.stringify(state)).toEqual(before);
+    });
+});
+
+describe("determinize — an explored card kept on top is pinned for the opponent (CR 701.44a)", () => {
+    // The reveal is public and the keep-or-graveyard outcome is observable, so
+    // p1 knows p2's top card exactly as the wire shows it; the search must not
+    // re-deal it (ADR 0026: one derivation, `knownLibraryIndices`).
+    it("pins the kept card at the explorer's top, agreeing with the projection", () => {
+        const IMPULSE = getDefinition("9d710a97-062f-4773-b6c6-8aeddeb3b6e8");
+        withTemporaryDefinition(
+            { ...IMPULSE, effects: [{ op: "explore", target: { target: 0 } }] },
+            () => {
+                const state = knowledgeState();
+                state.players[1].battlefield.push(
+                    makeInstance(BEARS, {
+                        id: "scout",
+                        controllerId: "p2",
+                        ownerId: "p2",
+                    })
+                );
+                pushSpell(state, IMPULSE.id, "p2", [
+                    { type: "permanent", id: "scout" },
+                ]);
+                resolveTopOfStack(state);
+                const head = state.pendingChoices![0];
+                expect(head.kind).toBe("order-top");
+                applyPendingChoiceSubmit(state, {
+                    playerId: head.playerId,
+                    stackItemId: head.stackItemId,
+                    step: head.step,
+                    choiceId: head.choiceId,
+                    cardInstanceIds: ["p2-lib-0"],
+                    secondZoneIds: [],
+                });
+                const granted = projectPublicState(
+                    state,
+                    1,
+                    "p1"
+                ).players[1].library.known.map((k) => k.index);
+                expect(granted).toEqual([0]);
+                for (const seed of SEEDS) {
+                    const out = determinize(state, "p1", makeRng(seed));
+                    expect(out.players[1].library[0].id).toBe("p2-lib-0");
+                    expect(out.players[1].hand.map((c) => c.id)).not.toContain(
+                        "p2-lib-0"
+                    );
+                }
+            }
+        );
     });
 });
 

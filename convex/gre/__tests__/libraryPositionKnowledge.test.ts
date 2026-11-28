@@ -673,3 +673,116 @@ describe("a hidden look over library cards takes a public position away", () => 
         });
     });
 });
+
+describe("a one-card keep-or-graveyard hides nothing (CR 701.44a / 701.25a)", () => {
+    /** Instant: the target creature explores (CR 701.44a). */
+    const exploreSpell = (): CardDefinition => ({
+        ...getDefinition(IMPULSE),
+        effects: [{ op: "explore", target: { target: 0 } }],
+    });
+    /** Instant: the controller surveils (or scrys) `count`. */
+    const lookSpell = (
+        count: number,
+        destination: "graveyard" | "library-bottom"
+    ): CardDefinition => ({
+        ...getDefinition(IMPULSE),
+        effects: [
+            { op: "scryReorder", player: "controller", count, destination },
+        ],
+    });
+
+    function withBear(top: string[]): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    library: library(top),
+                    battlefield: [bearInPlay()],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    /** Answers the open `order-top` head: `keep` on top, `binned` away. */
+    function answer(state: GameState, keep: string[], binned: string[]) {
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("order-top");
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: keep,
+            secondZoneIds: binned,
+        });
+    }
+
+    /** p1 explores with the bear over a nonland top card and keeps it. */
+    function exploreAndKeep(): GameState {
+        const state = withBear(["top", "u1", "u2"]);
+        // A nonland on top: the revealed card raises the keep-or-bin choice.
+        state.players[0].library[0] = makeInstance(BEARS, {
+            id: "top",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        pushSpell(state, IMPULSE, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        answer(state, ["top"], []);
+        return state;
+    }
+
+    it("an explored card kept on top stays face-up at index 0 for BOTH seats", () => {
+        withTemporaryDefinition(exploreSpell(), () => {
+            const state = exploreAndKeep();
+            expect(state.players[0].library[0].id).toBe("top");
+            expect(seen(state, "p2")).toEqual([[0, "top"]]);
+            expect(seen(state, "p1")).toEqual([[0, "top"]]);
+        });
+    });
+
+    it("the opponent's knowledge of it ends normally on a draw", () => {
+        withTemporaryDefinition(exploreSpell(), () => {
+            const state = exploreAndKeep();
+            drawCard(state.players[0]);
+            expect(state.players[0].hand.map((c) => c.id)).toContain("top");
+            expect(seen(state, "p2")).toEqual([]);
+        });
+    });
+
+    it("a card both players knew on top stays known through Surveil 1", () => {
+        withTemporaryDefinition(lookSpell(1, "graveyard"), () => {
+            const state = withBear(["top", "u1"]);
+            grantKnowledgeToAll(state, "p1", ["top"]);
+            pushSpell(state, IMPULSE, "p1");
+            resolveTopOfStack(state);
+            answer(state, ["top"], []);
+            expect(seen(state, "p2")).toEqual([[0, "top"]]);
+        });
+    });
+
+    it.each([
+        ["Surveil 2", "graveyard"],
+        ["Scry 2", "library-bottom"],
+    ] as const)(
+        "%s keeping public cards on top hides their order from the opponent",
+        (_, destination) => {
+            withTemporaryDefinition(lookSpell(2, destination), () => {
+                const state = withBear(["a", "b", "u1"]);
+                grantKnowledgeToAll(state, "p1", ["a", "b"]);
+                pushSpell(state, IMPULSE, "p1");
+                resolveTopOfStack(state);
+                answer(state, ["b", "a"], []);
+                expect(
+                    state.players[0].library.slice(0, 2).map((c) => c.id)
+                ).toEqual(["b", "a"]);
+                expect(seen(state, "p2")).toEqual([]);
+                expect(seen(state, "p1")).toEqual([
+                    [0, "b"],
+                    [1, "a"],
+                ]);
+            });
+        }
+    );
+});

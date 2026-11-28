@@ -42,6 +42,7 @@ import {
 } from "./sba";
 import { randomGraveyardArrangement } from "./graveyardOrder";
 import { findCardInAnyZone } from "./lookup";
+import { orderTopAnswerIsPublic } from "./libraryKnownRuns";
 import { outsideGamePool } from "./outsideGame";
 import { tryGetDefinition } from "../cards";
 import { copyExceptName } from "../cards/cardNames";
@@ -912,11 +913,16 @@ export function submitMidResolutionPick(
     // ADR 0026 — the answer to any look over library cards is hidden: whatever
     // this choice puts back, bottoms or leaves in place, only the chooser saw
     // which card went where, for every card they looked at and not only those
-    // they picked. Reordering a single card hides nothing.
+    // they picked. Reordering a single card hides nothing, and neither does a
+    // one-card keep-or-graveyard (`orderTopAnswerIsPublic`, Explore's tail).
     const lookedAt = head.candidateIds ?? args.cardInstanceIds;
     if (
         head.zone === "library" &&
-        (head.kind !== "reorder-library" || lookedAt.length > 1)
+        (head.kind !== "reorder-library" || lookedAt.length > 1) &&
+        !(
+            head.kind === "order-top" &&
+            orderTopAnswerIsPublic(lookedAt.length, head.destination)
+        )
     ) {
         narrowLibraryPositionToChooser(
             state,

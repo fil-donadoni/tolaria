@@ -97,6 +97,25 @@ export function knownLibraryIndices(
     return indices;
 }
 
+/** ADR 0026 — whether answering an `order-top` look over `windowSize` cards
+ *  leaves every player knowing exactly what they knew before it. A ONE-card
+ *  window whose only alternative to staying on top is a PUBLIC zone (CR 400.2:
+ *  the graveyard — Surveil 1, CR 701.25a; Explore's "may put the revealed
+ *  card into their graveyard", CR 701.44a) or no move at all (`"none"`)
+ *  creates no hidden fact: every player sees whether the card reached the
+ *  graveyard, so a player who knew it on top still knows it there. A window
+ *  of two or more hides the kept ORDER, so it narrows to the chooser; a
+ *  library-bottom alternative (Scry 1) keeps that narrowing too. */
+export function orderTopAnswerIsPublic(
+    windowSize: number,
+    destination: string | undefined
+): boolean {
+    return (
+        windowSize === 1 &&
+        (destination === "graveyard" || destination === "none")
+    );
+}
+
 /** Issue #2996 — how many TOP cards of `libraryOwnerId`'s library `viewerId`
  *  is looking at right now through an OPEN top-N look choice, for
  *  {@link knownLibraryIndices}' `peekedTop`. 0 when there is no such choice.
