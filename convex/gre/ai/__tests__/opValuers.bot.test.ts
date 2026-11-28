@@ -287,7 +287,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
         });
     });
 
-    describe("temporary exile — a delayed return to the battlefield (CR 603.7a / 610.3)", () => {
+    describe("temporary exile — a delayed return to the battlefield (CR 603.7a)", () => {
         // "Exile another target permanent. Return that card to the battlefield
         // under its owner's control at the beginning of the next end step."
         const flicker: EffectOp[] = [

@@ -20903,7 +20903,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #6334 — the mirror half: with no enters trigger on the bot's own creature, flickering it gains nothing and the opposing body's one-turn exile is the better answer. Green before the fix (Hill Giant 5/5 at 400) and after it (Hill Giant 5/5): the pending-return credit gives the Giant back to its owner at its full worth, so the exile is priced as the tempo it is, not as a kill — and, issue #7784 found, as exactly the tempo a Mountain's exile is. Issue #7791: the pending return is discounted by the block share of a creature the defending player gets back only after a combat still ahead in which the bot has a ready attacker, and the material aggregates and the Danger Clock read the board the returns restore (before, the Giant's exile read as the opponent's curve and clock gone, the Mountain's as a source lost for good). Settled margin: Giant +31.5 over Mountain and over flickering the Bears. 21/21 seeds (0–19, 0xb1ade) on the committed and on the locally refit vector; the pick reads `material-tiebreak` because the reward band clips here (the Kavu anchor reads the same), with `announcement-variant`'s settled payoff agreeing.",
     },
     {
-        // CR 603.7a / 610.3 — the cast decision BEFORE the blink: Flickerwisp
+        // CR 603.7a — the cast decision BEFORE the blink: Flickerwisp
         // in hand, five Plains open, a vanilla board on each side (the
         // Bot-play sweep's own position). Its enters trigger exiles a
         // permanent only until the next end step, so in hand it is a 3/1

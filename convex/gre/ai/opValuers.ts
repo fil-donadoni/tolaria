@@ -1927,7 +1927,7 @@ const exile: Valuer<"exile"> = (op, ctx, scope) =>
                     : ["boardRemoval", "board-scaling"],
             };
 
-/** CR 603.7a / 610.3 — an exile of another player's permanent that the same
+/** CR 603.7a — an exile of another player's permanent that the same
  *  script's delayed trigger returns at a phase boundary ("Return that card to
  *  the battlefield under its owner's control at the beginning of the next end
  *  step"). The victim is off the board only until then: the tempo a bounce
