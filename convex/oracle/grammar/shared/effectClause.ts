@@ -5647,7 +5647,9 @@ export function kickedSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
             // search your library for …": the same replacement with
             // "instead" leading. Read for a library search alone, the one
             // replacement the corpus prints this way that
-            // `foldKickedInstead` pairs (`isOwnLibrarySearchChain`).
+            // `foldKickedInstead` pairs (`isOwnLibrarySearchChain`). Any
+            // other tail keeps the inner rule's own refusal of "Instead …",
+            // so its gap is attributed exactly as before.
             const leading = span
                 .slice(comma + 2)
                 .match(SPELL_KICKED_LEADING_INSTEAD);
@@ -5659,16 +5661,11 @@ export function kickedSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
                 span,
                 ctx
             );
-            if (
-                replaced.ok &&
+            return replaced.ok &&
                 replaced.value.role === "kicked-instead" &&
-                !isOwnLibrarySearchChain(replaced.value.replacement)
-            )
-                return fail(
-                    '"If this spell was kicked, instead …" is read for a library search only',
-                    span
-                );
-            return replaced;
+                isOwnLibrarySearchChain(replaced.value.replacement)
+                ? replaced
+                : parsed;
         }
         if (
             tail.bound &&
