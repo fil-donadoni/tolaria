@@ -3,6 +3,7 @@ import { FastForward, Hand } from "lucide-react";
 import { ControlTooltip } from "~/components/ui/control-tooltip";
 import { Keycap } from "~/components/ui/keycap";
 import type { ControllerAction } from "~/hooks/useControllerActions";
+import { usePrimaryClickGuard } from "~/hooks/usePrimaryClickGuard";
 import { ariaKeyShortcuts } from "~/lib/hotkeys";
 import type { PodCommandSlots } from "~/lib/controller-action-slots";
 import {
@@ -50,6 +51,8 @@ export default function ControllerPodCommandRow({
     const { pill, chips, passTurn, passUntilAction } = slots;
     const pillAction = pill.action;
     const isCta = pill.mark === "action";
+    // A click landing just as the pill morphs is dropped (issue #10973).
+    const guardClick = usePrimaryClickGuard(pillAction?.key);
 
     return (
         <div data-controller-pod-command className="flex flex-col gap-2">
@@ -106,7 +109,7 @@ export default function ControllerPodCommandRow({
                         <button
                             type="button"
                             data-controller-primary={pill.mark}
-                            onClick={pillAction?.onClick}
+                            onClick={guardClick(pillAction?.onClick)}
                             disabled={!pillAction || pillAction.disabled}
                             aria-keyshortcuts={keyShortcuts(pillAction)}
                             className={`flex h-11 min-w-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-full px-3 text-display text-sm transition-all disabled:cursor-default ${
