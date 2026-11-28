@@ -74,6 +74,7 @@ export default function CardPreviewFace({
     combatRestrictions,
     preventionShields,
     chosenX,
+    choiceLines,
     abilityWordCounters,
     engineView,
     engineTree,
@@ -204,6 +205,20 @@ export default function CardPreviewFace({
                                     text={p}
                                     counters={abilityWordCounters}
                                 />
+                                {/* CR 614.12 (issue #10980) — the persistent
+                                    as-enters choice, under the paragraph that
+                                    asks for it. */}
+                                {choiceLines
+                                    ?.filter((line) => line.anchorIndex === i)
+                                    .map((line) => (
+                                        <div
+                                            key={line.kind}
+                                            data-choice-line={line.kind}
+                                            className="font-semibold text-success-strong"
+                                        >
+                                            {line.label}: {line.value}
+                                        </div>
+                                    ))}
                             </div>
                         ))}
                     </div>

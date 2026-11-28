@@ -51,6 +51,10 @@ import {
 import type { FaceDownFace } from "~/lib/face-down";
 import type { CardInstance, Combat, Player } from "~/types/game";
 import { exertStatus } from "~/lib/exert-status";
+import {
+    buildChoiceLines,
+    type PreviewChoiceLine,
+} from "~/lib/preview-choice-lines";
 import type {
     CardBackFace,
     EmblemInstance,
@@ -339,6 +343,11 @@ export type PreviewBodyContent = {
      *  a value for X, from {@link chosenXLine}. Null off the stack or with no
      *  announced X; `X = 0` is a real choice and is shown. */
     chosenX?: string | null;
+    /** CR 614.12 (issue #10980) — one green line per persistent as-enters
+     *  choice on the instance, each anchored to the Oracle paragraph that asks
+     *  for it, from {@link buildChoiceLines}. Empty with no choice or no
+     *  printed text. */
+    choiceLines?: PreviewChoiceLine[];
     /** CR 111.1 / 111.7 — true iff this face is a live TOKEN permanent (a
      *  marker for a permanent not represented by a card, which ceases to exist
      *  as an SBA the moment it leaves the battlefield). Read off the projected
@@ -821,6 +830,12 @@ export function buildPreviewBody(
             gameCtx?.targetPreventionShields
         ),
         chosenX: chosenXLine(cardInstance),
+        choiceLines: buildChoiceLines(
+            oracleParagraphs ?? [],
+            cardInstance,
+            def ?? undefined,
+            gameCtx?.allPlayers
+        ),
         isToken: cardInstance?.isToken === true,
         abilityWordCounters,
         isManualGame: !!gameCtx?.isManualGame,
@@ -1028,9 +1043,8 @@ export function buildDesignationPreviewBody(designation: {
  *  - a SINGLE creature type (CR 205.3m — Engineered Plague, Conspiracy) is
  *    ANNOTATED in place, exactly as `resolveChosenMode` / `resolveChosenName`
  *    annotate theirs: "All creatures of the chosen type (Elf) get -1/-1". The
- *    printed wording is preserved and the live answer added, with the same
- *    trailing "Chosen: Elf" fallback for a text whose phrasing the match
- *    didn't catch.
+ *    printed wording is preserved and the live answer added; the green
+ *    choice line (`buildChoiceLines`, issue #10980) states it on its own.
  *
  *  The pair branch returns first: its own text CONTAINS "chosen type" inside
  *  "first chosen type", so a single-type annotation run over it would tag the
@@ -1059,9 +1073,6 @@ function resolveChosenSubtypes(
             )
         );
     }
-    if (paragraphs.some((p) => /\bchosen\b/i.test(p))) {
-        return [...paragraphs, `Chosen: ${only}`];
-    }
     return paragraphs;
 }
 
@@ -1076,10 +1087,8 @@ function resolveChosenSubtypes(
  *  wording is preserved, the live answer added: "… the last chosen color
  *  (white)".
  *
- *  Falls back to a trailing "Chosen: white" line when the text speaks of a
- *  choice the phrase-match didn't catch. A card whose text never says "chosen"
- *  is left alone — a spell's cast-time mode is not a live characteristic of a
- *  permanent and has no business in its rules box. */
+ *  A text the phrase-match didn't catch is left alone: the green choice line
+ *  (`buildChoiceLines`, issue #10980) states the value on its own. */
 function resolveChosenMode(
     paragraphs: string[],
     def: { modes?: ReadonlyArray<{ id: string; label: string }> } | undefined,
@@ -1098,9 +1107,6 @@ function resolveChosenMode(
             )
         );
     }
-    if (paragraphs.some((p) => /\bchosen\b/i.test(p))) {
-        return [...paragraphs, `Chosen: ${label}`];
-    }
     return paragraphs;
 }
 
@@ -1114,9 +1120,8 @@ function resolveChosenMode(
  *  phrase in place — printed wording preserved, live answer added: "… the
  *  chosen name (Lightning Bolt)".
  *
- *  Falls back to a trailing "Chosen: <name>" line when the text speaks of a
- *  choice the phrase-match didn't catch, exactly like `resolveChosenMode`. A
- *  permanent with no name locked in (never chosen, or cleared by a zone change
+ *  The green choice line (`buildChoiceLines`, issue #10980) states the value
+ *  on its own. A permanent with no name locked in (never chosen, or cleared by a zone change
  *  per CR 400.7) is left alone. */
 function resolveChosenName(
     paragraphs: string[],
@@ -1132,9 +1137,6 @@ function resolveChosenName(
             )
         );
     }
-    if (paragraphs.some((p) => /\bchosen\b/i.test(p))) {
-        return [...paragraphs, `Chosen: ${chosenName}`];
-    }
     return paragraphs;
 }
 
@@ -1143,8 +1145,8 @@ function resolveChosenName(
  *  its own printed oracle text. The pick is stored on the instance as
  *  `chosenPlayerId` (an opaque seat handle) and resolved to the player's
  *  nickname through the game context: "At the beginning of the chosen player
- *  (Bob)'s upkeep, …". Falls back to a trailing "Chosen: <nickname>" line when
- *  the text speaks of a choice the phrase-match didn't catch. With no id, or no
+ *  (Bob)'s upkeep, …". The green choice line (`buildChoiceLines`, issue
+ *  #10980) states the value on its own. With no id, or no
  *  player list to resolve it against, the text is left alone. */
 function resolveChosenPlayer(
     paragraphs: string[],
@@ -1162,9 +1164,6 @@ function resolveChosenPlayer(
                 (match) => `${match} (${name})`
             )
         );
-    }
-    if (paragraphs.some((p) => /\bchosen\b/i.test(p))) {
-        return [...paragraphs, `Chosen: ${name}`];
     }
     return paragraphs;
 }
