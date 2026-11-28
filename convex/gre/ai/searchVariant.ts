@@ -446,8 +446,9 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
     /** The control arm of the Saturation Prior (issue #9095,
      *  `saturationPriorTerms` in `search.ts`): in-tree selection back to
      *  UCB1/PUCT alone, visits spread evenly over a saturated node's
-     *  children. `BLADE_VARIANT=no-saturation-prior bun run test:blade` reds
-     *  the Caustic Bronco twin. */
+     *  children. On the Caustic Bronco twin it halves `pass`'s subtree
+     *  margin lead; since the horizon is read on the root's clock (ADR 0015
+     *  Amendment I) it no longer flips that entry's pick. */
     "no-saturation-prior": {
         name: "no-saturation-prior",
         evalWeights: { saturationPriorC: 0 },
