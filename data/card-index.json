@@ -782,6 +782,16 @@
         "source": "compiled"
     },
     {
+        "name": "Advanced Stitchwing",
+        "scryfallId": "fbdb7f1c-6139-4e68-8706-01f373548a4f",
+        "oracleId": "7e5d2801-873f-4318-9c23-9a73e00e31a4",
+        "firstSet": "emn",
+        "firstPrintId": "fbdb7f1c-6139-4e68-8706-01f373548a4f",
+        "firstPrintSet": "emn",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Advent of the Wurm",
         "scryfallId": "f40284e6-01a1-4372-a92c-940e5732607e",
         "oracleId": "eb62aa4b-c11b-4195-ae85-cff8f78ce17b",
@@ -14336,6 +14346,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cauldron Familiar",
+        "scryfallId": "9a539a23-8383-4525-82dd-acfe1d219fe9",
+        "oracleId": "a7dc2e62-1c50-4ed7-b71f-2d782a447a5e",
+        "firstSet": "eld",
+        "firstPrintId": "9a539a23-8383-4525-82dd-acfe1d219fe9",
+        "firstPrintSet": "eld",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Cauldron of Essence",
         "scryfallId": "b7091740-e70c-4cf2-8d3d-b8e1ac1fbbdd",
         "oracleId": "a2f8cde8-bf7b-4234-89f0-a95f9dc937e3",
@@ -15825,6 +15845,16 @@
         "firstPrintId": "aac35e28-dd0e-4dc8-b8e6-4a1e33706214",
         "firstPrintSet": "m13",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Chronosavant",
+        "scryfallId": "d6264d4f-adf1-4d7b-b17a-fd7122e9b2cd",
+        "oracleId": "969c9864-f78b-46b2-b35b-c9adaf355c2d",
+        "firstSet": "tsp",
+        "firstPrintId": "d6264d4f-adf1-4d7b-b17a-fd7122e9b2cd",
+        "firstPrintSet": "tsp",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -26276,6 +26306,16 @@
         "source": "compiled"
     },
     {
+        "name": "Drownyard Temple",
+        "scryfallId": "a5bb5657-18a1-455c-a87a-4e67971184ac",
+        "oracleId": "c30f9be4-c274-4ad0-b5d7-7d3421aa4277",
+        "firstSet": "soi",
+        "firstPrintId": "a5bb5657-18a1-455c-a87a-4e67971184ac",
+        "firstPrintSet": "soi",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Drudge Reavers",
         "scryfallId": "03c07d9a-afed-4028-9fa1-ec439b60f08f",
         "oracleId": "3edc147f-a385-413a-99b6-27d2cf8cf930",
@@ -31137,6 +31177,16 @@
         "firstPrintId": "4c3c5778-4760-4a8c-8d8d-693e29a0a74b",
         "firstPrintSet": "vow",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Falkenrath Forebear",
+        "scryfallId": "451559d0-b62d-4757-8eb5-f6b0e240899c",
+        "oracleId": "940080ce-c504-48c8-a763-326fef907217",
+        "firstSet": "vow",
+        "firstPrintId": "451559d0-b62d-4757-8eb5-f6b0e240899c",
+        "firstPrintSet": "vow",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -37664,6 +37714,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ghoulsteed",
+        "scryfallId": "ed5ba8dd-d2cd-4ee6-bdb4-390968f1ff54",
+        "oracleId": "dbc34afa-16bc-41f2-b74d-29bf2bfe24a9",
+        "firstSet": "soi",
+        "firstPrintId": "ed5ba8dd-d2cd-4ee6-bdb4-390968f1ff54",
+        "firstPrintSet": "soi",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Giant Adephage",
         "scryfallId": "8bae725f-e582-4377-a855-51af035cdac3",
         "oracleId": "8e1d261d-b8d3-4fb1-922d-47789854b5b3",
@@ -40634,6 +40694,16 @@
         "firstPrintSet": "dka"
     },
     {
+        "name": "Grafted Butcher",
+        "scryfallId": "e22f11a1-0cbd-4b36-8dbd-37ba29ad4608",
+        "oracleId": "6c4a0e3d-c63c-4acf-8386-b51f1ec37463",
+        "firstSet": "mom",
+        "firstPrintId": "e22f11a1-0cbd-4b36-8dbd-37ba29ad4608",
+        "firstPrintSet": "mom",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Grand Arbiter Augustin IV",
         "scryfallId": "a2ac328b-923f-48dd-a4f5-de389ade9125",
         "oracleId": "1f8d4d5f-e82f-45f3-823e-1bb6b536eb18",
@@ -43176,6 +43246,16 @@
         "firstSet": "mmq",
         "firstPrintId": "3c065cae-1ed5-445e-ace3-e81cf4c773de",
         "firstPrintSet": "mmq",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Haunted Dead",
+        "scryfallId": "14a7c8b7-ca77-47a0-8965-949723ec902d",
+        "oracleId": "03259490-a789-4f96-8c5b-b410425bdd02",
+        "firstSet": "emn",
+        "firstPrintId": "14a7c8b7-ca77-47a0-8965-949723ec902d",
+        "firstPrintSet": "emn",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -52535,6 +52615,16 @@
         "oracleId": "b0f99367-4313-4bb1-a9fd-7711bc4ce40e",
         "firstSet": "som",
         "firstPrintId": "ad590bea-b872-4af7-a612-c8e8759d59df",
+        "firstPrintSet": "som",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Kuldotha Phoenix",
+        "scryfallId": "6bb79b56-81f1-417f-b5ad-030ad29f904b",
+        "oracleId": "884260cf-b3f3-43a4-82b6-4f6a0b19cc75",
+        "firstSet": "som",
+        "firstPrintId": "6bb79b56-81f1-417f-b5ad-030ad29f904b",
         "firstPrintSet": "som",
         "rarity": "rare",
         "source": "compiled"
@@ -63247,6 +63337,16 @@
         "source": "compiled"
     },
     {
+        "name": "Necrosavant",
+        "scryfallId": "50668c85-49ad-456c-9022-0abe560bc50c",
+        "oracleId": "6732a587-e3cc-4c30-9267-f8949dd8724a",
+        "firstSet": "mgb",
+        "firstPrintId": "50668c85-49ad-456c-9022-0abe560bc50c",
+        "firstPrintSet": "mgb",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Nectar Faerie",
         "scryfallId": "d943b877-805d-4bc8-a3ae-abec00fa51a6",
         "oracleId": "6d0a2e5f-af10-4754-81d7-b7afa6282d7d",
@@ -68058,6 +68158,16 @@
         "firstPrintId": "31f2cbcc-d5b8-4659-ae51-e567c555a743",
         "firstPrintSet": "c21",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Persistent Specimen",
+        "scryfallId": "f7baf973-3202-4fea-8861-a4a5ec228640",
+        "oracleId": "5f4ad578-f2c4-47f6-8080-8fbc17383f6f",
+        "firstSet": "vow",
+        "firstPrintId": "f7baf973-3202-4fea-8861-a4a5ec228640",
+        "firstPrintSet": "vow",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -74180,6 +74290,16 @@
         "firstPrintId": "06dd56bd-de92-4202-af31-7e881c34d799",
         "firstPrintSet": "sos",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Reassembling Skeleton",
+        "scryfallId": "655f983e-3b23-48ee-89d5-d01d469d5a6f",
+        "oracleId": "9dbc3530-b278-4c8d-b2cc-a09dfac9d5e5",
+        "firstSet": "arc",
+        "firstPrintId": "655f983e-3b23-48ee-89d5-d01d469d5a6f",
+        "firstPrintSet": "arc",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -91531,6 +91651,16 @@
         "source": "compiled"
     },
     {
+        "name": "Stitchwing Skaab",
+        "scryfallId": "f84bb1ce-a8a0-4a29-9129-b1d7041fd01a",
+        "oracleId": "0b40e537-d385-450d-93a9-b60a25bfe508",
+        "firstSet": "soi",
+        "firstPrintId": "f84bb1ce-a8a0-4a29-9129-b1d7041fd01a",
+        "firstPrintSet": "soi",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Stock Up",
         "scryfallId": "0a786855-6eb4-42c0-a528-4842db46809d",
         "oracleId": "2251e34e-4ce8-4452-9dc6-d8cce8583996",
@@ -95539,6 +95669,16 @@
         "source": "compiled"
     },
     {
+        "name": "Teacher's Pest",
+        "scryfallId": "eaa358ac-761d-4507-aa15-3d4684027207",
+        "oracleId": "12397dbf-99a9-40c3-aa7c-76d09baad008",
+        "firstSet": "sos",
+        "firstPrintId": "eaa358ac-761d-4507-aa15-3d4684027207",
+        "firstPrintSet": "sos",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Teapot Slinger",
         "scryfallId": "30506844-349f-4b68-8cc1-d028c1611cc7",
         "oracleId": "5ba19dbe-9dbb-4cc9-81a3-18c26f27bd0f",
@@ -96834,6 +96974,16 @@
         "firstPrintId": "01d6ba55-7bc0-41c6-84be-8cd528e46a05",
         "firstPrintSet": "one",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "The Falcon, Airship Restored",
+        "scryfallId": "81313ac5-ee30-4ac4-ad5f-e9dbda46b2b0",
+        "oracleId": "9f4093a6-83f1-4c1d-8b03-8fe15647fb11",
+        "firstSet": "fic",
+        "firstPrintId": "81313ac5-ee30-4ac4-ad5f-e9dbda46b2b0",
+        "firstPrintSet": "fic",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -101107,6 +101257,16 @@
         "firstSet": "lea",
         "firstPrintId": "b21ebc9f-a93e-4d18-b3e8-8459e3abbf31",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Tunnel Rats",
+        "scryfallId": "70faf7d8-008a-454a-a21b-702aa661b8f9",
+        "oracleId": "0a8e5c48-885d-4ea8-9c68-a3e9213d4289",
+        "firstSet": "tmt",
+        "firstPrintId": "70faf7d8-008a-454a-a21b-702aa661b8f9",
+        "firstPrintSet": "tmt",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Tunneler Wurm",
