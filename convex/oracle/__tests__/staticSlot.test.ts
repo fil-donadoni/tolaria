@@ -1001,6 +1001,7 @@ describe("resolveCompiledStatic (cards/compiledStatics.ts)", () => {
         getName: () => "",
         hasChosenName: () => false,
         getCounterCount: () => 0,
+        getDevotion: () => 0,
     };
 
     function view(

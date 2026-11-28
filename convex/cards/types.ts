@@ -10096,6 +10096,17 @@ export interface StaticEffectContext {
      *  `keyword-grant`, and at every read for the continuously-recomputed
      *  `pt-buff` / `pt-cda` kinds. */
     getCounterCount: (card: PermanentView, type: string) => number;
+    /** CR 700.5 — `playerId`'s devotion to one colour or to a PAIR of
+     *  colours (each mana symbol that is either colour, or both, counts
+     *  once), read live off `state`'s battlefield. Mirrors
+     *  `SpellContext.getDevotion` for static-effect predicates: a God's "as
+     *  long as your devotion to red and green is less than seven, this isn't
+     *  a creature" `type-remove` `condition`. */
+    getDevotion: (
+        state: StaticEffectStateView,
+        playerId: string,
+        colors: Color | readonly Color[]
+    ) => number;
 }
 
 export type StaticPTBuff = {
