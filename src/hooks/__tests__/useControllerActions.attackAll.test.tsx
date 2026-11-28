@@ -210,6 +210,20 @@ function findAction(
     return result.current.actions.find((a) => a.key === key);
 }
 
+/** Issue #10973: with nothing declared, the primary "Attack with all" pill
+ *  only opens the confirmation Space opens — it dispatches nothing itself.
+ *  Confirming the dialog is what declares. */
+async function attackWithAllThroughDialog(result: {
+    current: ReturnType<typeof useControllerActions>;
+}) {
+    act(() => findAction(result, "attack-with-all")!.onClick());
+    expect(calls).toHaveLength(0);
+    expect(result.current.attackAllConfirm.open).toBe(true);
+    await act(async () => {
+        result.current.attackAllConfirm.confirm();
+    });
+}
+
 describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
     beforeEach(() => {
         calls.length = 0;
@@ -230,6 +244,39 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
         );
     });
 
+    it("leads with Attack with all, Skip Attack demoted, when nothing is declared (issue #10973)", () => {
+        const me = player("me", [creature({ id: "a" }), creature({ id: "b" })]);
+        const opp = player("opp", []);
+        const { result } = renderCtrl(me, opp, makeSequence());
+        const keys = result.current.actions.map((a) => a.key);
+        expect(keys.indexOf("attack-with-all")).toBe(0);
+        expect(keys.indexOf("confirm-attackers")).toBeGreaterThan(0);
+        expect(findAction(result, "confirm-attackers")?.label).toBe(
+            "Skip Attack"
+        );
+    });
+
+    it("Skip Attack confirms an empty declaration in one click, no dialog", async () => {
+        const me = player("me", [creature({ id: "a" })]);
+        const opp = player("opp", []);
+        const { result } = renderCtrl(me, opp, makeSequence());
+        await act(async () => {
+            findAction(result, "confirm-attackers")!.onClick();
+        });
+        expect(calls.map((c) => c.ref)).toEqual(["confirmAttackers"]);
+        expect(result.current.attackAllConfirm.open).toBe(false);
+    });
+
+    it("keeps Confirm Attackers first once an attacker is declared", () => {
+        const me = player("me", [creature({ id: "a" }), creature({ id: "b" })]);
+        const opp = player("opp", []);
+        const { result } = renderCtrl(me, opp, makeSequence(), {
+            attackerIds: ["a"],
+        });
+        expect(result.current.actions[0].key).toBe("confirm-attackers");
+        expect(result.current.actions[0].label).toBe("Confirm Attackers (1)");
+    });
+
     it("hides the button when no creature is eligible", () => {
         const me = player("me", [creature({ id: "tapped", isTapped: true })]);
         const opp = player("opp", []);
@@ -243,9 +290,7 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
         const seq = makeSequence();
         const { result } = renderCtrl(me, opp, seq);
 
-        await act(async () => {
-            await findAction(result, "attack-with-all")!.onClick();
-        });
+        await attackWithAllThroughDialog(result);
 
         // issue #3475 — ONE declaration for the whole attack, never one call
         // (and so one persisted `gameStates` version) per creature.
@@ -267,9 +312,7 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
         const seq = makeSequence();
         const { result } = renderCtrl(me, opp, seq);
 
-        await act(async () => {
-            await findAction(result, "attack-with-all")!.onClick();
-        });
+        await attackWithAllThroughDialog(result);
 
         expect(calls.filter((c) => c.ref === "declareAttackers")).toHaveLength(
             1
@@ -287,9 +330,7 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
         const seq = makeSequence();
         const { result } = renderCtrl(me, opp, seq);
 
-        await act(async () => {
-            await findAction(result, "attack-with-all")!.onClick();
-        });
+        await attackWithAllThroughDialog(result);
 
         expect(
             (
@@ -309,9 +350,7 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
         const opp = player("opp", []);
         const { result } = renderCtrl(me, opp, makeSequence());
 
-        await act(async () => {
-            await findAction(result, "attack-with-all")!.onClick();
-        });
+        await attackWithAllThroughDialog(result);
 
         expect(calls.some((c) => c.ref === "confirmAttackers")).toBe(true);
     });
@@ -322,9 +361,7 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
         const seq = makeSequence();
         const { result } = renderCtrl(me, opp, seq);
 
-        await act(async () => {
-            await findAction(result, "attack-with-all")!.onClick();
-        });
+        await attackWithAllThroughDialog(result);
 
         expect(calls.filter((c) => c.ref === "declareAttackers")).toHaveLength(
             1
@@ -375,9 +412,7 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
         const seq = makeSequence();
         const { result } = renderCtrl(me, opp, seq);
 
-        await act(async () => {
-            await findAction(result, "attack-with-all")!.onClick();
-        });
+        await attackWithAllThroughDialog(result);
 
         // All three were submitted in ONE call — the rejection did not
         // short-circuit "c" — and the sequence walks only what was declared.
@@ -539,9 +574,7 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
         const seq = makeSequence();
         const { result } = renderCtrl(me, opp, seq);
 
-        await act(async () => {
-            await findAction(result, "attack-with-all")!.onClick();
-        });
+        await attackWithAllThroughDialog(result);
 
         expect(calls.some((c) => c.ref === "confirmAttackers")).toBe(false);
         expect(seq.begin).not.toHaveBeenCalled();

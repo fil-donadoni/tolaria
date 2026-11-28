@@ -25,6 +25,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/react";
 import {
+    makeTestPlayer,
     withBoardContext,
     type GameContextValue,
 } from "~/lib/testing/board-context";
@@ -306,6 +307,40 @@ describe("Landscape strip — no layout shift (#1769)", () => {
         // Pass Turn keeps its own dedicated row.
         expect(screen.getByText(/Skip Attack/)).toBeTruthy();
         expect(screen.getByLabelText("Pass Turn")).toBeTruthy();
+    });
+
+    it("with an eligible attacker and none declared, the primary is Attack with all and its click dispatches nothing (issue #10973)", () => {
+        const bear = {
+            id: "bear",
+            // Grizzly Bears: a vanilla 2/2 the real registry resolves.
+            card: { id: "ce2d603a-3231-4a8c-bf39-1617586ea870" },
+            controllerId: "me",
+            ownerId: "me",
+            zone: "battlefield",
+            isTapped: false,
+            isSummoningSick: false,
+            types: ["Creature"],
+            subtypes: ["Bear"],
+            staticAbilities: [],
+            power: 2,
+            toughness: 2,
+        } as unknown as CardInstance;
+        const { container } = renderController({
+            phase: "DECLARE_ATTACKERS",
+            combat: { attackerIds: [], confirmed: false } as never,
+            allPlayers: [
+                makeTestPlayer({ id: "me", battlefield: [bear] }),
+                makeTestPlayer({ id: "opp" }),
+            ],
+        });
+        const pill = container.querySelector<HTMLButtonElement>(
+            '[data-controller-primary="action"]'
+        )!;
+        expect(pill.textContent).toContain("Attack with all (1)");
+        // "Skip Attack" is still offered, as a side pill.
+        expect(screen.getByText(/Skip Attack/)).toBeTruthy();
+        fireEvent.click(pill);
+        expect(calls).toHaveLength(0);
     });
 
     it("signals priority with a hairline, self vs opponent", () => {

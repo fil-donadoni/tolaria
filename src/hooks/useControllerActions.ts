@@ -57,8 +57,10 @@ export type ControllerAction = {
 /** Space-triggered "Attack with all" confirmation (design 2026-07-23). During
  *  DECLARE_ATTACKERS the Space hotkey offers to attack with everything rather
  *  than skipping the attack, so it is gated behind an explicit dialog — Space
- *  is easy to hit by reflex expecting the old "Skip Attack". The pod's own
- *  button stays immediate: a click is already deliberate. */
+ *  is easy to hit by reflex expecting the old "Skip Attack". With nothing
+ *  declared, the controller's primary "Attack with all" pill opens the same
+ *  dialog (issue #10973); the side action offered beside a hand-picked
+ *  declaration stays immediate. */
 export type AttackAllConfirm = {
     open: boolean;
     /** How many creatures the confirmation is about to send in. */
@@ -806,7 +808,7 @@ export function useControllerActions(): ControllerState {
         });
         actions.push(passUntilActionDescriptor);
     } else if (isSelectingAttackers) {
-        actions.push({
+        const confirmAttackersAction: ControllerAction = {
             key: "confirm-attackers",
             description:
                 selectedAttackerIds.length > 0
@@ -828,20 +830,45 @@ export function useControllerActions(): ControllerState {
             // the confirmation.
             disabled: isBusy || attackSequence.choosingTarget,
             onClick: runBusy(() => confirmAttackers({ gameId, playerId })),
-        });
-        if (eligibleIds.length > 0) {
+        };
+        if (eligibleIds.length > 0 && selectedAttackerIds.length === 0) {
+            // Nothing declared yet (issue #10973): "Attack with all" leads, so
+            // it takes the centre slot where "Pass" just was, and "Skip
+            // Attack" drops to a secondary action. A reflex click on the big
+            // pill used to confirm an empty declaration; now it opens the
+            // same confirmation Space opens, so click and Space agree and a
+            // stray click costs nothing.
             actions.push({
                 key: "attack-with-all",
                 description: "Declare every creature that can attack",
-                shortcut:
-                    selectedAttackerIds.length === 0
-                        ? HOTKEYS.passPriority
-                        : undefined,
+                shortcut: HOTKEYS.passPriority,
                 label: `Attack with all (${eligibleIds.length})`,
                 tone: "primary",
-                disabled: isBusy,
-                onClick: handleAttackAll,
+                // Like Space and Confirm above: nothing is offered while a
+                // creature still awaits its attack target.
+                disabled: isBusy || attackSequence.choosingTarget,
+                // Same gate as the Space branch: a click landing before a
+                // creature's `toggleAttacker` round-trip still sees an empty
+                // declaration and must not offer to widen it.
+                onClick: () => {
+                    if (!hasPendingIntent) setAttackAllConfirmOpen(true);
+                },
             });
+            actions.push(confirmAttackersAction);
+        } else {
+            actions.push(confirmAttackersAction);
+            if (eligibleIds.length > 0) {
+                // A hand-picked declaration already stands: the immediate
+                // attack-all stays a side action, as before.
+                actions.push({
+                    key: "attack-with-all",
+                    description: "Declare every creature that can attack",
+                    label: `Attack with all (${eligibleIds.length})`,
+                    tone: "primary",
+                    disabled: isBusy,
+                    onClick: handleAttackAll,
+                });
+            }
         }
         actions.push({
             key: "pass-turn-attackers",
