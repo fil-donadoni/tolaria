@@ -2145,7 +2145,7 @@ function playerRef(
                   );
         case "acted-on-controller":
             return unlowerable(
-                '"its controller" is read only as a life recipient'
+                '"its controller" is read only as a life recipient or a drawer'
             );
     }
 }
@@ -3420,7 +3420,11 @@ function lowerSentenceBody(
                 return unlowerable(
                     '"draw additional cards" outside an "at the beginning of your draw step" trigger'
                 );
-            const player = playerRef(sentence.player, slots, site);
+            // CR 109.4 + CR 608.2h — "Its controller draws a card".
+            const player: Lowered<EffectPlayerRef> =
+                sentence.player.kind === "acted-on-controller"
+                    ? lowerActedOnController(sentence.player.noun, walk)
+                    : playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
             const count = lowerLifeAmount(sentence.count, walk, site);
             if (!count.ok) return count;
@@ -7408,6 +7412,11 @@ function lowerMoveFrame(
 ): Lowered<EffectOp[]> {
     const slots = walk.targets;
     const { object, to, tapped } = frame;
+    // CR 122.6 — the entry counter rides only an announced card's return.
+    if (frame.withCounter !== undefined && object.kind !== "subject")
+        return unlowerable(
+            `"${frame.phrase}" gives an entry counter to an object no target announced`
+        );
     switch (object.kind) {
         // CR 701.38 — lowered by the chain, which holds the vote's binding.
         case "vote-winners":
@@ -7491,7 +7500,8 @@ function lowerMoveFrame(
                 slots,
                 site,
                 frame.under,
-                tapped
+                tapped,
+                frame.withCounter
             );
             // CR 608.2h — "that creature" names ONE object, so a WIDE group
             // (an "up to N" head fanned out over several ops) leaves no
@@ -8694,13 +8704,40 @@ function lowerMoveZone(
     slots: TargetSlots,
     site: SiteOptions,
     under?: "you",
-    tapped = false
+    tapped = false,
+    withCounter?: string
 ): Lowered<EffectOp[]> {
     // CR 110.5b — "onto the battlefield tapped": the entering permanent.
     const entering = (
         op: Extract<EffectOp, { op: "moveZone" }>
     ): Extract<EffectOp, { op: "moveZone" }> =>
         tapped ? { ...op, tapped: true } : op;
+    // CR 122.6 + CR 122.1b — "return target … card from your graveyard to
+    // the battlefield with an indestructible counter on it": the counter is
+    // placed AS the card enters (`entersWithCounters`). Read on the
+    // reanimation below only; every other zone pair refuses it.
+    if (withCounter !== undefined) {
+        if (
+            under !== undefined ||
+            zone.zone !== "battlefield" ||
+            subject.kind !== "target" ||
+            subject.requirement.zone !== "graveyard" ||
+            subject.requirement.controller !== "you" ||
+            subject.requirement.count !== 1
+        )
+            return unlowerable(
+                "an entry counter rides only one announced card returned from your graveyard to the battlefield"
+            );
+        const plain = lowerMoveZone(subject, zone, slots, site, under, tapped);
+        if (!plain.ok) return plain;
+        return lowered(
+            plain.value.map((op) =>
+                op.op === "moveZone"
+                    ? { ...op, entersWithCounters: { [withCounter]: 1 } }
+                    : op
+            )
+        );
+    }
     // CR 110.2a + CR 400.7 — "put target creature card from a graveyard onto
     // the battlefield under your control": ANY graveyard, the controller of
     // the ability controls the new object. One announced permanent card.

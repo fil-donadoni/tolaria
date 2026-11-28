@@ -9958,7 +9958,14 @@ function effectSentence(
     }
     const drawPlayer = span.match(DRAW_PLAYER);
     if (drawPlayer !== null) {
-        const player = playerSubject(drawPlayer[1]!, ctx);
+        // CR 109.4 + CR 608.2h — "Its controller draws a card": the controller
+        // of the one target the sentence before acted on, read off the
+        // snapshot its removal took, as the life loss above reads it (the
+        // lowering checks that antecedent).
+        const player: PlayerRefIR | null =
+            drawPlayer[1] === ITS_CONTROLLER
+                ? { kind: "acted-on-controller" as const, noun: "it" }
+                : playerSubject(drawPlayer[1]!, ctx);
         if (player === null)
             return fail(`"${drawPlayer[1]}" is not a player`, span);
         const count = readAmount(drawPlayer[2]!);

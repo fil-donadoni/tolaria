@@ -37,6 +37,9 @@ const TOLARIA_WEST_TEXT =
 const VEIL_OF_SUMMER_TEXT =
     "Draw a card if an opponent has cast a blue or black spell this turn. Spells you control can't be countered this turn. You and permanents you control gain hexproof from blue and from black until end of turn. (You and they can't be the targets of blue or black spells or abilities your opponents control.)";
 
+const SEASON_OF_THE_BURROW_TEXT =
+    "Choose up to five {P} worth of modes. You may choose the same mode more than once.\n{P} — Create a 1/1 white Rabbit creature token.\n{P}{P} — Exile target nonland permanent. Its controller draws a card.\n{P}{P}{P} — Return target permanent card with mana value 3 or less from your graveyard to the battlefield with an indestructible counter on it.";
+
 // Frozen: `fixtureForms` caches by array identity, so the registry may never
 // change in place.
 export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
@@ -20083,6 +20086,129 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                 type: "any",
                 count: { min: 1 },
                 divideAsChosen: { total: 6, kind: "prevent" },
+            },
+        },
+    },
+    // CR 700.2i / 107.18 — a pawprint modal spell (Season of the Burrow): its
+    // second mode's "Its controller draws a card" names the exiled permanent's
+    // controller through a runtime snapshot (CR 109.4 + CR 608.2h), and its
+    // third returns a graveyard card with an entry counter (CR 122.6) — two
+    // forms the canned smoke scenario cannot stage.
+    {
+        rule: "modal spell",
+        card: {
+            oracleId: "8e013e51-1684-4f58-8fe1-3588b6fbb5b5",
+            name: "Season of the Burrow",
+            manaCost: "{3}{W}{W}",
+            typeLine: "Sorcery",
+            oracleText: SEASON_OF_THE_BURROW_TEXT,
+            layout: "normal",
+        },
+        expected: {
+            name: "Season of the Burrow",
+            types: ["Sorcery"],
+            manaCost: {
+                X: 3,
+                W: 2,
+            },
+            oracleText: SEASON_OF_THE_BURROW_TEXT,
+            modes: [
+                {
+                    id: "season-of-the-burrow-mode-1",
+                    label: "Create a 1/1 white Rabbit creature token",
+                    oracleText: "Create a 1/1 white Rabbit creature token.",
+                    effects: [
+                        {
+                            op: "createToken",
+                            token: {
+                                name: "Rabbit",
+                                types: ["Creature"],
+                                subtypes: ["Rabbit"],
+                                power: 1,
+                                toughness: 1,
+                                colors: ["W"],
+                            },
+                            controller: "controller",
+                        },
+                    ],
+                    pawprints: 1,
+                },
+                {
+                    id: "season-of-the-burrow-mode-2",
+                    label: "Exile target nonland permanent. Its controller draws a card",
+                    oracleText:
+                        "Exile target nonland permanent. Its controller draws a card.",
+                    effects: [
+                        {
+                            op: "exile",
+                            target: {
+                                target: 0,
+                            },
+                            bind: "$that1",
+                        },
+                        {
+                            op: "draw",
+                            player: {
+                                ref: "$that1.controller",
+                            },
+                            count: 1,
+                        },
+                    ],
+                    targetRequirement: {
+                        type: [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker",
+                        ],
+                        count: 1,
+                        excludeTypes: ["Land"],
+                    },
+                    pawprints: 2,
+                },
+                {
+                    id: "season-of-the-burrow-mode-3",
+                    label: "Return target permanent card with mana value 3 or less from your graveyard to the battlefield with an indestructible counter on it",
+                    oracleText:
+                        "Return target permanent card with mana value 3 or less from your graveyard to the battlefield with an indestructible counter on it.",
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: {
+                                target: 0,
+                            },
+                            to: "battlefield",
+                            entersWithCounters: {
+                                indestructible: 1,
+                            },
+                        },
+                    ],
+                    targetRequirement: {
+                        type: [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker",
+                        ],
+                        count: 1,
+                        mvFilter: {
+                            max: 3,
+                        },
+                        zone: "graveyard",
+                        controller: "you",
+                    },
+                    pawprints: 3,
+                },
+            ],
+            modeSelection: {
+                min: 1,
+                max: 5,
+                repeats: true,
+                pawprintBudget: 5,
             },
         },
     },
