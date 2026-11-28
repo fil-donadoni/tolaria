@@ -322,12 +322,12 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                     op: "delayedTrigger",
                     timing: "next-end-step",
                     oracleText: "Draw a card.",
-                    effects: [{ op: "draw", player: "self", count: 1 }],
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
                 },
             ];
             const exileOnly = valueOp(flicker[0]!, cf).points;
             const draw = valueOp(
-                { op: "draw", player: "self", count: 1 },
+                { op: "draw", player: "controller", count: 1 },
                 cf
             ).points;
             expect(valueEffectScript(exileThenDraw, cf).points).toBe(
