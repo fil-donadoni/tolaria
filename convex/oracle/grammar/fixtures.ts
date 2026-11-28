@@ -20212,4 +20212,102 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 701.20a + CR 202.3 — "<player> reveals a card at random from their
+    // hand" then "that card's mana value": the revealed card stays in that
+    // hand, so the amount sums the picks binding's mana value IN the hand —
+    // a bound card set the canned smoke scenario never binds.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "cebc1e6d-ab14-4e54-9906-e8a7cf4c2043",
+            name: "Planeswalker's Mirth",
+            manaCost: "{2}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "{3}{W}: Target opponent reveals a card at random from their hand. You gain life equal to that card's mana value.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Planeswalker's Mirth",
+            types: ["Enchantment"],
+            manaCost: { X: 2, W: 1 },
+            oracleText:
+                "{3}{W}: Target opponent reveals a card at random from their hand. You gain life equal to that card's mana value.",
+            activatedAbilities: [
+                {
+                    id: "planeswalker-s-mirth-ability",
+                    oracleText:
+                        "{3}{W}: Target opponent reveals a card at random from their hand. You gain life equal to that card's mana value.",
+                    cost: { mana: { X: 3, W: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "reveal",
+                            player: { target: 0 },
+                            zone: "hand",
+                            random: true,
+                            bind: "$revealed",
+                        },
+                        {
+                            op: "gainLife",
+                            player: "controller",
+                            amount: {
+                                sum: {
+                                    of: { ref: "$revealed" },
+                                    read: "manaValue",
+                                    zone: "hand",
+                                    player: { target: 0 },
+                                },
+                            },
+                        },
+                    ],
+                    targetRequirement: {
+                        type: "player",
+                        count: 1,
+                        controller: "opponent",
+                    },
+                },
+            ],
+        },
+    },
+    // CR 701.9a + CR 602.1a — "Discard a card at random, then draw two cards":
+    // the random discard is the activated ability's EFFECT (after the colon),
+    // followed by a draw that changes the same hand — a delta the canned
+    // smoke scenario would have to guess.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "45964368-ea9e-415f-9faf-870c7bf550d4",
+            name: "Ring of Renewal",
+            manaCost: "{5}",
+            typeLine: "Artifact",
+            oracleText:
+                "{5}, {T}: Discard a card at random, then draw two cards.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Ring of Renewal",
+            types: ["Artifact"],
+            manaCost: { X: 5 },
+            oracleText:
+                "{5}, {T}: Discard a card at random, then draw two cards.",
+            activatedAbilities: [
+                {
+                    id: "ring-of-renewal-ability",
+                    oracleText:
+                        "{5}, {T}: Discard a card at random, then draw two cards.",
+                    cost: { mana: { X: 5 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "discardAtRandom",
+                            player: "controller",
+                            count: 1,
+                        },
+                        { op: "draw", player: "controller", count: 2 },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
