@@ -125,7 +125,7 @@ describe("Xenagos, God of Revels — beginning-of-combat pump (CR 608.2h X fixed
                 id: "bear",
                 controllerId: "p1",
                 ownerId: "p1",
-                summoningSick: true,
+                isSummoningSick: true,
             }),
         ]);
         const items = fire(state);
