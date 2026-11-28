@@ -25,8 +25,9 @@
 // Fired (the delayed trigger on the stack, CR 603.7a), it is paid from the
 // board as it stands: no untap falls between. The second is not a corner —
 // a leaf can stand in the Bot's upkeep with the obligation on the stack (a
-// rollout cut by the clock or the stall cap, a tree line stopped there), and
-// a leaf read the queued obligation before the turn and nothing at it.
+// rollout cut by the clock or the stall cap, a tree line cut there by
+// `MAX_TREE_DEPTH`), and a leaf read the queued obligation before the turn
+// and nothing at it.
 //
 // CONSERVATIVE, it under-reports rather than over-fires:
 //   * queued, only an UPKEEP obligation of the payer's own upkeep (`next-upkeep` /
