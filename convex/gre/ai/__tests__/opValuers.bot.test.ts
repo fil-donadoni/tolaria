@@ -287,6 +287,55 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
         });
     });
 
+    describe("temporary exile — a delayed return to the battlefield (CR 603.7a)", () => {
+        // "Exile another target permanent. Return that card to the battlefield
+        // under its owner's control at the beginning of the next end step."
+        const flicker: EffectOp[] = [
+            { op: "exile", target: { target: 0 }, bind: "$c" },
+            {
+                op: "delayedTrigger",
+                timing: "next-end-step",
+                oracleText: "Return that card to the battlefield.",
+                capture: { $c: { ref: "$c" } },
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { ref: "$c" },
+                        from: "exile",
+                        to: "battlefield",
+                    },
+                ],
+            },
+        ];
+
+        it("prices the exile as a bounce's tempo, never as removal plus a reanimation", () => {
+            const v = valueEffectScript(flicker, cf);
+            expect(v.points).toBe(LATENT.tempo);
+            expect(v.tags).not.toContain("boardRemoval");
+            expect(v.tags).not.toContain("recursion");
+        });
+
+        it("keeps the removal price when the delayed trigger returns nothing", () => {
+            const exileThenDraw: EffectOp[] = [
+                flicker[0]!,
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-step",
+                    oracleText: "Draw a card.",
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ];
+            const exileOnly = valueOp(flicker[0]!, cf).points;
+            const draw = valueOp(
+                { op: "draw", player: "controller", count: 1 },
+                cf
+            ).points;
+            expect(valueEffectScript(exileThenDraw, cf).points).toBe(
+                exileOnly + draw
+            );
+        });
+    });
+
     describe("counter (CR 701.6a)", () => {
         it("scores disruption, targeted", () => {
             const v = valueOp({ op: "counter", target: { target: 0 } }, cf);

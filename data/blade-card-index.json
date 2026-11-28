@@ -456,6 +456,13 @@
             "needsSetup": false
         }
     ],
+    "Flickerwisp": [
+        {
+            "label": "temporary exile: casts Flickerwisp onto a vanilla board",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Force of Negation": [
         {
             "label": "pitch counter: Force of Negation exiles a blue card to counter a lethal spell",

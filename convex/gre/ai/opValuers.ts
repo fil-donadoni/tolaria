@@ -47,6 +47,7 @@ import type {
     SweepOutcome,
 } from "./grounding";
 import { contextFreeGrounding, isEachPlayerRef } from "./grounding";
+import { blinkReturnedBindings } from "./pendingReturn";
 
 type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
 
@@ -275,6 +276,11 @@ type ScriptScope = {
     readonly coinFlipSeriesWinProbability: ReadonlyMap<string, number>;
     readonly counteredSourceBindings: ReadonlySet<string>;
     readonly ownPermanents: ReadonlySet<string>;
+    /** Names bound by an `exile` of another player's permanent that a
+     *  delayed trigger of the same script returns to the battlefield
+     *  ({@link withTemporaryExiles}) — and, inside that trigger's body, the
+     *  `capture` aliases of those names. */
+    readonly temporaryExiles: ReadonlySet<string>;
 };
 
 /** The scope a script walk starts from — nothing bound yet. */
@@ -283,6 +289,7 @@ const EMPTY_SCRIPT_SCOPE: ScriptScope = {
     coinFlipSeriesWinProbability: new Map<string, number>(),
     counteredSourceBindings: new Set<string>(),
     ownPermanents: new Set<string>(),
+    temporaryExiles: new Set<string>(),
 };
 
 /** A valuer: projects one Op onto the feature basis under a grounding mode,
@@ -1478,6 +1485,30 @@ function ownPermanentBoundBy(op: EffectOp): string | undefined {
     return namedOwn ? op.bind : undefined;
 }
 
+function withTemporaryExile(scope: ScriptScope, name: string): ScriptScope {
+    if (scope.temporaryExiles.has(name)) return scope;
+    return {
+        ...scope,
+        temporaryExiles: new Set([...scope.temporaryExiles, name]),
+    };
+}
+
+/** Records `op`'s binding as a temporary exile when `op` exiles another
+ *  player's permanent and `blinked` (the script's `blinkReturnedBindings`)
+ *  says a delayed trigger of the same script returns it. An exile of the
+ *  script's own permanent keeps its own price (`OWN_PERMANENT_REMOVED`). */
+function withTemporaryExiles(
+    scope: ScriptScope,
+    op: EffectOp,
+    ctx: GroundingContext,
+    blinked: ReadonlySet<string>
+): ScriptScope {
+    if (op.op !== "exile" || op.bind === undefined || !blinked.has(op.bind))
+        return scope;
+    if (namesOwnPermanent(op.target, ctx, scope)) return scope;
+    return withTemporaryExile(scope, op.bind);
+}
+
 function withOwnPermanent(scope: ScriptScope, name: string): ScriptScope {
     if (scope.ownPermanents.has(name)) return scope;
     return { ...scope, ownPermanents: new Set([...scope.ownPermanents, name]) };
@@ -1662,6 +1693,9 @@ function withCapturedScopeAliases(
             }
             if (scope.ownPermanents.has(source.ref)) {
                 seeded = withOwnPermanent(seeded, name);
+            }
+            if (scope.temporaryExiles.has(source.ref)) {
+                seeded = withTemporaryExile(seeded, name);
             }
         }
     }
@@ -1879,17 +1913,36 @@ const destroy: Valuer<"destroy"> = (op, ctx, scope) =>
 const exile: Valuer<"exile"> = (op, ctx, scope) =>
     namesOwnPermanent(op.target, ctx, scope)
         ? OWN_PERMANENT_REMOVED
-        : {
-              points: pricedFraction(
-                  ctx,
-                  "boardRemoval",
-                  REMOVAL_COMPLETENESS.exile,
-                  victimUnitsFor(op.target, ctx)
-              ),
-              tags: isAnnouncedTarget(op.target)
-                  ? ["boardRemoval", "targeted"]
-                  : ["boardRemoval", "board-scaling"],
-          };
+        : op.bind !== undefined && scope.temporaryExiles.has(op.bind)
+          ? temporaryExileValue(op.target, ctx)
+          : {
+                points: pricedFraction(
+                    ctx,
+                    "boardRemoval",
+                    REMOVAL_COMPLETENESS.exile,
+                    victimUnitsFor(op.target, ctx)
+                ),
+                tags: isAnnouncedTarget(op.target)
+                    ? ["boardRemoval", "targeted"]
+                    : ["boardRemoval", "board-scaling"],
+            };
+
+/** CR 603.7a — an exile of another player's permanent that the same
+ *  script's delayed trigger returns at a phase boundary ("Return that card to
+ *  the battlefield under its owner's control at the beginning of the next end
+ *  step"). The victim is off the board only until then: the tempo a bounce
+ *  takes, priced as one (`RETURN_COMPLETENESS.hand`), never as an answer. */
+function temporaryExileValue(sel: object, ctx: GroundingContext): OpValue {
+    return {
+        points: pricedFraction(
+            ctx,
+            "tempo",
+            RETURN_COMPLETENESS.hand,
+            victimUnitsFor(sel, ctx)
+        ),
+        tags: isAnnouncedTarget(sel) ? ["tempo", "targeted"] : ["tempo"],
+    };
+}
 
 // CR 701.65a (issue #3551) — airbending exiles the object, but its owner keeps
 // the card, recastable for {2}: tempo, not a clean answer. Priced on the same
@@ -2212,7 +2265,7 @@ function moveZonePoints(
     }
 }
 
-const moveZone: Valuer<"moveZone"> = (op, ctx) => {
+const moveZone: Valuer<"moveZone"> = (op, ctx, scope) => {
     // The player/from/to shape (a self-directed library/hand shuffle-in, e.g.
     // "put your hand on the bottom of your library") carries no `to` zone worth
     // scoring as removal/advantage — treat as neutral library manipulation.
@@ -2243,6 +2296,15 @@ const moveZone: Valuer<"moveZone"> = (op, ctx) => {
     // 603.6e `zone: "graveyard"` — `withGraveyardSource` in
     // `cardScriptValue.ts` forces `isSourceBattlefieldRef` false there, so
     // "return it to your hand" keeps scoring as the card advantage it is).
+    // The delayed return of a temporary exile puts back the board the exile
+    // was priced as leaving only until now (`temporaryExileValue`): read as
+    // a reanimation it would pay for the same exile twice.
+    if (
+        op.to === "battlefield" &&
+        "ref" in op.target &&
+        scope.temporaryExiles.has(op.target.ref)
+    )
+        return { points: 0, tags: ["tempo"] };
     if (op.to === "hand" && isSourceBattlefieldRefSelector(op.target, ctx)) {
         return {
             // Issue #1964 — the EXACT mirror of a bounce, one `tempo` unit
@@ -4766,9 +4828,11 @@ export function valueEffectScript(
     // order the interpreter itself resolves in: a `choice` records its picks,
     // then the Ops after it read the binding back.
     let walkScope = scope;
+    const blinked = blinkReturnedBindings(effects);
     for (let i = 0; i < effects.length; i++) {
         const op = effects[i];
         walkScope = withBindingsOf(walkScope, op, ctx);
+        walkScope = withTemporaryExiles(walkScope, op, ctx, blinked);
         const value = valueOp(op, ctx, walkScope);
         const weight = contingentBindingWeight(op, walkScope);
         acc = addValues(
