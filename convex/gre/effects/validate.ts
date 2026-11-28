@@ -3530,12 +3530,12 @@ function isManaPool(value: unknown): boolean {
 }
 
 /** The `persistsUntil` field of an `addMana` Op (CR 702.189a, issue #3235) —
- *  the produced mana's LIFETIME. Exactly one member today, `"end-of-combat"`
- *  (firebending); the closed literal test is what keeps a typo'd or invented
- *  duration from silently validating into a `ManaPersistence`-typed field the
- *  engine would then never honour. */
+ *  the produced mana's LIFETIME: `"end-of-combat"` (firebending) or
+ *  `"end-of-turn"` (CR 514.2); the closed literal test is what keeps a typo'd
+ *  or invented duration from silently validating into a `ManaPersistence`-typed
+ *  field the engine would then never honour. */
 function isManaPersistence(value: unknown): boolean {
-    return value === "end-of-combat";
+    return value === "end-of-combat" || value === "end-of-turn";
 }
 
 /** A `mayPay` permanent leg's `count`: a fixed cardinal (positive int) or a

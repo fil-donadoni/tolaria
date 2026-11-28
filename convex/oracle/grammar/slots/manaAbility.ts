@@ -407,6 +407,16 @@ const NOT_NONARTIFACT_RIDER =
     "This mana can't be spent to cast nonartifact spells";
 
 /**
+ * CR 106.6 — "Spend this mana only to cast a creature spell." after a fixed
+ * production (Rockface Village) or "one mana of any color" (Ancient
+ * Ziggurat): a PERMISSION for creature spells only, so the mana pays for no
+ * ability either. Read whole: "…of the chosen type", "…, and that spell can't
+ * be countered" and the plural "creature spells with …" are different
+ * restrictions this sentence does not name.
+ */
+const CREATURE_SPELL_RIDER = "Spend this mana only to cast a creature spell";
+
+/**
  * CR 122.1 / 701.21a — "If there are no depletion counters on this land,
  * sacrifice it", the Mercadian Masques depletion lands' second sentence
  * (`sacrificesSourceWhenNoCountersRemain`). The counter kind is read, not
@@ -444,6 +454,11 @@ function readManaRider(
         if (span === INSTANT_ONLY_RIDER) return { kind: "instant-only" };
         if (span === NOT_NONARTIFACT_RIDER)
             return { kind: "not-nonartifact-spells" };
+        if (
+            span === CREATURE_SPELL_RIDER &&
+            (head.kind === "fixed" || head.kind === "choice")
+        )
+            return { kind: "creature-spells-only" };
         if (span === NEXT_UNTAP_RETURN_RIDER)
             return { kind: "return-source-at-next-untap" };
         const sacrifice = NO_COUNTERS_SACRIFICE_RIDER.exec(span);

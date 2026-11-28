@@ -304,7 +304,9 @@ export const scenarioRestrictedManaValidator = v.object({
      *  the unit survives the CR 500.5 emptying until the boundary it names.
      *  A closed literal for the same reason `restriction` is a closed union —
      *  a spec must not be able to name a duration the engine never honours. */
-    persistsUntil: v.optional(v.literal("end-of-combat")),
+    persistsUntil: v.optional(
+        v.union(v.literal("end-of-combat"), v.literal("end-of-turn"))
+    ),
 });
 
 /** CR 702 — the STRUCTURED parameter of a parameterised keyword grant, the
@@ -1981,13 +1983,16 @@ function pickRestrictedMana(
             pickBoolean(entry.cantBeCounteredRider)
         );
         set(unit, "hasteRider", pickBoolean(entry.hasteRider));
-        // CR 702.189a — the one lifetime the engine honours. Anything else is
-        // dropped rather than promoted to "ordinary mana": a spec claiming a
-        // duration the engine cannot keep would rebuild a board the judged
-        // seat never had, the same fail-CLOSED this reader applies to
+        // CR 702.189a / 514.2 — the lifetimes the engine honours. Anything
+        // else is dropped rather than promoted to "ordinary mana": a spec
+        // claiming a duration the engine cannot keep would rebuild a board the
+        // judged seat never had, the same fail-CLOSED this reader applies to
         // `restriction`.
-        if (entry.persistsUntil === "end-of-combat") {
-            unit.persistsUntil = "end-of-combat";
+        if (
+            entry.persistsUntil === "end-of-combat" ||
+            entry.persistsUntil === "end-of-turn"
+        ) {
+            unit.persistsUntil = entry.persistsUntil;
         }
         units.push(unit);
     }

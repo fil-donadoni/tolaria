@@ -5958,6 +5958,27 @@ function lowerSentenceBody(
                 },
             ]);
         case "add-mana": {
+            // CR 500.5 + CR 514.2 — the mana's lifetime rides on every
+            // `addMana` this sentence lowers to; the fold that set it admits
+            // only the two branches below that read it.
+            const lifetime =
+                sentence.persistsUntil === undefined
+                    ? {}
+                    : { persistsUntil: sentence.persistsUntil };
+            if (
+                sentence.persistsUntil !== undefined &&
+                (sentence.perSet !== undefined ||
+                    sentence.thatPlayer === true ||
+                    sentence.itsController === true ||
+                    (sentence.anyOneColor !== undefined &&
+                        !(
+                            sentence.anyOneColor.kind === "fixed" &&
+                            sentence.anyOneColor.value === 1
+                        )))
+            )
+                return unlowerable(
+                    "a mana lifetime is read on a fixed or one-mana-of-any-color deposit to the controller only"
+                );
             if (sentence.anyOneColor !== undefined) {
                 // CR 106.1a + CR 107.3 — the colour is picked as the effect
                 // resolves: one `optionChoice` mode per colour, each adding
@@ -5978,7 +5999,11 @@ function lowerSentenceBody(
                             op: "optionChoice",
                             prompt: `${site.selfName}: add mana of which color?`,
                             modes: colorChoiceModes((color) => [
-                                { op: "addMana", mana: { [color]: 1 } },
+                                {
+                                    op: "addMana",
+                                    mana: { [color]: 1 },
+                                    ...lifetime,
+                                },
                             ]),
                         },
                     ]);
@@ -6028,7 +6053,9 @@ function lowerSentenceBody(
                       );
             }
             if (sentence.thatPlayer !== true)
-                return lowered([{ op: "addMana", mana: sentence.mana }]);
+                return lowered([
+                    { op: "addMana", mana: sentence.mana, ...lifetime },
+                ]);
             const player = playerRef({ kind: "that-player" }, slots, site);
             if (!player.ok) return player;
             return lowered([

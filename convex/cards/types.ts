@@ -3135,15 +3135,20 @@ export interface BoardManaAmountSource {
  *    amount (CR 119.4) — paying down to exactly 0 is legal; SBAs then apply. */
 /** CR 500.5 / 702.189a — a unit of mana's LIFETIME when it is not the default
  *  "empties as this step or phase ends". A closed union rather than a boolean
- *  so a second duration (a hypothetical "until end of turn" mana) is one
- *  member plus one arm in {@link manaPersistenceSurvives}, not a second
- *  parallel flag on every bucket key.
+ *  so each duration is one member plus one arm in
+ *  {@link manaPersistenceSurvives}, not a second parallel flag on every bucket
+ *  key.
  *
  *  `"end-of-combat"` — firebending (CR 702.189a): "Until end of combat, you
  *  don't lose this mana as steps and phases end." The unit survives every
  *  step boundary inside the combat phase and empties as the END_OF_COMBAT
- *  step — the combat phase's own exit — ends. */
-export type ManaPersistence = "end-of-combat";
+ *  step — the combat phase's own exit — ends.
+ *
+ *  `"end-of-turn"` — "Until end of turn, you don't lose this mana as steps and
+ *  phases end." (Brazen Collector): CR 514.2 ends "until end of turn" effects
+ *  during the cleanup step, so the unit survives every boundary of the turn
+ *  and empties as the CLEANUP step ends (CR 500.5). */
+export type ManaPersistence = "end-of-combat" | "end-of-turn";
 
 export type ManaCostReplacement = "life-equal-to-mana-value";
 

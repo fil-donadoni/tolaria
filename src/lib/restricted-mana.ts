@@ -75,6 +75,10 @@ export function restrictedManaLabel(
     if (unit.persistsUntil === "end-of-combat") {
         clauses.push("lasts until end of combat");
     }
+    // CR 514.2 — "Until end of turn, you don't lose this mana".
+    if (unit.persistsUntil === "end-of-turn") {
+        clauses.push("lasts until end of turn");
+    }
     return clauses.length > 0 ? `${base} — ${clauses.join(", ")}` : base;
 }
 

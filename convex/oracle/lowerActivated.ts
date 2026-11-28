@@ -905,6 +905,11 @@ function lowerUngatedManaAbility(input: {
             case "not-nonartifact-spells":
                 ability.manaRestriction = "not-nonartifact-spell";
                 break;
+            // CR 106.6 — the same tap-for-mana deposit, permitted only for a
+            // creature spell (`restrictionAllowsSpell`).
+            case "creature-spells-only":
+                ability.manaRestriction = "creature-spell";
+                break;
             // CR 122.1 / 701.21a — the engine sacrifices once the cost's
             // counter leg has been paid and none of that kind remain, so a
             // sentence naming a kind the cost never removes would read a
