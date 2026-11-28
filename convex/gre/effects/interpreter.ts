@@ -3411,12 +3411,6 @@ function bottomLookedAtCards(
     }
 }
 
-/** Default prompt for a `lookDistribute` choice (issue #2070) — varies on
- *  every independent axis (`keepTo` for the kept pile, `destination` for the
- *  un-kept pile, `randomBottom` for who orders it) so the wording never claims
- *  a card goes to hand when it's headed to the library top, or vice-versa for
- *  the rest, and never asks the player to order a pile the engine shuffles
- *  (issue #7694 — "on the bottom of your library in a random order"). */
 /** `lookDistribute`'s keep router (issue #2070): the kept cards go to their
  *  keep zone. A picked id that has since left the library is a no-op in every
  *  primitive (CR 101.3).
@@ -3453,6 +3447,12 @@ function placeLookDistributeKeep(
     }
 }
 
+/** Default prompt for a `lookDistribute` choice (issue #2070) — varies on
+ *  every independent axis (`keepTo` for the kept pile, `destination` for the
+ *  un-kept pile, `randomBottom` for who orders it) so the wording never claims
+ *  a card goes to hand when it's headed to the library top, or vice-versa for
+ *  the rest, and never asks the player to order a pile the engine shuffles
+ *  (issue #7694 — "on the bottom of your library in a random order"). */
 function keepPromptFor(
     keepTo: OpOf<"lookDistribute">["keepTo"],
     destination: LookDistributeDestination,
