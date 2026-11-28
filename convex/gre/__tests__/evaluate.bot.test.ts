@@ -28,7 +28,7 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
 import { resolveTopOfStack } from "../state";
-import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
+import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../ai/evalWeights";
 import {
     exileCastLatent,
     exileCastOpensLater,
@@ -56,6 +56,13 @@ const SPECTER = getCardByName("Hypnotic Specter").id; // 2/2 flying
 function bear(controllerId: string, id: string) {
     return makeInstance(BEARS, { controllerId, ownerId: controllerId, id });
 }
+
+/** The committed vector with the hand's deployment delay off, for a block
+ *  pinning another term's arithmetic on a held hand. */
+const NO_DELAY: EvalWeights = {
+    ...DEFAULT_EVAL_WEIGHTS,
+    deploymentDelayDecay: 1,
+};
 
 describe("evaluate (issue #111)", () => {
     it("a won position outranks any non-won position", () => {
@@ -1403,8 +1410,12 @@ describe("manaDevelopment term (issue #2686)", () => {
 
         const sevenLands = withLands(7, hand);
         const eightLands = withLands(8, hand);
+        // The eighth land also casts the fourth Bears this turn, which the
+        // hand's deployment delay prices; off here, so the land's
+        // development share is read alone.
         const floodedLand =
-            materialMargin(eightLands, "p1") - materialMargin(sevenLands, "p1");
+            materialMargin(eightLands, "p1", NO_DELAY) -
+            materialMargin(sevenLands, "p1", NO_DELAY);
 
         // Demand is the top of the curve (2), so the term is pinned at 2 lands'
         // worth of development in BOTH positions: the eighth land buys none.
@@ -1434,7 +1445,8 @@ describe("manaDevelopment term (issue #2686)", () => {
         const threeLands = withLands(3, hand);
         const fourLands = withLands(4, hand);
         const onCurveLand =
-            materialMargin(fourLands, "p1") - materialMargin(threeLands, "p1");
+            materialMargin(fourLands, "p1", NO_DELAY) -
+            materialMargin(threeLands, "p1", NO_DELAY);
         expect(onCurveLand).toBeGreaterThan(
             2 * DEFAULT_EVAL_WEIGHTS.lifeWeight
         );

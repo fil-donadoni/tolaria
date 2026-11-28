@@ -25,7 +25,7 @@ import {
 } from "./matcher";
 import { materialMargin } from "../../evaluate";
 import { isLand, manaValue } from "../../constants";
-import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
+import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
 import {
     getCardByName,
     getInstanceManaCost,
@@ -174,6 +174,12 @@ export const FREE_ATTACK_OPP_DECK = [
     "Swamp",
 ];
 
+/** The committed vector with the hand's deployment delay off. */
+const NO_DEPLOYMENT_DELAY: EvalWeights = {
+    ...DEFAULT_EVAL_WEIGHTS,
+    deploymentDelayDecay: 1,
+};
+
 /** Issue #2927 — the `manaDevelopment` term's FLOODED branch, asserted on a
  *  position built through the real `ScenarioSpec` pipeline rather than a
  *  hand-assembled `GameState`.
@@ -216,7 +222,12 @@ export function floodedLandEarnsNoDevelopmentBonus(
         const p = minusOne.players.find((q) => q.id === pid);
         if (!p) return Number.NaN;
         p.battlefield = p.battlefield.filter((c) => c.id !== lands[0].id);
-        return materialMargin(from, pid) - materialMargin(minusOne, pid);
+        // The hand's deployment delay off: a land also lets the held Bears
+        // queue less, which is that term's reading, not this one's.
+        return (
+            materialMargin(from, pid, NO_DEPLOYMENT_DELAY) -
+            materialMargin(minusOne, pid, NO_DEPLOYMENT_DELAY)
+        );
     };
 
     // A margin-point tolerance rather than `===` (issue #3401): the weights

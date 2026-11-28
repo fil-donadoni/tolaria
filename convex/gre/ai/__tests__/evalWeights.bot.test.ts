@@ -103,6 +103,10 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
         // weight, so the range is asserted here on the committed vector.
         expect(DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount).toBeGreaterThan(0);
         expect(DEFAULT_EVAL_WEIGHTS.latentCreatureDiscount).toBeLessThan(1);
+        // The deployment delay's share per queued turn: at 1 or above the
+        // hand term stops reading how long a hand takes to deploy.
+        expect(DEFAULT_EVAL_WEIGHTS.deploymentDelayDecay).toBeGreaterThan(0);
+        expect(DEFAULT_EVAL_WEIGHTS.deploymentDelayDecay).toBeLessThan(1);
         expect(
             DEFAULT_EVAL_WEIGHTS.latentFlashCreatureDiscount
         ).toBeGreaterThan(0);
