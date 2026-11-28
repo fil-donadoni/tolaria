@@ -191,6 +191,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › choice+discard+draw",
+            "issue": 11063
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › choice+libraryLook+moveZone+regenerate",
             "issue": 6750
         },
