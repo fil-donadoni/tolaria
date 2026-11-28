@@ -84,8 +84,8 @@ const CHOICE_LINE_ORDER: ChoiceLineKind[] = [
 ];
 
 /** The paragraph that makes the choice: "As this land enters, choose a
- *  creature type." (CR 614.12). */
-const CHOOSING_PARAGRAPH = /\benters\b.*\bchoose\b/i;
+ *  creature type." (CR 614.12) — never a "When … enters, choose" trigger. */
+const CHOOSING_PARAGRAPH = /^As\b.*\benters\b.*\bchoose\b/i;
 
 /** The green choice lines for a permanent's persistent as-enters choices.
  *
