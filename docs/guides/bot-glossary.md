@@ -617,14 +617,18 @@ unread, whatever its hash. Both counts read the whole exam and print
 `n = total (hash side H, rule side R)`. The unseen side is
 immutable: a held-out Verdict never migrates to the fit side, and one the
 owner admits to `must` anyway leaves it for good and is counted as **burned**.
-Where it stands: the Verdict Lock holds 101 Verdicts (last promotion
-2026-10-03), held-out n = 24; the last run (2026-10-11) printed pick agreement
-14/24 = 58.3% (`pass` 6/7, `land-drop` 5/9, `cast` 2/6), stable across eleven
-runs within 13–15. No health or nightly step runs it: at this `n` the number
-moves from run to run, so an automated reading raises false alarms. Run it by
+Where it stands: the Verdict Lock holds 188 Verdicts since the first
+`verdicts:exam` (2026-11-27; fit side unchanged since the last promotion,
+2026-10-03). The exam is n = 111 (hash side 24, rule side 87). Today's Bot
+reads pick agreement 51/111 = 45.9% (hash side 15/24, rule side 36/87) and eval
+agreement 367/449 = 81.7%. This is the baseline every later gate of PRD issue
+#10849 is read against
+(`docs/research/held-out-agreement-enlarged-exam-baseline.md`). No health or
+nightly step runs it: the run is long and its per-class counts are still thin,
+so an automated reading raises false alarms. Run it by
 hand after each `verdicts:promote` or `verdicts:exam`, whose report ends by
 saying so:
-`bun run verdicts:pick-agreement` (≈ 7 minutes). It exits 0 only when every
+`bun run verdicts:pick-agreement` (about an hour at n = 111). It exits 0 only when every
 held-out Verdict could be searched, so its printed block is paste-able as the
 held-out receipt a strength claim owes.
 

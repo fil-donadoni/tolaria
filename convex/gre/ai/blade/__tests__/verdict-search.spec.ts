@@ -230,5 +230,7 @@ describe.runIf(RUN)("verdicts through the search (runner)", () => {
         }
         if (heldOut) expect(heldOutReceiptRefusals(rows)).toEqual([]);
         else expect(rows.length).toBe(selected.length);
-    }, 3_600_000);
+        // The run is synchronous and linear in the exam: n = 111 took 63 min
+        // on a loaded 8-core machine (issue #10855), past the old 60-min cap.
+    }, 10_800_000);
 });

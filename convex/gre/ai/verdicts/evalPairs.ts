@@ -398,6 +398,33 @@ function candidateResolver(
         const key = planlessKey(move);
         if (!byPlanlessKey.has(key)) byPlanlessKey.set(key, move);
     }
+    // Issue #10855 — an accepted cost's graveyard and discard legs are not
+    // choices the candidate set offers: `choiceCandidates.ts` ranks each by
+    // `prospectiveCardWorth` and emits ONE set (the sacrifice leg, which it
+    // enumerates set by set, is a real choice and stays exact), so a verdict
+    // judged "pay or not", never which cards. That ranking reads the fitted
+    // weights, so a refit can pick another set and the recorded key then names
+    // cards the rebuilt position no longer offers as a whole. Re-read such a
+    // key by its other legs and the ranked legs' SIZES, and only where exactly
+    // one enumerated accept answers — an ambiguous match (`null`) stays stale.
+    // The pair then reads the features of the set the Bot ranks today, which
+    // the judgement never looked at.
+    const rankedLeglessKey = (
+        move: Extract<Move, { kind: "may-pay" }>
+    ): string => {
+        const { graveyardIds, discardIds, ...rest } = move;
+        return `${collapseKeyOf(rest)}#graveyard=${graveyardIds?.length ?? -1}#discard=${discardIds?.length ?? -1}`;
+    };
+    const hasRankedLeg = (move: Extract<Move, { kind: "may-pay" }>) =>
+        move.accept &&
+        (move.graveyardIds !== undefined || move.discardIds !== undefined);
+    const byRankedLeglessKey = new Map<string, Move | null>();
+    for (let i = 0; i < enumerated.length; i++) {
+        const move = enumerated[i];
+        if (move.kind !== "may-pay" || !hasRankedLeg(move)) continue;
+        const key = rankedLeglessKey(move);
+        byRankedLeglessKey.set(key, byRankedLeglessKey.has(key) ? null : move);
+    }
     const resolveCandidate = (key: string): Move | undefined => {
         const exact = byKey.get(key);
         if (exact) return exact;
@@ -436,7 +463,14 @@ function candidateResolver(
         // matched this way — `makeInterchangeableKeyer` maps an unresolvable
         // id to itself, so a genuinely stale key stays stale.
         const collapsed = byCollapseKey.get(collapseKeyOf(stored));
-        if (collapsed || stored.kind !== "activate-ability") return collapsed;
+        if (collapsed) return collapsed;
+        if (stored.kind === "may-pay") {
+            if (!hasRankedLeg(stored)) return undefined;
+            return (
+                byRankedLeglessKey.get(rankedLeglessKey(stored)) ?? undefined
+            );
+        }
+        if (stored.kind !== "activate-ability") return undefined;
         // Issue #4238 — an activation's `tapPlan` is HOW it is paid, not WHICH
         // decision it is: a verdict recorded before the planner stopped
         // spending a manland on its own animation names the old plan, and its
