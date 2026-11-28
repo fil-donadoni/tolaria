@@ -401,6 +401,10 @@ export type StaticClauseIR =
     | { readonly kind: "minimum-blockers"; readonly count: number }
     /** CR 401.5 — "Play with the top card of your library revealed". */
     | { readonly kind: "reveal-library-top" }
+    /** CR 701.18c + CR 402.3 — "Your opponents play with their hands
+     *  revealed": every other player's hand, face up to all, while the
+     *  source is on the battlefield. */
+    | { readonly kind: "reveal-hands"; readonly scope: "opponents" }
     /** CR 401.5 — "You may look at the top card of your library any time":
      *  the private half of the same rule, visible to the controller alone. */
     | { readonly kind: "look-at-library-top" }
@@ -3379,6 +3383,27 @@ const revealLibraryTopRule: Rule<StaticClauseIR> = rule(
             : fail("not the library-top reveal template", span)
 );
 
+// ── Frame: the opponents' revealed hands (CR 701.18c) ─────────────────────
+
+/**
+ * "Your opponents play with their hands revealed." (Telepathy, Seer's
+ * Vision.) CR 701.18c: "play" here means play the game, so the clause is a
+ * continuous instruction for as long as the source is on the battlefield;
+ * CR 402.3 is the rule it overrides — a player cannot otherwise look at
+ * another player's hand. The sentence is the whole clause; "Players play
+ * with their hands revealed" and "Play with your hand revealed" name another
+ * audience and stay refused by the exact match.
+ */
+const REVEAL_OPPONENTS_HANDS = "Your opponents play with their hands revealed";
+
+const revealOpponentsHandsRule: Rule<StaticClauseIR> = rule(
+    "opponents hands reveal",
+    (span): RuleResult<StaticClauseIR> =>
+        span === REVEAL_OPPONENTS_HANDS
+            ? ok({ kind: "reveal-hands" as const, scope: "opponents" as const })
+            : fail("not the opponents-hands reveal template", span)
+);
+
 /**
  * "You may look at the top card of your library any time." (Sphinx of Jwar
  * Isle, Mystic Forge.) CR 401.5: an effect may say that a player may look at
@@ -3731,6 +3756,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         optionalDrawSkipRule,
         extraLandDropRule,
         revealLibraryTopRule,
+        revealOpponentsHandsRule,
         lookAtLibraryTopRule,
         graveyardLandPlayRule,
         castSelfFromGraveyardRule,

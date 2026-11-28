@@ -741,7 +741,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Reverse Polarity",
     "Reviving Vapors",
     "Rime Dryad",
-    "Ring of Renewal",
     "Rith's Charm",
     "Rith, the Awakener",
     "Ritual of Subdual",

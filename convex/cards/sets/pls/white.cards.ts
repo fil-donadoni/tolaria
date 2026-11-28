@@ -836,7 +836,6 @@ export const voiceOfAll = defineCard(() => ({
 // player) bound as a one-card picks set, then CR 119.3 life gain of the CR
 // 202.3 mana value read back off that set in the HAND (`sum` with `zone:
 // "hand"`). An empty hand reveals nothing and the sum over the empty set is 0.
-// compiler-gap: Target opponent reveals a card at random from their hand (#4592)
 export const planeswalkersMirth = defineCard(() => ({
     id: "0205d094-c846-4aa0-ade8-2a52c57b11da", // PLS 12
     name: "Planeswalker's Mirth",

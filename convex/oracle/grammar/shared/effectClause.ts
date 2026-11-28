@@ -757,11 +757,16 @@ export type EffectSentenceIR =
           readonly condition: CardCountConditionIR;
       }
     /**
-     * CR 701.20a — "reveal a card at random from your hand": one card of the
-     * controller's hand, picked by the seeded PRNG, kept as the card a later
-     * "if that card has the chosen name" sentence reads.
+     * CR 701.20a — "reveal a card at random from your hand" / "Target
+     * opponent reveals a card at random from their hand": one card of
+     * `player`'s hand, picked by the seeded PRNG, kept as the card a later
+     * "if that card has the chosen name" or "that card's mana value" reads.
+     * The card stays in the hand it was revealed from.
      */
-    | { readonly kind: "reveal-random-hand-card" }
+    | {
+          readonly kind: "reveal-random-hand-card";
+          readonly player: PlayerRefIR;
+      }
     /**
      * CR 201.2a / 701.20a — "If that card has the chosen name, <effect>": the
      * gate reads the card the preceding `reveal-random-hand-card` showed
@@ -6174,6 +6179,8 @@ const DRAW_SELF = /^Draw (\S+) cards?$/;
 /** CR 504.1 + CR 121.1 — "Draw N additional cards", whole; plural only. */
 const DRAW_ADDITIONAL_SELF = /^Draw (\S+) additional cards$/;
 const DRAW_PLAYER = /^(.+) draws (\S+) cards?$/;
+/** CR 608.2d — "Target opponent may draw a card": the announced player's option. */
+const TARGET_PLAYER_MAY_DRAW = /^(.+) may draw (\S+) (cards?)$/;
 /** CR 121.1 + CR 107.1 — "Draw cards equal to the number of <set>". */
 const DRAW_EQUAL_COUNT = /^Draw cards equal to (the number of .+)$/;
 const LIFE = /^(.+) (gain|gains|lose|loses) (\S+|that much) life$/;
@@ -6449,10 +6456,14 @@ const EXILE_REST = /^Exile the rest$/;
 const LOOK_HAND = /^Look at (.+?)(?:'|’)s hand$/;
 /** CR 400.2 — "Look at a card at random in target player's hand". */
 const LOOK_RANDOM_HAND = /^Look at a card at random in (.+?)(?:'|’)s hand$/;
+/** CR 701.20a — "<player> reveals a card at random from their hand". */
+const REVEAL_RANDOM_HAND = /^(.+) reveals a card at random from their hand$/;
 /** CR 701.9b — "Target player discards two cards": the player's own choice. */
 const DISCARD_CHOICE = /^(.+) discards (\S+) cards?$/;
 /** CR 701.9b — "Discard a card": the controller discards one of their choice. */
 const DISCARD_SELF = "Discard a card";
+/** CR 701.9a — "Discard a card at random": the controller's, picked by the PRNG. */
+const DISCARD_SELF_AT_RANDOM = "Discard a card at random";
 /** CR 701.26a — "<player> taps an untapped <types> they control for each <type> counter on this <noun>". */
 const TAP_CHOSEN_PER_COUNTER =
     /^(.+?) taps an untapped (.+?) (?:they|that player) control for each (\S+) counter on this (\S+)$/;
@@ -8420,7 +8431,10 @@ function chosenNameSentence(span: string, ctx: unknown) {
                     kind: "name-card" as const,
                     prompt: "Choose a card name.",
                 },
-                { kind: "reveal-random-hand-card" as const },
+                {
+                    kind: "reveal-random-hand-card" as const,
+                    player: { kind: "you" as const },
+                },
             ],
         } satisfies SentenceIR);
     const gate = span.match(IF_REVEALED_HAS_CHOSEN_NAME);
@@ -9989,6 +10003,24 @@ function effectSentence(
             count: { kind: "counted" as const, times: 1, set: set.value },
         } satisfies EffectSentenceIR);
     }
+    // CR 608.2d — "Target opponent may draw a card": the option is the
+    // announced player's, made as the effect is applied; declining draws
+    // nothing. Only an announced target player chooses here — "you may" is
+    // the `optional` marker's, and a non-target chooser is no printed form.
+    const mayDraw = span.match(TARGET_PLAYER_MAY_DRAW);
+    if (mayDraw !== null) {
+        const player = playerSubject(mayDraw[1]!, ctx);
+        if (player === null || player.kind !== "target")
+            return fail(`"${mayDraw[1]}" is not a target player`, span);
+        const count = readAmount(mayDraw[2]!);
+        if (count === null) return fail(`"${mayDraw[2]}" is not a count`, span);
+        return ok({
+            kind: "optional" as const,
+            player,
+            clause: `draw ${mayDraw[2]!} ${mayDraw[3]!}`,
+            effect: { kind: "draw" as const, player, count },
+        } satisfies EffectSentenceIR);
+    }
     const drawPlayer = span.match(DRAW_PLAYER);
     if (drawPlayer !== null) {
         // CR 109.4 + CR 608.2h — "Its controller draws a card": the controller
@@ -11076,6 +11108,21 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
+    // ── a random card of another player's hand, revealed (CR 701.20a) ──────
+    // "their hand" agrees with a third-person subject; the controller's own
+    // form is printed "reveal a card at random from your hand" and is read
+    // only inside the Cursed Scroll sentence (`chosenNameSentence`).
+    const revealRandom = span.match(REVEAL_RANDOM_HAND);
+    if (revealRandom !== null) {
+        const player = playerSubject(revealRandom[1]!, ctx);
+        if (player === null || player.kind === "you")
+            return fail(`"${revealRandom[1]}" is not a player`, span);
+        return ok({
+            kind: "reveal-random-hand-card" as const,
+            player,
+        } satisfies EffectSentenceIR);
+    }
+
     // ── private look at a hand (CR 400.2) ──────────────────────────────────
     const lookRandom = span.match(LOOK_RANDOM_HAND);
     if (lookRandom !== null) {
@@ -11098,6 +11145,14 @@ function effectSentence(
     }
 
     // ── discard at random (CR 701.9a) ──────────────────────────────────────
+    // The imperative is the controller's own random discard; only the
+    // one-card form is printed as a sentence of its own.
+    if (span === DISCARD_SELF_AT_RANDOM)
+        return ok({
+            kind: "discard-at-random" as const,
+            player: { kind: "you" as const },
+            count: { kind: "fixed" as const, value: 1 },
+        } satisfies EffectSentenceIR);
     const discard = span.match(DISCARD_RANDOM);
     if (discard !== null) {
         const player = playerSubject(discard[1]!, ctx);

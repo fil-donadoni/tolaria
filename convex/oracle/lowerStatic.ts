@@ -145,6 +145,8 @@ export interface LoweredStatic {
     readonly extraLandDrops?: number;
     /** CR 401.5 — the controller plays with their library top revealed. */
     readonly revealsLibraryTop?: "controller";
+    /** CR 701.18c + CR 402.3 — whose hands are played revealed. */
+    readonly revealsHand?: "opponents";
     /** CR 401.5 — the controller may look at their library top any time. */
     readonly looksAtLibraryTop?: "controller";
     /** CR 305.1-analog — the controller may play lands from their graveyard. */
@@ -1142,6 +1144,10 @@ export function lowerStaticClause(
         // reads live off the battlefield; never stored state.
         case "reveal-library-top":
             return { ok: true, lowered: { revealsLibraryTop: "controller" } };
+        // CR 701.18c + CR 402.3 — a flat scope `computeHandRevealedPlayers`
+        // reads live off the battlefield; never stored state.
+        case "reveal-hands":
+            return { ok: true, lowered: { revealsHand: clause.scope } };
         // CR 401.5 — the private twin of the reveal, read the same way.
         case "look-at-library-top":
             return { ok: true, lowered: { looksAtLibraryTop: "controller" } };

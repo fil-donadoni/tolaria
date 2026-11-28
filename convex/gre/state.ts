@@ -25538,7 +25538,7 @@ export function canPayLifeCost(player: PlayerState, life: number): boolean {
 }
 
 /** CR 118.3 — whether `player` may pay a "discard a card at random" cost (Coral
- *  Helm, Ring of Renewal): illegal with an EMPTY hand, and legal with any card
+ *  Helm, Meteor Storm): illegal with an EMPTY hand, and legal with any card
  *  at all. Deliberately not `hand.length >= count` — the server's own condition
  *  is `hand.length === 0`, because `discardCardsAtRandom` clamps to hand size,
  *  so a 2-card cost with 1 card in hand is legal and discards the one.

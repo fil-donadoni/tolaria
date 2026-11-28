@@ -20258,6 +20258,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Curse-Marred Demon",
+        "scryfallId": "8f827e50-0a08-4bc8-98b1-b26c9af15ef2",
+        "oracleId": "f30a084c-5705-40f5-8e0d-2083d33973c7",
+        "firstSet": "fra",
+        "firstPrintId": "8f827e50-0a08-4bc8-98b1-b26c9af15ef2",
+        "firstPrintSet": "fra",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Cursebreak",
         "scryfallId": "c71a0883-316c-4870-a029-25f16952fbc0",
         "oracleId": "ac5a13b1-0725-4978-8c93-cebd76be58ba",
@@ -23499,6 +23509,16 @@
         "firstPrintId": "69ce134a-25ef-4f8d-a385-7c29fc5707dc",
         "firstPrintSet": "war",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Desperate Ravings",
+        "scryfallId": "2ba3ab3e-d16c-492f-a860-6d8efcadf679",
+        "oracleId": "8b96c334-82c7-4511-805e-f04c27514d7c",
+        "firstSet": "isd",
+        "firstPrintId": "2ba3ab3e-d16c-492f-a860-6d8efcadf679",
+        "firstPrintSet": "isd",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -58919,6 +58939,16 @@
         "source": "compiled"
     },
     {
+        "name": "Merfolk Spy",
+        "scryfallId": "b5ae05cc-116b-4268-ba78-709aeff36ab1",
+        "oracleId": "d004b481-a1d5-459d-8282-76baa9d13652",
+        "firstSet": "m11",
+        "firstPrintId": "b5ae05cc-116b-4268-ba78-709aeff36ab1",
+        "firstPrintSet": "m11",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Merfolk Traders",
         "scryfallId": "ebacbf23-4b69-481c-aaf7-5de7b4a6db6f",
         "oracleId": "8af6646a-10ba-448b-bd5e-48feb70de5e5",
@@ -87885,6 +87915,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Soldevi Heretic",
+        "scryfallId": "9613ca47-c9d1-4485-b0bd-71b0b587567e",
+        "oracleId": "eed353a6-757d-47f6-a118-b951ccf95600",
+        "firstSet": "all",
+        "firstPrintId": "9613ca47-c9d1-4485-b0bd-71b0b587567e",
+        "firstPrintSet": "all",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Soldevi Machinist",
         "scryfallId": "1f0999df-2f94-499e-b9af-fe377d515400",
         "oracleId": "06600efe-1718-4cc1-b1c0-59c82e2efd73",
@@ -89139,6 +89179,16 @@
         "firstSet": "sos",
         "firstPrintId": "cc44eaa4-59a4-419e-b1d1-d92f354ff588",
         "firstPrintSet": "sos",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Spellgorger Barbarian",
+        "scryfallId": "043fcf80-dd20-4cc2-a0d5-4bb22b8b0789",
+        "oracleId": "9c0fd5ad-fbba-4598-80cf-6540888378cb",
+        "firstSet": "jud",
+        "firstPrintId": "043fcf80-dd20-4cc2-a0d5-4bb22b8b0789",
+        "firstPrintSet": "jud",
         "rarity": "common",
         "source": "compiled"
     },
@@ -96058,6 +96108,16 @@
         "firstPrintId": "769e7f64-e32c-4242-aae9-45d50b89ff1f",
         "firstPrintSet": "uds",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Telepathy",
+        "scryfallId": "51729f36-0a0c-47fb-a3bf-22afc78df7a4",
+        "oracleId": "d2e647ac-717f-46e6-baa8-6a793e7bdc32",
+        "firstSet": "usg",
+        "firstPrintId": "51729f36-0a0c-47fb-a3bf-22afc78df7a4",
+        "firstPrintSet": "usg",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -109996,6 +110056,16 @@
         "firstPrintId": "49488b76-abaf-4dba-b01f-7b418e4ff295",
         "firstPrintSet": "scg",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Wisedrafter's Will",
+        "scryfallId": "bad9faa8-b527-4dbf-b308-3137bced36f9",
+        "oracleId": "7e09daa4-a0e6-447b-b0c5-6b1bf728525f",
+        "firstSet": "mb2",
+        "firstPrintId": "bad9faa8-b527-4dbf-b308-3137bced36f9",
+        "firstPrintSet": "mb2",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
