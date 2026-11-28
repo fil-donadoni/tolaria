@@ -3052,7 +3052,8 @@ const ANIMATE_OWN_TESTS_REASON = `Op "animate" changes a permanent's basic kind 
  * `animate` on the ability's own source — "This land becomes a 2/1 red Warrior
  * creature with first strike until end of turn. It's still a land." CR 205.1b:
  * the permanent becomes a creature and retains its prior types; CR 613.4b: the
- * stated P/T is its base, set in layer 7b; CR 611.2a: it lasts as stated. The scenario seeds the source with the host's own type line
+ * stated P/T is its base, set in layer 7b; CR 611.2a: it lasts as stated.
+ * The scenario seeds the source with the host's own type line
  * (`SmokeSourceSpec`), so the animation acts on exactly the kind of permanent
  * the card puts it on, and the outcome — a creature with that base P/T, the
  * added types, subtype, colours and keywords — reads off the board right after
