@@ -18200,32 +18200,41 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         // COST-MODIFIER PRICING (CR 601.2f, issue #5363). The bot holds
-        // Disenchant with three untapped Plains (Trinisphere raises the
+        // Disenchant with six untapped Plains (Trinisphere raises the
         // Disenchant itself to three); the opponent has a Trinisphere ("each
         // spell that would cost less than three mana costs three") and a
         // Tawnos's Weaponry (a 2-MV artifact the Op vocabulary reads at its
-        // floor). The bot's hand holds three
-        // one-drops: the tax takes two mana from each.
+        // floor). The bot's hand holds three one-drops: the tax takes two mana
+        // from each.
         //
-        // ONE point, no near-tie: the bot's whole deck is one-drops and it
-        // draws no land, so its mana stays at three. Removing the Trinisphere
-        // first deploys three Lions next turn; a Lion now leaves the
-        // Disenchant for next turn and the Lions for the turn after, a full
-        // turn behind. With filler basics in the library the land drop let
-        // "Lion now, Disenchant + Lion next turn" tie the removal line (issue
-        // #10820), so the library is explicit and land-free; the opponent's
-        // holds basics only so neither seat decks out inside the search.
+        // ONE point, no near-tie, inside the turn: the bot's whole deck is
+        // one-drops and it draws no land, so its mana stays at six. Removing
+        // the Trinisphere first leaves three mana for all three Lions this
+        // turn; a Lion first, or the Weaponry, leaves room for one more taxed
+        // spell. The closest rival, two taxed Lions with the Disenchant held,
+        // ends a Lion behind this turn and the next. With filler basics in
+        // the library a land drop let "Lion now, Disenchant + Lion next turn"
+        // tie the removal line, so the library is explicit and land-free; the
+        // opponent's holds basics only so neither seat decks out inside the
+        // search.
+        //
+        // The payoff lands inside the turn on purpose. On three Plains it fell
+        // on the Bot's next turn, one step past the root-clock rollout
+        // horizon, whose leaf prices castable Lions at the latent discount:
+        // the Bot cast a Lion on every seed. Pricing a castable-now creature
+        // at its whole body at that stop turned ten other `must` entries red
+        // (pass over cast), so that horizon effect is tracked by issue #11049.
         label: "cost-modifier pricing: Disenchant takes the Trinisphere taxing the bot's hand of one-drops, not the 2-MV artifact (issue #5363)",
         classification: {
             kind: "conditional",
             discriminant: {
                 kind: "card",
-                detail: "The bot's hand and land-free library are one-drops, each taxed from one mana to three, on a mana base that stays at three.",
+                detail: "The bot's hand and land-free library are one-drops, each taxed from one mana to three, on a mana base that stays at six.",
             },
         },
         spec: {
             cards: [
-                ...Array.from({ length: 3 }, () => ({
+                ...Array.from({ length: 6 }, () => ({
                     name: "Plains",
                     owner: "me" as const,
                     zone: "battlefield" as const,
@@ -18269,7 +18278,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #5363. Guards `costModifierStandingWorth` (`ai/costModifierPricing.ts`): Trinisphere's worth is the mana it adds to the known spells of each hand, at `costTaxWeight` a mana, read through the castability reader's own effective cost. Pair: the same board with a hand of five-drops reads the tax at zero and takes the Weaponry. Measured at 400 iterations over 20 seeds: the Trinisphere 20/20 and the twin's Weaponry 20/20; with `costModifierStandingWorth` returning 0 this entry turns red (the Weaponry 20/20) and the twin stays green.",
+        note: "Issue #5363, board moved to six Plains by issue #11032. Written to guard `costModifierStandingWorth` (`ai/costModifierPricing.ts`): Trinisphere's worth is the mana it adds to the known spells of each hand, at `costTaxWeight` a mana. Pair: a hand of five-drops reads the tax at zero and takes the Weaponry. Measured on 2026-11-28 (base `eaeda6051`), 400 iterations: 20/20 under production defaults and under `horizon-b`, ROBUST. With `costModifierStandingWorth` returning 0 this entry, the three-Plains board it replaced and the Thalia entry all stay green: the hand term's deployment schedule reads the tax through each card's effective cost, so the entry now guards the decision, not that term alone.",
     },
     {
         // COST-MODIFIER PRICING (CR 601.2f, issue #5363). The bot holds
