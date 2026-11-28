@@ -112,6 +112,31 @@ describe("Ureni, the Song Unending — ETB divides X = lands you control (CR 601
         expect(mine.find((c) => c.id === "mine")?.damageMarked ?? 0).toBe(0);
     });
 
+    it("keeps the announced split when the lands leave before resolution (CR 601.2d)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: lands("p1", 2) }),
+                makePlayer("p2", { battlefield: [creature("a", "p2")] }),
+            ],
+        });
+        ureniEtbOnStack(state, "p1");
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        const pt = state.pendingTarget!;
+        expect(pt.divideTotal).toBe(2);
+        pt.selected = [{ type: "permanent", id: "a" }] as TargetSelection[];
+        pt.divideAmounts = { "permanent:a": 2 };
+        finalizeTargetSelection(state, pt, "p1");
+
+        // Every land leaves: the resolution-time count reads 0, but the
+        // division was announced as the ability went on the stack.
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => !c.id.startsWith("p1-land-")
+        );
+        resolveTopOfStack(state);
+        const opp = state.players[1].battlefield;
+        expect(opp.find((c) => c.id === "a")?.damageMarked).toBe(2);
+    });
+
     it("is removed from the stack when opponents control no creature or planeswalker (CR 603.3d)", () => {
         const state = makeState({
             players: [
