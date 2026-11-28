@@ -304,3 +304,43 @@ export const naduWingedWisdom = defineCard(() => ({
         },
     ],
 }));
+
+// Planar Genesis — {G}{U} Instant. "Look at the top four cards of your
+// library. You may put a land card from among them onto the battlefield
+// tapped. If you don't, put a card from among them into your hand. Put the
+// rest on the bottom of your library in a random order."
+//   - One `lookDistribute` over the top four: the optional land keep goes
+//     onto the battlefield, entering tapped (CR 110.5b).
+//   - CR 608.2c — "If you don't" reads the first keep: with no land put,
+//     `otherwise` puts exactly one looked-at card into hand.
+//   - The rest go to the bottom with no ordering pick and no knowledge
+//     granted (`randomBottom`; CR 401.4 — the owner doesn't reveal the order).
+//
+// hand-tail: Look at the top four cards of your library. You may put a land card from among them onto the battlefield tapped. If you don't, put a card from among them into your hand. Put the rest on the bottom of your library in a random order. (#10542)
+export const planarGenesis = defineCard(() => ({
+    id: "7fc9a10b-c9f9-4129-a671-ced0917ce78b", // MH3 198
+    name: "Planar Genesis",
+    rarity: "uncommon",
+    manaCost: { G: 1, U: 1 },
+    types: ["Instant"],
+    oracleText:
+        "Look at the top four cards of your library. You may put a land card from among them onto the battlefield tapped. If you don't, put a card from among them into your hand. Put the rest on the bottom of your library in a random order.",
+    effects: [
+        {
+            op: "lookDistribute",
+            player: "controller",
+            look: 4,
+            take: 1,
+            keepTo: "battlefield",
+            tapped: true,
+            filter: { type: "Land" },
+            optional: true,
+            otherwise: {
+                keepTo: "hand",
+                prompt: "Planar Genesis — put a card from among them into your hand.",
+            },
+            randomBottom: true,
+            prompt: "Planar Genesis — you may put a land card onto the battlefield tapped.",
+        },
+    ],
+}));

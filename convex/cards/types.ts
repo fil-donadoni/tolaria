@@ -20889,6 +20889,22 @@ export type EffectOp =
            *  to `destination` (the UN-kept cards' target) — the two never
            *  interact. */
           keepTo: LookDistributeKeepTo;
+          /** "onto the battlefield TAPPED" — a `keepTo: "battlefield"` keep
+           *  enters tapped (CR 110.5b: a permanent enters untapped unless an
+           *  effect says otherwise), through the entry funnel's authored
+           *  `entersTapped`. Valid ONLY with `keepTo: "battlefield"`
+           *  (validator-enforced). Never applies to `otherwise`'s keep. */
+          tapped?: boolean;
+          /** "If you don't, put a card from among them into your hand" — the
+           *  fallback keep over the SAME looked-at window when the first keep
+           *  took nothing (declined, or nothing was eligible). A second
+           *  `look-distribute` choice puts EXACTLY `take` unfiltered cards to
+           *  `otherwise.keepTo`; the rest then go to `destination`. CR 608.2c:
+           *  the instructions run in order, and "if you don't" reads the
+           *  first keep's outcome. Requires `optional: true` (a mandatory
+           *  first keep never leaves the branch open) and refuses `bind` /
+           *  `reveal` (validator-enforced). */
+          otherwise?: { keepTo: LookDistributeKeepTo; prompt?: string };
           /** Who MAKES the keep choice (Karn, Scion of Urza's +1: "an opponent
            *  chooses one of them", issue #1570). Omitted = the library owner
            *  chooses (every card shipped before #1570 — Impulse, Stock Up,
