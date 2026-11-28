@@ -402,6 +402,7 @@ export {
 import { revertBestow } from "./bestow";
 import { clearCardFieldsAt } from "./state/cardFieldLifecycle";
 import { collectLingeringSnapshots } from "./lingeringStatics";
+import { orderTopAnswerIsPublic } from "./libraryKnownRuns";
 import {
     STATIC_EFFECT_CTX,
     getEffectivePower,
@@ -21984,13 +21985,20 @@ export function buildSpellContext(
                 // moves them. Graveyard'd cards (surveil) are not marked here —
                 // the graveyard is public anyway. For fateseal the chooser
                 // (Jace's controller) knows the OWNER's kept-on-top card.
+                // A one-card window whose alternative was the public graveyard
+                // hides nothing (`orderTopAnswerIsPublic`): whoever knew the
+                // card on top before the choice still does.
                 grantKnowledge(state, playerId, storedTop, chooserId);
-                narrowLibraryPositionToChooser(
-                    state,
-                    playerId,
-                    storedTop,
-                    chooserId
-                );
+                if (
+                    !orderTopAnswerIsPublic(m + second.length, opts.destination)
+                ) {
+                    narrowLibraryPositionToChooser(
+                        state,
+                        playerId,
+                        storedTop,
+                        chooserId
+                    );
+                }
             } else if (needsLibraryShuffle) {
                 // No kept cards to protect (e.g. every looked-at card was
                 // surveiled away) — shuffle whatever's left directly.
