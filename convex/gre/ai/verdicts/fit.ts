@@ -98,10 +98,12 @@ import {
     type LatentWeights,
 } from "../evalWeights";
 import { REPRESENTATIVE_VICTIM_BODY } from "../representativeVictim";
+import type { GeneratedWeights } from "../generatedVector/committedWeights";
 import {
     FITTABLE_WEIGHT_KEYS,
     weightValue,
     type FittableWeightKey,
+    type NamedBasis,
 } from "./features";
 import type { EvalPair } from "./evalPairs";
 import {
@@ -172,6 +174,43 @@ export const FIT_STEPS = 4_000;
  *  — the fit would grow without bound and mean nothing (ADR 0124 §3, "a fixed
  *  numeraire (life)"). */
 export const FIT_NUMERAIRE: FittableWeightKey = "lifeWeight";
+
+/**
+ * The pull of every generated column's weight toward ZERO (ADR 0186,
+ * Decision 1), over its coordinate `v_c = g_c / δ` — the weight in margins
+ * per unit of the column.
+ *
+ * DERIVATION. At the optimum `∂/∂v_c` of the loss is zero, so
+ *
+ *     v_c  =  (1 / (n·λ_gen)) · Σ_p h_p · x_pc
+ *
+ * with `h_p ≤ 1` the hinge of pair `p` and `x_pc` the column's signed unit
+ * difference on it. A column loaded by `k` of `n` pairs, one unit each, all
+ * of them at the hinge, earns at most `δ·k / (n·λ_gen)` margin points a unit.
+ * At `λ_gen = 1` and the registry corpus' ~150 pairs, a column ONE pair loads
+ * earns under 0.7 of a point — below one permanent (5), the smallest real
+ * distinction the Evaluation draws, so it stays silent — while one loaded by a
+ * pair in five earns ~20 points. That is the property the ADR asks for: a
+ * column with few examples says nothing. Twenty times `FIT_LAMBDA`, which pulls
+ * a weight that already has a price; a generated column has none to start
+ * from. A sweep knob of the runner (`BLADE_FIT_GEN_LAMBDA`), never read by
+ * the Bot.
+ */
+export const GENERATED_FIT_LAMBDA = 1;
+
+/** The Card Residual's pull toward zero, over the same coordinate as a
+ *  generated column's (`GENERATED_FIT_LAMBDA`): ten times stronger, so by the
+ *  same derivation a card needs ten times the examples a column does before
+ *  its residual is worth one permanent. The escape hatch is meant to be hard
+ *  to open (ADR 0186, Decision 4). */
+export const CARD_RESIDUAL_LAMBDA = 10;
+
+/** The hard cap on one Card Residual, in margin points a unit: HALF the fit's
+ *  margin. A residual alone then never separates a pair — a pair it finishes
+ *  is at least half separated by the mechanics already — and no card's
+ *  correction reaches a creature's worth (~170). A residual AT the cap is the
+ *  report's loudest line: the data wanted more than the hatch may give. */
+export const CARD_RESIDUAL_CAP = FIT_MARGIN / 2;
 
 /**
  * Orderings the vector must keep whatever the verdicts say, as a band on the
@@ -349,6 +388,34 @@ export type WeightFitResult = {
     separatedBefore: number;
     separatedAfter: number;
     options: ResolvedOptions;
+    /** The generated columns' part of the fit, when the fit was handed one. */
+    generated?: GeneratedFitOutcome;
+};
+
+/** The generated columns a fit prices (ADR 0186, Decisions 1 and 4): one
+ *  basis per pair, in `pairs` order (`pairGeneratedBases`), and the pull to
+ *  zero. */
+export type GeneratedFitInput = {
+    bases: readonly NamedBasis[];
+    /** Default `GENERATED_FIT_LAMBDA`. */
+    lambda?: number;
+};
+
+/** One generated column's fitted weight, in margin points a unit. */
+export type GeneratedColumnWeight = { name: string; weight: number };
+
+export type GeneratedFitOutcome = {
+    lambda: number;
+    /** Every column some fitted pair loads, in code-unit name order. */
+    columns: readonly string[];
+    /** The fitted table: every column whose rounded weight is not zero, by
+     *  name — the shape the Evaluation reads (`EvalWeights.generatedWeights`).
+     *  Never committed by the fit: this ticket's arm only reports it. */
+    table: GeneratedWeights;
+    /** `table` as rows, largest `|weight|` first, ties by name. */
+    moved: readonly GeneratedColumnWeight[];
+    /** Columns some pair loads whose weight rounded to zero. */
+    zero: number;
 };
 
 /** Ceiling on the box↔band alternations one projection runs.
@@ -584,7 +651,12 @@ export function fitWeights(
     // reproducibility guard unable to notice. The prior is
     // `FIT_BASE_EVAL_WEIGHTS` and naming it is the caller's job.
     w0: EvalWeights,
-    options: WeightFitOptions = {}
+    options: WeightFitOptions = {},
+    // The generated columns (ADR 0186, Decision 1): one more coordinate per
+    // column, pulled toward ZERO rather than toward `w0`. Absent, the fit is
+    // the hand-written terms' alone, operation for operation — the committed
+    // weights are this call without it (`generatedFit.ts`' header).
+    generated?: GeneratedFitInput
 ): WeightFitResult {
     const opts: ResolvedOptions = {
         margin: options.margin ?? FIT_MARGIN,
@@ -615,6 +687,19 @@ export function fitWeights(
         );
     }
     const { margin, lambda, steps, trustRegion, numeraire } = opts;
+    const genLambda = generated?.lambda ?? GENERATED_FIT_LAMBDA;
+    if (generated) {
+        if (generated.bases.length !== pairs.length) {
+            throw new Error(
+                `generated fit: ${generated.bases.length} bases for ${pairs.length} pairs`
+            );
+        }
+        if (!(genLambda >= 0)) {
+            throw new Error(
+                `generated fit lambda must be >= 0, got ${genLambda}`
+            );
+        }
+    }
 
     const keys = FITTABLE_WEIGHT_KEYS;
     const scale = keys.map((k) => scaleOf(w0, k));
@@ -642,11 +727,30 @@ export function fitWeights(
     const n = fitted.filter(Boolean).length;
     const u = keys.map(() => 0);
 
+    // The generated block, sparse: the columns some pair loads, and per pair
+    // the column indexes and `δ · x_pc` — the margin points a weight of one
+    // margin a unit (`v_c = 1`) buys on pair `p`. The pull is to zero, not to
+    // `w0`, and there is no box: the correction is exactly linear in its
+    // table (`features.ts`), so the trust region's reason does not reach it.
+    const gen = generatedBlock(pairs.length, margin, generated);
+    const v = gen.columns.map(() => 0);
+
     // Squared hinge over `n` pairs: ∇²  ≤  (2/n)·Σ_p a_p a_pᵀ/δ² + 2λI, so a
     // step of 1/L descends monotonically. Σ‖a_p‖² is the trace bound — loose
     // by at most the vector's dimension, which costs iterations, never
     // correctness, and iterations are free here.
+    //
+    // With a generated block, each step is TWO block steps, in order (block
+    // coordinate descent): the hand-written block first, by its own bound —
+    // the trace of its own rows, the number above, unchanged — and projected
+    // as always; then the generated block, from the gradient re-read at the
+    // new `u`, by ITS bound, `2λ_gen + 2·Σ‖x_p‖²/(n·δ²)`. Each block's step is
+    // `1/L` of that block's own Hessian, so each half-step descends the whole
+    // loss and the iterate stays monotone. Without a generated block the
+    // second half-step does not exist and every operation is the one the
+    // committed weights were fitted by.
     let curvature = 2 * lambda;
+    let genCurvature = 2 * genLambda;
     if (n > 0) {
         let trace = 0;
         a.forEach((row, p) => {
@@ -657,20 +761,39 @@ export function fitWeights(
                 }
         });
         curvature += (2 * trace) / (n * margin * margin);
+        let genTrace = 0;
+        for (let p = 0; p < gen.values.length; p++) {
+            if (!fitted[p]) continue;
+            const row = gen.values[p];
+            for (let i = 0; i < row.length; i++) genTrace += row[i] * row[i];
+        }
+        genCurvature += (2 * genTrace) / (n * margin * margin);
     }
     const step = curvature > 0 ? 1 / curvature : 0;
+    const genStep = genCurvature > 0 ? 1 / genCurvature : 0;
+
+    // `ĝ_p` at the current iterate: the prior's gap, the hand-written block,
+    // then the generated one.
+    const gapAt = (p: number): number => {
+        let g = base[p];
+        const row = a[p];
+        for (let k = 0; k < keys.length; k++) g += row[k] * u[k];
+        const gi = gen.indexes[p];
+        const gv = gen.values[p];
+        for (let i = 0; i < gi.length; i++) g += gv[i] * v[gi[i]];
+        return g;
+    };
 
     const gradient = keys.map(() => 0);
+    const genGradient = gen.columns.map(() => 0);
     for (let t = 0; t < steps; t++) {
         for (let k = 0; k < keys.length; k++) gradient[k] = 2 * lambda * u[k];
         for (let p = 0; p < pairs.length; p++) {
             if (!fitted[p]) continue;
-            let g = base[p];
-            const row = a[p];
-            for (let k = 0; k < keys.length; k++) g += row[k] * u[k];
-            const h = 1 - g / margin;
+            const h = 1 - gapAt(p) / margin;
             if (h <= 0) continue;
             const c = (-2 * h) / (margin * n);
+            const row = a[p];
             for (let k = 0; k < keys.length; k++) gradient[k] += c * row[k];
         }
         for (let k = 0; k < keys.length; k++) {
@@ -678,11 +801,30 @@ export function fitWeights(
             u[k] -= step * gradient[k];
         }
         project(u, w0, scale, frozen, trustRegion, floor);
+
+        if (v.length === 0) continue;
+        for (let j = 0; j < v.length; j++)
+            genGradient[j] = 2 * genLambda * v[j];
+        for (let p = 0; p < pairs.length; p++) {
+            if (!fitted[p]) continue;
+            const h = 1 - gapAt(p) / margin;
+            if (h <= 0) continue;
+            const c = (-2 * h) / (margin * n);
+            const gi = gen.indexes[p];
+            const gv = gen.values[p];
+            for (let i = 0; i < gi.length; i++) genGradient[gi[i]] += c * gv[i];
+        }
+        for (let j = 0; j < v.length; j++) v[j] -= genStep * genGradient[j];
     }
 
     const coordinates = {} as Record<FittableWeightKey, number>;
     keys.forEach((k, i) => (coordinates[k] = u[i]));
     const weights = weightsFromCoordinates(w0, coordinates);
+    // The table in margin points a unit, rounded like every fitted weight.
+    const genWeights = v.map((x) => roundWeight(margin * x));
+    const genNonFinite = gen.columns.filter(
+        (_, j) => !Number.isFinite(genWeights[j])
+    );
     // Never a silent pass. A vector outside a constraint is structurally wrong
     // in a way no pair count reports, so the fit refuses to hand one back —
     // and the FINITENESS sweep comes first, because `NaN` satisfies every
@@ -690,6 +832,7 @@ export function fitWeights(
     // for the same reason as the bands: `project` ends on the box, but the two
     // sets are reconciled by alternation, not by an exact joint projection.
     const broken = nonFiniteWeights(weights).concat(
+        genNonFinite.map((name) => `generated ${name} is not finite`),
         boxViolations(weights, w0, trustRegion),
         bandViolations(weights)
     );
@@ -706,18 +849,31 @@ export function fitWeights(
         return { key, before, after, relative: (after - before) / scale[i] };
     });
 
-    const predictOn = (w: EvalWeights, p: number): number => {
+    // `table` is the generated weights in margin points a unit, by block
+    // index; `null` is the zero correction the fit starts from.
+    const predictOn = (
+        w: EvalWeights,
+        p: number,
+        table: readonly number[] | null
+    ): number => {
         let g = base[p];
         for (let k = 0; k < keys.length; k++) {
             g +=
                 (weightValue(w, keys[k]) - weightValue(w0, keys[k])) *
                 pairs[p].basis[keys[k]];
         }
+        if (table) {
+            const gi = gen.indexes[p];
+            const gv = gen.values[p];
+            for (let i = 0; i < gi.length; i++) {
+                g += (gv[i] / margin) * table[gi[i]];
+            }
+        }
         return g;
     };
 
     const outcomes: FitPairOutcome[] = pairs.map((pair, p) => {
-        const predicted = predictOn(weights, p);
+        const predicted = predictOn(weights, p, genWeights);
         return {
             pair,
             before: base[p],
@@ -731,20 +887,33 @@ export function fitWeights(
         const h = 1 - g / margin;
         return h > 0 ? h * h : 0;
     };
-    const penalty = (w: EvalWeights): number => {
+    const penalty = (
+        w: EvalWeights,
+        table: readonly number[] | null
+    ): number => {
         let sum = 0;
         for (let k = 0; k < keys.length; k++) {
             const d =
                 (weightValue(w, keys[k]) - weightValue(w0, keys[k])) / scale[k];
             sum += d * d;
         }
-        return lambda * sum;
+        let genSum = 0;
+        if (table) {
+            for (let j = 0; j < table.length; j++) {
+                const d = table[j] / margin;
+                genSum += d * d;
+            }
+        }
+        return lambda * sum + (table ? genLambda * genSum : 0);
     };
-    const lossOf = (w: EvalWeights): number => {
+    const lossOf = (
+        w: EvalWeights,
+        table: readonly number[] | null
+    ): number => {
         let sum = 0;
         for (let p = 0; p < pairs.length; p++)
-            if (fitted[p]) sum += hinge(predictOn(w, p));
-        return (n > 0 ? sum / n : 0) + penalty(w);
+            if (fitted[p]) sum += hinge(predictOn(w, p, table));
+        return (n > 0 ? sum / n : 0) + penalty(w, table);
     };
 
     return {
@@ -754,13 +923,247 @@ export function fitWeights(
         violated: outcomes.filter((o) => !o.satisfiedAfter),
         terminal: outcomes.filter((_, p) => !fitted[p]),
         contradictions: contradictoryCouples(pairs),
-        lossBefore: lossOf(w0),
-        lossAfter: lossOf(weights),
+        lossBefore: lossOf(w0, null),
+        lossAfter: lossOf(weights, generated ? genWeights : null),
         orderedBefore: outcomes.filter((o) => o.before > 0).length,
         orderedAfter: outcomes.filter((o) => o.predicted > 0).length,
         separatedBefore: outcomes.filter((o) => o.satisfiedBefore).length,
         separatedAfter: outcomes.filter((o) => o.satisfiedAfter).length,
         options: opts,
+        ...(generated
+            ? {
+                  generated: generatedOutcome(
+                      gen.columns,
+                      genWeights,
+                      genLambda
+                  ),
+              }
+            : {}),
+    };
+}
+
+/** Code-unit order: deterministic, locale-free. */
+function byName(a: string, b: string): number {
+    return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** A sparse block of extra coordinates over named columns: the union of the
+ *  columns `bases` load, in name order, and per pair the column indexes and
+ *  `δ · x_pc`. Empty — no columns, an empty row per pair — without `input`. */
+function namedBlock(
+    pairCount: number,
+    margin: number,
+    bases: readonly NamedBasis[] | undefined
+): { columns: string[]; indexes: number[][]; values: number[][] } {
+    if (!bases) {
+        const empty = Array.from({ length: pairCount }, () => [] as number[]);
+        return { columns: [], indexes: empty, values: empty };
+    }
+    const names = new Set<string>();
+    for (let p = 0; p < bases.length; p++) {
+        const row = bases[p];
+        for (let i = 0; i < row.length; i++) names.add(row[i][0]);
+    }
+    const columns = Array.from(names).sort(byName);
+    const at = new Map(columns.map((name, j) => [name, j]));
+    const indexes: number[][] = [];
+    const values: number[][] = [];
+    for (let p = 0; p < bases.length; p++) {
+        const row = bases[p];
+        const idx: number[] = [];
+        const val: number[] = [];
+        for (let i = 0; i < row.length; i++) {
+            const value = row[i][1];
+            if (!Number.isFinite(value)) {
+                throw new Error(
+                    `generated fit: pair ${p}'s "${row[i][0]}" is not finite`
+                );
+            }
+            if (value === 0) continue;
+            idx.push(at.get(row[i][0]) as number);
+            val.push(margin * value);
+        }
+        indexes.push(idx);
+        values.push(val);
+    }
+    return { columns, indexes, values };
+}
+
+function generatedBlock(
+    pairCount: number,
+    margin: number,
+    generated: GeneratedFitInput | undefined
+) {
+    return namedBlock(pairCount, margin, generated?.bases);
+}
+
+/** Named weights, largest `|weight|` first, ties by name, zeros dropped. */
+function movedColumns(
+    columns: readonly string[],
+    weights: readonly number[]
+): GeneratedColumnWeight[] {
+    const out: GeneratedColumnWeight[] = [];
+    for (let j = 0; j < columns.length; j++) {
+        // `+ 0` folds a negative zero, so a column that rounded to nothing
+        // reads as nothing.
+        const weight = weights[j] + 0;
+        if (weight !== 0) out.push({ name: columns[j], weight });
+    }
+    return out.sort(
+        (a, b) =>
+            Math.abs(b.weight) - Math.abs(a.weight) || byName(a.name, b.name)
+    );
+}
+
+function generatedOutcome(
+    columns: readonly string[],
+    weights: readonly number[],
+    lambda: number
+): GeneratedFitOutcome {
+    const moved = movedColumns(columns, weights);
+    const table: Record<string, number> = {};
+    const byNameOrder = moved.slice().sort((a, b) => byName(a.name, b.name));
+    for (let i = 0; i < byNameOrder.length; i++) {
+        table[byNameOrder[i].name] = byNameOrder[i].weight;
+    }
+    return {
+        lambda,
+        columns,
+        table: Object.freeze(table),
+        moved,
+        zero: columns.length - moved.length,
+    };
+}
+
+// ── THE CARD RESIDUAL PASS (ADR 0186, Decision 4) ─────────────────────────
+//
+// A separate, OPTIONAL pass after the fit: every weight the fit returned —
+// hand-written and generated — is held where it landed, and one correction
+// per Card Residual unit (`features.ts`) is fitted over what the fit left
+// unsatisfied, by the same squared hinge, the same fixed steps, a much
+// stronger pull to zero and a hard cap. Its output is a REPORT: which cards
+// earn a residual and how large. Nothing reads it back — not the Evaluation,
+// not the next fit — because a large residual is a finding for a column (a
+// mechanic no column reads), never a correction to ship.
+
+export type CardResidualOptions = {
+    /** Default `CARD_RESIDUAL_LAMBDA`. */
+    lambda?: number;
+    /** Default `CARD_RESIDUAL_CAP`, margin points a unit. */
+    cap?: number;
+};
+
+/** One card unit's residual, in margin points a unit. */
+export type CardResidual = {
+    name: string;
+    residual: number;
+    /** The cap bound it: the data asked for more than the hatch may give. */
+    atCap: boolean;
+};
+
+export type CardResidualReport = {
+    lambda: number;
+    cap: number;
+    /** Every unit some fitted pair loads. */
+    units: number;
+    /** The units that earned a non-zero residual, largest `|residual|`
+     *  first. */
+    residuals: readonly CardResidual[];
+    /** Pairs the residuals carry over the margin that the fit had left
+     *  under it — the positions a missing mechanic is costing. */
+    newlySatisfied: readonly FitPairOutcome[];
+};
+
+/**
+ * Fit the Card Residuals over `fit`'s outcomes and report them. `bases` is one
+ * Card Residual basis per pair, in `fit.outcomes` order
+ * (`pairGeneratedBases(…, { cards: true })`). `w0` is the prior `fit` was run
+ * from: a pair it held out as a terminal gap stays out here too.
+ */
+export function fitCardResiduals(
+    fit: WeightFitResult,
+    w0: EvalWeights,
+    bases: readonly NamedBasis[],
+    options: CardResidualOptions = {}
+): CardResidualReport {
+    const lambda = options.lambda ?? CARD_RESIDUAL_LAMBDA;
+    const cap = options.cap ?? CARD_RESIDUAL_CAP;
+    const { margin, steps } = fit.options;
+    if (!(lambda >= 0)) {
+        throw new Error(`card residual lambda must be >= 0, got ${lambda}`);
+    }
+    if (!(cap >= 0)) {
+        throw new Error(`card residual cap must be >= 0, got ${cap}`);
+    }
+    if (bases.length !== fit.outcomes.length) {
+        throw new Error(
+            `card residual: ${bases.length} bases for ${fit.outcomes.length} pairs`
+        );
+    }
+    const outcomes = fit.outcomes;
+    const block = namedBlock(outcomes.length, margin, bases);
+    const fitted = outcomes.map((o) => !isTerminalAgainst(o.pair, w0));
+    const n = fitted.filter(Boolean).length;
+    const base = outcomes.map((o) => o.predicted);
+    const r = block.columns.map(() => 0);
+    const bound = cap / margin;
+
+    let trace = 0;
+    for (let p = 0; p < block.values.length; p++) {
+        if (!fitted[p]) continue;
+        const row = block.values[p];
+        for (let i = 0; i < row.length; i++) trace += row[i] * row[i];
+    }
+    const curvature =
+        2 * lambda + (n > 0 ? (2 * trace) / (n * margin * margin) : 0);
+    const step = curvature > 0 ? 1 / curvature : 0;
+    const gradient = block.columns.map(() => 0);
+    for (let t = 0; t < steps; t++) {
+        for (let j = 0; j < r.length; j++) gradient[j] = 2 * lambda * r[j];
+        for (let p = 0; p < outcomes.length; p++) {
+            if (!fitted[p]) continue;
+            let g = base[p];
+            const gi = block.indexes[p];
+            const gv = block.values[p];
+            for (let i = 0; i < gi.length; i++) g += gv[i] * r[gi[i]];
+            const h = 1 - g / margin;
+            if (h <= 0) continue;
+            const c = (-2 * h) / (margin * n);
+            for (let i = 0; i < gi.length; i++) gradient[gi[i]] += c * gv[i];
+        }
+        // The box is the cap, and a box projection is exact: the descent
+        // keeps its monotonicity.
+        for (let j = 0; j < r.length; j++) {
+            let x = r[j] - step * gradient[j];
+            if (x > bound) x = bound;
+            if (x < -bound) x = -bound;
+            r[j] = x;
+        }
+    }
+
+    const residualWeights = r.map((x) => roundWeight(margin * x));
+    const moved = movedColumns(block.columns, residualWeights);
+    const newlySatisfied: FitPairOutcome[] = [];
+    for (let p = 0; p < outcomes.length; p++) {
+        if (!fitted[p] || outcomes[p].satisfiedAfter) continue;
+        let g = base[p];
+        const gi = block.indexes[p];
+        const gv = block.values[p];
+        for (let i = 0; i < gi.length; i++) {
+            g += (gv[i] / margin) * residualWeights[gi[i]];
+        }
+        if (g >= margin) newlySatisfied.push(outcomes[p]);
+    }
+    return {
+        lambda,
+        cap,
+        units: block.columns.length,
+        residuals: moved.map((m) => ({
+            name: m.name,
+            residual: m.weight,
+            atCap: Math.abs(m.weight) >= cap - 2 * 10 ** -ROUND_DECIMALS,
+        })),
+        newlySatisfied,
     };
 }
 

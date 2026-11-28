@@ -91,6 +91,7 @@
 // gains the opponent's land loss" is a sentence about `terms`, not about
 // `basis`. The report prints `terms`; the fit consumes `basis`.
 
+import { tryGetDefinition } from "../../../cards/registry";
 import type { EvalTerms } from "../../evaluate";
 import { evaluateBreakdown } from "../../evaluate";
 import type { GameState } from "../../state";
@@ -101,6 +102,10 @@ import {
     type LatentWeights,
 } from "../evalWeights";
 import { FEATURE_BASIS } from "../featureBasis";
+import { generatedColumns } from "../generatedVector/columns";
+import type { GeneratedWeights } from "../generatedVector/committedWeights";
+import { sideOfColumns } from "../generatedVector/correction";
+import { generatedVector } from "../generatedVector/generate";
 
 /** Every `EvalTerms` key, as a value. A `Record<keyof EvalTerms, true>` rather
  *  than a hand-typed array so `tsc` reds when a new term ships without a row
@@ -367,4 +372,198 @@ export function scoreBasis(
         total += weightValue(weights, key) * basis[key];
     }
     return total;
+}
+
+// ── THE GENERATED COLUMNS' BASIS (ADR 0186, Decisions 1 and 4) ────────────
+//
+// The Weight Fit prices the generated columns as a correction that starts at
+// zero (`generatedVector/correction.ts`), so it needs, per candidate, the
+// same thing it reads for every hand-written weight: `∂ policyValue / ∂ g_c`,
+// the margin points one unit of column `c`'s weight moves the number the
+// decider orders on.
+//
+// The Evaluation adds `g_c · count_c` to the side the column is counted on and
+// subtracts the opponent's total, and nothing else reads the table, so the
+// policy value is AFFINE in the table: the derivative is `+count_c` for a
+// `self` column and `−count_c` for an `opp` one — wherever the policy value
+// reads the material margin at all. A terminal board does not (a won game is
+// worth `winScore`, whatever its margin), and neither would a correction that
+// re-evaluated some other board. So the signed counts are a CLAIM, checked
+// against the engine with one probe evaluation per candidate: a table pricing
+// every column the board touches, each at its own weight. When the engine's
+// answer is the claim's, the signed counts are the basis; when it is not, every
+// column is bumped on its own, which is exact because the value is affine.
+
+/** A sparse basis over named columns: `[name, value]` rows, names strictly
+ *  ascending in code-unit order — one canonical form for any set of named
+ *  columns, so two bases are equal exactly when their rows are. */
+export type NamedBasis = readonly (readonly [string, number])[];
+
+/** Code-unit order: deterministic, locale-free. */
+function byName(a: string, b: string): number {
+    return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** The probe weight of the `j`-th column of a linearity check: distinct
+ *  across neighbours and exact in binary, so a coincidence in the check needs
+ *  a non-affine reading that cancels on eight different weights. */
+function probeWeight(j: number): number {
+    return 1 + (j % 8) / 8;
+}
+
+/** How far the engine may stray from the claimed affine reading before the
+ *  claim is refused: float noise on a value that may be a terminal ~1e6. */
+function affineTolerance(base: number): number {
+    return 1e-6 * Math.max(1, Math.abs(base));
+}
+
+/**
+ * The generated columns' basis of an already-settled probe state, read for
+ * `botId`: `∂ policyValue / ∂ g_c` for every column the board touches, zero
+ * rows omitted (header above). `weights` must carry no generated table — the
+ * basis is read at the zero correction the fit starts from.
+ */
+export function generatedBasisOfSettled(
+    settled: GameState,
+    botId: string,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): NamedBasis {
+    if (weights.generatedWeights !== undefined) {
+        throw new Error(
+            "generated basis: read at the zero correction, the weights carry a generated table"
+        );
+    }
+    const vector = generatedVector(settled, botId);
+    if (vector.columns.length === 0) return [];
+    const names = generatedColumns();
+    const side = sideOfColumns();
+    const claimed: [string, number][] = [];
+    for (let i = 0; i < vector.columns.length; i++) {
+        const column = vector.columns[i];
+        const count = vector.counts[i];
+        claimed.push([names[column], side[column] === 1 ? -count : count]);
+    }
+    claimed.sort((a, b) => byName(a[0], b[0]));
+
+    const base = policyValueOfSettled(settled, botId, weights);
+    const probe: Record<string, number> = {};
+    let expected = 0;
+    for (let j = 0; j < claimed.length; j++) {
+        const w = probeWeight(j);
+        probe[claimed[j][0]] = w;
+        expected += w * claimed[j][1];
+    }
+    const priced = policyValueOfSettled(settled, botId, {
+        ...weights,
+        generatedWeights: probe as GeneratedWeights,
+    });
+    if (Math.abs(priced - base - expected) <= affineTolerance(base)) {
+        return claimed;
+    }
+    const out: [string, number][] = [];
+    for (let j = 0; j < claimed.length; j++) {
+        const name = claimed[j][0];
+        const bumped = policyValueOfSettled(settled, botId, {
+            ...weights,
+            generatedWeights: { [name]: 1 },
+        });
+        const units = bumped - base;
+        if (units !== 0) out.push([name, units]);
+    }
+    return out;
+}
+
+// ── THE CARD RESIDUAL'S COUNTS (ADR 0186, Decision 4) ─────────────────────
+//
+// A Card Residual is a correction to what the Evaluation makes of one card,
+// over and above its mechanics (GLOSSARY). Its unit is one copy of that card
+// in one zone, on one side: a card in hand and the same card on the
+// battlefield are different worth, and a cast moves one into the other, so a
+// residual keyed by card alone could never see a cast. Read on the zones the
+// seat can see: its own hand, both battlefields, graveyards and exiles —
+// never a library, never the opponent's hand (the search's sample of it is
+// not a position anybody judged). Signed like a generated column: a `self`
+// copy is worth its residual to the seat, an `opp` copy is subtracted.
+//
+// The Evaluation never reads a residual (the fit only REPORTS it), so there is
+// no engine reading to check these counts against: the signed count IS the
+// definition.
+
+const RESIDUAL_ZONES_SELF = [
+    "hand",
+    "battlefield",
+    "graveyard",
+    "exile",
+] as const;
+const RESIDUAL_ZONES_OPP = ["battlefield", "graveyard", "exile"] as const;
+
+/** The name of one Card Residual unit: the card's name (its definition id
+ *  when the registry has no definition for it), the zone, the side. A name,
+ *  not a printing: a residual is about the card, and every printing of one
+ *  card is the same card. */
+export function cardResidualKey(
+    card: string,
+    zone: string,
+    side: "self" | "opp"
+): string {
+    return `${card}@${zone}.${side}`;
+}
+
+/** The Card Residual counts of a settled probe state, read for `botId`,
+ *  signed by side, zero rows omitted (header above). */
+export function cardResidualBasisOfSettled(
+    settled: GameState,
+    botId: string
+): NamedBasis {
+    const counts = new Map<string, number>();
+    for (let i = 0; i < settled.players.length; i++) {
+        const player = settled.players[i];
+        const self = player.id === botId;
+        const zones = self ? RESIDUAL_ZONES_SELF : RESIDUAL_ZONES_OPP;
+        for (let z = 0; z < zones.length; z++) {
+            const zone = zones[z];
+            const cards = player[zone];
+            for (let c = 0; c < cards.length; c++) {
+                const cardId = cards[c].card.id;
+                if (typeof cardId !== "string") continue;
+                const key = cardResidualKey(
+                    tryGetDefinition(cardId)?.name ?? cardId,
+                    zone,
+                    self ? "self" : "opp"
+                );
+                counts.set(key, (counts.get(key) ?? 0) + (self ? 1 : -1));
+            }
+        }
+    }
+    const out: [string, number][] = [];
+    counts.forEach((value, key) => {
+        if (value !== 0) out.push([key, value]);
+    });
+    out.sort((a, b) => byName(a[0], b[0]));
+    return out;
+}
+
+/** `a − b` over two named bases, zero rows omitted, same canonical order. */
+export function subtractNamedBasis(a: NamedBasis, b: NamedBasis): NamedBasis {
+    const out: [string, number][] = [];
+    let i = 0;
+    let j = 0;
+    while (i < a.length || j < b.length) {
+        const order =
+            i >= a.length ? 1 : j >= b.length ? -1 : byName(a[i][0], b[j][0]);
+        let name: string;
+        let value: number;
+        if (order === 0) {
+            name = a[i][0];
+            value = a[i++][1] - b[j++][1];
+        } else if (order < 0) {
+            name = a[i][0];
+            value = a[i++][1];
+        } else {
+            name = b[j][0];
+            value = -b[j++][1];
+        }
+        if (value !== 0) out.push([name, value]);
+    }
+    return out;
 }
