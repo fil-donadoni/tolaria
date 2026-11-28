@@ -99,6 +99,7 @@ describe("a compiled 'Other Merfolk' lord (CR 613.4c)", () => {
         getName: () => "",
         hasChosenName: () => false,
         getCounterCount: () => 0,
+        getDevotion: () => 0,
     };
 
     function view(

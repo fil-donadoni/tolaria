@@ -18312,7 +18312,7 @@ export function buildSpellContext(
         // CR 700.5 (issue #2070) — `playerId`'s devotion to `color`. `state`
         // structurally satisfies `StaticEffectStateView` exactly like
         // `getDomain` above, so this is the SAME cast-through-`never` shape
-        // — `countDevotion` (`gre/layers.ts`) reads the live battlefield
+        // — `countDevotion` (`cards/devotion.ts`) reads the live battlefield
         // through `getInstanceManaCost`, one execution path.
         getDevotion(playerId: string, color: Color): number {
             return countDevotion(state as never, playerId, color);

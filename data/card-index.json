@@ -110761,6 +110761,14 @@
         "rarity": "rare"
     },
     {
+        "name": "Xenagos, God of Revels",
+        "scryfallId": "3184b138-1109-4195-9d96-4f190164e98b",
+        "oracleId": "cb15a8dd-57fe-466f-847e-66476b690a1f",
+        "firstSet": "bng",
+        "firstPrintId": "3184b138-1109-4195-9d96-4f190164e98b",
+        "firstPrintSet": "bng"
+    },
+    {
         "name": "Xenic Poltergeist",
         "scryfallId": "5149ffff-d38f-458e-bcfa-a4b6b332a0b4",
         "oracleId": "fb8f80cc-6214-4ab9-a9a9-1873ab9feb0c",

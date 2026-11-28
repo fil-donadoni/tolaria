@@ -9,11 +9,7 @@
 // Each card declares its own eligibility rule — engine has no enum of
 // scopes/filters to maintain.
 
-import {
-    getInstanceManaCost,
-    getPermanentManaValueCost,
-    tryGetDefinition,
-} from "../cards";
+import { getPermanentManaValueCost, tryGetDefinition } from "../cards";
 import { copyExceptName, objectHasChosenName } from "../cards/cardNames";
 import {
     declaresGraveyardStaticEffect,
@@ -22,6 +18,7 @@ import {
 } from "../cards/registry";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { getEffectiveColors } from "../cards/effectiveColors";
+import { countDevotion } from "../cards/devotion";
 import { hasSupertypeLive } from "./snow";
 import { compareContinuousEffects } from "./continuousEffects";
 import { orderByDependency } from "./dependency";
@@ -36,7 +33,6 @@ import type { RestrictionPlan } from "./ai/restrictionPricing";
 import { staticEffectAbility, staticEffectFunctionsFrom } from "../cards/types";
 import type {
     CardType,
-    Color,
     EmblemInstance,
     PermanentView,
     StaticEffect,
@@ -276,61 +272,15 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
         // that type, not "unknown".
         return card.counters?.[type] ?? 0;
     },
+    // CR 700.5 — the one devotion counter (`cards/devotion.ts`), shared
+    // with `SpellContext.getDevotion`.
+    getDevotion: countDevotion,
 };
 
-/** Devotion (CR 700.5, issue #2070) — the number of mana symbols of `color`
- *  among the mana costs of permanents `controllerId` controls: coloured pips
- *  + `phyrexian[color]` pips (CR 105.2 — still a coloured symbol) + ONE per
- *  `hybrid` pair CONTAINING `color` (a `[U,R]` pair counts toward devotion to
- *  BOTH blue and red). Generic, `{X}`/`xFactor`, and a permanent with no mana
- *  cost (token, land) contribute 0. Scanned by CONTROLLER, mirroring
- *  `countDomain`'s CR 110.4 convention (a stolen permanent counts for its
- *  controller). Reads each permanent's live mana cost through
- *  `getInstanceManaCost` (`cards/registry.ts`) — the SAME single authority
- *  the layer-5 colour system (`getManaValue` above) and every other
- *  mana-value / cost-derived-colour reader share, so a `manaCostOverride`
- *  (CR 707.2's "except it has no mana cost", an Eternalize/Embalm token)
- *  correctly contributes 0 here too. Lives here rather than beside
- *  `countDomain` (`cards/types.ts`) because it needs the registry lookup
- *  `countDomain` doesn't — `cards/types.ts` is a deliberately dependency-free
- *  leaf (ADR-adjacent to the `colors.ts` cycle-avoidance comment above
- *  `setColorDefiningCostLookup`), and this module already imports
- *  `getInstanceManaCost` for exactly this class of scan. Backs the tenth
- *  `EffectValue` grammar member (`{ devotion: { of, color } }`,
- *  `SpellContext.getDevotion`, Thassa's Oracle). Single-colour only — CR
- *  700.5's two-colour devotion sentence ("devotion to [color 1] and
- *  [color 2]") is unimplemented yet (extract-on-second rule). */
-export function countDevotion(
-    state: StaticEffectStateView,
-    controllerId: string,
-    color: Color
-): number {
-    let total = 0;
-    const playerList = state.players;
-    for (let i = 0; i < playerList.length; i++) {
-        const player = playerList[i];
-        const permanentList = player.battlefield;
-        for (let j = 0; j < permanentList.length; j++) {
-            const permanent = permanentList[j];
-            if (permanent.controllerId !== controllerId) continue;
-            const cost = getInstanceManaCost(permanent);
-            if (!cost) continue;
-            total += (cost[color] ?? 0) + (cost.phyrexian?.[color] ?? 0);
-            const pipList = cost.hybrid ?? [];
-            for (let k = 0; k < pipList.length; k++) {
-                const pip = pipList[k];
-                if (pip.includes(color)) total += 1;
-            }
-            // CR 700.5 — a `{2/W}` pip is one white mana symbol.
-            const pipList2 = cost.hybridGeneric ?? [];
-            for (let k = 0; k < pipList2.length; k++) {
-                const pip = pipList2[k];
-                if (pip.color === color) total += 1;
-            }
-        }
-    }
-    return total;
-}
+/** Devotion (CR 700.5) — re-exported from its home beside the other
+ *  cards-side `StaticEffectContext` readers (`cards/devotion.ts`), so the
+ *  engine and the client count it through one function. */
+export { countDevotion };
 
 /** Per-counter-type contribution to layer 7c (CR 613.4c — "effects AND
  *  COUNTERS that modify power and/or toughness"; CR 122.1a). Only the
