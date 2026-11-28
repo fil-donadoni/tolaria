@@ -4,6 +4,7 @@ import { defineCard } from "../../types";
 import { WRENN_AND_SIX_EMBLEM_ID } from "../../emblems";
 import { ninjutsuAbility } from "../../abilities/ninjutsu";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Hogaak, Arisen Necropolis — {5}{B/G}{B/G} Legendary Creature — Avatar, 8/8
 // (issue #1338, PRD #702, ADR 0063). "You can't spend mana to cast this spell.
@@ -217,5 +218,53 @@ export const wrennAndSix = defineCard(() => ({
                 '−7: You get an emblem with "Instant and sorcery cards in your graveyard have retrace."',
             effects: [{ op: "emblem", emblem: WRENN_AND_SIX_EMBLEM_ID }],
         },
+    ],
+}));
+
+// Ice-Fang Coatl — {G}{U} Snow Creature — Snake, 1/1 (MH1 203, modern
+// Neobrand).
+//
+//  - Flash (CR 702.8a), flying — keywords.
+//  - "When this creature enters, draw a card." — the self-scoped
+//    `enteredTrigger`.
+//  - "This creature has deathtouch as long as you control at least three
+//    other snow permanents." — a self-scoped layer-6 `keyword-grant`
+//    (CR 613.1f) gated on the `controls` count, re-read at every derivation
+//    (CR 611.3a). A snow permanent is any permanent with the snow supertype
+//    (CR 205.4g), read LIVE by the static condition's filter; "other" is the
+//    filter's `excludeSource`, so Ice-Fang itself never counts.
+// hand-tail: This creature has deathtouch as long as you control at least three other snow permanents. (#10539)
+export const iceFangCoatl = defineCard(() => ({
+    id: "6a55cfed-e76c-4ade-ac78-a546e05fe8da", // MH1 203
+    name: "Ice-Fang Coatl",
+    rarity: "rare",
+    oracleText:
+        "Flash\nFlying\nWhen this creature enters, draw a card.\nThis creature has deathtouch as long as you control at least three other snow permanents.",
+    manaCost: { G: 1, U: 1 },
+    supertypes: ["Snow"],
+    types: ["Creature"],
+    subtypes: ["Snake"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["flash", "flying"],
+    compiledStaticEffects: [
+        {
+            kind: "keyword-grant",
+            appliesTo: "self",
+            keyword: "deathtouch",
+            condition: {
+                kind: "controls",
+                filter: { supertypes: ["Snow"], excludeSource: true },
+                atLeast: 3,
+            },
+        },
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "ice-fang-coatl-enters-draw",
+            oracleText: "When this creature enters, draw a card.",
+            scope: "self",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        }),
     ],
 }));
