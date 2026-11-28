@@ -442,8 +442,9 @@ export type StaticClauseIR =
           readonly onlyAgainst?: { readonly keyword: "flying" };
       }
     /**
-     * CR 509.1b — "This creature can't be blocked by <colour> creatures": the
-     * source's own printed evasion restriction, naming who may NOT block it.
+     * CR 509.1b — "This creature can't be blocked by <colour> creatures" /
+     * "… by creatures with power N or less": the source's own printed evasion
+     * restriction, naming who may NOT block it.
      */
     | {
           readonly kind: "self-evasion-restriction";
@@ -2317,8 +2318,9 @@ const selfAttackRequirementRule: Rule<StaticClauseIR> = pattern(
 /**
  * "<self> can't be blocked by blue creatures" (Lightning Mare, Metathran
  * Transport) — CR 509.1b. The argument is one colour word (CR 105.1); "black
- * and/or red creatures", "Walls", "artifact creatures" and every power- or
- * ability-qualified blocker stay refused.
+ * and/or red creatures", "Walls", "artifact creatures" and every
+ * ability-qualified blocker stay refused (the power bound is its own frame,
+ * below).
  */
 const selfCantBeBlockedByColourRule: Rule<StaticClauseIR> = pattern(
     "self can't be blocked by a colour",
@@ -2329,6 +2331,29 @@ const selfCantBeBlockedByColourRule: Rule<StaticClauseIR> = pattern(
                   kind: "self-evasion-restriction" as const,
                   sentence: `${match[0]}.`,
                   neverAgainst: { color: COLOR_WORDS.get(match[2]!)! },
+              })
+            : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
+);
+
+// ── Frame: the blocker-power evasion restriction (CR 509.1b) ──────────────
+
+/**
+ * "<self> can't be blocked by creatures with power 2 or less" (Steel Leaf
+ * Champion, Questing Beast) — CR 509.1b: an evasion restriction naming who may
+ * NOT block the source, bounded on the blocker's power (CR 208.1, read as its
+ * effective value). Only the "N or less" bound: "power N or greater", "power
+ * or toughness …", "power less than this creature's power" and a granted or
+ * "this turn" form do not match and stay refused.
+ */
+const selfCantBeBlockedByLowPowerRule: Rule<StaticClauseIR> = pattern(
+    "self can't be blocked by power N or less",
+    /^(.+) can't be blocked by creatures with power (\d+) or less$/,
+    (match): RuleResult<StaticClauseIR> =>
+        isSelfPhrase(uncapitalise(match[1]!))
+            ? ok({
+                  kind: "self-evasion-restriction" as const,
+                  sentence: `${match[0]}.`,
+                  neverAgainst: { power: { max: Number(match[2]!) } },
               })
             : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
 );
@@ -3694,6 +3719,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         selfCantAttackUnlessDefenderControlsRule,
         selfAttackRequirementRule,
         selfCantBeBlockedByColourRule,
+        selfCantBeBlockedByLowPowerRule,
         setDoesNotUntapRule,
         landUntapCapRule,
         nonManaAbilityLandLockRule,
