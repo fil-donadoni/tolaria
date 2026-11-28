@@ -4007,7 +4007,7 @@ function lowerSentenceBody(
             ]);
         case "return-self-from-graveyard":
             // CR 113.6b — only an ability that functions from the graveyard
-            // can run this; the triggered site is the one that sets it.
+            // can run this; the triggered and activated sites set it.
             if (site.functionsFromGraveyard !== true)
                 return unlowerable(
                     "returning this card from the graveyard needs an ability that functions there"
@@ -4018,6 +4018,8 @@ function lowerSentenceBody(
                         op: "moveZone",
                         target: { ref: "$source" },
                         to: sentence.to,
+                        // CR 110.5b — "… to the battlefield tapped".
+                        ...(sentence.tapped === true ? { tapped: true } : {}),
                     },
                 ]);
             // CR 303.4f — the effect specifies the host, so no prompt is raised.

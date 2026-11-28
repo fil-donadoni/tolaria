@@ -620,6 +620,21 @@ function readsHost(sentence: EffectSentenceIR): boolean {
     return namesHost(sentence);
 }
 
+/** CR 303.4f — a (possibly optional) "return this card from your graveyard to
+ *  the battlefield" naming no host: the activated site's form only. A trigger
+ *  printing it on an Aura would owe the host choice the effect leaves open. */
+function returnsSelfToBattlefieldUnattached(
+    sentence: EffectSentenceIR
+): boolean {
+    if (sentence.kind === "optional")
+        return returnsSelfToBattlefieldUnattached(sentence.effect);
+    return (
+        sentence.kind === "return-self-from-graveyard" &&
+        sentence.to === "battlefield" &&
+        sentence.attachedTo === undefined
+    );
+}
+
 /** CR 113.6b — a (possibly optional) "return this card from your graveyard". */
 function returnsSelfFromGraveyard(sentence: EffectSentenceIR): boolean {
     if (sentence.kind === "optional")
@@ -661,6 +676,11 @@ export function lowerTriggeredAbility(input: {
     const graveyardCapableHead =
         input.head.kind === "phase" ||
         (input.head.kind === "enters" && input.head.scope !== "self");
+    if (input.effects.some(returnsSelfToBattlefieldUnattached))
+        return {
+            ok: false,
+            reason: 'a triggered "return this card from your graveyard to the battlefield" names no host for an Aura (CR 303.4f) and has no fixture on this slot',
+        };
     if (fromGraveyard && !graveyardCapableHead)
         return {
             ok: false,

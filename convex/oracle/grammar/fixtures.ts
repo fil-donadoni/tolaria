@@ -230,6 +230,107 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 113.6m — "Return this card from your graveyard to the battlefield": an
+    // activated ability whose effect moves the source out of the graveyard
+    // functions only there. Returning `$source` from the graveyard is a zone
+    // move the canned smoke scenario does not model.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "a7dc2e62-1c50-4ed7-b71f-2d782a447a5e",
+            name: "Cauldron Familiar",
+            manaCost: "{B}",
+            typeLine: "Creature — Cat",
+            oracleText:
+                "When this creature enters, each opponent loses 1 life and you gain 1 life.\nSacrifice a Food: Return this card from your graveyard to the battlefield.",
+            power: "1",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Cauldron Familiar",
+            types: ["Creature"],
+            subtypes: ["Cat"],
+            manaCost: { B: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "When this creature enters, each opponent loses 1 life and you gain 1 life.\nSacrifice a Food: Return this card from your graveyard to the battlefield.",
+            activatedAbilities: [
+                {
+                    id: "cauldron-familiar-ability",
+                    oracleText:
+                        "Sacrifice a Food: Return this card from your graveyard to the battlefield.",
+                    cost: { sacrificeFilter: { subtypes: ["Food"] } },
+                    useStack: true,
+                    activateFromGraveyard: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            to: "battlefield",
+                        },
+                    ],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "cauldron-familiar-trigger",
+                    oracleText:
+                        "When this creature enters, each opponent loses 1 life and you gain 1 life.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        { op: "loseLife", player: "opponent", amount: 1 },
+                        { op: "gainLife", player: "controller", amount: 1 },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 113.6m + CR 110.5b — the same self-reanimation with the "tapped"
+    // rider: the returned permanent enters tapped.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "9dbc3530-b278-4c8d-b2cc-a09dfac9d5e5",
+            name: "Reassembling Skeleton",
+            manaCost: "{1}{B}",
+            typeLine: "Creature — Skeleton Warrior",
+            oracleText:
+                "{1}{B}: Return this card from your graveyard to the battlefield tapped.",
+            power: "1",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Reassembling Skeleton",
+            types: ["Creature"],
+            subtypes: ["Skeleton", "Warrior"],
+            manaCost: { X: 1, B: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "{1}{B}: Return this card from your graveyard to the battlefield tapped.",
+            activatedAbilities: [
+                {
+                    id: "reassembling-skeleton-ability",
+                    oracleText:
+                        "{1}{B}: Return this card from your graveyard to the battlefield tapped.",
+                    cost: { mana: { X: 1, B: 1 } },
+                    useStack: true,
+                    activateFromGraveyard: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            to: "battlefield",
+                            tapped: true,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 702.49a — "Ninjutsu [cost]": the ability's `moveZone` puts `$source`
     // from the hand onto the battlefield attacking, a zone move the canned
     // smoke scenario does not model.

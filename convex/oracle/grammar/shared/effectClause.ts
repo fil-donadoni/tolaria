@@ -1585,6 +1585,9 @@ export type EffectSentenceIR =
           readonly kind: "return-self-from-graveyard";
           readonly to: "hand" | "battlefield";
           readonly attachedTo?: "entering-creature";
+          /** CR 110.5b — "… to the battlefield tapped": the permanent enters
+           *  tapped. Only the plain battlefield form carries it. */
+          readonly tapped?: true;
       }
     | {
           /**
@@ -6485,6 +6488,11 @@ const RETURN_ALL_FROM_GRAVEYARD =
 /** CR 113.6b — "return this card from your graveyard to your hand". */
 const RETURN_SELF_FROM_GRAVEYARD =
     /^Return this card (?:from your graveyard )?to your hand$/;
+/** CR 113.6m + CR 110.5b — "Return this card from your graveyard to the
+ *  battlefield [tapped]": the source reanimates itself, entering tapped when
+ *  the rider says so. */
+const RETURN_SELF_FROM_GRAVEYARD_TO_BATTLEFIELD =
+    /^Return this card from your graveyard to the battlefield( tapped)?$/;
 /** CR 303.4f — "return this card from your graveyard to the battlefield attached to that creature". */
 const RETURN_SELF_FROM_GRAVEYARD_ATTACHED =
     /^Return this card from your graveyard to the battlefield attached to that creature$/;
@@ -10649,6 +10657,17 @@ function effectSentence(
         return ok({
             kind: "return-self-from-graveyard" as const,
             to: "hand" as const,
+        } satisfies EffectSentenceIR);
+    const selfToBattlefield = span.match(
+        RETURN_SELF_FROM_GRAVEYARD_TO_BATTLEFIELD
+    );
+    if (selfToBattlefield !== null)
+        return ok({
+            kind: "return-self-from-graveyard" as const,
+            to: "battlefield" as const,
+            ...(selfToBattlefield[1] !== undefined
+                ? { tapped: true as const }
+                : {}),
         } satisfies EffectSentenceIR);
     if (RETURN_SELF_FROM_GRAVEYARD_ATTACHED.test(span))
         return ok({
