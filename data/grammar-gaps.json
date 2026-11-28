@@ -266,6 +266,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › gainLife",
+            "issue": 11093
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › gainLife+loseLife",
             "issue": 4277
         },
@@ -471,6 +476,16 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Instant › forEach+grantAbility",
+            "issue": 11091
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant › forEach+grantAbility+optionChoice",
+            "issue": 11092
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Instant › forEach+pump",
             "issue": 10674
         },
@@ -578,6 +593,11 @@
             "kind": "bot",
             "key": "never-chosen › Sorcery target:player › choice+libraryLook+moveZone",
             "issue": 6308
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery target:player › delayedTrigger+draw+if+libraryLook+mayPay+scryReorder",
+            "issue": 11094
         },
         {
             "kind": "bot",
@@ -703,6 +723,11 @@
             "kind": "bot",
             "key": "never-chosen › Sorcery › gainLife",
             "issue": 4274
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery › grantOutsideGamePlays",
+            "issue": 11090
         },
         {
             "kind": "bot",
