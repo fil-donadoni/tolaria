@@ -657,6 +657,7 @@ type CompactPlayer = {
     spellsCastThisTurn?: number;
     spellTypesCastThisTurn?: PlayerState["spellTypesCastThisTurn"];
     spellsWarpedThisTurn?: number;
+    manaSpentOnSpellsThisTurn?: number;
     spellColorsCastThisTurn?: PlayerState["spellColorsCastThisTurn"];
     keywordsUntilEndOfTurn?: string[];
     spellsCastThisGame?: number;
@@ -734,6 +735,11 @@ function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
     // turn must not erase.
     if (player.spellsWarpedThisTurn) {
         out.spellsWarpedThisTurn = player.spellsWarpedThisTurn;
+    }
+    // CR 700.14 — the mana spent on spells this turn, which a later cast's
+    // expend threshold is measured from: a save inside the turn keeps it.
+    if (player.manaSpentOnSpellsThisTurn) {
+        out.manaSpentOnSpellsThisTurn = player.manaSpentOnSpellsThisTurn;
     }
     // CR 202.2 / 611.2a — the turn's cast colours and "until end of turn"
     // player keywords: per-turn facts a save inside the turn must not erase.
@@ -868,6 +874,9 @@ function expandPlayer(
     }
     if (player.spellsWarpedThisTurn !== undefined) {
         result.spellsWarpedThisTurn = player.spellsWarpedThisTurn;
+    }
+    if (player.manaSpentOnSpellsThisTurn !== undefined) {
+        result.manaSpentOnSpellsThisTurn = player.manaSpentOnSpellsThisTurn;
     }
     if (player.spellColorsCastThisTurn !== undefined) {
         result.spellColorsCastThisTurn = player.spellColorsCastThisTurn.map(

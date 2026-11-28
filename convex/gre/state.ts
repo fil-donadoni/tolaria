@@ -44,6 +44,7 @@ import {
     type ManaPersistence,
     type PermanentView,
     type SpellCastEvent,
+    type ManaExpendedEvent,
     type SpellCopiedEvent,
     type BecameTargetEvent,
     type CardLeftGraveyardEvent,
@@ -9364,6 +9365,23 @@ export function emitSpellCastEvent(
     // copied warp spell correctly counts as no warp at all.
     if (caster && item.warped)
         caster.spellsWarpedThisTurn = (caster.spellsWarpedThisTurn ?? 0) + 1;
+    // CR 700.14 — the expend tally: the mana the caster has spent to cast
+    // spells this turn, before and after THIS cost. Only a payment that spent
+    // mana can cross a threshold, so a free cast (or an emitter that cannot
+    // say what it paid) emits nothing. Queued ahead of SPELL_CAST: the cost is
+    // paid (CR 601.2h) before the spell becomes cast (CR 601.2i).
+    const expendedEvents: ManaExpendedEvent[] = [];
+    if (caster && manaSpentToCast !== undefined && manaSpentToCast > 0) {
+        const priorTotal = caster.manaSpentOnSpellsThisTurn ?? 0;
+        const total = priorTotal + manaSpentToCast;
+        caster.manaSpentOnSpellsThisTurn = total;
+        expendedEvents.push({
+            type: "MANA_EXPENDED",
+            playerId: caster.id,
+            priorTotal,
+            total,
+        });
+    }
     // CR 722.3c / 601.2i — casting a prepare spell's exiled copy unprepares
     // its permanent "at the time the spell becomes cast", which is this
     // choke point.
@@ -9400,6 +9418,7 @@ export function emitSpellCastEvent(
         ? buildSpellKickedEvents(def, item, cardId, colors)
         : [];
     state.pendingEvents = (state.pendingEvents ?? []).concat(
+        expendedEvents,
         [event],
         kickedEvents
     );

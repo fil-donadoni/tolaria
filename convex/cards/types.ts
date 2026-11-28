@@ -12943,7 +12943,8 @@ export type GameEventType =
     | "LEVEL_GAINED"
     | "PERMANENT_BECAME_MONSTROUS"
     | "MIRACLE_REVEALED"
-    | "GIFT_GIVEN";
+    | "GIFT_GIVEN"
+    | "MANA_EXPENDED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -14331,6 +14332,24 @@ export interface GiftGivenEvent {
     playerId: string;
 }
 
+/** CR 700.14 — "A player expends N if they pay a cost to cast a spell and the
+ *  amount of mana that player spent this turn to cast spells prior to paying
+ *  that cost was less than N and became at least N after paying that cost."
+ *  ONE event per cast that spent mana, carrying the caster's running tally
+ *  before and after the payment (`PlayerState.manaSpentOnSpellsThisTurn`), so
+ *  every threshold N crossed by the payment is one comparison away. Emitted at
+ *  the cast choke point (`emitSpellCastEvent`), never by an Op; a cast that
+ *  spent no mana crosses nothing and emits nothing. Read by `expendTrigger`. */
+export interface ManaExpendedEvent {
+    type: "MANA_EXPENDED";
+    /** The player who paid the cost — the spell's caster. */
+    playerId: string;
+    /** Mana that player had spent to cast spells this turn before the cost. */
+    priorTotal: number;
+    /** The same tally after the cost was paid. */
+    total: number;
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | DamagePreventedEvent
@@ -14373,7 +14392,8 @@ export type GameEvent =
     | CardsPutIntoLibraryEvent
     | LibrarySearchedEvent
     | MiracleRevealedEvent
-    | GiftGivenEvent;
+    | GiftGivenEvent
+    | ManaExpendedEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can
