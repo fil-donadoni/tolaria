@@ -2892,6 +2892,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ancient Ziggurat",
+        "scryfallId": "0348247d-0a70-4961-8590-9de41386c69b",
+        "oracleId": "0baabe39-72ae-47bd-a095-cbf7eb8a6361",
+        "firstSet": "con",
+        "firstPrintId": "0348247d-0a70-4961-8590-9de41386c69b",
+        "firstPrintSet": "con",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Andoria",
         "scryfallId": "0e9e72ef-3e34-4d19-aec0-b5e1ba84d244",
         "oracleId": "79134f5e-94db-4a40-ba75-2569b839cf35",
@@ -7704,6 +7714,16 @@
         "source": "compiled"
     },
     {
+        "name": "Beastcaller Savant",
+        "scryfallId": "cca9f5da-986c-43ab-a2ec-efb8b098c17c",
+        "oracleId": "e28227eb-b3b5-42fa-b597-1fefd2a70186",
+        "firstSet": "bfz",
+        "firstPrintId": "cca9f5da-986c-43ab-a2ec-efb8b098c17c",
+        "firstPrintSet": "bfz",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Beastrider Vanguard",
         "scryfallId": "f4b99a61-49f1-46a2-9eb7-b6c88c236215",
         "oracleId": "19a0d191-64c0-4e8a-8cb0-bf680cc681bb",
@@ -11653,6 +11673,16 @@
         "firstPrintId": "9ca29a73-9606-4422-9187-67e00dcd52aa",
         "firstPrintSet": "xln",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Brazen Collector",
+        "scryfallId": "78b55a58-c669-4dc6-aa63-5d9dff52e613",
+        "oracleId": "f93dc9cc-3dd2-4e2b-b972-217ab9d89dfe",
+        "firstSet": "blb",
+        "firstPrintId": "78b55a58-c669-4dc6-aa63-5d9dff52e613",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -45900,6 +45930,16 @@
         "source": "compiled"
     },
     {
+        "name": "Humble Naturalist",
+        "scryfallId": "8f56705d-eb64-4cef-b716-edbeac60bf79",
+        "oracleId": "ff3a69a7-a244-4958-9e8b-d153942c1ba6",
+        "firstSet": "iko",
+        "firstPrintId": "8f56705d-eb64-4cef-b716-edbeac60bf79",
+        "firstPrintSet": "iko",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Humble the Brute",
         "scryfallId": "7c105686-8b45-494a-b9ef-8aa267bb1b5a",
         "oracleId": "bea6606c-ea9a-4199-a8cd-b35d7c47fd7b",
@@ -56019,6 +56059,16 @@
         "source": "compiled"
     },
     {
+        "name": "Lupinflower Village",
+        "scryfallId": "8ab9d56f-9178-4ec9-a5f6-b934f50d8d9d",
+        "oracleId": "b6c7c708-5212-4100-b954-b77855b27915",
+        "firstSet": "blb",
+        "firstPrintId": "8ab9d56f-9178-4ec9-a5f6-b934f50d8d9d",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Lurching Rotbeast",
         "scryfallId": "9f06be97-71c8-46c8-a1c2-5da3af25e6de",
         "oracleId": "771be8ad-5ab5-40b1-ad9b-e5e834949d32",
@@ -62116,6 +62166,16 @@
         "firstPrintId": "4cc785b0-0a77-4b02-b0b4-2bda2fc621cc",
         "firstPrintSet": "rav",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Mudflat Village",
+        "scryfallId": "53ec4ad3-9cf0-4f1b-a9db-d63feee594ab",
+        "oracleId": "aeeab1df-0b8b-4bc4-a5f9-aac413449bec",
+        "firstSet": "blb",
+        "firstPrintId": "53ec4ad3-9cf0-4f1b-a9db-d63feee594ab",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -72085,6 +72145,16 @@
         "source": "compiled"
     },
     {
+        "name": "Qo'noS Quartermaster",
+        "scryfallId": "ba1b5338-f73c-4f59-88bc-4f1ea6331171",
+        "oracleId": "b7115ed6-526c-491d-828f-f60b18437361",
+        "firstSet": "trc",
+        "firstPrintId": "ba1b5338-f73c-4f59-88bc-4f1ea6331171",
+        "firstPrintSet": "trc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Quag Vampires",
         "scryfallId": "d6f0220f-6120-433a-b37f-f655f25322c5",
         "oracleId": "1d28ed9a-cc4e-48d9-a1a6-7504fc6cc56d",
@@ -77209,6 +77279,16 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "Rockface Village",
+        "scryfallId": "62799d24-39a6-4e66-8ac3-7cafa99e6e6d",
+        "oracleId": "7e103748-3f76-42ce-a063-d0256b2dce2b",
+        "firstSet": "blb",
+        "firstPrintId": "62799d24-39a6-4e66-8ac3-7cafa99e6e6d",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Rockshard Elemental",
         "scryfallId": "2d6343c0-3fb5-4bac-bea7-cba36498cd69",
         "oracleId": "82cfba28-283f-44f6-8478-fd39ea5a1a29",
@@ -78959,6 +79039,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sakura-Tribe Springcaller",
+        "scryfallId": "b2ca7687-ba90-4479-8c6e-ece3f29fff12",
+        "oracleId": "675a0eff-4da0-45cd-9371-fca96c313f4c",
+        "firstSet": "bok",
+        "firstPrintId": "b2ca7687-ba90-4479-8c6e-ece3f29fff12",
+        "firstPrintSet": "bok",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Salt Flats",
         "scryfallId": "224cb63f-9af0-4b00-ba0b-0b604abf20c8",
         "oracleId": "7a951bd7-4f7d-44ea-9c2f-fe2f6b2f5289",
@@ -79941,6 +80031,16 @@
         "firstSet": "mir",
         "firstPrintId": "eb73313b-d39a-46ab-abfc-76f94a75dfca",
         "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Savage Ventmaw",
+        "scryfallId": "690008d1-d1fe-49ad-810c-84be57cecc6c",
+        "oracleId": "f743d85f-754e-4e70-9907-af54acb9e8d4",
+        "firstSet": "dtk",
+        "firstPrintId": "690008d1-d1fe-49ad-810c-84be57cecc6c",
+        "firstPrintSet": "dtk",
         "rarity": "uncommon",
         "source": "compiled"
     },

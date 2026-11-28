@@ -121,29 +121,30 @@ describe("attribution — one real card per slot names the sub-grammar that fail
         });
     });
 
-    it('mana-ability: never the activated slot\'s effect clause for an "Add" sentence (Ancient Ziggurat)', () => {
+    it('mana-ability: never the activated slot\'s effect clause for an "Add" sentence (Unclaimed Territory)', () => {
         // Both slots refuse at the same depth and progress, and the activated
         // slot's span ("Add one mana of any color. Spend this mana only to
-        // cast a creature spell") is the SHORTER one — the shape that blamed
-        // the wrong slot on 340 corpus cards.
+        // cast a creature spell of the chosen type") is the SHORTER one — the
+        // shape that blamed the wrong slot on 340 corpus cards.
         //
-        // Since issue #4134 the production itself is read, so the blame is one
-        // sentence further in: the RIDER the grammar has no rule for. Still
-        // the mana slot, which is what this test is about.
+        // The production itself is read, so the blame is one sentence further
+        // in: the RIDER the grammar has no rule for (the plain creature-spell
+        // rider is read; "of the chosen type" is not). Still the mana slot,
+        // which is what this test is about.
         expect(
             attributionOf({
-                name: "Ancient Ziggurat",
+                name: "Unclaimed Territory",
                 manaCost: "",
                 typeLine: "Land",
                 oracleText:
-                    "{T}: Add one mana of any color. Spend this mana only to cast a creature spell.",
+                    "{T}: Add one mana of any color. Spend this mana only to cast a creature spell of the chosen type.",
                 power: undefined,
                 toughness: undefined,
             })
         ).toEqual({
             slot: "mana-ability",
             path: [MANA_ABILITY_RIDER],
-            span: "Spend this mana only to cast a creature spell",
+            span: "Spend this mana only to cast a creature spell of the chosen type",
         });
     });
 

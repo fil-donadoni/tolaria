@@ -153,7 +153,10 @@ export type ManaRiderIR =
     | { readonly kind: "instant-only" }
     /** CR 106.6 — "This mana can't be spent to cast nonartifact spells."
      *  (`manaRestriction: "not-nonartifact-spell"`). */
-    | { readonly kind: "not-nonartifact-spells" };
+    | { readonly kind: "not-nonartifact-spells" }
+    /** CR 106.6 — "Spend this mana only to cast a creature spell."
+     *  (`manaRestriction: "creature-spell"`). */
+    | { readonly kind: "creature-spells-only" };
 
 export type ManaProductionIR =
     | {

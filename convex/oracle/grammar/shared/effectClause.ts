@@ -34,7 +34,11 @@ import type {
     TargetRequirement,
 } from "../../../cards/types";
 import type { KeywordIR } from "../ir";
-import type { CardType, NameRestriction } from "../../../cards/types";
+import type {
+    CardType,
+    ManaPersistence,
+    NameRestriction,
+} from "../../../cards/types";
 import { PERMANENT_TYPES } from "../../../cards/types";
 import type { Phase } from "../../../gre/types";
 import type { PermanentFilter } from "../../../cards/filters";
@@ -744,6 +748,13 @@ export type EffectSentenceIR =
            * of any color" (Quirion Sentinel) is the `fixed` 1 of the same read.
            */
           readonly anyOneColor?: AmountIR;
+          /**
+           * CR 500.5 + CR 514.2 — "Until end of turn, you don't lose this mana
+           * as steps and phases end" (Brazen Collector): the produced mana's
+           * lifetime, folded from the `mana-lifetime` sentence behind it by
+           * `assembleSentences`. Absent = the CR 106.4 default.
+           */
+          readonly persistsUntil?: ManaPersistence;
       }
     /** CR 106.1 + CR 608.2c (Cabal Ritual) — "Add {B}{B}{B}. <Ability word> —
      *  Add {B}{B}{B}{B}{B} instead if there are seven or more cards in your
@@ -2927,6 +2938,15 @@ export type SentenceIR =
           readonly condition: CardCountConditionIR;
       }
     /**
+     * CR 500.5 + CR 514.2 — "Until end of turn, you don't lose this mana as
+     * steps and phases end": the lifetime of the mana the `add-mana` in front
+     * of it produced, folded onto that sentence by `assembleSentences`.
+     */
+    | {
+          readonly role: "mana-lifetime";
+          readonly persistsUntil: ManaPersistence;
+      }
+    /**
      * CR 701.20a — the sentences of a `reveal-hand-pick` (see there):
      * "<player> reveals their hand" (`hand-reveal`), "You choose <a card> from
      * it[ and exile that card]" (`hand-pick`), the trigger's one-sentence
@@ -4414,6 +4434,34 @@ export function assembleSentences(
                 conditions: sentence.conditions,
                 base: previous,
                 upgraded,
+            };
+            continue;
+        }
+        if (sentence.role === "mana-lifetime") {
+            // CR 106.4 — "this mana" is the mana the sentence in front of it
+            // added to "you": a plain fixed-pip deposit or "one mana of any
+            // color", and nothing else this fold has a fixture for.
+            const previous = effects[effects.length - 1];
+            if (
+                previous === undefined ||
+                previous.kind !== "add-mana" ||
+                previous.thatPlayer === true ||
+                previous.itsController === true ||
+                previous.perSet !== undefined ||
+                previous.persistsUntil !== undefined ||
+                (previous.anyOneColor !== undefined &&
+                    !(
+                        previous.anyOneColor.kind === "fixed" &&
+                        previous.anyOneColor.value === 1
+                    ))
+            )
+                return {
+                    ok: false,
+                    reason: '"you don\'t lose this mana" follows no "Add …" it could extend',
+                };
+            effects[effects.length - 1] = {
+                ...previous,
+                persistsUntil: sentence.persistsUntil,
             };
             continue;
         }
@@ -6298,6 +6346,16 @@ const ADD_X_MANA_OF_ANY_ONE_COLOR = /^Add X mana of any one color$/;
  *  any color that …" and "…in any combination of colors" are other reads. */
 const ADD_ONE_MANA_OF_ANY_COLOR = /^Add one mana of any color$/;
 /** CR 608.2c — the replacement sentence of a conditional ritual, whole. */
+/**
+ * CR 500.5 + CR 514.2 — the mana-lifetime sentence after an "Add …": the mana
+ * outlives every step and phase boundary until the cleanup step, where the
+ * "until end of turn" effect ends and the pool empties as that step ends. The
+ * firebending wording ("Until end of combat, …", CR 702.189a) is its keyword's
+ * expansion, not a printed sentence this rule reads.
+ */
+const MANA_LIFETIME_END_OF_TURN =
+    "Until end of turn, you don't lose this mana as steps and phases end";
+
 const ADD_MANA_INSTEAD_IF_COUNT =
     /^Add ((?:\{[WUBRGC]\})+) instead if there are (\S+) or more cards in your graveyard$/;
 
@@ -7380,6 +7438,11 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
             return ok({ role: "restriction" as const, restrictions });
         if (ADD_MANA_INSTEAD_IF_COUNT.test(span))
             return addManaInsteadIfRule.run(span, ctx);
+        if (span === MANA_LIFETIME_END_OF_TURN)
+            return ok({
+                role: "mana-lifetime" as const,
+                persistsUntil: "end-of-turn" as const,
+            });
         if (span === "It can't be regenerated")
             return ok({
                 role: "modifier" as const,

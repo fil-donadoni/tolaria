@@ -1015,11 +1015,17 @@ const COMBAT_STEPS: ReadonlyArray<Phase> = [
  *  main phase — an effect that ENDS the combat phase, skipping straight past
  *  END_OF_COMBAT (CR 724.2, Mandate of Peace) — empties at the very next
  *  boundary rather than lingering for the rest of the turn. "Until end of
- *  combat" can only ever mean less time than that, never more. */
+ *  combat" can only ever mean less time than that, never more.
+ *
+ *  `"end-of-turn"` survives every boundary EXCEPT the cleanup step's exit:
+ *  CR 514.2 ends "until end of turn" effects during the cleanup step, and the
+ *  pool empties as that step ends (CR 500.5), so mana added in a main phase is
+ *  still there in the end step and gone before the next turn begins. */
 export function manaPersistenceSurvives(
     persistence: ManaPersistence | undefined,
     leavingPhase: Phase
 ): boolean {
+    if (persistence === "end-of-turn") return leavingPhase !== "CLEANUP";
     if (persistence !== "end-of-combat") return false;
     return (
         leavingPhase !== "END_OF_COMBAT" && COMBAT_STEPS.includes(leavingPhase)

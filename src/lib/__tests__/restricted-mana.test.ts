@@ -122,6 +122,17 @@ describe("restrictedManaLabel (#754, CR 106.6)", () => {
         );
     });
 
+    it("an end-of-turn lifetime says so (CR 514.2 — Brazen Collector's mana)", () => {
+        const unit: RestrictedMana = {
+            color: "R",
+            amount: 1,
+            persistsUntil: "end-of-turn",
+        };
+        expect(restrictedManaLabel(unit)).toBe(
+            "Any spell — lasts until end of turn"
+        );
+    });
+
     it("a lifetime composes with a real restriction too — eligibility and lifetime are orthogonal", () => {
         const unit: RestrictedMana = {
             color: "G",
