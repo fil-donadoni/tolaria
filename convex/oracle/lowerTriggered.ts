@@ -127,6 +127,8 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             return { kind: "gift-given", scope: head.scope };
         case "expend":
             return { kind: "expend", scope: head.scope, amount: head.amount };
+        case "foraged":
+            return { kind: "foraged", scope: head.scope };
         case "life-gained":
             return { kind: "life-gained", scope: head.scope };
         case "life-gained-or-lost":

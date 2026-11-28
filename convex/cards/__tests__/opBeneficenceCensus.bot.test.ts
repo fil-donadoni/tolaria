@@ -262,6 +262,9 @@ const NEUTRAL_ROWS = [
     "delayedTrigger",
     "divideIntoPiles",
     "exileSelf",
+    // CR 701.61a — a NEW Op, not a re-signed one: no catalogue script used it
+    // before, so the scripts it completes are the new forage cards' own.
+    "forage",
     "libraryLook",
     "lookHand",
     "lookRandomHand",

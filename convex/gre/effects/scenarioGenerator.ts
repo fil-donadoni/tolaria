@@ -249,6 +249,8 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     "gift-given": () => true,
     // CR 700.14 — the source watches its controller pay for a spell.
     expend: () => true,
+    // CR 701.61a — the source watches its controller forage.
+    foraged: () => true,
     // CR 119.3 — the source watches its controller's life total change.
     "life-gained": () => true,
     "life-gained-or-lost": () => true,
@@ -1974,6 +1976,13 @@ const SCENARIO_SKIPS = {
     // (issue #806) — a canned scenario cannot submit an answer, so the
     // script is reported as an explicit skip; execution coverage comes
     // from the card's own suspension/resume tests.
+    // CR 701.61a — `forage` suspends for the half pick (and the card pick
+    // behind it); a canned scenario cannot answer either. Covered by the Op's
+    // interpreter tests.
+    forage: {
+        code: "suspends-for-input",
+        reason: `Op "forage" suspends for the half pick and the graveyard or Food pick — covered by the Op's interpreter tests`,
+    },
     mayPay: {
         code: "suspends-for-input",
         reason: `Op "mayPay" suspends for a Pay/Skip decision — covered by the Op's own suspension/resume tests`,

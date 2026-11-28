@@ -21385,6 +21385,13 @@ export function buildSpellContext(
             }
             return undefined;
         },
+        // CR 701.61a — the `forage` Op has performed a half: queue FORAGED
+        // so "Whenever you forage" sees it in the next trigger scan.
+        noteForaged(playerId: string): void {
+            state.pendingEvents = (state.pendingEvents ?? []).concat([
+                { type: "FORAGED", playerId },
+            ]);
+        },
         noteChoice(choiceId: string, values: string[]): void {
             // Persist a value computed in the CURRENT step so a LATER step can
             // read it via `recallChoice` (CR 608.2h last-known information): a

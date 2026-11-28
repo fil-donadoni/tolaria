@@ -12692,6 +12692,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bushy Bodyguard",
+        "scryfallId": "0de60cf7-fa82-4b6f-9f88-6590fba5c863",
+        "oracleId": "5436bb0d-b5c7-43a9-8b3f-67cdc0dd0381",
+        "firstSet": "blb",
+        "firstPrintId": "0de60cf7-fa82-4b6f-9f88-6590fba5c863",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Butcher Ghoul",
         "scryfallId": "44a91e62-e946-4101-8cef-d1c147caebf2",
         "oracleId": "28caeed4-c175-469f-8d8e-f45bc0a51a1c",
@@ -18498,6 +18508,16 @@
         "source": "compiled"
     },
     {
+        "name": "Corpseberry Cultivator",
+        "scryfallId": "c911a759-ed7b-452b-88a3-663478357610",
+        "oracleId": "5ded56df-c7d5-4043-85df-410f47219faa",
+        "firstSet": "blb",
+        "firstPrintId": "c911a759-ed7b-452b-88a3-663478357610",
+        "firstPrintSet": "blb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Corpulent Corpse",
         "scryfallId": "a58b842a-a4c0-475d-a8b3-62d4e5bb2eaf",
         "oracleId": "b3a84b75-a6a2-4521-a9f1-92596796c703",
@@ -20081,6 +20101,16 @@
         "firstPrintId": "2402d759-84b6-41d2-ad78-9333974e9222",
         "firstPrintSet": "tla",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Curious Forager",
+        "scryfallId": "64653b4a-e139-45f9-a915-ab49afb6b795",
+        "oracleId": "30af656a-99ab-4e0a-81fe-3cdb0ea6a0cc",
+        "firstSet": "blb",
+        "firstPrintId": "64653b4a-e139-45f9-a915-ab49afb6b795",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -99984,6 +100014,16 @@
         "firstPrintId": "606b4e02-f81a-490c-8d2e-cfea7917d6b7",
         "firstPrintSet": "ody",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Treetop Sentries",
+        "scryfallId": "e16d4d6e-1fe5-4ff6-9877-8c849a24f5e0",
+        "oracleId": "5bf5739a-6322-4e6e-b41e-e7bdbb11b1ce",
+        "firstSet": "blb",
+        "firstPrintId": "e16d4d6e-1fe5-4ff6-9877-8c849a24f5e0",
+        "firstPrintSet": "blb",
+        "rarity": "common",
         "source": "compiled"
     },
     {

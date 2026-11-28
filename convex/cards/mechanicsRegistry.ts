@@ -703,7 +703,10 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         name: "Forage",
         kind: "keyword-action",
         cr: "701.61",
-        status: "planned",
+        status: "implemented",
+        binding:
+            "EFFECT_OP_REGISTRY `forage` Op + convex/gre/forage.ts (the two halves) + FORAGED event (foragedTrigger)",
+        note: 'CR 701.61a — "Exile three cards from your graveyard or sacrifice a Food." A keyword ACTION, so this row is the census entry and the name authority; the behaviour is the `forage` Op. The forager picks a half they can perform in full (CR 118.3), then the three graveyard cards or the Food; a player who can perform neither cannot forage. Having foraged, the Op queues FORAGED { playerId }, read by foragedTrigger ("Whenever you forage"). Shipped as an EFFECT ("you may forage. If you do / When you do, …", Bushy Bodyguard, Curious Forager, Treetop Sentries, Corpseberry Cultivator). Not expressible yet, each refused by the grammar, never compiled free: forage as an activation cost ("{T}, Forage: …", Thornvault Forager, Camellia, the Seedmiser), as a spell\'s additional cost ("forage or pay {B}", Feed the Cycle), and Kicker—Forage (Traverse Valley).',
     },
     // 701.62 Manifest Dread
     {
@@ -3913,6 +3916,15 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding:
             "SpellContext.peekLibraryTop / requestChoice / exileFaceDown / linkExileToSource / reorderLibraryTop",
         note: "Effect Script Op for the CR 702.75a HIDEAWAY keyword (issue #783): look at the top `look` cards of `player`'s library, exile ONE of them FACE DOWN, and put the rest on the bottom of that library in a random order. Emitted ONLY by `expandHideaway` (convex/cards/abilities/hideaway.ts) from a card's bare `hideaway N` keyword string — a card never writes this Op by hand. Structurally `lookDistribute` with the kept card routed to face-down, source-LINKED exile instead of to hand, and it reuses lookDistribute's machinery verbatim: `peekLibraryTop(look)` names the window, ONE suspending `look-distribute` `requestChoice` (candidateIds = the looked-at ids, count EXACTLY 1, `randomizeRest` so the client mounts the simple grid rather than the bottom-ordering drag) drives the pick, and the shared `bottomLookedAtCards` tail bottoms the remainder with `randomBottom` (CR 401.4's random order is unobservable for face-down library cards, so no ordering pick and no `markKnown`). No new SpellContext primitive, per the \"generalize, don't add\" primitive-reuse rule — the two pieces `lookDistribute` lacks already existed: `exileFaceDown` (ADR 0026, PRD #338) grants `knownTo: [controller]` so the exiled card's identity is visible to its controller ALONE and `projectExileCard` re-derives that per-viewer gate on the wire (CR 406.3 — the controller may keep looking until the card leaves exile; every other viewer sees the FACE_DOWN_CARD_ID sentinel, still pinned to the permanent since the association is public but the identity is not), and `linkExileToSource` (issue #791) stamps the CR 607 / 406.6 LINK to the resolving ability's source permanent, which the card's own later \"you may play the exiled card\" ability reads back via `grantCastFromExile`'s `{ exiledWithSource: true }` selector — the only way a SECOND ability can name what a FIRST ability exiled (a `bind` cannot span two separate resolutions). Deliberately UNPARAMETRIZED beyond `look`: exactly one card is exiled (CR 702.75a, so no `take`), any looked-at card is eligible (no `filter`), it is not a \"may\" (no `optional`), the rest always go to the library bottom in a random order (no `destination` / `randomBottom`), the look is private and the exile face down (no `reveal`), and nothing later in the SAME script reads the exiled card (no `bind` — the CR 607 link is the cross-ability channel). SUSPENDS like `choice` / `scryReorder` / `lookDistribute`. Every miss is a CR 608.2b no-op that never suspends: a gone player, `look` <= 0, or an empty library.",
+    },
+    {
+        op: "forage",
+        status: "implemented",
+        cr: "701.61",
+        mechanicId: "forage",
+        binding:
+            "SpellContext.requestOptionChoice / requestChoice / moveCardsById / sacrifice / noteForaged",
+        note: 'Effect Script Op for the CR 701.61a FORAGE keyword action: `player` (default the controller) exiles three cards from their graveyard or sacrifices a Food. Its own Op, not a `mayPay` over a cost leg: the forager CHOOSES the half (an option-pick over the halves they can perform in full, CR 118.3), and the action is an event ("Whenever you forage", FORAGED). The graveyard half is ONE batched exile of three picked cards; the Food half sacrifices one picked Food; a pick with no freedom is made without a prompt. `optional` ("you may forage") adds a decline option. `bind` is the boolean "If you do" / "When you do" evidence — false when declined or impossible. Emitted by the optional-forage sentence (convex/oracle/grammar/shared/effectClause.ts).',
     },
     {
         op: "manifestDread",
