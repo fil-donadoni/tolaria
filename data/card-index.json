@@ -36288,6 +36288,14 @@
         "rarity": "rare"
     },
     {
+        "name": "Gaddock Teeg",
+        "scryfallId": "32c16e1b-f4ce-409f-928a-42c666adac9d",
+        "oracleId": "98dd6d43-cc56-4656-9e0c-240d0679b404",
+        "firstSet": "lrw",
+        "firstPrintId": "32c16e1b-f4ce-409f-928a-42c666adac9d",
+        "firstPrintSet": "lrw"
+    },
+    {
         "name": "Gadwick, the Wizened",
         "scryfallId": "62ddce0d-f22a-4fcd-9a4a-d71938750ba1",
         "oracleId": "c7530ecd-e22f-41e7-a76b-de32809901c8",
