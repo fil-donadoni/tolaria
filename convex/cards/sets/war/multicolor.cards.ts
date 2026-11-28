@@ -369,3 +369,53 @@ export const ashiokDreamRender = defineCard(() => ({
         },
     ],
 }));
+
+// Neoform — {G}{U} Sorcery. "As an additional cost to cast this spell,
+// sacrifice a creature. Search your library for a creature card with mana
+// value equal to 1 plus the sacrificed creature's mana value, put that card
+// onto the battlefield with an additional +1/+1 counter on it, then shuffle."
+//   - CR 118.8 / 601.2f — the sacrifice is an additional cost paid at cast
+//     (`additionalCosts.sacrificeFilter`).
+//   - CR 608.2h — the exact mana value reads the victim's last known mana
+//     value off the stack item's cost-sacrifice snapshot.
+//   - CR 701.23b — a stated quality never compels the find (`min: 0`).
+//   - CR 122.6 — the counter is given as the card enters (`entersWithCounters`).
+//   - CR 701.24a — then shuffle.
+//
+// hand-tail: Search your library for a creature card with mana value equal to 1 plus the sacrificed creature's mana value, put that card onto the battlefield with an additional +1/+1 counter on it, then shuffle. (#10541)
+export const neoform = defineCard(() => ({
+    id: "92d8f67e-4f2f-4a1f-b190-7c3f39e477e4", // WAR 206
+    name: "Neoform",
+    rarity: "uncommon",
+    oracleText:
+        "As an additional cost to cast this spell, sacrifice a creature.\nSearch your library for a creature card with mana value equal to 1 plus the sacrificed creature's mana value, put that card onto the battlefield with an additional +1/+1 counter on it, then shuffle.",
+    manaCost: { G: 1, U: 1 },
+    types: ["Sorcery"],
+    additionalCosts: {
+        sacrificeFilter: { types: "Creature" },
+    },
+    effects: [
+        {
+            op: "choice",
+            kind: "search-library",
+            player: "controller",
+            zone: "library",
+            filter: {
+                type: "Creature",
+                manaValueEquals: { sacrificed: { read: "manaValue", plus: 1 } },
+            },
+            count: { min: 0, max: 1 },
+            prompt: "Search your library for a creature card with mana value equal to 1 plus the sacrificed creature's mana value.",
+            bind: "$picked",
+        },
+        {
+            op: "moveZone",
+            cards: { ref: "$picked" },
+            player: "controller",
+            from: "library",
+            to: "battlefield",
+            entersWithCounters: { "+1/+1": 1 },
+        },
+        { op: "libraryLook", action: "shuffle", player: "controller" },
+    ],
+}));
