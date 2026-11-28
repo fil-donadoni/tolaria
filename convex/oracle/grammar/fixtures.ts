@@ -19671,4 +19671,225 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             entersWith: { counters: [{ type: "+1/+1", count: "X" }] },
         },
     },
+    // CR 120.3 + CR 702.9a — "<self> deals X damage to each creature with
+    // flying and each player": the creature half is a sweep narrowed by the
+    // filter's `hasAbility`, a runtime-selected set the canned smoke scenario
+    // cannot stage. Clears the bare "each creature with flying" sweep too
+    // (Needle Storm): the gate keys the skip on the `forEach` skeleton.
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "9c021685-4017-49c7-9f58-2ae0243361a0",
+            name: "Hurricane",
+            manaCost: "{X}{G}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Hurricane deals X damage to each creature with flying and each player.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Hurricane",
+            types: ["Sorcery"],
+            manaCost: { X: "X", G: 1 },
+            oracleText:
+                "Hurricane deals X damage to each creature with flying and each player.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature", hasAbility: "flying" },
+                    },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: { X: true },
+                            to: { ref: "$each" },
+                        },
+                    ],
+                },
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: { X: true },
+                            to: { player: { ref: "$each" } },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 702.33e + CR 608.2c — "If this spell was kicked, it deals 4 damage to
+    // each creature with flying and each player instead": the kicked branch
+    // replaces the base sweep whole (`if` … `else`), which the canned smoke
+    // scenario — cast unkicked — never runs.
+    {
+        rule: "kicked instead",
+        card: {
+            oracleId: "a151c45f-0b9e-41af-90b3-fafa12e3bbce",
+            name: "Canopy Surge",
+            manaCost: "{1}{G}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Kicker {2} (You may pay an additional {2} as you cast this spell.)\nCanopy Surge deals 1 damage to each creature with flying and each player. If this spell was kicked, it deals 4 damage to each creature with flying and each player instead.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Canopy Surge",
+            types: ["Sorcery"],
+            manaCost: { X: 1, G: 1 },
+            oracleText:
+                "Kicker {2} (You may pay an additional {2} as you cast this spell.)\nCanopy Surge deals 1 damage to each creature with flying and each player. If this spell was kicked, it deals 4 damage to each creature with flying and each player instead.",
+            kickers: [
+                { id: "kicker", description: "Kicker {2}", mana: { X: 2 } },
+            ],
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerCount: true },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: {
+                                    type: "Creature",
+                                    hasAbility: "flying",
+                                },
+                            },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 4,
+                                    to: { ref: "$each" },
+                                },
+                            ],
+                        },
+                        {
+                            op: "forEach",
+                            select: { set: "players" },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 4,
+                                    to: { player: { ref: "$each" } },
+                                },
+                            ],
+                        },
+                    ],
+                    else: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: {
+                                    type: "Creature",
+                                    hasAbility: "flying",
+                                },
+                            },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 1,
+                                    to: { ref: "$each" },
+                                },
+                            ],
+                        },
+                        {
+                            op: "forEach",
+                            select: { set: "players" },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 1,
+                                    to: { player: { ref: "$each" } },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 702.33g + CR 601.2d — "If this spell was kicked, prevent the next 6
+    // damage this way instead": the kicked budget is swapped into the
+    // announcement (`kickedTargetRequirement`) and the shield's `total`
+    // mirrors it in the kicked branch, which the canned smoke scenario — cast
+    // unkicked — never runs.
+    {
+        rule: "kicked instead",
+        card: {
+            oracleId: "ff52f955-98de-4f12-9ec7-f1d73e3edae9",
+            name: "Pollen Remedy",
+            manaCost: "{W}",
+            typeLine: "Instant",
+            oracleText:
+                "Kicker—Sacrifice a land. (You may sacrifice a land in addition to any other costs as you cast this spell.)\nPrevent the next 3 damage that would be dealt this turn to any number of targets, divided as you choose. If this spell was kicked, prevent the next 6 damage this way instead.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Pollen Remedy",
+            types: ["Instant"],
+            manaCost: { W: 1 },
+            oracleText:
+                "Kicker—Sacrifice a land. (You may sacrifice a land in addition to any other costs as you cast this spell.)\nPrevent the next 3 damage that would be dealt this turn to any number of targets, divided as you choose. If this spell was kicked, prevent the next 6 damage this way instead.",
+            kickers: [
+                {
+                    id: "kicker",
+                    description: "Kicker—Sacrifice a land",
+                    permanent: {
+                        action: "sacrifice",
+                        filter: { types: ["Land"] },
+                        count: 1,
+                    },
+                },
+            ],
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerCount: true },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "preventDamage",
+                            mode: "next-n-divided",
+                            total: 6,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                    else: [
+                        {
+                            op: "preventDamage",
+                            mode: "next-n-divided",
+                            total: 3,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: {
+                type: "any",
+                count: { min: 1 },
+                divideAsChosen: { total: 3, kind: "prevent" },
+            },
+            kickedTargetRequirement: {
+                type: "any",
+                count: { min: 1 },
+                divideAsChosen: { total: 6, kind: "prevent" },
+            },
+        },
+    },
 ]);

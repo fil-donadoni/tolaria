@@ -135,14 +135,6 @@ describe("each creature without <keyword> (CR 120.3 + CR 702.9a) — goldens", (
 });
 
 describe("each creature without <keyword> — refusals stay fail-closed", () => {
-    it("'with <keyword>' is a different sweep and stays refused", () => {
-        expect(
-            probe(
-                "{R}: This creature deals 1 damage to each creature with flying."
-            ).state
-        ).toBe("unparsed");
-    });
-
     it("the exclusion is read for damage only: a destroy sweep still refuses it", () => {
         expect(probe("{R}: Destroy each creature without flying.").state).toBe(
             "unparsed"

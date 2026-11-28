@@ -2902,6 +2902,18 @@ export type SentenceIR =
           readonly manaValueAtMost: number;
       }
     /**
+     * CR 702.33e + CR 601.2d — "If this spell was kicked, prevent the next 6
+     * damage this way instead": the replacement half of a `replace-if-kicked`
+     * over a divided prevention shield. "This way" re-names the base's own
+     * recipients and division, so only the budget changes; folded onto the
+     * shield in front of it (`foldKickedBudgetInstead`).
+     */
+    | {
+          readonly role: "kicked-budget-instead";
+          readonly kicked: KickedRefIR;
+          readonly amount: number;
+      }
+    /**
      * CR 608.2c — "Add {B}{B}{B}{B}{B} instead if there are seven or more cards
      * in your graveyard": the replacement half of an `add-mana-instead-if`,
      * folded onto the `add-mana` in front of it by `assembleSentences`.
@@ -4436,6 +4448,31 @@ export function assembleSentences(
             effects[effects.length - 1] = replaced;
             continue;
         }
+        if (sentence.role === "kicked-budget-instead") {
+            const previous = effects[effects.length - 1];
+            const shield =
+                previous !== undefined &&
+                "frames" in previous &&
+                previous.frames.length === 1 &&
+                previous.then === undefined &&
+                previous.otherwise === undefined
+                    ? previous.frames[0]
+                    : undefined;
+            if (shield?.frame !== "preventNextDamageDivided")
+                return {
+                    ok: false,
+                    reason: '"prevent the next N damage this way instead" follows no divided prevention shield',
+                };
+            effects[effects.length - 1] = {
+                kind: "replace-if-kicked",
+                kicked: sentence.kicked,
+                base: previous!,
+                replacement: {
+                    frames: [{ ...shield, amount: sentence.amount }],
+                },
+            };
+            continue;
+        }
         if (sentence.role === "promised-instead") {
             const previous = effects[effects.length - 1];
             // "Instead" replaces the instruction before it; with two in front
@@ -5571,6 +5608,13 @@ export function kickedSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
         // flying" names the creature an earlier sentence targeted, so any
         // other verb behind a bound pronoun fails rather than granting the
         // ability to the spell.
+        const budget = span.slice(comma + 2).match(KICKED_BUDGET_INSTEAD);
+        if (budget !== null)
+            return ok({
+                role: "kicked-budget-instead" as const,
+                kicked: condition.value,
+                amount: Number(budget[1]),
+            });
         const bound = span.slice(comma + 2).match(KICKED_BOUND_INSTEAD);
         if (bound !== null)
             return ok({
@@ -5581,7 +5625,26 @@ export function kickedSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
             });
         const tail = bindSourcePronoun(span.slice(comma + 2));
         const parsed = inner.run(capitalise(tail.span), ctx);
-        if (!parsed.ok) return parsed;
+        if (!parsed.ok) {
+            // CR 702.33e + CR 608.2c — "If this spell was kicked, it deals 4
+            // damage to each creature with flying and each player instead":
+            // the replacement half of a `replace-if-kicked`, read only when
+            // the whole tail is no sentence of its own (a "… instead" the
+            // inner grammar reads, Prohibit's re-bounded counter, keeps that
+            // reading), and folded onto the effect in front of it by
+            // `assembleSentences` (`foldKickedInstead` decides which pairs
+            // are one form).
+            const instead = span.slice(comma + 2).match(SPELL_KICKED_INSTEAD);
+            return instead === null
+                ? parsed
+                : spellKickedInstead(
+                      inner,
+                      instead[1]!,
+                      condition.value,
+                      span,
+                      ctx
+                  );
+        }
         if (
             tail.bound &&
             (parsed.value.role !== "effect" ||
@@ -5604,6 +5667,38 @@ export function kickedSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
                 effect: parsed.value.effect,
             },
         });
+    });
+}
+
+/**
+ * CR 702.33e — the spell-site "If this spell was kicked, <replacement>
+ * instead", `replacement` read by the caller's own sentence rule. "It" is the
+ * spell, and only as a damage source (`bindSourcePronoun`, CR 608.2h).
+ */
+function spellKickedInstead(
+    inner: Rule<SentenceIR>,
+    clause: string,
+    kicked: KickedRefIR,
+    span: string,
+    ctx: RuleContext
+): RuleResult<SentenceIR> {
+    const tail = bindSourcePronoun(clause);
+    const replacement = inner.run(capitalise(tail.span), ctx);
+    if (!replacement.ok) return replacement;
+    if (replacement.value.role !== "effect")
+        return fail(
+            `a kicked replacement is an effect, not a ${replacement.value.role}`,
+            span
+        );
+    if (tail.bound && replacement.value.effect.kind !== "deal-damage")
+        return fail(
+            '"it" after a kicked condition is the spell only as a damage source',
+            span
+        );
+    return ok({
+        role: "kicked-instead" as const,
+        kicked,
+        replacement: replacement.value.effect,
     });
 }
 
@@ -7825,9 +7920,10 @@ export const addManaInsteadIfRule: Rule<SentenceIR> = rule<SentenceIR>(
 /**
  * CR 702.33e — pair a sweep with the kicked sweep that replaces it.
  *
- * Only a destroy over a mass subject on BOTH sides: that is the whole printed
- * form (a sweep with a wider reach when kicked), and a replacement of another
- * verb, or of a single target, would have to say which object it keeps — the
+ * Two printed forms, a sweep on BOTH sides: a destroy over a mass subject (a
+ * wider reach when kicked), and a damage sweep over the identical recipient
+ * sets (a larger amount when kicked). A replacement of another verb, or of a
+ * single target, would have to say which object it keeps — the
  * `upgrade-if-controls` machinery for that shape does not apply here, so the
  * pair is refused rather than lowered to a guess.
  */
@@ -7836,12 +7932,21 @@ function foldKickedInstead(
     sentence: Extract<SentenceIR, { role: "kicked-instead" }>
 ): EffectSentenceIR | string {
     const replacement = sentence.replacement;
-    if (
-        previous.kind !== "destroy" ||
-        replacement.kind !== "destroy" ||
-        previous.subject.kind !== "mass" ||
-        replacement.subject.kind !== "mass"
-    )
+    // CR 120.3 — a damage sweep replaced by a damage sweep over the SAME
+    // recipient sets, only the amount changed (Canopy Surge): nothing is
+    // announced on either side, so the two branches share no object to keep.
+    const damageSweeps =
+        previous.kind === "deal-damage" &&
+        replacement.kind === "deal-damage" &&
+        (previous.to.kind === "mass" ||
+            previous.to.kind === "each-creature-and-player") &&
+        JSON.stringify(previous.to) === JSON.stringify(replacement.to);
+    const destroySweeps =
+        previous.kind === "destroy" &&
+        replacement.kind === "destroy" &&
+        previous.subject.kind === "mass" &&
+        replacement.subject.kind === "mass";
+    if (!damageSweeps && !destroySweeps)
         return '"If it was kicked, … instead" replaces a sweep with a sweep of the same verb';
     return {
         kind: "replace-if-kicked",
@@ -7882,9 +7987,15 @@ function foldKickedBoundInstead(
 }
 
 const KICKED_INSTEAD = /^If it was kicked, (.+) instead$/;
+/** CR 702.33e — the spell-site replacement tail, after "If this spell was
+ *  kicked, ". */
+const SPELL_KICKED_INSTEAD = /^(.+) instead$/;
 /** CR 702.33e + CR 202.3 — the spell-site re-bound, whole. */
 const KICKED_BOUND_INSTEAD =
     /^destroy that (\w+) if its mana value is (\d+) or less instead$/;
+/** CR 702.33e + CR 601.2d — the divided shield's kicked budget, whole. */
+const KICKED_BUDGET_INSTEAD =
+    /^prevent the next (\d+) damage this way instead$/;
 /** CR 202.3 — the trailing bound of a conditional destroy. */
 const MANA_VALUE_BOUND = / if its mana value is (\d+) or less$/;
 

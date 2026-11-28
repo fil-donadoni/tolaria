@@ -29,7 +29,8 @@
  * ceiling (CR 202.3), token-ness ("tokens", "nontoken", CR 111.1) and "you
  * control" — the
  * descriptor fields whose engine meaning is one-to-one — and, for the one verb
- * that opts in ({@link creatureSweepRecipientRule}), "without <keyword>". A
+ * that opts in ({@link creatureSweepRecipientRule}), "without <keyword>" and
+ * "with <keyword>". A
  * field outside them (several colours, a keyword, a combat role, a power
  * bound, another controller) is refused HERE, by name, rather than dropped: a
  * sweep that silently ignored "attacking" would destroy every creature, and
@@ -163,7 +164,7 @@ function sweepSelector(
     descriptor: DescriptorIR,
     other: boolean,
     list: boolean,
-    allowKeywordExclusion: boolean,
+    allowKeywordQualifier: boolean,
     enteredThisTurn = false
 ):
     | { readonly ok: true; readonly value: PermanentSweepSelector }
@@ -187,7 +188,9 @@ function sweepSelector(
                 "mvFilter",
                 "token",
                 "nontoken",
-                ...(allowKeywordExclusion ? ["excludeAbility"] : []),
+                ...(allowKeywordQualifier
+                    ? ["excludeAbility", "requireAbility"]
+                    : []),
             ].includes(field)
         )
             return {
@@ -298,6 +301,10 @@ function sweepSelector(
     // CR 702.9a — "without flying": the exclusion the sweep filter names 1:1.
     if (descriptor.excludeAbility !== undefined)
         filter.excludeAbility = descriptor.excludeAbility;
+    // CR 702.9a — "with flying": the requirement, the filter's `hasAbility`
+    // 1:1 (read off the live abilities, so a granted keyword counts).
+    if (descriptor.requireAbility !== undefined)
+        filter.hasAbility = descriptor.requireAbility;
     const select: PermanentSweepSelector = {
         set: "permanents",
         zone: "battlefield",
@@ -321,7 +328,7 @@ function sweepSelector(
  * or refuse.
  */
 function readMassSubject(
-    allowKeywordExclusion: boolean
+    allowKeywordQualifier: boolean
 ): (span: string, ctx: unknown) => RuleResult<MassSubjectIR> {
     return (span, ctx) => {
         let determiner: "all" | "each";
@@ -370,7 +377,7 @@ function readMassSubject(
             descriptor.value,
             other,
             /, | and | or /.test(rest),
-            allowKeywordExclusion,
+            allowKeywordQualifier,
             entered
         );
         if (!selector.ok) return fail(selector.reason, selector.fragment);
@@ -399,7 +406,8 @@ const TARGET_OPPONENT_CONTROLS = / target opponent controls$/;
 /**
  * CR 120.3 — the creature sweep a DAMAGE verb names as its recipient:
  * "each creature" (Pyroclasm), "each creature without <keyword>" (Earthquake,
- * CR 702.9a) or "each creature target opponent controls" (Simoon, CR 109.5).
+ * CR 702.9a), "each creature with <keyword>" (Needle Storm) or "each creature
+ * target opponent controls" (Simoon, CR 109.5).
  * A sibling of {@link massSubjectRule}, not a widening of it: the general rule
  * keeps refusing a bare "each creature", a keyword exclusion and an opponent's
  * battlefield for every other verb (a destroy or pump sweep has no fixture for
@@ -446,9 +454,22 @@ export const creatureSweepRecipientRule: Rule<MassSubjectIR> = subGrammar(
             filter?.excludeAbility !== undefined &&
             filter.type === "Creature" &&
             !targeted;
-        if (!head.startsWith("each ") || !(bareCreature || keywordExcluded))
+        // CR 702.9a — "each creature with flying" (Needle Storm, Hurricane):
+        // the requirement twin of the exclusion, read on the bare creature
+        // noun only — another qualifier beside it is a scope no fixture
+        // answers.
+        const keywordRequired =
+            filter?.hasAbility !== undefined &&
+            filter.type === "Creature" &&
+            Object.keys(filter).length === 2 &&
+            mass.value.select.controller === undefined &&
+            !targeted;
+        if (
+            !head.startsWith("each ") ||
+            !(bareCreature || keywordExcluded || keywordRequired)
+        )
             return fail(
-                'a damage sweep is "each creature", "each creature without <keyword>" or "each creature target opponent controls"',
+                'a damage sweep is "each creature", "each creature with[out] <keyword>" or "each creature target opponent controls"',
                 span
             );
         if (!targeted) return mass;
