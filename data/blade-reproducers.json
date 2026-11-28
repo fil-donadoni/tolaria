@@ -7017,7 +7017,7 @@
                 "zone": "graveyard"
             }
         ],
-        "phase": "PRECOMBAT_MAIN",
+        "phase": "POSTCOMBAT_MAIN",
         "turn": 3,
         "libraryCount": 20,
         "landCount": 0

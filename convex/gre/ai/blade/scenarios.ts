@@ -20910,6 +20910,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // flier plus a turn of tempo — and the Bot passed, valuing the held
         // card at the exile's full removal price PLUS a reanimation for the
         // delayed return, more than the creature it becomes on the board.
+        //
+        // POSTCOMBAT_MAIN at 800 (the PR #11086 repair, robustness audit
+        // NOISE-PINNED): in the precombat main phase `pass` only moves to
+        // combat and the cast is still open after it, so the two lines tie
+        // and the search drifts to `pass` as it deepens (17/20 at 400, 6/20
+        // at 800). After combat a pass holds Flickerwisp for a turn. The
+        // probe reads 20/20 at 800 and 1600 there, ROBUST on every audit leg,
+        // and 10/20 at 400, below this position's convergence threshold.
         label: "temporary exile: casts Flickerwisp onto a vanilla board",
         classification: { kind: "absolute" },
         spec: {
@@ -20925,19 +20933,19 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { name: "Castle", owner: "opp", zone: "battlefield" },
                 { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
             ],
-            phase: "PRECOMBAT_MAIN",
+            phase: "POSTCOMBAT_MAIN",
             turn: 3,
             libraryCount: 20,
             landCount: 0,
         },
         bot: "me",
-        budget: { iterations: 400 },
+        budget: { iterations: 800 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
             moves: [{ kind: "cast-spell", card: "Flickerwisp" }],
         },
-        note: "Issue #11026. Proof-of-failure: the `exile` valuer pricing a temporary exile as removal (`temporaryExileValue` unused, `opValuers.ts`) — the held Flickerwisp's enters trigger reads 312 instead of 52, and the Bot passes. A `moves` matcher, so `mustCoveredCards` credits Flickerwisp's never-chosen sweep verdict.",
+        note: "Issue #11026. Proof-of-failure: the `exile` valuer pricing a temporary exile as removal (`temporaryExileValue` unused, `opValuers.ts`) — the held Flickerwisp's enters trigger reads 312 instead of 52, and the Bot passes (`blade:probe`: 0/20 at 800 broken, 20/20 fixed). A `moves` matcher, so `mustCoveredCards` credits Flickerwisp's never-chosen sweep verdict.",
     },
     {
         // CR 701.12b — Gilded Drake's enters trigger exchanges control of
