@@ -33,6 +33,7 @@ import { applyMoveInSearch } from "../search";
 import { buildStateFromScenario } from "../scenarioBuilder";
 import { createInitialGameState, type PlayerInput } from "../setup";
 import { umezawasJitte } from "../../cards/sets/bok/colorless.cards";
+import { GOLDEN_FIXTURES } from "../../oracle/grammar/fixtures";
 
 type CastMove = Extract<Move, { kind: "cast-spell" }>;
 
@@ -503,5 +504,47 @@ describe("a targetless mode instance keeps its span (issue #2265 review)", () =>
                 }
             }
         );
+    });
+});
+
+// CR 700.2i / 107.18 — a pawprint list: the Bot enumerates every mode list the
+// {P} budget admits and none above it, through the server's own question. The
+// fixture is the compiled Season of the Burrow (one-, two- and three-{P}
+// modes under a five-{P} budget), registered over the charm's id.
+describe("pawprint budget enumeration (CR 700.2i)", () => {
+    it("every enumerated cast fits five {P}, and the budget-filling lists are offered", () => {
+        const fixture = GOLDEN_FIXTURES.find(
+            (f) => f.card.name === "Season of the Burrow"
+        )!;
+        const season: CardDefinition = {
+            ...CHARM,
+            ...(fixture.expected as unknown as Partial<CardDefinition>),
+            id: CHARM.id,
+            manaCost: {},
+        };
+        const weight = new Map(
+            season.modes!.map((m) => [m.id, m.pawprints ?? 0])
+        );
+        withTemporaryDefinition(season, () => {
+            const casts = castsOf(
+                board({ oppCreatures: 1, graveyardCreatures: 1 })
+            );
+            const lists = new Set(
+                casts.map((m) => (m.chosenModeIds ?? []).join("+"))
+            );
+            const spent = (ids: readonly string[]) =>
+                ids.reduce((sum, id) => sum + weight.get(id)!, 0);
+            expect(casts.length).toBeGreaterThan(0);
+            expect(casts.every((m) => spent(m.chosenModeIds ?? []) <= 5)).toBe(
+                true
+            );
+            const [token, exile, reanimate] = season.modes!.map((m) => m.id);
+            // 2 + 3 = 5 {P}: exile the opposing creature, return the bear.
+            expect(lists.has(`${exile}+${reanimate}`)).toBe(true);
+            // 1 × 5 — the same mode five times (CR 700.2d).
+            expect(lists.has(Array(5).fill(token).join("+"))).toBe(true);
+            // 3 + 3 = 6 {P} is over the budget, though two modes fit the count.
+            expect(lists.has(`${reanimate}+${reanimate}`)).toBe(false);
+        });
     });
 });

@@ -34806,4 +34806,43 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #10965, ADR 0091 Amendment I. The victim is not fungible when the spell reads the cost-sacrifice snapshot, so `enumerateCastCostPicks` offers one cast per distinct snapshot. `MoveMatcher` has no field for the cast's sacrifice picks, hence the predicate shape (as for Fireblast's alternative-cost victims).",
     },
+    {
+        label: "pawprint budget: Season of the Burrow spends its five {P} on exiling the lethal flier",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Season of the Burrow", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 5 },
+                { name: "Serra Angel", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+            life: { me: 4, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) => {
+                if (move?.kind !== "cast-spell") return false;
+                const modes = getCardByName("Season of the Burrow").modes ?? [];
+                const ids = move.chosenModeIds ?? [];
+                const spent = ids.reduce(
+                    (sum, id) =>
+                        sum + (modes.find((m) => m.id === id)?.pawprints ?? 99),
+                    0
+                );
+                const angel = instanceIdsForName(state, "Serra Angel");
+                return (
+                    spent <= 5 &&
+                    (move.targets ?? []).some((t) => angel.has(t.id))
+                );
+            },
+            describe:
+                "casts Season of the Burrow with its exile mode on Serra Angel, the chosen modes totalling at most five {P}",
+        },
+        note: "Issue #10356, CR 700.2i. At 4 life against a 4-power flier, exiling the Angel (the two-{P} mode) is the only line that survives the next attack; the remaining three {P} buy Rabbits. The {P} bound is the Bot's enumeration (`announceableModeCombinations`, the server's own `chosenModeIdsViolation`): PROVEN by hand — with the budget comparison disabled in both, every seed announces four Rabbits plus the exile, six {P}, and the entry reds.",
+    },
 ];
