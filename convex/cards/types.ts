@@ -851,7 +851,7 @@ export interface EnchantRestriction {
  *  (`cards/__tests__/triggerVariableTargetCount.test.ts`) keeps it there. */
 export type TargetCountQuantity = EffectCount | EffectKickerCountValue;
 
-/** The budget a divide-as-you-choose effect splits (CR 601.2d / 120.4): a fixed
+/** The budget a divide-as-you-choose effect splits (CR 601.2d): a fixed
  *  amount, the announced {X}, X+1, or a text-defined quantity read at
  *  announcement (`TargetRequirement.divideAsChosen.total`). */
 export type DivideTotal = number | "X" | "X+1" | TargetCountQuantity;
@@ -1267,7 +1267,7 @@ export interface TargetRequirement {
      *  to say "Prevent damage" instead of the default "Deal damage" (QA — the
      *  banner hard-coded "Deal damage" for every divide spell regardless).
      *  `"counters"` — the budget is counters distributed by a
-     *  `distributeCountersAsChosen` Op (CR 601.2d)
+     *  `distributeCountersAsChosen` Op (CR 601.2d).
      *  `total` may also be a {@link TargetCountQuantity} — a budget DEFINED BY
      *  THE TEXT ("X damage divided as you choose …, where X is the number of
      *  lands you control"), read off the board when the division is announced
