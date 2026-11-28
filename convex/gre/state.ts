@@ -16661,6 +16661,7 @@ export function buildSpellContext(
                 faceDown?: FaceDownProducer;
                 authoredEntry?: AuthoredEntryState;
                 controllerId?: string;
+                entryCounters?: Readonly<Record<string, number>>;
             }
         ): boolean {
             const player = getPlayer(state, playerId);
@@ -16682,7 +16683,8 @@ export function buildSpellContext(
                 card,
                 opts?.controllerId ?? playerId,
                 undefined,
-                undefined,
+                // CR 122.6 — counters the putting effect gives it as it enters.
+                opts?.entryCounters,
                 opts?.authoredEntry
             );
             // CR 701.40f — a card that did not enter was never manifested:
