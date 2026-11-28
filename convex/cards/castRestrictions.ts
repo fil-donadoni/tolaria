@@ -16,6 +16,7 @@
 
 import { liveDefinitionOf } from "./liveStatics";
 import { getInstanceManaCost, tryGetDefinition } from ".";
+import { countDevotion } from "./devotion";
 import { playerHasRestriction } from "../gre/playerRestrictions";
 import type { PlayerRestriction } from "../gre/state/declarations";
 import { splitSecondSpellOnStack } from "./abilities/splitSecond";
@@ -98,6 +99,8 @@ export const CAST_RESTRICTION_CTX: StaticEffectContext = {
     getCounterCount(card: PermanentView, type: string): number {
         return card.counters?.[type] ?? 0;
     },
+    // CR 700.5 — the one devotion counter (`./devotion.ts`).
+    getDevotion: countDevotion,
 };
 
 /** Minimal board view the scan needs — each player's battlefield as

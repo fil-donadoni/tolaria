@@ -205,6 +205,7 @@ describe("a compiled 'Other … have shroud' grant (CR 201.5)", () => {
         getName: () => "",
         hasChosenName: () => false,
         getCounterCount: () => 0,
+        getDevotion: () => 0,
     };
 
     function view(
