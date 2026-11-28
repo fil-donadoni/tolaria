@@ -137,7 +137,8 @@ export const spelunking = defineCard(() => ({
 // `choose-hand-card` over creature cards, `{ min: 0, max: 999 }` (the
 // any-number convention of Surgical Extraction), then one `moveZone` of the
 // whole picked set — every card enters at once, in one event. The creatures
-// are put onto the battlefield, never cast (CR 400.7), so no cast trigger
+// are put onto the battlefield, never cast — casting puts a spell on the
+// stack and pays its costs (CR 601.2), so no cast trigger
 // fires and no cost is paid.
 //
 // hand-tail: When {self} enters, put any number of creature cards from your hand onto the battlefield. (#10538)
