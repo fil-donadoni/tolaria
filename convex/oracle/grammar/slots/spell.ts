@@ -73,6 +73,7 @@ import {
     type RuleResult,
 } from "../../rule";
 import { readManaCost } from "../../manaCost";
+import { readNumberWord } from "../shared/quantity";
 import type { ParseContext } from "../../types";
 import type { Phase } from "../../../gre/types";
 import { controlsRule } from "../shared/condition";
@@ -91,7 +92,7 @@ import {
     leadingGateSentenceRule,
     trailingGateSentenceRule,
 } from "../shared/verbFrames";
-import { BULLET, GROUP_SEPARATOR } from "../lineGroups";
+import { BULLET, GROUP_SEPARATOR, PAWPRINT_MODE_LINE } from "../lineGroups";
 import type { FlashbackCostIR, SlotIR, SpellModeIR } from "../ir";
 
 export const SPELL_SLOT = "spell";
@@ -176,13 +177,49 @@ const CHOOSE_THREE_REPEATS_HEAD =
 const CONTROLS_MAY_CHOOSE_TWO_HEAD =
     /^Choose one\. If (you control .+) as you cast this spell, you may choose two instead\.$/;
 
+/**
+ * CR 700.2i / 107.18 — "Choose up to five {P} worth of modes. You may choose
+ * the same mode more than once." The number is a {P} BUDGET, not a count: the
+ * chosen modes' summed pawprints may not exceed it (`pawprintBudget`), and the
+ * count's ceiling is the budget itself, every mode costing at least one {P}.
+ * The repeat sentence is part of the head: without it the list would be
+ * distinct modes, a form nothing prints and this rule does not read.
+ *
+ * CR 700.2i lets the controller choose "any number of modes", zero among
+ * them; the announcement requires at least one (`min: 1`), as every modal
+ * announcement does — the one simplification, a cast that would do nothing.
+ */
+const PAWPRINT_BUDGET_HEAD =
+    /^Choose up to (\S+) \{P\} worth of modes\. You may choose the same mode more than once\.$/;
+
+/** How a mode list prints its modes: bullets (CR 700.2) or pawprints (CR 700.2i). */
+type ModeMarker = "bullet" | "pawprint";
+
 /** The cardinality a modal head prints; `selection` absent = exactly one. */
 function readModalHead(
     head: string,
     span: string,
     ctx: RuleContext
-): RuleResult<{ readonly selection?: ModeSelection }> {
+): RuleResult<{
+    readonly selection?: ModeSelection;
+    readonly marker?: ModeMarker;
+}> {
     if (head === CHOOSE_ONE_HEAD) return ok({});
+    const pawprint = head.match(PAWPRINT_BUDGET_HEAD);
+    if (pawprint !== null) {
+        const budget = readNumberWord(pawprint[1]!);
+        if (budget === null || budget < 1)
+            return fail(`"${pawprint[1]}" is not a {P} budget`, span);
+        return ok({
+            selection: {
+                min: 1,
+                max: budget,
+                repeats: true,
+                pawprintBudget: budget,
+            },
+            marker: "pawprint" as const,
+        });
+    }
     if (head === CHOOSE_THREE_REPEATS_HEAD)
         return ok({ selection: { min: 3, max: 3, repeats: true } });
     const conditional = head.match(CONTROLS_MAY_CHOOSE_TWO_HEAD);
@@ -213,16 +250,43 @@ export function readModeBullets(
     span: string,
     ctx: RuleContext
 ): RuleResult<SpellModeIR[]> {
+    return readModeLines(bullets, "bullet", span, ctx);
+}
+
+/**
+ * CR 700.2 / 700.2i — the mode lines of a modal text, each stripped of its
+ * marker: "• " for a bulleted list, "{P}… — " for a pawprint list, whose
+ * symbol count is the mode's weight. A list never mixes the two: a bullet
+ * under a pawprint head (or the reverse) is refused, since the head's budget
+ * or count would then misjudge a mode.
+ */
+function readModeLines(
+    lines: readonly string[],
+    marker: ModeMarker,
+    span: string,
+    ctx: RuleContext
+): RuleResult<SpellModeIR[]> {
     // CR 700.2 — a mode list with fewer than two modes is not a choice; it is
     // a line whose bullets we failed to group.
-    if (bullets.length < 2)
+    if (lines.length < 2)
         return fail("a modal spell needs at least two modes (CR 700.2)", span);
 
     const modes: SpellModeIR[] = [];
-    for (const bullet of bullets) {
-        if (!bullet.startsWith(`${BULLET} `))
-            return fail(`"${bullet}" is not a mode line`, span);
-        const body = bullet.slice(`${BULLET} `.length);
+    for (const line of lines) {
+        let body: string;
+        let pawprints: number | undefined;
+        if (marker === "bullet") {
+            if (!line.startsWith(`${BULLET} `))
+                return fail(`"${line}" is not a mode line`, span);
+            body = line.slice(`${BULLET} `.length);
+        } else {
+            const paw = line.match(PAWPRINT_MODE_LINE);
+            if (paw === null)
+                return fail(`"${line}" is not a pawprint mode line`, span);
+            // CR 107.18 — the pawprint symbol is {P}; one weight per symbol.
+            pawprints = paw[1]!.length / "{P}".length;
+            body = line.slice(paw[0].length);
+        }
         const parsed = terminated(
             ".",
             listOf(
@@ -231,7 +295,19 @@ export function readModeBullets(
                 announcedTargetPronounRule(sentenceRule)
             )
         ).run(body, ctx);
-        if (!parsed.ok) return parsed;
+        // The head and every mode read before this one are progress the
+        // failure made: credited, so the gap names this mode's clause rather
+        // than tying with a sentence reading that failed at the head.
+        if (!parsed.ok)
+            return parsed.trace === undefined
+                ? parsed
+                : {
+                      ...parsed,
+                      trace: {
+                          ...parsed.trace,
+                          progress: parsed.trace.progress + modes.length + 1,
+                      },
+                  };
         const read = readSentences(parsed.value);
         if (!read.ok)
             return fail(
@@ -246,6 +322,7 @@ export function readModeBullets(
             // proven the stop is there.
             text: body.slice(0, -1),
             effects: read.effects,
+            ...(pawprints !== undefined ? { pawprints } : {}),
         });
     }
     // CR 700.2 — two modes printed identically would give the caster a choice
@@ -260,7 +337,12 @@ const modalSpell: Rule<SlotIR> = rule<SlotIR>("modal spell", (span, ctx) => {
     const parts = span.split(GROUP_SEPARATOR);
     const head = readModalHead(parts[0]!, span, ctx);
     if (!head.ok) return head;
-    const modes = readModeBullets(parts.slice(1), span, ctx);
+    const modes = readModeLines(
+        parts.slice(1),
+        head.value.marker ?? "bullet",
+        span,
+        ctx
+    );
     if (!modes.ok) return modes;
     return ok({
         kind: "spell-modal" as const,

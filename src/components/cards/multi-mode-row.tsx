@@ -15,6 +15,8 @@ type MultiModeRowProps = {
     legal: boolean;
     /** Whether one more pick of this mode fits the declared count. */
     canAdd: boolean;
+    /** CR 700.2i — the mode's {P} weight on a pawprint list, else absent. */
+    pawprints?: number;
     onAdd: () => void;
     onRemove: () => void;
 };
@@ -28,6 +30,7 @@ export default function MultiModeRow({
     repeats,
     legal,
     canAdd,
+    pawprints,
     onAdd,
     onRemove,
 }: MultiModeRowProps) {
@@ -43,6 +46,14 @@ export default function MultiModeRow({
             <span className="text-xs text-text-disabled">
                 {formatOracleText(mode.oracleText)}
             </span>
+            {pawprints !== undefined && (
+                <span
+                    data-mode-pawprints={pawprints}
+                    className="text-xs text-text-muted"
+                >
+                    {pawprints === 1 ? "1 pawprint" : `${pawprints} pawprints`}
+                </span>
+            )}
         </span>
     );
 

@@ -49,6 +49,8 @@ export interface SpellModeIR {
     /** The bullet, without its marker and without its full stop. */
     readonly text: string;
     readonly effects: readonly EffectSentenceIR[];
+    /** CR 700.2i / 107.18 — the {P} symbols a pawprint mode prints. */
+    readonly pawprints?: number;
 }
 
 /** CR 702.34a — the cost of casting the card from a graveyard. */

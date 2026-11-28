@@ -131,3 +131,18 @@ a trigger with fewer choosable modes than its minimum has no legal choice and is
 removed from the stack (CR 603.3d). A multi-mode trigger declares no ability-level
 target groups, since no instance's script could own their slots; the catalogue
 guard refuses the shape.
+
+## Amendment (issue #10356): pawprint budgets
+
+The pawprint modes this ADR left out of scope (CR 700.2i) now ride the same
+model. A `ModeSelection` may carry `pawprintBudget`, and each of its modes a
+`ModeOption.pawprints` weight: the announcement is legal when the chosen modes'
+summed weights fit the budget, on top of the `min..max` count (`max` = the
+budget, every mode weighing at least one {P}). The check is one more clause of
+`chosenModeIdsViolation`, so the server, the picker and the Bot's
+`announceableModeCombinations` read the same answer; the enumeration prunes a
+prefix once it overspends. The budget and the weights come as a pair, and the
+catalogue guard refuses either one alone. CR 700.2i also allows choosing no mode
+at all. The announcement still requires one (`min: 1`), because a modal
+announcement with no mode is rejected everywhere else. That is the one
+simplification.

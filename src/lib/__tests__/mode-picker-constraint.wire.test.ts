@@ -23,6 +23,7 @@ import {
     canConfirmModePicks,
     chosenModeIdsFromCounts,
     modeLegalityHint,
+    modePawprintCost,
     modePickerConstraint,
     modePickerHeading,
     modePickerShortfallNote,
@@ -191,5 +192,36 @@ describe("mode picker constraint — CR 609.3 shortfall", () => {
         });
         expect(c.shortfall).toBe(false);
         expect(canConfirmModePicks(c, { draw: 1, gain: 1 })).toBe(false);
+    });
+});
+
+// CR 700.2i — a pawprint list is bounded by the summed {P} of the picks, which
+// the picker reads from the same weights the server validates.
+describe("mode picker constraint — {P} budget (CR 700.2i)", () => {
+    const PAW = [
+        { ...DRAW, pawprints: 1 },
+        { ...GAIN, pawprints: 2 },
+        { ...PING, pawprints: 3 },
+    ];
+    const c = modePickerConstraint({
+        modes: PAW,
+        selection: { min: 1, max: 5, repeats: true, pawprintBudget: 5 },
+        facts: viewerModeSelectionFacts(undefined, false),
+        isModeLegal: () => true,
+    });
+    it("reads the budget in the heading and each mode's weight", () => {
+        expect(modePickerHeading(c)).toBe(
+            "Choose up to five pawprints' worth of modes"
+        );
+        expect(modePawprintCost(c, "ping")).toBe(3);
+        expect(modePawprintCost(c, "draw")).toBe(1);
+    });
+    it("stops a pick that would overspend, though the count has room", () => {
+        expect(canAddModePick(c, { ping: 1 }, "gain")).toBe(true);
+        expect(canAddModePick(c, { ping: 1 }, "ping")).toBe(false);
+        expect(canAddModePick(c, { ping: 1, gain: 1 }, "draw")).toBe(false);
+        expect(canAddModePick(c, { gain: 2 }, "draw")).toBe(true);
+        expect(canConfirmModePicks(c, { ping: 1, gain: 1 })).toBe(true);
+        expect(canConfirmModePicks(c, { ping: 2 })).toBe(false);
     });
 });
