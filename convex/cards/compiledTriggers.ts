@@ -68,6 +68,7 @@ import { enteredTrigger } from "./abilities/triggers/enteredTrigger";
 import {
     causedByOpponent,
     leftTrigger,
+    type LeftZone,
     wasSacrificed,
 } from "./abilities/triggers/leftTrigger";
 import { entersOrLeavesTrigger } from "./abilities/triggers/entersOrLeavesTrigger";
@@ -350,11 +351,31 @@ export type CompiledTriggerHead =
      */
     | { readonly kind: "left"; readonly scope: "self" }
     /**
+     * CR 603.6c + CR 700.4 — "whenever this creature or another creature you
+     * control leaves the battlefield without dying": a permanent of yours
+     * matching `filter` moving from the battlefield to one of `toZone`
+     * (`leftTrigger`; the source's own departure is found by the look-back
+     * scan, CR 603.10a).
+     */
+    | {
+          readonly kind: "left";
+          readonly scope: "yours";
+          readonly filter: PermanentFilter;
+          readonly toZone: readonly LeftZone[];
+      }
+    /**
      * CR 603.2 / 603.6a / 603.6c — "when this permanent enters or leaves the
      * battlefield": ONE Oracle line over the source's own entry and its own
      * departure to any zone (`entersOrLeavesTrigger`). Self only.
      */
     | { readonly kind: "enters-or-leaves" }
+    /**
+     * CR 603.2 / 603.6a / 701.21a — "when this artifact enters and when you
+     * sacrifice it": ONE Oracle line over the source's own entry and its own
+     * sacrifice (`entersOrLeavesTrigger` + `wasSacrificed` on the departure
+     * half). Self only.
+     */
+    | { readonly kind: "enters-or-sacrificed" }
     /**
      * CR 701.21a — "whenever you sacrifice a <type>": a permanent YOU control
      * matching `filter` moved to its owner's graveyard as a sacrifice
@@ -875,9 +896,35 @@ function resolveCompiledTriggerHead(
                 ...(head.filter !== undefined ? { filter: head.filter } : {}),
             });
         case "left":
-            return leftTrigger({ ...common, scope: head.scope });
+            return head.scope === "self"
+                ? leftTrigger({ ...common, scope: head.scope })
+                : leftTrigger({
+                      ...common,
+                      scope: head.scope,
+                      filter: head.filter,
+                      toZone: head.toZone,
+                  });
         case "enters-or-leaves":
             return entersOrLeavesTrigger(common);
+        case "enters-or-sacrificed": {
+            // CR 701.21a — the departure half is a sacrifice, never a
+            // destroy, bounce or exile; ANDed with any compiled condition.
+            const inherited = (
+                gating as {
+                    condition?: (
+                        event: GameEvent,
+                        self: PermanentView,
+                        state?: TriggerStateView
+                    ) => boolean;
+                }
+            ).condition;
+            return entersOrLeavesTrigger({
+                ...common,
+                condition: (event, self, state) =>
+                    (event.type !== "PERMANENT_LEFT" || wasSacrificed(event)) &&
+                    (inherited === undefined || inherited(event, self, state)),
+            });
+        }
         case "sacrificed": {
             // CR 701.21a — a sacrifice, never a destroy, bounce or mill; ANDed
             // with any compiled condition the line carries.
