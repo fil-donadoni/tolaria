@@ -7161,6 +7161,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › amount reads a player's Domain — the canned generator does not seed basic lands to size it",
+            "issue": 11052
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › amount reads a selected object's mana value — not faithfully sizable in a canned scenario",
             "issue": 5266
         },
