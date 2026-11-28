@@ -53,6 +53,7 @@ import {
     isPlaneswalker,
     isExpiringAnimatedBody,
     POISON_LOSS_COUNTERS,
+    LAND_DROPS_PER_TURN,
     liveStaticDefinition,
 } from "./constants";
 import {
@@ -112,10 +113,16 @@ import { getPrintedEscape } from "./escape";
 import { getForetellCost } from "./foretell";
 import {
     canPayCost,
+    castCostTotal,
     castProbeFor,
     coversCostColors,
     type ManaUnits,
 } from "./manaAvailability";
+import {
+    deploymentShare,
+    deploymentWaits,
+    type DeploymentBase,
+} from "./ai/deploymentDelay";
 import {
     censusOf,
     newManaCensusMemo,
@@ -2499,6 +2506,160 @@ function sweptAggregateNetLoss(
 
 /** The weighted contributions of one player's resources, from their own
  *  perspective. `sumTerms` of this equals the legacy `playerScore`. */
+/** The phases of its active player's turn in which the mana they hold now
+ *  can still cast a sorcery-speed card: a main phase is still ahead or under
+ *  way (CR 305.1, 505.1). */
+function deploysThisTurn(state: GameState, player: PlayerState): boolean {
+    return (
+        state.activePlayerId === player.id &&
+        LAND_PLAY_PHASES_AHEAD.has(state.phase)
+    );
+}
+
+/** The mana base `player` deploys their hand from (`ai/deploymentDelay.ts`):
+ *  the turn under way when it is theirs (what they can spend now, the land
+ *  drop still open), else their next turn (the whole base after its untap,
+ *  CR 502.3, and its draw, CR 504.1). */
+function deploymentBaseFor(
+    state: GameState,
+    player: PlayerState,
+    census: ManaCensus
+): DeploymentBase {
+    const now = deploysThisTurn(state, player);
+    let landsInHand = 0;
+    const hand = player.hand;
+    for (let i = 0; i < hand.length; i++) if (isLand(hand[i])) landsInHand++;
+    // A land counts as one mana a turn even when the census reads it as no
+    // source (a fetch land not yet cracked, a filter land with nothing to
+    // filter): otherwise playing it would read as slowing the hand down.
+    let lands = 0;
+    let untappedLands = 0;
+    const battlefield = player.battlefield;
+    for (let i = 0; i < battlefield.length; i++) {
+        if (!isLand(battlefield[i])) continue;
+        lands++;
+        if (!battlefield[i].isTapped) untappedLands++;
+    }
+    const perTurnMana = Math.max(census.base.length, lands);
+    const library = Array.isArray(player.library) ? player.library : [];
+    let libraryLands = 0;
+    for (let i = 0; i < library.length; i++) {
+        if (isLand(library[i])) libraryLands++;
+    }
+    return {
+        firstWindowMana: now
+            ? Math.max(census.now.length, untappedLands)
+            : perTurnMana,
+        perTurnMana,
+        landsInHand,
+        libraryLandShare:
+            library.length > 0 ? libraryLands / library.length : 0,
+        // CR 305.2 — one land drop per turn; the turn under way keeps the
+        // drops it has not spent.
+        firstWindowLandDrops: now
+            ? Math.max(
+                  0,
+                  LAND_DROPS_PER_TURN - (player.landsPlayedThisTurn ?? 0)
+              )
+            : LAND_DROPS_PER_TURN,
+        firstWindowDraws: now ? 0 : 1,
+    };
+}
+
+/** The hand term: the latent worth of every card `player` holds, each
+ *  sorcery-speed one discounted by the turns it queues behind the rest of the
+ *  hand for their mana base (`ai/deploymentDelay.ts`; a card with instant
+ *  speed is held by choice and stays out of the schedule).
+ *
+ *  Latent worth (ADR 0018): each card's `cardValue`, valued against THIS
+ *  board — a targeted, board-affecting Op in its script prices at the
+ *  realised loss of its best legal victim, not at a fixed representative
+ *  permanent (issue #3398).
+ *
+ *  An exiled card this player may still PLAY is latent material exactly like
+ *  a hand card (CR 715.3d: an Adventure resolves into exile and "for as long
+ *  as that card remains exiled, that player may play it"; the impulse and
+ *  madness windows ride the same grant). It keeps its whole worth: the cost
+ *  an exile cast pays is often not its mana cost, so it is not scheduled.
+ *  So is a card exiled with a permanent this player controls whose own live
+ *  ability puts it onto the battlefield under this player's control (CR
+ *  607.2a, `ai/linkedExileReach.ts`): the permanent is the permission, and
+ *  no mana casts it, so it takes no delay.
+ *
+ *  A land is played, never cast (CR 305.1): it takes no delay and feeds the
+ *  schedule's land drops instead. */
+function heldCardsWorth(
+    state: GameState,
+    player: PlayerState,
+    weights: EvalWeights,
+    seat: SeatView,
+    pass: Layer7Pass,
+    memo: ManaCensusMemo
+): number {
+    const playable = playableExileCards(state, player);
+    const held = [
+        ...player.hand,
+        ...new Set(playable.concat(retrievableLinkedExile(state, player))),
+    ];
+    const worths: number[] = [];
+    const cast: number[] = [];
+    const castCosts: number[] = [];
+    const castWorths: number[] = [];
+    // Only a HAND card is cast for its own mana cost here: an exiled card may
+    // be cast without paying it (suspend, plot, cipher) or for another cost
+    // (foretell), so it neither queues nor takes the hand's mana.
+    const castable = new Set<CardInstanceState>(player.hand);
+    let total = 0;
+    for (let i = 0; i < held.length; i++) {
+        const c = held[i];
+        const worth = cardValue(
+            state,
+            c,
+            latentBoardFor(state, player, c, weights, seat, pass),
+            weights.latent,
+            pass,
+            weights.latentCreatureDiscount,
+            weights.latentFlashCreatureDiscount
+        );
+        worths.push(worth);
+        total += worth;
+        if (
+            weights.deploymentDelayDecay < 1 &&
+            castable.has(c) &&
+            !isLand(c) &&
+            !hasInstantSpeed(c)
+        ) {
+            cast.push(i);
+            // CR 601.2f — the total cost after every increase and reduction.
+            castCosts.push(
+                castCostTotal(getInstanceManaCost(c), {
+                    state,
+                    caster: player,
+                    card: c,
+                })
+            );
+            castWorths.push(worth);
+        }
+    }
+    if (cast.length === 0) return total;
+    const waits = deploymentWaits(
+        castCosts,
+        castWorths,
+        deploymentBaseFor(
+            state,
+            player,
+            availableManaUnitsFor(state, player, memo)
+        )
+    );
+    for (let k = 0; k < cast.length; k++) {
+        if (waits[k] === 0) continue;
+        total -=
+            worths[cast[k]] *
+            (1 - deploymentShare(waits[k], weights.deploymentDelayDecay));
+    }
+    return total;
+}
+
 function playerTerms(
     state: GameState,
     player: PlayerState,
@@ -2511,51 +2672,9 @@ function playerTerms(
     const terms: EvalTerms = {
         finiteManaUses: 0,
         life: player.life * weights.lifeWeight,
-        // Latent worth of the hand (ADR 0018): each card's `cardValue`, replacing
-        // the old flat per-card constant. A bomb in hand now outweighs a spare
-        // land, and pitching a good card for no effect is a decisive loss.
-        // Issue #3398 — each hand card is valued against THIS board: a
-        // targeted, board-affecting Op in its script prices at the realised
-        // loss of its best legal victim, not at a fixed representative
-        // permanent. Built per card (the lens is keyed on the card's own
-        // target requirements and its instance id) and memoised per slot
-        // inside, so this stays one pass over the opponent's permanents per
-        // targeted removal spell in hand.
-        //
-        // Issue #4217 — an exiled card this player may still PLAY is latent
-        // material exactly like a hand card (CR 715.3d: an Adventure resolves
-        // into exile and "for as long as that card remains exiled, that player
-        // may play it"; the impulse and madness windows ride the same grant).
-        // Priced at zero, every Adventure cast read as throwing its creature
-        // half away, and a held Adventure poisoned the whole line it was cast in.
-        //
-        // So is a card exiled with a permanent this player
-        // controls whose own live ability puts it onto the battlefield under
-        // this player's control (CR 607.2a, `ai/linkedExileReach.ts`): the
-        // permanent is the permission. Priced at zero, the exile that fills
-        // the pile was a coin flip among a graveyard's cards, and spending
-        // the retrieval on an empty pile cost nothing.
-        hand: [
-            ...player.hand,
-            ...new Set(
-                playableExileCards(state, player).concat(
-                    retrievableLinkedExile(state, player)
-                )
-            ),
-        ].reduce(
-            (sum, c) =>
-                sum +
-                cardValue(
-                    state,
-                    c,
-                    latentBoardFor(state, player, c, weights, seat, pass),
-                    weights.latent,
-                    pass,
-                    weights.latentCreatureDiscount,
-                    weights.latentFlashCreatureDiscount
-                ),
-            0
-        ),
+        // Latent worth of the hand (ADR 0018), each card discounted by the
+        // turns its owner's mana base needs to cast it (`heldCardsWorth`).
+        hand: heldCardsWorth(state, player, weights, seat, pass, memo),
         creatures: 0,
         permanents: 0,
         mana: 0,
