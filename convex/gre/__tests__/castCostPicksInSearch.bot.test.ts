@@ -15,7 +15,9 @@
 // the deterministic cheapest-first victim is carried on the move and the search
 // applies exactly what the executor later submits. These tests pin (a) that the
 // pick travels on the move, (b) that both sandboxes charge the same victim, and
-// (c) that the enumeration does NOT multiply variants per victim (K=1).
+// (c) that the enumeration does NOT multiply variants per victim (K=1). The one
+// exception, a spell that reads its victim (ADR 0091 Amendment I), is pinned in
+// `castCostVictimVariants.bot.test.ts`.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
 import { enumerateMoves, type Move } from "../moves";

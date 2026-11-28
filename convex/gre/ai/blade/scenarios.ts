@@ -34738,4 +34738,51 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: { moves: [{ kind: "pass" }] },
         note: "Issue #10464, CR 305.2. Nothing in hand needs the fourth mana, so the drop now and the drop after combat are two orders of one play, and the later one also opens the line where the drop goes to the land Laelia exiles. The search sees it (at 3000 iterations `pass` out-rewards the drop), but at 300 the deferred node's extra land decision dilutes its margin and the material tie-break took the drop. `free-development`'s deferred-drop arm keeps `pass` when it is outcome-equal and its subtree plays a land out of exile this turn that the root cannot (`Edge.exileLandTurn`).",
     },
+    {
+        // Issue #10965 — CR 608.2h / 118.8. Eldritch Evolution in hand, three
+        // Forests, a Grizzly Bears (mana value 2) and an Ornithopter (mana
+        // value 0) to sacrifice, and a Juggernaut (mana value 4) in the
+        // library. The search reads X off the victim: the Ornithopter makes
+        // X = 2 and finds nothing, the Bears make X = 4 and find Juggernaut.
+        // Before the issue the cast carried only the cheapest-first victim, so
+        // the right cast was never a Move.
+        label: "sacrificed-snapshot ceiling: Eldritch Evolution sacrifices the 2-drop, not the 0-drop",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Eldritch Evolution", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                {
+                    name: "Juggernaut",
+                    owner: "me",
+                    zone: "library",
+                    position: 1,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            predicate: (move, state) => {
+                if (move?.kind !== "cast-spell") return false;
+                const ids = move.castCostPicks?.sacrificeIds ?? [];
+                const bears = instanceIdsForName(state, "Grizzly Bears");
+                return ids.length === 1 && bears.has(ids[0]);
+            },
+            describe:
+                "casts Eldritch Evolution sacrificing Grizzly Bears (X = 4), not Ornithopter (X = 2)",
+        },
+        note: "Issue #10965, ADR 0091 Amendment I. The victim is not fungible when the spell reads the cost-sacrifice snapshot, so `enumerateCastCostPicks` offers one cast per distinct snapshot. `MoveMatcher` has no field for the cast's sacrifice picks, hence the predicate shape (as for Fireblast's alternative-cost victims).",
+    },
 ];

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted and shipped (proposed 2026-08-03; Payment Park is defined in `GLOSSARY.md` and lives in `convex/game.ts` and `convex/gre/activation.ts`). Status line corrected (2026-11-08, issue #8726).
+Accepted and shipped (proposed 2026-08-03; Payment Park is defined in `GLOSSARY.md` and lives in `convex/game.ts` and `convex/gre/activation.ts`). Status line corrected (2026-11-08, issue #8726). Amended 2026-11-28 (Amendment I, issue #10965): a sacrifice victim the spell reads is not fungible.
 
 ## Context
 
@@ -134,3 +134,43 @@ server consumers of cost-payment rules. Batching stays available later — the
 **A better live heuristic than the search's.** Rejected outright: if the executed
 payment differs from the simulated one, the evaluation that selected the move is
 a lie. A worse pick that matches beats a better pick that diverges.
+
+## Amendment I (2026-11-28, issue #10965) — a victim the spell reads is not fungible
+
+Decision 4 set K=1 for the cast-side sacrifice park on the premise that the
+victim is fungible, so the cheapest-first victim rides on the one `cast-spell`
+Move. That premise fails for a spell whose own script reads the cost-sacrifice
+snapshot (CR 608.2h): a `{ sacrificed: { read } }` value or filter field, as an
+amount (Broadside Bombardiers' damage) or as a filter (Eldritch Evolution's
+`manaValueAtMost`, Mind Extraction's `color`). There the victim decides what the
+spell does, and cheapest-first is the worst pick for the whole class: Eldritch
+Evolution sacrificing an Ornithopter searches for mana value 2 or less, so
+casting it costs a body and a card for nothing, and the cast that sacrifices the
+Grizzly Bears and finds a Juggernaut was never enumerated.
+
+**The amendment.** When the spell's script (its `effects`, a mode's `effects`,
+or the `aiEffects` shadow of a `resolve()` card) reads the snapshot, the cast
+owes exactly one submitted victim, and no alternative cost merges its permanent
+leg into the selection, `enumerateCastCostPicks` (`gre/castCostPicks.ts`) emits
+one plan per distinct victim SNAPSHOT — the characteristics the resolution can
+read (mana value, power, toughness, colours, types, subtypes) — taking the
+cheapest-first victim of each class. The head is always `planCastCostPicks`'s
+plan, so every other cast keeps K=1 unchanged. The variants are capped at
+`MAX_CAST_VICTIM_VARIANTS` (4); past it the cheapest classes and the single
+largest are kept, because the largest victim is the one a "the bigger the
+victim, the bigger the effect" spell wants. Still variants of the same Move,
+never a search node (decision 4 stands); the executor submits the named victim
+and the search sandboxes charge it, so live and search still agree.
+
+**What it does not cover.** A `resolve()` card that reads the snapshot through
+`SpellContext` (Metamorphosis, Burnt Offering) without declaring the read in an
+`aiEffects` shadow is invisible to the detector and keeps K=1. A multi-victim
+payment (a counted cost, or Drought's tax beside the card's own) keeps the
+deterministic plan, as the activation side does.
+
+**The harness follows.** The definition-level matcher (`definitionMatchesFilter`,
+`gre/alternativeCost.ts`) takes the permanents the cost could sacrifice and
+bounds a `sacrificed` ceiling by the largest of them; absent, the ceiling
+imposes none, as before. The bot-reach library pose (`botReachLibraryPut.ts`)
+and the deck-need finds (`generatedVector/deckNeeds.ts`) pass the holder's board,
+so neither counts a card no victim lets the search take.

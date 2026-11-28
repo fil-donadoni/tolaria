@@ -71,6 +71,20 @@ describe("libraryPutPose", () => {
         );
     });
 
+    // Issue #10965 — CR 608.2h. "Mana value X or less, where X is 2 plus the
+    // sacrificed creature's mana value": the find is bounded by the largest
+    // victim the holder controls (Grizzly Bears, X = 4), so Craw Wurm (6) is
+    // never posed and Juggernaut (4) is.
+    it("bounds a sacrificed-victim ceiling by the holder's own creatures", () => {
+        const evolution = getCardByName("Eldritch Evolution")!;
+        expect(
+            libraryPutPose(evolution, [], ["Grizzly Bears", "Ornithopter"])
+        ).toEqual([
+            { name: "Juggernaut", owner: "me", zone: "library", position: 1 },
+        ]);
+        expect(libraryPutPose(evolution, [], ["Ornithopter"])).toEqual([]);
+    });
+
     it("poses nothing for a search split into per-category filters", () => {
         expect(libraryPutPose(getCardByName("Gaea's Balance")!)).toEqual([]);
     });

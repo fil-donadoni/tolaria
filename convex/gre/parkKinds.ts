@@ -20,6 +20,13 @@
 //
 // Bounds this table does NOT own, and why:
 //
+//  - **`MAX_CAST_VICTIM_VARIANTS` (`gre/castCostPicks.ts`, ADR 0091
+//    Amendment I).** `cast:sacrificeSelection` stays K=1 here because its
+//    victim is fungible for every cast but one class: a spell whose script
+//    reads the cost-sacrifice snapshot (CR 608.2h), where the victim decides
+//    what the spell does. That exception is keyed on the CARD, not the park
+//    kind, so its bound lives beside `enumerateCastCostPicks`, which applies it.
+//
 //  - **The ACTIVATION-side victim enumeration (`gre/activationCostPicks.ts`,
 //    issue #2297).** `MAX_VICTIM_VARIANTS` (4) caps both the discard and the
 //    single-victim sacrifice legs of an activated ability, chosen before this
