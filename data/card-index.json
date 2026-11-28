@@ -62595,6 +62595,14 @@
         "source": "compiled"
     },
     {
+        "name": "Neoform",
+        "scryfallId": "92d8f67e-4f2f-4a1f-b190-7c3f39e477e4",
+        "oracleId": "420c6dcf-966d-4a4c-a0ef-23037ab8b325",
+        "firstSet": "war",
+        "firstPrintId": "92d8f67e-4f2f-4a1f-b190-7c3f39e477e4",
+        "firstPrintSet": "war"
+    },
+    {
         "name": "Nephalia Drownyard",
         "scryfallId": "ef058312-6926-49f8-ae72-a8d60fedbf6c",
         "oracleId": "6429b4ed-1845-4643-9a3d-85f7c12f2bba",

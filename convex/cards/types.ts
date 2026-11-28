@@ -19645,7 +19645,7 @@ export type EffectOp =
            *  happen. A spell resolving as its own source never counts as gone
            *  (`sourceAlreadyLeftBattlefield`). */
           untilSourceLeaves?: boolean;
-          /** CR 122.6 / 614.1c — counters each picked card is given AS it
+          /** CR 122.6 — counters each picked card is given AS it
            *  enters ("put that card onto the battlefield with an additional
            *  +1/+1 counter on it"), keyed like the permanent's `counters` map.
            *  The `target` shape's `entersWithCounters`, threaded to the same

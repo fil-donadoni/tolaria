@@ -4731,7 +4731,7 @@ export const OP_EXECUTORS: {
                     const authoredEntry = op.tapped
                         ? { entersTapped: true }
                         : undefined;
-                    // CR 122.6 / 614.1c — "with an additional +1/+1 counter on
+                    // CR 122.6 — "with an additional +1/+1 counter on
                     // it": placed inside the entry funnel, before the
                     // PERMANENT_ENTERED notification. The validator keeps it
                     // off `from: "hand"`.
