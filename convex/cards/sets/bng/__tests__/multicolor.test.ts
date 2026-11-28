@@ -17,13 +17,13 @@ import {
 } from "../../../../gre/layers";
 import { syncLayers2to5 } from "../../../../gre/layers2to5";
 import { projectPublicState } from "../../../../gameProjections";
-import { getCardByName, getDefinition } from "../../../index";
+import { getDefinition } from "../../../index";
 
 const xenagos = getDefinition("3184b138-1109-4195-9d96-4f190164e98b");
-const grizzlyBears = getCardByName("Grizzly Bears")!; // {1}{G}
-const kirdApe = getCardByName("Kird Ape")!; // {R}
-const ballLightning = getCardByName("Ball Lightning")!; // {R}{R}{R}
-const boggartRamGang = getCardByName("Boggart Ram-Gang")!; // {R/G}{R/G}{R/G}
+const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870"); // {1}{G}
+const kirdApe = getDefinition("ebe8845e-df1c-481c-949c-aab84af99a05"); // {R}
+const ballLightning = getDefinition("c1ba83ab-83f5-421d-bba1-0f925870b5c8"); // {R}{R}{R}
+const boggartRamGang = getDefinition("63e25b70-fa21-4663-aabd-34b7e0b75c34"); // {R/G}{R/G}{R/G}
 
 function permanent(
     defId: string,

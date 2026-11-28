@@ -6539,7 +6539,7 @@ export interface SpellContext {
      *  the number of mana symbols of that colour among the mana costs of
      *  permanents `playerId` controls (coloured pips + Phyrexian pips of
      *  `color` + hybrid pips containing `color`, CR 700.5/105.2). Read live
-     *  at call time (CR 700.5a) via `countDevotion` (`gre/layers.ts`), the
+     *  at call time (CR 700.5a) via `countDevotion` (`cards/devotion.ts`), the
      *  SAME `getInstanceManaCost` single authority the layer-5 colour system
      *  and mana-value reads share — so a copy effect / mana-cost override is
      *  honoured identically. Used by the tenth `EffectValue` grammar member
