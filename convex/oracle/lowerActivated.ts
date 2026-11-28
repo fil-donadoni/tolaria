@@ -257,6 +257,19 @@ export function lowerActivatedAbility(input: {
             reason: "an Aura removed by its own cost needs its host as last-known information, which $host (seeded from the live attachment) does not carry (CR 608.2h)",
         };
 
+    // CR 113.6m — an effect that moves the source out of the graveyard makes
+    // the ability a GRAVEYARD ability: offered and paid only while the card
+    // is there.
+    const reanimatesSelf = input.effects.some(isSelfReanimation);
+    if (
+        reanimatesSelf &&
+        !input.cost.atoms.every((a) => GRAVEYARD_PAYABLE_COST_ATOMS.has(a.kind))
+    )
+        return {
+            ok: false,
+            reason: "a cost leg naming the source, or one whose pool could hold it, is not payable while the source is in the graveyard (CR 113.6m)",
+        };
+
     const walk = new SentenceWalk(new TargetSlots(true));
     const ops: EffectOp[] = [];
     // CR 107.3 — an activated ability announces X in its ACTIVATION cost, as a
@@ -268,6 +281,7 @@ export function lowerActivatedAbility(input: {
         const result = lowerSentence(sentence, walk, {
             allowX: announcesX,
             selfName: input.cardName,
+            ...(reanimatesSelf ? { functionsFromGraveyard: true } : {}),
             ...(input.grantQuotedAbility !== undefined
                 ? { grantQuotedAbility: input.grantQuotedAbility }
                 : {}),
@@ -301,7 +315,7 @@ export function lowerActivatedAbility(input: {
     };
     // CR 113.6m — a graveyard-exile cost makes the ability a GRAVEYARD
     // ability: offered and paid only while the card is there.
-    if (input.cost.atoms.some(isGraveyardExile))
+    if (input.cost.atoms.some(isGraveyardExile) || reanimatesSelf)
         ability.activateFromGraveyard = true;
     // CR 113.6m / 701.9a — a card is discarded from the hand, so the ability
     // is offered and paid only while the card is there.
@@ -529,6 +543,31 @@ function lowerDrawingManaShape(
 function isHandExile(atom: CostAtomIR): boolean {
     return atom.kind === "exile-self-from-hand";
 }
+
+/** CR 113.6m — "Return this card from your graveyard to the battlefield
+ *  [tapped]": the effect moves the source out of the graveyard. The hand and
+ *  attached forms stay refused on this slot (no fixture). */
+function isSelfReanimation(sentence: EffectSentenceIR): boolean {
+    return (
+        sentence.kind === "return-self-from-graveyard" &&
+        sentence.to === "battlefield" &&
+        sentence.attachedTo === undefined
+    );
+}
+
+/**
+ * CR 113.6m — the cost legs a graveyard ability can pay: none names the
+ * source (it is not on the battlefield to tap, sacrifice or bear counters)
+ * and none draws from a pool the source itself sits in (a graveyard-exile
+ * picker could take the card the ability is returning). Fail-closed: a leg
+ * not listed refuses the line.
+ */
+const GRAVEYARD_PAYABLE_COST_ATOMS: ReadonlySet<CostAtomIR["kind"]> = new Set([
+    "mana",
+    "sacrifice-other",
+    "discard",
+    "tap-other",
+]);
 
 /** CR 113.6m — the "Exile this card from your graveyard" cost atom. */
 function isGraveyardExile(atom: CostAtomIR): boolean {
