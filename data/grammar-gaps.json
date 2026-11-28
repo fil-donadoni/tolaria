@@ -3012,7 +3012,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › This creature can't be blocked by creatures with power N or less",
-            "issue": 10364
+            "issue": 9938
         },
         {
             "kind": "grammar",
@@ -3202,7 +3202,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › {self} can't be blocked by creatures with power N or less",
-            "issue": 8493
+            "issue": 9938
         },
         {
             "kind": "grammar",
