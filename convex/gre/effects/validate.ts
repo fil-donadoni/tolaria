@@ -10739,7 +10739,7 @@ const SELF_REDIRECT_OPS: ReadonlySet<string> = new Set([
 
 /** The destinations `moveZone`'s announced-target executor CAN take a
  *  battlefield permanent to (`interpreter.ts`, the `target.type ===
- *  "permanent"` branch): the bounce to hand (CR 400.7) and the library insert
+ *  "permanent"` branch): the bounce to hand and the library insert
  *  (issue #1726). Every other destination from the battlefield is skipped
  *  there on purpose — exile and the graveyard have their own LTB-aware Ops
  *  (`exile`, CR 701.13a; `destroy` / `sacrifice`). */

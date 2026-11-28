@@ -89,7 +89,7 @@ export function abilitySites(card: CardDefinition): {
                 id: `${ability.id}#${mode.id}`,
                 effects: mode.effects,
                 resolve: mode.resolve,
-                // CR 700.2d — the chosen mode's own requirement drives
+                // CR 601.2c — the chosen mode's own requirement drives
                 // targeting (issue #10978: read by the battlefield `moveZone`
                 // gate). An ability mode declares one group only.
                 targetRequirement: mode.targetRequirement,
@@ -124,7 +124,7 @@ export function modeSites(card: CardDefinition): {
                 resolveSteps: undefined,
                 effect: undefined,
                 modes: undefined,
-                // CR 700.2d — only the chosen mode's groups are announced.
+                // CR 601.2c — only the chosen mode's groups are announced.
                 targetRequirement: mode.targetRequirement,
                 additionalTargetRequirements: mode.additionalTargetRequirements,
             } as CardDefinition,
