@@ -247,6 +247,8 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     "library-searched": () => true,
     // CR 702.174c — the source watches its controller give a gift.
     "gift-given": () => true,
+    // CR 700.14 — the source watches its controller pay for a spell.
+    expend: () => true,
     // CR 119.3 — the source watches its controller's life total change.
     "life-gained": () => true,
     "life-gained-or-lost": () => true,
