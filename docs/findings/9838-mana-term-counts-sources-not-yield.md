@@ -15,7 +15,7 @@ extra mana is spent.
 **Evidence.** On the blade entry `bounce land: Simic Growth Chamber taps the
 other land before returning it`, the two end-of-turn leaves (Elves cast, Chamber
 kept / Elves cast, Forest kept) scored identically term for term (`mana` 23.6
-both) before the root-clock horizon landed. The entry now passes 10/10 at 200,
+both) before the root-clock horizon landed. The entry now passes 20/20 at 200,
 400 and 800 iterations, ROBUST, but by `material-tiebreak`: the horizon lets the
 margin see the next turn, the leaf evaluation still does not.
 
