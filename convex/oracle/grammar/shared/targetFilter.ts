@@ -243,6 +243,9 @@ const SELF_NOUNS: ReadonlySet<string> = new Set([
     "Aura",
     "Equipment",
     "Vehicle",
+    // CR 205.3g — Spacecraft is an artifact type; its lines name the source
+    // "this Spacecraft" whether or not it is a creature yet (CR 702.184).
+    "Spacecraft",
     "Class",
     // CR 205.3h — a chapter line names its source by the subtype.
     "Saga",

@@ -30716,6 +30716,16 @@
         "source": "compiled"
     },
     {
+        "name": "Extinguisher Battleship",
+        "scryfallId": "5541cdd2-84a6-4667-83eb-fffbe5b3cd3d",
+        "oracleId": "cce3dcc3-57bb-4b95-8b70-337c67bb3c4e",
+        "firstSet": "eoe",
+        "firstPrintId": "5541cdd2-84a6-4667-83eb-fffbe5b3cd3d",
+        "firstPrintSet": "eoe",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Extract",
         "scryfallId": "97f99a3d-d811-4666-aac8-5957068157dc",
         "oracleId": "36e937a9-e15e-4404-bcdd-c2b0943a34ad",
@@ -65119,6 +65129,16 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "Oberth-Class Starship",
+        "scryfallId": "7efe3788-ecf7-4b56-8970-bc324092941c",
+        "oracleId": "fb5e53cf-e12e-469b-b9ea-9debc967e77e",
+        "firstSet": "trk",
+        "firstPrintId": "7efe3788-ecf7-4b56-8970-bc324092941c",
+        "firstPrintSet": "trk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Obliterate",
         "scryfallId": "cdabde40-2143-4677-b7b4-ea8fbf9b1f25",
         "oracleId": "47496941-8007-45a0-a981-76c683cbddc1",
@@ -69309,6 +69329,16 @@
         "firstSet": "eoe",
         "firstPrintId": "3c922347-f05f-40a4-bbee-6bc02a1e0de5",
         "firstPrintSet": "eoe"
+    },
+    {
+        "name": "Pinnacle Kill-Ship",
+        "scryfallId": "bf784de8-5ae2-4c07-92bb-a5b7f593b773",
+        "oracleId": "ad556aee-3dbf-4c8b-9f3a-31947e26c6f5",
+        "firstSet": "eoe",
+        "firstPrintId": "bf784de8-5ae2-4c07-92bb-a5b7f593b773",
+        "firstPrintSet": "eoe",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Pinnacle Monk // Mystic Peak",
@@ -86787,6 +86817,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sledge-Class Seedship",
+        "scryfallId": "dc0cb4b6-cc20-49ea-84b2-2f3af3b0a19e",
+        "oracleId": "bcd086ce-de5c-4b34-92a1-ece22055e479",
+        "firstSet": "eoe",
+        "firstPrintId": "dc0cb4b6-cc20-49ea-84b2-2f3af3b0a19e",
+        "firstPrintSet": "eoe",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Sleek Schooner",
         "scryfallId": "767e2bfb-bcf5-442c-b092-bdb1f4f13561",
         "oracleId": "3284010f-aeb2-493e-9252-3b953a192a94",
@@ -88869,6 +88909,16 @@
         "firstSet": "dgm",
         "firstPrintId": "e0087a98-55cf-4c8b-a180-fb0d9c336eb2",
         "firstPrintSet": "dgm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Specimen Freighter",
+        "scryfallId": "b862a9f8-2361-4220-99bd-ae2530905195",
+        "oracleId": "fb84b94c-dc8c-4182-9b96-abd092b20981",
+        "firstSet": "eoe",
+        "firstPrintId": "b862a9f8-2361-4220-99bd-ae2530905195",
+        "firstPrintSet": "eoe",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -94141,6 +94191,16 @@
         "source": "compiled"
     },
     {
+        "name": "Susurian Dirgecraft",
+        "scryfallId": "b67cdb6e-9a3b-4887-924d-318faa3c443d",
+        "oracleId": "f1d826d1-d2da-46ce-b1db-81393c88d865",
+        "firstSet": "eoe",
+        "firstPrintId": "b67cdb6e-9a3b-4887-924d-318faa3c443d",
+        "firstPrintSet": "eoe",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Suture Spirit",
         "scryfallId": "08520f97-e7f5-45fc-9423-fa6a3a507671",
         "oracleId": "4b2eba61-3937-4dc2-ad0a-e51fff8ecb80",
@@ -94158,6 +94218,16 @@
         "firstPrintId": "f769536f-def1-40b8-863f-ba12c7cb0d87",
         "firstPrintSet": "jud",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Suurok-Class Science Vessel",
+        "scryfallId": "7608943e-329e-41f9-b098-a0a94b01e6a1",
+        "oracleId": "5d2016ed-3ea0-4938-b95e-ee582307e475",
+        "firstSet": "trk",
+        "firstPrintId": "7608943e-329e-41f9-b098-a0a94b01e6a1",
+        "firstPrintSet": "trk",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -102113,6 +102183,16 @@
         "source": "compiled"
     },
     {
+        "name": "Undercity Uprising",
+        "scryfallId": "7e1e08bf-a5d6-48bb-9f7f-4711f9ec88d7",
+        "oracleId": "53e540b5-8338-4b21-a61a-c5b7fe652a6e",
+        "firstSet": "grn",
+        "firstPrintId": "7e1e08bf-a5d6-48bb-9f7f-4711f9ec88d7",
+        "firstPrintSet": "grn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Underdark Basilisk",
         "scryfallId": "ed220158-e4e3-4d46-8098-7b940a923ce9",
         "oracleId": "3b61b6da-44ed-4766-8134-fca37afd3f2a",
@@ -103213,6 +103293,16 @@
         "firstSet": "lea",
         "firstPrintId": "2ff21a6f-83a7-4bf3-a078-294e303232cc",
         "firstPrintSet": "lea",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Uthros Scanship",
+        "scryfallId": "1f93887f-35c5-472f-83d0-54227b3bd1d2",
+        "oracleId": "7b4c37dc-8cb0-4870-929e-11c2a45952a2",
+        "firstSet": "eoe",
+        "firstPrintId": "1f93887f-35c5-472f-83d0-54227b3bd1d2",
+        "firstPrintSet": "eoe",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -108239,6 +108329,16 @@
         "firstSet": "neo",
         "firstPrintId": "e73cc6a7-0a18-488c-b52a-787da95a2e6b",
         "firstPrintSet": "neo",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Wedgelight Rammer",
+        "scryfallId": "2cb0984f-dc8b-4bb3-a4fd-8d6d4ae20198",
+        "oracleId": "03259ab0-caa8-4620-b070-127e2c712252",
+        "firstSet": "eoe",
+        "firstPrintId": "2cb0984f-dc8b-4bb3-a4fd-8d6d4ae20198",
+        "firstPrintSet": "eoe",
         "rarity": "uncommon",
         "source": "compiled"
     },
