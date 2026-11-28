@@ -261,7 +261,14 @@ export type AmountIR =
      * CR 702.179f — "your speed": the controller's speed as the effect
      * resolves, 0 for a player with no speed.
      */
-    | { readonly kind: "speed" };
+    | { readonly kind: "speed" }
+    /**
+     * CR 207.2c + CR 305.6 — Domain, "the number of basic land types among
+     * lands you control": how many of the five basic land types the
+     * controller's lands carry between them, read as the effect resolves.
+     * A player's number rather than a set of objects, so no `CountedSetIR`.
+     */
+    | { readonly kind: "domain" };
 
 /**
  * CR 202.3 — the head noun of "<phrase> mana value": the pronoun, a card, or a
@@ -6069,6 +6076,8 @@ const RETURN_UP_TO_X_BOUNDED =
 const WHERE_X_IS =
     /^(.+), where X is (the number of .+|\S+ minus the number of .+|the exiled card(?:'|’)s mana value|your speed)$/;
 const EXILED_CARD_MANA_VALUE = /^the exiled card(?:'|’)s mana value$/;
+/** CR 207.2c + CR 305.6 — the controller's Domain, the one owner printed. */
+const YOUR_DOMAIN = "the number of basic land types among lands you control";
 const CARDS_IN_HAND_MINUS =
     /^the number of cards in (your|their) hand minus (\S+)$/;
 /** CR 107.1b — only "their" is printed (The Rack, Storm World). */
@@ -8558,12 +8567,14 @@ function libraryHalf(span: string, ctx: unknown) {
  *
  * Only the forms a fixture pins: a plural descriptor ("the number of Zombies
  * you control"), a hand less a printed constant or its mirror, the exiled
- * card's mana value, and the controller's speed. A clause the count cannot
+ * card's mana value, the controller's speed, and the controller's Domain. A clause the count cannot
  * express is the LOWERING's.
  */
 export function whereXAmount(tail: string, ctx: unknown): RuleResult<AmountIR> {
     // CR 702.179f — the controller's speed, read as the effect resolves.
     if (tail === YOUR_SPEED) return ok({ kind: "speed" as const });
+    // CR 207.2c + CR 305.6 — the controller's Domain, read as it resolves.
+    if (tail === YOUR_DOMAIN) return ok({ kind: "domain" as const });
     // CR 202.3 — the card the activation cost exiled; the site binds it.
     if (EXILED_CARD_MANA_VALUE.test(tail))
         return ok({
