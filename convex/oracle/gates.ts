@@ -578,6 +578,11 @@ export function runGates(input: GateInput): GateResult {
                       resolveSteps: undefined,
                       effect: undefined,
                       modes: undefined,
+                      // Only the chosen mode's groups are announced — the
+                      // battlefield `moveZone` gate reads them (issue #10978).
+                      targetRequirement: mode.targetRequirement,
+                      additionalTargetRequirements:
+                          mode.additionalTargetRequirements,
                   })
         ),
         ...(definition.activatedAbilities ?? []).flatMap((ability) =>
@@ -593,6 +598,9 @@ export function runGates(input: GateInput): GateResult {
                         id: `${ability.id}#${mode.id}`,
                         effects: mode.effects,
                         modes: undefined,
+                        // The chosen mode's requirement drives targeting,
+                        // not the ability's (issue #10978).
+                        targetRequirement: mode.targetRequirement,
                     },
                     definition.name,
                     ability.event
