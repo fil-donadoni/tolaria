@@ -546,6 +546,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery target:Planeswalker|player › dealDamage",
+            "issue": 11039
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery target:Sorcery › grantFlashback",
             "issue": 6175
         },
@@ -683,6 +688,11 @@
             "kind": "bot",
             "key": "never-chosen › Sorcery › forEach+pump",
             "issue": 4191
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery › forEach+tapUntap",
+            "issue": 11040
         },
         {
             "kind": "bot",
@@ -2447,7 +2457,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › number of set › object descriptor › basic land types among lands you control",
-            "issue": 4589
+            "issue": 11038
         },
         {
             "kind": "grammar",
