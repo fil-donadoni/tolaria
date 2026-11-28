@@ -17,13 +17,20 @@ import { describe, expect, it } from "vitest";
 import { buildBladeState } from "../ai/blade/runner";
 import { seatPlayerId } from "../ai/blade/matcher";
 import type { BladeScenario } from "../ai/blade/types";
-import { applyMoveInSearch } from "../search";
+import {
+    advanceToDecision,
+    answeredStackItemId,
+    applyMoveInSearch,
+    policyProbeState,
+    policyValue,
+} from "../search";
 import { applyMoveForSearch } from "../applyMove";
 import { enumerateMoves, type Move } from "../moves";
 import { evaluate, WIN_SCORE } from "../evaluate";
 import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
 import { latentGraveyardValue } from "../ai/graveyardReach";
 import { tryGetDefinition } from "../../cards";
+import { cloneGameState } from "../clone";
 import type { CardInstanceState, GameState } from "../state";
 
 const nameOf = (c: CardInstanceState) =>
@@ -524,5 +531,127 @@ describe("a spent escape is not charged more than the card it casts", () => {
         const cheap = credit(["Black Lotus", "Island", "Island", "Island"]);
         const dear = credit(["Lightning Bolt", "Island", "Island", "Island"]);
         expect(cheap).toBeLessThan(dear);
+    });
+});
+
+// CR 707.10c / 702.40a — a storm copy's "you may choose new targets" is a
+// `submit-target` answered while the copy sits on the stack between the spell
+// it copies and the storm trigger still making copies. The rollout's 1-ply
+// probe settled a target answer only when the answered item was ALONE on the
+// stack, so both targets read as the copy unresolved: the greedy policy aimed
+// the kill's copies at the Bot itself as often as at the opponent, and under
+// the root-clock horizon the storm kill of the entry above scored as a loss.
+describe("the rollout policy reads a storm copy's new target (CR 707.10c)", () => {
+    /** Brain Freeze at an opponent with six cards left, two spells already
+     *  cast this turn, played on to its first copy's retarget window: the two
+     *  copies at the opponent are exactly the kill (CR 704.5b), and the
+     *  original Brain Freeze below them is not needed for it. */
+    function firstCopyRetarget(): {
+        state: GameState;
+        me: string;
+        opp: string;
+    } {
+        const state = buildBladeState({
+            label: "unit",
+            spec: {
+                cards: [
+                    { name: "Brain Freeze", owner: "me", zone: "hand" },
+                    {
+                        name: "Island",
+                        owner: "me",
+                        zone: "battlefield",
+                        count: 2,
+                        tapped: false,
+                    },
+                    { name: "Island", owner: "me", zone: "library", count: 10 },
+                    { name: "Island", owner: "opp", zone: "library", count: 6 },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 3,
+                landCount: 0,
+                libraryCount: 0,
+                life: { me: 20, opp: 20 },
+                stormCount: 2,
+            },
+            bot: "me",
+            budget: { iterations: 1 },
+            tier: "stretch",
+            expect: { moves: [{ kind: "pass" }] },
+        });
+        const me = seatPlayerId(state, "me");
+        const opp = seatPlayerId(state, "opp");
+        const cast = enumerateMoves(state, me).find(
+            (m) =>
+                m.kind === "cast-spell" &&
+                m.targets?.some((t) => t.type === "player" && t.id === opp)
+        );
+        expect(cast).toBeDefined();
+        applyMoveInSearch(state, me, cast!);
+        for (
+            let i = 0;
+            i < 8 && state.pendingTarget?.kind !== "copy-retarget";
+            i++
+        ) {
+            const pid = advanceToDecision(state);
+            if (!pid) break;
+            applyMoveInSearch(state, pid, { kind: "pass" });
+        }
+        expect(state.pendingTarget?.kind).toBe("copy-retarget");
+        return { state, me, opp };
+    }
+
+    function aimAt(state: GameState, me: string, playerId: string): Move {
+        const move = enumerateMoves(state, me).find(
+            (m) =>
+                m.kind === "submit-target" &&
+                m.targets.length === 1 &&
+                m.targets[0].type === "player" &&
+                m.targets[0].id === playerId
+        );
+        expect(move).toBeDefined();
+        return move!;
+    }
+
+    function probed(state: GameState, me: string, move: Move): GameState {
+        const probe = cloneGameState(state);
+        applyMoveInSearch(probe, me, move);
+        return policyProbeState(
+            probe,
+            move,
+            DEFAULT_EVAL_WEIGHTS,
+            me,
+            false,
+            answeredStackItemId(state, me, move)
+        );
+    }
+
+    it("scores the copy aimed at the opponent above the copy aimed at itself", () => {
+        const { state, me, opp } = firstCopyRetarget();
+        const value = (playerId: string) => {
+            const move = aimAt(state, me, playerId);
+            const probe = cloneGameState(state);
+            applyMoveInSearch(probe, me, move);
+            return policyValue(
+                probe,
+                me,
+                move,
+                DEFAULT_EVAL_WEIGHTS,
+                me,
+                answeredStackItemId(state, me, move)
+            );
+        };
+        expect(value(opp)).toBeGreaterThan(value(me));
+    });
+
+    it("settles the copies down to the answered copy, never the spell it copies", () => {
+        const { state, me, opp } = firstCopyRetarget();
+        const original = state.stack.find((item) => item.isCopy !== true);
+        expect(original).toBeDefined();
+        const settled = probed(state, me, aimAt(state, me, opp));
+        // Both copies resolved at the opponent (the second answered with its
+        // best branch), 6 − 3 − 3; the original Brain Freeze still waits.
+        const oppPlayer = settled.players.find((p) => p.id === opp)!;
+        expect(oppPlayer.library.length).toBe(0);
+        expect(settled.stack.map((item) => item.id)).toEqual([original!.id]);
     });
 });

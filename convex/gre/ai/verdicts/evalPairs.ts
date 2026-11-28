@@ -50,7 +50,7 @@ import type { Move } from "../../moves";
 import type { GameState } from "../../state";
 import {
     actionCommutesWithStack,
-    answeredTriggerId,
+    answeredStackItemId,
     applyMoveInSearch,
     decidingPlayer,
     defersPastStack,
@@ -154,7 +154,7 @@ export function candidateSettledState(
         weights,
         botId,
         passEndsStep(state, botId),
-        answeredTriggerId(state, botId, move)
+        answeredStackItemId(state, botId, move)
     );
 }
 
@@ -523,7 +523,7 @@ export function unresolvedPassPairClassifier(
             weights,
             botId,
             passEndsStep(state, botId),
-            answeredTriggerId(state, botId, moves[index])
+            answeredStackItemId(state, botId, moves[index])
         );
         // A resolution suspended on a choice or a target (CR 608.2) has
         // begun: the pass did resolve the top, as far as the probe can.
@@ -596,7 +596,7 @@ export function sequencingPairClassifier(
             weights,
             botId,
             passEndsStep(state, botId),
-            answeredTriggerId(state, botId, moves[index])
+            answeredStackItemId(state, botId, moves[index])
         );
         // CR 117.3b — the active player receives priority after a spell or
         // ability resolves. The probe resolves without handing priority back
