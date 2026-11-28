@@ -158,10 +158,19 @@ The dialog lives in `src/components/board/attack-all-confirm-dialog.tsx` (a
 The pod's own "Attack with all" button stays immediate — a click is already
 deliberate, whereas Space is the same reflex keystroke that used to skip the
 attack, and a whole board declared by accident is not recoverable once
-confirmed. It is rendered by whichever controller surface is mounted (pod or
-bottom bar); exactly one mounts, so it never doubles. The dialog's `open` is
-additionally gated on "still declaring attackers, sequence inactive, ≥1
-eligible" so a phase change cannot strand it open.
+confirmed.
+
+> **Superseded in part (issue #10973, 2026-11-28).** With ≥1 eligible attacker
+> and none declared, "Attack with all" now takes the controller's centre slot
+> (Skip Attack drops to a secondary action) and its click opens this same
+> dialog — a reflex click on the big pill, where "Pass" just was, kept
+> skipping attacks. The side "Attack with all" offered beside a hand-picked
+> declaration stays immediate. Every surface's centre pill also ignores a
+> click within `PRIMARY_ARMING_WINDOW_MS` of its action changing
+> (`src/hooks/usePrimaryClickGuard.ts`). It is rendered by whichever controller surface is mounted (pod or
+> bottom bar); exactly one mounts, so it never doubles. The dialog's `open` is
+> additionally gated on "still declaring attackers, sequence inactive, ≥1
+> eligible" so a phase change cannot strand it open.
 
 ## Testing
 
