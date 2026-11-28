@@ -5635,15 +5635,40 @@ export function kickedSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
             // `assembleSentences` (`foldKickedInstead` decides which pairs
             // are one form).
             const instead = span.slice(comma + 2).match(SPELL_KICKED_INSTEAD);
-            return instead === null
-                ? parsed
-                : spellKickedInstead(
-                      inner,
-                      instead[1]!,
-                      condition.value,
-                      span,
-                      ctx
-                  );
+            if (instead !== null)
+                return spellKickedInstead(
+                    inner,
+                    instead[1]!,
+                    condition.value,
+                    span,
+                    ctx
+                );
+            // CR 702.33e + CR 608.2c — "If this spell was kicked, instead
+            // search your library for …": the same replacement with
+            // "instead" leading. Read for a library search alone, the one
+            // replacement the corpus prints this way that
+            // `foldKickedInstead` pairs (`isOwnLibrarySearchChain`).
+            const leading = span
+                .slice(comma + 2)
+                .match(SPELL_KICKED_LEADING_INSTEAD);
+            if (leading === null) return parsed;
+            const replaced = spellKickedInstead(
+                inner,
+                leading[1]!,
+                condition.value,
+                span,
+                ctx
+            );
+            if (
+                replaced.ok &&
+                replaced.value.role === "kicked-instead" &&
+                !isOwnLibrarySearchChain(replaced.value.replacement)
+            )
+                return fail(
+                    '"If this spell was kicked, instead …" is read for a library search only',
+                    span
+                );
+            return replaced;
         }
         if (
             tail.bound &&
@@ -7946,8 +7971,17 @@ function foldKickedInstead(
         replacement.kind === "destroy" &&
         previous.subject.kind === "mass" &&
         replacement.subject.kind === "mass";
-    if (!damageSweeps && !destroySweeps)
-        return '"If it was kicked, … instead" replaces a sweep with a sweep of the same verb';
+    // CR 701.23a + CR 702.33e — a search of the controller's own library
+    // replaced by a larger one put into the SAME zone the same way (Grow from
+    // the Ashes): a search announces nothing, so neither branch has an object
+    // the other must keep.
+    const librarySearches =
+        isOwnLibrarySearchChain(previous) &&
+        isOwnLibrarySearchChain(replacement) &&
+        JSON.stringify(searchDestination(previous)) ===
+            JSON.stringify(searchDestination(replacement));
+    if (!damageSweeps && !destroySweeps && !librarySearches)
+        return '"If it was kicked, … instead" replaces a sweep with a sweep of the same verb, or a library search with a library search';
     return {
         kind: "replace-if-kicked",
         kicked: sentence.kicked,
@@ -7990,6 +8024,44 @@ const KICKED_INSTEAD = /^If it was kicked, (.+) instead$/;
 /** CR 702.33e — the spell-site replacement tail, after "If this spell was
  *  kicked, ". */
 const SPELL_KICKED_INSTEAD = /^(.+) instead$/;
+/** CR 702.33e — the same tail with "instead" leading it. */
+const SPELL_KICKED_LEADING_INSTEAD = /^instead (.+)$/;
+
+/**
+ * CR 701.23a — "Search your library for <cards>, put <them> <somewhere>, then
+ * shuffle": a bare three-frame chain over the controller's own library, the
+ * find moved by its pronoun and nothing announced. Any rider the chain
+ * carries (a reveal, a reflexive "if you do", a following play grant) is
+ * another form.
+ */
+function isOwnLibrarySearchChain(effect: EffectSentenceIR): boolean {
+    if (effect.kind !== undefined) return false;
+    if (
+        Object.entries(effect).some(
+            ([key, value]) => key !== "frames" && value !== undefined
+        )
+    )
+        return false;
+    const [search, move, shuffle, ...rest] = effect.frames;
+    return (
+        rest.length === 0 &&
+        search?.frame === "search" &&
+        search.reveal === undefined &&
+        move?.frame === "moveZone" &&
+        move.object.kind === "pronoun" &&
+        shuffle?.frame === "shuffle" &&
+        shuffle.player === "you"
+    );
+}
+
+/** Where a library search chain puts its find, and how (CR 110.5b). */
+function searchDestination(effect: EffectSentenceIR): unknown {
+    if (effect.kind !== undefined) return null;
+    const move = effect.frames[1];
+    return move?.frame === "moveZone"
+        ? { to: move.to, tapped: move.tapped, under: move.under ?? null }
+        : null;
+}
 /** CR 702.33e + CR 202.3 — the spell-site re-bound, whole. */
 const KICKED_BOUND_INSTEAD =
     /^destroy that (\w+) if its mana value is (\d+) or less instead$/;
