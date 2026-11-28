@@ -13158,6 +13158,16 @@
         "source": "compiled"
     },
     {
+        "name": "Call to Heel",
+        "scryfallId": "0206c951-e38f-43ae-b4d2-0c71b6ccf8b1",
+        "oracleId": "8ef3dd68-f6a1-43b9-8837-40b326019b1b",
+        "firstSet": "ala",
+        "firstPrintId": "0206c951-e38f-43ae-b4d2-0c71b6ccf8b1",
+        "firstPrintSet": "ala",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Call to Mind",
         "scryfallId": "a7f570b1-e221-468c-a809-a79a56a51ced",
         "oracleId": "72e2b883-a284-4ab6-8174-1ca289141a49",
@@ -48196,6 +48206,16 @@
         "source": "compiled"
     },
     {
+        "name": "Introduction to Annihilation",
+        "scryfallId": "b0bc4682-bcaf-4f51-be0b-9f2851a16e3b",
+        "oracleId": "60e36f86-e284-468e-8073-07f19a3ed65e",
+        "firstSet": "stx",
+        "firstPrintId": "b0bc4682-bcaf-4f51-be0b-9f2851a16e3b",
+        "firstPrintSet": "stx",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Introduction to Prophecy",
         "scryfallId": "7820923e-bad2-4d6a-92b3-97b9737d2ca9",
         "oracleId": "9ae1fded-2e77-498a-98e7-4a4908447175",
@@ -81561,6 +81581,16 @@
         "firstSet": "fem",
         "firstPrintId": "c5266aa1-e2ea-46b9-91ab-b94a7bb7e9f9",
         "firstPrintSet": "fem"
+    },
+    {
+        "name": "Season of the Burrow",
+        "scryfallId": "33bf9c60-4e58-48a4-8e53-abef7ab3b671",
+        "oracleId": "8e013e51-1684-4f58-8fe1-3588b6fbb5b5",
+        "firstSet": "blb",
+        "firstPrintId": "33bf9c60-4e58-48a4-8e53-abef7ab3b671",
+        "firstPrintSet": "blb",
+        "rarity": "mythic",
+        "source": "compiled"
     },
     {
         "name": "Season of the Witch",

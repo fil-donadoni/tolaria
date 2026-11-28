@@ -328,6 +328,8 @@ export function lowerSpellModes(
         if (body.value.additionalTargetRequirements !== undefined)
             lowered.additionalTargetRequirements =
                 body.value.additionalTargetRequirements;
+        // CR 700.2i — the mode's {P} weight against the head's budget.
+        if (mode.pawprints !== undefined) lowered.pawprints = mode.pawprints;
         out.push(lowered);
     }
     return { ok: true, value: out };

@@ -36,6 +36,19 @@ import { withoutAbilityWord } from "./shared/effectClause";
 export const BULLET = "•";
 
 /**
+ * CR 700.2i / 107.18 — a pawprint mode line: one or more {P} symbols, then an
+ * em dash, where a bulleted list prints its bullet. Structurally a mode line
+ * exactly as a bullet is, so it attaches to the line before it by the same
+ * rule; what the symbols WEIGH is the slot grammar's to read.
+ */
+export const PAWPRINT_MODE_LINE = /^((?:\{P\})+) — /;
+
+/** Whether `line` opens as a CR 700.2 mode line (a bullet or a pawprint). */
+function isModeLine(line: string): boolean {
+    return line.startsWith(`${BULLET} `) || PAWPRINT_MODE_LINE.test(line);
+}
+
+/**
  * How a grouped line rejoins its parts.
  *
  * `normalize.ts` has already collapsed every run of whitespace inside a line
@@ -72,7 +85,7 @@ export function groupLines(lines: readonly string[]): GroupResult {
                 reason: "a normalised line contains the group separator",
                 fragment: line,
             };
-        if (!line.startsWith(`${BULLET} `)) {
+        if (!isModeLine(line)) {
             // CR 608.2c — a conditional replacement of mana ("Threshold — Add
             // {B}{B}{B}{B}{B} instead if there are seven or more cards in your
             // graveyard.") is printed as a line of its own but is a SENTENCE of

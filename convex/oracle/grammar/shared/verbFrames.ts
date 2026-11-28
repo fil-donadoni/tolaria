@@ -311,6 +311,13 @@ export type FrameIR =
           readonly tapped: boolean;
           /** CR 110.2a — "onto the battlefield under your control". */
           readonly under?: "you";
+          /**
+           * CR 122.6 + CR 122.1b — "to the battlefield with an indestructible
+           * counter on it": the keyword counter the permanent ENTERS with, so
+           * no "enters" watcher sees it arrive bare. Only the keyword counter
+           * the corpus prints in this frame is read.
+           */
+          readonly withCounter?: "indestructible";
           /** The member as printed, the prompt a chooser reads. */
           readonly phrase: string;
       }
@@ -1343,6 +1350,8 @@ const PUT_SPLIT = /^(.+?) (into|onto|on) (.+)$/;
 /** "return <object> to <zone>" — the LAST " to " splits (CR 400.3 zones). */
 const UNDER_YOUR_CONTROL = " under your control";
 const TAPPED = " tapped";
+/** CR 122.6 — the entry-counter rider closing a battlefield destination. */
+const WITH_INDESTRUCTIBLE_COUNTER = " with an indestructible counter on it";
 /** CR 400.3 — the plural owners' hands a sweep returns to. */
 const THEIR_OWNERS_HANDS = "their owners' hands";
 const THEIR_OWNERS_HAND = "their owner's hand";
@@ -1851,6 +1860,11 @@ function readMoveMember(
     let rest = verb[2]!;
     let under = false;
     let tapped = false;
+    let withCounter = false;
+    if (rest.endsWith(WITH_INDESTRUCTIBLE_COUNTER)) {
+        withCounter = true;
+        rest = rest.slice(0, -WITH_INDESTRUCTIBLE_COUNTER.length);
+    }
     if (rest.endsWith(UNDER_YOUR_CONTROL)) {
         under = true;
         rest = rest.slice(0, -UNDER_YOUR_CONTROL.length);
@@ -1908,12 +1922,19 @@ function readMoveMember(
         sweepDestination
     );
     if (refused !== null) return fail(refused, lower);
+    // CR 122.6 — a counter a permanent enters with names a battlefield entry.
+    if (withCounter && to.value.zone !== "battlefield")
+        return fail(
+            '"with a counter on it" is printed only with a battlefield destination (CR 122.6)',
+            lower
+        );
     return ok({
         frame: "moveZone",
         object: object.value,
         to: to.value,
         tapped,
         ...(under ? { under: "you" as const } : {}),
+        ...(withCounter ? { withCounter: "indestructible" as const } : {}),
         phrase: lower,
     });
 }
