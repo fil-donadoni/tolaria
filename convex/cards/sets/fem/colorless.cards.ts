@@ -342,6 +342,10 @@ export const conchHorn = defineCard(() => ({
     ],
 }));
 
+// Ring of Renewal — {5} Artifact. "{5}, {T}: Discard a card at random, then
+// draw two cards." CR 602.1a — the activation cost is everything before the
+// colon, so the random discard is part of the EFFECT (CR 701.9a): it happens
+// on resolution, and an empty hand still lets the ability be activated.
 export const ringOfRenewal = defineCard(() => ({
     id: "a532d38a-809b-4132-8690-be15fe23afab", // FEM 89
     rarity: "rare",
@@ -354,9 +358,12 @@ export const ringOfRenewal = defineCard(() => ({
             id: "ring-of-renewal",
             oracleText:
                 "{5}, {T}: Discard a card at random, then draw two cards.",
-            cost: { mana: { X: 5 }, tap: true, discardAtRandom: 1 },
+            cost: { mana: { X: 5 }, tap: true },
             useStack: true,
-            effects: [{ op: "draw", player: "controller", count: 2 }],
+            effects: [
+                { op: "discardAtRandom", player: "controller", count: 1 },
+                { op: "draw", player: "controller", count: 2 },
+            ],
         },
     ],
 }));

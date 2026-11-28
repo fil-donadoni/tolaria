@@ -39,6 +39,8 @@ import {
     makeState,
 } from "../../cards/__tests__/setup.helper";
 import type { GameState } from "../state";
+import type { CardDefinition } from "../../cards/types";
+import { withTemporaryDefinition } from "../../cards/registry";
 
 const BOT = "p2";
 const OPP = "p1";
@@ -58,6 +60,27 @@ const JANDORS_RING = getCardByName("Jandor's Ring").id;
 const CORAL_HELM = getCardByName("Coral Helm").id;
 const HARVESTER = getCardByName("Harvester of Misery").id;
 const RING_OF_RENEWAL = getCardByName("Ring of Renewal").id;
+/** CR 118.3 — an untargeted ability whose COST discards a card at random,
+ *  registered under Ring of Renewal's id for the tests that need one: the
+ *  printed Ring discards on resolution (CR 602.1a), and the printed costs of
+ *  this shape (Coral Helm, Meteor Storm) target, which opens target selection
+ *  before the cost is validated. */
+const RANDOM_DISCARD_COST: CardDefinition = {
+    ...getCardByName("Ring of Renewal"),
+    oracleText: "{5}, {T}, Discard a card at random: Draw two cards.",
+    activatedAbilities: [
+        {
+            id: "ring-of-renewal",
+            oracleText: "{5}, {T}, Discard a card at random: Draw two cards.",
+            cost: { mana: { X: 5 }, tap: true, discardAtRandom: 1 },
+            useStack: true,
+            effects: [{ op: "draw", player: "controller", count: 2 }],
+        },
+    ],
+};
+function withRandomDiscardCost(fn: () => void): void {
+    withTemporaryDefinition(RANDOM_DISCARD_COST, fn);
+}
 const ISLAND = getCardByName("Island").id;
 const METEOR_STORM = getCardByName("Meteor Storm").id;
 const LILIANA_VEIL = getCardByName("Liliana of the Veil").id;
@@ -1009,33 +1032,35 @@ describe("enumerateAbilityMoves affordability parity with the server (#1920 revi
         });
     }
 
-    it("does not offer a discardAtRandom activation with an EMPTY hand (CR 118.3)", () => {
-        // The leg whose payer does not throw: `payDiscardAtRandomCost` clamps to
-        // hand size, so an empty hand was a silent no-op that still bought the
-        // ability's effect. "Safe from throwing" and "legal" are different
-        // properties, and only the second one is the server's rule.
-        const state = ringWithHand(0);
-        expect(activationOf(state, "ring")).toBeUndefined();
-        expect(() =>
-            activateAbilityOnState(cloneGameState(state), {
-                playerId: BOT,
-                cardInstanceId: "ring",
-                abilityId: "ring-of-renewal",
-            })
-        ).toThrow(/No card in hand to discard/);
-    });
+    it("does not offer a discardAtRandom activation with an EMPTY hand (CR 118.3)", () =>
+        withRandomDiscardCost(() => {
+            // The leg whose payer does not throw: `payDiscardAtRandomCost` clamps to
+            // hand size, so an empty hand was a silent no-op that still bought the
+            // ability's effect. "Safe from throwing" and "legal" are different
+            // properties, and only the second one is the server's rule.
+            const state = ringWithHand(0);
+            expect(activationOf(state, "ring")).toBeUndefined();
+            expect(() =>
+                activateAbilityOnState(cloneGameState(state), {
+                    playerId: BOT,
+                    cardInstanceId: "ring",
+                    abilityId: "ring-of-renewal",
+                })
+            ).toThrow(/No card in hand to discard/);
+        }));
 
-    it("still offers it with a single card in hand", () => {
-        const state = ringWithHand(1);
-        expect(activationOf(state, "ring")).toBeDefined();
-        expect(() =>
-            activateAbilityOnState(cloneGameState(state), {
-                playerId: BOT,
-                cardInstanceId: "ring",
-                abilityId: "ring-of-renewal",
-            })
-        ).not.toThrow();
-    });
+    it("still offers it with a single card in hand", () =>
+        withRandomDiscardCost(() => {
+            const state = ringWithHand(1);
+            expect(activationOf(state, "ring")).toBeDefined();
+            expect(() =>
+                activateAbilityOnState(cloneGameState(state), {
+                    playerId: BOT,
+                    cardInstanceId: "ring",
+                    abilityId: "ring-of-renewal",
+                })
+            ).not.toThrow();
+        }));
 
     it("offers a TWO-card random discard against a ONE-card hand — emptiness, not count", () => {
         // The boundary the predicate actually draws, and it needs a cost whose
@@ -1079,23 +1104,26 @@ describe("enumerateAbilityMoves affordability parity with the server (#1920 revi
         ).not.toThrow();
     });
 
-    it("the fail-closed door covers it too — a hand-built move reports and is not pushed", () => {
-        const state = ringWithHand(0);
-        const handBuilt: Move = {
-            kind: "activate-ability",
-            cardInstanceId: "ring",
-            abilityId: "ring-of-renewal",
-            targets: [],
-            confirmTargets: false,
-            tapPlan: [],
-        };
-        expect(applyActivationCostsForSearch(state, BOT, handBuilt)).toBe(
-            false
-        );
-        const leaf = cloneGameState(state);
-        applyMoveInSearch(leaf, BOT, handBuilt);
-        expect(leaf.stack.filter((i) => i.abilityId !== undefined)).toEqual([]);
-    });
+    it("the fail-closed door covers it too — a hand-built move reports and is not pushed", () =>
+        withRandomDiscardCost(() => {
+            const state = ringWithHand(0);
+            const handBuilt: Move = {
+                kind: "activate-ability",
+                cardInstanceId: "ring",
+                abilityId: "ring-of-renewal",
+                targets: [],
+                confirmTargets: false,
+                tapPlan: [],
+            };
+            expect(applyActivationCostsForSearch(state, BOT, handBuilt)).toBe(
+                false
+            );
+            const leaf = cloneGameState(state);
+            applyMoveInSearch(leaf, BOT, handBuilt);
+            expect(leaf.stack.filter((i) => i.abilityId !== undefined)).toEqual(
+                []
+            );
+        }));
 });
 
 describe("review repro (#1920 finding 2) — a counter cost is not free at the root", () => {

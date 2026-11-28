@@ -156,6 +156,8 @@ interface Accumulator {
     extraLandDrops: number;
     /** CR 401.5 — a "play with the top card of your library revealed" line. */
     revealsLibraryTop: boolean;
+    /** CR 701.18c — a "Your opponents play with their hands revealed" line. */
+    revealsHand: "opponents" | undefined;
     /** CR 401.5 — "You may look at the top card of your library any time". */
     looksAtLibraryTop: boolean;
     /** CR 305.1-analog — "You may play lands from your graveyard". */
@@ -899,6 +901,8 @@ function lowerLine(
                 acc.extraLandDrops += out.extraLandDrops;
             if (out.revealsLibraryTop !== undefined)
                 acc.revealsLibraryTop = true;
+            if (out.revealsHand !== undefined)
+                acc.revealsHand = out.revealsHand;
             if (out.looksAtLibraryTop !== undefined)
                 acc.looksAtLibraryTop = true;
             if (out.graveyardLandPlay === true) acc.graveyardLandPlay = true;
@@ -1520,6 +1524,7 @@ export function lowerCard(
         compiledReplacements: [],
         extraLandDrops: 0,
         revealsLibraryTop: false,
+        revealsHand: undefined,
         looksAtLibraryTop: false,
         graveyardLandPlay: false,
         castableFromOwnGraveyard: false,
@@ -1935,6 +1940,9 @@ export function lowerCard(
     if (acc.extraLandDrops > 0) definition.extraLandDrops = acc.extraLandDrops;
     // CR 401.5 — the reveal scope is a flat field read live off the battlefield.
     if (acc.revealsLibraryTop) definition.revealsLibraryTop = "controller";
+    // CR 701.18c + CR 402.3 — the revealed-hands scope, the same flat
+    // live-read field (`computeHandRevealedPlayers`).
+    if (acc.revealsHand !== undefined) definition.revealsHand = acc.revealsHand;
     // CR 401.5 — the private look scope, the same flat live-read field.
     if (acc.looksAtLibraryTop) definition.looksAtLibraryTop = "controller";
     // CR 305.1-analog — the unlimited land row of the graveyard play

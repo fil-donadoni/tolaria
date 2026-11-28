@@ -4088,6 +4088,8 @@ function lowerSentenceBody(
                 return unlowerable(
                     "an optional delayed draw is chosen at the delayed trigger, not here"
                 );
+            if (sentence.player?.kind === "target")
+                return lowerTargetPlayerOptional(sentence, walk, site);
             if (sentence.player !== undefined)
                 return lowerOptionalSacrificeByActedOn(sentence, walk);
             if (isForageSentence(sentence.effect))
@@ -7193,6 +7195,39 @@ function lowerOptionalForage(
     return lowered([
         forage,
         { op: "if", predicate: { binding: bind }, then: gated.value },
+    ]);
+}
+
+/**
+ * CR 608.2d — "Target opponent may draw a card": the announced player makes
+ * the choice as the effect is applied, and declining does nothing. A
+ * cost-free `mayPay` asked of that player, whose bind gates the draw; the
+ * chooser is the SAME slot the inner draw announced, so the player is
+ * targeted once (CR 115.1).
+ */
+function lowerTargetPlayerOptional(
+    sentence: Extract<EffectSentenceIR, { kind: "optional" }>,
+    walk: SentenceWalk,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
+    if (sentence.effect.kind !== "draw" || sentence.then !== undefined)
+        return unlowerable(
+            "an announced player's option is read only over that player's own draw"
+        );
+    const inner = gatedSentence(sentence.effect, walk, site);
+    if (!inner.ok) return inner;
+    const draw = inner.value[0];
+    if (inner.value.length !== 1 || draw?.op !== "draw")
+        return unlowerable("an announced player's option gates one draw");
+    const bind = walk.nextBind("may");
+    return lowered([
+        {
+            op: "mayPay",
+            player: draw.player,
+            prompt: `${capitalise(sentence.clause)}?`,
+            bind,
+        },
+        { op: "if", predicate: { binding: bind }, then: [draw] },
     ]);
 }
 
