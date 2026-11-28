@@ -20,7 +20,7 @@ import { cloneGameState } from "../../clone";
 import { evaluate } from "../../evaluate";
 import type { GameState } from "../../state";
 import {
-    answeredTriggerId,
+    answeredStackItemId,
     applyMoveInSearch,
     decidingPlayer,
     policyProbeState,
@@ -184,7 +184,7 @@ describe("1-ply probe — a trigger-target answer reads its trigger resolved (CR
             DEFAULT_EVAL_WEIGHTS,
             bot,
             false,
-            answeredTriggerId(answered, bot, giant)
+            answeredStackItemId(answered, bot, giant)
         );
         expect(settled.stack).toHaveLength(1);
     });

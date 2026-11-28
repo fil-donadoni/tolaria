@@ -10914,9 +10914,15 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         //     sacrifice-cost mana source leaving the battlefield;
         //   - the graveyard is worth filling: the `graveyard` eval term;
         //   - milling the opponent out is a WIN: the `library` term and
-        //     `deckOutDelta`.
+        //     `deckOutDelta`;
+        //   - the rollout aims the storm copies at the opponent: the 1-ply
+        //     probe settles a spell copy's new target (CR 707.10c,
+        //     `policyProbeState`). Unsettled, both targets read alike and the
+        //     last copy went at the Bot itself in about a third of the
+        //     rollouts, so under the root-clock horizon the kill sat near the
+        //     loss floor and seed 1 fell to a `material-tiebreak` Bolt.
         //
-        // MEASURED on the commit that added the three (all absent), on the
+        // MEASURED on the commit that added the first three (all absent), on the
         // entry's first pose (both libraries at 9), at 400 AND 1200
         // iterations: the bot cast the Lightning Bolt from the graveyard and
         // then had nothing, leaving the opponent at 8 cards.
@@ -10962,7 +10968,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 { kind: "cast-spell", card: "Brain Freeze", target: "opp" },
             ],
         },
-        note: "Guards all three halves of the Underworld Breach probe at once: the search-side sacrifice model (`applyTapPlanInSearch`), the `graveyard` eval term, and the `library` term plus `deckOutDelta`. Red before them at 400 and 1200 iterations on the first pose (both libraries at 9) — it cast Lightning Bolt from the graveyard and stopped, leaving the opponent at 8 cards instead of 0. Not paired: a positive `moves` expectation stands alone (ADR 0070 §1 concerns `forbidden` halves).",
+        note: "Guards the four pieces of the Underworld Breach probe at once: the search-side sacrifice model (`applyTapPlanInSearch`), the `graveyard` eval term, the `library` term plus `deckOutDelta`, and the rollout probe's reading of a storm copy's new target (`policyProbeState`). Under `horizon-b` without the last, seed 1 picked the graveyard Bolt by `material-tiebreak` (Brain Freeze 0.138 mean reward against Bolt 0.121); with it, Brain Freeze by `mean-reward` on every seed (0.34 to 0.35 against at most 0.16). Red before them at 400 and 1200 iterations on the first pose (both libraries at 9) — it cast Lightning Bolt from the graveyard and stopped, leaving the opponent at 8 cards instead of 0. Not paired: a positive `moves` expectation stands alone (ADR 0070 §1 concerns `forbidden` halves).",
     },
     {
         // Issue #3231 — an empty library is a WIN under a draw-replacement win

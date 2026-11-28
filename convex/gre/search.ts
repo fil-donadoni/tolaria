@@ -2451,35 +2451,57 @@ export function policyValue(
     move: Move,
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
     moverId?: string,
-    answeredTrigger?: string
+    answeredItem?: string
 ): number {
     return policyValueOfSettled(
-        policyProbeState(probe, move, weights, moverId, false, answeredTrigger),
+        policyProbeState(probe, move, weights, moverId, false, answeredItem),
         botId,
         weights
     );
 }
 
-/** The stack id of the trigger whose raised target selection (CR 603.3d)
- *  `move` answers from `state`, or `undefined` when `move` answers none — not
- *  a `submit-target`, or `pid` owes no raised trigger selection there.
+/** The stack id of the item whose raised target selection `move` answers
+ *  from `state` — a trigger announcing its targets (CR 603.3d) or a spell
+ *  copy offered new ones (CR 707.10c) — or `undefined` when `move` answers
+ *  none: not a `submit-target`, or `pid` owes no such selection there.
  *
  *  Read on the state BEFORE the move applies: once the answer completes the
  *  selection, `pendingTarget` is gone and nothing on the post-move state says
  *  which stack item the answer was for. `policyProbeState` settles the
- *  answered trigger only when it is this one, so a retarget's spell
+ *  answered item only when it is this one, so a retarget's spell
  *  (CR 115.7) or a stale submission's no-op on a world past the selection
  *  never resolves somebody else's stack item as the answer's payoff. */
-export function answeredTriggerId(
+export function answeredStackItemId(
     state: GameState,
     pid: string,
     move: Move
 ): string | undefined {
     if (move.kind !== "submit-target") return undefined;
     const pt = raisedPendingTargetOwedBy(state, pid);
-    return pt && resolvePendingTargetKind(pt.kind) === "trigger"
+    if (!pt) return undefined;
+    const kind = resolvePendingTargetKind(pt.kind);
+    return kind === "trigger" || kind === "copy-retarget"
         ? pt.cardInstanceId
         : undefined;
+}
+
+/** The stack depth of the spell copy `answered` names, when the probe may
+ *  settle down to it: the copy is `moverId`'s and so is every item above it
+ *  (the effect still making copies). -1 otherwise — no such copy, a trigger
+ *  (the lone-trigger branch's), or somebody else's item above it, whose
+ *  resolution is not what the answer did. */
+function answeredCopyDepth(
+    probe: GameState,
+    answered: string | undefined,
+    moverId: string
+): number {
+    if (answered === undefined) return -1;
+    const depth = probe.stack.findIndex((item) => item.id === answered);
+    if (depth < 0 || probe.stack[depth].isCopy !== true) return -1;
+    for (let i = depth; i < probe.stack.length; i++) {
+        if (probe.stack[i].controllerId !== moverId) return -1;
+    }
+    return depth;
 }
 
 /** The stack depth of the object `move` announced — the spell a cast put
@@ -2529,9 +2551,10 @@ export function policyProbeState(
     // cast past the step end costs a wide fan-out a step change per
     // candidate (a 400-iteration Vindicate entry measured 21 s → 116 s).
     passHorizon = false,
-    // `answeredTriggerId` of the move on the PRE-move state: the trigger a
-    // `submit-target` answered, the only one its probe may settle.
-    answeredTrigger?: string
+    // `answeredStackItemId` of the move on the PRE-move state: the trigger
+    // or spell copy a `submit-target` answered, the only one its probe may
+    // settle.
+    answeredItem?: string
 ): GameState {
     // The depth the move's own announcement sits on — everything below it
     // belongs to somebody else. -1 when the move put nothing on the stack.
@@ -2631,12 +2654,13 @@ export function policyProbeState(
         // or an activation's announcement is left alone: it fans out over
         // every target of every cast in the rollout's hot loop, and its
         // resolution is the cast branch's job above. The lone item must be
-        // the trigger the answer was FOR (`answeredTrigger`, issue #7813): a
+        // the trigger the answer was FOR (`answeredItem`, issue #7813): a
         // lone trigger the move did not target is somebody else's.
         moverId &&
         move.kind === "submit-target" &&
         probe.stack.length === 1 &&
-        probe.stack[0].id === answeredTrigger &&
+        probe.stack[0].id === answeredItem &&
+        probe.stack[0].isCopy !== true &&
         !probe.pendingTarget &&
         (probe.pendingChoices?.length ?? 0) === 0
     ) {
@@ -2650,6 +2674,35 @@ export function policyProbeState(
             undefined,
             true
         );
+    } else if (
+        // CR 707.10c — the answer chose a spell COPY's new targets. The copy
+        // already sits on the stack, under the effect still making copies
+        // (a storm trigger, CR 702.40a) and over the spell it copies, so it is
+        // never alone and the lone-trigger branch above never reads it: both
+        // targets then scored as the copy unresolved, and the rollout aimed a
+        // storm kill's last copy at the Bot itself half the time. What the
+        // answer did is the copy's resolution, and that of every item the
+        // copying effect still puts above it, so the probe settles down to the
+        // copy's depth and never below: the spell it copies, and anything
+        // under that, is not this answer's payoff.
+        moverId &&
+        move.kind === "submit-target" &&
+        !probe.pendingTarget &&
+        (probe.pendingChoices?.length ?? 0) === 0
+    ) {
+        const floor = answeredCopyDepth(probe, answeredItem, moverId);
+        if (floor >= 0) {
+            settled = settleStackForBreakdown(
+                probe,
+                moverId,
+                weights,
+                0,
+                { left: MAX_CHOICE_BRANCH_WORK },
+                floor,
+                undefined,
+                true
+            );
+        }
     }
     if (passHorizon && announcedDepth === 0) readAtPassHorizon(settled);
     return settled;
@@ -2807,7 +2860,7 @@ export function selectRolloutMove(
                 move,
                 weights,
                 pid,
-                answeredTriggerId(state, pid, move)
+                answeredStackItemId(state, pid, move)
             ),
             weights
         );
@@ -3468,7 +3521,7 @@ export function settledAnswerReward(
         weights,
         pid,
         false,
-        answeredTriggerId(world, pid, move)
+        answeredStackItemId(world, pid, move)
     );
     if (
         settled.stack.length > 0 ||
@@ -4076,7 +4129,7 @@ export function computeActionPriors(
                 k.move,
                 weights,
                 pid,
-                answeredTriggerId(state, pid, k.move)
+                answeredStackItemId(state, pid, k.move)
             );
             cache?.set(k.key, raw);
         }
@@ -5033,12 +5086,12 @@ export function settleStackForBreakdown(
  *  it the entry point's early-out would answer `complete: true` for the same
  *  state (PR review finding A3).
  *
- *  The choice arm is FLOOR-BLIND, deliberately and only safely while every
- *  caller passes `floorDepth: 0` (`policyValue` passes 0 or does not settle at
- *  all; every other call site takes the default). A trigger batch raised as the
+ *  The choice arm is FLOOR-BLIND, deliberately. A trigger batch raised as the
  *  stack empties legitimately sits AT the floor, so the floor cannot gate it by
- *  depth — a non-zero floor would have to ask which stack item raised the
- *  choice instead, and there is no caller to measure that against today. */
+ *  depth. Every caller passes `floorDepth: 0` but one: `policyProbeState`
+ *  settling an answered spell copy down to the copy's depth, which it enters
+ *  with no choice queued, so every choice that settle meets was raised by an
+ *  item above the floor resolving. */
 function settleHasWork(state: GameState, floorDepth: number): boolean {
     return (
         state.stack.length > floorDepth ||
@@ -8161,7 +8214,7 @@ export function waitsUnchanged(
             weights,
             pid,
             false,
-            answeredTriggerId(state, pid, move)
+            answeredStackItemId(state, pid, move)
         );
     } catch {
         return false;
@@ -8777,7 +8830,7 @@ function firingBeatsHolding(
             move,
             weights,
             pid,
-            answeredTriggerId(state, pid, move)
+            answeredStackItemId(state, pid, move)
         ) > policyValue(held, pid, move, weights, pid)
     );
 }
