@@ -210,6 +210,9 @@ const FITTABLE_TERM_WEIGHTS = [
     "costTaxWeight",
     // The tax's deck face: the expected tax on the next draw.
     "costTaxLibraryWeight",
+    // The hand's deployment delay: the share a card keeps per turn it queues.
+    // Last, so the robustness audit's per-key jitter signs keep their keys.
+    "deploymentDelayDecay",
 ] as const;
 
 export type FittableTermWeight = (typeof FITTABLE_TERM_WEIGHTS)[number];

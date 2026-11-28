@@ -404,6 +404,12 @@ export type EvalWeights = {
      *  held flash creature down with it and the bot dumps them at sorcery
      *  speed. Same invariant: strictly below 1. */
     latentFlashCreatureDiscount: number;
+    /** The share of its hand worth a card keeps per turn its owner's mana
+     *  base needs before it can cast it (`ai/deploymentDelay.ts`): a card the
+     *  current or next turn's mana covers keeps its whole latent worth, one a
+     *  turn later this share, two turns later its square. Strictly inside
+     *  (0, 1]: at 1 the hand term is blind to how long a hand takes to deploy. */
+    deploymentDelayDecay: number;
     /** Issue #5154 — the fraction of a creature's ATTACK share
      *  (`creatureAttackShareRaw`: its power term plus the attack-side keyword
      *  bonuses) it loses while a static restriction forbids its attack
@@ -578,6 +584,11 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     // Issue #4882 — the old `LATENT_DISCOUNT`, now fitted from this prior.
     latentCreatureDiscount: 0.85,
     latentFlashCreatureDiscount: 0.85,
+    // A turn's wait costs a creature in hand about what the turn from hand
+    // to board already does (`latentCreatureDiscount`): a card its base
+    // needs a second turn for is one more turn from attacking, blocking or
+    // answering. The refit moves it from there.
+    deploymentDelayDecay: 0.7,
     // Issue #5154 — three quarters of the share: a creature that cannot
     // attack still trades with what it blocks, one that cannot block still
     // carries its toughness into combat as an attacker. On a vanilla 2/2
