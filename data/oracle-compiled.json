@@ -4,7 +4,7 @@
         "grammarVersion": "v0",
         "compilerHash": "sha256:8c16a146f93bbab1cd7d4fff5eee9bbba13812936ce1f5e40558ac886267e7dd",
         "registryHash": "sha256:10d5e21e41d455a2a6f83e81a4f53f7373f5678f9c7fc7ea28603a616c7779f0",
-        "botHash": "sha256:d5cc493c59eeb348ea53925d2333762f889a59e7679a1d1850eaf0fae2134b0c",
+        "botHash": "sha256:dedd0243fa9f4cd62ec3932e9159c2c92b77afd8fe22b0866f76e4190f20bfc5",
         "poolHash": "sha256:a250dd2bc572ebe648cfffb3cbe268c628c1dbe2f65fa7f981317640636f6520",
         "corpus": {
             "source": "https://api.scryfall.com/bulk-data/oracle-cards",
@@ -28343,6 +28343,7 @@
         {"key":"never-chosen › Sorcery › destroy+forEach","outcome":"ignored","cards":3},
         {"key":"never-chosen › Instant › forEach+tapUntap","outcome":"ignored","cards":2},
         {"key":"never-chosen › Sorcery target:player › choice+libraryLook+moveZone","outcome":"ignored","cards":2},
+        {"key":"position-unmodelled › Creature [flash]","outcome":"ignored","cards":2},
         {"key":"position-unmodelled › Enchantment target:Land","outcome":"ignored","cards":2},
         {"key":"position-unmodelled › Instant target:Artifact","outcome":"ignored","cards":2},
         {"key":"position-unmodelled › Instant target:Creature","outcome":"ignored","cards":2},
@@ -28405,6 +28406,8 @@
         {"key":"never-chosen › Sorcery target:Creature › addMana+destroy","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Creature › counters+scryReorder+tapUntap","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Creature › counters+tapUntap","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Sorcery target:Creature › exile","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Sorcery target:Creature|Planeswalker › exile","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Land › addMana+destroy","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:Land › destroy+if","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:player [conspire] › mill","outcome":"ignored","cards":1},
@@ -28413,6 +28416,7 @@
         {"key":"never-chosen › Sorcery target:player › createToken+draw+gainLife+loseLife","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:player › draw","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery target:player › draw+gainLife","outcome":"ignored","cards":1},
+        {"key":"never-chosen › Sorcery › choice+dealDamage+forEach+sacrifice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery › choice+discard","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery › choice+forEach+sacrifice","outcome":"ignored","cards":1},
         {"key":"never-chosen › Sorcery › choice+libraryLook+loseLife+moveZone","outcome":"ignored","cards":1},
@@ -28423,7 +28427,6 @@
         {"key":"never-chosen › Sorcery › gainLife+libraryLook+moveZone","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Creature [deathtouch,flash]","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Creature [defender,flash]","outcome":"ignored","cards":1},
-        {"key":"position-unmodelled › Creature [flash]","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Instant","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Kindred target:Creature","outcome":"ignored","cards":1},
         {"key":"position-unmodelled › Kindred target:card","outcome":"ignored","cards":1},
@@ -32696,7 +32699,7 @@
 
         {"oracleId":"0f8e0b2c-f1a5-40ad-b8d8-7c06a012e909","name":"Kederekt Creeper","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Kederekt Creeper","types":["Creature"],"subtypes":["Horror"],"manaCost":{"U":1,"B":1,"R":1},"power":2,"toughness":3,"oracleText":"Menace (This creature can't be blocked except by two or more creatures.)\nDeathtouch (Any amount of damage this deals to a creature is enough to destroy it.)","staticAbilities":["menace","deathtouch"]},"botReach":"played"},
 
-        {"oracleId":"0f8ebf11-b5ec-4f21-8c49-90d569b5a4c5","name":"Worthy Cost","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["exile"],"definition":{"name":"Worthy Cost","types":["Sorcery"],"manaCost":{"B":1},"oracleText":"As an additional cost to cast this spell, sacrifice a creature.\nExile target creature or planeswalker.","effects":[{"op":"exile","target":{"target":0}}],"targetRequirement":{"type":["Creature","Planeswalker"],"count":1},"additionalCosts":{"sacrificeFilter":{"types":["Creature"]}}},"botReach":"played"},
+        {"oracleId":"0f8ebf11-b5ec-4f21-8c49-90d569b5a4c5","name":"Worthy Cost","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["exile"],"definition":{"name":"Worthy Cost","types":["Sorcery"],"manaCost":{"B":1},"oracleText":"As an additional cost to cast this spell, sacrifice a creature.\nExile target creature or planeswalker.","effects":[{"op":"exile","target":{"target":0}}],"targetRequirement":{"type":["Creature","Planeswalker"],"count":1},"additionalCosts":{"sacrificeFilter":{"types":["Creature"]}}},"botReach":"ignored","botGap":"never-chosen › Sorcery target:Creature|Planeswalker › exile"},
 
         {"oracleId":"0f909cfd-c643-48d2-983a-da2e38cd2bff","name":"Fen Hauler","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["3300c2100eac"]},
 
@@ -39796,7 +39799,7 @@
 
         {"oracleId":"29933a32-3738-4ec5-aa6d-ce3684e2e5a3","name":"Horizon Scholar","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["scryReorder"],"definition":{"name":"Horizon Scholar","types":["Creature"],"subtypes":["Sphinx"],"manaCost":{"X":5,"U":1},"power":4,"toughness":4,"oracleText":"Flying\nWhen this creature enters, scry 2. (Look at the top two cards of your library, then put any number of them on the bottom and the rest on top in any order.)","staticAbilities":["flying"],"compiledTriggeredAbilities":[{"id":"horizon-scholar-trigger","oracleText":"When this creature enters, scry 2.","head":{"kind":"entered","scope":"self"},"effects":[{"op":"scryReorder","player":"controller","count":2,"destination":"library-bottom"}]}]},"botReach":"played"},
 
-        {"oracleId":"2993dc7d-723d-4a9b-94bd-4bb02a9f7243","name":"Tishana's Tidebinder","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["counter","loseAllAbilitiesWhileSourceRemains"],"definition":{"name":"Tishana's Tidebinder","types":["Creature"],"subtypes":["Merfolk","Wizard"],"manaCost":{"X":2,"U":1},"power":3,"toughness":2,"oracleText":"Flash\nWhen this creature enters, counter up to one target activated or triggered ability. If an ability of an artifact, creature, or planeswalker is countered this way, that permanent loses all abilities for as long as this creature remains on the battlefield. (Mana abilities can't be targeted.)","staticAbilities":["flash"],"compiledTriggeredAbilities":[{"id":"tishana-s-tidebinder-trigger","oracleText":"When this creature enters, counter up to one target activated or triggered ability. If an ability of an artifact, creature, or planeswalker is countered this way, that permanent loses all abilities for as long as this creature remains on the battlefield.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"spell","count":{"min":0,"max":1},"spellStackKind":"ability"},"effects":[{"op":"counter","target":{"target":0}},{"op":"loseAllAbilitiesWhileSourceRemains","target":{"target":0},"filter":{"type":["Artifact","Creature","Planeswalker"]}}]}]},"botReach":"played","retired":{"at":"2026-11-15","issue":4035}},
+        {"oracleId":"2993dc7d-723d-4a9b-94bd-4bb02a9f7243","name":"Tishana's Tidebinder","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["keyword-line","triggered"],"opsUsed":["counter","loseAllAbilitiesWhileSourceRemains"],"definition":{"name":"Tishana's Tidebinder","types":["Creature"],"subtypes":["Merfolk","Wizard"],"manaCost":{"X":2,"U":1},"power":3,"toughness":2,"oracleText":"Flash\nWhen this creature enters, counter up to one target activated or triggered ability. If an ability of an artifact, creature, or planeswalker is countered this way, that permanent loses all abilities for as long as this creature remains on the battlefield. (Mana abilities can't be targeted.)","staticAbilities":["flash"],"compiledTriggeredAbilities":[{"id":"tishana-s-tidebinder-trigger","oracleText":"When this creature enters, counter up to one target activated or triggered ability. If an ability of an artifact, creature, or planeswalker is countered this way, that permanent loses all abilities for as long as this creature remains on the battlefield.","head":{"kind":"entered","scope":"self"},"targetRequirement":{"type":"spell","count":{"min":0,"max":1},"spellStackKind":"ability"},"effects":[{"op":"counter","target":{"target":0}},{"op":"loseAllAbilitiesWhileSourceRemains","target":{"target":0},"filter":{"type":["Artifact","Creature","Planeswalker"]}}]}]},"botReach":"ignored","botGap":"position-unmodelled › Creature [flash]","retired":{"at":"2026-11-15","issue":4035}},
 
         {"oracleId":"299765d8-72b9-4ada-a607-efb36aa0f5db","name":"Final-Sting Faerie","state":"unparsed","poolIn":["pauper","modern","legacy","vintage","commander"],"gaps":["c55486848c02"]},
 
@@ -77108,7 +77111,7 @@
 
         {"oracleId":"b095526e-94a4-416b-83de-d6271804ccf3","name":"Sundering Archaic","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["33f0a6aa933c"]},
 
-        {"oracleId":"b0967525-554b-41eb-b639-75fe36e0fe57","name":"Destructive Force","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","dealDamage","forEach","sacrifice"],"definition":{"name":"Destructive Force","types":["Sorcery"],"manaCost":{"X":5,"R":2},"oracleText":"Each player sacrifices five lands of their choice. Destructive Force deals 5 damage to each creature.","effects":[{"op":"forEach","select":{"set":"players"},"simultaneous":true,"effects":[{"op":"choice","kind":"sacrifice-permanents","player":{"ref":"$each"},"zone":"battlefield","filter":{"type":"Land"},"count":5,"prompt":"Sacrifice five lands.","bind":"$sacrifice1"},{"op":"sacrifice","permanents":{"ref":"$sacrifice1"}}]},{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"type":"Creature"}},"effects":[{"op":"dealDamage","amount":5,"to":{"ref":"$each"}}]}]},"botReach":"played"},
+        {"oracleId":"b0967525-554b-41eb-b639-75fe36e0fe57","name":"Destructive Force","state":"ready","poolIn":["modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["choice","dealDamage","forEach","sacrifice"],"definition":{"name":"Destructive Force","types":["Sorcery"],"manaCost":{"X":5,"R":2},"oracleText":"Each player sacrifices five lands of their choice. Destructive Force deals 5 damage to each creature.","effects":[{"op":"forEach","select":{"set":"players"},"simultaneous":true,"effects":[{"op":"choice","kind":"sacrifice-permanents","player":{"ref":"$each"},"zone":"battlefield","filter":{"type":"Land"},"count":5,"prompt":"Sacrifice five lands.","bind":"$sacrifice1"},{"op":"sacrifice","permanents":{"ref":"$sacrifice1"}}]},{"op":"forEach","select":{"set":"permanents","zone":"battlefield","filter":{"type":"Creature"}},"effects":[{"op":"dealDamage","amount":5,"to":{"ref":"$each"}}]}]},"botReach":"ignored","botGap":"never-chosen › Sorcery › choice+dealDamage+forEach+sacrifice"},
 
         {"oracleId":"b099fc54-cdbc-46cb-b4e4-7c2ca77b115b","name":"Plumb the Forbidden","state":"unparsed","poolIn":["modern","legacy","vintage","commander"],"gaps":["56c039ca68a2"]},
 
@@ -85076,7 +85079,7 @@
 
         {"oracleId":"cdba6a13-cae9-44ba-a722-be060e59517d","name":"Collector Protector","state":"unparsed","gaps":["c9f9442cef79"]},
 
-        {"oracleId":"cdba7f43-df9e-4bfb-9480-721c787ad051","name":"Final Vengeance","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["exile"],"definition":{"name":"Final Vengeance","types":["Sorcery"],"manaCost":{"B":1},"oracleText":"As an additional cost to cast this spell, sacrifice a creature or enchantment.\nExile target creature.","effects":[{"op":"exile","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1},"additionalCosts":{"sacrificeFilter":{"types":["Creature","Enchantment"]}}},"botReach":"played"},
+        {"oracleId":"cdba7f43-df9e-4bfb-9480-721c787ad051","name":"Final Vengeance","state":"ready","poolIn":["pauper","modern","legacy","vintage","commander"],"slots":["spell"],"opsUsed":["exile"],"definition":{"name":"Final Vengeance","types":["Sorcery"],"manaCost":{"B":1},"oracleText":"As an additional cost to cast this spell, sacrifice a creature or enchantment.\nExile target creature.","effects":[{"op":"exile","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1},"additionalCosts":{"sacrificeFilter":{"types":["Creature","Enchantment"]}}},"botReach":"ignored","botGap":"never-chosen › Sorcery target:Creature › exile"},
 
         {"oracleId":"cdbaa21d-5896-4b8b-9a08-f0839ccfddfc","name":"Disturbed Burial","state":"unparsed","poolIn":["premodern","pauper","legacy","vintage","commander"],"gaps":["dc77ef7e0220"]},
 
