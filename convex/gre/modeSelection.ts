@@ -27,6 +27,8 @@ export interface ModeBounds {
     min: number;
     max: number;
     repeats: boolean;
+    /** CR 700.2i — the {P} budget the chosen modes' weights must fit. */
+    pawprintBudget?: number;
 }
 
 /** Absent `modeSelection` — exactly one mode, every pre-ADR-0094 card. */
@@ -48,10 +50,40 @@ export function modeSelectionBounds(
 ): ModeBounds {
     if (!selection) return EXACTLY_ONE;
     const repeats = selection.repeats === true;
+    const budget =
+        selection.pawprintBudget !== undefined
+            ? { pawprintBudget: selection.pawprintBudget }
+            : {};
     if (selection.when && conditionHolds(selection.when.condition, facts)) {
-        return { min: selection.when.min, max: selection.when.max, repeats };
+        return {
+            min: selection.when.min,
+            max: selection.when.max,
+            repeats,
+            ...budget,
+        };
     }
-    return { min: selection.min, max: selection.max, repeats };
+    return { min: selection.min, max: selection.max, repeats, ...budget };
+}
+
+/** CR 700.2i / 107.18 — the {P} weight of one mode. A mode of a pawprint
+ *  list always prints at least one; a mode with no `pawprints` (a definition
+ *  error the catalogue guard refuses) weighs one, so it can never be free. */
+export function modePawprints(mode: { pawprints?: number }): number {
+    return Math.max(1, mode.pawprints ?? 1);
+}
+
+/** CR 700.2i — the summed {P} weight of an announced id list. Unknown ids
+ *  weigh nothing here; the validator rejects them before asking. */
+export function chosenPawprints(
+    modes: readonly { id: string; pawprints?: number }[],
+    ids: readonly string[]
+): number {
+    let total = 0;
+    for (let i = 0; i < ids.length; i++) {
+        const mode = modes.find((m) => m.id === ids[i]);
+        if (mode) total += modePawprints(mode);
+    }
+    return total;
 }
 
 /** The largest mode count a selection can ever reach, whatever the board —
@@ -91,7 +123,7 @@ export function normalizeChosenModeIds(
  *  enumerator ({@link announceableModeCombinations}) asks the SAME question the
  *  server does instead of a copy of it. */
 export function chosenModeIdsViolation(args: {
-    modes: readonly { id: string }[];
+    modes: readonly { id: string; pawprints?: number }[];
     selection: ModeSelection | undefined;
     ids: readonly string[] | undefined;
     facts: ModeSelectionFacts;
@@ -116,6 +148,15 @@ export function chosenModeIdsViolation(args: {
     if (ids.length > bounds.max) {
         return `${ownerName} — at most ${bounds.max} mode(s) may be chosen`;
     }
+    // CR 700.2i — "any number of modes such that the total number of pawprint
+    // symbols listed for the chosen modes is not greater than the specified
+    // number".
+    if (
+        bounds.pawprintBudget !== undefined &&
+        chosenPawprints(modes, ids) > bounds.pawprintBudget
+    ) {
+        return `${ownerName} — the chosen modes may total at most ${bounds.pawprintBudget} {P} (CR 700.2i)`;
+    }
     if (ids.length < bounds.min) {
         const legal = modes.filter((m) => isModeLegal(m.id)).length;
         // With repeats one legal mode fills every slot; without, each slot
@@ -132,7 +173,7 @@ export function chosenModeIdsViolation(args: {
  *  {@link chosenModeIdsViolation}'s message on an illegal one. Returns the ids
  *  in printed order. */
 export function validateChosenModeIds(args: {
-    modes: readonly { id: string }[];
+    modes: readonly { id: string; pawprints?: number }[];
     selection: ModeSelection | undefined;
     ids: readonly string[] | undefined;
     facts: ModeSelectionFacts;
@@ -149,7 +190,8 @@ export function validateChosenModeIds(args: {
  *  Bot's two-level cast enumeration (issue #2265).
  *
  *  Deliberately UNCAPPED: the space is small (C(4,2) = 6 for "choose two" of
- *  four, the 3-of-3 multiset of three modes is 10) and it is the level that
+ *  four, the 3-of-3 multiset of three modes is 10, a five-{P} budget over
+ *  one-, two- and three-{P} modes is 15) and it is the level that
  *  must never be cut — a dropped combination deletes a whole line of play from
  *  the search's view, where a dropped target tuple only thins one. The target
  *  level below it is what gets budgeted.
@@ -160,7 +202,7 @@ export function validateChosenModeIds(args: {
  *  for it, exactly as for a single illegal mode. Absent `selection` yields one
  *  single-mode list per mode, in printed order — the pre-ADR-0094 shape. */
 export function announceableModeCombinations(args: {
-    modes: readonly { id: string }[];
+    modes: readonly { id: string; pawprints?: number }[];
     selection: ModeSelection | undefined;
     facts: ModeSelectionFacts;
     isModeLegal: (modeId: string) => boolean;
@@ -180,7 +222,17 @@ export function announceableModeCombinations(args: {
             return;
         }
         for (let i = from; i < modes.length; i++) {
-            extend(prefix.concat([i]), bounds.repeats ? i : i + 1, size);
+            const next = prefix.concat([i]);
+            // CR 700.2i — a prefix already over the {P} budget only grows.
+            if (
+                bounds.pawprintBudget !== undefined &&
+                chosenPawprints(
+                    modes,
+                    next.map((j) => modes[j].id)
+                ) > bounds.pawprintBudget
+            )
+                continue;
+            extend(next, bounds.repeats ? i : i + 1, size);
         }
     };
     for (let size = 1; size <= bounds.max; size++) extend([], 0, size);

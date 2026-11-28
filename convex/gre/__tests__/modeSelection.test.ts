@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+    announceableModeCombinations,
     maxModeCount,
     modeInstanceTargetGroups,
     modeInstances,
@@ -160,5 +161,65 @@ describe("mode instance targets (ADR 0094)", () => {
         recordModeTargetGroup(pt, 1);
         expect(pt.modeTargetCounts).toEqual([0, 0, 2, 1]);
         expect(pt.groupModeInstances).toBeUndefined();
+    });
+});
+
+// CR 700.2i — "Choose up to five {P} worth of modes. You may choose the same
+// mode more than once." The Season cycle's shape: one-, two- and three-{P}
+// modes under a five-{P} budget.
+describe("pawprint budget (CR 700.2i / 107.18)", () => {
+    const PAW_MODES = [
+        { id: "one", pawprints: 1 },
+        { id: "two", pawprints: 2 },
+        { id: "three", pawprints: 3 },
+    ];
+    const SEASON: ModeSelection = {
+        min: 1,
+        max: 5,
+        repeats: true,
+        pawprintBudget: 5,
+    };
+    const validate = (ids: string[]) =>
+        validateChosenModeIds({
+            modes: PAW_MODES,
+            selection: SEASON,
+            ids,
+            facts: NO_FACTS,
+            isModeLegal: () => true,
+            ownerName: "Season",
+        });
+    it("accepts any list whose summed {P} fits the budget", () => {
+        expect(validate(["three", "two"])).toEqual(["two", "three"]);
+        expect(validate(["one", "one", "one", "one", "one"])).toHaveLength(5);
+    });
+    it("refuses a list over the budget, even under the mode count", () => {
+        expect(() => validate(["three", "three"])).toThrow(/at most 5 \{P\}/);
+        expect(() => validate(["two", "two", "two"])).toThrow(/at most 5/);
+    });
+    it("the Bot enumerates exactly the fifteen lists within five {P}", () => {
+        const lists = announceableModeCombinations({
+            modes: PAW_MODES,
+            selection: SEASON,
+            facts: NO_FACTS,
+            isModeLegal: () => true,
+            ownerName: "Season",
+        });
+        expect(lists.map((l) => l.join("+"))).toEqual([
+            "one",
+            "two",
+            "three",
+            "one+one",
+            "one+two",
+            "one+three",
+            "two+two",
+            "two+three",
+            "one+one+one",
+            "one+one+two",
+            "one+one+three",
+            "one+two+two",
+            "one+one+one+one",
+            "one+one+one+two",
+            "one+one+one+one+one",
+        ]);
     });
 });

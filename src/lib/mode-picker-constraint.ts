@@ -13,6 +13,8 @@ import type {
 } from "@convex/cards/types";
 import type { PlayerState } from "@convex/gre/state";
 import {
+    chosenPawprints,
+    modePawprints,
     modeSelectionBounds,
     normalizeChosenModeIds,
     type ModeSelectionFacts,
@@ -37,11 +39,19 @@ export interface ModePickerConstraint {
     /** True when `requiredCount` sits below `min` because too few modes are
      *  legal — the picker says so instead of waiting for an unreachable count. */
     shortfall: boolean;
+    /** CR 700.2i — "Choose up to N {P} worth of modes": the budget the picks'
+     *  summed weights must fit, and each mode's weight. Absent on every list
+     *  that counts modes rather than pawprints. */
+    pawprints?: {
+        budget: number;
+        modes: readonly { id: string; pawprints?: number }[];
+    };
 }
 
 /** The shape of a mode the picker judges — `SpellMode` and `AbilityMode`. */
 interface PickableMode {
     id: string;
+    pawprints?: number;
     targetRequirement?: TargetRequirement;
     additionalTargetRequirements?: TargetRequirement[];
 }
@@ -81,6 +91,17 @@ export function modePickerConstraint(args: {
         legalModeIds,
         requiredCount,
         shortfall: requiredCount < min && legalModeIds.length > 0,
+        ...(bounds.pawprintBudget !== undefined
+            ? {
+                  pawprints: {
+                      budget: bounds.pawprintBudget,
+                      modes: args.modes.map((m) => ({
+                          id: m.id,
+                          pawprints: m.pawprints,
+                      })),
+                  },
+              }
+            : {}),
     };
 }
 
@@ -150,6 +171,27 @@ function totalPicks(counts: Readonly<Record<string, number>>): number {
     return Object.values(counts).reduce((sum, n) => sum + n, 0);
 }
 
+/** CR 700.2i — the {P} the picks spend, through the server's own weight. */
+export function spentPawprints(
+    constraint: ModePickerConstraint,
+    counts: Readonly<Record<string, number>>
+): number {
+    if (!constraint.pawprints) return 0;
+    const ids = constraint.pawprints.modes.flatMap((m) =>
+        Array.from({ length: counts[m.id] ?? 0 }, () => m.id)
+    );
+    return chosenPawprints(constraint.pawprints.modes, ids);
+}
+
+/** CR 700.2i — one mode's {P} weight, `undefined` off a pawprint list. */
+export function modePawprintCost(
+    constraint: ModePickerConstraint,
+    modeId: string
+): number | undefined {
+    const mode = constraint.pawprints?.modes.find((m) => m.id === modeId);
+    return mode ? modePawprints(mode) : undefined;
+}
+
 /** Whether one more pick of `modeId` stays inside the constraint. */
 export function canAddModePick(
     constraint: ModePickerConstraint,
@@ -158,6 +200,12 @@ export function canAddModePick(
 ): boolean {
     if (!constraint.legalModeIds.includes(modeId)) return false;
     if (totalPicks(counts) >= constraint.max) return false;
+    const cost = modePawprintCost(constraint, modeId);
+    if (
+        cost !== undefined &&
+        spentPawprints(constraint, counts) + cost > constraint.pawprints!.budget
+    )
+        return false;
     return constraint.repeats || (counts[modeId] ?? 0) === 0;
 }
 
@@ -167,6 +215,11 @@ export function canConfirmModePicks(
     counts: Readonly<Record<string, number>>
 ): boolean {
     const total = totalPicks(counts);
+    if (
+        constraint.pawprints &&
+        spentPawprints(constraint, counts) > constraint.pawprints.budget
+    )
+        return false;
     return total >= constraint.requiredCount && total <= constraint.max;
 }
 
@@ -191,6 +244,10 @@ function countWord(n: number): string {
 /** The declared constraint as the picker header reads it — "Choose three",
  *  "Choose 1–2" — derived from the selection, never written per card. */
 export function modePickerHeading(constraint: ModePickerConstraint): string {
+    // CR 700.2i — a pawprint list is sized by its budget, not by a count.
+    if (constraint.pawprints) {
+        return `Choose up to ${countWord(constraint.pawprints.budget)} pawprints' worth of modes`;
+    }
     if (constraint.min === constraint.max) {
         return `Choose ${countWord(constraint.min)}`;
     }

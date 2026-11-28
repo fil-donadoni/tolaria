@@ -7,8 +7,10 @@ import {
     canAddModePick,
     canConfirmModePicks,
     chosenModeIdsFromCounts,
+    modePawprintCost,
     modePickerHeading,
     modePickerShortfallNote,
+    spentPawprints,
     type ModePickerConstraint,
 } from "~/lib/mode-picker-constraint";
 
@@ -80,6 +82,14 @@ export default function MultiModePicker({
                         {shortfallNote}
                     </p>
                 )}
+                {constraint.pawprints && (
+                    <p
+                        data-mode-pawprint-budget
+                        className="text-xs text-text-muted"
+                    >
+                        {`${spentPawprints(constraint, counts)} of ${constraint.pawprints.budget} pawprints spent`}
+                    </p>
+                )}
                 {modes.map((mode) => (
                     <MultiModeRow
                         key={mode.id}
@@ -88,6 +98,7 @@ export default function MultiModePicker({
                         repeats={constraint.repeats}
                         legal={constraint.legalModeIds.includes(mode.id)}
                         canAdd={canAddModePick(constraint, counts, mode.id)}
+                        pawprints={modePawprintCost(constraint, mode.id)}
                         onAdd={() => step(mode.id, 1)}
                         onRemove={() => step(mode.id, -1)}
                     />

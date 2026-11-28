@@ -1777,6 +1777,11 @@ export interface ModeSelection {
     /** CR 700.2d — the same mode may be chosen more than once. */
     repeats?: boolean;
     when?: { condition: ModeCountCondition; min: number; max: number };
+    /** CR 700.2i / 107.18 — "Choose up to N {P} worth of modes": the chosen
+     *  modes' summed {@link ModeOption.pawprints} may not exceed this budget.
+     *  `min` / `max` still bound the COUNT (`max` = the budget, every mode
+     *  costing at least one {P}); the budget bounds the weight. */
+    pawprintBudget?: number;
 }
 
 /** One mode of a modal spell (CR 700.2 — "Choose one — • ..."). The caster
@@ -1795,6 +1800,10 @@ export interface ModeOption {
     /** Full oracle text for this mode (the bullet line — used by the stack
      *  item display and rule-trace logs). */
     oracleText: string;
+    /** CR 700.2i / 107.18 — the pawprint symbols ({P}) printed before this
+     *  mode, its weight against {@link ModeSelection.pawprintBudget}. Set on
+     *  every mode of a pawprint list and on no other mode. */
+    pawprints?: number;
 }
 
 export interface SpellMode extends ModeOption {
